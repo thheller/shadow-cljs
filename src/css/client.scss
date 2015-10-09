@@ -1,0 +1,94 @@
+@import "utils/normalize";
+
+*, *:after, *:before {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+body {
+  font-size: 11px !important;
+  font-family: Menlo, monospace;
+  // font-family: 'Inconsolata';
+  // font-size: 14px;
+  padding: 20px;
+}
+
+.dt-dump {
+  margin-bottom: 20px;
+
+  caption, .dt-seqable-type {
+    text-align: left;
+    padding: 4px;
+    background-color: #eee;
+  }
+
+
+  td, .dt-seqable-item {
+    vertical-align: top;
+    padding: 4px;
+    border: 1px solid #ddd;
+  }
+}
+
+
+.dt-tagged-value {
+  .dt-tag {
+    font-weight: bold;
+  }
+}
+
+table.dt-map {
+  width: 100%;
+
+  & > tbody {
+    padding-top: 10px;
+  }
+
+  .dt-mkey {
+    width: 1px;
+  }
+
+  .dt-mvalue {
+  }
+}
+
+.dt-typehint {
+  font-weight: bold;
+}
+
+table.dt-indexed {
+  width: 100%;
+
+  .dt-indexed-index {
+    width: 1px;
+    color: #aaa;
+  }
+}
+
+.dt-keyword {
+  white-space: nowrap;
+  background-color: #f3f1ff;
+  color: #7f54ca;
+}
+
+.dt-string {
+  background-color: #f8fcf6;
+  color: #b86951;
+  &:before { content: "\""; }
+  &:after { content: "\""; }
+}
+
+.dt-long-string {
+  border: none;
+  min-height: 96px;
+}
+
+.value-container {
+  margin-bottom: 10px;
+  
+  .value-title {
+    font-size: 1.5em;
+    margin: 0.3em 0;
+  }
+}
