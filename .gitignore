@@ -18,3 +18,4 @@ pom.xml.asc
 /lib/js-closure
 /lib/closure-library
 out/
+.DS_Store
