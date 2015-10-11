@@ -258,7 +258,7 @@
               :let [idx (+ idx start-idx)
                     action (assoc action :id idx)]]
 
-        (prn [:invoke client-id action])
+        ;; (prn [:invoke client-id action])
         (>!! client-out #(client-call % action idx result-chan)))
 
       (assoc state :compiler-state compiler-state)
@@ -303,7 +303,8 @@
             state
             )))))
 
-(defn start-loop [state config callback]
+(defn start-loop
+  [state config callback]
   (let [repl-input (async/chan)
         repl-output (async/chan)
 
@@ -314,6 +315,8 @@
                    :compile-callback callback}
                   (setup-server config)
                   (setup-repl config))
+
+        live-reload (:live-reload config true)
 
         state (assoc state :compiler-state (callback (:compiler-state state) []))
         server-control (get-in state [:server :server-control])]
@@ -346,12 +349,14 @@
             (timeout 500)
             ([_]
               (recur
-                (try
-                  (check-for-fs-changes state)
-                  (catch Exception e
-                    (prn [:reload-error e])
-                    state
-                    ))))))
+                (if-not live-reload
+                  state
+                  (try
+                    (check-for-fs-changes state)
+                    (catch Exception e
+                      (prn [:reload-error e])
+                      state
+                      )))))))
 
         (shutdown-server state)
         (prn [:server-loop-death!!!]))
@@ -360,7 +365,14 @@
     (go (loop []
           (let [out (<! repl-output)]
             (when-not (nil? out)
-              (prn [:repl-out out])
+              (prn [:repl-out (dissoc out :value)])
+              (let [{:keys [value error]} out]
+                (when error
+                  (println "===== ERROR ========")
+                  (println error)
+                  (println "===================="))
+                (when value
+                  (println value)))
               (recur)
               ))))
 

@@ -1,5 +1,5 @@
 (ns shadow.devtools.browser
-  (:require-macros [cljs.core.async.macros :refer (go)])
+  (:require-macros [cljs.core.async.macros :refer (go alt!)])
   (:require [cljs.reader :as reader]
             [cljs.core.async :as async]
             [shadow.devtools :as devtools]
@@ -87,7 +87,7 @@
         ))))
 
 (defn repl-print [value]
-  (js/console.log "repl-print" value)
+  ;; (js/console.log "repl-print" value)
   (pr-str value))
 
 (defn socket-msg [msg]
@@ -101,7 +101,7 @@
                 :type :repl/result}
         result
         (try
-          (js/console.log "eval" data)
+          ;; (js/console.log "eval" data)
 
           ;; FIXME: I kinda want to remember each result so I can refer to it later
           ;; (swap! repl-state update :results assoc id result)
@@ -123,12 +123,23 @@
 
     (socket-msg result)))
 
+(defn goog-is-loaded? [name]
+  (js/goog.object.get js/goog.included_ name))
+
 (defn repl-require [{:keys [js-sources reload] :as msg}]
   (load-scripts
-    ;; don't load if already loaded
-    ;; FIXME: handle reload (nil, :reload or :reload-all)
-    (->> js-sources
-         (remove #(aget js/goog.included_ %)))
+    (cond
+      (= :reload reload)
+      (let [all (butlast js-sources)
+            self (last js-sources)]
+        (-> (into [] (remove goog-is-loaded? all))
+            (conj self)))
+
+      (= :reload-all reload)
+      js-sources
+
+      :else
+      (remove goog-is-loaded? js-sources))
     (fn []
       (js/console.log "repl-require finished"))))
 
@@ -136,7 +147,7 @@
   (load-scripts
     ;; don't load if already loaded
     (->> (:repl-js-sources repl-state)
-         (remove #(aget js/goog.included_ %)))
+         (remove goog-is-loaded?))
     (fn [] (js/console.log "repl init complete"))))
 
 ;; FIXME: core.async-ify this
@@ -147,6 +158,31 @@
     :repl/invoke (repl-invoke msg)
     :repl/require (repl-require msg)
     :repl/init (repl-init msg)))
+
+(defonce *dump-loop* (atom nil))
+
+(defn dump-transmitter []
+  ;; ensure there is only one dumper running
+  (when-let [l @*dump-loop*]
+    (async/close! l)
+    (reset! *dump-loop* nil))
+
+  (let [dump-loop (async/chan)]
+    (reset! *dump-loop* dump-loop)
+    (go (loop []
+          (alt!
+            dump-loop
+            ([v]
+              (when-not (nil? v)
+                (recur)))
+
+            devtools/dump-chan
+            ([msg]
+              (when-not (nil? msg)
+                (socket-msg {:type :devtools/dump
+                             :value msg})
+                (recur))
+              ))))))
 
 (defn repl-connect []
   ;; FIXME: fallback for IE?
@@ -163,7 +199,10 @@
             (fn [e]
               ;; patch away the already declared exception
               (set! (.-provide js/goog) js/goog.constructNamespace_)
-              (.log js/console "DEVTOOLS: connected!")))
+              (.log js/console "DEVTOOLS: connected!")
+              (dump-transmitter)
+              ))
+
       (set! (.-onclose socket)
             (fn [e]
               ;; not a big fan of reconnecting automatically since a disconnect
@@ -177,15 +216,5 @@
 
       )))
 
-(defn dump-transmitter []
-  (go (loop []
-        (let [msg (<! devtools/dump-chan)]
-          (when-not (nil? msg)
-            (socket-msg {:type :devtools/dump
-                         :value msg})
-            (recur))
-          ))))
-
 (when ^boolean devtools/enabled
-  (repl-connect)
-  (dump-transmitter))
+  (repl-connect))
