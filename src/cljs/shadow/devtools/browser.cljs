@@ -99,13 +99,21 @@
   (let [data (:js msg)
         result {:id (:id msg)
                 :type :repl/result}
+
+        out (atom [])
+
         result
         (try
           ;; (js/console.log "eval" data)
 
           ;; FIXME: I kinda want to remember each result so I can refer to it later
           ;; (swap! repl-state update :results assoc id result)
-          (let [ret (js/eval data)]
+          (let [print-fn cljs.core/*print-fn*
+                ret (binding [cljs.core/*print-fn*
+                              (fn [& args]
+                                (swap! out conj (vec args))
+                                (apply print-fn args))]
+                      (js/eval data))]
             (set! *3 *2)
             (set! *2 *1)
             (set! *1 ret)
@@ -121,7 +129,8 @@
             (js/console.log "repl/invoke error" (pr-str msg) e)
             (assoc result :error (pr-str e))))]
 
-    (socket-msg result)))
+    ;; FIXME: should send out as it comes in, show ASAP not after command finishes
+    (socket-msg (assoc result :out @out))))
 
 (defn goog-is-loaded? [name]
   (js/goog.object.get js/goog.included_ name))
@@ -150,6 +159,9 @@
          (remove goog-is-loaded?))
     (fn [] (js/console.log "repl init complete"))))
 
+(defn repl-set-ns [{:keys [ns]}]
+  (js/console.log "repl/set-ns" (str ns)))
+
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]
   (case type
@@ -157,6 +169,7 @@
     :css (handle-css-changes (:data msg))
     :repl/invoke (repl-invoke msg)
     :repl/require (repl-require msg)
+    :repl/set-ns (repl-set-ns msg)
     :repl/init (repl-init msg)))
 
 (defonce *dump-loop* (atom nil))

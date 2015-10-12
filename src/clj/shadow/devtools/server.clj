@@ -13,17 +13,29 @@
             [clojure.core.async :as async :refer (go <! >! <!! >!! alt! timeout)]
             [shadow.cljs.repl :as repl]))
 
-(defn handle-client-data [client-state msg]
-  (let [{:keys [id] :as msg} (edn/read-string msg)
-        result-chan (get-in client-state [:pending id])]
+(defmulti handle-client-msg (fn [client-state msg] (:type msg)) :default ::default)
+
+(defmethod handle-client-msg ::default
+  [client-state msg]
+  (prn [:client-state client-state])
+  (prn [:unhandled-client-msg msg])
+  client-state)
+
+(defmethod handle-client-msg :repl/out
+  [client-state {:keys [id] :as msg}]
+  (let [result-chan (get-in client-state [:pending id])]
     (if (nil? result-chan)
+      ;; FIXME: result id does not have a pending channel
       (do (prn [:client-state client-state])
           (prn [:result-for-unknown-action msg])
           (.format System/err "REPL-RESULT: %s%n" (object-array [(pr-str msg)]))
           client-state)
       (do (>!! result-chan msg)
-          (update client-state :pending dissoc id))
-      )))
+          (update client-state :pending dissoc id)))))
+
+(defn handle-client-data [client-state msg]
+  (let [msg (edn/read-string msg)]
+    (handle-client-msg client-state msg)))
 
 ;; cast&call as in erlang (fire-and-forget, rpc-ish)
 
@@ -46,8 +58,9 @@
 (defn client-loop
   "out is a channel which should only contain function for (fn state) -> next-state
    in should only receive anything from the websocket"
-  [id channel in out]
+  [id channel server in out]
   (go (loop [state {:channel channel
+                    :server server
                     :id id}]
         (alt!
           out
@@ -64,37 +77,39 @@
             )))))
 
 
+(defn- ring-handler [server-control ring-request]
+  (let [client-id (UUID/randomUUID)
+        client-in (async/chan)
+        client-out (async/chan)]
+
+    (hk/with-channel
+      ring-request channel
+      (if (hk/websocket? channel)
+        (do
+
+          (hk/on-receive channel
+                         (fn [data] (>!! client-in data)))
+
+          (hk/on-close channel
+                       (fn [status]
+                         (>!! server-control [:disconnect client-id])
+                         (async/close! client-out)
+                         (async/close! client-in)
+                         ))
+
+          (client-loop client-id channel server-control client-in client-out)
+          (>!! server-control [:connect client-id client-out])
+
+          channel)
+
+        ;; only expecting a websocket connection yet
+        (hk/send! channel {:status 406 ;; not-acceptable
+                           :headers {"Content-Type" "text/plain"}
+                           :body "websocket required"})))))
+
 (defn- start-server [state {:keys [port host] :as config}]
   (let [server-control (async/chan)
-        handler (fn [ring-request]
-                  (let [client-id (UUID/randomUUID)
-                        client-in (async/chan)
-                        client-out (async/chan)]
-
-                    (hk/with-channel
-                      ring-request channel
-                      (if (hk/websocket? channel)
-                        (do
-
-                          (hk/on-receive channel
-                                         (fn [data] (>!! client-in data)))
-
-                          (hk/on-close channel
-                                       (fn [status]
-                                         (>!! server-control [:disconnect client-id])
-                                         (async/close! client-out)
-                                         (async/close! client-in)
-                                         ))
-
-                          (client-loop client-id channel client-in client-out)
-                          (>!! server-control [:connect client-id client-out])
-
-                          channel)
-
-                        ;; only expecting a websocket connection yet
-                        (hk/send! channel {:status 406      ;; not-acceptable
-                                           :headers {"Content-Type" "text/plain"}
-                                           :body "websocket required"})))))]
+        handler #(ring-handler server-control %)]
 
     (let [host (or host "localhost")
           instance (hk/run-server handler {:ip host
@@ -126,7 +141,7 @@
         css-watch (doto (Thread.
                           (fn []
                             (loop [css-state (get-css-state packages)]
-                              (Thread/sleep 500)            ;; FIXME: don't use sleep
+                              (Thread/sleep 500) ;; FIXME: don't use sleep
                               (let [new-state (get-css-state packages)
                                     changed (reduce
                                               (fn [changed package-name]
@@ -366,11 +381,13 @@
           (let [out (<! repl-output)]
             (when-not (nil? out)
               (prn [:repl-out (dissoc out :value)])
-              (let [{:keys [value error]} out]
+              (let [{:keys [value out error]} out]
                 (when error
                   (println "===== ERROR ========")
                   (println error)
                   (println "===================="))
+                (when (seq out)
+                  (apply println out))
                 (when value
                   (println value)))
               (recur)

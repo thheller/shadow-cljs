@@ -11,19 +11,21 @@
 (goog-define before-load "")
 (goog-define after-load "")
 
-(defonce dump-chan (async/chan (async/dropping-buffer 10)))
+(defonce dump-chan (async/chan (async/sliding-buffer 10)))
 
 (defn dump*
   "don't use directly, use dump macro"
   [title data]
-  (let [w (transit/writer :json {:handlers @custom-handlers})
-        s (transit/write w data)
-        s (transit/write w {:title title
-                            :data s})]
-
-    (async/put! dump-chan s)
-    #_ (xhr/send (str url "/msg") (fn [req] nil) "POST" s #js {"content-type" "text/plain"})
-    ))
+  (async/put! dump-chan (pr-str {:title title
+                                 :id (random-uuid)
+                                 :data (pr-str data)}))
+  (comment
+    ;; transit doesn't seem to provide ability to set default handler
+    (let [w (transit/writer :json {:handlers @custom-handlers})
+          s (transit/write w data)
+          s (transit/write w {:title title
+                              :data s})]
+      )))
 
 (defn register*
   "don't use directly, use register! macro"
