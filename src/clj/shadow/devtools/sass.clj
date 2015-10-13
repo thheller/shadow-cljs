@@ -1,4 +1,4 @@
-(ns shadow.sass
+(ns shadow.devtools.sass
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as sh]
             [clojure.data.json :as json]
@@ -9,7 +9,10 @@
 (def sassc-executable "sassc")
 
 (defn build-module [^File file ^File target-file]
-  {:pre [(not (.isDirectory target-file))]}
+  {:pre [(or (not (.exists target-file))
+             (not (.isDirectory target-file)))
+         (.exists file)]}
+  (io/make-parents target-file)
   ;; can't use sh because we have an uneven number of args which sh doesn't understand
   (let [proc (-> (ProcessBuilder. [sassc-executable "-m" "-t" "compressed" (.getAbsolutePath file) (.getAbsolutePath target-file)])
                  (.directory (.getParentFile file))
@@ -19,37 +22,50 @@
     (when-not (zero? (.exitValue proc))
       (throw (ex-info (str "failed to build css module: " file) {})))))
 
-
-(defn build-modules [modules target-dir rename-fn]
-  (reduce
-    (fn [mods mod]
-      (let [target-file (io/file target-dir (rename-fn (str/replace (.getName mod) #"scss$" "css")))]
-        (build-module mod target-file)
-        (assoc mods (let [name (.getName mod)]
-                      (.substring name 0 (.lastIndexOf name ".")))
-                    (.getName target-file))
-        ))
-    {}
-    modules))
-
 (defn generate-manifest [target-dir module-data]
   (spit (io/file target-dir "manifest.json")
         (json/write-str module-data)))
 
-(defn build-with-manifest
-  ([modules target-dir]
-   (build-with-manifest modules target-dir identity))
-  ([modules target-dir rename-fn]
-   (let [module-data (build-modules modules target-dir rename-fn)]
-     (generate-manifest target-dir module-data)
-     module-data
-     )))
+(comment
+  (def css-package
+    {:name "test"
+     :modules ["test-css/mod-a.scss"
+               "test-css/mod-b.scss"]
+     :public-dir "target/test-css-out/css"
+     :public-path "css"}))
 
-(defn build-all
-  ([source-dir target-dir]
-   (build-all source-dir target-dir identity))
-  ([^File source-dir ^File target-dir rename-fn]
-   (build-modules (FS/glob source-dir "*.scss") target-dir rename-fn)))
+(defn as-file [it]
+  (cond
+    (string? it)
+    (io/file it)
+
+    (instance? java.io.File it)
+    it
+
+    :else
+    (throw (ex-info "invalid module (expect string or file)" {:module it}))))
+
+(defn build-package [{:keys [public-dir rename-fn modules] :as pkg}]
+  (let [rename-fn (or rename-fn identity)
+        modules (mapv as-file modules)
+        public-dir (as-file public-dir)
+        manifest
+        (reduce
+          (fn [manifest module]
+            (let [module-file-name (.getName module)
+                  module-name (subs module-file-name 0 (.lastIndexOf module-file-name "."))
+                  module-out-name (rename-fn (str/replace module-file-name #"scss$" "css"))
+                  target-file (io/file public-dir module-out-name)]
+              (build-module module target-file)
+              (assoc manifest module-name module-out-name)
+              ))
+          {}
+          modules)]
+    (generate-manifest public-dir manifest)
+    manifest))
+
+(defn build-packages [pkgs]
+  (mapv build-package pkgs))
 
 (comment
   (defn build-and-repeat! [^File source-dir target-dir rename-fn]

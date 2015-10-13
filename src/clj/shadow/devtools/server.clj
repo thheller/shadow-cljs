@@ -11,7 +11,9 @@
             [cljs.compiler :as comp]
             [clojure.edn :as edn]
             [clojure.core.async :as async :refer (go <! >! <!! >!! alt! timeout)]
-            [shadow.cljs.repl :as repl]))
+            [shadow.cljs.repl :as repl]
+            [clojure.string :as str]
+            [shadow.devtools.sass :as sass]))
 
 (defmulti handle-client-msg (fn [client-state msg] (:type msg)) :default ::default)
 
@@ -21,7 +23,11 @@
   (prn [:unhandled-client-msg msg])
   client-state)
 
-(defmethod handle-client-msg :repl/out
+(defmethod handle-client-msg :devtools/dump
+  [{:keys [server id] :as client-state} msg]
+  (>!! server [:devtools/dump id msg]))
+
+(defmethod handle-client-msg :repl/result
   [client-state {:keys [id] :as msg}]
   (let [result-chan (get-in client-state [:pending id])]
     (if (nil? result-chan)
@@ -78,9 +84,10 @@
 
 
 (defn- ring-handler [server-control ring-request]
-  (let [client-id (UUID/randomUUID)
-        client-in (async/chan)
-        client-out (async/chan)]
+  (let [client-in (async/chan)
+        client-out (async/chan)
+        [_ client-id client-type] (str/split (:uri ring-request) #"/")
+        client-type (keyword client-type)]
 
     (hk/with-channel
       ring-request channel
@@ -98,7 +105,7 @@
                          ))
 
           (client-loop client-id channel server-control client-in client-out)
-          (>!! server-control [:connect client-id client-out])
+          (>!! server-control [:connect client-id client-type client-out])
 
           channel)
 
@@ -173,7 +180,7 @@
    :after-load fully qualified function name to execute AFTER reloading ALL files
 
    live-reload will only load namespaces that were already required"
-  [{:keys [compiler-state] :as state} config]
+  [{:keys [compiler-state config] :as state}]
   (let [{:keys [logger]} compiler-state
         {:keys [before-load after-load css-packages]} config]
 
@@ -234,50 +241,58 @@
           msg {:type :js
                :data data}]
 
-      (doseq [[client-id client-out] (:clients state)]
-        (prn [:notify-about-cljs-changes! client-id])
-        (>!! client-out #(client-cast % msg)))
+      (doseq [{:keys [id out type]} (:clients state)
+              :when (= :browser type)]
+        (prn [:notify-about-cljs-changes! id])
+        (>!! out #(client-cast % msg)))
       )))
 
-(defn setup-repl [state config]
+(defn setup-repl [state]
   (update state :compiler-state repl/prepare))
 
-(defn handle-repl-input [{:keys [compiler-state clients] :as state} repl-input result-chan]
-  (cond
-    ;; FIXME: could send to all?
-    (> (count clients) 1)
-    (do (prn [:too-many-clients (count clients)])
-        state)
+(defn get-clients-by-type [{:keys [clients] :as state} type]
+  (->> clients
+       (vals)
+       (filter #(= type (:type %)))
+       (into [])))
 
-    (zero? (count clients))
-    (do (prn [:no-browser-connected])
-        state)
+(defn handle-repl-input [{:keys [compiler-state] :as state} repl-input result-chan]
+  (let [clients (get-clients-by-type state :browser)]
+    (cond
+      ;; FIXME: could send to all?
+      (> (count clients) 1)
+      (do (prn [:too-many-clients (count clients)])
+          state)
 
-    :else
-    (let [[client-id client-out] (first clients)
+      (zero? (count clients))
+      (do (prn [:no-browser-connected])
+          state)
 
-          start-idx (count (get-in compiler-state [:repl-state :repl-actions]))
+      :else
+      (let [{:keys [id out] :as client} (first clients)
 
-          {:keys [repl-state] :as compiler-state}
-          (try
-            (repl/process-input compiler-state repl-input)
-            (catch Throwable e
-              (prn [:failed-to-process-repl-input e])
-              (pprint (:repl-state compiler-state))
-              compiler-state
-              ))
+            start-idx (count (get-in compiler-state [:repl-state :repl-actions]))
 
-          new-actions (subvec (:repl-actions repl-state) start-idx)]
+            {:keys [repl-state] :as compiler-state}
+            (try
+              (repl/process-input compiler-state repl-input)
+              (catch Throwable e
+                (prn [:failed-to-process-repl-input e])
+                (pprint (:repl-state compiler-state))
+                compiler-state
+                ))
 
-      (doseq [[idx action] (map-indexed vector new-actions)
-              :let [idx (+ idx start-idx)
-                    action (assoc action :id idx)]]
+            new-actions (subvec (:repl-actions repl-state) start-idx)]
 
-        ;; (prn [:invoke client-id action])
-        (>!! client-out #(client-call % action idx result-chan)))
+        (doseq [[idx action] (map-indexed vector new-actions)
+                :let [idx (+ idx start-idx)
+                      action (assoc action :id idx)]]
 
-      (assoc state :compiler-state compiler-state)
-      )))
+          ;; (prn [:invoke client-id action])
+          (>!! out #(client-call % action idx result-chan)))
+
+        (assoc state :compiler-state compiler-state)
+        ))))
 
 
 (defmulti handle-server-control
@@ -288,11 +303,20 @@
   (prn [:unrecognized cmd])
   state)
 
-(defmethod handle-server-control :connect [state [_ client-id client-out]]
-  (prn [:client-connect client-id])
-  (let [init-state (get-in state [:compiler-state :repl-state])]
-    (>!! client-out #(client-init-state % init-state))
-    (update state :clients assoc client-id client-out)))
+(defmethod handle-server-control :devtools/dump
+  [state cmd]
+  (prn [:dump cmd])
+  state)
+
+(defmethod handle-server-control :connect [state [_ client-id client-type client-out]]
+  (prn [:client-connect client-id client-type])
+  (when (= client-type :browser)
+    (let [init-state (get-in state [:compiler-state :repl-state])]
+      (>!! client-out #(client-init-state % init-state))))
+
+  (update state :clients assoc client-id {:id client-id
+                                          :type client-type
+                                          :out client-out}))
 
 (defmethod handle-server-control :disconnect [state [_ client-id]]
   (prn [:client-disconnect client-id])
@@ -318,20 +342,44 @@
             state
             )))))
 
-(defn start-loop
-  [state config callback]
+
+(defn check-for-css-changes [state]
+  )
+
+(defmethod handle-server-control :idle
+  [{:keys [config] :as state} _]
+  (let [js-reload (:js-reload config true)
+        css-reload (and (:css-reload config true)
+                        (seq (:css-packages config)))]
+    (-> state
+        (cond->
+          js-reload
+          (check-for-fs-changes)
+          css-reload
+          (check-for-css-changes)
+          ))))
+
+(defn setup-css [{:keys [config] :as state}]
+  (let [css-packages (:css-packages config)]
+    (if (seq css-packages)
+      (do (sass/build-packages css-packages)
+          state)
+      state)))
+
+(defn start [state config callback]
   (let [repl-input (async/chan)
         repl-output (async/chan)
 
         state (-> {:compiler-state state
                    :clients {}
                    :fs-seq 1
+                   :compile-callback callback
                    :repl-input repl-input
-                   :compile-callback callback}
-                  (setup-server config)
-                  (setup-repl config))
-
-        live-reload (:live-reload config true)
+                   :config config
+                   :repl-output repl-output}
+                  (setup-server)
+                  (setup-css)
+                  (setup-repl))
 
         state (assoc state :compiler-state (callback (:compiler-state state) []))
         server-control (get-in state [:server :server-control])]
@@ -364,18 +412,31 @@
             (timeout 500)
             ([_]
               (recur
-                (if-not live-reload
-                  state
-                  (try
-                    (check-for-fs-changes state)
-                    (catch Exception e
-                      (prn [:reload-error e])
-                      state
-                      )))))))
+                (try
+                  (handle-server-control state [:idle])
+                  (catch Exception e
+                    (prn [:idle-error e])
+                    state))
+                ))))
 
         (shutdown-server state)
         (prn [:server-loop-death!!!]))
 
+    state
+    ))
+
+(def current-instance (atom {}))
+
+(defn start-nrepl [state config callback]
+  (let [{:keys [repl-output repl-input]} (start state config callback)]
+    (swap! current-instance merge {:repl-input repl-input
+                                   :repl-output repl-output})
+    ::nrepl
+    ))
+
+(defn start-loop
+  [state config callback]
+  (let [{:keys [repl-output repl-input]} (start state config callback)]
 
     (go (loop []
           (let [out (<! repl-output)]
@@ -398,6 +459,7 @@
 
     ;; stuff like [1 2 : 3] will cause hazard though, so that needs to be handled somehow
 
+
     (let [in (FakeLispReader.)]
       (prn [:repl-ready])
       (loop []
@@ -409,4 +471,5 @@
       (async/close! repl-input)
       (async/close! repl-output)
       (prn [:repl-quit])
-      )))
+      ))
+

@@ -13,7 +13,9 @@
 
   :source-paths ["src/clj"]
 
-  :profiles {:dev {:source-paths ["src/dev"]}}
+  :profiles {:dev {:source-paths ["src/dev"]
+                   ;; :repl-options {:nrepl-middleware [build/browser-dev-nrepl]}
+                   }}
 
 
   ;; make cursive happy, see https://github.com/cursiveclojure/cursive/issues/665

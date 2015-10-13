@@ -73,8 +73,9 @@
 (defmethod obj->dom* cljs.core.PersistentArrayMap [obj]
   (map->html obj))
 
-(defmethod obj->dom* com.cognitect.transit.types.TaggedValue [obj]
-  (dom/build
-   [:div.dt-tagged-value
-    [:div.dt-tag (str "#" (.-tag obj))]
-    [:div.dt-value (obj->dom* (.-rep obj))]]))
+(comment
+  (defmethod obj->dom* com.cognitect.transit.types.TaggedValue [obj]
+    (dom/build
+      [:div.dt-tagged-value
+       [:div.dt-tag (str "#" (.-tag obj))]
+       [:div.dt-value (obj->dom* (.-rep obj))]])))

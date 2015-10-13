@@ -14,8 +14,10 @@ pom.xml.asc
 /doc/codox
 /client/js
 /test-project/public/js
+/test-project/public/css
 /tmp
 /lib/js-closure
 /lib/closure-library
 out/
 .DS_Store
+

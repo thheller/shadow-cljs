@@ -200,7 +200,9 @@
 (defn repl-connect []
   ;; FIXME: fallback for IE?
   (when (aget js/window "WebSocket")
-    (let [socket (js/WebSocket. (str/replace devtools/url #"^http" "ws"))]
+    (let [socket (js/WebSocket. (-> devtools/url
+                                    (str/replace #"^http" "ws")
+                                    (str "/" (random-uuid) "/browser")))]
 
       (reset! *socket* socket)
 

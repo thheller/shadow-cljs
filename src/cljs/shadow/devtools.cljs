@@ -11,7 +11,9 @@
 (goog-define before-load "")
 (goog-define after-load "")
 
-(defonce dump-chan (async/chan (async/sliding-buffer 10)))
+(defonce dump-chan
+         (when ^boolean enabled
+           (async/chan (async/sliding-buffer 10))))
 
 (defn dump*
   "don't use directly, use dump macro"

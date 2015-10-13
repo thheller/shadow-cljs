@@ -1,6 +1,6 @@
 (ns shadow.devtools.client
-  (:require [cognitect.transit :as transit]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
+            [cljs.reader :as reader]
             [shadow.object :as so]
             [shadow.util :refer (log)]
             [shadow.devtools.dump :refer (obj->dom)]
@@ -9,9 +9,9 @@
 (def container (dom/by-id "message-container"))
 
 (defn process-message [body]
-  (let [r (transit/reader :json)
-        {:keys [title data]} (transit/read r body)
-        data (transit/read r data)
+  (js/console.log "process-message" body)
+  (let [{:keys [title data]} (reader/read-string body)
+        data (reader/read-string data)
         dom (obj->dom data)]
     (dom/insert-first container [:div.value-container
                                  [:div.value-title title]
@@ -37,7 +37,7 @@
 (defn ^:export activate [url]
   (-> url
       (str/replace #"^http" "ws")
-      (str "/ws")
+      (str "/" (random-uuid) "/client")
       (connect)))
 
 (defn ^:export restart []
