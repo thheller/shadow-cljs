@@ -97,20 +97,13 @@
         result {:id (:id msg)
                 :type :repl/result}
 
-        out (atom [])
-
         result
         (try
           ;; (js/console.log "eval" data)
 
           ;; FIXME: I kinda want to remember each result so I can refer to it later
           ;; (swap! repl-state update :results assoc id result)
-          (let [print-fn cljs.core/*print-fn*
-                ret (binding [cljs.core/*print-fn*
-                              (fn [& args]
-                                (swap! out conj (vec args))
-                                (apply print-fn args))]
-                      (js/eval data))]
+          (let [ret (js/eval data)]
             (set! *3 *2)
             (set! *2 *1)
             (set! *1 ret)
@@ -127,7 +120,7 @@
             (assoc result :error (pr-str e))))]
 
     ;; FIXME: should send out as it comes in, show ASAP not after command finishes
-    (socket-msg (assoc result :out @out))))
+    (socket-msg result)))
 
 (defn goog-is-loaded? [name]
   (js/goog.object.get js/goog.included_ name))
@@ -197,14 +190,22 @@
 (defn repl-connect []
   ;; FIXME: fallback for IE?
   (when (aget js/window "WebSocket")
-    (let [socket (js/WebSocket. (-> devtools/url
+    (let [print-fn cljs.core/*print-fn*
+          socket (js/WebSocket. (-> devtools/url
                                     (str/replace #"^http" "ws")
                                     (str "/" (random-uuid) "/browser")))]
+
+
 
       (reset! *socket* socket)
 
       (set! (.-onmessage socket)
             (fn [e]
+              (set-print-fn! (fn [& args]
+                               (socket-msg {:type :repl/out
+                                            :out (into [] args)})
+                               (apply print-fn args)))
+
               (handle-message (-> e .-data (reader/read-string)))))
 
       (set! (.-onopen socket)

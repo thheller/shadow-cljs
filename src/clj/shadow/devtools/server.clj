@@ -27,6 +27,13 @@
   [{:keys [server id] :as client-state} msg]
   (>!! server [:devtools/dump id msg]))
 
+;; FIXME: don't print to *out*, we have repl-out for that
+(defmethod handle-client-msg :repl/out
+  [client-state {:keys [out] :as msg}]
+  (doseq [s out]
+    (println s))
+  client-state)
+
 (defmethod handle-client-msg :repl/result
   [client-state {:keys [id] :as msg}]
   (let [result-chan (get-in client-state [:pending id])]
@@ -416,7 +423,7 @@
           (let [out (<! repl-output)]
             (when-not (nil? out)
               (prn [:repl-out (dissoc out :value)])
-              (let [{:keys [value out error]} out]
+              (let [{:keys [value error]} out]
                 (when error
                   (println "===== ERROR ========")
                   (println error)

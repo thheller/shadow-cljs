@@ -14,8 +14,8 @@
 
 (def css-packages
   [{:name "main"
-    :modules [(io/file "test-project/src/css/app.scss")]
-    :public-dir (io/file "test-project/public/css")
+    :modules ["test-project/src/css/app.scss"]
+    :public-dir "test-project/public/css"
     :public-path "css"}])
 
 (defn css [& args]
