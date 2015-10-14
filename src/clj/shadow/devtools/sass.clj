@@ -67,11 +67,40 @@
         :modules modules
         :public-dir public-dir
         :manifest-file manifest-file
-        :last-modified (.lastModified manifest-file)
         :manifest manifest))))
 
 (defn build-packages [pkgs]
   (mapv build-package pkgs))
+
+(defn create-package-watch [{:keys [modules] :as pkg}]
+  (let [dirs (->> modules
+                  (map #(.getParentFile %))
+                  (into #{}))
+        watchers (->> dirs
+                      (map #(FileWatcher/create % ["scss"]))
+                      (into []))
+
+        n (count watchers)
+
+        ;; returns true of this package got dirty since last check
+        ;; FIXME: should at some point check indiviual modules so we don't recompile everything all the time
+        ;; but that would require figuring out which includes belong to which module, I don't want to deal
+        ;; with parsing css for now.
+        dirty-check-fn
+        (fn []
+          (loop [i 0]
+            (if (>= i n)
+              false
+              (let [^FileWatcher watcher (nth watchers i)
+                    test (.pollForChanges watcher)]
+                (if (seq test)
+                  true
+                  (recur (inc i)))
+                ))))]
+
+    (assoc pkg
+      :dirty-check dirty-check-fn)
+    ))
 
 (comment
   (defn build-and-repeat! [^File source-dir target-dir rename-fn]

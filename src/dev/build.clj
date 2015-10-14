@@ -13,7 +13,7 @@
   state)
 
 (def css-packages
-  [{:name "app"
+  [{:name "main"
     :modules [(io/file "test-project/src/css/app.scss")]
     :public-dir (io/file "test-project/public/css")
     :public-path "css"}])
@@ -35,10 +35,10 @@
       (cljs/step-finalize-config)
 
       (devtools/start-loop
-        {}
+        {:css-packages css-packages}
         (fn [state modified]
           (-> state
-              (create-debug-launcher)
+              #_ (create-debug-launcher)
               (cljs/step-compile-modules)
               (cljs/flush-unoptimized))))))
 

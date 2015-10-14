@@ -37,7 +37,7 @@
                                          ;; rest will result in () if nothing is left
                                          ;; we need to keep this a vector
                                          (into [] (rest remaining))))
-                (debug "LOAD JS: " next)
+                (debug "LOAD JS:" next)
                 (-> (loader/load (str js/CLOSURE_BASE_PATH next "?r=" (rand)))
                     (.addBoth (fn []
                                 (aset js/goog.included_ next true)
@@ -69,19 +69,16 @@
           (map :js-name js-to-reload)
           after-load-fn)))))
 
-(defn handle-css-changes [data]
-  (doseq [[package-name package-info] data
-          :let [{:keys [manifest path]} package-info]
-          [css-name css-path] manifest]
-    (when-let [node (js/document.querySelector (str "link[data-css-package=\"" package-name "\"][data-css-module=\"" css-name "\"]"))]
-      (let [parent (gdom/getParentElement node)
-            full-path (str path "/" css-path)
+(defn handle-css-changes [{:keys [public-path name manifest] :as pkg}]
+  (doseq [[css-name css-file-name] manifest]
+    (when-let [node (js/document.querySelector (str "link[data-css-package=\"" name "\"][data-css-module=\"" css-name "\"]"))]
+      (let [full-path (str public-path "/" css-file-name)
             new-link (doto (js/document.createElement "link")
                        (.setAttribute "rel" "stylesheet")
                        (.setAttribute "href" (str full-path "?r=" (rand)))
-                       (.setAttribute "data-css-package" package-name)
+                       (.setAttribute "data-css-package" name)
                        (.setAttribute "data-css-module" css-name))]
-        (debug (str "CSS: reload \"" full-path "\""))
+        (debug "LOAD CSS:" full-path)
         (gdom/insertSiblingAfter new-link node)
         (gdom/removeNode node)
         ))))
@@ -165,8 +162,8 @@
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]
   (case type
-    :js (handle-js-changes (:data msg))
-    :css (handle-css-changes (:data msg))
+    :js/reload (handle-js-changes (:data msg))
+    :css/reload (handle-css-changes msg)
     :repl/invoke (repl-invoke msg)
     :repl/require (repl-require msg)
     :repl/set-ns (repl-set-ns msg)
@@ -222,7 +219,7 @@
             (fn [e]
               ;; not a big fan of reconnecting automatically since a disconnect
               ;; may signal a change of config, safer to just reload the page
-              (.warn js/console "DEVTOOLS: disconnected! (reload page to reconnect)")
+              (.warn js/console "DEVTOOLS: disconnected!")
               (reset! *socket* nil)
               ))
 
@@ -232,4 +229,10 @@
       )))
 
 (when ^boolean devtools/enabled
+  ;; disconnect an already connected socket, happens if this file is reloaded
+  ;; pretty much only for me while working on this file
+  (when-let [s @*socket*]
+    (js/console.log "DEVTOOLS: connection reset!")
+    (set! (.-onclose s) (fn [e]))
+    (.close s))
   (repl-connect))

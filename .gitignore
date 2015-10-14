@@ -13,6 +13,7 @@ pom.xml.asc
 /.nrepl-port
 /doc/codox
 /client/js
+/client/launcher.html
 /test-project/public/js
 /test-project/public/css
 /tmp

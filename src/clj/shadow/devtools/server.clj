@@ -175,11 +175,12 @@
       (instance)
       (catch Throwable t
         ;; ignore
-        )))
+        ))))
 
-  (when-let [css-watch (:css-watch state)]
-    (.interrupt css-watch)))
-
+(defn- send-to-clients-of-type [state client-type msg]
+  (doseq [{:keys [out type]} (vals (:clients state))
+          :when (= type client-type)]
+    (>!! out #(client-cast % msg))))
 
 (defn- notify-clients-about-cljs-changes! [state modified]
   (when (seq modified)
@@ -190,14 +191,20 @@
                               :js-name js-name
                               :provides (map #(str (comp/munge %)) provides)})))
                     (into []))
-          msg {:type :js
+          msg {:type :js/reload
                :data data}]
 
-      (doseq [{:keys [id out type]} (:clients state)
-              :when (= :browser type)]
-        (prn [:notify-about-cljs-changes! id])
-        (>!! out #(client-cast % msg)))
+      (send-to-clients-of-type state :browser msg)
       )))
+
+(defn- notify-clients-about-css-changes!
+  [state {:keys [name public-path manifest]}]
+  (let [msg {:type :css/reload
+             :name name
+             :public-path public-path
+             :manifest manifest}]
+    (send-to-clients-of-type state :browser msg)
+    ))
 
 (defn setup-repl [state]
   (update state :compiler-state repl/prepare))
@@ -295,14 +302,20 @@
             )))))
 
 
-(defn setup-css-watch [pkg]
-  (let [watch-fn
-        (fn [])]
-    (assoc pkg :watch watch-fn)))
+(defn check-for-css-changes [{:keys [css-packages] :as state}]
+  (let [new-packages
+        (reduce
+          (fn [pkgs {:keys [dirty-check] :as pkg}]
+            (if-not (dirty-check)
+              (conj pkgs pkg)
+              (let [new-pkg (sass/build-package pkg)]
+                (prn [:dirty-css (:name new-pkg)])
+                (notify-clients-about-css-changes! state new-pkg)
+                (conj pkgs new-pkg))))
+          []
+          css-packages)]
 
-(defn check-for-css-changes [{:keys [css-state] :as state}]
-
-  )
+    (assoc state :css-packages new-packages)))
 
 (defmethod handle-server-control :idle
   [{:keys [config] :as state} _]
@@ -320,10 +333,11 @@
 (defn setup-css [{:keys [config] :as state}]
   (let [css-packages (:css-packages config)]
     (if (seq css-packages)
-      (do (let [initial-state (->> (sass/build-packages css-packages)
-                                   (map setup-css-watch)
+      (do (let [initial-state (->> css-packages
+                                   (map sass/build-package)
+                                   (map sass/create-package-watch)
                                    (into []))]
-            (assoc state :css-state initial-state)))
+            (assoc state :css-packages initial-state)))
       state)))
 
 (defn start [state config callback]

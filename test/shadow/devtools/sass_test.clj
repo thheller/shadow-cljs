@@ -27,8 +27,21 @@
 (deftest test-build-package
   (pprint (sass/build-package css-package)))
 
-(deftest test-build-package-with-state
-  (pprint (sass/build-package css-package)))
+(deftest test-build-package-with-dirty-check
+  (let [{:keys [dirty-check] :as pkg}
+        (-> (sass/build-package css-package)
+                (sass/create-package-watch))]
+    (is (nil? (dirty-check)))
+    (.setLastModified (-> pkg :modules first) (System/currentTimeMillis))
+    (Thread/sleep 500)
+    ;; this might not have registered yet
+    (let [res (dirty-check)]
+      (is (or (nil? res)
+              (map? res))))
+    (Thread/sleep 2000)
+    ;; default on osx is very very slow but it should have been detected at this point
+    (is (map? (dirty-check)))
+    ))
 
 (deftest test-build-package-with-rename
   (let [now (System/currentTimeMillis)]
