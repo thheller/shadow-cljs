@@ -21,26 +21,35 @@
 (defn css [& args]
   (sass/build-packages css-packages))
 
-(defn browser-dev [& args]
+(defn project-setup [config]
   (-> (cljs/init-state)
-      (cljs/enable-source-maps)
-      (assoc :optimizations :none
-             :pretty-print true
-             :public-dir (io/file "test-project/public/js")
+      (assoc :public-dir (io/file "test-project/public/js")
              :public-path "js")
+      (merge config)
       (cljs/step-find-resources-in-jars)
       (cljs/step-find-resources "src/cljs")
       (cljs/step-find-resources "test-project/src/cljs")
       (cljs/step-configure-module :test ['test.app] #{})
       (cljs/step-finalize-config)
+      ))
 
+(defn browser-dev [& args]
+  (-> (project-setup {:optimizations :none})
+      (cljs/enable-source-maps)
       (devtools/start-loop
         {:css-packages css-packages}
         (fn [state modified]
           (-> state
-              #_ (create-debug-launcher)
+              #_(create-debug-launcher)
               (cljs/step-compile-modules)
               (cljs/flush-unoptimized))))))
+
+(defn browser-optimized [& args]
+  (-> (project-setup {:optimizations :advanced})
+      (cljs/enable-emit-constants)
+      (cljs/step-compile-modules)
+      (cljs/closure-optimize)
+      (cljs/flush-modules-to-disk)))
 
 (comment
   (nrepl/defmiddleware
