@@ -10,8 +10,8 @@
 ;; just write a custom implementation of "clone"&co
 
 (defn make-handler [config state callback]
-  (let [state (callback state [])]
-    (fn [handler]
+  (fn [handler]
+    (let [state (callback state [])]
       (fn [{:keys [op] :as msg}]
         (prn [:nrepl-handler op])
         (when (= op "eval")

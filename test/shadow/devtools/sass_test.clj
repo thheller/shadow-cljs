@@ -13,9 +13,9 @@
 
 (def css-package
   {:name "test"
-   :modules [(io/file "test-css/mod-a.scss")
-             (io/file "test-css/mod-b.scss")]
-   :public-dir (io/file "target/test-css-out/css")
+   :modules ["test-css/mod-a.scss"
+             "test-css/mod-b.scss"]
+   :public-dir "target/test-css-out/css"
    :public-path "css"})
 
 (deftest test-build-module
@@ -25,6 +25,9 @@
     (println (slurp target))))
 
 (deftest test-build-package
+  (pprint (sass/build-package css-package)))
+
+(deftest test-build-package-with-state
   (pprint (sass/build-package css-package)))
 
 (deftest test-build-package-with-rename

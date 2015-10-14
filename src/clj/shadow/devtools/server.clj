@@ -127,51 +127,6 @@
        :host host
        :server-control server-control})))
 
-(defn get-css-state [packages]
-  (reduce-kv
-    (fn [s k {:keys [manifest] :as v}]
-      (let [file (io/file manifest)]
-        (assoc s k (if (.exists file)
-                     (.lastModified file)
-                     0))))
-    {}
-    packages))
-
-(defn- read-css-manifest [{:keys [manifest path] :as package}]
-  (->> (io/file manifest)
-       (slurp)
-       (json/read-str)
-       (assoc package :manifest)))
-
-(defn- setup-css-watch [state packages]
-  (let [package-names (keys packages)
-        css-watch (doto (Thread.
-                          (fn []
-                            (loop [css-state (get-css-state packages)]
-                              (Thread/sleep 500) ;; FIXME: don't use sleep
-                              (let [new-state (get-css-state packages)
-                                    changed (reduce
-                                              (fn [changed package-name]
-                                                (let [old (get css-state package-name)
-                                                      new (get new-state package-name)]
-                                                  (if (not= old new)
-                                                    (conj changed package-name)
-                                                    changed)))
-                                              #{}
-                                              package-names)]
-                                (when (seq changed)
-                                  (let [change-data (reduce (fn [data package-name]
-                                                              (assoc data package-name (read-css-manifest (get packages package-name))))
-                                                            {}
-                                                            changed)]
-                                    (prn [:broadcast-css change-data])
-                                    (comment
-                                      (broadcast-fn :css change-data))))
-                                (recur new-state)
-                                ))))
-                    (.start))]
-    (assoc state :css-watch css-watch)))
-
 (defn setup-server
   "config is a map with these options:
    :host the interface to create the websocket server on (defaults to \"localhost\")
@@ -211,9 +166,6 @@
           (assoc :server server
                  :config config
                  :compiler-state compiler-state)
-          (cond->
-            css-packages
-            (setup-css-watch css-packages))
           ))))
 
 
@@ -343,7 +295,13 @@
             )))))
 
 
-(defn check-for-css-changes [state]
+(defn setup-css-watch [pkg]
+  (let [watch-fn
+        (fn [])]
+    (assoc pkg :watch watch-fn)))
+
+(defn check-for-css-changes [{:keys [css-state] :as state}]
+
   )
 
 (defmethod handle-server-control :idle
@@ -362,8 +320,10 @@
 (defn setup-css [{:keys [config] :as state}]
   (let [css-packages (:css-packages config)]
     (if (seq css-packages)
-      (do (sass/build-packages css-packages)
-          state)
+      (do (let [initial-state (->> (sass/build-packages css-packages)
+                                   (map setup-css-watch)
+                                   (into []))]
+            (assoc state :css-state initial-state)))
       state)))
 
 (defn start [state config callback]

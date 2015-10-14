@@ -3,7 +3,8 @@
             [shadow.devtools.server :as devtools]
             [shadow.devtools.nrepl :as nrepl]
             [clojure.java.io :as io]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [shadow.devtools.sass :as sass]))
 
 (defn create-debug-launcher [{:keys [closure-defines] :as state}]
   (let [s (-> (slurp "client/panel.html")
@@ -18,7 +19,7 @@
     :public-path "css"}])
 
 (defn css [& args]
-  (devtools/build-css css-packages))
+  (sass/build-packages css-packages))
 
 (defn browser-dev [& args]
   (-> (cljs/init-state)
@@ -34,7 +35,7 @@
       (cljs/step-finalize-config)
 
       (devtools/start-loop
-        {:css-packages css-packages}
+        {}
         (fn [state modified]
           (-> state
               (create-debug-launcher)

@@ -23,8 +23,9 @@
       (throw (ex-info (str "failed to build css module: " file) {})))))
 
 (defn generate-manifest [target-dir module-data]
-  (spit (io/file target-dir "manifest.json")
-        (json/write-str module-data)))
+  (let [file (io/file target-dir "manifest.json")]
+    (spit file (json/write-str module-data))
+    file))
 
 (comment
   (def css-package
@@ -61,8 +62,13 @@
               ))
           {}
           modules)]
-    (generate-manifest public-dir manifest)
-    manifest))
+    (let [manifest-file (generate-manifest public-dir manifest)]
+      (assoc pkg
+        :modules modules
+        :public-dir public-dir
+        :manifest-file manifest-file
+        :last-modified (.lastModified manifest-file)
+        :manifest manifest))))
 
 (defn build-packages [pkgs]
   (mapv build-package pkgs))
