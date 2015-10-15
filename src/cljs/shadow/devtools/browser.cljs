@@ -28,6 +28,9 @@
 
 (def loaded? js/goog.isProvided_)
 
+(defn goog-is-loaded? [name]
+  (js/goog.object.get js/goog.included_ name))
+
 (defn load-scripts
   [filenames after-load-fn]
   (swap! scripts-to-load into filenames)
@@ -47,29 +50,38 @@
             (after-load-fn)))]
     (load-next)))
 
+(defn handle-js-reload [{:keys [js-sources reload] :as msg}]
+  (let [reload (->> reload
+                    ;; skip those not already loaded
+                    ;; in a multi module project a page might not have loaded one module
+                    ;; this should not start loading it
+                    (filter goog-is-loaded?)
+                    (into #{}))]
 
-(defn handle-js-changes [js]
-  (let [js-to-reload (->> js
-                          ;; only reload things we actually require'd somewhere
-                          (filter (fn [{:keys [provides]}]
-                                    (some #(loaded? (str %)) provides)))
-                          (into []))]
+    ;; if none of the files we are required to RE-load where loaded, do nothing
+    (when (seq reload)
+      (let [js-to-reload (->> js-sources
+                              ;; only load sources not yet loaded or specifically told to reload
+                              ;; not-yet-loaded in case of a new dependency added via (ns ...)
+                              (filter (fn [src]
+                                        (or (contains? reload src)
+                                            (not (goog-is-loaded? src)))))
+                              (into []))]
 
-    (when (seq js-to-reload)
-      (when devtools/before-load
-        (let [fn (js/goog.getObjectByName devtools/before-load)]
-          (debug "Executing :before-load" devtools/before-load)
-          (fn)
-          ))
+        (when devtools/before-load
+          (let [fn (js/goog.getObjectByName devtools/before-load)]
+            (debug "Executing :before-load" devtools/before-load)
+            (fn)
+            ))
 
-      (let [after-load-fn (fn []
-                            (when devtools/after-load
-                              (let [fn (js/goog.getObjectByName devtools/after-load)]
-                                (debug "Executing :after-load " devtools/after-load)
-                                (fn))))]
-        (load-scripts
-          (map :js-name js-to-reload)
-          after-load-fn)))))
+        (let [after-load-fn (fn []
+                              (when devtools/after-load
+                                (let [fn (js/goog.getObjectByName devtools/after-load)]
+                                  (debug "Executing :after-load " devtools/after-load)
+                                  (fn))))]
+          (load-scripts
+            js-to-reload
+            after-load-fn))))))
 
 (defn handle-css-changes [{:keys [public-path name manifest] :as pkg}]
   (doseq [[css-name css-file-name] manifest]
@@ -144,8 +156,7 @@
         (assoc :id id)
         (socket-msg))))
 
-(defn goog-is-loaded? [name]
-  (js/goog.object.get js/goog.included_ name))
+
 
 (defn repl-require [{:keys [js-sources reload] :as msg}]
   (load-scripts
@@ -177,7 +188,7 @@
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]
   (case type
-    :js/reload (handle-js-changes (:data msg))
+    :js/reload (handle-js-reload msg)
     :css/reload (handle-css-changes msg)
     :repl/invoke (repl-invoke msg)
     :repl/require (repl-require msg)

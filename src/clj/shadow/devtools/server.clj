@@ -191,17 +191,24 @@
           :when (= type client-type)]
     (>!! out #(client-cast % msg))))
 
-(defn- notify-clients-about-cljs-changes! [state modified]
+(defn- notify-clients-about-cljs-changes!
+  [{:keys [compiler-state] :as state} modified]
   (when (seq modified)
-    (let [data (->> modified
-                    (map (fn [name]
-                           (let [{:keys [js-name provides]} (get-in state [:compiler-state :sources name])]
-                             {:name name
-                              :js-name js-name
-                              :provides (map #(str (comp/munge %)) provides)})))
-                    (into []))
+    (let [js-sources
+          (->> modified
+               (mapcat #(cljs/get-deps-for-src compiler-state %))
+               (distinct)
+               (map #(get-in compiler-state [:sources % :js-name]))
+               (into []))
+
+          reload
+          (->> modified
+               (map #(get-in compiler-state [:sources % :js-name]))
+               (into #{}))
+
           msg {:type :js/reload
-               :data data}]
+               :js-sources js-sources
+               :reload reload}]
 
       (send-to-clients-of-type state :browser msg)
       )))
