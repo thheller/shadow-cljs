@@ -13,7 +13,9 @@
             [clojure.core.async :as async :refer (go <! >! <!! >!! alt! timeout)]
             [shadow.cljs.repl :as repl]
             [clojure.string :as str]
-            [shadow.devtools.sass :as sass]))
+            [cljs.stacktrace :as st]
+            [shadow.devtools.sass :as sass]
+            [shadow.devtools.util :as util]))
 
 (defmulti handle-client-msg (fn [client-state msg] (:type msg)) :default ::default)
 
@@ -420,18 +422,21 @@
   (let [{:keys [repl-output repl-input]} (start state config callback)]
 
     (go (loop []
-          (let [out (<! repl-output)]
-            (when-not (nil? out)
-              (prn [:repl-out (dissoc out :value)])
-              (let [{:keys [value error]} out]
-                (when error
-                  (println "===== ERROR ========")
-                  (println error)
-                  (println "===================="))
-                (when (seq out)
-                  (apply println out))
-                (when value
-                  (println value)))
+          (let [msg (<! repl-output)]
+            (when-not (nil? msg)
+              (try
+                (prn [:repl-out (:type msg)])
+                (let [{:keys [value error]} msg]
+                  (when error
+                    (println "===== ERROR ========")
+                    (println error)
+                    (when-let [trace (:stacktrace msg)]
+                      (pprint (util/parse-stacktrace msg)))
+                    (println "===================="))
+                  (when value
+                    (println value)))
+                (catch Exception e
+                  (prn [:print-ex e])))
               (recur)
               ))))
 

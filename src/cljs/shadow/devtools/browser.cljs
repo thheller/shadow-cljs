@@ -5,7 +5,9 @@
             [shadow.devtools :as devtools]
             [goog.dom :as gdom]
             [goog.net.jsloader :as loader]
-            [clojure.string :as str]))
+            [goog.userAgent.product :as product]
+            [clojure.string :as str]
+            [goog.Uri]))
 
 (defonce *socket* (atom nil))
 
@@ -92,35 +94,55 @@
     (.send s (pr-str msg))
     (js/console.warn "WEBSOCKET NOT CONNECTED" (pr-str msg))))
 
-(defn repl-invoke [msg]
-  (let [data (:js msg)
-        result {:id (:id msg)
-                :type :repl/result}
 
-        result
+;; from https://github.com/clojure/clojurescript/blob/master/src/main/cljs/clojure/browser/repl.cljs
+;; I don't want to pull in all its other dependencies just for this function
+(defn get-ua-product []
+  (cond
+    product/SAFARI :safari
+    product/CHROME :chrome
+    product/FIREFOX :firefox
+    product/IE :ie))
+
+(defn get-asset-root []
+  (let [loc (js/goog.Uri. js/document.location.href)
+        cbp (js/goog.Uri. js/CLOSURE_BASE_PATH)
+        s (.toString (.resolve loc cbp))]
+    ;; FIXME: stacktrace starts with file:/// but resolve returns file:/
+    ;; how does this look on windows?
+    (str/replace s #"^file:/" "file:///")
+    ))
+
+(defn repl-call [handler]
+  (let [result {:type :repl/result}]
+    (try
+      (let [ret (handler)]
+        (set! *3 *2)
+        (set! *2 *1)
+        (set! *1 ret)
+
         (try
-          ;; (js/console.log "eval" data)
-
-          ;; FIXME: I kinda want to remember each result so I can refer to it later
-          ;; (swap! repl-state update :results assoc id result)
-          (let [ret (js/eval data)]
-            (set! *3 *2)
-            (set! *2 *1)
-            (set! *1 ret)
-
-            (try
-              (assoc result
-                :value (repl-print ret))
-              (catch :default e
-                (js/console.log "encoding of result failed" e ret)
-                (assoc result :error "ENCODING FAILED"))))
+          (assoc result
+            :value (repl-print ret))
           (catch :default e
-            (set! *e e)
-            (js/console.log "repl/invoke error" (pr-str msg) e)
-            (assoc result :error (pr-str e))))]
+            (js/console.log "encoding of result failed" e ret)
+            (assoc result :error "ENCODING FAILED"))))
+      (catch :default e
+        (set! *e e)
+        (js/console.log "repl/invoke error" e)
+        (assoc result
+          :ua-product (get-ua-product)
+          :error (str e)
+          :asset-root (get-asset-root)
+          :stacktrace (if (.hasOwnProperty e "stack")
+                        (.-stack e)
+                        "No stacktrace available."))))))
 
-    ;; FIXME: should send out as it comes in, show ASAP not after command finishes
-    (socket-msg result)))
+(defn repl-invoke [{:keys [id js]}]
+  (let [result (repl-call #(js/eval js))]
+    (-> result
+        (assoc :id id)
+        (socket-msg))))
 
 (defn goog-is-loaded? [name]
   (js/goog.object.get js/goog.included_ name))
