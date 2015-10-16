@@ -9,7 +9,7 @@
                  [org.clojure/clojure "1.7.0"]
                  [org.clojure/clojurescript "1.7.122"]
                  [thheller/shadow-client "1.0.0"]
-                 [thheller/shadow-build "1.0.123"]]
+                 [thheller/shadow-build "1.0.125"]]
 
   :source-paths ["src/clj"
                  "src/cljs"]
