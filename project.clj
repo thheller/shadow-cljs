@@ -1,4 +1,4 @@
-(defproject thheller/shadow-devtools "0.1.0-SNAPSHOT"
+(defproject thheller/shadow-devtools "0.1.0"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -9,9 +9,11 @@
                  [org.clojure/clojure "1.7.0"]
                  [org.clojure/clojurescript "1.7.122"]
                  [thheller/shadow-client "1.0.0"]
-                 [thheller/shadow-build "1.0.0-alpha17"]]
+                 [thheller/shadow-build "1.0.123"]]
 
-  :source-paths ["src/clj"]
+  :source-paths ["src/clj"
+                 "src/cljs"]
+  :java-source-paths ["src/java"]
 
   :profiles {:dev {:source-paths ["src/dev"]
                    ;; :repl-options {:nrepl-middleware [build/browser-dev-nrepl]}
