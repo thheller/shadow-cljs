@@ -308,14 +308,16 @@
       (assoc state ::fs-seq (inc fs-seq))
       (do (prn [:reloading-modified])
           (let [change-names (mapv :name modified)
-                state (update state :compiler-state (fn [compiler-state]
-                                                      (-> compiler-state
-                                                          (cljs/reload-modified-files! modified)
-                                                          (compile-callback change-names))))]
-
-            (notify-clients-about-cljs-changes! state change-names)
-            state
-            )))))
+                state (update state :compiler-state cljs/reload-modified-files! modified)]
+            (try
+              (let [state (update state :compiler-state compile-callback change-names)]
+                (notify-clients-about-cljs-changes! state change-names)
+                state)
+              (catch Exception e
+                ;; FIXME: notify clients
+                (prn [:compilation-error e])
+                state
+                )))))))
 
 
 (defn check-for-css-changes [{:keys [css-packages] :as state}]

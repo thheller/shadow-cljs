@@ -13,14 +13,10 @@
 
   :source-paths ["src/clj"
                  "src/cljs"]
+
   :java-source-paths ["src/java"]
 
   :profiles {:dev {:source-paths ["src/dev"]
                    ;; :repl-options {:nrepl-middleware [build/browser-dev-nrepl]}
-                   }}
 
-
-  ;; make cursive happy, see https://github.com/cursiveclojure/cursive/issues/665
-  ;; shadow-build has nothing to do with lein-cljsbuild!
-  :cljsbuild {:builds {:main {:source-paths ["src/cljs" "test-data"]}}}
-  )
+                   }})
