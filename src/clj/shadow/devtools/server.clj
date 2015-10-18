@@ -364,7 +364,7 @@
 
 (defn start
   ([state config]
-    (start state config default-compile-callback))
+   (start state config default-compile-callback))
   ([state config callback]
    (let [repl-input (async/chan)
          repl-output (async/chan (async/sliding-buffer 10))
@@ -385,43 +385,52 @@
          server-thread
          (thread
            (loop [state state]
-               (alt!!
-                 server-control
-                 ([v]
-                   (when-not (nil? v)
-                     (recur
-                       (try
-                         (handle-server-control state v)
-                         (catch Exception e
-                           (prn [:server-error e v])
-                           state
-                           )))))
-
-                 repl-input
-                 ([v]
-                   (when-not (nil? v)
-                     (recur
-                       (try
-                         (let [[msg result-chan] v]
-                           (handle-repl-input state msg result-chan))
-                         (catch Exception e
-                           (prn [:repl-error e v])
-                           state
-                           )))))
-
-                 (timeout 500)
-                 ([_]
+             (alt!!
+               server-control
+               ([v]
+                 (when-not (nil? v)
                    (recur
                      (try
-                       (handle-server-control state [:idle])
+                       (handle-server-control state v)
                        (catch Exception e
-                         (prn [:idle-error e])
-                         state))
-                     ))))
+                         (prn [:server-error e v])
+                         state
+                         )))))
 
-             (shutdown-server state)
-             ;; return value of this channel is its last state
-             (update state :server dissoc :instance))]
+               repl-input
+               ([v]
+                 (when-not (nil? v)
+                   (recur
+                     (try
+                       (let [[msg result-chan] v]
+                         (handle-repl-input state msg result-chan))
+                       (catch Exception e
+                         (prn [:repl-error e v])
+                         state
+                         )))))
+
+               (timeout 500)
+               ([_]
+                 (recur
+                   (try
+                     (handle-server-control state [:idle])
+                     (catch Exception e
+                       (prn [:idle-error e])
+                       state))
+                   ))))
+
+           (shutdown-server state)
+
+           ;; no more output coming
+           (async/close! repl-output)
+
+           ;; don't really need to close these since we should be the only ones reading them
+           ;; and closing one of them is a way to shut us down .. still like it clean
+           (async/close! repl-input)
+           (async/close! server-control)
+
+           ;; return value of this channel is the last compiler-state (includes repl-state)
+           (:compiler-state state))]
 
      (assoc state :server-thread server-thread))))
 
@@ -436,7 +445,7 @@
 
 (defn start-loop
   ([state config]
-    (start-loop state config default-compile-callback))
+   (start-loop state config default-compile-callback))
   ([state config callback]
    (let [{:keys [repl-output repl-input]} (start state config callback)]
 
