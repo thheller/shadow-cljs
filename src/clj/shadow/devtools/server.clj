@@ -104,14 +104,14 @@
         (do
 
           (hk/on-receive channel
-                         (fn [data] (>!! client-in data)))
+            (fn [data] (>!! client-in data)))
 
           (hk/on-close channel
-                       (fn [status]
-                         (>!! server-control [:disconnect client-id])
-                         (async/close! client-out)
-                         (async/close! client-in)
-                         ))
+            (fn [status]
+              (>!! server-control [:disconnect client-id])
+              (async/close! client-out)
+              (async/close! client-in)
+              ))
 
           (client-loop client-id channel server-control client-in client-out)
           (>!! server-control [:connect client-id client-type client-out])
@@ -176,7 +176,6 @@
                  :config config
                  :compiler-state compiler-state)
           ))))
-
 
 (defn shutdown-server [state]
   (when-let [instance (get-in state [:server :instance])]
@@ -271,8 +270,8 @@
 
 
 (defmulti handle-server-control
-          (fn [state cmd] (first cmd))
-          :default ::default)
+  (fn [state cmd] (first cmd))
+  :default ::default)
 
 (defmethod handle-server-control ::default [state cmd]
   (prn [:unrecognized cmd])
@@ -358,64 +357,72 @@
             (assoc state :css-packages initial-state)))
       state)))
 
-(defn start [state config callback]
-  (let [repl-input (async/chan)
-        repl-output (async/chan)
+(defn default-compile-callback [state modified]
+  (-> state
+      (cljs/compile-modules)
+      (cljs/flush-unoptimized)))
 
-        state (-> {:compiler-state state
-                   :clients {}
-                   :fs-seq 1
-                   :compile-callback callback
-                   :repl-input repl-input
-                   :config config
-                   :repl-output repl-output}
-                  (setup-server)
-                  (setup-css)
-                  (setup-repl))
+(defn start
+  ([state config]
+    (start state config default-compile-callback))
+  ([state config callback]
+   (let [repl-input (async/chan)
+         repl-output (async/chan)
 
-        state (assoc state :compiler-state (callback (:compiler-state state) []))
-        server-control (get-in state [:server :server-control])]
+         state (-> {:compiler-state state
+                    :clients {}
+                    :fs-seq 1
+                    :compile-callback callback
+                    :repl-input repl-input
+                    :config config
+                    :repl-output repl-output}
+                   (setup-server)
+                   (setup-css)
+                   (setup-repl))
 
-    (go (loop [state state]
-          (alt!
-            server-control
-            ([v]
-              (when-not (nil? v)
-                (recur
-                  (try
-                    (handle-server-control state v)
-                    (catch Exception e
-                      (prn [:server-error e v])
-                      state
-                      )))))
+         state (assoc state :compiler-state (callback (:compiler-state state) []))
+         server-control (get-in state [:server :server-control])
+         server-loop
+         (go (loop [state state]
+               (alt!
+                 server-control
+                 ([v]
+                   (when-not (nil? v)
+                     (recur
+                       (try
+                         (handle-server-control state v)
+                         (catch Exception e
+                           (prn [:server-error e v])
+                           state
+                           )))))
 
-            repl-input
-            ([v]
-              (when-not (nil? v)
-                (recur
-                  (try
-                    (let [[msg result-chan] v]
-                      (handle-repl-input state msg result-chan))
-                    (catch Exception e
-                      (prn [:repl-error e v])
-                      state
-                      )))))
+                 repl-input
+                 ([v]
+                   (when-not (nil? v)
+                     (recur
+                       (try
+                         (let [[msg result-chan] v]
+                           (handle-repl-input state msg result-chan))
+                         (catch Exception e
+                           (prn [:repl-error e v])
+                           state
+                           )))))
 
-            (timeout 500)
-            ([_]
-              (recur
-                (try
-                  (handle-server-control state [:idle])
-                  (catch Exception e
-                    (prn [:idle-error e])
-                    state))
-                ))))
+                 (timeout 500)
+                 ([_]
+                   (recur
+                     (try
+                       (handle-server-control state [:idle])
+                       (catch Exception e
+                         (prn [:idle-error e])
+                         state))
+                     ))))
 
-        (shutdown-server state)
-        (prn [:server-loop-death!!!]))
+             (shutdown-server state)
+             ;; return value of this channel is its last state
+             (update state :server dissoc :instance))]
 
-    state
-    ))
+     (assoc state :server-loop server-loop))))
 
 (def current-instance (atom {}))
 
@@ -427,44 +434,46 @@
     ))
 
 (defn start-loop
-  [state config callback]
-  (let [{:keys [repl-output repl-input]} (start state config callback)]
+  ([state config]
+    (start-loop state config default-compile-callback))
+  ([state config callback]
+   (let [{:keys [repl-output repl-input]} (start state config callback)]
 
-    (go (loop []
-          (let [msg (<! repl-output)]
-            (when-not (nil? msg)
-              (try
-                (prn [:repl-out (:type msg)])
-                (let [{:keys [value error]} msg]
-                  (when error
-                    (println "===== ERROR ========")
-                    (println error)
-                    (when-let [trace (:stacktrace msg)]
-                      (pprint (util/parse-stacktrace msg)))
-                    (println "===================="))
-                  (when value
-                    (println value)))
-                (catch Exception e
-                  (prn [:print-ex e])))
-              (recur)
-              ))))
+     (go (loop []
+           (let [msg (<! repl-output)]
+             (when-not (nil? msg)
+               (try
+                 (prn [:repl-out (:type msg)])
+                 (let [{:keys [value error]} msg]
+                   (when error
+                     (println "===== ERROR ========")
+                     (println error)
+                     (when-let [trace (:stacktrace msg)]
+                       (pprint (util/parse-stacktrace msg)))
+                     (println "===================="))
+                   (when value
+                     (println value)))
+                 (catch Exception e
+                   (prn [:print-ex e])))
+               (recur)
+               ))))
 
-    ;; this really sucks but I don't care much for the streaming nature of a REPL
-    ;; still want to be able to eval multi-line forms though
+     ;; this really sucks but I don't care much for the streaming nature of a REPL
+     ;; still want to be able to eval multi-line forms though
 
-    ;; stuff like [1 2 : 3] will cause hazard though, so that needs to be handled somehow
+     ;; stuff like [1 2 : 3] will cause hazard though, so that needs to be handled somehow
 
 
-    (let [in (FakeLispReader.)]
-      (prn [:repl-ready])
-      (loop []
-        (let [msg (.next in)]
-          (when-not (nil? msg)
-            (when (not= msg ":cljs/quit")
-              (>!! repl-input [msg repl-output])
-              (recur)))))
-      (async/close! repl-input)
-      (async/close! repl-output)
-      (prn [:repl-quit])
-      )))
+     (let [in (FakeLispReader.)]
+       (prn [:repl-ready])
+       (loop []
+         (let [msg (.next in)]
+           (when-not (nil? msg)
+             (when (not= msg ":cljs/quit")
+               (>!! repl-input [msg repl-output])
+               (recur)))))
+       (async/close! repl-input)
+       (async/close! repl-output)
+       (prn [:repl-quit])
+       ))))
 

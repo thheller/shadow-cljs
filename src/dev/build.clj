@@ -38,11 +38,7 @@
       (cljs/enable-source-maps)
       (devtools/start-loop
         {:css-packages css-packages}
-        (fn [state modified]
-          (-> state
-              #_(create-debug-launcher)
-              (cljs/step-compile-modules)
-              (cljs/flush-unoptimized))))))
+        )))
 
 (defn browser-optimized [& args]
   (-> (project-setup {:optimizations :advanced})
@@ -66,11 +62,7 @@
         (cljs/step-find-resources "test-project/src/cljs")
         (cljs/step-configure-module :test ['test.app] #{})
         (cljs/step-finalize-config))
-    (fn [state modified]
-      (-> state
-          (create-debug-launcher)
-          (cljs/step-compile-modules)
-          (cljs/flush-unoptimized)))))
+    ))
 
 (defn client-dev [& args]
   (-> (cljs/init-state)
