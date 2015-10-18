@@ -5,6 +5,7 @@
   (:require [shadow.cljs.build :as cljs]
             [shadow.cljs.repl :as repl]
             [clojure.java.io :as io]
+            [clojure.repl :refer (pst)]
             [clojure.pprint :refer (pprint)]
             [clojure.data.json :as json]
             [org.httpkit.server :as hk]
@@ -305,18 +306,22 @@
                    modified)]
     (if-not (seq modified)
       (assoc state ::fs-seq (inc fs-seq))
-      (do (prn [:reloading-modified])
-          (let [change-names (mapv :name modified)
-                state (update state :compiler-state cljs/reload-modified-files! modified)]
-            (try
-              (let [state (update state :compiler-state compile-callback change-names)]
-                (notify-clients-about-cljs-changes! state change-names)
-                state)
-              (catch Exception e
-                ;; FIXME: notify clients
-                (prn [:compilation-error e])
-                state
-                )))))))
+      (let [change-names (mapv :name modified)
+            _ (prn [:reloading-modified change-names])
+            state (update state :compiler-state cljs/reload-modified-files! modified)]
+        (try
+          (let [state (update state :compiler-state compile-callback change-names)]
+            (notify-clients-about-cljs-changes! state change-names)
+            state)
+          (catch Exception e
+            ;; FIXME: notify clients, don't print, use repl-out (or repl-err?)
+            (.flush *out*)
+            (.write *err* "====== COMPILATION ERROR ==============\n")
+            (pst e)
+            (.write *err* "=======================================\n")
+            (.flush *err*)
+            state
+            ))))))
 
 
 (defn check-for-css-changes [{:keys [css-packages] :as state}]
