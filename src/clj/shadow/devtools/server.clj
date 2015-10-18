@@ -10,7 +10,7 @@
             [org.httpkit.server :as hk]
             [cljs.compiler :as comp]
             [clojure.edn :as edn]
-            [clojure.core.async :as async :refer (go <! >! <!! >!! alt! timeout)]
+            [clojure.core.async :as async :refer (go <! >! <!! >!! alt! timeout thread alt!!)]
             [shadow.cljs.repl :as repl]
             [clojure.string :as str]
             [cljs.stacktrace :as st]
@@ -367,7 +367,7 @@
     (start state config default-compile-callback))
   ([state config callback]
    (let [repl-input (async/chan)
-         repl-output (async/chan)
+         repl-output (async/chan (async/sliding-buffer 10))
 
          state (-> {:compiler-state state
                     :clients {}
@@ -382,9 +382,10 @@
 
          state (assoc state :compiler-state (callback (:compiler-state state) []))
          server-control (get-in state [:server :server-control])
-         server-loop
-         (go (loop [state state]
-               (alt!
+         server-thread
+         (thread
+           (loop [state state]
+               (alt!!
                  server-control
                  ([v]
                    (when-not (nil? v)
@@ -422,7 +423,7 @@
              ;; return value of this channel is its last state
              (update state :server dissoc :instance))]
 
-     (assoc state :server-loop server-loop))))
+     (assoc state :server-thread server-thread))))
 
 (def current-instance (atom {}))
 
