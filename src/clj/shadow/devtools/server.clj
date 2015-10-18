@@ -34,7 +34,7 @@
 (defmethod handle-client-msg :repl/out
   [client-state {:keys [out] :as msg}]
   (doseq [s out]
-    (println s))
+    (println (str "BROWSER: " s)))
   client-state)
 
 (defmethod handle-client-msg :repl/result
@@ -366,6 +366,13 @@
   (-> state
       (cljs/compile-modules)
       (cljs/flush-unoptimized)))
+
+(defn wait-for-server!
+  "blocks util the server shuts down and returns the last compiler-state"
+  [{:keys [server-loop] :as state}]
+  (when-not server-loop
+    (throw (ex-info "no server loop?" {})))
+  (<!! server-loop))
 
 (defn start
   ([state config]
