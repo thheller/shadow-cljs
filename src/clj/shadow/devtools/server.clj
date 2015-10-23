@@ -210,6 +210,7 @@
                :js-sources js-sources
                :reload reload}]
 
+      (pprint msg)
       (send-to-clients-of-type state :browser msg)
       )))
 
@@ -307,11 +308,12 @@
     (if-not (seq modified)
       (assoc state ::fs-seq (inc fs-seq))
       (let [change-names (mapv :name modified)
-            _ (prn [:reloading-modified change-names])
             state (update state :compiler-state cljs/reload-modified-files! modified)]
         (try
           (let [state (update state :compiler-state compile-callback change-names)]
-            (notify-clients-about-cljs-changes! state change-names)
+            ;; notify about actual files that were recompiled
+            ;; not the files that were modified
+            (notify-clients-about-cljs-changes! state (-> state :compiler-state :compiled))
             state)
           (catch Exception e
             ;; FIXME: notify clients, don't print, use repl-out (or repl-err?)

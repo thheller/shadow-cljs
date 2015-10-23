@@ -4,6 +4,7 @@
 /test-projects
 pom.xml
 pom.xml.asc
+*.iml
 *.jar
 *.class
 /.cljs-cache
