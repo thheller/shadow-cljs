@@ -197,7 +197,7 @@
 
     ;; :server only code recompile means client should not auto reload
     (when (or (true? js-reload)
-              (not= :server js-reload))
+              (and js-reload (not= :server js-reload)))
       (when (seq modified)
         (let [js-sources
               (->> modified
