@@ -192,27 +192,32 @@
     (>!! out #(client-cast % msg))))
 
 (defn- notify-clients-about-cljs-changes!
-  [{:keys [compiler-state] :as state} modified]
-  (when (seq modified)
-    (let [js-sources
-          (->> modified
-               (mapcat #(cljs/get-deps-for-src compiler-state %))
-               (distinct)
-               (map #(get-in compiler-state [:sources % :js-name]))
-               (into []))
+  [{:keys [config compiler-state] :as state} modified]
+  (let [js-reload (:js-reload config true)]
 
-          reload
-          (->> modified
-               (map #(get-in compiler-state [:sources % :js-name]))
-               (into #{}))
+    ;; :server only code recompile means client should not auto reload
+    (when (or (true? js-reload)
+              (not= :server js-reload))
+      (when (seq modified)
+        (let [js-sources
+              (->> modified
+                   (mapcat #(cljs/get-deps-for-src compiler-state %))
+                   (distinct)
+                   (map #(get-in compiler-state [:sources % :js-name]))
+                   (into []))
 
-          msg {:type :js/reload
-               :js-sources js-sources
-               :reload reload}]
+              reload
+              (->> modified
+                   (map #(get-in compiler-state [:sources % :js-name]))
+                   (into #{}))
 
-      (pprint msg)
-      (send-to-clients-of-type state :browser msg)
-      )))
+              msg {:type :js/reload
+                   :js-sources js-sources
+                   :reload reload}]
+
+
+          (send-to-clients-of-type state :browser msg)
+          )))))
 
 (defn- notify-clients-about-css-changes!
   [state {:keys [name public-path manifest]}]
