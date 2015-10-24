@@ -1,4 +1,4 @@
-(defproject thheller/shadow-devtools "0.1.24"
+(defproject thheller/shadow-devtools "0.1.27"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
