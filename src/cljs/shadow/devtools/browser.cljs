@@ -50,7 +50,11 @@
             (after-load-fn)))]
     (load-next)))
 
-(defn handle-js-reload [{:keys [js-sources reload] :as msg}]
+(defn module-is-active? [module]
+  (js/goog.object.get js/SHADOW_MODULES (str module)))
+
+(defn handle-js-reload [{:keys [sources reload] :as msg}]
+  ;; reload is a set of js-names that should be reloaded
   (let [reload (->> reload
                     ;; skip those not already loaded
                     ;; in a multi module project a page might not have loaded one module
@@ -60,12 +64,15 @@
 
     ;; if none of the files we are required to RE-load where loaded, do nothing
     (when (seq reload)
-      (let [js-to-reload (->> js-sources
+      (let [js-to-reload (->> sources
                               ;; only load sources not yet loaded or specifically told to reload
                               ;; not-yet-loaded in case of a new dependency added via (ns ...)
-                              (filter (fn [src]
-                                        (or (contains? reload src)
-                                            (not (goog-is-loaded? src)))))
+                              ;; but only if the module it belongs to is active
+                              (filter (fn [{:keys [js-name module] :as src}]
+                                        (and (module-is-active? module)
+                                             (or (contains? reload js-name)
+                                                 (not (goog-is-loaded? js-name))))))
+                              (map :js-name)
                               (into []))]
 
         (when devtools/before-load

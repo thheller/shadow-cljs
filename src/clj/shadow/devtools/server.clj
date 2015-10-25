@@ -199,11 +199,25 @@
     (when (or (true? js-reload)
               (and js-reload (not= :server js-reload)))
       (when (seq modified)
-        (let [js-sources
+        (let [source->module
+              (reduce
+                (fn [index {:keys [sources name]}]
+                  (reduce
+                    (fn [index source]
+                      (assoc index source name))
+                    index
+                    sources))
+                {}
+                (:build-modules compiler-state))
+
+              js-sources
               (->> modified
                    (mapcat #(cljs/get-deps-for-src compiler-state %))
                    (distinct)
-                   (map #(get-in compiler-state [:sources % :js-name]))
+                   (map (fn [name]
+                          {:name name
+                           :js-name (get-in compiler-state [:sources name :js-name])
+                           :module (get source->module name)}))
                    (into []))
 
               reload
@@ -212,9 +226,8 @@
                    (into #{}))
 
               msg {:type :js/reload
-                   :js-sources js-sources
+                   :sources js-sources
                    :reload reload}]
-
 
           (send-to-clients-of-type state :browser msg)
           )))))
