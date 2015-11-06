@@ -90,8 +90,13 @@
           ([v]
             (when-not (nil? v)
               (recur (handle-client-data state v)))
-            )))))
+            )))
 
+      ;; ensure that the channel is closed
+      ;; http-kit seems to have a bug that leaves the server-loop running
+      ;; if the server is shutdown while still having a connected websocket
+      (hk/close channel)
+      ))
 
 (defn- ring-handler [server-control ring-request]
   (let [client-in (async/chan)
@@ -179,6 +184,9 @@
           ))))
 
 (defn shutdown-server [state]
+  (doseq [{:keys [out] :as client} (-> state :clients vals)]
+    (async/close! out))
+
   (when-let [instance (get-in state [:server :instance])]
     (try
       (instance)
@@ -390,6 +398,57 @@
     (throw (ex-info "no server loop?" {})))
   (<!! server-loop))
 
+
+(defn- server-tick [state server-control repl-input]
+  (alt!!
+    server-control
+    ([v]
+      (when-not (nil? v)
+        (try
+          (handle-server-control state v)
+          (catch Exception e
+            (prn [:server-error e v])
+            state
+            ))))
+
+    repl-input
+    ([v]
+      (when-not (nil? v)
+        (try
+          (let [[msg result-chan] v]
+            (handle-repl-input state msg result-chan))
+          (catch Exception e
+            (prn [:repl-error e v])
+            state
+            ))))
+
+    (timeout 500)
+    ([_]
+      (try
+        (handle-server-control state [:idle])
+        (catch Exception e
+          (prn [:idle-error e])
+          state))
+      )))
+
+(defn- server-loop [state server-control repl-input repl-output]
+  (loop [state state]
+    (if-let [next-state (server-tick state server-control repl-input)]
+      (recur next-state)
+      (do (shutdown-server state)
+
+          ;; no more output coming
+          (async/close! repl-output)
+
+          ;; don't really need to close these since we should be the only ones reading them
+          ;; and closing one of them is a way to shut us down .. still like it clean
+          (async/close! repl-input)
+          (async/close! server-control)
+
+          ;; return value of this channel is the last compiler-state (includes repl-state)
+          (:compiler-state state)
+          ))))
+
 (defn start
   ([state config]
    (start state config default-compile-callback))
@@ -410,66 +469,10 @@
 
          state (assoc state :compiler-state (callback (:compiler-state state) []))
          server-control (get-in state [:server :server-control])
-         server-thread
-         (thread
-           (loop [state state]
-             (alt!!
-               server-control
-               ([v]
-                 (when-not (nil? v)
-                   (recur
-                     (try
-                       (handle-server-control state v)
-                       (catch Exception e
-                         (prn [:server-error e v])
-                         state
-                         )))))
-
-               repl-input
-               ([v]
-                 (when-not (nil? v)
-                   (recur
-                     (try
-                       (let [[msg result-chan] v]
-                         (handle-repl-input state msg result-chan))
-                       (catch Exception e
-                         (prn [:repl-error e v])
-                         state
-                         )))))
-
-               (timeout 500)
-               ([_]
-                 (recur
-                   (try
-                     (handle-server-control state [:idle])
-                     (catch Exception e
-                       (prn [:idle-error e])
-                       state))
-                   ))))
-
-           (shutdown-server state)
-
-           ;; no more output coming
-           (async/close! repl-output)
-
-           ;; don't really need to close these since we should be the only ones reading them
-           ;; and closing one of them is a way to shut us down .. still like it clean
-           (async/close! repl-input)
-           (async/close! server-control)
-
-           ;; return value of this channel is the last compiler-state (includes repl-state)
-           (:compiler-state state))]
-
+         server-thread (thread (server-loop state server-control repl-input repl-output))]
      (assoc state :server-thread server-thread))))
 
 (def current-instance (atom {}))
-
-(defn start-nrepl [state config callback]
-  (let [{:keys [repl-output repl-input]} (start state config callback)]
-    (swap! current-instance merge {:repl-input repl-input
-                                   :repl-output repl-output})
-    ::nrepl
-    ))
 
 (defn start-loop
   ([state config]
