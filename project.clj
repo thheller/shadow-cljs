@@ -8,8 +8,9 @@
                  [http-kit "2.1.19"]
                  [org.clojure/clojure "1.7.0"]
                  [org.clojure/clojurescript "1.7.145"]
+                 [org.clojure/core.async "0.2.371"]
                  [thheller/shadow-client "1.0.1"]
-                 [thheller/shadow-build "1.0.145"]]
+                 [thheller/shadow-build "1.0.153"]]
 
   :source-paths ["src/clj"
                  "src/cljs"]

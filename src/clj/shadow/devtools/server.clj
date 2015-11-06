@@ -324,7 +324,7 @@
                    (concat modified (cljs/scan-for-new-files compiler-state))
                    modified)]
     (if-not (seq modified)
-      (assoc state ::fs-seq (inc fs-seq))
+      (assoc state :fs-seq (inc fs-seq))
       (let [change-names (mapv :name modified)
             state (update state :compiler-state cljs/reload-modified-files! modified)]
         (try
@@ -335,11 +335,7 @@
             state)
           (catch Exception e
             ;; FIXME: notify clients, don't print, use repl-out (or repl-err?)
-            (.flush *out*)
-            (.write *err* "====== COMPILATION ERROR ==============\n")
-            (pst e)
-            (.write *err* "=======================================\n")
-            (.flush *err*)
+            (cljs/error-report compiler-state e)
             state
             ))))))
 

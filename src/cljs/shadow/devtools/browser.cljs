@@ -29,7 +29,7 @@
 (def loaded? js/goog.isProvided_)
 
 (defn goog-is-loaded? [name]
-  (js/goog.object.get js/goog.included_ name))
+  (js/goog.object.get js/goog.dependencies_.written name))
 
 (defn load-scripts
   [filenames after-load-fn]
@@ -45,7 +45,7 @@
                 (debug "LOAD JS:" next)
                 (-> (loader/load (str js/CLOSURE_BASE_PATH next "?r=" (rand)))
                     (.addBoth (fn []
-                                (aset js/goog.included_ next true)
+                                (aset js/goog.dependencies_.written next true)
                                 (load-next)))))
             (after-load-fn)))]
     (load-next)))
