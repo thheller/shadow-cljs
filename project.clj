@@ -1,4 +1,4 @@
-(defproject thheller/shadow-devtools "0.1.34"
+(defproject thheller/shadow-devtools "0.1.35"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -10,7 +10,7 @@
                  [org.clojure/clojurescript "1.7.170"]
                  [org.clojure/core.async "0.2.371"]
                  [thheller/shadow-client "1.0.161"]
-                 [thheller/shadow-build "1.0.167"]]
+                 [thheller/shadow-build "1.0.192"]]
 
   :source-paths ["src/clj"
                  "src/cljs"]

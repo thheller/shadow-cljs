@@ -10,6 +10,8 @@
 (goog-define url "")
 (goog-define before-load "")
 (goog-define after-load "")
+(goog-define node-eval false)
+(goog-define reload-with-state false)
 
 (defonce dump-chan
          (when ^boolean enabled

@@ -172,6 +172,12 @@
                                               "shadow.devtools.after_load"
                                               (when after-load
                                                 (str (comp/munge after-load)))
+
+                                              "shadow.devtools.node_eval"
+                                              (boolean (:node-eval config))
+
+                                              "shadow.devtools.reload_with_state"
+                                              (boolean (:reload-with-state config))
                                               })
 
               (update-in [:modules (:default-module compiler-state) :mains] conj 'shadow.devtools.browser))]

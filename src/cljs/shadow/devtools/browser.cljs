@@ -60,7 +60,8 @@
                     ;; in a multi module project a page might not have loaded one module
                     ;; this should not start loading it
                     (filter goog-is-loaded?)
-                    (into #{}))]
+                    (into #{}))
+        reload-state (atom nil)]
 
     ;; if none of the files we are required to RE-load where loaded, do nothing
     (when (seq reload)
@@ -78,14 +79,17 @@
         (when devtools/before-load
           (let [fn (js/goog.getObjectByName devtools/before-load)]
             (debug "Executing :before-load" devtools/before-load)
-            (fn)
-            ))
+            (let [state (fn)]
+              (reset! reload-state state))))
 
-        (let [after-load-fn (fn []
-                              (when devtools/after-load
-                                (let [fn (js/goog.getObjectByName devtools/after-load)]
-                                  (debug "Executing :after-load " devtools/after-load)
-                                  (fn))))]
+        (let [after-load-fn
+              (fn []
+                (when devtools/after-load
+                  (let [fn (js/goog.getObjectByName devtools/after-load)]
+                    (debug "Executing :after-load " devtools/after-load)
+                    (if-not devtools/reload-with-state
+                      (fn)
+                      (fn @reload-state)))))]
           (load-scripts
             js-to-reload
             after-load-fn))))))
@@ -157,13 +161,23 @@
                         (.-stack e)
                         "No stacktrace available."))))))
 
+;; FIXME: this file is called browser.cljs
+;; nothing node related should be in here
+;; abstract this properly!
+(defn node-eval [js]
+  (let [vm (js/require "vm")]
+    (.runInThisContext vm js)))
+
+(defn repl-eval [js]
+  (if-not devtools/node-eval
+    (js/eval js)
+    (node-eval js)))
+
 (defn repl-invoke [{:keys [id js]}]
-  (let [result (repl-call #(js/eval js))]
+  (let [result (repl-call #(repl-eval js))]
     (-> result
         (assoc :id id)
         (socket-msg))))
-
-
 
 (defn repl-require [{:keys [js-sources reload] :as msg}]
   (load-scripts
@@ -240,32 +254,32 @@
       (reset! *socket* socket)
 
       (set! (.-onmessage socket)
-            (fn [e]
-              (set-print-fn! (fn [& args]
-                               (socket-msg {:type :repl/out
-                                            :out (into [] args)})
-                               (apply print-fn args)))
+        (fn [e]
+          (set-print-fn! (fn [& args]
+                           (socket-msg {:type :repl/out
+                                        :out (into [] args)})
+                           (apply print-fn args)))
 
-              (handle-message (-> e .-data (reader/read-string)))))
+          (handle-message (-> e .-data (reader/read-string)))))
 
       (set! (.-onopen socket)
-            (fn [e]
-              ;; patch away the already declared exception
-              (set! (.-provide js/goog) js/goog.constructNamespace_)
-              (.log js/console "DEVTOOLS: connected!")
-              (dump-transmitter)
-              ))
+        (fn [e]
+          ;; patch away the already declared exception
+          (set! (.-provide js/goog) js/goog.constructNamespace_)
+          (.log js/console "DEVTOOLS: connected!")
+          (dump-transmitter)
+          ))
 
       (set! (.-onclose socket)
-            (fn [e]
-              ;; not a big fan of reconnecting automatically since a disconnect
-              ;; may signal a change of config, safer to just reload the page
-              (.warn js/console "DEVTOOLS: disconnected!")
-              (reset! *socket* nil)
-              ))
+        (fn [e]
+          ;; not a big fan of reconnecting automatically since a disconnect
+          ;; may signal a change of config, safer to just reload the page
+          (.warn js/console "DEVTOOLS: disconnected!")
+          (reset! *socket* nil)
+          ))
 
       (set! (.-onerror socket)
-            (fn [e]))
+        (fn [e]))
 
       )))
 
