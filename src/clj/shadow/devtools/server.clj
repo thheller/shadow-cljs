@@ -152,7 +152,7 @@
    live-reload will only load namespaces that were already required"
   [{:keys [compiler-state config] :as state}]
   (let [{:keys [logger]} compiler-state
-        {:keys [before-load after-load css-packages]} config]
+        {:keys [console-support before-load after-load css-packages]} config]
 
     (let [{:keys [host port] :as server} (start-server state config)
 
@@ -180,7 +180,11 @@
                                               (boolean (:reload-with-state config))
                                               })
 
-              (update-in [:modules (:default-module compiler-state) :mains] conj 'shadow.devtools.browser))]
+              (update-in [:modules (:default-module compiler-state) :mains] conj 'shadow.devtools.browser)
+              (cond->
+                console-support
+                (update-in [:modules (:default-module compiler-state) :mains] conj 'shadow.devtools.console))
+              )]
 
       (cljs/log-progress logger (format "DEVTOOLS started: %s" (pr-str config)))
       (-> state
