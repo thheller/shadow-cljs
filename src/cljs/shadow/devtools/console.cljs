@@ -127,7 +127,7 @@
       (.push (SeqFormatter.))
       (.push (SymbolFormatter.))
       (.push (DerefFormatter.)))
-    
+
     #_ (js/console.log [1 "2" :3 'test {"hello" :world} '()])
     ))
 

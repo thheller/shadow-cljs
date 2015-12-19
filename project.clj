@@ -5,7 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies [[com.cognitect/transit-cljs "0.8.225"]
-                 [http-kit "2.1.19"]
+                 [aleph "0.4.1-beta2"]
                  [org.clojure/clojure "1.7.0"]
                  [org.clojure/clojurescript "1.7.170"]
                  [org.clojure/core.async "0.2.371"]

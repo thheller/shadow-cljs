@@ -8,7 +8,10 @@
             [clojure.repl :refer (pst)]
             [clojure.pprint :refer (pprint)]
             [clojure.data.json :as json]
-            [org.httpkit.server :as hk]
+            [aleph.http :as http]
+            [aleph.netty :as an]
+            [manifold.stream :as ms]
+            [manifold.deferred :as md]
             [cljs.compiler :as comp]
             [clojure.edn :as edn]
             [clojure.core.async :as async :refer (go <! >! <!! >!! alt! timeout thread alt!!)]
@@ -55,29 +58,33 @@
 
 ;; cast&call as in erlang (fire-and-forget, rpc-ish)
 
-(defn client-cast [{:keys [channel] :as state} cmd]
+(defn client-cast [{:keys [socket] :as state} cmd]
   (let [msg (pr-str cmd)]
-    (hk/send! channel msg))
+    @(ms/put! socket msg))
   state)
 
-(defn client-call [{:keys [channel] :as state} cmd idx result-chan]
+(defn client-call [{:keys [socket] :as state} cmd idx result-chan]
   (let [msg (pr-str cmd)]
-    (hk/send! channel msg)
+    @(ms/put! socket msg)
     (update state :pending assoc idx result-chan)
     ))
 
-(defn client-init-state [{:keys [channel] :as client-state} repl-state]
-  (hk/send! channel (pr-str {:type :repl/init
-                             :repl-state repl-state}))
+(defn client-init-state [{:keys [socket] :as client-state} repl-state]
+  @(ms/put! socket (pr-str {:type :repl/init
+                            :repl-state repl-state}))
   client-state)
 
 (defn client-loop
   "out is a channel which should only contain function for (fn state) -> next-state
    in should only receive anything from the websocket"
-  [id channel server in out]
-  (go (loop [state {:channel channel
-                    :server server
-                    :id id}]
+  [id client-type socket server in out]
+
+  (go (>! server [:connect id client-type out])
+      (loop [state {:server server
+                    :socket socket
+                    :id id
+                    :out out
+                    :pending {}}]
         (alt!
           out
           ([f]
@@ -91,54 +98,38 @@
             (when-not (nil? v)
               (recur (handle-client-data state v)))
             )))
+      (>! server [:disconnect id])))
 
-      ;; ensure that the channel is closed
-      ;; http-kit seems to have a bug that leaves the server-loop running
-      ;; if the server is shutdown while still having a connected websocket
-      (hk/close channel)
-      ))
+(defn unacceptable [_]
+  {:status 406 ;; not-acceptable
+   :headers {"Content-Type" "text/plain"}
+   :body "websocket required"})
 
-(defn- ring-handler [server-control ring-request]
+(defn- ring-handler [server-control req]
   (let [client-in (async/chan)
         client-out (async/chan)
-        [_ client-id client-type] (str/split (:uri ring-request) #"/")
+        [_ client-id client-type] (str/split (:uri req) #"/")
         client-type (keyword client-type)]
 
-    (hk/with-channel
-      ring-request channel
-      (if (hk/websocket? channel)
-        (do
-
-          (hk/on-receive channel
-            (fn [data] (>!! client-in data)))
-
-          (hk/on-close channel
-            (fn [status]
-              (>!! server-control [:disconnect client-id])
-              (async/close! client-out)
-              (async/close! client-in)
-              ))
-
-          (client-loop client-id channel server-control client-in client-out)
-          (>!! server-control [:connect client-id client-type client-out])
-
-          channel)
-
-        ;; only expecting a websocket connection yet
-        (hk/send! channel {:status 406 ;; not-acceptable
-                           :headers {"Content-Type" "text/plain"}
-                           :body "websocket required"})))))
+    (-> (http/websocket-connection req)
+        (md/chain
+          (fn [socket]
+            (ms/connect socket client-in)
+            socket))
+        (md/chain
+          (fn [socket]
+            (client-loop client-id client-type socket server-control client-in client-out)))
+        (md/catch unacceptable))))
 
 (defn- start-server [state {:keys [port host] :as config}]
   (let [server-control (async/chan)
         handler #(ring-handler server-control %)]
 
     (let [host (or host "localhost")
-          instance (hk/run-server handler {:ip host
-                                           :port (or port 0)})]
+          instance (http/start-server handler {:ip host :port (or port 0)})]
 
       {:instance instance
-       :port (:local-port (meta instance))
+       :port (an/port instance)
        :host host
        :server-control server-control})))
 
@@ -198,11 +189,8 @@
     (async/close! out))
 
   (when-let [instance (get-in state [:server :instance])]
-    (try
-      (instance)
-      (catch Throwable t
-        ;; ignore
-        ))))
+    (.close instance)
+    ))
 
 (defn- send-to-clients-of-type [state client-type msg]
   (doseq [{:keys [out type]} (vals (:clients state))
