@@ -4,7 +4,9 @@
             [clojure.data.json :as json]
             [clojure.string :as str])
   (:import [shadow.util FileWatcher FS]
-           [java.io File]))
+           [java.io File]
+           (clojure.lang IFn)
+           (java.lang AutoCloseable)))
 
 (def sassc-executable "sassc")
 
@@ -86,20 +88,25 @@
         ;; FIXME: should at some point check indiviual modules so we don't recompile everything all the time
         ;; but that would require figuring out which includes belong to which module, I don't want to deal
         ;; with parsing css for now.
-        dirty-check-fn
-        (fn []
-          (loop [i 0]
-            (if (>= i n)
-              false
-              (let [^FileWatcher watcher (nth watchers i)
-                    test (.pollForChanges watcher)]
-                (if (seq test)
-                  true
-                  (recur (inc i)))
-                ))))]
+        dirty-checker
+        (reify
+          AutoCloseable
+          (close [_]
+            (doseq [w watchers]
+              (.close w)))
+          IFn
+          (invoke [_]
+            (loop [i 0]
+              (if (>= i n)
+                false
+                (let [^FileWatcher watcher (nth watchers i)
+                      test (.pollForChanges watcher)]
+                  (if (seq test)
+                    true
+                    (recur (inc i)))
+                  )))))]
 
-    (assoc pkg
-      :dirty-check dirty-check-fn)
+    (assoc pkg :dirty-check dirty-checker)
     ))
 
 (comment

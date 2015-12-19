@@ -192,6 +192,11 @@
     (.close instance)
     ))
 
+(defn shutdown-css [{:keys [css-packages] :as state}]
+  (doseq [{:keys [dirty-check] :as pkg}  css-packages]
+    (prn [:shutdown-pkg pkg])
+    (.close dirty-check)))
+
 (defn- send-to-clients-of-type [state client-type msg]
   (doseq [{:keys [out type]} (vals (:clients state))
           :when (= type client-type)]
@@ -434,6 +439,7 @@
     (if-let [next-state (server-tick state server-control repl-input)]
       (recur next-state)
       (do (shutdown-server state)
+          (shutdown-css state)
 
           ;; no more output coming
           (async/close! repl-output)

@@ -14,7 +14,7 @@ import java.util.Map;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.nio.file.StandardWatchEventKinds.*;
 
-public class FileWatcher {
+public class FileWatcher implements AutoCloseable {
 
     private final Path root;
     private final WatchService ws;
@@ -27,6 +27,13 @@ public class FileWatcher {
         this.keys = new HashMap<WatchKey, Path>();
         this.matcher = matcher;
         registerAll(dir);
+    }
+
+
+    @Override
+    public void close() throws Exception {
+        this.keys.clear();
+        this.ws.close();
     }
 
     private void registerAll(final Path start) throws IOException {
