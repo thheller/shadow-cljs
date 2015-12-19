@@ -194,7 +194,6 @@
 
 (defn shutdown-css [{:keys [css-packages] :as state}]
   (doseq [{:keys [dirty-check] :as pkg}  css-packages]
-    (prn [:shutdown-pkg pkg])
     (.close dirty-check)))
 
 (defn- send-to-clients-of-type [state client-type msg]
