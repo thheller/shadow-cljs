@@ -6,11 +6,11 @@
 
   :dependencies [[com.cognitect/transit-cljs "0.8.225"]
                  [aleph "0.4.1-beta2"]
-                 [org.clojure/clojure "1.7.0"]
-                 [org.clojure/clojurescript "1.7.170"]
+                 [org.clojure/clojure "1.9.0-alpha5"]
+                 [org.clojure/clojurescript "1.9.36"]
                  [org.clojure/core.async "0.2.371"]
                  [thheller/shadow-client "1.0.161"]
-                 [thheller/shadow-build "1.0.192"]]
+                 [thheller/shadow-build "1.0.205"]]
 
   :source-paths ["src/clj"
                  "src/cljs"]
