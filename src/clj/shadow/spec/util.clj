@@ -2,4 +2,5 @@
   (:require [clojure.string :as str]))
 
 (defn non-empty-string? [x]
-  (not (str/blank? x)))
+  (and (string? x)
+       (not (str/blank? x))))

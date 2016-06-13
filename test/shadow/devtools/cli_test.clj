@@ -4,7 +4,8 @@
             [clojure.pprint :refer (pprint)]))
 
 
-
-
 (deftest test-config-spec
-  (pprint (cli/release :website)))
+  (cli/load-cljs-edn!))
+
+(deftest test-once
+  (cli/once "browser"))
