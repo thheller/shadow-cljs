@@ -1,16 +1,16 @@
-(defproject thheller/shadow-devtools "0.1.35"
+(defproject thheller/shadow-devtools "0.1.42"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
-  :dependencies [[com.cognitect/transit-cljs "0.8.225"]
-                 [aleph "0.4.1-beta2"]
-                 [org.clojure/clojure "1.9.0-alpha5"]
-                 [org.clojure/clojurescript "1.9.36"]
-                 [org.clojure/core.async "0.2.371"]
+  :dependencies [[com.cognitect/transit-cljs "0.8.239"]
+                 [aleph "0.4.1"]
+                 [org.clojure/clojure "1.9.0-alpha7"]
+                 [org.clojure/clojurescript "1.9.93"]
+                 [org.clojure/core.async "0.2.385"]
                  [thheller/shadow-client "1.0.161"]
-                 [thheller/shadow-build "1.0.207"]]
+                 [thheller/shadow-build "1.0.209"]]
 
   :source-paths ["src/clj"
                  "src/cljs"]

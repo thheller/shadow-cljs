@@ -11,10 +11,6 @@
 
 (spec/def ::config (spec/+ ::s-build/build))
 
-(def default-browser-config
-  {:public-dir "public/js"
-   :public-path "/js"})
-
 (defn load-cljs-edn []
   (-> (io/file "cljs.edn")
       (slurp)
@@ -29,6 +25,10 @@
 
     config
     ))
+
+(def default-browser-config
+  {:public-dir "public/js"
+   :public-path "/js"})
 
 (defn- configure-modules
   [state modules]
@@ -175,3 +175,37 @@
           (node/optimize)
           (umd/flush-module))))
   :done)
+
+(defn- test-setup []
+  (-> (cljs/init-state)
+      (cljs/enable-source-maps)
+      (cljs/set-build-options
+        {:public-dir (io/file "target" "cljs-test")
+         :public-path "target/cljs-test"})
+      (cljs/find-resources-in-classpath)
+      ))
+
+(defn autotest
+  [& args]
+  (-> (test-setup)
+      (cljs/watch-and-repeat!
+        (fn [state modified]
+          (-> state
+              (cond->
+                ;; first pass, run all tests
+                (empty? modified)
+                (node/execute-all-tests!)
+                ;; only execute tests that might have been affected by the modified files
+                (not (empty? modified))
+                (node/execute-affected-tests! modified))
+              )))))
+
+(defn test-all []
+  (-> (test-setup)
+      (node/execute-all-tests!)
+      ))
+
+(defn test-affected [test-ns]
+  (-> (test-setup)
+      (node/execute-affected-tests! [(cljs/ns->cljs-file test-ns)])
+      ))
