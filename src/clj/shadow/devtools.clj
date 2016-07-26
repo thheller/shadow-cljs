@@ -7,3 +7,5 @@
 (defmacro register! [type handler]
   `(when ~(with-meta 'shadow.devtools/enabled {:tag 'boolean})
      (register* ~type ~handler)))
+
+

@@ -133,6 +133,9 @@
        :host host
        :server-control server-control})))
 
+(defn prepend [tail head]
+  (into [head] tail))
+
 (defn setup-server
   "config is a map with these options:
    :host the interface to create the websocket server on (defaults to \"localhost\")
@@ -171,10 +174,10 @@
                                               (boolean (:reload-with-state config))
                                               })
 
-              (update-in [:modules (:default-module compiler-state) :mains] conj 'shadow.devtools.browser)
+              (update-in [:modules (:default-module compiler-state) :mains] prepend 'shadow.devtools.browser)
               (cond->
                 console-support
-                (update-in [:modules (:default-module compiler-state) :mains] conj 'shadow.devtools.console))
+                (update-in [:modules (:default-module compiler-state) :mains] prepend 'shadow.devtools.console))
               )]
 
       (cljs/log-progress logger (format "DEVTOOLS started: %s" (pr-str config)))
