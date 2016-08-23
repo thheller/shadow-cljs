@@ -145,8 +145,7 @@
 
    live-reload will only load namespaces that were already required"
   [{:keys [compiler-state config] :as state}]
-  (let [{:keys [logger]} compiler-state
-        {:keys [console-support before-load after-load css-packages]} config]
+  (let [{:keys [console-support before-load after-load css-packages]} config]
 
     (let [{:keys [host port] :as server} (start-server state config)
 
@@ -180,7 +179,11 @@
                 (update-in [:modules (:default-module compiler-state) :mains] prepend 'shadow.devtools.console))
               )]
 
-      (cljs/log-progress logger (format "DEVTOOLS started: %s" (pr-str config)))
+      (cljs/log compiler-state
+        {:type ::started
+         :config config
+         :msg (format "DEVTOOLS started: %s" (pr-str config))})
+
       (-> state
           (assoc :server server
                  :config config
@@ -196,7 +199,7 @@
     ))
 
 (defn shutdown-css [{:keys [css-packages] :as state}]
-  (doseq [{:keys [dirty-check] :as pkg}  css-packages]
+  (doseq [{:keys [dirty-check] :as pkg} css-packages]
     (.close dirty-check)))
 
 (defn- send-to-clients-of-type [state client-type msg]

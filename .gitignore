@@ -17,6 +17,8 @@ pom.xml.asc
 /client/launcher.html
 /test-project/public/js
 /test-project/public/css
+/public/assets
+/public/js
 /tmp
 /lib/js-closure
 /lib/closure-library
