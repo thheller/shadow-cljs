@@ -19,7 +19,11 @@
             [clojure.string :as str]
             [cljs.stacktrace :as st]
             [shadow.devtools.sass :as sass]
-            [shadow.devtools.util :as util]))
+            [shadow.devtools.util :as util]
+            [shadow.cljs.log :as log]))
+
+(defmethod log/event->str ::started [{:keys [config] :as evt}]
+  (format "DEVTOOLS started: %s" (pr-str config)))
 
 (defmulti handle-client-msg (fn [client-state msg] (:type msg)) :default ::default)
 
@@ -179,10 +183,7 @@
                 (update-in [:modules (:default-module compiler-state) :mains] prepend 'shadow.devtools.console))
               )]
 
-      (cljs/log compiler-state
-        {:type ::started
-         :config config
-         :msg (format "DEVTOOLS started: %s" (pr-str config))})
+      (cljs/log compiler-state {:type ::started :config config})
 
       (-> state
           (assoc :server server
