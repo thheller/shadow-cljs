@@ -177,10 +177,10 @@
                                               (boolean (:reload-with-state config))
                                               })
 
-              (update-in [:modules (:default-module compiler-state) :mains] prepend 'shadow.devtools.browser)
+              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.browser)
               (cond->
                 console-support
-                (update-in [:modules (:default-module compiler-state) :mains] prepend 'shadow.devtools.console))
+                (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.console))
               )]
 
       (cljs/log compiler-state {:type ::started :config config})
@@ -209,45 +209,36 @@
     (>!! out #(client-cast % msg))))
 
 (defn- notify-clients-about-cljs-changes!
-  [{:keys [config compiler-state] :as state} modified]
+  [{:keys [config compiler-state] :as state}]
   (let [js-reload (:js-reload config true)]
 
     ;; :server only code recompile means client should not auto reload
     (when (or (true? js-reload)
               (and js-reload (not= :server js-reload)))
-      (when (seq modified)
-        (let [source->module
-              (reduce
-                (fn [index {:keys [sources name]}]
-                  (reduce
-                    (fn [index source]
-                      (assoc index source name))
-                    index
-                    sources))
-                {}
-                (:build-modules compiler-state))
 
-              js-sources
-              (->> modified
-                   (mapcat #(cljs/get-deps-for-src compiler-state %))
-                   (distinct)
-                   (map (fn [name]
-                          {:name name
-                           :js-name (get-in compiler-state [:sources name :js-name])
-                           :module (get source->module name)}))
-                   (into []))
+      (let [source->module
+            (reduce
+              (fn [index {:keys [sources name]}]
+                (reduce
+                  (fn [index source]
+                    (assoc index source name))
+                  index
+                  sources))
+              {}
+              (:build-modules compiler-state))
 
-              reload
-              (->> modified
-                   (map #(get-in compiler-state [:sources % :js-name]))
-                   (into #{}))
+            compiled-sources
+            (->> (cljs/names-compiled-in-last-build compiler-state)
+                 (map (fn [name]
+                        {:name name
+                         :js-name (get-in compiler-state [:sources name :js-name])
+                         :module (get source->module name)}))
+                 (into []))]
 
-              msg {:type :js/reload
-                   :sources js-sources
-                   :reload reload}]
-
-          (send-to-clients-of-type state :browser msg)
-          )))))
+        (when (seq compiled-sources)
+          (send-to-clients-of-type state :browser
+            {:type :js/reload
+             :sources compiled-sources}))))))
 
 (defn- notify-clients-about-css-changes!
   [state {:keys [name public-path manifest]}]
@@ -342,13 +333,17 @@
                    modified)]
     (if-not (seq modified)
       (assoc state :fs-seq (inc fs-seq))
-      (let [change-names (mapv :name modified)
-            state (update state :compiler-state cljs/reload-modified-files! modified)]
+      (let [change-names
+            (mapv :name modified)
+
+            state
+            (update state :compiler-state cljs/reload-modified-files! modified)]
         (try
-          (let [state (update state :compiler-state compile-callback change-names)]
+          (let [{:keys [build-sources] :as state}
+                (update state :compiler-state compile-callback change-names)]
             ;; notify about actual files that were recompiled
             ;; not the files that were modified
-            (notify-clients-about-cljs-changes! state (-> state :compiler-state :compiled))
+            (notify-clients-about-cljs-changes! state)
             state)
           (catch Exception e
             ;; FIXME: notify clients, don't print, use repl-out (or repl-err?)
