@@ -15,7 +15,7 @@
 
 (defmulti obj->dom* type :default ::default)
 
-(defn ^String obj->dom [obj]
+(defn obj->dom [obj]
   (dom/build [:div.dt-dump (obj->dom* obj)]))
 
 (defmethod obj->dom* ::default [obj]

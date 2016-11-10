@@ -11,6 +11,7 @@
             [aleph.http :as http]
             [hiccup.page :refer (html5)]
             [ring.middleware.file :as ring-file]
+            [ring.middleware.resource :as ring-resource]
             ))
 
 (def not-found
@@ -185,7 +186,9 @@
          :body
          (html5
            {}
-           [:head [:title "LIVETEST: " (str ns)]]
+           [:head
+            [:title "LIVETEST: " (str ns)]
+            [:link {:rel "stylesheet" :href "/css/livetest.css"}]]
            [:body
             [:div [:a {:href "/"} "Index"]]
             [:div [:a {:href (str "/ns/" ns)} (str ns)]]
@@ -234,6 +237,7 @@
 
         http-handler
         (-> my-handler
+            (ring-resource/wrap-resource "shadow/devtools/livetest/")
             (ring-file/wrap-file (io/file "target/shadow-livetest")))
 
         server

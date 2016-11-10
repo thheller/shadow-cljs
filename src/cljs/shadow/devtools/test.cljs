@@ -15,6 +15,14 @@
   (when-let [message (:message m)] (println message))
   (test/print-comparison m))
 
+(defmethod test/report [::test/default :begin-test-var]
+  [{:keys [var]}]
+  (js/console.group (-> var meta :name str)))
+
+(defmethod test/report [::test/default :end-test-var]
+  [{:keys [var]}]
+  (js/console.groupEnd (-> var meta :name str)))
+
 (defn on-reset! [node callback]
   (js/goog.object.set node "__shadow$remove" callback))
 
