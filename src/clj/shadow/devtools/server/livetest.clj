@@ -131,7 +131,9 @@
       {:status 500
        :body "Timeout waiting for server state."}
       (let [test-namespaces
-            (node/find-all-test-namespaces compiler-state)]
+            (->> (node/find-all-test-namespaces compiler-state)
+                 (remove #(= % 'shadow.devtools.test))
+                 (into []))]
         {:status 200
          :body
          (html5
@@ -252,9 +254,17 @@
         svc
         (start devtools)]
 
+    (println "==========================================")
+    (println "LIVETEST running at: http://localhost:4005")
+    (println "==========================================")
+
     (server/repl-output-proc devtools)
     (server/repl-input-loop! devtools)
 
     (stop svc)
     (server/stop devtools)
     ))
+
+
+(defn -main [& args]
+  (run))
