@@ -2,7 +2,6 @@
   (:require [shadow.devtools.util :as util]
             [shadow.cljs.build :as cljs]
             [shadow.devtools.server :as server]
-            [shadow.cljs.node :as node]
             [clojure.java.io :as io]
             [clojure.pprint :refer (pprint)]
             [clojure.string :as str]
@@ -18,6 +17,18 @@
   {:status 404
    :headers {"Content-Type" "text/plain; charset=utf-8"}
    :body "Not found."})
+
+(defn has-tests? [{:keys [requires] :as rc}]
+  (or (contains? requires 'cljs.test)
+      (contains? requires 'shadow.devtools.test)))
+
+(defn find-all-test-namespaces [state]
+  (->> (get-in state [:sources])
+       (vals)
+       (remove :jar)
+       (filter has-tests?)
+       (map :ns)
+       (into [])))
 
 (defn ns-from-symbol [sym]
   (if-let [ns (namespace sym)]
@@ -131,8 +142,9 @@
       {:status 500
        :body "Timeout waiting for server state."}
       (let [test-namespaces
-            (->> (node/find-all-test-namespaces compiler-state)
+            (->> (find-all-test-namespaces compiler-state)
                  (remove #(= % 'shadow.devtools.test))
+                 (remove #(= % 'shadow.devtools.livetest.runner))
                  (into []))]
         {:status 200
          :body
@@ -183,7 +195,7 @@
                     (->> defs
                          (filter #(-> % (second) :test)))]
                 [:li [:a {:href (str "/ns/" ns "/" def-name)} (str def-name)]])]]
-            [:div#app]
+            [:div#shadow-test-root]
             [:div.scripts
              [:script {:src "/js/test.js"}]
              [:script "shadow.devtools.test.livetest();"]]])})

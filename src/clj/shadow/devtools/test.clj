@@ -16,6 +16,9 @@
     `(cljs.test/deftest ~name
        ~@body)))
 
+(defmacro is [& body]
+  `(cljs.test/is ~@body))
+
 (defmacro deftest-dom [name [dom-el & more] & body]
   (when more
     (throw (ex-info "i was lazy, properly implement support for multiple dom elements" {})))

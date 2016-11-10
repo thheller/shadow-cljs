@@ -4,7 +4,7 @@
             [shadow.util :refer (log)]
             [shadow.dom :as dom]))
 
-(def ns-to-test "shadow.devtools.livetest.runner")
+(def runner-ns "shadow.devtools.livetest.runner")
 
 (defmethod test/report [::test/default :error] [m]
   (js/console.error "ERROR in" (test/testing-vars-str m) (:actual m))
@@ -15,38 +15,38 @@
   (when-let [message (:message m)] (println message))
   (test/print-comparison m))
 
+(defn on-reset! [node callback]
+  (js/goog.object.set node "__shadow$remove" callback))
+
 (defn dom-test-root []
-  (dom/by-id "app"))
+  (dom/by-id "shadow-test-root"))
 
 (defn dom-test-clear []
-  (dom/reset (dom-test-root)))
+  (let [root
+        (dom-test-root)]
 
-(defn default-stop []
+    (doseq [container (dom/query "div.shadow-test-container" (dom-test-root))
+            :let [shadow-remove (js/goog.object.get container "__shadow$remove")]
+            :when shadow-remove]
+      (shadow-remove container))
+
+    (dom/reset root)))
+
+(defn livetest-stop []
   (dom-test-clear)
-  ;; (js/console.clear)
-  )
+  (js/console.clear))
 
 (defn empty-env []
   (test/empty-env))
 
-(defn livetest-stop []
-  (let [stop-fn
-        (-> (js/goog.getObjectByName ns-to-test)
-            (js/goog.object.get "stop"))]
-    (if stop-fn
-      (stop-fn)
-      (default-stop))))
-
 (defn livetest-start []
   (let [start-fn
-        (-> (js/goog.getObjectByName ns-to-test)
+        (-> (js/goog.getObjectByName runner-ns)
             (js/goog.object.get "livetest"))]
-    (if-not start-fn
-      (js/console.warn ns-to-test "did not define a livetest fn")
-      (start-fn))))
+    (start-fn)))
 
 (defn livetest []
-  (let [x (dom/insert-before (dom/by-id "app") [:button "re-test"])]
+  (let [x (dom/insert-before (dom-test-root) [:button "re-test"])]
     (dom/on x :click
       (fn [e]
         (dom/ev-stop e)
@@ -59,7 +59,7 @@
 
 (defn dom-test-el [label]
   (dom/append (dom-test-root) [:h1 label])
-  (dom/append (dom-test-root) [:div.test-el]))
+  (dom/append (dom-test-root) [:div.shadow-test-container]))
 
 (defn dom? []
   (not (nil? (dom-test-root))))
