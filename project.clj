@@ -10,7 +10,9 @@
                  [org.clojure/clojurescript "1.9.293"]
                  [org.clojure/core.async "0.2.385"]
                  [thheller/shadow-client "1.0.171"]
-                 [thheller/shadow-build "1.0.237"]]
+                 [thheller/shadow-build "1.0.237"]
+                 [hiccup "1.0.5"]
+                 [ring/ring-core "1.5.0"]]
 
   :source-paths ["src/clj"
                  "src/cljs"]

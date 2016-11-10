@@ -324,13 +324,48 @@
   (prn [:client-disconnect client-id])
   (update state :clients dissoc client-id))
 
+(defn do-compile [{:keys [compile-callback] :as state} change-names]
+  (let [state
+        (update state :compiler-state compile-callback change-names)]
+
+    ;; notify about actual files that were recompiled
+    ;; not the files that were modified
+    (notify-clients-about-cljs-changes! state)
+    state))
+
+(defmethod handle-server-control :reconfigure [state [_ config-fn res-chan]]
+  (prn [:reconfigure])
+  (try
+    (let [next-state
+          (-> state
+              (update :compiler-state config-fn)
+              (do-compile []))]
+      (>!! res-chan (:compiler-state next-state))
+      next-state)
+    (catch Exception e
+      (cljs/error-report (:compiler-state state) e)
+      (>!! res-chan e)
+      (async/close! res-chan)
+      state
+      )))
+
+(defmethod handle-server-control :compiler-state
+  [{:keys [compiler-state] :as state} [_ reply-to]]
+  (>!! reply-to compiler-state)
+  (async/close! reply-to)
+  state)
+
 (defn check-for-fs-changes
   [{:keys [compiler-state compile-callback fs-seq] :as state}]
-  (let [modified (cljs/scan-for-modified-files compiler-state)
+  (let [modified
+        (cljs/scan-for-modified-files compiler-state)
+
         ;; scanning for new files is expensive, don't do it that often
-        modified (if (zero? (mod fs-seq 5))
-                   (concat modified (cljs/scan-for-new-files compiler-state))
-                   modified)]
+        modified
+        (if (zero? (mod fs-seq 5))
+          (concat modified (cljs/scan-for-new-files compiler-state))
+          modified)]
+
     (if-not (seq modified)
       (assoc state :fs-seq (inc fs-seq))
       (let [change-names
@@ -339,12 +374,7 @@
             state
             (update state :compiler-state cljs/reload-modified-files! modified)]
         (try
-          (let [{:keys [build-sources] :as state}
-                (update state :compiler-state compile-callback change-names)]
-            ;; notify about actual files that were recompiled
-            ;; not the files that were modified
-            (notify-clients-about-cljs-changes! state)
-            state)
+          (do-compile state change-names)
           (catch Exception e
             ;; FIXME: notify clients, don't print, use repl-out (or repl-err?)
             (cljs/error-report compiler-state e)
@@ -458,68 +488,84 @@
   ([state config]
    (start state config default-compile-callback))
   ([state config callback]
-   (let [repl-input (async/chan)
-         repl-output (async/chan (async/sliding-buffer 10))
+   (let [repl-input
+         (async/chan)
 
-         state (-> {:compiler-state state
-                    :clients {}
-                    :fs-seq 1
-                    :compile-callback callback
-                    :repl-input repl-input
-                    :config config
-                    :repl-output repl-output}
-                   (setup-server)
-                   (setup-css)
-                   (setup-repl))
+         repl-output
+         (-> (async/sliding-buffer 10)
+             (async/chan))
 
-         state (assoc state :compiler-state (callback (:compiler-state state) []))
-         server-control (get-in state [:server :server-control])
-         server-thread (thread (server-loop state server-control repl-input repl-output))]
+         state
+         (-> {:compiler-state state
+              :config config
+              :clients {}
+              :fs-seq 1
+              :compile-callback callback
+              :repl-input repl-input
+              :repl-output repl-output}
+             (setup-server)
+             (setup-css)
+             (setup-repl))
+
+         state
+         (assoc state :compiler-state (callback (:compiler-state state) []))
+
+         server-control
+         (get-in state [:server :server-control])
+
+         server-thread
+         (thread (server-loop state server-control repl-input repl-output))]
      (assoc state :server-thread server-thread))))
 
-(def current-instance (atom {}))
+(defn stop [{:keys [repl-input repl-output] :as svc}]
+  (async/close! repl-input)
+  (async/close! repl-output))
+
+
+(defn repl-output-proc [{:keys [repl-output] :as devtools}]
+  (go (loop []
+        (let [msg (<! repl-output)]
+          (when-not (nil? msg)
+            (try
+              (prn [:repl-out (:type msg)])
+              (let [{:keys [value error]} msg]
+                (when error
+                  (println "===== ERROR ========")
+                  (println error)
+                  (when-let [trace (:stacktrace msg)]
+                    (pprint (util/parse-stacktrace msg)))
+                  (println "===================="))
+                (when value
+                  (println value)))
+              (catch Exception e
+                (prn [:print-ex e])))
+            (recur)
+            )))))
+
+(defn repl-input-loop!
+  "blocks the current thread, piping text into repl-input, will stop on :cljs/quit"
+  [{:keys [repl-input repl-output] :as devtools}]
+  ;; this really sucks but I don't care much for the streaming nature of a REPL
+  ;; still want to be able to eval multi-line forms though
+
+  ;; stuff like [1 2 : 3] will cause hazard though, so that needs to be handled somehow
+  (let [in (FakeLispReader.)]
+    (prn [:repl-ready])
+    (loop []
+      (let [msg (.next in)]
+        (when-not (nil? msg)
+          (when (not= msg ":cljs/quit")
+            (>!! repl-input [msg repl-output])
+            (recur)))))
+
+    (prn [:repl-quit])))
 
 (defn start-loop
   ([state config]
    (start-loop state config default-compile-callback))
   ([state config callback]
-   (let [{:keys [repl-output repl-input]} (start state config callback)]
-
-     (go (loop []
-           (let [msg (<! repl-output)]
-             (when-not (nil? msg)
-               (try
-                 (prn [:repl-out (:type msg)])
-                 (let [{:keys [value error]} msg]
-                   (when error
-                     (println "===== ERROR ========")
-                     (println error)
-                     (when-let [trace (:stacktrace msg)]
-                       (pprint (util/parse-stacktrace msg)))
-                     (println "===================="))
-                   (when value
-                     (println value)))
-                 (catch Exception e
-                   (prn [:print-ex e])))
-               (recur)
-               ))))
-
-     ;; this really sucks but I don't care much for the streaming nature of a REPL
-     ;; still want to be able to eval multi-line forms though
-
-     ;; stuff like [1 2 : 3] will cause hazard though, so that needs to be handled somehow
-
-
-     (let [in (FakeLispReader.)]
-       (prn [:repl-ready])
-       (loop []
-         (let [msg (.next in)]
-           (when-not (nil? msg)
-             (when (not= msg ":cljs/quit")
-               (>!! repl-input [msg repl-output])
-               (recur)))))
-       (async/close! repl-input)
-       (async/close! repl-output)
-       (prn [:repl-quit])
-       ))))
+   (let [server (start state config callback)]
+     (repl-output-proc server)
+     (repl-input-loop! server)
+     (stop server))))
 
