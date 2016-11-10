@@ -32,17 +32,22 @@
   `(js/console.log ~@args))
 
 (defmacro ->log [obj & args]
-  `(do (js/console.log ~@args ~obj)
-       ~obj))
+  `(do (let [obj# ~obj]
+         (js/console.log ~@args obj#)
+         obj#)))
 
 (defmacro ->>log [& args]
-  `(do (js/console.log ~@args)
-       ~(last args)))
+  `(do (let [obj# ~(last args)]
+         (js/console.log ~@(butlast args) obj#)
+         obj#)))
 
-(defmacro deftest-dom [name [dom-el & more] & body]
-  (when more
-    (throw (ex-info "i was lazy, properly implement support for multiple dom elements" {})))
-  `(when (shadow.devtools.test/dom?)
-     (shadow.devtools.test/deftest ~name
-       (let [~dom-el (shadow.devtools.test/dom-test-el ~(str name))]
-         ~@body))))
+(defmacro deftest-dom [name dom-els & body]
+  (let [container-sym (gensym)]
+    `(shadow.devtools.test/deftest ~name
+       (when (shadow.devtools.test/dom?)
+         (let [~container-sym (shadow.devtools.test/dom-test-container ~(str name))]
+           (let ~(->> (for [dom-el dom-els]
+                        `[~dom-el (shadow.devtools.test/dom-test-el ~container-sym ~(str dom-el))])
+                      (mapcat identity)
+                      (into []))
+             ~@body))))))

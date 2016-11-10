@@ -33,7 +33,7 @@
   (let [root
         (dom-test-root)]
 
-    (doseq [container (dom/query "div.shadow-test-container" (dom-test-root))
+    (doseq [container (dom/query "div.shadow-test-el" (dom-test-root))
             :let [shadow-remove (js/goog.object.get container "__shadow$remove")]
             :when shadow-remove]
       (shadow-remove container))
@@ -65,9 +65,15 @@
   (js/console.info "LIVETEST!")
   (livetest-start))
 
-(defn dom-test-el [label]
-  (dom/append (dom-test-root) [:h1 label])
-  (dom/append (dom-test-root) [:div.shadow-test-container]))
+(defn dom-test-el [container dom-id]
+  (dom/append container [:h2 dom-id])
+  (dom/append container [:div.shadow-test-el {:data-id dom-id}]))
+
+(defn dom-test-container [label]
+  (dom/append
+    (dom-test-root)
+    [:div.shadow-test-container
+     [:h1 label]]))
 
 (defn dom? []
   (not (nil? (dom-test-root))))
