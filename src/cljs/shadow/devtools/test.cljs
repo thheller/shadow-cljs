@@ -23,8 +23,13 @@
   [{:keys [var]}]
   (js/console.groupEnd (-> var meta :name str)))
 
-(defn on-reset! [node callback]
-  (js/goog.object.set node "__shadow$remove" callback))
+(def reset-callback-ref (volatile! nil))
+
+(defn on-reset!
+  ([callback]
+   (vreset! reset-callback-ref callback))
+  ([node callback]
+   (js/goog.object.set node "__shadow$remove" callback)))
 
 (defn dom-test-root []
   (dom/by-id "shadow-test-root"))
@@ -33,16 +38,20 @@
   (let [root
         (dom-test-root)]
 
-    (doseq [container (dom/query "div.shadow-test-el" (dom-test-root))
-            :let [shadow-remove (js/goog.object.get container "__shadow$remove")]
+    (doseq [test-el (dom/query "div.shadow-test-el" (dom-test-root))
+            :let [shadow-remove
+                  (or (js/goog.object.get test-el "__shadow$remove")
+                      @reset-callback-ref)]
             :when shadow-remove]
-      (shadow-remove container))
+      (shadow-remove test-el))
 
     (dom/reset root)))
 
 (defn livetest-stop []
+  (js/console.clear)
+  (js/console.group "livetest-reset")
   (dom-test-clear)
-  (js/console.clear))
+  (js/console.groupEnd "livetest-reset"))
 
 (defn empty-env []
   (test/empty-env))
