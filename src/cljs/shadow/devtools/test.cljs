@@ -2,28 +2,84 @@
   (:require-macros [shadow.devtools.test :as m])
   (:require [cljs.test :as test]
             [shadow.api :refer (ns-ready)]
-
+            [fipp.clojure :refer (pprint)]
             [shadow.util :refer (log)]
-            [shadow.dom :as dom]))
+            [shadow.dom :as dom]
+            [clojure.string :as str]))
 
 (def runner-ns "shadow.devtools.livetest.runner")
 
-(defmethod test/report [::test/default :error] [m]
+(defmethod test/report :default [{:keys [type] :as m}]
+  (js/console.log "reporter" type m))
+
+(defmethod test/report [::report :pass] [m]
+  (test/inc-report-counter! :pass))
+
+(defmethod test/report [::report :error] [m]
   (js/console.error "ERROR in" (test/testing-vars-str m) (:actual m))
   (test/inc-report-counter! :error)
-  (println "\nERROR in" (test/testing-vars-str m))
+  (js/console.log "\nERROR in" (test/testing-vars-str m))
   (when (seq (:testing-contexts (test/get-current-env)))
-    (println (test/testing-contexts-str)))
-  (when-let [message (:message m)] (println message))
+    (js/console.log (test/testing-contexts-str)))
+  (when-let [message (:message m)] (js/console.log message))
   (test/print-comparison m))
 
-(defmethod test/report [::test/default :begin-test-var]
-  [{:keys [var]}]
-  (js/console.group (-> var meta :name str)))
+(defn- print-comparison [{:keys [expected actual] :as m}]
+  (js/console.log "%cexpected:" "color: red;")
+  (js/console.log (with-out-str (pprint expected)))
+  (js/console.log "%cactual" "color: red;" )
+  (js/console.log (with-out-str (pprint actual))))
 
-(defmethod test/report [::test/default :end-test-var]
+(def success-ref (volatile! false))
+
+(defmethod test/report [::report :fail] [m]
+  (vreset! success-ref false)
+  (test/inc-report-counter! :fail)
+  (js/console.group "%cFAILURE" "color: red;")
+  (when-let [message (:message m)]
+    (js/console.log message))
+  (print-comparison m)
+  (js/console.groupEnd "%cFAILURE"))
+
+(defmethod test/report [::report :summary] [m]
+  (js/console.log (str "Ran " (:test m) " tests containing " (+ (:pass m) (:fail m) (:error m)) " assertions."))
+  (js/console.log (str (:fail m) " failures, " (:error m) " errors.")))
+
+(defmethod test/report [::report :begin-test-ns] [m]
+  (js/console.group (str "test-ns: " (name (:ns m)))))
+
+(defmethod test/report [::report :end-test-ns] [m]
+  (js/console.groupEnd (str "test-ns: " (name (:ns m)))))
+
+(defmethod test/report [::report :begin-test-var] [m])
+(defmethod test/report [::report :end-test-var] [m])
+(defmethod test/report [::report :end-run-tests] [m])
+(defmethod test/report [::report :end-test-all-vars] [m])
+(defmethod test/report [::report :end-test-vars] [m])
+
+(defmethod test/report [::report :begin-test-var]
   [{:keys [var]}]
-  (js/console.groupEnd (-> var meta :name str)))
+  (vreset! success-ref true)
+  (js/console.group (str "test-var: " (-> var meta :name str))))
+
+(defn var->fqn [var]
+  (let [{var-ns :ns
+         var-name :name}
+        (meta var)]
+    (str var-ns "/" var-name)))
+
+(defmethod test/report [::report :end-test-var]
+  [{:keys [var]}]
+  (let [fqn (var->fqn var)
+
+        success?
+        @success-ref
+
+        container
+        (dom/by-id fqn)]
+
+    (dom/add-class container (if success? "shadow-test-pass" "shadow-test-fail")))
+  (js/console.groupEnd (str "test-var: " (-> var meta :name str))))
 
 (def reset-callback-ref (volatile! nil))
 
@@ -56,7 +112,8 @@
   (js/console.groupEnd "livetest-reset"))
 
 (defn empty-env []
-  (test/empty-env))
+  (-> (test/empty-env)
+      (assoc :reporter ::report)))
 
 (defn livetest-start []
   (let [start-fn
@@ -76,17 +133,19 @@
             ))))
 
   (js/console.info "LIVETEST!")
-  (livetest-start))
+  ;; wait a bit to let the REPL and other stuff init properly first
+  (js/setTimeout #(livetest-start) 500))
 
 (defn dom-test-el [container el-name]
   (dom/append container [:div.shadow-test-el-label el-name])
   (dom/append container [:div.shadow-test-el {:data-test-el el-name}]))
 
 (defn dom-test-container [ns test]
-  (dom/append
-    (dom-test-root)
-    [:div.shadow-test-container
-     [:div.shadow-test-container-label (str ns "/" test)]]))
+  (let [fqn (str ns "/" test)]
+    (dom/append
+      (dom-test-root)
+      [:div.shadow-test-container {:id fqn}
+       [:div.shadow-test-container-label fqn]])))
 
 (defn dom? []
   (not (nil? (dom-test-root))))

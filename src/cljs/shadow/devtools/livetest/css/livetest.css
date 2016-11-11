@@ -18,6 +18,14 @@ body {
   margin-bottom: 20px;
 }
 
+.shadow-test-container.shadow-test-pass {
+  border: 1px solid green;
+}
+
+.shadow-test-container.shadow-test-fail {
+  border: 1px solid red;
+}
+
 .shadow-test-el-label {
   font-weight: bold;
   padding: 2px 10px;
