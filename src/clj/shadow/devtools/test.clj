@@ -31,12 +31,12 @@
 (defmacro log [& args]
   `(js/console.log ~@args))
 
-(defmacro ->log [obj & args]
+(defmacro log-> [obj & args]
   `(do (let [obj# ~obj]
          (js/console.log ~@args obj#)
          obj#)))
 
-(defmacro ->>log [& args]
+(defmacro log->> [& args]
   `(do (let [obj# ~(last args)]
          (js/console.log ~@(butlast args) obj#)
          obj#)))
