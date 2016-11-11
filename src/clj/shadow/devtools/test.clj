@@ -45,7 +45,7 @@
   (let [container-sym (gensym)]
     `(shadow.devtools.test/deftest ~name
        (when (shadow.devtools.test/dom?)
-         (let [~container-sym (shadow.devtools.test/dom-test-container ~(str name))]
+         (let [~container-sym (shadow.devtools.test/dom-test-container ~(str *ns*) ~(str name))]
            (let ~(->> (for [dom-el dom-els]
                         `[~dom-el (shadow.devtools.test/dom-test-el ~container-sym ~(str dom-el))])
                       (mapcat identity)

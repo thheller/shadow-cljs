@@ -1,6 +1,8 @@
 (ns shadow.devtools.test
   (:require-macros [shadow.devtools.test :as m])
   (:require [cljs.test :as test]
+            [shadow.api :refer (ns-ready)]
+
             [shadow.util :refer (log)]
             [shadow.dom :as dom]))
 
@@ -63,27 +65,30 @@
     (start-fn)))
 
 (defn livetest []
-  (let [x (dom/insert-before (dom-test-root) [:button "re-test"])]
-    (dom/on x :click
-      (fn [e]
-        (dom/ev-stop e)
-        (livetest-stop)
-        (livetest-start)
-        )))
+  (when-let [toolbar (dom/query-one ".shadow-test-toolbar")]
+    (-> toolbar
+        (dom/append [:button "re-test"])
+        (dom/on :click
+          (fn [e]
+            (dom/ev-stop e)
+            (livetest-stop)
+            (livetest-start)
+            ))))
 
   (js/console.info "LIVETEST!")
   (livetest-start))
 
-(defn dom-test-el [container dom-id]
-  (dom/append container [:h2 dom-id])
-  (dom/append container [:div.shadow-test-el {:data-id dom-id}]))
+(defn dom-test-el [container el-name]
+  (dom/append container [:div.shadow-test-el-label el-name])
+  (dom/append container [:div.shadow-test-el {:data-test-el el-name}]))
 
-(defn dom-test-container [label]
+(defn dom-test-container [ns test]
   (dom/append
     (dom-test-root)
     [:div.shadow-test-container
-     [:h1 label]]))
+     [:div.shadow-test-container-label (str ns "/" test)]]))
 
 (defn dom? []
   (not (nil? (dom-test-root))))
 
+(ns-ready)

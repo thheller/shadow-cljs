@@ -19,9 +19,12 @@
    :headers {"Content-Type" "text/plain; charset=utf-8"}
    :body "Not found."})
 
-(defn has-tests? [{:keys [requires] :as rc}]
-  (or (contains? requires 'cljs.test)
-      (contains? requires 'shadow.devtools.test)))
+(defn has-tests? [{:keys [ns requires] :as rc}]
+  (and (not= ns 'shadow.devtools.livetest.runner)
+       (not= ns 'shadow.devtools.test)
+       (or (contains? requires 'cljs.test)
+           (contains? requires 'shadow.devtools.test)
+           )))
 
 (defn find-all-test-namespaces [state]
   (->> (get-in state [:sources])
@@ -44,6 +47,20 @@
         '[shadow.devtools.test
           shadow.devtools.browser
           shadow.devtools.console]
+
+        _ (prn [:namespaces namespaces])
+        namespaces
+        (cond
+          (= :all namespaces)
+          (find-all-test-namespaces state)
+
+          (nil? namespaces)
+          []
+
+          :else
+          namespaces)
+
+        _ (prn [:namespaces namespaces])
 
         test-namespaces
         (into [] (map ns-from-symbol) namespaces)
@@ -68,7 +85,7 @@
                   ;; nothing to test
                   (not (seq test-namespaces))
                   `(defn ~'livetest []
-                     (js/console.warn "DID NOT CONFIGURE TEST-NAMESPACES"))
+                     (js/console.warn "nothing to test"))
 
                   ;; test a single-var
                   (and (= 1 (count namespaces))
@@ -95,14 +112,14 @@
 
 
 
-(defn request-configure [req ns]
+(defn request-configure [req namespaces]
   (let [chan
         (async/chan)
 
         server-control
         (get-in req [:devtools :server :server-control])]
 
-    (async/>!! server-control [:reconfigure #(setup-test-runner % [ns]) chan])
+    (async/>!! server-control [:reconfigure #(setup-test-runner % namespaces) chan])
 
     (let [result
           (async/alt!!
@@ -151,19 +168,60 @@
          :body
          (html5
            {}
-           [:head [:title "LIVETEST"]]
+           [:head
+            [:title "LIVETEST"]
+            [:link {:rel "stylesheet" :href "/css/livetest.css"}]]
            [:body
-            [:h1 "Available Test-Namespaces"]
+            [:h1 "Test-Namespaces"]
+            [:div [:a {:href "/test-all"} "test all"]]
             [:ul
              (for [ns (sort test-namespaces)]
                [:li [:a {:href (str "/ns/" ns)} (str ns)]])]]
            )}))))
 
-(defn test-page [req test-sym]
-  (prn [:test-page test-sym])
-
+(defn test-all-page [req]
   (let [result
-        (request-configure req test-sym)
+
+        (request-configure req :all)]
+    (cond
+      (= :timeout result)
+      {:status 500
+       :body "Timeout while waiting for reconfigure"}
+
+      (cljs/compiler-state? result)
+      (let []
+
+        {:status 200
+         :body
+         (html5
+           {}
+           [:head
+            [:title "LIVETEST: all"]
+            [:link {:rel "stylesheet" :href "/css/livetest.css"}]]
+           [:body
+            [:div.shadow-test-nav
+             [:span [:a {:href "/"} "Index"]]]
+            [:div.shadow-test-toolbar]
+            [:div#shadow-test-root]
+            [:div.scripts
+             [:script {:src "/js/test.js"}]
+             [:script "shadow.devtools.test.livetest();"]]])})
+
+      :else
+      {:status 500
+       :body
+       (html5
+         {}
+         [:head [:title "LIVETEST: error"]]
+         [:body
+          [:h1 "server re-configuration failed"]
+          [:pre (with-out-str (pprint result))]
+          ])}
+      )))
+
+(defn test-page [req test-sym]
+  (let [result
+        (request-configure req [test-sym])
 
         ns
         (if (qualified-symbol? test-sym)
@@ -190,14 +248,18 @@
             [:title "LIVETEST: " (str ns)]
             [:link {:rel "stylesheet" :href "/css/livetest.css"}]]
            [:body
-            [:div [:a {:href "/"} "Index"]]
-            [:div [:a {:href (str "/ns/" ns)} (str ns)]]
-            [:div
-             [:ul
-              (for [[def-name def]
-                    (->> defs
-                         (filter #(-> % (second) :test)))]
-                [:li [:a {:href (str "/ns/" ns "/" def-name)} (str def-name)]])]]
+            [:div.shadow-test-nav
+             [:div
+              [:span [:a {:href "/"} "Index"]]
+              " "
+              [:span [:a {:href (str "/ns/" ns)} (str ns)]]]
+             [:div
+              [:ul
+               (for [[def-name def]
+                     (->> defs
+                          (filter #(-> % (second) :test)))]
+                 [:li [:a {:href (str "/ns/" ns "/" def-name)} (str def-name)]])]]]
+            [:div.shadow-test-toolbar]
             [:div#shadow-test-root]
             [:div.scripts
              [:script {:src "/js/test.js"}]
@@ -221,6 +283,9 @@
     (cond
       (= "/" uri)
       (index-page req)
+
+      (= "/test-all" uri)
+      (test-all-page req)
 
       (str/starts-with? uri "/ns/")
       (test-page req (symbol (subs uri 4)))
