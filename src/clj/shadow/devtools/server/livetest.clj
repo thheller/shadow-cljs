@@ -12,6 +12,7 @@
             [hiccup.page :refer (html5)]
             [ring.middleware.file :as ring-file]
             [ring.middleware.resource :as ring-resource]
+            [ring.middleware.content-type :as ring-content-type]
             ))
 
 (def not-found
@@ -170,7 +171,7 @@
            {}
            [:head
             [:title "LIVETEST"]
-            [:link {:rel "stylesheet" :href "/css/livetest.css"}]]
+            [:link {:rel "stylesheet" :href "/support/css/livetest.css"}]]
            [:body
             [:h1 "Test-Namespaces"]
             [:div [:a {:href "/test-all"} "test all"]]
@@ -197,7 +198,7 @@
            {}
            [:head
             [:title "LIVETEST: all"]
-            [:link {:rel "stylesheet" :href "/css/livetest.css"}]]
+            [:link {:rel "stylesheet" :href "/support/css/livetest.css"}]]
            [:body
             [:div.shadow-test-nav
              [:span [:a {:href "/"} "Index"]]]
@@ -219,6 +220,12 @@
           ])}
       )))
 
+(defn user-asset-path [path]
+  (if (or (str/starts-with? path "http")
+          (str/starts-with? path "//"))
+    path
+    (str "/user" path)))
+
 (defn test-page [req test-sym]
   (let [result
         (request-configure req [test-sym])
@@ -237,8 +244,12 @@
        :body "Timeout while waiting for reconfigure"}
 
       (cljs/compiler-state? result)
-      (let [defs
-            (get-in result [:compiler-env ::ana/namespaces ns :defs])]
+      (let [{:keys [meta defs] :as ana-ns}
+            (get-in result [:compiler-env ::ana/namespaces ns])
+
+            ;; FIXME: probably not a good idea to do this via meta
+            {:keys [include-css include-js] :as livetest-meta}
+            (:livetest meta)]
 
         {:status 200
          :body
@@ -246,7 +257,10 @@
            {}
            [:head
             [:title "LIVETEST: " (str ns)]
-            [:link {:rel "stylesheet" :href "/css/livetest.css"}]]
+            [:link {:rel "stylesheet" :href "/support/css/livetest.css"}]
+            (for [path include-css]
+              [:link {:rel "stylesheet" :href (user-asset-path path)}])]
+
            [:body
             [:div.shadow-test-nav
              [:div
@@ -262,6 +276,9 @@
             [:div.shadow-test-toolbar]
             [:div#shadow-test-root]
             [:div.scripts
+             (for [path include-js]
+               [:script {:src (user-asset-path path)}])
+
              [:script {:src "/js/test.js"}]
              [:script "shadow.devtools.test.livetest();"]]])})
 
@@ -277,12 +294,43 @@
           ])}
       )))
 
+(defn serve-support-asset [{:keys [request config] :as req}]
+  ;; trim the /support
+  (let [req (update request :uri subs 8)
+        res (ring-resource/resource-request req "shadow/devtools/livetest")]
+    (if (nil? res)
+      not-found
+      (ring-content-type/content-type-response res req))
+    ))
+
+(defn serve-user-asset [{:keys [request config]}]
+  ;; trim the /user
+  (let [req (update request :uri subs 5)
+        res (ring-file/file-request req (:user-dir config "public"))]
+    (if (nil? res)
+      not-found
+      (ring-content-type/content-type-response res req))
+    ))
+
+(defn serve-file-asset [{:keys [request config] :as req}]
+  (let [res (ring-file/file-request request "target/shadow-livetest")]
+    (if (nil? res)
+      not-found
+      (ring-content-type/content-type-response res request))
+    ))
+
 (defn http-root [{:keys [devtools request] :as req}]
   (let [{:keys [uri]} request]
 
     (cond
       (= "/" uri)
       (index-page req)
+
+      (str/starts-with? uri "/user")
+      (serve-user-asset req)
+
+      (str/starts-with? uri "/support")
+      (serve-support-asset req)
 
       (= "/test-all" uri)
       (test-all-page req)
@@ -291,50 +339,65 @@
       (test-page req (symbol (subs uri 4)))
 
       :else
-      not-found)))
+      (serve-file-asset req))))
 
-(defn start [devtools]
+(defn start-http [devtools config]
   (let [my-handler
         (fn [req]
           (http-root
             {:request req
+             :config config
              :devtools devtools}))
 
-        http-handler
-        (-> my-handler
-            (ring-resource/wrap-resource "shadow/devtools/livetest/")
-            (ring-file/wrap-file (io/file "target/shadow-livetest")))
-
         server
-        (http/start-server http-handler {:port 4005})]
+        (http/start-server my-handler {:port 4005})]
 
     {:devtools devtools
      :server server}))
 
-(defn stop [{:keys [server] :as svc}]
+(defn stop-http [{:keys [server] :as svc}]
   (.close server))
 
+(defn stop-devtools [{:keys [repl-input] :as devtools}]
+  (async/close! repl-input))
+
+(defn start
+  ([]
+    (start {:user-dir "public"}))
+  ([config]
+   (let [devtools-config
+         {:before-load 'shadow.devtools.test/livetest-stop
+          :after-load 'shadow.devtools.test/livetest-start
+          :console-support true}
+
+         state
+         (-> (cljs/init-state)
+             (cljs/enable-source-maps)
+             (cljs/set-build-options
+               {:public-dir (io/file "target/shadow-livetest/js")
+                :public-path "/js"})
+             (cljs/find-resources-in-classpath)
+             (setup-test-runner []))
+
+         devtools
+         (server/start state devtools-config)
+
+         http
+         (start-http devtools config)]
+
+     {:devtools devtools
+      :config config
+      :http http}
+     )))
+
+
+(defn stop [{:keys [devtools http]}]
+  (stop-http http)
+  (stop-devtools devtools))
+
 (defn run []
-  (let [config
-        {:before-load 'shadow.devtools.test/livetest-stop
-         :after-load 'shadow.devtools.test/livetest-start
-         :console-support true}
-
-        state
-        (-> (cljs/init-state)
-            (cljs/enable-source-maps)
-            (cljs/set-build-options
-              {:public-dir (io/file "target/shadow-livetest/js")
-               :public-path "/js"})
-            (cljs/find-resources-in-classpath)
-            (setup-test-runner []))
-
-        {:keys [repl-output repl-input] :as devtools}
-        (server/start state config)
-
-        svc
-        (start devtools)]
-
+  (let [{:keys [devtools] :as svc}
+        (start)]
     (println "==========================================")
     (println "LIVETEST running at: http://localhost:4005")
     (println "==========================================")
@@ -343,7 +406,6 @@
     (server/repl-input-loop! devtools)
 
     (stop svc)
-    (server/stop devtools)
     ))
 
 
