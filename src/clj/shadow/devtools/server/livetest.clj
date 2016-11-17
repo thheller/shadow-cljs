@@ -8,6 +8,7 @@
             [cljs.compiler :as comp]
             [cljs.analyzer :as ana]
             [clojure.core.async :as async]
+            [clojure.edn :as edn]
             [aleph.http :as http]
             [hiccup.page :refer (html5)]
             [ring.middleware.file :as ring-file]
@@ -350,7 +351,7 @@
              :devtools devtools}))
 
         server
-        (http/start-server my-handler {:port 4005})]
+        (http/start-server my-handler (merge {:port 4005} (:http config)))]
 
     {:devtools devtools
      :server server}))
@@ -362,52 +363,65 @@
   (async/close! repl-input))
 
 (defn start
-  ([]
-    (start {:user-dir "public"}))
-  ([config]
-   (let [devtools-config
-         {:before-load 'shadow.devtools.test/livetest-stop
-          :after-load 'shadow.devtools.test/livetest-start
-          :console-support true}
+  [{:keys [devtools] :as config}]
+  (pprint config)
+  (let [devtools-config
+        (merge
+          devtools
+          {:before-load 'shadow.devtools.test/livetest-stop
+           :after-load 'shadow.devtools.test/livetest-start
+           :console-support true})
 
-         state
-         (-> (cljs/init-state)
-             (cljs/enable-source-maps)
-             (cljs/set-build-options
-               {:public-dir (io/file "target/shadow-livetest/js")
-                :public-path "/js"})
-             (cljs/find-resources-in-classpath)
-             (setup-test-runner []))
+        state
+        (-> (cljs/init-state)
+            (cljs/enable-source-maps)
+            (cljs/set-build-options
+              {:public-dir (io/file "target/shadow-livetest/js")
+               :public-path "/js"})
+            (cljs/merge-build-options
+              (:build config {}))
+            (cljs/find-resources-in-classpath)
+            (setup-test-runner []))
 
-         devtools
-         (server/start state devtools-config)
+        devtools
+        (server/start state devtools-config)
 
-         http
-         (start-http devtools config)]
+        http
+        (start-http devtools config)]
 
-     {:devtools devtools
-      :config config
-      :http http}
-     )))
-
+    {:devtools devtools
+     :config config
+     :http http}
+    ))
 
 (defn stop [{:keys [devtools http]}]
   (stop-http http)
   (stop-devtools devtools))
 
-(defn run []
-  (let [{:keys [devtools] :as svc}
-        (start)]
-    (println "==========================================")
-    (println "LIVETEST running at: http://localhost:4005")
-    (println "==========================================")
+(def default-config
+  {:http {:port 4005}})
 
-    (server/repl-output-proc devtools)
-    (server/repl-input-loop! devtools)
+(defn run
+  ([]
+   (let [cfg (io/file "shadow-livetest.edn")]
+     (if-not (.exists cfg)
+       (run default-config)
+       (-> cfg
+           (slurp)
+           (edn/read-string)
+           (run)))))
+  ([config]
+   (let [{:keys [devtools] :as svc}
+         (start config)]
+     (println "==========================================")
+     (println "LIVETEST running at: http://localhost:4005")
+     (println "==========================================")
 
-    (stop svc)
-    ))
+     (server/repl-output-proc devtools)
+     (server/repl-input-loop! devtools)
 
+     (stop svc)
+     )))
 
 (defn -main [& args]
   (run))

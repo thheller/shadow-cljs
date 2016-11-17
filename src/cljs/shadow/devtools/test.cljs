@@ -78,7 +78,8 @@
         container
         (dom/by-id fqn)]
 
-    (dom/add-class container (if success? "shadow-test-pass" "shadow-test-fail")))
+    (when container
+      (dom/add-class container (if success? "shadow-test-pass" "shadow-test-fail"))))
   (js/console.groupEnd (str "test-var: " (-> var meta :name str))))
 
 (def reset-callback-ref (volatile! nil))
