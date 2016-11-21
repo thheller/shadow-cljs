@@ -249,7 +249,7 @@
             (get-in result [:compiler-env ::ana/namespaces ns])
 
             ;; FIXME: probably not a good idea to do this via meta
-            {:keys [include-css include-js] :as livetest-meta}
+            {:keys [include-css include-js include-link] :as livetest-meta}
             (:livetest meta)]
 
         {:status 200
@@ -258,6 +258,8 @@
            {}
            [:head
             [:title "LIVETEST: " (str ns)]
+            (for [attrs include-link]
+              [:link attrs])
             [:link {:rel "stylesheet" :href "/support/css/livetest.css"}]
             (for [path include-css]
               [:link {:rel "stylesheet" :href (user-asset-path path)}])]
@@ -376,7 +378,8 @@
         (-> (cljs/init-state)
             (cljs/enable-source-maps)
             (cljs/set-build-options
-              {:public-dir (io/file "target/shadow-livetest/js")
+              {:use-file-min false
+               :public-dir (io/file "target/shadow-livetest/js")
                :public-path "/js"})
             (cljs/merge-build-options
               (:build config {}))
