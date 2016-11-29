@@ -156,6 +156,9 @@
       result
       )))
 
+(defn livetest-path [req path]
+  (str (get-in req [:config :http :root]) path))
+
 (defn index-page [req]
   (let [compiler-state (request-state req)]
     (if (= :timeout compiler-state)
@@ -172,13 +175,13 @@
            {}
            [:head
             [:title "LIVETEST"]
-            [:link {:rel "stylesheet" :href "/support/css/livetest.css"}]]
+            [:link {:rel "stylesheet" :href (livetest-path req "/support/css/livetest.css")}]]
            [:body
             [:h1 "Test-Namespaces"]
-            [:div [:a {:href "/test-all"} "test all"]]
+            [:div [:a {:href (livetest-path req "/test-all")} "test all"]]
             [:ul
              (for [ns (sort test-namespaces)]
-               [:li [:a {:href (str "/ns/" ns)} (str ns)]])]]
+               [:li [:a {:href (livetest-path req (str "/ns/" ns))} (str ns)]])]]
            )}))))
 
 (defn test-all-page [req]
@@ -199,14 +202,14 @@
            {}
            [:head
             [:title "LIVETEST: all"]
-            [:link {:rel "stylesheet" :href "/support/css/livetest.css"}]]
+            [:link {:rel "stylesheet" :href (livetest-path req "/support/css/livetest.css")}]]
            [:body
             [:div.shadow-test-nav
-             [:span [:a {:href "/"} "Index"]]]
+             [:span [:a {:href (livetest-path req "/")} "Index"]]]
             [:div.shadow-test-toolbar]
             [:div#shadow-test-root]
             [:div.scripts
-             [:script {:src "/js/test.js"}]
+             [:script {:src (livetest-path req "/js/test.js")}]
              [:script "shadow.devtools.test.livetest();"]]])})
 
       :else
@@ -222,10 +225,8 @@
       )))
 
 (defn user-asset-path [path]
-  (if (or (str/starts-with? path "http")
-          (str/starts-with? path "//"))
-    path
-    (str "/user" path)))
+  ;; FIXME: assuming proxy in front for now
+  path)
 
 (defn test-page [req test-sym]
   (let [result
@@ -260,29 +261,29 @@
             [:title "LIVETEST: " (str ns)]
             (for [attrs include-link]
               [:link attrs])
-            [:link {:rel "stylesheet" :href "/support/css/livetest.css"}]
+            [:link {:rel "stylesheet" :href (livetest-path req "/support/css/livetest.css")}]
             (for [path include-css]
               [:link {:rel "stylesheet" :href (user-asset-path path)}])]
 
            [:body
             [:div.shadow-test-nav
              [:div
-              [:span [:a {:href "/"} "Index"]]
+              [:span [:a {:href (livetest-path req "/")} "Index"]]
               " "
-              [:span [:a {:href (str "/ns/" ns)} (str ns)]]]
+              [:span [:a {:href (livetest-path req (str "/ns/" ns))} (str ns)]]]
              [:div
               [:ul
                (for [[def-name def]
                      (->> defs
                           (filter #(-> % (second) :test)))]
-                 [:li [:a {:href (str "/ns/" ns "/" def-name)} (str def-name)]])]]]
+                 [:li [:a {:href (livetest-path req (str "/ns/" ns "/" def-name))} (str def-name)]])]]]
             [:div.shadow-test-toolbar]
             [:div#shadow-test-root]
             [:div.scripts
              (for [path include-js]
                [:script {:src (user-asset-path path)}])
 
-             [:script {:src "/js/test.js"}]
+             [:script {:src (livetest-path req "/js/test.js")}]
              [:script "shadow.devtools.test.livetest();"]]])})
 
       :else
@@ -306,15 +307,6 @@
       (ring-content-type/content-type-response res req))
     ))
 
-(defn serve-user-asset [{:keys [request config]}]
-  ;; trim the /user
-  (let [req (update request :uri subs 5)
-        res (ring-file/file-request req (:user-dir config "public"))]
-    (if (nil? res)
-      not-found
-      (ring-content-type/content-type-response res req))
-    ))
-
 (defn serve-file-asset [{:keys [request config] :as req}]
   (let [res (ring-file/file-request request "target/shadow-livetest")]
     (if (nil? res)
@@ -324,13 +316,9 @@
 
 (defn http-root [{:keys [devtools request] :as req}]
   (let [{:keys [uri]} request]
-
     (cond
       (= "/" uri)
       (index-page req)
-
-      (str/starts-with? uri "/user")
-      (serve-user-asset req)
 
       (str/starts-with? uri "/support")
       (serve-support-asset req)
@@ -347,10 +335,12 @@
 (defn start-http [devtools config]
   (let [my-handler
         (fn [req]
-          (http-root
-            {:request req
-             :config config
-             :devtools devtools}))
+          (-> (http-root
+                {:request req
+                 :config config
+                 :devtools devtools})
+              ;; no caching of anything we generate
+              (update :headers assoc "cache-control" "private, no-store, must-revalidate")))
 
         server
         (http/start-server my-handler (merge {:port 4005} (:http config)))]
@@ -380,7 +370,7 @@
             (cljs/set-build-options
               {:use-file-min false
                :public-dir (io/file "target/shadow-livetest/js")
-               :public-path "/js"})
+               :public-path (str (get-in config [:http :root]) "/js")})
             (cljs/merge-build-options
               (:build config {}))
             (cljs/find-resources-in-classpath)
@@ -402,7 +392,8 @@
   (stop-devtools devtools))
 
 (def default-config
-  {:http {:port 4005}})
+  {:http {:port 4005
+          :root ""}})
 
 (defn run
   ([]
