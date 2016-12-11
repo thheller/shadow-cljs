@@ -227,18 +227,28 @@
               {}
               (:build-modules compiler-state))
 
-            compiled-sources
-            (->> (cljs/names-compiled-in-last-build compiler-state)
+            reload-sources
+            (into #{} (cljs/names-compiled-in-last-build compiler-state))
+
+            build-sources
+            (->> (:build-sources compiler-state)
                  (map (fn [name]
                         {:name name
                          :js-name (get-in compiler-state [:sources name :js-name])
                          :module (get source->module name)}))
                  (into []))]
 
-        (when (seq compiled-sources)
+        (when (seq reload-sources)
           (send-to-clients-of-type state :browser
-            {:type :js/reload
-             :sources compiled-sources}))))))
+            {:type
+             :js/reload
+
+             :reload
+             reload-sources
+
+             :build
+             build-sources
+             }))))))
 
 (defn- notify-clients-about-css-changes!
   [state {:keys [name public-path manifest]}]

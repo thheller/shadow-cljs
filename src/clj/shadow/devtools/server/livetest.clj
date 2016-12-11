@@ -170,6 +170,7 @@
                  (remove #(= % 'shadow.devtools.livetest.runner))
                  (into []))]
         {:status 200
+         :headers {"content-type" "text/html; charset=utf-8"}
          :body
          (html5
            {}
@@ -195,8 +196,8 @@
 
       (cljs/compiler-state? result)
       (let []
-
         {:status 200
+         :headers {"content-type" "text/html; charset=utf-8"}
          :body
          (html5
            {}
@@ -254,6 +255,7 @@
             (:livetest meta)]
 
         {:status 200
+         :headers {"content-type" "text/html; charset=utf-8"}
          :body
          (html5
            {}
@@ -395,15 +397,21 @@
   {:http {:port 4005
           :root ""}})
 
-(defn run
+(defn read-config
   ([]
-   (let [cfg (io/file "shadow-livetest.edn")]
+    (read-config "shadow-livetest.edn"))
+  ([config-path]
+   (let [cfg (io/file config-path)]
      (if-not (.exists cfg)
-       (run default-config)
+       default-config
        (-> cfg
            (slurp)
            (edn/read-string)
-           (run)))))
+           )))))
+
+(defn run
+  ([]
+   (run (read-config)))
   ([config]
    (let [{:keys [devtools] :as svc}
          (start config)]

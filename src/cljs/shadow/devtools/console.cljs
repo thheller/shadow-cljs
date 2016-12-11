@@ -12,7 +12,8 @@
     ))
 
 (defn object-ref [obj]
-  #js ["object" #js {:object obj}])
+  (when obj
+    #js ["object" #js {:object obj}]))
 
 (defn map->style [m]
   #js {:style
@@ -23,23 +24,30 @@
 
 (defn clj->jsonml
   [struct]
+
   (cond
+    (nil? struct)
+    nil
+
     (array? struct)
     struct
+
     (vector? struct)
     (let [[tag attrs & children] struct
           js #js [(name tag) (map->style attrs)]]
       (doseq [child children]
         (push-all js (clj->jsonml child)))
       js)
+
     (string? struct)
     struct
+
     (number? struct)
     struct
+
     (seq? struct)
     (into [] (map clj->jsonml) struct)
-    (nil? struct)
-    nil
+
     :else
     (object-ref struct)
     ))
@@ -62,22 +70,27 @@
   Object
   (shadow$formatter [this] true)
   (header [this obj]
-    (when (or (map? obj) (record? obj))
+    (when (or (instance? cljs.core/PersistentHashMap obj)
+              (instance? cljs.core/PersistentArrayMap obj)
+              (record? obj))
       (clj->jsonml [:span {} (str (pr-str (type obj)) " [count: " (count obj) "]")])
       ))
+
   (hasBody [this obj]
     (boolean (seq obj)))
+
   (body [this m]
-    (clj->jsonml [:table {:width "100%" :margin-left "14px"}
-                  (for [key (let [k (keys m)]
-                              (try
-                                (sort k)
-                                (catch :default e
-                                  k)))
-                        :let [value (get m key)]]
-                    [:tr {:vertical-align "top"}
-                     [:td {} (object-ref key)]
-                     [:td {} (object-ref value)]])])))
+    (clj->jsonml
+      [:table {:width "100%" :margin-left "14px"}
+       (for [key (let [k (keys m)]
+                   (try
+                     (sort k)
+                     (catch :default e
+                       k)))
+             :let [value (get m key)]]
+         [:tr {:vertical-align "top"}
+          [:td {} (object-ref key)]
+          [:td {} (object-ref value)]])])))
 
 (def keyword-style {:color "rgb(136, 19, 145)"})
 
@@ -110,14 +123,12 @@
   (shadow$formatter [this] true)
   (header [this obj]
     (when (satisfies? IDeref obj)
-      (clj->jsonml [:span keyword-style (str (pr-str (type obj)))])
+      (clj->jsonml [:span keyword-style (str "@DEREF " (pr-str (type obj)))])
       ))
   (hasBody [this obj]
     true)
   (body [this v]
-    (clj->jsonml [:div {:margin-left "14px"}
-                  [:span keyword-style "@value: "]
-                  (object-ref @v)])))
+    (clj->jsonml [:div {:margin-left "14px"} (object-ref @v)])))
 
 (defn install-all! []
   (when-let [f js/window.devtoolsFormatters]
@@ -128,14 +139,15 @@
       (.push (SymbolFormatter.))
       (.push (DerefFormatter.)))
 
-    #_ (js/console.log [1 "2" :3 'test {"hello" :world} '()])
+    #_(js/console.log [1 "2" :3 'test {"hello" :world} '()])
     ))
 
 (defn remove-all! []
-  (let [all (->> (or js/window.devtoolsFormatters #js [])
-                 (array-seq)
-                 (remove #(js/goog.object.get % "shadow$formatter"))
-                 (into-array))]
+  (let [all
+        (->> (or js/window.devtoolsFormatters #js [])
+             (array-seq)
+             (remove #(js/goog.object.get % "shadow$formatter"))
+             (into-array))]
     (js/goog.object.set js/window "devtoolsFormatters" all)))
 
 (when devtools/enabled
