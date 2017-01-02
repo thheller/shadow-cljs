@@ -47,7 +47,7 @@
 
         requires
         '[shadow.devtools.test
-          shadow.devtools.browser
+          shadow.devtools.client.host
           shadow.devtools.console]
 
         _ (prn [:namespaces namespaces])

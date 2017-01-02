@@ -1,77 +1,61 @@
 (ns shadow.devtools.server.web
-  (:require [hiccup.page :refer (html5)]
-            [hiccup.core :refer (html)]
-            [shadow.server.assets :as assets]
-            [clojure.string :as str]
-            [clojure.pprint :refer (pprint)]
-            [shadow.devtools.server.services.build :as build]
-            [shadow.devtools.server.services.explorer :as explorer]
-            [shadow.devtools.server.web.common :as common]
-            [shadow.devtools.server.web.ws-devtools :as ws-devtools]
-            [shadow.devtools.server.web.ws-ui :as ws-ui]
-            ))
+  (:require
+    [hiccup.core :refer (html)]
+    [shadow.server.assets :as assets]
+    [clojure.string :as str]
+    [clojure.pprint :refer (pprint)]
+    [shadow.devtools.server.services.build :as build]
+    [shadow.devtools.server.services.explorer :as explorer]
+    [shadow.devtools.server.web.common :as common]
+    [shadow.devtools.server.web.ws-devtools :as ws-devtools]
+    [shadow.devtools.server.web.ws-client :as ws-client]
+    [shadow.devtools.server.web.explorer :as web-explorer]
+    [shadow.devtools.server.web.client :as web-client]
+    [clojure.tools.logging :as log])
+  (:import (java.util UUID)))
 
-(defn page-boilerplate
-  [{:keys [assets] :as req} ^String content]
-  {:status 200
-   :headers {"content-type" "text/html; charset=utf-8"}
-   :body
-   (html5
-     {:lang "en"}
-     [:head
-      [:title "hello world"]
-      (assets/html-head assets ["ui"])]
-     [:body
-      content
-      (assets/html-body assets ["main"])
-      ])})
-
-(defn explorer-page
-  [{:keys [explorer] :as req}]
-  (page-boilerplate
-    req
+(defn index-page [req]
+  (common/page-boilerplate req
     (html
-      [:h1 "Explorer"]
+      [:h1 "Active Builds"]
       [:ul
-       (for [provide
-             (->> (explorer/get-project-tests explorer)
-                  (sort))]
-         [:li
-          [:a {:href (str "/test-client/" provide)} (str provide)]])]
+       (for [build-id (build/active-builds (:build req))]
+         [:li [:a {:href (str "/client/" build-id)} (str build-id)]])]
+      [:div#log]
+      (assets/js-queue :none 'shadow.devtools.ui/start)
       )))
 
-(defn test-client-page
-  [{:keys [explorer assets] :as req} test-ns]
-  (page-boilerplate
-    req
-    (html
-      [:h1 "Test-Frame"]
-      [:h2 test-ns]
-      (assets/js-queue :none 'shadow.devtools.test/test-slave)
-      )))
-
-(defn root [req]
+(defn root [{:keys [build] :as req}]
   (let [uri
         (get-in req [:ring-request :uri])]
 
     (cond
+      (= uri "/")
+      (index-page req)
+
       (str/starts-with? uri "/ws/devtools")
       (ws-devtools/ws-start req)
 
-      (str/starts-with? uri "/ws/ui")
-      (ws-ui/ws-start req)
+      (str/starts-with? uri "/ws/client")
+      (ws-client/ws-start req)
 
-      (str/starts-with? uri "/test-client")
-      (test-client-page req (symbol (subs uri 13)))
+      ;; only for debugging purposes
+      (= uri "/self-connect")
+      (let [{:keys [proc-id]}
+            (build/find-proc-by-build-id build :self)]
+        (web-client/root
+          req
+          proc-id))
+
+      (str/starts-with? uri "/client/")
+      (web-client/root req
+        (-> uri
+            (subs (count "/client/"))
+            (UUID/fromString)))
 
       (str/starts-with? uri "/explorer")
-      (explorer-page req)
+      (web-explorer/root req)
 
       :else
-      (page-boilerplate req
-        (html
-          [:h1 "yo"]
-          [:pre (pr-str (build/active-builds (:build req)))]
-          [:div#log]
-          (assets/js-queue :none 'shadow.devtools.ui/start)
-          )))))
+      common/not-found
+      )))

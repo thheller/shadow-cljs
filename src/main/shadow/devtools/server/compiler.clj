@@ -4,7 +4,8 @@
             [clojure.pprint :refer (pprint)]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.node :as node]
-            [shadow.cljs.umd :as umd]))
+            [shadow.cljs.umd :as umd]
+            [clojure.tools.logging :as log]))
 
 (def default-browser-config
   {:public-dir "public/js"
@@ -19,7 +20,7 @@
     modules))
 
 (defn- trigger-event [state event]
-  (prn [:trigger-event event])
+  ;; (prn [:trigger-event event])
   state)
 
 (defmulti configure (fn [state] (get-in state [::config :target])))
@@ -56,7 +57,7 @@
 
 (defn init
   ([mode config]
-    (init mode config {}))
+   (init mode config {}))
   ([mode {:keys [dev release target] :as config} init-options]
    {:pre [(contains? #{:dev :release} mode)
           (map? config)]}
@@ -96,30 +97,48 @@
   (update state ::build-info merge {:modules build-modules}))
 
 (defn- update-build-info-after-compile
-  [{:keys [build-sources] :as state}]
-  (reduce
-    (fn [state source-name]
-      (let [{:keys [type cached] :as src}
-            (get-in state [:sources source-name])]
-        (cond
-          (and (= type :cljs) cached)
-          (update-in state [::build-info :cached] conj source-name)
-          (and (= type :cljs) (not cached))
-          (update-in state [::build-info :compiled] conj source-name)
-          :else
-          state
-          )))
-    state
-    build-sources))
+  [state]
+  (let [source->module
+        (reduce
+          (fn [index {:keys [sources name]}]
+            (reduce
+              (fn [index source]
+                (assoc index source name))
+              index
+              sources))
+          {}
+          (:build-modules state))
 
-(defn dummy [state]
-  (pprint (::build-info state))
-  state)
+        compiled-sources
+        (into #{} (cljs/names-compiled-in-last-build state))
+
+        build-sources
+        (->> (:build-sources state)
+             (map (fn [name]
+                    (let [{:keys [js-name warnings] :as rc}
+                          (get-in state [:sources name])]
+                      {:name name
+                       :js-name js-name
+                       :module (get source->module name)})))
+             (into []))]
+
+    (update state ::build-info
+      merge {:sources
+             build-sources
+             :compiled
+             compiled-sources
+             :warnings
+             (->> (for [name (:build-sources state)
+                        :let [{:keys [warnings] :as src}
+                              (get-in state [:sources name])]
+                        warning warnings]
+                    (assoc warning :source-name name))
+                  (into []))
+             })))
 
 (defn compile [state]
   (-> state
-      (assoc ::build-info {:compiled []
-                           :cached []})
+      (assoc ::build-info {})
       (trigger-event :before-compile)
       (cljs/prepare-compile)
       (cljs/prepare-modules)
@@ -132,8 +151,6 @@
         (-> (trigger-event :before-optimize)
             (cljs/closure-optimize)
             (trigger-event :after-optimize)))
-
-      (dummy)
       ))
 
 (defmulti flush*

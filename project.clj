@@ -12,15 +12,25 @@
    [org.clojure/core.async "0.2.395"]
    [thheller/shadow-client "1.0.186"]
    [thheller/shadow-build "1.0.248"]
+   [org.clojure/java.jmx "0.3.3"]
+   [org.clojure/tools.logging "0.3.1"]
+   [thheller/shadow-util "0.2.0"]
    [hiccup "1.0.5"]
-   [ring/ring-core "1.5.0"]]
 
-  :source-paths ["src/clj"
-                 "src/cljs"]
+   [ring/ring-core "1.6.0-beta4"]
+   [ring/ring-devel "1.6.0-beta4"]
+   ]
 
-  :java-source-paths ["src/java"]
+  :source-paths
+  ["src/main"]
 
-  :profiles {:dev {:source-paths ["src/dev"]
+  :java-source-paths
+  ["src/main"]
+
+  :profiles {:dev {:source-paths
+                   ["src/dev"]
+                   :dependencies
+                   [[org.clojure/tools.namespace "0.2.11"]]
                    ;; :repl-options {:nrepl-middleware [build/browser-dev-nrepl]}
 
                    }})

@@ -1,15 +1,30 @@
-(ns shadow.devtools.browser
+(ns shadow.devtools.client.inject
   (:require-macros [cljs.core.async.macros :refer (go alt!)])
   (:require [cljs.reader :as reader]
             [cljs.core.async :as async]
-            [shadow.devtools :as devtools]
             [goog.dom :as gdom]
             [goog.net.jsloader :as loader]
             [goog.userAgent.product :as product]
             [clojure.string :as str]
             [goog.Uri]))
 
-(defonce *socket* (atom nil))
+(goog-define enabled false)
+
+(goog-define url "")
+
+(goog-define before-load "")
+
+(goog-define after-load "")
+
+(goog-define node-eval false)
+
+(goog-define reload-with-state false)
+
+(goog-define build-id "")
+
+(goog-define proc-id "")
+
+(defonce socket-ref (atom nil))
 
 (defonce scripts-to-load (atom []))
 
@@ -56,55 +71,72 @@
 (defn module-is-active? [module]
   (js/goog.object.get js/SHADOW_MODULES (str module)))
 
-(defn handle-js-reload [{:keys [reload build] :as msg}]
+(defn do-js-reload [js-to-load]
   ;; reload is a set of js-names that should be reloaded
   (let [reload-state
         (atom nil)]
 
-    ;; load all files for current build
-    ;; of modules that are active
-    ;; and are either not loaded yet
-    ;; or specifically marked for reload
-    (let [js-to-load
-          (->> build
-               (filter
-                 (fn [{:keys [module]}]
-                   (module-is-active? module)))
-               (filter
-                 (fn [{:keys [js-name name]}]
-                   (or (not (goog-is-loaded? js-name))
-                       (contains? reload name))))
-               (map :js-name)
-               (into []))]
+    (when (seq js-to-load)
+      (when before-load
+        (let [fn (js/goog.getObjectByName before-load)]
+          (debug "Executing :before-load" before-load)
+          (let [state (fn)]
+            (reset! reload-state state))))
 
-      (when (seq js-to-load)
-        (when devtools/before-load
-          (let [fn (js/goog.getObjectByName devtools/before-load)]
-            (debug "Executing :before-load" devtools/before-load)
-            (let [state (fn)]
-              (reset! reload-state state))))
+      (let [after-load-fn
+            (fn []
+              (when after-load
+                (let [fn (js/goog.getObjectByName after-load)]
+                  (debug "Executing :after-load " after-load)
+                  (if-not reload-with-state
+                    (fn)
+                    (fn @reload-state)))))]
+        (load-scripts
+          js-to-load
+          after-load-fn)))))
 
-        (let [after-load-fn
-              (fn []
-                (when devtools/after-load
-                  (let [fn (js/goog.getObjectByName devtools/after-load)]
-                    (debug "Executing :after-load " devtools/after-load)
-                    (if-not devtools/reload-with-state
-                      (fn)
-                      (fn @reload-state)))))]
-          (load-scripts
-            js-to-load
-            after-load-fn))))))
+(defn handle-build-success [{:keys [info] :as msg}]
+  (let [{:keys [warnings sources compiled]}
+        info
+
+        ;; load all files for current build:
+        ;; of modules that are active
+        ;; and are either not loaded yet
+        ;; or specifically marked for reload
+
+        js-to-load
+        (->> sources
+             (filter
+               (fn [{:keys [module]}]
+                 (module-is-active? module)))
+             (filter
+               (fn [{:keys [js-name name]}]
+                 (or (not (goog-is-loaded? js-name))
+                     (contains? compiled name))))
+             (map :js-name)
+             (into []))]
+
+    ;; FIXME: figwheel-ish warnings?
+    ;; I really want them in my IDE, not the browser
+    (when (seq warnings)
+      (js/console.warn "BUILD-WARNINGS" warnings))
+
+    (do-js-reload js-to-load)
+    ))
 
 (defn handle-css-changes [{:keys [public-path name manifest] :as pkg}]
   (doseq [[css-name css-file-name] manifest]
     (when-let [node (js/document.querySelector (str "link[data-css-package=\"" name "\"][data-css-module=\"" css-name "\"]"))]
-      (let [full-path (str public-path "/" css-file-name)
-            new-link (doto (js/document.createElement "link")
-                       (.setAttribute "rel" "stylesheet")
-                       (.setAttribute "href" (str full-path "?r=" (rand)))
-                       (.setAttribute "data-css-package" name)
-                       (.setAttribute "data-css-module" css-name))]
+      (let [full-path
+            (str public-path "/" css-file-name)
+
+            new-link
+            (doto (js/document.createElement "link")
+              (.setAttribute "rel" "stylesheet")
+              (.setAttribute "href" (str full-path "?r=" (rand)))
+              (.setAttribute "data-css-package" name)
+              (.setAttribute "data-css-module" css-name))]
+
         (debug "LOAD CSS:" full-path)
         (gdom/insertSiblingAfter new-link node)
         (gdom/removeNode node)
@@ -115,7 +147,7 @@
   (pr-str value))
 
 (defn socket-msg [msg]
-  (if-let [s @*socket*]
+  (if-let [s @socket-ref]
     (.send s (pr-str msg))
     (js/console.warn "WEBSOCKET NOT CONNECTED" (pr-str msg))))
 
@@ -166,14 +198,18 @@
 ;; FIXME: this file is called browser.cljs
 ;; nothing node related should be in here
 ;; abstract this properly!
-(defn node-eval [js]
-  (let [vm (js/require "vm")]
-    (.runInThisContext vm js)))
+#_(defn node-eval [js]
+    (let [vm (js/require "vm")]
+      (.runInThisContext vm js)))
+
+#_(defn repl-eval [js]
+    (if-not node-eval
+      (js/eval js)
+      (node-eval js)))
 
 (defn repl-eval [js]
-  (if-not devtools/node-eval
-    (js/eval js)
-    (node-eval js)))
+  (js/eval js))
+
 
 (defn repl-invoke [{:keys [id js]}]
   (let [result (repl-call #(repl-eval js))]
@@ -210,50 +246,31 @@
 
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]
+  (js/console.log "ws-msg" msg)
   (case type
-    :js/reload (handle-js-reload msg)
     :css/reload (handle-css-changes msg)
     :repl/invoke (repl-invoke msg)
     :repl/require (repl-require msg)
     :repl/set-ns (repl-set-ns msg)
-    :repl/init (repl-init msg)))
+    :repl/init (repl-init msg)
+    :build-success
+    (handle-build-success msg)
+    :ignored))
 
-(defonce *dump-loop* (atom nil))
-
-(defn dump-transmitter []
-  ;; ensure there is only one dumper running
-  (when-let [l @*dump-loop*]
-    (async/close! l)
-    (reset! *dump-loop* nil))
-
-  (let [dump-loop (async/chan)]
-    (reset! *dump-loop* dump-loop)
-    (go (loop []
-          (alt!
-            dump-loop
-            ([v]
-              (when-not (nil? v)
-                (recur)))
-
-            devtools/dump-chan
-            ([msg]
-              (when-not (nil? msg)
-                (socket-msg {:type :devtools/dump
-                             :value msg})
-                (recur))
-              ))))))
-
-(defn repl-connect []
+(defn ws-connect []
   ;; FIXME: fallback for IE?
   (when (aget js/window "WebSocket")
-    (let [print-fn cljs.core/*print-fn*
-          socket (js/WebSocket. (-> devtools/url
-                                    (str/replace #"^http" "ws")
-                                    (str "/" (random-uuid) "/browser")))]
+    (let [print-fn
+          cljs.core/*print-fn*
+
+          socket
+          (js/WebSocket.
+            (-> url
+                (str/replace #"^http" "ws")
+                (str "/" (random-uuid) "/browser")))]
 
 
-
-      (reset! *socket* socket)
+      (reset! socket-ref socket)
 
       (set! (.-onmessage socket)
         (fn [e]
@@ -262,14 +279,24 @@
                                         :out (into [] args)})
                            (apply print-fn args)))
 
-          (handle-message (-> e .-data (reader/read-string)))))
+          (let [text
+                (.-data e)
+
+                msg
+                (try
+                  (reader/read-string text)
+                  (catch :default e
+                    (js/console.warn "failed to parse msg" e text)
+                    nil))]
+            (when msg
+              (handle-message msg)))
+          ))
 
       (set! (.-onopen socket)
         (fn [e]
           ;; patch away the already declared exception
           (set! (.-provide js/goog) js/goog.constructNamespace_)
           (.log js/console "DEVTOOLS: connected!")
-          (dump-transmitter)
           ))
 
       (set! (.-onclose socket)
@@ -277,19 +304,18 @@
           ;; not a big fan of reconnecting automatically since a disconnect
           ;; may signal a change of config, safer to just reload the page
           (.warn js/console "DEVTOOLS: disconnected!")
-          (reset! *socket* nil)
+          (reset! socket-ref nil)
           ))
 
       (set! (.-onerror socket)
         (fn [e]))
-
       )))
 
-(when ^boolean devtools/enabled
+(when ^boolean enabled
   ;; disconnect an already connected socket, happens if this file is reloaded
   ;; pretty much only for me while working on this file
-  (when-let [s @*socket*]
+  (when-let [s @socket-ref]
     (js/console.log "DEVTOOLS: connection reset!")
     (set! (.-onclose s) (fn [e]))
     (.close s))
-  (repl-connect))
+  (ws-connect))

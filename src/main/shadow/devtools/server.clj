@@ -177,7 +177,7 @@
                                               (boolean (:reload-with-state config))
                                               })
 
-              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.browser)
+              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.host)
               (cond->
                 console-support
                 (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.console))

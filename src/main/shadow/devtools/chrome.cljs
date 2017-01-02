@@ -10,4 +10,9 @@
   (log "chrome ext loaded" panel))
 
 
+(defn start []
+  (js/console.log "chrome-ext/start"))
+
+(defn stop []
+  (js/console.log "chrome-ext/stop"))
 

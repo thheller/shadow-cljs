@@ -1,4 +1,5 @@
 (ns shadow.devtools.server.web.ws-devtools
+  "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
   (:require [shadow.devtools.server.services.build :as build]
             [shadow.devtools.server.web.common :as common]
             [clojure.tools.logging :as log]
@@ -28,42 +29,39 @@
   state)
 
 (defn ws-loop!
-  [{:keys [build] :as req} proc-id client-id socket in out]
-  (let [eval-out
-        (async/chan)
+  [{:keys [result-chan] :as client-state}]
+  (loop [{:keys [eval-out
+                 watch-chan
+                 in
+                 out]
+          :as client-state}
+         client-state]
 
-        build-proc
-        (build/get-proc-by-id build proc-id)
+    (alt!!
+      eval-out
+      ([msg]
+        (when-not (nil? msg)
+          (recur (do-eval-out client-state msg))))
 
-        result-chan
-        (build/repl-eval-connect build-proc client-id eval-out)]
+      watch-chan
+      ([msg]
+        (when-not (nil? msg)
+          (>!! out msg)
+          (recur client-state)
+          ))
 
-    (loop [client-state
-           {:app req
-            :client-id client-id
-            :proc-id proc-id
-            :socket socket
-            :in in
-            :out out
-            :eval-out eval-out
-            :result-chan result-chan}]
+      in
+      ([msg]
+        (when-not (nil? msg)
+          ;; FIXME: send to result-chan if v is eval result
+          (recur (do-in client-state msg)))
+        )))
 
-      (alt!!
-        eval-out
-        ([msg]
-          (when-not (nil? msg)
-            (recur (do-eval-out client-state msg))))
-        in
-        ([msg]
-          (when-not (nil? msg)
-            ;; FIXME: send to result-chan if v is eval result
-            (recur (do-in client-state msg)))
-          )))
-
-    (async/close! result-chan)))
+  (async/close! result-chan))
 
 (defn ws-start
-  [{:keys [ring-request] :as req}]
+  [{:keys [build ring-request] :as req}]
+
   (let [{:keys [uri]}
         ring-request
 
@@ -77,7 +75,7 @@
           (async/sliding-buffer 10)
           (map pr-str))
 
-        ;; "/ws/devtools/<build-id>/<client-id>/<client-type>"
+        ;; "/ws/eval/<build-id>/<client-id>/<client-type>"
         [_ _ _ proc-id client-id client-type :as parts]
         (str/split uri #"/")
 
@@ -86,17 +84,46 @@
 
         ;; FIXME: none-devtools repl clients
         client-type
-        (keyword client-type)]
+        (keyword client-type)
 
-    (-> (http/websocket-connection ring-request)
-        (md/chain
-          (fn [socket]
-            (ms/connect socket client-in)
-            (ms/connect client-out socket)
-            socket))
-        (md/chain
-          (fn [socket]
-            (thread (ws-loop! req proc-id client-id socket client-in client-out))
-            ))
-        (md/catch common/unacceptable))))
+        build-proc
+        (build/get-proc-by-id build proc-id)]
+
+    (if-not build-proc
+      common/not-found
+
+      (let [eval-out
+            (-> (async/sliding-buffer 10)
+                (async/chan))
+
+            result-chan
+            (build/repl-eval-connect build-proc client-id eval-out)
+
+            watch-chan
+            (-> (async/sliding-buffer 10)
+                (async/chan))
+
+            client-state
+            {:app req
+             :client-id client-id
+             :proc-id proc-id
+             :in client-in
+             :out client-out
+             :eval-out eval-out
+             :result-chan result-chan
+             :watch-chan watch-chan}]
+
+        (build/watch build-proc watch-chan)
+
+        (-> (http/websocket-connection ring-request)
+            (md/chain
+              (fn [socket]
+                (ms/connect socket client-in)
+                (ms/connect client-out socket)
+                socket))
+            (md/chain
+              (fn [socket]
+                (thread (ws-loop! (assoc client-state :socket socket)))
+                ))
+            (md/catch common/unacceptable))))))
 

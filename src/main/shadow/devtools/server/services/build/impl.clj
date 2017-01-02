@@ -26,44 +26,49 @@
         port
         8200
 
-        {:keys [reload-with-state node-eval id console-support before-load after-load]}
-        build-config]
+        {:keys [id]}
+        build-config
+
+        {:keys [reload-with-state node-eval console-support before-load after-load] :as dt-config}
+        (:devtools build-config)]
+
+    (log/info [:dt-config id dt-config])
 
     (update proc-state :compiler-state
       (fn [compiler-state]
         (-> compiler-state
             (update :closure-defines merge
-              {"shadow.devtools.browser.enabled"
+              {"shadow.devtools.client.inject.enabled"
                true
 
-               "shadow.devtools.browser.build_id"
+               "shadow.devtools.client.inject.build_id"
                (name id)
 
-               "shadow.devtools.browser.proc_id"
+               "shadow.devtools.client.inject.proc_id"
                (str proc-id)
 
-               "shadow.devtools.browser.url"
+               "shadow.devtools.client.inject.url"
                (str "http://" host ":" port "/ws/devtools/" (str proc-id))
 
-               "shadow.devtools.browser.before_load"
+               "shadow.devtools.client.inject.before_load"
                (when before-load
                  (str (cljs-comp/munge before-load)))
 
-               "shadow.devtools.browser.after_load"
+               "shadow.devtools.client.inject.after_load"
                (when after-load
                  (str (cljs-comp/munge after-load)))
 
-               "shadow.devtools.browser.node_eval"
+               "shadow.devtools.client.inject.node_eval"
                (boolean node-eval)
 
-               "shadow.devtools.browser.reload_with_state"
+               "shadow.devtools.client.inject.reload_with_state"
                (boolean reload-with-state)
                })
 
-            (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.browser)
+            (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.inject)
             (cond->
               console-support
-              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.console))
+              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.console))
             )))))
 
 (defn build-msg
@@ -72,7 +77,6 @@
 
     (>!! output {:type :build-message
                  :msg e})
-    (prn [:build-msg e])
     build-state))
 
 (defn build-failure
@@ -81,7 +85,6 @@
 
     (>!! output {:type :build-failure
                  :e e})
-    (prn [:build-failure e])
     build-state))
 
 (defn build-configure
@@ -92,7 +95,7 @@
           (get-in build-state [:channels :output])
 
           compiler-state
-          (-> (comp/init mode build-config {:logger (util/async-logger output)})
+          (-> (comp/init mode build-config {}) ;; {:logger (util/async-logger output)}
               (cond->
                 (= mode :dev)
                 (repl/prepare)))]
@@ -116,14 +119,18 @@
                 (comp/compile)
                 (comp/flush))]
 
-        ;; FIXME: send warnings here instead of log-like messages
-        (>!! output {:type :build-success})
+        (>!! output {:type
+                     :build-success
+                     :info
+                     (::comp/build-info compiler-state)})
 
         (assoc build-state :compiler-state compiler-state))
       (catch Exception e
         (build-failure build-state e)))))
 
-(defmulti do-proc-control (fn [state msg] (:type msg)))
+(defmulti do-proc-control
+  (fn [state msg]
+    (:type msg)))
 
 (defmethod do-proc-control :eval-start
   [state {:keys [id eval-out client-out]}]
@@ -157,8 +164,10 @@
 
 (defmethod do-proc-control :configure
   [state {:keys [mode config] :as msg}]
-  (-> state
-      (assoc :build-config config :autobuild false :mode mode)))
+  (assoc state
+    :build-config config
+    :autobuild false
+    :mode mode))
 
 (defmethod do-proc-control :stop-autobuild
   [state msg]

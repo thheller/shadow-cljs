@@ -29,7 +29,15 @@
     :css-root "/assets/devtools/css"
     :css-manifest "public/assets/devtools/css/manifest.json"
     :js-root "/assets/devtools/js"
-    :js-manifest "public/assets/devtools/js/manifest.json"}})
+    :js-manifest "public/assets/devtools/js/manifest.json"}
+
+   :client-assets
+   {:package-name "client"
+    :css-root "/assets/client/css"
+    :css-manifest "public/assets/client/css/manifest.json"
+    :js-root "/assets/client/js"
+    :js-manifest "public/assets/client/js/manifest.json"}
+   })
 
 (defn make-app []
   {:edn-reader
@@ -50,6 +58,12 @@
    {:depends-on [:config]
     :start (fn [{:keys [assets] :as config}]
              (assets/start assets))
+    :stop assets/stop}
+
+   :client-assets
+   {:depends-on [:config]
+    :start (fn [{:keys [client-assets] :as config}]
+             (assets/start client-assets))
     :stop assets/stop}
 
    :fs-watch
@@ -100,7 +114,8 @@
                   (assoc :ring-request ring-map))]
           (web/root app)))
       (file/wrap-file (io/file "public"))
-      (reload/wrap-reload {:dirs ["src/main"]})))
+      ;; (reload/wrap-reload {:dirs ["src/main"]})
+      ))
 
 (defmacro do-shutdown [& body]
   `(try

@@ -1,4 +1,6 @@
-(ns shadow.devtools.server.web.common)
+(ns shadow.devtools.server.web.common
+  (:require [shadow.server.assets :as assets]
+            [hiccup.page :refer (html5)]))
 
 (def not-found
   {:status 404
@@ -10,4 +12,17 @@
    :headers {"Content-Type" "text/plain"}
    :body "websocket required"})
 
-
+(defn page-boilerplate
+  [{:keys [assets] :as req} ^String content]
+  {:status 200
+   :headers {"content-type" "text/html; charset=utf-8"}
+   :body
+   (html5
+     {:lang "en"}
+     [:head
+      [:title "hello world"]
+      (assets/html-head assets ["ui"])]
+     [:body
+      content
+      (assets/html-body assets ["main"])
+      ])})

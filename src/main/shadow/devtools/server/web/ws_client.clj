@@ -1,4 +1,4 @@
-(ns shadow.devtools.server.web.ws-ui
+(ns shadow.devtools.server.web.ws-client
   (:require [shadow.devtools.server.services.build :as build]
             [shadow.devtools.server.web.common :as common]
             [clojure.tools.logging :as log]

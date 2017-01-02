@@ -1,8 +1,5 @@
-(ns shadow.devtools.console
-  (:require [shadow.devtools :as devtools]
-            [shadow.dom :as dom]
-            [clojure.string :as str]))
-
+(ns shadow.devtools.client.console
+  (:require [clojure.string :as str]))
 
 (defn- push-all [arr item]
   (if (vector? item)
@@ -150,10 +147,9 @@
              (into-array))]
     (js/goog.object.set js/window "devtoolsFormatters" all)))
 
-(when devtools/enabled
-  ;; in case this is live-reloaded, clean up first
-  ;; has the side effect of creating window.devtoolsFormatters
-  ;; do not want to look at the user agent as settings this
-  ;; doesn't hurt any browser, only chrome with 47+ will use it
-  (remove-all!)
-  (install-all!))
+;; in case this is live-reloaded, clean up first
+;; has the side effect of creating window.devtoolsFormatters
+;; do not want to look at the user agent as settings this
+;; doesn't hurt any browser, only chrome with 47+ will use it
+(remove-all!)
+(install-all!)
