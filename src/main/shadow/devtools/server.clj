@@ -12,7 +12,7 @@
             [aleph.netty :as an]
             [manifold.stream :as ms]
             [manifold.deferred :as md]
-            [cljs.compiler :as comp]
+            [cljs.compiler :as cljs-comp]
             [clojure.edn :as edn]
             [clojure.core.async :as async :refer (go <! >! <!! >!! alt! timeout thread alt!!)]
             [shadow.cljs.repl :as repl]
@@ -20,6 +20,7 @@
             [cljs.stacktrace :as st]
             [shadow.devtools.sass :as sass]
             [shadow.devtools.util :as util]
+            [shadow.devtools.server.compiler :as comp]
             [shadow.cljs.log :as log]))
 
 (defmethod log/event->str ::started [{:keys [config] :as evt}]
@@ -156,31 +157,32 @@
           ;; setup compiler to inject what we need
           compiler-state
           (-> compiler-state
-              (update :closure-defines merge {"shadow.devtools.enabled"
-                                              true
+              (update :closure-defines merge
+                {"shadow.devtools.client.inject.enabled"
+                 true
 
-                                              "shadow.devtools.url"
-                                              (str "http://" host ":" port)
+                 "shadow.devtools.client.inject.url"
+                 (str "http://" host ":" port)
 
-                                              "shadow.devtools.before_load"
-                                              (when before-load
-                                                (str (comp/munge before-load)))
+                 "shadow.devtools.client.inject.before_load"
+                 (when before-load
+                   (str (cljs-comp/munge before-load)))
 
-                                              "shadow.devtools.after_load"
-                                              (when after-load
-                                                (str (comp/munge after-load)))
+                 "shadow.devtools.client.inject.after_load"
+                 (when after-load
+                   (str (cljs-comp/munge after-load)))
 
-                                              "shadow.devtools.node_eval"
-                                              (boolean (:node-eval config))
+                 "shadow.devtools.client.inject.node_eval"
+                 (boolean (:node-eval config))
 
-                                              "shadow.devtools.reload_with_state"
-                                              (boolean (:reload-with-state config))
-                                              })
+                 "shadow.devtools.client.inject.reload_with_state"
+                 (boolean (:reload-with-state config))
+                 })
 
-              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.host)
+              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.inject)
               (cond->
                 console-support
-                (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.console))
+                (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.console))
               )]
 
       (cljs/log compiler-state {:type ::started :config config})
@@ -210,45 +212,12 @@
 
 (defn- notify-clients-about-cljs-changes!
   [{:keys [config compiler-state] :as state}]
-  (let [js-reload (:js-reload config true)]
+  (let [build-info (comp/extract-build-info compiler-state)]
 
-    ;; :server only code recompile means client should not auto reload
-    (when (or (true? js-reload)
-              (and js-reload (not= :server js-reload)))
-
-      (let [source->module
-            (reduce
-              (fn [index {:keys [sources name]}]
-                (reduce
-                  (fn [index source]
-                    (assoc index source name))
-                  index
-                  sources))
-              {}
-              (:build-modules compiler-state))
-
-            reload-sources
-            (into #{} (cljs/names-compiled-in-last-build compiler-state))
-
-            build-sources
-            (->> (:build-sources compiler-state)
-                 (map (fn [name]
-                        {:name name
-                         :js-name (get-in compiler-state [:sources name :js-name])
-                         :module (get source->module name)}))
-                 (into []))]
-
-        (when (seq reload-sources)
-          (send-to-clients-of-type state :browser
-            {:type
-             :js/reload
-
-             :reload
-             reload-sources
-
-             :build
-             build-sources
-             }))))))
+    (send-to-clients-of-type state :browser
+      {:type :build-info
+       :info build-info}
+      )))
 
 (defn- notify-clients-about-css-changes!
   [state {:keys [name public-path manifest]}]

@@ -1,4 +1,4 @@
-(ns shadow.spec.util
+(ns shadow.devtools.spec.util
   (:require [clojure.string :as str]))
 
 (defn non-empty-string? [x]

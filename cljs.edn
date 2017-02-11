@@ -1,0 +1,12 @@
+[{:id :self
+  :target :browser
+  :modules
+  {:main
+   {:entries [shadow.devtools.frontend.app]
+    :depends-on #{}}}
+  :public-dir "public/assets/devtools/js"
+  :public-path "/assets/devtools/js"
+  :devtools
+  {:console-support true
+   :before-load shadow.devtools.frontend.app/stop
+   :after-load shadow.devtools.frontend.app/start}}]

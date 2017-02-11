@@ -96,8 +96,7 @@
   [{:keys [build-modules] :as state}]
   (update state ::build-info merge {:modules build-modules}))
 
-(defn- update-build-info-after-compile
-  [state]
+(defn extract-build-info [state]
   (let [source->module
         (reduce
           (fn [index {:keys [sources name]}]
@@ -122,19 +121,22 @@
                        :module (get source->module name)})))
              (into []))]
 
-    (update state ::build-info
-      merge {:sources
-             build-sources
-             :compiled
-             compiled-sources
-             :warnings
-             (->> (for [name (:build-sources state)
-                        :let [{:keys [warnings] :as src}
-                              (get-in state [:sources name])]
-                        warning warnings]
-                    (assoc warning :source-name name))
-                  (into []))
-             })))
+    {:sources
+     build-sources
+     :compiled
+     compiled-sources
+     :warnings
+     (->> (for [name (:build-sources state)
+                :let [{:keys [warnings] :as src}
+                      (get-in state [:sources name])]
+                warning warnings]
+            (assoc warning :source-name name))
+          (into []))
+     }))
+
+(defn- update-build-info-after-compile
+  [state]
+  (update state ::build-info merge (extract-build-info state)))
 
 (defn compile [state]
   (-> state

@@ -95,7 +95,7 @@
           js-to-load
           after-load-fn)))))
 
-(defn handle-build-success [{:keys [info] :as msg}]
+(defn handle-build-info [{:keys [info] :as msg}]
   (let [{:keys [warnings sources compiled]}
         info
 
@@ -118,10 +118,10 @@
 
     ;; FIXME: figwheel-ish warnings?
     ;; I really want them in my IDE, not the browser
-    (when (seq warnings)
-      (js/console.warn "BUILD-WARNINGS" warnings))
+    (if (seq warnings)
+      (js/console.warn "BUILD-WARNINGS" warnings)
 
-    (do-js-reload js-to-load)
+      (do-js-reload js-to-load))
     ))
 
 (defn handle-css-changes [{:keys [public-path name manifest] :as pkg}]
@@ -253,8 +253,8 @@
     :repl/require (repl-require msg)
     :repl/set-ns (repl-set-ns msg)
     :repl/init (repl-init msg)
-    :build-success
-    (handle-build-success msg)
+    :build-info
+    (handle-build-info msg)
     :ignored))
 
 (defn ws-connect []

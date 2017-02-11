@@ -11,18 +11,19 @@
     [shadow.devtools.server.web.ws-client :as ws-client]
     [shadow.devtools.server.web.explorer :as web-explorer]
     [shadow.devtools.server.web.client :as web-client]
+    [shadow.devtools.server.web.api :as web-api]
     [clojure.tools.logging :as log])
   (:import (java.util UUID)))
 
 (defn index-page [req]
   (common/page-boilerplate req
     (html
-      [:h1 "Active Builds"]
-      [:ul
+      #_ [:ul
        (for [build-id (build/active-builds (:build req))]
          [:li [:a {:href (str "/client/" build-id)} (str build-id)]])]
-      [:div#log]
-      (assets/js-queue :none 'shadow.devtools.ui/start)
+
+      [:div#app]
+      (assets/js-queue :none 'shadow.devtools.frontend.app/start)
       )))
 
 (defn root [{:keys [build] :as req}]
@@ -32,6 +33,9 @@
     (cond
       (= uri "/")
       (index-page req)
+
+      (str/starts-with? uri "/api")
+      (web-api/root req)
 
       (str/starts-with? uri "/ws/devtools")
       (ws-devtools/ws-start req)

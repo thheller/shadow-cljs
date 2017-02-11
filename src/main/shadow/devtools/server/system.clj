@@ -1,5 +1,5 @@
 (ns shadow.devtools.server.system
-  (:import [java.io InputStream]
+  (:import [java.io InputStream ByteArrayOutputStream]
            [java.net BindException])
   (:require [aleph.http :as aleph]
             [aleph.netty :as netty]
@@ -15,7 +15,9 @@
             [clojure.edn :as edn]
             [ring.middleware.reload :as reload]
             [ring.middleware.file :as file]
-            [shadow.cljs.build :as cljs]))
+            [shadow.cljs.build :as cljs]
+            [shadow.devtools.server.services.config :as config]
+            [cognitect.transit :as transit]))
 
 (defonce runtime nil)
 
@@ -54,6 +56,19 @@
           (throw (ex-info "dunno how to read" {:input input})))))
     :stop (fn [reader])}
 
+   :transit-str
+   {:depends-on []
+    :start
+    (fn []
+      (fn [data]
+        (let [out (ByteArrayOutputStream. 4096)
+              w (transit/writer out :json)]
+          (transit/write w data)
+          (.toString out)
+          )))
+
+    :stop (fn [x])}
+
    :assets
    {:depends-on [:config]
     :start (fn [{:keys [assets] :as config}]
@@ -70,6 +85,11 @@
    {:depends-on []
     :start fs-watch/start
     :stop fs-watch/stop}
+
+   :build-config
+   {:depends-on []
+    :start config/start
+    :stop config/stop}
 
    :build
    {:depends-on [:fs-watch]

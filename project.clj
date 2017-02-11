@@ -14,11 +14,16 @@
    [thheller/shadow-build "1.0.248"]
    [org.clojure/java.jmx "0.3.3"]
    [org.clojure/tools.logging "0.3.1"]
+   [thheller/shadow-client "1.0.186"]
+   [thheller/shadow-build "1.0.248"]
    [thheller/shadow-util "0.2.0"]
    [hiccup "1.0.5"]
 
-   [ring/ring-core "1.6.0-beta4"]
-   [ring/ring-devel "1.6.0-beta4"]
+   [ring/ring-core "1.6.0-beta6"]
+   [ring/ring-devel "1.6.0-beta6"]
+
+   [cljsjs/react "15.4.2-2"]
+   [cljsjs/react-dom "15.4.2-2"]
    ]
 
   :source-paths

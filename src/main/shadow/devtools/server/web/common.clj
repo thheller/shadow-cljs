@@ -26,3 +26,9 @@
       content
       (assets/html-body assets ["main"])
       ])})
+
+(defn transit [{:keys [transit-str] :as req} obj]
+  {:status 200
+   :headers {"content-type" "application/transit+json; charset=utf-8"}
+   :body (transit-str obj)}
+  )

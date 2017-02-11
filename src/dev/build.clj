@@ -1,5 +1,7 @@
 (ns build
-  (:require [shadow.devtools.sass :as sass]))
+  (:require [shadow.devtools.sass :as sass]
+            [shadow.cljs.build :as cljs]
+            ))
 
 (def css-packages
   [{:name "devtools"

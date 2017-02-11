@@ -35,6 +35,7 @@
 
                     handler
                     (get dispatch-table ch)]
+
                 (if (nil? handler)
                   state
                   (if (nil? msg)

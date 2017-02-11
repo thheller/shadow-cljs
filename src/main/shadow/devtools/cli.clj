@@ -2,29 +2,10 @@
   (:require [shadow.cljs.build :as cljs]
             [clojure.pprint :refer (pprint)]
             [clojure.java.io :as io]
-            [clojure.edn :as edn]
-            [clojure.spec :as spec]
-            [shadow.spec.build :as s-build]
             [shadow.devtools.server :as devtools]
+            [shadow.devtools.server.services.config :as config]
             [shadow.cljs.node :as node]
             [shadow.cljs.umd :as umd]))
-
-(spec/def ::config (spec/+ ::s-build/build))
-
-(defn load-cljs-edn []
-  (-> (io/file "cljs.edn")
-      (slurp)
-      (edn/read-string)))
-
-(defn load-cljs-edn! []
-  (let [input (load-cljs-edn)
-        config (spec/conform ::config input)]
-    (when (= config ::spec/invalid)
-      (spec/explain ::config input)
-      (throw (ex-info "invalid config" (spec/explain-data ::config input))))
-
-    config
-    ))
 
 (def default-browser-config
   {:public-dir "public/js"
@@ -90,7 +71,7 @@
       ))
 
 (defn once [& args]
-  (let [config (load-cljs-edn!)
+  (let [config (config/load-cljs-edn!)
         build (pick-build config args)
         state (dev-setup build)]
     (case (:target build)
@@ -118,7 +99,7 @@
   {:console-support true})
 
 (defn dev [& args]
-  (let [config (load-cljs-edn!)
+  (let [config (config/load-cljs-edn!)
         {:keys [devtools] :as build} (pick-build config args)
         devtools (merge default-devtools-options devtools)
         state (dev-setup build)]
@@ -147,7 +128,7 @@
       ))
 
 (defn release [& args]
-  (let [config (load-cljs-edn!)
+  (let [config (config/load-cljs-edn!)
         build (pick-build config args)
         state (release-setup build)]
 
