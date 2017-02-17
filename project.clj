@@ -8,10 +8,10 @@
   [[com.cognitect/transit-cljs "0.8.239"]
    [aleph "0.4.2-alpha10"]
    [org.clojure/clojure "1.9.0-alpha14"]
-   [org.clojure/clojurescript "1.9.293"]
+   [org.clojure/clojurescript "1.9.473"]
    [org.clojure/core.async "0.2.395"]
-   [thheller/shadow-client "1.0.175"]
-   [thheller/shadow-build "1.0.239"]
+   [thheller/shadow-client "1.0.186"]
+   [thheller/shadow-build "1.0.248"]
    [hiccup "1.0.5"]
    [ring/ring-core "1.5.0"]]
 
