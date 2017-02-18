@@ -7,8 +7,8 @@
     [shadow.devtools.server.services.build :as build]
     [shadow.devtools.server.services.explorer :as explorer]
     [shadow.devtools.server.web.common :as common]
-    [shadow.devtools.server.web.ws-devtools :as ws-devtools]
     [shadow.devtools.server.web.ws-client :as ws-client]
+    [shadow.devtools.server.web.ws-frontend :as ws-frontend]
     [shadow.devtools.server.web.explorer :as web-explorer]
     [shadow.devtools.server.web.client :as web-client]
     [shadow.devtools.server.web.api :as web-api]
@@ -37,11 +37,11 @@
       (str/starts-with? uri "/api")
       (web-api/root req)
 
-      (str/starts-with? uri "/ws/devtools")
-      (ws-devtools/ws-start req)
-
       (str/starts-with? uri "/ws/client")
       (ws-client/ws-start req)
+
+      (str/starts-with? uri "/ws/frontend")
+      (ws-frontend/ws-start req)
 
       ;; only for debugging purposes
       (= uri "/self-connect")

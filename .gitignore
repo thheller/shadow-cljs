@@ -2,6 +2,7 @@
 /classes
 /checkouts
 /test-projects
+/node_modules
 pom.xml
 pom.xml.asc
 *.iml

@@ -38,37 +38,79 @@
       (fn [compiler-state]
         (-> compiler-state
             (update :closure-defines merge
-              {"shadow.devtools.client.inject.enabled"
+              {"shadow.devtools.client.env.enabled"
                true
 
-               "shadow.devtools.client.inject.build_id"
+               "shadow.devtools.client.env.build_id"
                (name id)
 
-               "shadow.devtools.client.inject.proc_id"
+               "shadow.devtools.client.env.proc_id"
                (str proc-id)
 
-               "shadow.devtools.client.inject.url"
-               (str "http://" host ":" port "/ws/devtools/" (str proc-id))
-
-               "shadow.devtools.client.inject.before_load"
+               "shadow.devtools.client.env.before_load"
                (when before-load
                  (str (cljs-comp/munge before-load)))
 
-               "shadow.devtools.client.inject.after_load"
+               "shadow.devtools.client.env.after_load"
                (when after-load
                  (str (cljs-comp/munge after-load)))
 
-               "shadow.devtools.client.inject.node_eval"
-               (boolean node-eval)
-
-               "shadow.devtools.client.inject.reload_with_state"
+               "shadow.devtools.client.env.reload_with_state"
                (boolean reload-with-state)
+
+               "shadow.devtools.client.browser.url"
+               (str "http://" host ":" port "/ws/client/" (str proc-id))
                })
 
-            (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.inject)
+            (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.browser)
             (cond->
               console-support
               (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.console))
+            )))))
+
+(defn inject-node-repl
+  [{:keys [proc-id build-config] :as proc-state}]
+  (let [host ;; FIXME: get this from somewhere so it isn't hardcoded
+        "localhost"
+
+        port
+        8200
+
+        {:keys [id]}
+        build-config
+
+        {:keys [reload-with-state before-load after-load] :as dt-config}
+        (:devtools build-config)]
+
+    (update proc-state :compiler-state
+      (fn [compiler-state]
+        (-> compiler-state
+            (update :closure-defines merge
+              {"shadow.devtools.client.env.enabled"
+               true
+
+               "shadow.devtools.client.env.build_id"
+               (name id)
+
+               "shadow.devtools.client.env.proc_id"
+               (str proc-id)
+
+               "shadow.devtools.client.env.before_load"
+               (when before-load
+                 (str (cljs-comp/munge before-load)))
+
+               "shadow.devtools.client.env.after_load"
+               (when after-load
+                 (str (cljs-comp/munge after-load)))
+
+               "shadow.devtools.client.env.reload_with_state"
+               (boolean reload-with-state)
+
+               #_ "shadow.devtools.client.browser.url"
+               #_ (str "http://" host ":" port "/ws/devtools/" (str proc-id))
+               })
+
+            (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.node)
             )))))
 
 (defn build-msg
@@ -88,21 +130,29 @@
     build-state))
 
 (defn build-configure
-  "configure the build according to build-mode & build-config in state"
-  [{:keys [mode build-config] :as build-state}]
+  "configure the build according to build-config in state"
+  [{:keys [build-config] :as build-state}]
   (try
     (let [output
           (get-in build-state [:channels :output])
 
+          {:keys [target]}
+          build-config
+
           compiler-state
-          (-> (comp/init mode build-config {}) ;; {:logger (util/async-logger output)}
-              (cond->
-                (= mode :dev)
-                (repl/prepare)))]
+          (-> (comp/init :dev build-config {}) ;; {:logger (util/async-logger output)}
+              (repl/prepare))]
 
       (-> build-state
           (assoc :compiler-state compiler-state)
-          (inject-devtools)))
+          (cond->
+            (= :browser target)
+            (inject-devtools)
+
+            (or (= :library target)
+                (= :script target))
+            (inject-node-repl)
+            )))
 
     (catch Exception e
       (build-failure build-state e))))
@@ -138,6 +188,15 @@
                                         :eval-out eval-out
                                         :client-out client-out}))
 
+(defmethod do-proc-control :repl-state
+  [state {:keys [reply-to]}]
+
+  (if-some [repl-state (get-in state [:compiler-state :repl-state])]
+    (>!! reply-to repl-state)
+    (>!! reply-to ::NO-REPL))
+
+  state)
+
 (defmethod do-proc-control :eval-stop
   [state {:keys [id]}]
   (update state :eval-clients dissoc id))
@@ -162,12 +221,22 @@
       (catch Exception e
         (build-failure state e)))))
 
+(defmethod do-proc-control :compile
+  [{:keys [build-config] :as state} msg]
+  (if (nil? build-config)
+    (build-msg state "No build configured.")
+    (try
+      (-> state
+          (build-configure)
+          (build-compile))
+      (catch Exception e
+        (build-failure state e)))))
+
 (defmethod do-proc-control :configure
-  [state {:keys [mode config] :as msg}]
+  [state {:keys [config] :as msg}]
   (assoc state
     :build-config config
-    :autobuild false
-    :mode mode))
+    :autobuild false))
 
 (defmethod do-proc-control :stop-autobuild
   [state msg]
@@ -222,7 +291,9 @@
 
             {:keys [repl-state] :as compiler-state}
             (try
-              (repl/process-input compiler-state code)
+              (if (string? code)
+                (repl/process-input compiler-state code)
+                (repl/process-read-result compiler-state code))
               (catch Exception e
                 (log/error e "repl/process-input failed")
                 compiler-state

@@ -158,28 +158,28 @@
           compiler-state
           (-> compiler-state
               (update :closure-defines merge
-                {"shadow.devtools.client.inject.enabled"
+                {"shadow.devtools.client.browser.enabled"
                  true
 
-                 "shadow.devtools.client.inject.url"
+                 "shadow.devtools.client.browser.url"
                  (str "http://" host ":" port)
 
-                 "shadow.devtools.client.inject.before_load"
+                 "shadow.devtools.client.before_load"
                  (when before-load
                    (str (cljs-comp/munge before-load)))
 
-                 "shadow.devtools.client.inject.after_load"
+                 "shadow.devtools.client.browser.after_load"
                  (when after-load
                    (str (cljs-comp/munge after-load)))
 
-                 "shadow.devtools.client.inject.node_eval"
+                 "shadow.devtools.client.browser.node_eval"
                  (boolean (:node-eval config))
 
-                 "shadow.devtools.client.inject.reload_with_state"
+                 "shadow.devtools.client.browser.reload_with_state"
                  (boolean (:reload-with-state config))
                  })
 
-              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.inject)
+              (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.browser)
               (cond->
                 console-support
                 (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.console))

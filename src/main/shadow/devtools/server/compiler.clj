@@ -75,7 +75,7 @@
             :pretty-print false}))
        (trigger-event :before-init)
        (cond->
-         dev
+         (= :dev mode)
          (cljs/enable-source-maps)
 
          (and dev (= :dev mode))

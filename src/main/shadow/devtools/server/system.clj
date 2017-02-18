@@ -17,7 +17,8 @@
             [ring.middleware.file :as file]
             [shadow.cljs.build :as cljs]
             [shadow.devtools.server.services.config :as config]
-            [cognitect.transit :as transit]))
+            [cognitect.transit :as transit]
+            [manifold.stream :as s]))
 
 (defonce runtime nil)
 
@@ -219,10 +220,14 @@
 
            hk
            (start-http ring (:http config))]
+
        (vswap! runtime-ref assoc :http hk))
 
      runtime-ref
      )))
+
+(defn start-cli []
+  (start-system))
 
 (defn -main []
   (println "Starting DEVTOOLS")

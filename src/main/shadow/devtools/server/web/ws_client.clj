@@ -1,70 +1,73 @@
 (ns shadow.devtools.server.web.ws-client
+  "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
   (:require [shadow.devtools.server.services.build :as build]
             [shadow.devtools.server.web.common :as common]
             [clojure.tools.logging :as log]
-            [clojure.core.async :as async :refer (go alt! >! <!)]
+            [clojure.core.async :as async :refer (thread alt!! >!!)]
+            [clojure.string :as str]
             [aleph.http :as http]
-            [clojure.edn :as edn]
             [manifold.deferred :as md]
             [manifold.stream :as ms]
-            [clojure.string :as str]))
+            [clojure.edn :as edn])
+  (:import (java.util UUID)))
 
-(defn ws-loop
-  [{:keys [build] :as req}
-   socket
-   ws-in
-   ws-out]
-  ;; not a repl eval client
+(defn do-in
+  [{:keys [result-chan] :as state}
+   {:keys [type] :as msg}]
+  {:pre [(map? msg)
+         (keyword? type)]}
+  (case type
+    :repl/result
+    (do (>!! result-chan msg)
+        state)
 
-  (try
-    (let [repl-in
-          (async/chan)
+    state))
 
-          build-id
-          :self
+(defn do-eval-out
+  [{:keys [out] :as state} msg]
+  (>!! out msg)
+  state)
 
-          build-proc
-          (-> (build/find-proc-by-build-id build build-id)
-              (build/watch ws-out))
+(defn ws-loop!
+  [{:keys [result-chan] :as client-state}]
+  (loop [{:keys [eval-out
+                 watch-chan
+                 in
+                 out]
+          :as client-state}
+         client-state]
 
-          repl-result
-          (build/repl-client-connect build-proc :dummy repl-in)]
+    (alt!!
+      eval-out
+      ([msg]
+        (when-not (nil? msg)
+          (recur (do-eval-out client-state msg))))
 
-      (go (loop []
-            (alt!
-              repl-result
-              ([msg]
-                (when-not (nil? msg)
-                  (>! ws-out {:type :repl-result
-                              :value msg})
-                  (recur)))
-
-              ws-in
-              ([msg]
-                (when-not (nil? msg)
-                  (case (:type msg)
-                    :repl-input
-                    (>! repl-in (:code msg))
-
-                    ;; default
-                    nil)
-
-                  (recur)
-                  ))))
-
-          (async/close! repl-in)
-          (async/close! ws-in)
-          (async/close! ws-out)
+      watch-chan
+      ([msg]
+        (when-not (nil? msg)
+          (>!! out msg)
+          (recur client-state)
           ))
 
-    (catch Exception e
-      (log/warn e "ui-loop-error"))))
+      in
+      ([msg]
+        (when-not (nil? msg)
+          ;; FIXME: send to result-chan if v is eval result
+          (recur (do-in client-state msg)))
+        )))
+
+  (async/close! result-chan))
 
 (defn ws-start
-  [{:keys [ring-request] :as req}]
-  (let [client-in
+  [{:keys [build ring-request] :as req}]
+
+  (let [{:keys [uri]}
+        ring-request
+
+        client-in
         (async/chan
-          (async/sliding-buffer 10)
+          1
           (map edn/read-string))
 
         client-out
@@ -72,21 +75,57 @@
           (async/sliding-buffer 10)
           (map pr-str))
 
-        [_ :as parts]
-        (-> (:uri ring-request)
-            (str/split #"\/"))]
+        ;; "/ws/eval/<build-id>/<client-id>/<client-type>"
+        [_ _ _ proc-id client-id client-type :as parts]
+        (str/split uri #"/")
 
+        proc-id
+        (UUID/fromString proc-id)
 
-    (-> (http/websocket-connection ring-request)
-        (md/chain
-          (fn [socket]
-            (ms/connect socket client-in)
-            (ms/connect client-out socket)
-            socket))
-        (md/chain
-          (fn [socket]
-            (ws-loop req socket client-in client-out)
-            ))
-        (md/catch common/unacceptable))))
+        ;; FIXME: none-devtools repl clients
+        client-type
+        (keyword client-type)
 
+        build-proc
+        (build/get-proc-by-id build proc-id)]
+
+    (if-not build-proc
+      common/not-found
+
+      (let [eval-out
+            (-> (async/sliding-buffer 10)
+                (async/chan))
+
+            result-chan
+            (build/repl-eval-connect build-proc client-id eval-out)
+
+            watch-chan
+            (-> (async/sliding-buffer 10)
+                (async/chan))
+
+            client-state
+            {:app req
+             :client-id client-id
+             :proc-id proc-id
+             :in client-in
+             :out client-out
+             :eval-out eval-out
+             :result-chan result-chan
+             :watch-chan watch-chan}]
+
+        (build/watch build-proc watch-chan)
+
+        (-> (http/websocket-connection ring-request
+              {:headers {"sec-websocket-protocol"
+                         (get-in ring-request [:headers "sec-websocket-protocol"])}})
+            (md/chain
+              (fn [socket]
+                (ms/connect socket client-in)
+                (ms/connect client-out socket)
+                socket))
+            (md/chain
+              (fn [socket]
+                (thread (ws-loop! (assoc client-state :socket socket)))
+                ))
+            (md/catch common/unacceptable))))))
 

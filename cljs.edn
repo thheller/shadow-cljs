@@ -6,7 +6,18 @@
     :depends-on #{}}}
   :public-dir "public/assets/devtools/js"
   :public-path "/assets/devtools/js"
+
   :devtools
   {:console-support true
    :before-load shadow.devtools.frontend.app/stop
-   :after-load shadow.devtools.frontend.app/start}}]
+   :after-load shadow.devtools.frontend.app/start}}
+
+ {:id :script
+  :target :script
+  :main demo.script/main
+  :output-to "out/demo-script/script.js"
+
+  :devtools
+  {:before-load demo.script/stop
+   :after-load demo.script/start}}
+ ]

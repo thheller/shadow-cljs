@@ -6,7 +6,8 @@
 
   :dependencies
   [[com.cognitect/transit-cljs "0.8.239"]
-   [aleph "0.4.2-alpha10"]
+   [aleph "0.4.2-alpha12"]
+   [gloss "0.2.5"]
    [org.clojure/clojure "1.9.0-alpha14"]
    [org.clojure/clojurescript "1.9.473"]
    [org.clojure/core.async "0.2.395"]

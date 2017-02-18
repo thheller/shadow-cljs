@@ -1,11 +1,16 @@
 (ns shadow.devtools.cli
-  (:require [shadow.cljs.build :as cljs]
-            [clojure.pprint :refer (pprint)]
+  (:require [clojure.pprint :refer (pprint)]
             [clojure.java.io :as io]
-            [shadow.devtools.server :as devtools]
-            [shadow.devtools.server.services.config :as config]
+            [clojure.core.async :as async :refer (go <! >! >!! <!!)]
             [shadow.cljs.node :as node]
-            [shadow.cljs.umd :as umd]))
+            [shadow.cljs.umd :as umd]
+            [shadow.cljs.repl :as repl]
+            [shadow.cljs.build :as cljs]
+            [shadow.devtools.server.system :as sys]
+            [shadow.devtools.server.services.build :as build]
+            [shadow.devtools.server.services.config :as config]
+
+            [shadow.cljs.log :as cljs-log]))
 
 (def default-browser-config
   {:public-dir "public/js"
@@ -98,22 +103,116 @@
 (def default-devtools-options
   {:console-support true})
 
+(defn stdin-takeover! [runtime-ref build-proc]
+
+  (let [repl-in
+        (async/chan 1)
+
+        repl-result
+        (build/repl-client-connect build-proc ::stdin repl-in)
+
+        loop-result
+        (loop []
+          (let [repl-state
+                (build/repl-state build-proc)
+
+                {:keys [eof? form source] :as read-result}
+                (repl/read-stream! repl-state (. System -in))]
+
+            (cond
+              eof?
+              :eof
+
+              (nil? form)
+              (recur)
+
+              (= :cljs/quit form)
+              :quit
+
+              :else
+              (do (>!! repl-in read-result)
+                  (recur))
+              )))]
+
+    (async/close! repl-in)
+
+    loop-result
+    ))
+
+(defonce log-lock (Object.))
+
+(defn stdout-dump []
+  (let [chan
+        (-> (async/sliding-buffer 10)
+            (async/chan))]
+
+    (async/go
+      (loop []
+        (when-some [x (<! chan)]
+          (locking log-lock
+            (println
+              (case (:type x)
+                :build-log
+                (cljs-log/event->str (:event x))
+
+                (pr-str x))))
+          (recur)
+          )))
+
+    chan
+    ))
+
+
+
+(defn- run-dev [build-config]
+  (let [runtime-ref (sys/start-cli)]
+    (try
+      (let [{:keys [build] :as app}
+            (:app @runtime-ref)
+
+            proc
+            (-> (build/proc-start build)
+                (build/configure build-config)
+                (build/start-autobuild)
+                (build/watch (stdout-dump)))]
+
+        (stdin-takeover! runtime-ref proc))
+
+      (finally
+        (sys/shutdown-system @runtime-ref))))
+  )
+
 (defn dev [& args]
-  (let [config (config/load-cljs-edn!)
-        {:keys [devtools] :as build} (pick-build config args)
-        devtools (merge default-devtools-options devtools)
-        state (dev-setup build)]
-    (case (:target build)
-      :browser
-      (-> state
-          (configure-browser-build)
-          (devtools/start-loop devtools))
-      :script
-      (throw (ex-info "live-reload dev-mode not yet supported for node script" {}))
-      :library
-      (throw (ex-info "live-reload dev-mode not yet supported for node library" {}))
-      ))
-  :done)
+  (let [config
+        (config/load-cljs-edn!)
+
+        build-config
+        (pick-build config args)]
+
+    (run-dev build-config)))
+
+(defn node-repl []
+  (let [runtime-ref (sys/start-cli)]
+    (try
+      (let [{:keys [build] :as app}
+            (:app @runtime-ref)
+
+            build-config
+            {:id :node-repl
+             :target :script
+             :main 'shadow.devtools.client.node-repl/main
+             :output-to "foo.js"}
+
+            proc
+            (-> (build/proc-start build)
+                (build/watch (stdout-dump))
+                (build/configure build-config)
+                )]
+
+        (stdin-takeover! runtime-ref proc))
+
+      (finally
+        (sys/shutdown-system @runtime-ref)))))
 
 (defn- release-setup [{:keys [release] :as build}]
   (-> (cljs/init-state)

@@ -1,28 +1,14 @@
-(ns shadow.devtools.client.inject
+(ns shadow.devtools.client.browser
   (:require-macros [cljs.core.async.macros :refer (go alt!)])
   (:require [cljs.reader :as reader]
             [cljs.core.async :as async]
+            [clojure.string :as str]
             [goog.dom :as gdom]
             [goog.net.jsloader :as loader]
             [goog.userAgent.product :as product]
-            [clojure.string :as str]
-            [goog.Uri]))
-
-(goog-define enabled false)
-
-(goog-define url "")
-
-(goog-define before-load "")
-
-(goog-define after-load "")
-
-(goog-define node-eval false)
-
-(goog-define reload-with-state false)
-
-(goog-define build-id "")
-
-(goog-define proc-id "")
+            [goog.Uri]
+            [shadow.devtools.client.env :as env]
+            ))
 
 (defonce socket-ref (atom nil))
 
@@ -77,18 +63,18 @@
         (atom nil)]
 
     (when (seq js-to-load)
-      (when before-load
-        (let [fn (js/goog.getObjectByName before-load)]
-          (debug "Executing :before-load" before-load)
+      (when env/before-load
+        (let [fn (js/goog.getObjectByName env/before-load)]
+          (debug "Executing :before-load" env/before-load)
           (let [state (fn)]
             (reset! reload-state state))))
 
       (let [after-load-fn
             (fn []
-              (when after-load
-                (let [fn (js/goog.getObjectByName after-load)]
-                  (debug "Executing :after-load " after-load)
-                  (if-not reload-with-state
+              (when env/after-load
+                (let [fn (js/goog.getObjectByName env/after-load)]
+                  (debug "Executing :after-load " env/after-load)
+                  (if-not env/reload-with-state
                     (fn)
                     (fn @reload-state)))))]
         (load-scripts
@@ -117,9 +103,10 @@
              (into []))]
 
     ;; FIXME: figwheel-ish warnings?
-    ;; I really want them in my IDE, not the browser
+    ;; I really want them in my editor, not the browser
     (if (seq warnings)
-      (js/console.warn "BUILD-WARNINGS" warnings)
+      (doseq [warning warnings]
+        (js/console.warn "BUILD-WARNING" warning))
 
       (do-js-reload js-to-load))
     ))
@@ -195,21 +182,8 @@
                         (.-stack e)
                         "No stacktrace available."))))))
 
-;; FIXME: this file is called browser.cljs
-;; nothing node related should be in here
-;; abstract this properly!
-#_(defn node-eval [js]
-    (let [vm (js/require "vm")]
-      (.runInThisContext vm js)))
-
-#_(defn repl-eval [js]
-    (if-not node-eval
-      (js/eval js)
-      (node-eval js)))
-
 (defn repl-eval [js]
   (js/eval js))
-
 
 (defn repl-invoke [{:keys [id js]}]
   (let [result (repl-call #(repl-eval js))]
@@ -255,7 +229,10 @@
     :repl/init (repl-init msg)
     :build-info
     (handle-build-info msg)
+    ;; default
     :ignored))
+
+(goog-define url "")
 
 (defn ws-connect []
   ;; FIXME: fallback for IE?
@@ -268,7 +245,6 @@
             (-> url
                 (str/replace #"^http" "ws")
                 (str "/" (random-uuid) "/browser")))]
-
 
       (reset! socket-ref socket)
 
@@ -311,7 +287,7 @@
         (fn [e]))
       )))
 
-(when ^boolean enabled
+(when ^boolean env/enabled
   ;; disconnect an already connected socket, happens if this file is reloaded
   ;; pretty much only for me while working on this file
   (when-let [s @socket-ref]

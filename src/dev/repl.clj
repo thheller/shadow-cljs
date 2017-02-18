@@ -5,6 +5,7 @@
             [clojure.spec.test :as st]
             [clojure.tools.namespace.repl :as ns-tools]
             [shadow.devtools.server.services.build :as build]
+            [shadow.devtools.server.services.config :as config]
             [shadow.cljs.log :as cljs-log]
             [clojure.core.async :as async :refer (<!)]
             [clojure.tools.logging :as log]))
@@ -42,44 +43,35 @@
   (let [runtime-ref (sys/start-system)]
     (vreset! inst runtime-ref)
 
-    #_(let [{:keys [build] :as app}
-            (:app @runtime-ref)]
-        (-> (build/proc-start build)
+    (let [{:keys [build] :as app}
+          (:app @runtime-ref)
+
+          [self script & others]
+          (config/load-cljs-edn!)]
+
+      (-> (build/proc-start build)
+          (build/configure script)
+          (build/start-autobuild)
+          (build/watch (log-dump "REPL-BUILD")))
+
+      #_(-> (build/proc-start build)
             (build/configure
               :dev
-              {:id :self
+              {:id :client
                :target :browser
                :modules
                {:main
-                {:entries ['shadow.devtools.frontend.app]
+                {:entries ['shadow.devtools.browser.app]
                  :depends-on #{}}}
-               :public-dir "public/assets/devtools/js"
-               :public-path "/assets/devtools/js"
+               :public-dir "public/assets/client/js"
+               :public-path "/assets/client/js"
                :devtools
                {:console-support true
-                :before-load 'shadow.devtools.frontend.app/stop
-                :after-load 'shadow.devtools.frontend.app/start}})
+                :before-load 'shadow.devtools.browser.app/stop
+                :after-load 'shadow.devtools.browser.app/start}})
             (build/start-autobuild)
-            (build/watch (log-dump "SELF")))
-
-        #_(-> (build/proc-start build)
-              (build/configure
-                :dev
-                {:id :client
-                 :target :browser
-                 :modules
-                 {:main
-                  {:entries ['shadow.devtools.client.app]
-                   :depends-on #{}}}
-                 :public-dir "public/assets/client/js"
-                 :public-path "/assets/client/js"
-                 :devtools
-                 {:console-support true
-                  :before-load 'shadow.devtools.client.app/stop
-                  :after-load 'shadow.devtools.client.app/start}})
-              (build/start-autobuild)
-              (build/watch (log-dump "CLIENT")))
-        ))
+            (build/watch (log-dump "CLIENT")))
+      ))
 
   :started)
 

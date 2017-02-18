@@ -1,4 +1,5 @@
 (ns shadow.devtools.server.services.build
+  (:refer-clojure :exclude (compile))
   (:require [shadow.devtools.server.services.fs-watch :as fs-watch]
             [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
             [shadow.devtools.server.util :as util]
@@ -19,9 +20,15 @@
 ;; PROC API
 
 (defn configure
-  [{:keys [proc-control] :as proc} mode config]
+  [{:keys [proc-control] :as proc} config]
   {:pre [(proc? proc)]}
-  (>!! proc-control {:type :configure :mode mode :config config})
+  (>!! proc-control {:type :configure :config config})
+  proc)
+
+(defn compile
+  [{:keys [proc-control] :as proc} config]
+  {:pre [(proc? proc)]}
+  (>!! proc-control {:type :compile})
   proc)
 
 (defn watch
@@ -35,6 +42,17 @@
   {:pre [(proc? proc)]}
   (>!! proc-control {:type :start-autobuild})
   proc)
+
+(defn repl-state
+  [{:keys [proc-control] :as proc}]
+  {:pre [(proc? proc)]}
+
+  (let [chan (async/chan 1)]
+    (>!! proc-control {:type :repl-state
+                       :reply-to chan})
+
+    (<!! chan)
+    ))
 
 (defn repl-eval-connect
   "called by processes that are able to eval repl commands and report their result
@@ -102,7 +120,8 @@
   {:pre [(proc? proc)]}
 
   (let [client-result
-        (async/chan)]
+        (async/chan
+          (async/sliding-buffer 10))]
 
     (go (>! proc-control {:type :client-start
                           :id client-id
@@ -116,7 +135,6 @@
             client-in
             ([v]
               (when-not (nil? v)
-                (assert (string? v))
                 (>! repl-in {:code v
                              :reply-to client-result})
                 (recur)
@@ -221,7 +239,6 @@
          :repl-clients {}
          :pending-results {}
          :channels channels
-         :mode :dev
          :compiler-state nil}
 
         state-ref
