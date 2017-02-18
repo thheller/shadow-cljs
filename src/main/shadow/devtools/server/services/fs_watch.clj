@@ -57,7 +57,7 @@
               (recur state (inc fs-seq))
               ))))))
 
-  (log/info "watch-thread shutdown")
+  ;; (log/info "watch-thread shutdown")
 
   ;; final value of the thread
   ::shutdown-complete)

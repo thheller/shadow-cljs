@@ -26,10 +26,18 @@
   proc)
 
 (defn compile
-  [{:keys [proc-control] :as proc} config]
+  [{:keys [proc-control] :as proc}]
   {:pre [(proc? proc)]}
-  (>!! proc-control {:type :compile})
+  (>!! proc-control {:type :compile :reply-to nil})
   proc)
+
+(defn compile!
+  [{:keys [proc-control] :as proc}]
+  {:pre [(proc? proc)]}
+  (let [reply-to
+        (async/chan)]
+    (>!! proc-control {:type :compile :reply-to reply-to})
+    (<!! reply-to)))
 
 (defn watch
   [{:keys [output-mult] :as proc} log-chan]

@@ -222,15 +222,22 @@
         (build-failure state e)))))
 
 (defmethod do-proc-control :compile
-  [{:keys [build-config] :as state} msg]
-  (if (nil? build-config)
-    (build-msg state "No build configured.")
-    (try
-      (-> state
-          (build-configure)
-          (build-compile))
-      (catch Exception e
-        (build-failure state e)))))
+  [{:keys [build-config] :as state} {:keys [reply-to] :as msg}]
+  (let [result
+        (if (nil? build-config)
+          (build-msg state "No build configured.")
+          (try
+            (-> state
+                (build-configure)
+                (build-compile))
+            (catch Exception e
+              (build-failure state e))))]
+
+    (when reply-to
+      (>!! reply-to :done))
+
+    result
+    ))
 
 (defmethod do-proc-control :configure
   [state {:keys [config] :as msg}]

@@ -1,6 +1,6 @@
-(ns shadow.devtools.client.node-repl)
+(ns shadow.devtools.client.node-repl
+  (:require [shadow.devtools.client.node :as node]))
 
-(defn main
-  []
-  ;; FIXME: anything useful we can run for a standalone CLJS repl?
-  )
+;; FIXME: anything useful we can run for a standalone CLJS repl?
+;; repl related things will already have executed and connected
+(defn main [])

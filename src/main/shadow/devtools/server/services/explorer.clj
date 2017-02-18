@@ -115,7 +115,7 @@
            control do-control}
           {:do-shutdown
            (fn [state]
-             (prn [:closing-down-explorer])
+             ;; (prn [:closing-down-explorer])
              state)})]
 
     (fs-watch/subscribe fs-watch fs-updates)

@@ -153,14 +153,9 @@
   (.shutdown aleph/default-connection-pool))
 
 (defn shutdown-system [{:keys [app http] :as system}]
-  (println "SYSTEM SHUTDOWN")
-  (prn [:closing-http])
   (do-shutdown (.close http))
-  (prn [:closing-aleph])
   (do-shutdown (shutdown-aleph))
-  (prn [:closing-app])
-  (do-shutdown (stop-app app))
-  (prn [:shutdown-complete]))
+  (do-shutdown (stop-app app)))
 
 (defn shutdown-thread [runtime]
   (let [file (io/file "tmp/shutdown.txt")]

@@ -1,6 +1,7 @@
 (ns shadow.devtools.cli
   (:require [clojure.pprint :refer (pprint)]
             [clojure.java.io :as io]
+            [clojure.java.shell :as sh]
             [clojure.core.async :as async :refer (go <! >! >!! <!!)]
             [shadow.cljs.node :as node]
             [shadow.cljs.umd :as umd]
@@ -10,7 +11,8 @@
             [shadow.devtools.server.services.build :as build]
             [shadow.devtools.server.services.config :as config]
 
-            [shadow.cljs.log :as cljs-log]))
+            [shadow.cljs.log :as cljs-log])
+  (:import (java.lang ProcessBuilder$Redirect)))
 
 (def default-browser-config
   {:public-dir "public/js"
@@ -155,6 +157,13 @@
                 :build-log
                 (cljs-log/event->str (:event x))
 
+                :build-start
+                "Build started."
+
+                :build-success
+                "Build completed."
+
+                ;; default
                 (pr-str x))))
           (recur)
           )))
@@ -191,28 +200,74 @@
 
     (run-dev build-config)))
 
-(defn node-repl []
-  (let [runtime-ref (sys/start-cli)]
-    (try
-      (let [{:keys [build] :as app}
-            (:app @runtime-ref)
+(defn node-repl
+  ([]
+   (node-repl {}))
+  ([{:keys [node-args
+            node-command
+            pwd]
+     :or {node-args []
+          node-command "node"}}]
+   (let [runtime-ref (sys/start-cli)]
+     (try
+       (let [{:keys [build] :as app}
+             (:app @runtime-ref)
 
-            build-config
-            {:id :node-repl
-             :target :script
-             :main 'shadow.devtools.client.node-repl/main
-             :output-to "foo.js"}
+             script-name
+             "target/shadow-node-repl.js"
 
-            proc
-            (-> (build/proc-start build)
-                (build/watch (stdout-dump))
-                (build/configure build-config)
-                )]
+             build-config
+             {:id :node-repl
+              :target :script
+              :main 'shadow.devtools.client.node-repl/main
+              :output-to script-name}
 
-        (stdin-takeover! runtime-ref proc))
+             proc
+             (-> (build/proc-start build)
+                 (build/watch (stdout-dump))
+                 (build/configure build-config))]
 
-      (finally
-        (sys/shutdown-system @runtime-ref)))))
+         (let [result
+               (build/compile! proc)
+
+               node-script
+               (doto (io/file script-name)
+                 ;; just to ensure it is removed, should this crash for some reason
+                 (.deleteOnExit))
+
+               node-proc
+               (-> (ProcessBuilder.
+                     (into-array
+                       (into [node-command] node-args)))
+                   (.redirectOutput ProcessBuilder$Redirect/INHERIT)
+                   (.redirectError ProcessBuilder$Redirect/INHERIT)
+                   (.directory
+                     ;; nil defaults to JVM working dir
+                     (when pwd
+                       (io/file pwd)))
+                   (.start))]
+
+           (let [out (.getOutputStream node-proc)]
+             ;; piping the script into node-proc instead of using command line arg
+             ;; as node will otherwise adopt the path of the script as the require reference point
+             ;; we want to control that via pwd
+             (io/copy (slurp node-script) out)
+             (.close out))
+
+           (stdin-takeover! runtime-ref proc)
+
+           ;; FIXME: more graceful shutdown of the node-proc?
+           (.destroy node-proc)
+           (.waitFor node-proc)
+
+           (when (.exists node-script)
+             (.delete node-script))
+
+           :cljs/quit
+           ))
+
+       (finally
+         (sys/shutdown-system @runtime-ref))))))
 
 (defn- release-setup [{:keys [release] :as build}]
   (-> (cljs/init-state)
