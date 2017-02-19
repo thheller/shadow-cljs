@@ -134,7 +134,7 @@
               (-> (:app @system-ref)
                   (assoc :ring-request ring-map))]
           (web/root app)))
-      (file/wrap-file (io/file "public"))
+      ;; (file/wrap-file (io/file "public"))
       ;; (reload/wrap-reload {:dirs ["src/main"]})
       ))
 

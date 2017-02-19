@@ -5,9 +5,7 @@
             [cljs.reader :as reader]
             [goog.object :as gobj]))
 
-(def WS (.. (js/require "websocket") -client))
-
-(def VM (js/require "vm"))
+(def WS (js/require "ws"))
 
 (defonce client-id (random-uuid))
 
@@ -22,7 +20,7 @@
 (defn ws-msg [msg]
 
   (when-some [ws @ws-ref]
-    (.sendUTF ws (pr-str msg)
+    (.send ws (pr-str msg)
       (fn [err]
         (when err
           (js/console.error "REPL msg send failed" err))))
@@ -125,40 +123,37 @@
     ))
 
 (defn ws-connect []
-  (let [client (new WS)]
+  (let [url
+        (env/ws-url :node)
 
-    (.on client "connectFailed"
-      (fn [error]
-        (js/console.log "REPL connect failed" error)))
+        client
+        (WS. url "foo")]
 
-    (.on client "connect"
-      (fn [con]
-        (vreset! ws-ref con)
+    (.on client "open"
+      (fn []
         (js/console.log "REPL client connected!")
+        (vreset! ws-ref client)))
 
-        (.on con "message"
-          (fn [msg]
-            (if (not= "utf8" (.-type msg))
-              (js/console.warn "REPL unknown client msg" msg)
-
-              ;; expected msg format, just an edn string
-              (-> (.-utf8Data msg)
-                  (reader/read-string)
-                  (process-message)))))
-
-        (.on con "close"
-          (fn []
-            (js/console.log "REPL client close")
-            ))
-
-        (.on con "error"
-          (fn [err]
-            (js/console.log "REPL client error" err)))
+    (.on client "unexpected-response"
+      (fn [req res]
+        (js/console.log "REPL unexpected" req res)
         ))
 
-    (let [url (env/ws-url :node)]
-      (js/console.log "REPL connecting: " url)
-      (.connect client url "foo"))))
+    (.on client "message"
+      (fn [data flags]
+        (-> data
+            (reader/read-string)
+            (process-message))))
+
+    (.on client "close"
+      (fn []
+        (js/console.log "REPL client close")
+        ))
+
+    (.on client "error"
+      (fn [err]
+        (js/console.log "REPL client error" err)))
+    ))
 
 (when env/enabled
   (ws-close) ;; if this is reloaded, reconnect the socket
