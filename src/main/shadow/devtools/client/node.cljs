@@ -15,6 +15,7 @@
 
 (defn ws-close []
   (when-some [tcp @ws-ref]
+    (js/console.log "REPL shutdown")
     (.close tcp)
     (vreset! ws-ref nil)))
 
@@ -36,7 +37,6 @@
     result))
 
 (defn closure-import [src]
-  (gobj/set js/goog.dependencies_.written src true)
   (js/global.CLOSURE_IMPORT_SCRIPT src))
 
 (defn repl-init
@@ -56,9 +56,16 @@
 
     (ws-msg result)))
 
-(defn repl-set-ns [msg])
+(defn repl-set-ns [{:keys [ns] :as msg}]
+  ;; nothing for the client to do really
+  (js/console.log "REPL set ns:" (pr-str ns)))
 
-(defn repl-require [msg])
+(defn repl-require
+  [{:keys [js-sources reload] :as msg}]
+  (doseq [src js-sources
+          :when (or reload
+                    (not (env/goog-is-loaded? src)))]
+    (closure-import src)))
 
 (defn build-success
   [{:keys [info] :as msg}]
@@ -75,25 +82,27 @@
 
     (when (seq files-to-require)
 
-      (when env/before-load
-        (let [fn (js/goog.getObjectByName env/before-load)]
-          (js/console.warn "REPL before-load" env/before-load)
-          (let [state (fn)]
+      (let [reload-state (volatile! nil)]
 
-            (doseq [src files-to-require]
-              (js/console.info "REPL reloading: " src)
-              (closure-import src))
+        (when env/before-load
+          (let [fn (js/goog.getObjectByName env/before-load)]
+            (js/console.warn "REPL before-load" env/before-load)
+            (vreset! reload-state (fn))))
 
-            (when env/after-load
-              (let [fn (js/goog.getObjectByName env/after-load)]
-                (js/console.warn "REPL after-load " env/after-load)
-                (if-not env/reload-with-state
-                  (fn)
-                  (fn state))))))))
+        (doseq [src files-to-require]
+          (closure-import src))
+
+        (when env/after-load
+          (let [fn (js/goog.getObjectByName env/after-load)]
+            (js/console.warn "REPL after-load " env/after-load)
+            (if-not env/reload-with-state
+              (fn)
+              (fn @reload-state))))))
     ))
 
 (defn process-message
   [{:keys [type] :as msg}]
+  ;; (prn [:repl-msg type msg])
   (case type
     :repl/init
     (repl-init msg)
@@ -107,6 +116,7 @@
     :repl/require
     (repl-require msg)
 
+    ;; when autobuild completes
     :build-success
     (build-success msg)
 

@@ -1,5 +1,6 @@
 (ns shadow.devtools.server.util
   (:require [shadow.cljs.build :as cljs]
+            [shadow.cljs.log :as shadow-log]
             [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
             [clojure.tools.logging :as log]
             [clojure.pprint :refer (pprint)]))
@@ -7,7 +8,7 @@
 
 (defn async-logger [ch]
   (reify
-    cljs/BuildLog
+    shadow-log/BuildLog
     (log*
       [_ state event]
       (async/offer! ch {:type :build-log
@@ -15,7 +16,7 @@
 
 (def null-log
   (reify
-    cljs/BuildLog
+    shadow-log/BuildLog
     (log* [_ state msg])))
 
 
