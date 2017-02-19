@@ -2,11 +2,59 @@
   (:require-macros [cljs.core.async.macros :refer (go)])
   (:require [shadow.devtools.client.env :as env]
             [cljs.core.async :as async]
-            [cljs.reader :as reader]))
+            [cljs.reader :as reader]
+            [goog.object :as gobj]))
 
 (def WS (.. (js/require "websocket") -client))
 
-(defn repl-invoke [msg])
+(def VM (js/require "vm"))
+
+(defonce client-id (random-uuid))
+
+(defonce ws-ref (volatile! nil))
+
+(defn ws-close []
+  (when-some [tcp @ws-ref]
+    (.close tcp)
+    (vreset! ws-ref nil)))
+
+(defn ws-msg [msg]
+
+  (when-some [ws @ws-ref]
+    (.sendUTF ws (pr-str msg)
+      (fn [err]
+        (when err
+          (js/console.error "REPL msg send failed" err))))
+    ))
+
+(defn repl-error [result e]
+  (js/console.error "eval error" e)
+  result)
+
+(defn node-eval [code]
+  (let [result (js/global.NODE_EVAL code)]
+    result))
+
+(defn closure-import [src]
+  (gobj/set js/goog.dependencies_.written src true)
+  (js/global.CLOSURE_IMPORT_SCRIPT src))
+
+(defn repl-init
+  [{:keys [repl-state] :as msg}]
+  (let [{:keys [repl-js-sources]}
+        repl-state]
+
+    (doseq [js repl-js-sources
+            :when (not (env/goog-is-loaded? js))]
+      (closure-import js)
+      )))
+
+(defn repl-invoke [{:keys [id js] :as msg}]
+  (let [result
+        (-> (env/repl-call #(node-eval js) pr-str repl-error)
+            (assoc :id id))]
+
+    (ws-msg result)))
 
 (defn repl-set-ns [msg])
 
@@ -29,16 +77,16 @@
 
       (when env/before-load
         (let [fn (js/goog.getObjectByName env/before-load)]
-          (js/console.warn "Executing :before-load" env/before-load)
+          (js/console.warn "REPL before-load" env/before-load)
           (let [state (fn)]
 
             (doseq [src files-to-require]
-              (prn [:hot-loading src])
-              (js/global.CLOSURE_IMPORT_SCRIPT src))
+              (js/console.info "REPL reloading: " src)
+              (closure-import src))
 
             (when env/after-load
               (let [fn (js/goog.getObjectByName env/after-load)]
-                (js/console.warn "Executing :after-load " env/after-load)
+                (js/console.warn "REPL after-load " env/after-load)
                 (if-not env/reload-with-state
                   (fn)
                   (fn state))))))))
@@ -46,8 +94,10 @@
 
 (defn process-message
   [{:keys [type] :as msg}]
-  (prn [:ws-msg msg])
   (case type
+    :repl/init
+    (repl-init msg)
+
     :repl/invoke
     (repl-invoke msg)
 
@@ -61,17 +111,10 @@
     (build-success msg)
 
     ;; default
-    (prn [:msg msg])
+    (prn [:repl-unknown msg])
     ))
 
-(defonce tcp-ref (volatile! nil))
-
-(defn tcp-close []
-  (when-some [tcp @tcp-ref]
-    (.close tcp)
-    (vreset! tcp-ref nil)))
-
-(defn tcp-connect []
+(defn ws-connect []
   (let [client (new WS)]
 
     (.on client "connectFailed"
@@ -80,12 +123,13 @@
 
     (.on client "connect"
       (fn [con]
+        (vreset! ws-ref con)
         (js/console.log "REPL client connected!")
 
         (.on con "message"
           (fn [msg]
             (if (not= "utf8" (.-type msg))
-              (js/console.warn "REPL client msg" msg)
+              (js/console.warn "REPL unknown client msg" msg)
 
               ;; expected msg format, just an edn string
               (-> (.-utf8Data msg)
@@ -102,12 +146,11 @@
             (js/console.log "REPL client error" err)))
         ))
 
-    (let [url
-          (str "ws://localhost:8200/ws/client/" env/proc-id "/node")]
-      (js/console.log "REPL connect: " url)
+    (let [url (env/ws-url :node)]
+      (js/console.log "REPL connecting: " url)
       (.connect client url "foo"))))
 
 (when env/enabled
-  (tcp-close) ;; in case this is reloaded
-  (tcp-connect))
+  (ws-close) ;; if this is reloaded, reconnect the socket
+  (ws-connect))
 

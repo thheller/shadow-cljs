@@ -76,7 +76,7 @@
          :type :cljs
          :provides #{runner-ns}
          :requires (into #{} requires)
-         :require-order (into '[cljs.core runtime-setup] requires)
+         :require-order (into '[cljs.core shadow.runtime-setup] requires)
          :ns runner-ns
          :last-modified (System/currentTimeMillis)
          :input

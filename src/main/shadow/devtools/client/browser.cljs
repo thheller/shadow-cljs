@@ -4,6 +4,7 @@
             [cljs.core.async :as async]
             [clojure.string :as str]
             [goog.dom :as gdom]
+            [goog.object :as gobj]
             [goog.net.jsloader :as loader]
             [goog.userAgent.product :as product]
             [goog.Uri]
@@ -27,14 +28,6 @@
    (when (aget js/window "console" "debug")
      (.debug js/console a1 a2 a3))))
 
-(def loaded? js/goog.isProvided_)
-
-(defn goog-is-loaded? [name]
-  (js/goog.object.get js/goog.dependencies_.written name))
-
-(defn src-is-loaded? [{:keys [js-name] :as src}]
-  (goog-is-loaded? js-name))
-
 (defn load-scripts
   [filenames after-load-fn]
   (swap! scripts-to-load into filenames)
@@ -49,7 +42,7 @@
                 (debug "LOAD JS:" next)
                 (-> (loader/load (str js/CLOSURE_BASE_PATH next "?r=" (rand)))
                     (.addBoth (fn []
-                                (aset js/goog.dependencies_.written next true)
+                                (gobj/set js/goog.dependencies_.written next true)
                                 (load-next)))))
             (after-load-fn)))]
     (load-next)))
@@ -97,7 +90,7 @@
                  (module-is-active? module)))
              (filter
                (fn [{:keys [js-name name]}]
-                 (or (not (goog-is-loaded? js-name))
+                 (or (not (env/goog-is-loaded? js-name))
                      (contains? compiled name))))
              (map :js-name)
              (into []))]
@@ -129,9 +122,7 @@
         (gdom/removeNode node)
         ))))
 
-(defn repl-print [value]
-  ;; (js/console.log "repl-print" value)
-  (pr-str value))
+
 
 (defn socket-msg [msg]
   (if-let [s @socket-ref]
@@ -157,36 +148,18 @@
     (str/replace s #"^file:/" "file:///")
     ))
 
-(defn repl-call [handler]
-  (let [result {:type :repl/result}]
-    (try
-      (let [ret (handler)]
-        (set! *3 *2)
-        (set! *2 *1)
-        (set! *1 ret)
-
-        (try
-          (assoc result
-            :value (repl-print ret))
-          (catch :default e
-            (js/console.log "encoding of result failed" e ret)
-            (assoc result :error "ENCODING FAILED"))))
-      (catch :default e
-        (set! *e e)
-        (js/console.log "repl/invoke error" e)
-        (assoc result
-          :ua-product (get-ua-product)
-          :error (str e)
-          :asset-root (get-asset-root)
-          :stacktrace (if (.hasOwnProperty e "stack")
-                        (.-stack e)
-                        "No stacktrace available."))))))
-
-(defn repl-eval [js]
-  (js/eval js))
+(defn repl-error [result e]
+  (js/console.error "repl/invoke error" e)
+  (assoc result
+    :ua-product (get-ua-product)
+    :error (str e)
+    :asset-root (get-asset-root)
+    :stacktrace (if (.hasOwnProperty e "stack")
+                  (.-stack e)
+                  "No stacktrace available.")))
 
 (defn repl-invoke [{:keys [id js]}]
-  (let [result (repl-call #(repl-eval js))]
+  (let [result (env/repl-call #(js/eval js) pr-str repl-error)]
     (-> result
         (assoc :id id)
         (socket-msg))))
@@ -197,14 +170,14 @@
       (= :reload reload)
       (let [all (butlast js-sources)
             self (last js-sources)]
-        (-> (into [] (remove goog-is-loaded? all))
+        (-> (into [] (remove env/goog-is-loaded? all))
             (conj self)))
 
       (= :reload-all reload)
       js-sources
 
       :else
-      (remove goog-is-loaded? js-sources))
+      (remove env/goog-is-loaded? js-sources))
     (fn []
       (js/console.log "repl-require finished"))))
 
@@ -212,7 +185,7 @@
   (load-scripts
     ;; don't load if already loaded
     (->> (:repl-js-sources repl-state)
-         (remove goog-is-loaded?))
+         (remove env/goog-is-loaded?))
     (fn [] (js/console.log "repl init complete"))))
 
 (defn repl-set-ns [{:keys [ns]}]
@@ -232,60 +205,56 @@
     ;; default
     :ignored))
 
-(goog-define url "")
-
 (defn ws-connect []
-  ;; FIXME: fallback for IE?
-  (when (aget js/window "WebSocket")
-    (let [print-fn
-          cljs.core/*print-fn*
+  (let [print-fn
+        cljs.core/*print-fn*
 
-          socket
-          (js/WebSocket.
-            (-> url
-                (str/replace #"^http" "ws")
-                (str "/" (random-uuid) "/browser")))]
+        ws-url
+        (env/ws-url :browser)
 
-      (reset! socket-ref socket)
+        socket
+        (js/WebSocket. ws-url)]
 
-      (set! (.-onmessage socket)
-        (fn [e]
-          (set-print-fn! (fn [& args]
-                           (socket-msg {:type :repl/out
-                                        :out (into [] args)})
-                           (apply print-fn args)))
+    (reset! socket-ref socket)
 
-          (let [text
-                (.-data e)
+    (set! (.-onmessage socket)
+      (fn [e]
+        (set-print-fn! (fn [& args]
+                         (socket-msg {:type :repl/out
+                                      :out (into [] args)})
+                         (apply print-fn args)))
 
-                msg
-                (try
-                  (reader/read-string text)
-                  (catch :default e
-                    (js/console.warn "failed to parse msg" e text)
-                    nil))]
-            (when msg
-              (handle-message msg)))
-          ))
+        (let [text
+              (.-data e)
 
-      (set! (.-onopen socket)
-        (fn [e]
-          ;; patch away the already declared exception
-          (set! (.-provide js/goog) js/goog.constructNamespace_)
-          (.log js/console "DEVTOOLS: connected!")
-          ))
+              msg
+              (try
+                (reader/read-string text)
+                (catch :default e
+                  (js/console.warn "failed to parse msg" e text)
+                  nil))]
+          (when msg
+            (handle-message msg)))
+        ))
 
-      (set! (.-onclose socket)
-        (fn [e]
-          ;; not a big fan of reconnecting automatically since a disconnect
-          ;; may signal a change of config, safer to just reload the page
-          (.warn js/console "DEVTOOLS: disconnected!")
-          (reset! socket-ref nil)
-          ))
+    (set! (.-onopen socket)
+      (fn [e]
+        ;; patch away the already declared exception
+        (set! (.-provide js/goog) js/goog.constructNamespace_)
+        (.log js/console "DEVTOOLS: connected!")
+        ))
 
-      (set! (.-onerror socket)
-        (fn [e]))
-      )))
+    (set! (.-onclose socket)
+      (fn [e]
+        ;; not a big fan of reconnecting automatically since a disconnect
+        ;; may signal a change of config, safer to just reload the page
+        (.warn js/console "DEVTOOLS: disconnected!")
+        (reset! socket-ref nil)
+        ))
+
+    (set! (.-onerror socket)
+      (fn [e]))
+    ))
 
 (when ^boolean env/enabled
   ;; disconnect an already connected socket, happens if this file is reloaded

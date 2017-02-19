@@ -11,6 +11,47 @@
 (defn- prepend [tail head]
   (into [head] tail))
 
+(defn repl-defines
+  [{:keys [proc-id build-config] :as proc-state}]
+  (let [host ;; FIXME: get this from somewhere so it isn't hardcoded
+        "localhost"
+
+        port
+        8200
+
+        {:keys [id]}
+        build-config
+
+        {:keys [reload-with-state before-load after-load]}
+        (:devtools build-config)]
+
+    {"shadow.devtools.client.env.enabled"
+     true
+
+     "shadow.devtools.client.env.repl_host"
+     host
+
+     "shadow.devtools.client.env.repl_port"
+     port
+
+     "shadow.devtools.client.env.build_id"
+     (name id)
+
+     "shadow.devtools.client.env.proc_id"
+     (str proc-id)
+
+     "shadow.devtools.client.env.before_load"
+     (when before-load
+       (str (cljs-comp/munge before-load)))
+
+     "shadow.devtools.client.env.after_load"
+     (when after-load
+       (str (cljs-comp/munge after-load)))
+
+     "shadow.devtools.client.env.reload_with_state"
+     (boolean reload-with-state)
+     }))
+
 (defn inject-devtools
   "config is a map with these options:
    :host the interface to create the websocket server on (defaults to \"localhost\")
@@ -20,98 +61,28 @@
 
    live-reload will only load namespaces that were already required"
   [{:keys [proc-id build-config] :as proc-state}]
-  (let [host ;; FIXME: get this from somewhere so it isn't hardcoded
-        "localhost"
-
-        port
-        8200
-
-        {:keys [id]}
-        build-config
-
-        {:keys [reload-with-state node-eval console-support before-load after-load] :as dt-config}
+  (let [{:keys [console-support] :as dt-config}
         (:devtools build-config)]
-
-    (log/info [:dt-config id dt-config])
 
     (update proc-state :compiler-state
       (fn [compiler-state]
         (-> compiler-state
-            (update :closure-defines merge
-              {"shadow.devtools.client.env.enabled"
-               true
-
-               "shadow.devtools.client.env.build_id"
-               (name id)
-
-               "shadow.devtools.client.env.proc_id"
-               (str proc-id)
-
-               "shadow.devtools.client.env.before_load"
-               (when before-load
-                 (str (cljs-comp/munge before-load)))
-
-               "shadow.devtools.client.env.after_load"
-               (when after-load
-                 (str (cljs-comp/munge after-load)))
-
-               "shadow.devtools.client.env.reload_with_state"
-               (boolean reload-with-state)
-
-               "shadow.devtools.client.browser.url"
-               (str "http://" host ":" port "/ws/client/" (str proc-id))
-               })
+            (update :closure-defines merge (repl-defines proc-state))
 
             (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.browser)
             (cond->
-              console-support
+              (not (false? console-support))
               (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.console))
             )))))
 
 (defn inject-node-repl
   [{:keys [proc-id build-config] :as proc-state}]
-  (let [host ;; FIXME: get this from somewhere so it isn't hardcoded
-        "localhost"
-
-        port
-        8200
-
-        {:keys [id]}
-        build-config
-
-        {:keys [reload-with-state before-load after-load] :as dt-config}
-        (:devtools build-config)]
-
-    (update proc-state :compiler-state
-      (fn [compiler-state]
-        (-> compiler-state
-            (update :closure-defines merge
-              {"shadow.devtools.client.env.enabled"
-               true
-
-               "shadow.devtools.client.env.build_id"
-               (name id)
-
-               "shadow.devtools.client.env.proc_id"
-               (str proc-id)
-
-               "shadow.devtools.client.env.before_load"
-               (when before-load
-                 (str (cljs-comp/munge before-load)))
-
-               "shadow.devtools.client.env.after_load"
-               (when after-load
-                 (str (cljs-comp/munge after-load)))
-
-               "shadow.devtools.client.env.reload_with_state"
-               (boolean reload-with-state)
-
-               #_ "shadow.devtools.client.browser.url"
-               #_ (str "http://" host ":" port "/ws/devtools/" (str proc-id))
-               })
-
-            (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.node)
-            )))))
+  (update proc-state :compiler-state
+    (fn [compiler-state]
+      (-> compiler-state
+          (update :closure-defines merge (repl-defines proc-state))
+          (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.node)
+          ))))
 
 (defn build-msg
   [build-state e]
@@ -182,12 +153,6 @@
   (fn [state msg]
     (:type msg)))
 
-(defmethod do-proc-control :eval-start
-  [state {:keys [id eval-out client-out]}]
-  (update state :eval-clients assoc id {:id id
-                                        :eval-out eval-out
-                                        :client-out client-out}))
-
 (defmethod do-proc-control :repl-state
   [state {:keys [reply-to]}]
 
@@ -196,6 +161,16 @@
     (>!! reply-to ::NO-REPL))
 
   state)
+
+(defmethod do-proc-control :eval-start
+  [state {:keys [id eval-out client-out]}]
+  (>!! eval-out {:type :repl/init
+                 :repl-state (-> state :compiler-state :repl-state)})
+
+  (update state :eval-clients assoc id {:id id
+                                        :eval-out eval-out
+                                        :client-out client-out}))
+
 
 (defmethod do-proc-control :eval-stop
   [state {:keys [id]}]
@@ -263,7 +238,8 @@
         (do (log/warnf "no one waiting for result: %s" (pr-str msg))
             state)
         ;; FIXME: should the reply include the msg that triggered it?
-        (do (>!! reply-to value)
+        (do (when (not (nil? value))
+              (>!! reply-to value))
             (update state :pending-results dissoc id)
             )))
     state))

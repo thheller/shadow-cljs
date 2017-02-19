@@ -89,9 +89,6 @@
        (trigger-event :after-init)
        )))
 
-(defn prepare [state]
-  state)
-
 (defn- update-build-info-from-modules
   [{:keys [build-modules] :as state}]
   (update state ::build-info merge {:modules build-modules}))
@@ -139,6 +136,7 @@
   (update state ::build-info merge (extract-build-info state)))
 
 (defn compile [state]
+  {:pre [(cljs/compiler-state? state)]}
   (-> state
       (assoc ::build-info {})
       (trigger-event :before-compile)
@@ -157,6 +155,7 @@
 
 (defmulti flush*
   (fn [state]
+    {:pre [(cljs/compiler-state? state)]}
     [(::mode state)
      (get-in state [::config :target])]))
 
@@ -191,6 +190,7 @@
       (umd/flush-module)))
 
 (defn flush [state]
+  {:pre [(cljs/compiler-state? state)]}
   (-> state
       (trigger-event :before-flush)
       (flush*)

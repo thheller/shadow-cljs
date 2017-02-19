@@ -20,4 +20,11 @@
   :devtools
   {:before-load demo.script/stop
    :after-load demo.script/start}}
+
+
+ {:id :library
+  :target :library
+  :output-to "out/demo-library/lib.js"
+  :exports
+  {:hello demo.lib/hello}}
  ]

@@ -1,4 +1,7 @@
-(ns shadow.devtools.client.env)
+(ns shadow.devtools.client.env
+  (:require [goog.object :as gobj]))
+
+(defonce client-id (random-uuid))
 
 (goog-define enabled false)
 
@@ -12,4 +15,38 @@
 
 (goog-define proc-id "")
 
+(goog-define repl-host "")
+
+(goog-define repl-port 8200)
+
+(defn ws-url [client-type]
+  {:pre [(keyword? client-type)]}
+  (str "ws://" repl-host ":" repl-port "/ws/client/" proc-id "/" client-id "/" (name client-type)))
+
+(def loaded? js/goog.isProvided_)
+
+(defn goog-is-loaded? [name]
+  (gobj/get js/goog.dependencies_.written name))
+
+(defn src-is-loaded? [{:keys [js-name] :as src}]
+  (goog-is-loaded? js-name))
+
+(defn repl-call [repl-expr repl-print repl-error]
+  (let [result {:type :repl/result}]
+    (try
+      (let [ret (repl-expr)]
+        (set! *3 *2)
+        (set! *2 *1)
+        (set! *1 ret)
+
+        (try
+          (assoc result
+            :value (repl-print ret))
+          (catch :default e
+            (js/console.log "encoding of result failed" e ret)
+            (assoc result :error "ENCODING FAILED"))))
+      (catch :default e
+        (set! *e e)
+        (repl-error result e)
+        ))))
 

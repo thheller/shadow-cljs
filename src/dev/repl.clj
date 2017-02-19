@@ -6,6 +6,7 @@
             [clojure.tools.namespace.repl :as ns-tools]
             [shadow.devtools.server.services.build :as build]
             [shadow.devtools.server.services.config :as config]
+            [shadow.devtools.cli :as cli]
             [shadow.cljs.log :as cljs-log]
             [clojure.core.async :as async :refer (<!)]
             [clojure.tools.logging :as log]))
@@ -14,28 +15,6 @@
 
 (defn app []
   (:app @inst))
-
-(defonce log-lock (Object.))
-
-(defn log-dump [label]
-  (let [chan
-        (-> (async/sliding-buffer 10)
-            (async/chan))]
-
-    (async/go
-      (loop []
-        (when-some [x (<! chan)]
-          (locking log-lock
-            (println (str label ":")
-              (case (:type x)
-                :build-log
-                (cljs-log/event->str (:event x))
-                (pr-str x))))
-          (recur)
-          )))
-
-    chan
-    ))
 
 (defn start []
   (st/instrument)
@@ -46,13 +25,13 @@
     (let [{:keys [build] :as app}
           (:app @runtime-ref)
 
-          [self script & others]
+          [self script lib & others]
           (config/load-cljs-edn!)]
 
       (-> (build/proc-start build)
-          (build/configure script)
+          (build/configure lib)
           (build/start-autobuild)
-          (build/watch (log-dump "REPL-BUILD")))
+          (build/watch (cli/stdout-dump)))
 
       #_(-> (build/proc-start build)
             (build/configure

@@ -113,6 +113,12 @@
         repl-result
         (build/repl-client-connect build-proc ::stdin repl-in)
 
+        ;; FIXME: how to display results properly?
+        _ (go (loop []
+                (when-some [result (<! repl-result)]
+                  (println result)
+                  (recur))))
+
         loop-result
         (loop []
           (let [repl-state
@@ -152,19 +158,20 @@
       (loop []
         (when-some [x (<! chan)]
           (locking log-lock
-            (println
-              (case (:type x)
-                :build-log
-                (cljs-log/event->str (:event x))
+            (case (:type x)
+              :build-log
+              (println (cljs-log/event->str (:event x)))
 
-                :build-start
-                "Build started."
+              :build-start
+              (println "Build started.")
 
-                :build-success
-                "Build completed."
+              :build-success
+              (do (println "Build completed.")
+                  (doseq [w (-> x :info :warnings)]
+                    (prn w)))
 
-                ;; default
-                (pr-str x))))
+              ;; default
+              (prn [:log x])))
           (recur)
           )))
 

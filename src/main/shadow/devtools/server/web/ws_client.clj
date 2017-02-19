@@ -53,7 +53,6 @@
       in
       ([msg]
         (when-not (nil? msg)
-          ;; FIXME: send to result-chan if v is eval result
           (recur (do-in client-state msg)))
         )))
 
@@ -75,14 +74,13 @@
           (async/sliding-buffer 10)
           (map pr-str))
 
-        ;; "/ws/eval/<build-id>/<client-id>/<client-type>"
+        ;; "/ws/client/<proc-id>/<client-id>/<client-type>"
         [_ _ _ proc-id client-id client-type :as parts]
         (str/split uri #"/")
 
         proc-id
         (UUID/fromString proc-id)
 
-        ;; FIXME: none-devtools repl clients
         client-type
         (keyword client-type)
 
@@ -106,6 +104,7 @@
             client-state
             {:app req
              :client-id client-id
+             :client-type client-type
              :proc-id proc-id
              :in client-in
              :out client-out
