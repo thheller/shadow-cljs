@@ -9,7 +9,7 @@
             [shadow.cljs.build :as cljs]
             [shadow.devtools.server.system :as sys]
             [shadow.devtools.server.services.build :as build]
-            [shadow.devtools.server.services.config :as config]
+            [shadow.devtools.server.config :as config]
 
             [shadow.cljs.log :as cljs-log])
   (:import (java.lang ProcessBuilder$Redirect)))

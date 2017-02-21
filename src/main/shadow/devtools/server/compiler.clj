@@ -58,14 +58,18 @@
   (update state ::build-info merge (extract-build-info state)))
 
 (defn- process-stage
-  [{::keys [config mode] :as state} stage optional?]
+  [{::keys [config mode target] :as state} stage optional?]
   (let [before
         (assoc state ::stage stage)
 
         after
         (process before)]
     (if (and (not optional?) (identical? before after))
-      (throw (ex-info "process didn't do anything on non-optional stage" {:stage stage :mode mode :config config}))
+      (throw (ex-info "process didn't do anything on non-optional stage"
+               {:stage stage
+                :mode mode
+                :target target
+                :config config}))
       after)))
 
 (defn process-target

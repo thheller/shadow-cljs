@@ -8,17 +8,9 @@
   (let [{:keys [exports]} config]
     (-> state
         (cond->
-          (= :dev mode)
-          (-> (cljs/enable-source-maps)
-              (cljs/set-build-options
-                {:optimizations :none
-                 :use-file-min false}))
-
           (= :release mode)
           (cljs/set-build-options
-            {:optimizations :simple
-             :pretty-print false}))
-
+            {:optimizations :simple}))
         (umd/create-module exports config))))
 
 (defn flush [state mode config]

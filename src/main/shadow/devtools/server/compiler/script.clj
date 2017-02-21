@@ -4,20 +4,8 @@
             [shadow.cljs.node :as node]
             [shadow.devtools.server.compiler :as comp]))
 
-(defn init [state mode {:keys [dev] :as config}]
-  (-> state
-      (cond->
-        (= :dev mode)
-        (-> (cljs/enable-source-maps)
-            (cljs/set-build-options
-              {:optimizations :none
-               :use-file-min false}))
-
-        (= :release mode)
-        (cljs/set-build-options
-          {:optimizations :simple}))
-
-      (node/configure config)))
+(defn init [state mode config]
+  (node/configure state config))
 
 (defn flush [state mode config]
   (case mode
@@ -26,7 +14,7 @@
     :release
     (node/flush-optimized state)))
 
-(defmethod comp/process :library
+(defmethod comp/process :script
   [{::comp/keys [mode stage config] :as state}]
   (case stage
     :init

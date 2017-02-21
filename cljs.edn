@@ -1,18 +1,4 @@
-[{:id :self
-  :target :browser
-  :modules
-  {:main
-   {:entries [shadow.devtools.frontend.app]
-    :depends-on #{}}}
-  :public-dir "public/assets/frontend/js"
-  :public-path "/assets/frontend/js"
-
-  :devtools
-  {:console-support true
-   :before-load shadow.devtools.frontend.app/stop
-   :after-load shadow.devtools.frontend.app/start}}
-
- {:id :script
+[{:id :script
   :target :script
   :main demo.script/main
   :output-to "out/demo-script/script.js"
@@ -20,7 +6,6 @@
   :devtools
   {:before-load demo.script/stop
    :after-load demo.script/start}}
-
 
  {:id :library
   :target :library
