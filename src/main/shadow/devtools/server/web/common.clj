@@ -25,7 +25,6 @@
       [:link {:rel "stylesheet" :href "/assets/frontend/css/frontend.css"}]]
      [:body
       content
-      [:script {:src "/assets/frontend/js/main.js"}]
       ])})
 
 (defn transit [{:keys [transit-str] :as req} obj]

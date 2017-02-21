@@ -10,7 +10,7 @@
   (common/page-boilerplate
     req
     (html
-      [:h1 "Explorer"]
+      [:h1 "CLJS resources on the JVM Classpath"]
       [:ul
        (for [src
              (->> (explorer/get-project-sources explorer)
