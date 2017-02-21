@@ -22,8 +22,7 @@
      {:lang "en"}
      [:head
       [:title "hello world"]
-      [:style "body { font-size: 12px; font-family: Menlo, monospace; padding: 20px;}"]
-      [:link {:rel "stylesheet" :href "/assets/frontend/css/frontend.css"}]]
+      [:style "body { font-size: 12px; font-family: Menlo, monospace; padding: 20px;}"]]
      [:body
       content
       ])})

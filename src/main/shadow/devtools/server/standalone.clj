@@ -9,7 +9,7 @@
             [ring.middleware.file :as file]
 
             [shadow.devtools.server.common :as common]
-            ))
+            [aleph.netty :as netty]))
 
 (defonce runtime nil)
 
@@ -39,7 +39,7 @@
               (-> (:app @system-ref)
                   (assoc :ring-request ring-map))]
           (web/root app)))
-      (file/wrap-file (io/file "public"))
+      ;; (file/wrap-file (io/file "public"))
       ;; (reload/wrap-reload {:dirs ["src/main"]})
       ))
 
@@ -87,11 +87,12 @@
   (let [runtime-ref (start-system default-config)]
     (println "ready ...")
     (alter-var-root #'runtime (fn [_] runtime-ref))
-    nil
+    ::started
     ))
 
 (defn -main [& args]
-  (start!))
+  (start!)
+  (netty/wait-for-close (:http @runtime)))
 
 (defn stop! []
   (shutdown-system @runtime)
