@@ -13,7 +13,6 @@
 
 (defn ws-close []
   (when-some [tcp @ws-ref]
-    (js/console.log "REPL shutdown")
     (.close tcp)
     (vreset! ws-ref nil)))
 
@@ -63,7 +62,10 @@
   (js/console.log "REPL set ns:" (pr-str ns)))
 
 (defn repl-require
-  [{:keys [js-sources reload] :as msg}]
+  [{:keys [js-sources warnings reload] :as msg}]
+  (doseq [{:keys [msg line column source-name] :as w} warnings]
+    (js/console.warn (str "WARNING: " msg " (" source-name " at " line ":" column ")")))
+
   (doseq [src js-sources
           :when (or reload
                     (not (is-loaded? src)))]
@@ -142,7 +144,7 @@
       (fn [req res]
         (let [status (.-statusCode res)]
           (if (= 406 status)
-            (js/console.log "REPL connection rejected, stale JS connecting to new server.")
+            (js/console.log "REPL connection rejected, probably stale JS connecting to new server.")
             (js/console.log "REPL unexpected error" (.-statusCode res))
             ))))
 
@@ -151,7 +153,6 @@
         (-> data
             (reader/read-string)
             (process-message))))
-
 
     (.on client "close"
       (fn []

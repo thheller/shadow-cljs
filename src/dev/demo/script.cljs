@@ -9,10 +9,10 @@
   (volatile! nil))
 
 (defn main [& args]
+  (js/console.log "starting server")
   (let [server
-        (.createServer http request-handler)]
+        (.createServer http #(request-handler %1 %2))]
 
-    fooooo
     (.listen server 3000
       (fn [err]
         (if err
@@ -23,7 +23,6 @@
     (vreset! server-ref server)
     ))
 
-
 (defn start []
   (js/console.warn "start called")
   (main))
@@ -31,4 +30,6 @@
 (defn stop []
   (js/console.warn "stop called")
   (when-some [srv @server-ref]
-    (.close srv)))
+    (.close srv
+      (fn [err]
+        (js/console.log "stop completed" err)))))

@@ -326,13 +326,12 @@
           state)))))
 
 (defn do-fs-updates
-  [{:keys [compiler-state autobuild] :as state} modified]
-  (cond-> state
-    compiler-state
-    (update :compiler-state cljs/reload-modified-files! modified)
-
-    autobuild
-    (build-compile)))
+  [{:keys [autobuild] :as state} modified]
+  (if-not autobuild
+    state
+    (-> state
+        (update :compiler-state cljs/reload-modified-files! modified)
+        (build-compile))))
 
 (defn do-config-updates [build-state config]
   build-state)
@@ -461,14 +460,13 @@
   proc)
 
 (defn repl-state
-  [{:keys [proc-control] :as proc}]
+  [{:keys [proc-control] :as proc} chan]
   {:pre [(proc? proc)]}
 
-  (let [chan (async/chan 1)]
-    (>!! proc-control {:type :repl-state
-                       :reply-to chan})
+  (>!! proc-control {:type :repl-state
+                     :reply-to chan})
 
-    (<!! chan)
-    ))
+  proc
+  )
 
 

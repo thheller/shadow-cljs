@@ -41,12 +41,8 @@
      :compiled
      compiled-sources
      :warnings
-     (->> (for [name (:build-sources state)
-                :let [{:keys [warnings] :as src}
-                      (get-in state [:sources name])]
-                warning warnings]
-            (assoc warning :source-name name))
-          (into []))
+     (cljs/extract-warnings state (:build-sources state))
+
      }))
 
 (defn- update-build-info-from-modules

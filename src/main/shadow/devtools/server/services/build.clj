@@ -42,9 +42,9 @@
   (impl/stop-autobuild proc))
 
 (defn repl-state
-  "returns current state of repl (current ns, ...)"
-  [proc]
-  (impl/repl-state proc))
+  "queries current state of repl (current ns, ...), written to chan"
+  [proc chan]
+  (impl/repl-state proc chan))
 
 (defn repl-eval-connect
   "called by processes that are able to eval repl commands and report their result

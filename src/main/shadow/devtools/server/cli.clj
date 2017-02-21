@@ -1,7 +1,7 @@
 (ns shadow.devtools.server.cli
   (:require [clojure.pprint :refer (pprint)]
             [clojure.java.io :as io]
-            [clojure.core.async :as async :refer (go <! >! >!! <!!)]
+            [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [shadow.cljs.node :as node]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.build :as cljs]
@@ -35,15 +35,19 @@
 
   :done)
 
-(defn stdin-takeover! [build-proc]
-
+(defn stdin-takeover! [build-proc sync-chan]
   (let [repl-in
         (async/chan 1)
 
         repl-result
         (build/repl-client-connect build-proc ::stdin repl-in)
 
+        state-chan
+        (-> (async/sliding-buffer 1)
+            (async/chan))
+
         ;; FIXME: how to display results properly?
+        ;; should probably pipe to the output channel of build-proc?
         _ (go (loop []
                 (when-some [result (<! repl-result)]
                   (println result)
@@ -51,26 +55,43 @@
 
         loop-result
         (loop []
+          (build/repl-state build-proc state-chan)
+
           (let [repl-state
-                (build/repl-state build-proc)
+                (alt!!
+                  sync-chan
+                  ([_]
+                    (prn [:sync-closed])
+                    nil)
 
-                {:keys [eof? form source] :as read-result}
-                (repl/read-stream! repl-state (. System -in))]
+                  (async/timeout 5000)
+                  ([_]
+                    (prn [:timeout-on-repl-state])
+                    nil)
 
-            (cond
-              eof?
-              :eof
+                  state-chan
+                  ([x]
+                    x))]
 
-              (nil? form)
-              (recur)
+            ;; unlock stdin when we can't get repl-state
+            (when repl-state
+              (let [{:keys [eof? form source] :as read-result}
+                    (repl/read-stream! repl-state (. System -in))]
 
-              (= :cljs/quit form)
-              :quit
+                (cond
+                  eof?
+                  :eof
 
-              :else
-              (do (>!! repl-in read-result)
-                  (recur))
-              )))]
+                  (nil? form)
+                  (recur)
+
+                  (= :cljs/quit form)
+                  :quit
+
+                  :else
+                  (do (>!! repl-in read-result)
+                      (recur))
+                  )))))]
 
     (async/close! repl-in)
 
@@ -99,6 +120,9 @@
         build-config
         (config/get-build! build)
 
+        sync-chan
+        (async/chan 1)
+
         {:keys [proc out fs-watch] :as app}
         (start)]
 
@@ -108,7 +132,7 @@
                 (build/watch out)
                 (build/configure build-config)
                 (build/start-autobuild))]
-        (stdin-takeover! proc))
+        (stdin-takeover! proc sync-chan))
       (finally
         (rt/stop-all app)))
     ))
@@ -160,31 +184,57 @@
 
            ;; FIXME: validate that proc started
 
-           (try
+           ;; start capturing stdin in another thread
+           (let [sync-chan
+                 (async/chan 1)
 
+                 stdin-thread
+                 (doto (Thread. #(stdin-takeover! proc sync-chan))
+                   (.start))]
+
+             ;; async wait for the node process to exit
+             ;; in case it crashes
+             (async/thread
+               (try
+                 (.waitFor node-proc)
+
+                 (async/close! sync-chan)
+
+                 ;; process crashed, may still be reading stdin
+                 (when (.isAlive stdin-thread)
+                   (println "node.js process died, please type something to exit repl loop")
+                   ;; this doesn't do anything when already in System.in.read ...
+                   (.interrupt stdin-thread))
+
+                 (catch Exception e
+                   (prn [:node-wait-error e]))))
+
+             ;; piping the script into node-proc instead of using command line arg
+             ;; as node will otherwise adopt the path of the script as the require reference point
+             ;; we want to control that via pwd
              (let [out (.getOutputStream node-proc)]
-               ;; piping the script into node-proc instead of using command line arg
-               ;; as node will otherwise adopt the path of the script as the require reference point
-               ;; we want to control that via pwd
                (io/copy (slurp node-script) out)
                (.close out))
 
-             ;; this blocks reading stdin
-             (stdin-takeover! proc)
+             (prn [:waiting-for-stdin-release])
+             (.join stdin-thread)
+             (prn [:stdin-released])
 
-             (finally
-               ;; FIXME: more graceful shutdown of the node-proc?
+             ;; FIXME: more graceful shutdown of the node-proc?
+             (when (.isAlive node-proc)
                (.destroy node-proc)
-               (.waitFor node-proc)
+               (.waitFor node-proc))
 
-               (when (.exists node-script)
-                 (.delete node-script))))))
+             (when (.exists node-script)
+               (.delete node-script)))))
 
        (finally
          (rt/stop-all app))))
 
-    (println "Node REPL shutdown. Goodbye ...")
-    :cljs/quit
+
+   (locking cljs/stdout-lock
+     (println "Node REPL shutdown. Goodbye ..."))
+   :cljs/quit
     ))
 
 (defn release [& args]
