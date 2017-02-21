@@ -1,23 +1,23 @@
 (ns shadow.devtools.server.services.build.impl
+  (:refer-clojure :exclude (compile))
   (:require [cljs.compiler :as cljs-comp]
-            [clojure.core.async :as async :refer (>! <! >!! <!!)]
+            [clojure.core.async :as async :refer (go >! <! >!! <!! alt!)]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.repl :as repl]
-            [clojure.tools.logging :as log]
             [shadow.devtools.server.compiler :as comp]
             [shadow.devtools.server.util :as util]
             ))
+
+(defn proc? [x]
+  (and (map? x) (::proc x)))
 
 (defn- prepend [tail head]
   (into [head] tail))
 
 (defn repl-defines
-  [{:keys [proc-id build-config] :as proc-state}]
-  (let [host ;; FIXME: get this from somewhere so it isn't hardcoded
-        "localhost"
-
-        port
-        8200
+  [{:keys [proc-id build-config http-info-ref] :as proc-state}]
+  (let [{:keys [host port]}
+        @http-info-ref
 
         {:keys [id]}
         build-config
@@ -84,34 +84,51 @@
           (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.node)
           ))))
 
-(defn build-msg
-  [build-state e]
-  (let [output (get-in build-state [:channels :output])]
 
-    (>!! output {:type :build-message
-                 :msg e})
+(defn >!!output [build-state msg]
+  {:pre [(map? msg)
+         (:type msg)]}
+
+  (let [output (get-in build-state [:channels :output])]
+    (>!! output msg)
     build-state))
+
+(defn build-msg
+  [build-state msg]
+  (>!!output build-state
+    {:type :build-message
+     :msg msg}))
+
+(defn repl-error
+  [build-state e]
+  (>!!output build-state
+    {:type :repl-error
+     :message (.getMessage e)
+     :data (ex-data e)
+     :causes
+     (loop [e (.getCause e)
+            causes []]
+       (if e
+         (recur (.getCause e) (conj causes (.getMessage e)))
+         causes))}))
 
 (defn build-failure
   [build-state e]
-  (let [output (get-in build-state [:channels :output])]
-
-    (>!! output {:type :build-failure
-                 :e e})
-    build-state))
+  (>!!output build-state
+    {:type :build-failure
+     :e e}))
 
 (defn build-configure
   "configure the build according to build-config in state"
   [{:keys [build-config] :as build-state}]
   (try
-    (let [output
-          (get-in build-state [:channels :output])
-
-          {:keys [target]}
+    (let [{:keys [target]}
           build-config
 
           compiler-state
-          (-> (comp/init :dev build-config) ;; {:logger (util/async-logger output)}
+          (-> (cljs/init-state)
+              (assoc :logger (util/async-logger (-> build-state :channels :output)))
+              (comp/init :dev build-config)
               (repl/prepare))]
 
       (-> build-state
@@ -129,25 +146,25 @@
       (build-failure build-state e))))
 
 (defn build-compile
-  [{:keys [channels compiler-state] :as build-state}]
-  (let [{:keys [output]}
-        channels]
-    (>!! output {:type :build-start})
+  [{:keys [channels compiler-state build-config] :as build-state}]
+  (>!!output build-state {:type :build-start
+                          :build-config build-config})
 
-    (try
-      (let [compiler-state
-            (-> compiler-state
-                (comp/compile)
-                (comp/flush))]
+  (try
+    (let [compiler-state
+          (-> compiler-state
+              (comp/compile)
+              (comp/flush))]
 
-        (>!! output {:type
-                     :build-success
-                     :info
-                     (::comp/build-info compiler-state)})
+      (>!!output build-state
+        {:type
+         :build-complete
+         :info
+         (::comp/build-info compiler-state)})
 
-        (assoc build-state :compiler-state compiler-state))
-      (catch Exception e
-        (build-failure build-state e)))))
+      (assoc build-state :compiler-state compiler-state))
+    (catch Exception e
+      (build-failure build-state e))))
 
 (defmulti do-proc-control
   (fn [state msg]
@@ -185,16 +202,22 @@
   (update state :repl-clients dissoc id))
 
 (defmethod do-proc-control :start-autobuild
-  [{:keys [build-config] :as state} msg]
-  (if (nil? build-config)
-    (build-msg state "No build configured.")
-    (try
-      (-> state
-          (build-configure)
-          (build-compile)
-          (assoc :autobuild true))
-      (catch Exception e
-        (build-failure state e)))))
+  [{:keys [build-config autobuild] :as state} msg]
+  (if autobuild
+    state ;; do nothing if already in auto mode
+    (if (nil? build-config)
+      (build-msg state "No build configured.")
+      (try
+        (-> state
+            (build-configure)
+            (build-compile)
+            (assoc :autobuild true))
+        (catch Exception e
+          (build-failure state e))))))
+
+(defmethod do-proc-control :stop-autobuild
+  [state msg]
+  (assoc state :autobuild false))
 
 (defmethod do-proc-control :compile
   [{:keys [build-config] :as state} {:keys [reply-to] :as msg}]
@@ -235,7 +258,7 @@
           (get pending-results id)]
 
       (if (nil? waiting)
-        (do (log/warnf "no one waiting for result: %s" (pr-str msg))
+        (do (build-msg state (format "no one waiting for result: %s" (pr-str msg)))
             state)
         ;; FIXME: should the reply include the msg that triggered it?
         (do (when (not (nil? value))
@@ -251,56 +274,56 @@
 
     (cond
       (nil? compiler-state)
-      (do (log/info "build not configured yet, how did you connect to the repl?")
+      (do (build-msg state "build not configured yet, how did you connect to the repl?")
           state)
 
       (> client-count 1)
-      (do (log/info "too many clients")
+      (do (build-msg state "too many clients")
           state)
 
       (zero? client-count)
-      (do (log/info "no eval client")
+      (do (build-msg state "no eval client")
           state)
 
       :else
-      (let [{:keys [eval-out] :as eval-client}
-            (first (vals eval-clients))
+      (try
+        (let [{:keys [eval-out] :as eval-client}
+              (first (vals eval-clients))
 
-            {:keys [reply-to code]}
-            msg
+              {:keys [reply-to code]}
+              msg
 
-            start-idx
-            (count (get-in compiler-state [:repl-state :repl-actions]))
+              start-idx
+              (count (get-in compiler-state [:repl-state :repl-actions]))
 
-            {:keys [repl-state] :as compiler-state}
-            (try
+              {:keys [repl-state] :as compiler-state}
               (if (string? code)
                 (repl/process-input compiler-state code)
                 (repl/process-read-result compiler-state code))
-              (catch Exception e
-                (log/error e "repl/process-input failed")
-                compiler-state
-                ))
 
-            new-actions
-            (subvec (:repl-actions repl-state) start-idx)
+              new-actions
+              (subvec (:repl-actions repl-state) start-idx)
 
-            pending-results
-            (reduce
-              (fn [pending [idx action]]
-                (let [idx (+ idx start-idx)]
-                  (assoc pending idx (assoc action :reply-to reply-to))))
               pending-results
-              (map-indexed vector new-actions))]
+              (reduce
+                (fn [pending [idx action]]
+                  (let [idx (+ idx start-idx)]
+                    (assoc pending idx (assoc action :reply-to reply-to))))
+                pending-results
+                (map-indexed vector new-actions))]
 
-        (doseq [[idx action] (map-indexed vector new-actions)
-                :let [idx (+ idx start-idx)
-                      action (assoc action :id idx)]]
-          (>!! eval-out action))
+          (doseq [[idx action] (map-indexed vector new-actions)
+                  :let [idx (+ idx start-idx)
+                        action (assoc action :id idx)]]
+            (>!! eval-out action))
 
-        (assoc state
-          :compiler-state compiler-state
-          :pending-results pending-results)))))
+          (assoc state
+            :compiler-state compiler-state
+            :pending-results pending-results))
+
+        (catch Exception e
+          (repl-error state e)
+          state)))))
 
 (defn do-fs-updates
   [{:keys [compiler-state autobuild] :as state} modified]
@@ -313,5 +336,139 @@
 
 (defn do-config-updates [build-state config]
   build-state)
+
+(defn repl-eval-connect
+  [{:keys [proc-stop proc-control repl-result] :as proc} client-id client-out]
+  {:pre [(proc? proc)]}
+  ;; result-chan
+  ;; creating a new chan here instead of just handing out repl-result
+  ;; closing it is currently the only way to a eval-client can signal a disconnect
+  ;; we will however just pipe messages through as we have nothing useful to do with them
+
+  ;; eval-out
+  ;; FIXME: just piping through but could just talk to client-out directly?
+  (let [result-chan
+        (async/chan)
+
+        eval-out
+        (async/chan)]
+
+    (go (>! proc-control {:type :eval-start
+                          :id client-id
+                          :eval-out eval-out})
+
+        (loop []
+          (alt!
+            proc-stop
+            ([_] nil)
+
+            result-chan
+            ([msg]
+              (when-not (nil? msg)
+                (>! repl-result msg)
+                (recur)))
+
+            eval-out
+            ([msg]
+              (when-not (nil? msg)
+                (>! client-out msg)
+                (recur)))
+            ))
+
+        (>! proc-control {:type :eval-stop
+                          :id client-id})
+
+        (async/close! eval-out)
+        (async/close! result-chan))
+
+    result-chan))
+
+(defn repl-client-connect
+  "connects to a running build as a repl client who can send things to eval and receive their result
+
+   client-in should receive strings which represent cljs code
+   will remove the client when client-in closes
+   returns a channel that will receive results from client-in
+   the returned channel is closed if the build is stopped"
+  [{:keys [proc-stop proc-control repl-in] :as proc} client-id client-in]
+
+  (let [client-result
+        (async/chan
+          (async/sliding-buffer 10))]
+
+    (go (>! proc-control {:type :client-start
+                          :id client-id
+                          :in client-in})
+
+        (loop []
+          (alt!
+            proc-stop
+            ([_] nil)
+
+            client-in
+            ([v]
+              (when-not (nil? v)
+                (>! repl-in {:code v
+                             :reply-to client-result})
+                (recur)
+                ))))
+
+        (>! proc-control {:type :client-stop
+                          :id client-id})
+
+        (async/close! client-result))
+
+    client-result
+    ))
+
+(defn watch
+  [{:keys [output-mult] :as proc} log-chan close?]
+  {:pre [(proc? proc)]}
+  (async/tap output-mult log-chan close?)
+  proc)
+
+(defn configure
+  [{:keys [proc-control] :as proc} config]
+  {:pre [(proc? proc)]}
+  (>!! proc-control {:type :configure :config config})
+  proc)
+
+(defn compile
+  [{:keys [proc-control] :as proc}]
+  {:pre [(proc? proc)]}
+  (>!! proc-control {:type :compile :reply-to nil})
+  proc)
+
+(defn compile!
+  [{:keys [proc-control] :as proc}]
+  {:pre [(proc? proc)]}
+  (let [reply-to
+        (async/chan)]
+    (>!! proc-control {:type :compile :reply-to reply-to})
+    (<!! reply-to)))
+
+
+(defn start-autobuild
+  [{:keys [proc-control] :as proc}]
+  {:pre [(proc? proc)]}
+  (>!! proc-control {:type :start-autobuild})
+  proc)
+
+(defn stop-autobuild
+  [{:keys [proc-control] :as proc}]
+  {:pre [(proc? proc)]}
+  (>!! proc-control {:type :stop-autobuild})
+  proc)
+
+(defn repl-state
+  [{:keys [proc-control] :as proc}]
+  {:pre [(proc? proc)]}
+
+  (let [chan (async/chan 1)]
+    (>!! proc-control {:type :repl-state
+                       :reply-to chan})
+
+    (<!! chan)
+    ))
 
 

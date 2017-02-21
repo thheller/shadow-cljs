@@ -22,3 +22,17 @@
       (throw (ex-info "invalid config" (s/explain-data ::config input))))
     config
     ))
+
+(defn get-build!
+  ([id]
+    (get-build! (load-cljs-edn!) id))
+  ([config id]
+   (let [build
+         (->> config
+              (filter #(= id (:id %)))
+              (first))]
+     (when-not build
+       (throw (ex-info (str "no build with id: " id) {:id id})))
+     build
+     )))
+

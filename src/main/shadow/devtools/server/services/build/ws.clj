@@ -1,8 +1,7 @@
-(ns shadow.devtools.server.web.ws-client
+(ns shadow.devtools.server.services.build.ws
   "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
-  (:require [shadow.devtools.server.services.build :as build]
+  (:require [shadow.devtools.server.services.build.impl :as impl]
             [shadow.devtools.server.web.common :as common]
-            [clojure.tools.logging :as log]
             [clojure.core.async :as async :refer (thread alt!! >!!)]
             [clojure.string :as str]
             [aleph.http :as http]
@@ -29,7 +28,10 @@
   state)
 
 (defn ws-loop!
-  [{:keys [result-chan] :as client-state}]
+  [{:keys [build-proc watch-chan result-chan] :as client-state}]
+
+  (impl/watch build-proc watch-chan true)
+
   (loop [{:keys [eval-out
                  watch-chan
                  in
@@ -43,6 +45,7 @@
         (when-not (nil? msg)
           (recur (do-eval-out client-state msg))))
 
+      ;; forward some build watch messages to the client
       watch-chan
       ([msg]
         (when-not (nil? msg)
@@ -58,65 +61,73 @@
 
   (async/close! result-chan))
 
-(defn ws-start
-  [{:keys [build ring-request] :as req}]
+(defn process
+  [{:keys [output] :as build-proc} {:keys [uri] :as req}]
 
-  (let [{:keys [uri]}
-        ring-request
+  ;; "/ws/client/<proc-id>/<client-id>/<client-type>"
+  ;; if proc-id does not match there is old js connecting to a new process
+  ;; should probably not allow that
+  ;; unlikely due to random port but still shouldn't allow it
 
-        client-in
-        (async/chan
-          1
-          (map edn/read-string))
-
-        client-out
-        (async/chan
-          (async/sliding-buffer 10)
-          (map pr-str))
-
-        ;; "/ws/client/<proc-id>/<client-id>/<client-type>"
-        [_ _ _ proc-id client-id client-type :as parts]
+  (let [[_ _ _ proc-id client-id client-type :as parts]
         (str/split uri #"/")
 
         proc-id
-        (UUID/fromString proc-id)
+        (UUID/fromString proc-id)]
 
-        client-type
-        (keyword client-type)
+    (if (not= proc-id (:proc-id build-proc))
+      (do (>!! output {:type :rejected-client
+                       :proc-id proc-id
+                       :client-id client-id})
+          (common/unacceptable req))
 
-        build-proc
-        (build/get-proc-by-id build proc-id)]
+      (let [client-in
+            (async/chan
+              1
+              (map edn/read-string))
 
-    (if-not build-proc
-      common/not-found
+            client-out
+            (async/chan
+              (async/sliding-buffer 10)
+              (map pr-str))
 
-      (let [eval-out
+            client-type
+            (keyword client-type)
+
+            eval-out
             (-> (async/sliding-buffer 10)
                 (async/chan))
 
             result-chan
-            (build/repl-eval-connect build-proc client-id eval-out)
+            (impl/repl-eval-connect build-proc client-id eval-out)
+
+            ;; watch messages are forwarded to the client
+            ;; could send everything there but most of it is uninterested
+            ;; dont need to see build-log as it should be displayed elsewhere already
+            ;; not interested in anything else for now
+            ;; :build-complete is for live-reloading
+            watch-forward
+            #{:build-complete
+              :build-failure}
 
             watch-chan
             (-> (async/sliding-buffer 10)
-                (async/chan))
+                (async/chan
+                  (filter #(contains? watch-forward (:type %)))))
 
             client-state
-            {:app req
+            {:build-proc build-proc
              :client-id client-id
              :client-type client-type
-             :proc-id proc-id
              :in client-in
              :out client-out
              :eval-out eval-out
              :result-chan result-chan
              :watch-chan watch-chan}]
 
-        (build/watch build-proc watch-chan)
-
-        (-> (http/websocket-connection ring-request
+        (-> (http/websocket-connection req
               {:headers
-               (let [proto (get-in ring-request [:headers "sec-websocket-protocol"])]
+               (let [proto (get-in req [:headers "sec-websocket-protocol"])]
                  (if (seq proto)
                    {"sec-websocket-protocol" proto}
                    {}))})
@@ -125,6 +136,8 @@
                 (ms/connect socket client-in)
                 (ms/connect client-out socket)
                 socket))
+
+            ;; FIXME: why the second chain?
             (md/chain
               (fn [socket]
                 (thread (ws-loop! (assoc client-state :socket socket)))

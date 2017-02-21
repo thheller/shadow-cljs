@@ -1,66 +1,50 @@
 (ns shadow.devtools.server.services.build
   (:refer-clojure :exclude (compile))
-  (:require [shadow.devtools.server.services.fs-watch :as fs-watch]
-            [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
+  (:require [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
+            [aleph.http :as aleph]
             [shadow.devtools.server.util :as util]
-            [clojure.tools.logging :as log]
-            [clojure.pprint :refer (pprint)]
+            [shadow.devtools.server.services.fs-watch :as fs-watch]
             [shadow.devtools.server.services.build.impl :as impl]
-            )
+            [shadow.devtools.server.services.build.ws :as ws]
+            [aleph.netty :as netty])
   (:import (java.util UUID)))
 
-(defn- service? [x]
-  (and (map? x)
-       (::service x)))
-
-(defn- proc? [x]
-  (and (map? x)
-       (::proc x)))
-
-;; PROC API
-
 (defn configure
-  [{:keys [proc-control] :as proc} config]
-  {:pre [(proc? proc)]}
-  (>!! proc-control {:type :configure :config config})
-  proc)
+  "re-configure the build"
+  [proc {:keys [id] :as config}]
+  {:pre [(map? config)
+         (keyword? id)]}
+  (impl/configure proc config))
 
 (defn compile
-  [{:keys [proc-control] :as proc}]
-  {:pre [(proc? proc)]}
-  (>!! proc-control {:type :compile :reply-to nil})
-  proc)
+  "triggers an async compilation, use watch to receive notification about build state"
+  [proc]
+  (impl/compile proc))
 
 (defn compile!
-  [{:keys [proc-control] :as proc}]
-  {:pre [(proc? proc)]}
-  (let [reply-to
-        (async/chan)]
-    (>!! proc-control {:type :compile :reply-to reply-to})
-    (<!! reply-to)))
+  "triggers a compilation and waits for completion blocking the current thread"
+  [proc]
+  (impl/compile! proc))
 
 (defn watch
-  [{:keys [output-mult] :as proc} log-chan]
-  {:pre [(proc? proc)]}
-  (async/tap output-mult log-chan)
-  proc)
+  "watch all output produced by the build"
+  ([proc chan]
+    (watch proc chan true))
+  ([proc chan close?]
+   (impl/watch proc chan close?)))
 
 (defn start-autobuild
-  [{:keys [proc-control] :as proc}]
-  {:pre [(proc? proc)]}
-  (>!! proc-control {:type :start-autobuild})
-  proc)
+  "automatically compile on file changes"
+  [proc]
+  (impl/start-autobuild proc))
+
+(defn stop-autobuild [proc]
+  (impl/stop-autobuild proc))
 
 (defn repl-state
-  [{:keys [proc-control] :as proc}]
-  {:pre [(proc? proc)]}
-
-  (let [chan (async/chan 1)]
-    (>!! proc-control {:type :repl-state
-                       :reply-to chan})
-
-    (<!! chan)
-    ))
+  "returns current state of repl (current ns, ...)"
+  [proc]
+  (impl/repl-state proc))
 
 (defn repl-eval-connect
   "called by processes that are able to eval repl commands and report their result
@@ -69,53 +53,9 @@
    (:repl/invoke, :repl/require, etc)
 
    returns a channel the results of eval should be put in
-   when no more results are coming this channel should be closed
-
-   "
-  [{:keys [proc-stop proc-control repl-result] :as proc} client-id client-out]
-  {:pre [(proc? proc)]}
-  ;; result-chan
-  ;; creating a new chan here instead of just handing out repl-result
-  ;; closing it is currently the only way to a eval-client can signal a disconnect
-  ;; we will however just pipe messages through as we have nothing useful to do with them
-
-  ;; eval-out
-  ;; FIXME: just piping through but could just talk to client-out directly?
-  (let [result-chan
-        (async/chan)
-
-        eval-out
-        (async/chan)]
-
-    (go (>! proc-control {:type :eval-start
-                          :id client-id
-                          :eval-out eval-out})
-
-        (loop []
-          (alt!
-            proc-stop
-            ([_] nil)
-
-            result-chan
-            ([msg]
-              (when-not (nil? msg)
-                (>! repl-result msg)
-                (recur)))
-
-            eval-out
-            ([msg]
-              (when-not (nil? msg)
-                (>! client-out msg)
-                (recur)))
-            ))
-
-        (>! proc-control {:type :eval-stop
-                          :id client-id})
-
-        (async/close! eval-out)
-        (async/close! result-chan))
-
-    result-chan))
+   when no more results are coming this channel should be closed"
+  [proc client-id client-out]
+  (impl/repl-eval-connect proc client-id client-out))
 
 (defn repl-client-connect
   "connects to a running build as a repl client who can send things to eval and receive their result
@@ -124,83 +64,19 @@
    will remove the client when client-in closes
    returns a channel that will receive results from client-in
    the returned channel is closed if the build is stopped"
-  [{:keys [proc-stop proc-control repl-in] :as proc} client-id client-in]
-  {:pre [(proc? proc)]}
-
-  (let [client-result
-        (async/chan
-          (async/sliding-buffer 10))]
-
-    (go (>! proc-control {:type :client-start
-                          :id client-id
-                          :in client-in})
-
-        (loop []
-          (alt!
-            proc-stop
-            ([_] nil)
-
-            client-in
-            ([v]
-              (when-not (nil? v)
-                (>! repl-in {:code v
-                             :reply-to client-result})
-                (recur)
-                ))))
-
-        (>! proc-control {:type :client-stop
-                          :id client-id})
-
-        (async/close! client-result))
-
-    client-result
-    ))
+  [proc client-id client-in]
+  (impl/repl-client-connect proc client-id client-in))
 
 ;; SERVICE API
 
-(defn active-builds [svc]
-  {:pre [(service? svc)]}
-  (keys @(:process-ref svc)))
+(defn start [fs-watch]
+  (let [proc-id
+        (UUID/randomUUID) ;; FIXME: not really unique but unique enough
 
-(defn get-proc-by-id
-  [{:keys [process-ref] :as svc} proc-id]
-  {:pre [(service? svc)
-         (uuid? proc-id)]}
-  (get @process-ref proc-id))
-
-(defn find-proc-by-build-id
-  [{:keys [process-ref] :as svc} build-id]
-  {:pre [(service? svc)]}
-  (let [procs
-        (->> @process-ref
-             (vals)
-             (filter (fn [{:keys [state-ref] :as proc}]
-                       (let [state @state-ref]
-                         (= build-id (get-in state [:build-config :id])))))
-             (into []))
-
-        c
-        (count procs)]
-
-    (condp = c
-      1 (first procs)
-      0 nil
-      (throw (ex-info "more than one process for id" {:build-id build-id :procs (into #{} (map :proc-id) procs)}))
-      )))
-
-(defn proc-start
-  "starts a new process dedicated to the build
-   commands can be sent to proc-control"
-  [{:keys [process-ref fs-watch] :as svc}]
-  {:pre [(service? svc)]}
-
-  (let [;; closed when the proc-stops
+        ;; closed when the proc-stops
         ;; nothing will ever be written here
         ;; its for linking other processes to the server process
         ;; so they shut down when the build stops
-        proc-id
-        (UUID/randomUUID)
-
         proc-stop
         (async/chan)
 
@@ -230,6 +106,9 @@
         config-updates
         (async/chan)
 
+        http-info-ref
+        (volatile! nil) ;; {:port 123 :localhost foo}
+
         channels
         {:proc-stop proc-stop
          :proc-control proc-control
@@ -239,10 +118,10 @@
          :config-updates config-updates
          :fs-updates fs-updates}
 
-        proc-state
+        thread-state
         {::proc-state true
+         :http-info-ref http-info-ref
          :proc-id proc-id
-         :svc svc
          :eval-clients {}
          :repl-clients {}
          :pending-results {}
@@ -250,23 +129,27 @@
          :compiler-state nil}
 
         state-ref
-        (volatile! proc-state)
+        (volatile! thread-state)
 
         thread-ref
         (util/server-thread
           state-ref
-          proc-state
+          thread-state
           {proc-stop nil
            proc-control impl/do-proc-control
            repl-in impl/do-repl-in
            repl-result impl/do-repl-result
            config-updates impl/do-config-updates
            fs-updates impl/do-fs-updates}
-          {})
+          {:do-shutdown
+           (fn [state]
+             (>!! output {:type :build-shutdown})
+             state)})
 
         proc-info
-        {::proc true
+        {::impl/proc true
          :proc-stop proc-stop
+         :proc-id proc-id
          :proc-control proc-control
          :fs-updates fs-updates
          :output output
@@ -276,34 +159,37 @@
          :thread-ref thread-ref
          :state-ref state-ref}]
 
-    (vswap! process-ref assoc proc-id proc-info)
-
     (fs-watch/subscribe fs-watch fs-updates)
 
+    ;; ensure all channels are cleanup up properly
     (go (<! thread-ref)
-        (vswap! process-ref dissoc proc-id)
         (async/close! output)
         (async/close! proc-stop)
         (async/close! fs-updates)
         (async/close! repl-in)
         (async/close! repl-result))
 
-    proc-info
-    ))
+    (let [http-config
+          {:port 0
+           :host "localhost"}
 
-(defn proc-stop [{:keys [process-ref] :as svc} proc-id]
-  {:pre [(service? svc)]}
-  (when-let [proc (get @process-ref proc-id)]
-    (async/close! (:proc-stop proc))
-    (<!! (:thread-ref proc))
-    ))
+          http
+          (aleph/start-server
+            (fn [ring]
+              (ws/process (assoc proc-info :http @http-info-ref) ring))
+            http-config)
 
-(defn start [fs-watch]
-  {::service true
-   :fs-watch fs-watch
-   :process-ref (volatile! {})})
+          http-config
+          (assoc http-config
+            :port (netty/port http))]
 
-(defn stop [{:keys [process-ref] :as svc}]
-  {:pre [(service? svc)]}
-  (doseq [[proc-id proc] @process-ref]
-    (proc-stop svc proc-id)))
+      (vreset! http-info-ref http-config)
+      (assoc proc-info
+        :http-info http-config
+        :http http))))
+
+(defn stop [{:keys [http] :as proc}]
+  {:pre [(impl/proc? proc)]}
+  (.close http)
+  (async/close! (:proc-stop proc))
+  (<!! (:thread-ref proc)))

@@ -1,10 +1,7 @@
 (ns shadow.devtools.server.services.fs-watch
   (:require [shadow.cljs.build :as cljs]
             [clojure.core.async :as async :refer (alt!! thread >!!)]
-            [clojure.java.io :as io]
-            [clojure.tools.logging :as log]
-            [shadow.devtools.server.util :as util])
-  (:import (shadow.util FileWatcher)))
+            [shadow.devtools.server.util :as util]))
 
 
 (defn service? [x]
@@ -24,7 +21,9 @@
          (-> (cljs/init-state)
              (assoc :logger util/null-log)
              (cljs/find-resources-in-classpath))
-         fs-seq 1]
+
+         fs-seq
+         1]
 
     (alt!!
       control

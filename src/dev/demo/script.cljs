@@ -2,8 +2,6 @@
 
 (def http (js/require "http"))
 
-(js/require "./foo")
-
 (defn request-handler [req res]
   (.end res "foo"))
 
@@ -14,6 +12,7 @@
   (let [server
         (.createServer http request-handler)]
 
+    fooooo
     (.listen server 3000
       (fn [err]
         (if err

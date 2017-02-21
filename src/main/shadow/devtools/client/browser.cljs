@@ -74,7 +74,7 @@
           js-to-load
           after-load-fn)))))
 
-(defn handle-build-success [{:keys [info] :as msg}]
+(defn handle-build-complete [{:keys [info] :as msg}]
   (let [{:keys [warnings sources compiled]}
         info
 
@@ -195,13 +195,25 @@
 (defn handle-message [{:keys [type] :as msg}]
   (js/console.log "ws-msg" msg)
   (case type
-    :css/reload (handle-css-changes msg)
-    :repl/invoke (repl-invoke msg)
-    :repl/require (repl-require msg)
-    :repl/set-ns (repl-set-ns msg)
-    :repl/init (repl-init msg)
-    :build-success
-    (handle-build-success msg)
+    ;; FIXME: doesn't work anymore
+    :css/reload
+    (handle-css-changes msg)
+
+    :repl/invoke
+    (repl-invoke msg)
+
+    :repl/require
+    (repl-require msg)
+
+    :repl/set-ns
+    (repl-set-ns msg)
+
+    :repl/init
+    (repl-init msg)
+
+    :build-complete
+    (handle-build-complete msg)
+
     ;; default
     :ignored))
 

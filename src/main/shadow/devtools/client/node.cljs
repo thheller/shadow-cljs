@@ -47,8 +47,9 @@
 
     (doseq [js repl-js-sources
             :when (not (is-loaded? js))]
-      (closure-import js)
-      )))
+      (closure-import js))
+
+    (js/console.log "REPL init completed! Have fun ...")))
 
 (defn repl-invoke [{:keys [id js] :as msg}]
   (let [result
@@ -68,7 +69,7 @@
                     (not (is-loaded? src)))]
     (closure-import src)))
 
-(defn build-success
+(defn build-complete
   [{:keys [info] :as msg}]
 
   (let [{:keys [sources compiled]}
@@ -118,8 +119,8 @@
     (repl-require msg)
 
     ;; when autobuild completes
-    :build-success
-    (build-success msg)
+    :build-complete
+    (build-complete msg)
 
     ;; default
     (prn [:repl-unknown msg])
@@ -139,8 +140,11 @@
 
     (.on client "unexpected-response"
       (fn [req res]
-        (js/console.log "REPL unexpected" req res)
-        ))
+        (let [status (.-statusCode res)]
+          (if (= 406 status)
+            (js/console.log "REPL connection rejected, stale JS connecting to new server.")
+            (js/console.log "REPL unexpected error" (.-statusCode res))
+            ))))
 
     (.on client "message"
       (fn [data flags]
@@ -148,9 +152,10 @@
             (reader/read-string)
             (process-message))))
 
+
     (.on client "close"
       (fn []
-        (js/console.log "REPL client close")
+        (js/console.log "REPL client disconnected")
         ))
 
     (.on client "error"

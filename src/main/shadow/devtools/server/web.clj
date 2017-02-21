@@ -4,8 +4,6 @@
     [clojure.string :as str]
     [clojure.pprint :refer (pprint)]
     [shadow.devtools.server.web.common :as common]
-    [shadow.devtools.server.web.ws-client :as ws-client]
-    [shadow.devtools.server.web.ws-frontend :as ws-frontend]
     [shadow.devtools.server.web.explorer :as web-explorer]
     [shadow.devtools.server.web.api :as web-api]))
 
@@ -26,12 +24,6 @@
 
       (str/starts-with? uri "/api")
       (web-api/root req)
-
-      (str/starts-with? uri "/ws/client")
-      (ws-client/ws-start req)
-
-      (str/starts-with? uri "/ws/frontend")
-      (ws-frontend/ws-start req)
 
       (str/starts-with? uri "/explorer")
       (web-explorer/root req)
