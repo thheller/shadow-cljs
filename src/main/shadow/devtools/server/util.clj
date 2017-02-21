@@ -79,9 +79,14 @@
                   state
                   (if (nil? msg)
                     state
-                    (-> state
-                        (handler msg)
-                        (recur))))))]
+                    (let [state
+                          (try
+                            (handler state msg)
+                            (catch Exception e
+                              (prn [:error-occured-in-server e])
+                              state))]
+                      (recur state))
+                    ))))]
 
         (if-not do-shutdown
           last-state

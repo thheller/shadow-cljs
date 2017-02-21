@@ -83,11 +83,16 @@
      runtime-ref
      )))
 
-(defn -main []
-  (println "Starting DEVTOOLS")
+(defn start! []
   (let [runtime-ref (start-system default-config)]
-    (println "DEVTOOLS ready")
+    (println "ready ...")
     (alter-var-root #'runtime (fn [_] runtime-ref))
     nil
     ))
 
+(defn -main [& args]
+  (start!))
+
+(defn stop! []
+  (shutdown-system @runtime)
+  ::stopped)

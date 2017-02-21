@@ -21,8 +21,11 @@
 
 (defn inspect-page
   [{:keys [explorer] :as req} src]
-  (let [{:keys [ns warnings defs deps] :as src-info}
-        (explorer/get-source-info explorer src)]
+  (let [{:keys [info error] :as result}
+        (explorer/get-source-info explorer src)
+
+        {:keys [ns warnings defs deps]}
+        info]
 
     (common/page-boilerplate
       req
@@ -30,6 +33,13 @@
         [:h1 (str "Source: " src)]
         (when ns
           [:h2 (str "Namespace: " ns)])
+
+        (when error
+          [:div
+           [:h1 "Compilation failed"]
+           [:pre
+            (with-out-str
+              (pprint error))]])
 
         (when (seq warnings)
           [:div.warnings

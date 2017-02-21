@@ -48,16 +48,19 @@
 (defmethod do-control :source-info
   [state {:keys [source-name reply-to] :as msg}]
 
-  (let [state
-        (-> state
-            (cljs/compile-all-for-src source-name))]
+  (try
+    (let [state
+          (cljs/compile-all-for-src state source-name)]
 
-    (>!! reply-to {:source-name source-name
-                   :info (collect-source-info state source-name)})
+      (>!! reply-to {:source-name source-name
+                     :info (collect-source-info state source-name)})
 
-    (async/close! reply-to)
-
-    state))
+      state)
+    (catch Exception e
+      (>!! reply-to {:source-name source-name
+                     :error e})
+      state
+      )))
 
 (defn get-all-provides [svc]
   {:pre [(service? svc)]}
@@ -106,9 +109,8 @@
                   :source-name source-name
                   :reply-to reply-to})
 
-    (when-some [result (<!! reply-to)]
-      (:info result)
-      )))
+    (<!! reply-to)
+    ))
 
 
 (defn start [fs-watch]
