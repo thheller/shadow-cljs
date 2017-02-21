@@ -41,7 +41,7 @@
 
        ::comp/render
        (fn [this]
-         (root
+         (root {}
            (menu {} "menu")
            (content {}
              (sections {}))))}

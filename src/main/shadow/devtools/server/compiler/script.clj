@@ -1,61 +1,39 @@
 (ns shadow.devtools.server.compiler.script
-  (:require [shadow.devtools.server.compiler.protocols :as p]
-            [shadow.cljs.build :as cljs]
-            [shadow.cljs.node :as node]))
+  (:refer-clojure :exclude (flush))
+  (:require [shadow.cljs.build :as cljs]
+            [shadow.cljs.node :as node]
+            [shadow.devtools.server.compiler :as comp]))
 
-(deftype Release
-  [config]
-  p/ICompile
-  (compile-init [_ state]
-    (let [{:keys [release]} config]
-      (-> state
-          (cljs/set-build-options
-            {:optimizations :simple
-             :pretty-print false})
-          (cond->
-            release
-            (cljs/set-build-options release))
-          (node/configure config))))
+(defn init [state mode {:keys [dev] :as config}]
+  (-> state
+      (cond->
+        (= :dev mode)
+        (-> (cljs/enable-source-maps)
+            (cljs/set-build-options
+              {:optimizations :none
+               :use-file-min false}))
 
-  (compile-pre [_ state]
-    state)
+        (= :release mode)
+        (cljs/set-build-options
+          {:optimizations :simple}))
 
-  (compile-post [_ state]
-    (cljs/closure-optimize state))
+      (node/configure config)))
 
-  (compile-flush [_ state]
-    (node/flush-optimized state)))
-
-(deftype Dev [config]
-  p/ICompile
-  (compile-init [_ state]
-    (let [{:keys [dev]}
-          config]
-
-      (-> state
-          (cljs/enable-source-maps)
-          (cljs/set-build-options
-            {:optimizations :none
-             :use-file-min false})
-          (cond->
-            dev
-            (cljs/set-build-options dev))
-          (node/configure config)
-          )))
-
-  (compile-pre [_ state]
-    state)
-
-  (compile-post [_ state]
-    state)
-
-  (compile-flush [_ state]
-    (node/flush-unoptimized state)))
-
-(defmethod p/make-compiler :script
-  [config mode]
+(defn flush [state mode config]
   (case mode
     :dev
-    (Dev. config)
+    (node/flush-unoptimized state)
     :release
-    (Release. config)))
+    (node/flush-optimized state)))
+
+(defmethod comp/process :library
+  [{::comp/keys [mode stage config] :as state}]
+  (case stage
+    :init
+    (init state mode config)
+
+    :flush
+    (flush state mode config)
+
+    state
+    ))

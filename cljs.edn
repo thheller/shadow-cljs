@@ -4,8 +4,8 @@
   {:main
    {:entries [shadow.devtools.frontend.app]
     :depends-on #{}}}
-  :public-dir "public/assets/devtools/js"
-  :public-path "/assets/devtools/js"
+  :public-dir "public/assets/frontend/js"
+  :public-path "/assets/frontend/js"
 
   :devtools
   {:console-support true

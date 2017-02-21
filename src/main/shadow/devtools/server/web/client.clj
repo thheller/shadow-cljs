@@ -6,7 +6,7 @@
             [hiccup.page :refer (html5)]
             [hiccup.core :refer (html)]))
 
-(defn root [{:keys [client-assets] :as req} proc-id]
+(defn root [req proc-id]
   {:status 200
    :headers {"content-type" "text/html; charset=utf-8"}
    :body
@@ -14,11 +14,9 @@
      {:lang "en"}
      [:head
       [:title "DEVTOOLS"]
-      (assets/html-head client-assets ["client"])
-      ]
+      [:link {:rel "stylesheet" :href "/assets/client/css/main.css"}]]
      [:body
       [:div#app]
       (assets/js-queue :previous-sibling 'shadow.devtools.client.app/init {:proc-id proc-id})
 
-      (assets/html-body client-assets ["main"])
-      ])})
+      [:script {:src "/assets/client/js/main.js"}]])})

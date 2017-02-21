@@ -1,15 +1,11 @@
 (ns repl
-  (:require [shadow.devtools.server.livetest :as livetest]
-            [shadow.devtools.server.system :as sys]
+  (:require [shadow.devtools.server.system :as sys]
             [clojure.pprint :refer (pprint)]
             [clojure.spec.test :as st]
-            [clojure.tools.namespace.repl :as ns-tools]
             [shadow.devtools.server.services.build :as build]
             [shadow.devtools.server.services.config :as config]
             [shadow.devtools.cli :as cli]
-            [shadow.cljs.log :as cljs-log]
-            [clojure.core.async :as async :refer (<!)]
-            [clojure.tools.logging :as log]))
+            ))
 
 (defonce inst (volatile! nil))
 
@@ -29,7 +25,7 @@
           (config/load-cljs-edn!)]
 
       (-> (build/proc-start build)
-          (build/configure lib)
+          (build/configure self)
           (build/start-autobuild)
           (build/watch (cli/stdout-dump)))
 

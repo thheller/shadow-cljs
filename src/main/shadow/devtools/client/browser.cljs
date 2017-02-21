@@ -74,7 +74,7 @@
           js-to-load
           after-load-fn)))))
 
-(defn handle-build-info [{:keys [info] :as msg}]
+(defn handle-build-success [{:keys [info] :as msg}]
   (let [{:keys [warnings sources compiled]}
         info
 
@@ -200,8 +200,8 @@
     :repl/require (repl-require msg)
     :repl/set-ns (repl-set-ns msg)
     :repl/init (repl-init msg)
-    :build-info
-    (handle-build-info msg)
+    :build-success
+    (handle-build-success msg)
     ;; default
     :ignored))
 
@@ -214,6 +214,8 @@
 
         socket
         (js/WebSocket. ws-url)]
+
+    (js/console.log "ws-connect" ws-url)
 
     (reset! socket-ref socket)
 

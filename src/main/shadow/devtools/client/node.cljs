@@ -31,11 +31,14 @@
   result)
 
 (defn node-eval [code]
-  (let [result (js/global.NODE_EVAL code)]
+  (let [result (js/SHADOW_ENV.NODE_EVAL code)]
     result))
 
+(defn is-loaded? [src]
+  (true? (gobj/get js/SHADOW_ENV.SHADOW_IMPORTED src)))
+
 (defn closure-import [src]
-  (js/global.CLOSURE_IMPORT_SCRIPT src))
+  (js/SHADOW_ENV.SHADOW_IMPORT src))
 
 (defn repl-init
   [{:keys [repl-state] :as msg}]
@@ -43,7 +46,7 @@
         repl-state]
 
     (doseq [js repl-js-sources
-            :when (not (env/goog-is-loaded? js))]
+            :when (not (is-loaded? js))]
       (closure-import js)
       )))
 
@@ -62,7 +65,7 @@
   [{:keys [js-sources reload] :as msg}]
   (doseq [src js-sources
           :when (or reload
-                    (not (env/goog-is-loaded? src)))]
+                    (not (is-loaded? src)))]
     (closure-import src)))
 
 (defn build-success

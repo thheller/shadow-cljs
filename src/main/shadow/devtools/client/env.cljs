@@ -1,6 +1,8 @@
 (ns shadow.devtools.client.env
   (:require [goog.object :as gobj]))
 
+(def x 1)
+
 (defonce client-id (random-uuid))
 
 (goog-define enabled false)

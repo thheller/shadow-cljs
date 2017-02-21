@@ -4,43 +4,31 @@
   (:require [aleph.http :as aleph]
             [aleph.netty :as netty]
             [shadow.server.runtime :as rt]
-            [shadow.server.assets :as assets]
             [shadow.devtools.server.web :as web]
             [shadow.devtools.server.services.fs-watch :as fs-watch]
             [shadow.devtools.server.services.build :as build]
             [shadow.devtools.server.services.explorer :as explorer]
+            [shadow.devtools.server.services.config :as config]
             [clojure.core.async :as async :refer (thread)]
             [clojure.java.io :as io]
             [clojure.java.jmx :as jmx]
             [clojure.edn :as edn]
+            [cognitect.transit :as transit]
             [ring.middleware.reload :as reload]
             [ring.middleware.file :as file]
-            [shadow.cljs.build :as cljs]
-            [shadow.devtools.server.services.config :as config]
-            [cognitect.transit :as transit]
-            [manifold.stream :as s]))
+
+            [shadow.devtools.server.compiler]
+            [shadow.devtools.server.compiler.browser]
+            [shadow.devtools.server.compiler.library]
+            [shadow.devtools.server.compiler.script]
+            ))
 
 (defonce runtime nil)
 
 (def default-config
   {:http
    {:port 8200
-    :host "localhost"}
-
-   :assets
-   {:package-name "devtools"
-    :css-root "/assets/devtools/css"
-    :css-manifest "public/assets/devtools/css/manifest.json"
-    :js-root "/assets/devtools/js"
-    :js-manifest "public/assets/devtools/js/manifest.json"}
-
-   :client-assets
-   {:package-name "client"
-    :css-root "/assets/client/css"
-    :css-manifest "public/assets/client/css/manifest.json"
-    :js-root "/assets/client/js"
-    :js-manifest "public/assets/client/js/manifest.json"}
-   })
+    :host "localhost"}})
 
 (defn make-app []
   {:edn-reader
@@ -69,18 +57,6 @@
           )))
 
     :stop (fn [x])}
-
-   :assets
-   {:depends-on [:config]
-    :start (fn [{:keys [assets] :as config}]
-             (assets/start assets))
-    :stop assets/stop}
-
-   :client-assets
-   {:depends-on [:config]
-    :start (fn [{:keys [client-assets] :as config}]
-             (assets/start client-assets))
-    :stop assets/stop}
 
    :fs-watch
    {:depends-on []
@@ -134,7 +110,7 @@
               (-> (:app @system-ref)
                   (assoc :ring-request ring-map))]
           (web/root app)))
-      ;; (file/wrap-file (io/file "public"))
+      (file/wrap-file (io/file "public"))
       ;; (reload/wrap-reload {:dirs ["src/main"]})
       ))
 

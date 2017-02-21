@@ -8,8 +8,9 @@
   ::s-build/build)
 
 (defkey Builds
+  "list of keys for each build"
   :spec
   (s/spec
-    (s/+ #(store/key? Build %))))
-
-
+    (s/and
+      vector?
+      (s/* #(store/key? Build %)))))

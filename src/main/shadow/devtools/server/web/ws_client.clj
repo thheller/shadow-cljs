@@ -115,8 +115,11 @@
         (build/watch build-proc watch-chan)
 
         (-> (http/websocket-connection ring-request
-              {:headers {"sec-websocket-protocol"
-                         (get-in ring-request [:headers "sec-websocket-protocol"])}})
+              {:headers
+               (let [proto (get-in ring-request [:headers "sec-websocket-protocol"])]
+                 (if (seq proto)
+                   {"sec-websocket-protocol" proto}
+                   {}))})
             (md/chain
               (fn [socket]
                 (ms/connect socket client-in)

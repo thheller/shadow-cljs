@@ -111,7 +111,7 @@
           build-config
 
           compiler-state
-          (-> (comp/init :dev build-config {}) ;; {:logger (util/async-logger output)}
+          (-> (comp/init :dev build-config) ;; {:logger (util/async-logger output)}
               (repl/prepare))]
 
       (-> build-state

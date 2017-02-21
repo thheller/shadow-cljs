@@ -1,6 +1,7 @@
 (ns shadow.devtools.server.web.common
   (:require [shadow.server.assets :as assets]
-            [hiccup.page :refer (html5)]))
+            [hiccup.page :refer (html5)]
+            [clojure.java.io :as io]))
 
 (def not-found
   {:status 404
@@ -13,7 +14,7 @@
    :body "websocket required"})
 
 (defn page-boilerplate
-  [{:keys [assets] :as req} ^String content]
+  [req ^String content]
   {:status 200
    :headers {"content-type" "text/html; charset=utf-8"}
    :body
@@ -21,10 +22,10 @@
      {:lang "en"}
      [:head
       [:title "hello world"]
-      (assets/html-head assets ["ui"])]
+      [:link {:rel "stylesheet" :href "/assets/frontend/css/frontend.css"}]]
      [:body
       content
-      (assets/html-body assets ["main"])
+      [:script {:src "/assets/frontend/js/main.js"}]
       ])})
 
 (defn transit [{:keys [transit-str] :as req} obj]

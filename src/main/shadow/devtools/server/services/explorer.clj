@@ -21,28 +21,39 @@
   (fn [state {:keys [op]}]
     op))
 
-(defn collect-ns-info [state ns]
-  (let [rc
-        (cljs/get-resource-for-provide state ns)
+(defn collect-source-info [state source-name]
+  (let [{:keys [ns warnings] :as rc}
+        (get-in state [:sources source-name])
+
+        deps
+        (cljs/get-deps-for-src state source-name)
 
         env
         (:compiler-env state)
 
-        ana
-        (get-in env [::ana/namespaces ns])]
+        defs
+        (->> (get-in env [::ana/namespaces ns :defs])
+             (vals)
+             (sort-by (fn [{:keys [name line]}]
+                    [line name]))
+             (map :name)
+             (into []))]
 
-    ana
+    {:ns ns
+     :warnings warnings
+     :defs defs
+     :deps deps}
     ))
 
-(defmethod do-control :ns-info
-  [state {:keys [ns reply-to] :as msg}]
+(defmethod do-control :source-info
+  [state {:keys [source-name reply-to] :as msg}]
 
   (let [state
         (-> state
-            (cljs/compile-all-for-ns ns))]
+            (cljs/compile-all-for-src source-name))]
 
-    (>!! reply-to {:ns ns
-                   :ns-info (collect-ns-info state ns)})
+    (>!! reply-to {:source-name source-name
+                   :info (collect-source-info state source-name)})
 
     (async/close! reply-to)
 
@@ -63,6 +74,17 @@
          (mapcat :provides)
          (into #{}))))
 
+(defn get-project-sources
+  "#{cljs/core.cljs foo/bar.cljs ...}"
+  [svc]
+  {:pre [(service? svc)]}
+  (let [{:keys [sources] :as state}
+        @(:state-ref svc)]
+    (->> (vals sources)
+         (remove :from-jar)
+         (map :name)
+         (into #{}))))
+
 (defn get-project-tests
   "lists of test namespaces"
   [svc]
@@ -75,21 +97,17 @@
          (map :ns)
          (into #{}))))
 
-(defn get-ns-info
-  [{:keys [control] :as svc} ns]
+(defn get-source-info
+  [{:keys [control] :as svc} source-name]
 
-  (let [reply-to
-        (async/chan)]
+  (let [reply-to (async/chan)]
 
-    (>!! control {:op :ns-info
-                  :ns ns
+    (>!! control {:op :source-info
+                  :source-name source-name
                   :reply-to reply-to})
 
-    (let [result (<!! reply-to)]
-      (prn [:result result])
-
-      result
-
+    (when-some [result (<!! reply-to)]
+      (:info result)
       )))
 
 
@@ -108,7 +126,13 @@
           state-ref
           (-> (cljs/init-state)
               (assoc ;; :logger util/null-log
-                     :cache-dir (io/file "target" "shadow-explorer"))
+                ;; race condition accessing the cache file when this starts up in parallel to something else
+                :manifest-cache-dir
+                (doto (io/file "target" "shadow-explorer" "manifest-cache")
+                  (io/make-parents))
+                :cache-dir
+                (doto (io/file "target" "shadow-explorer" "cache")
+                  (io/make-parents)))
               (cljs/find-resources-in-classpath)
               (cljs/finalize-config))
           {fs-updates do-fs-updates

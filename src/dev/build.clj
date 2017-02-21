@@ -4,10 +4,10 @@
             ))
 
 (def css-packages
-  [{:name "devtools"
-    :modules ["src/css/ui.scss"]
-    :public-dir "public/assets/devtools/css"
-    :public-path "/assets/devtools/css"}
+  [{:name "frontend"
+    :modules ["src/css/frontend.scss"]
+    :public-dir "public/assets/frontend/css"
+    :public-path "/assets/frontend/css"}
    {:name "client"
     :modules ["src/css/client.scss"]
     :public-dir "public/assets/client/css"

@@ -1,16 +1,15 @@
 (ns shadow.devtools.server.compiler
   (:refer-clojure :exclude (compile flush))
   (:require [clojure.java.io :as io]
-            [shadow.cljs.build :as cljs]
-            [shadow.devtools.server.compiler.protocols :as p]
-            [shadow.devtools.server.compiler.browser]
-            [shadow.devtools.server.compiler.script]
-            [shadow.devtools.server.compiler.library]
-            ))
+            [shadow.cljs.build :as cljs]))
 
-(defn- update-build-info-from-modules
-  [{:keys [build-modules] :as state}]
-  (update state ::build-info merge {:modules build-modules}))
+(defmulti process
+  (fn [state]
+    (::target state))
+  :default ::noop)
+
+(defmethod process ::noop [state]
+  state)
 
 (defn extract-build-info [state]
   (let [source->module
@@ -50,60 +49,104 @@
           (into []))
      }))
 
+(defn- update-build-info-from-modules
+  [{:keys [build-modules] :as state}]
+  (update state ::build-info merge {:modules build-modules}))
+
 (defn- update-build-info-after-compile
   [state]
   (update state ::build-info merge (extract-build-info state)))
 
+(defn- process-stage
+  [{::keys [config mode] :as state} stage optional?]
+  (let [before
+        (assoc state ::stage stage)
+
+        after
+        (process before)]
+    (if (and (not optional?) (identical? before after))
+      (throw (ex-info "process didn't do anything on non-optional stage" {:stage stage :mode mode :config config}))
+      after)))
+
+(defn process-target
+  "process the same stage of another target
+   (for custom targets that just want to enhance one thing)"
+  [{::keys [target] :as state} other-target]
+  (-> state
+      (assoc ::target other-target)
+      (process)
+      (assoc ::target target)))
+
 (defn init
   ([mode config]
-   (init mode config {}))
-  ([mode {:keys [id target] :as config} init-options]
-   {:pre [(keyword? mode)
-          (keyword? id)
-          (keyword? target)
+   (init (cljs/init-state) mode config))
+  ([init-state mode {:keys [id target] :as config}]
+   {:pre [(cljs/compiler-state? init-state)
           (map? config)
-          (map? init-options)]
+          (keyword? mode)
+          (keyword? id)
+          (keyword? target)]
     :post [(cljs/compiler-state? %)]}
 
-   (let [compiler
-         (p/make-compiler config mode)
+   (let [{:keys [public-dir public-path]}
+         config]
 
-         state
-         (-> (cljs/init-state)
-             (assoc :cache-dir (io/file "target" "shadow-cache" (name id) (name mode))
-                    ::p/compiler compiler)
-             (merge init-options))
+     (-> init-state
+         (assoc :cache-dir (io/file "target" "shadow-cache" (name id) (name mode))
+                ::stage :init
+                ::config config
+                ::target target
+                ::mode mode)
+         (cond->
+           (= :dev mode)
+           (-> (cljs/enable-source-maps)
+               (cljs/set-build-options
+                 {:optimizations :none
+                  :use-file-min false}))
 
-         state
-         (-> (p/compile-init compiler state)
-             (cljs/find-resources-in-classpath))]
+           (= :release mode)
+           (cljs/set-build-options
+             {:optimizations :advanced
+              :pretty-print false}))
 
-     state
-     )))
+         (cond->
+           public-dir
+           (cljs/set-build-options
+             {:public-dir (io/file public-dir)})
+           public-path
+           (cljs/set-build-options
+             {:public-path public-path}))
 
-(defn compile
-  [{::p/keys [compiler] :as state}]
-  {:pre [(cljs/compiler-state? state)
-         (satisfies? p/ICompile compiler)]
-   :post [(cljs/compiler-state? %)]}
-
-  (let [state
-        (-> (p/compile-pre compiler state)
-            (assoc ::build-info {})
-            (cljs/prepare-compile)
-            (cljs/prepare-modules)
-            (update-build-info-from-modules)
-            (cljs/do-compile-modules)
-            (update-build-info-after-compile))]
-
-    (p/compile-post compiler state)
+         (process-stage :init false)
+         (cljs/find-resources-in-classpath)))
     ))
 
-(defn flush
-  [{::p/keys [compiler] :as state}]
-  {:pre [(cljs/compiler-state? state)
-         (satisfies? p/ICompile compiler)]
+(defn compile
+  [{::keys [mode] :as state}]
+  {:pre [(cljs/compiler-state? state)]
    :post [(cljs/compiler-state? %)]}
-  (p/compile-flush compiler state))
+
+  (-> state
+      (process-stage :compile-prepare true)
+      (assoc ::build-info {})
+      (cljs/prepare-compile)
+      (cljs/prepare-modules)
+      (update-build-info-from-modules)
+      (cljs/do-compile-modules)
+      (update-build-info-after-compile)
+      (process-stage :compile-finish true)
+
+      (cond->
+        (= :release mode)
+        (-> (process-stage :optimize-prepare true)
+            (cljs/closure-optimize)
+            (process-stage :optimize-finish true)
+            ))))
+
+(defn flush
+  [state]
+  {:pre [(cljs/compiler-state? state)]
+   :post [(cljs/compiler-state? %)]}
+  (process-stage state :flush true))
 
 
