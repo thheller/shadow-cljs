@@ -1,39 +1,30 @@
-(ns shadow.devtools.server.cli
-  (:require [clojure.pprint :refer (pprint)]
-            [clojure.java.io :as io]
-            [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
-            [shadow.cljs.node :as node]
-            [shadow.cljs.repl :as repl]
-            [shadow.cljs.build :as cljs]
-            [shadow.server.runtime :as rt]
-            [shadow.devtools.server.services.build :as build]
-            [shadow.devtools.server.config :as config]
+(ns shadow.devtools.api
+  (:require [shadow.devtools.server.config :as config]
             [shadow.devtools.server.compiler :as comp]
+            [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
+            [shadow.cljs.repl :as repl]
+            [shadow.devtools.server.services.build :as build]
+            [shadow.server.runtime :as rt]
+            [shadow.devtools.server.util :as util]
+            [shadow.cljs.build :as cljs]
+            [clojure.java.io :as io]
             [shadow.devtools.server.common :as common]
-            [shadow.devtools.server.util :as util])
-
+            [shadow.cljs.node :as node])
   (:import (java.lang ProcessBuilder$Redirect)))
 
-(def default-browser-config
-  {:public-dir "public/js"
-   :public-path "/js"})
+(defn- start []
+  (let [cli-app
+        (merge
+          (common/app)
+          {:proc
+           {:depends-on [:fs-watch]
+            :start build/start
+            :stop build/stop}})]
 
-;; FIXME: spec for cli
-(defn- parse-args [[build-id & more :as args]]
-  {:build (keyword build-id)})
-
-(defn once [& args]
-  (let [{:keys [build] :as args}
-        (parse-args args)
-
-        build-config
-        (config/get-build! build)]
-
-    (-> (comp/init :dev build-config)
-        (comp/compile)
-        (comp/flush)))
-
-  :done)
+    (-> {:config {}
+         :out (util/stdout-dump)}
+        (rt/init cli-app)
+        (rt/start-all))))
 
 (defn stdin-takeover! [build-proc sync-chan]
   (let [repl-in
@@ -98,26 +89,18 @@
     loop-result
     ))
 
+(defn once [{:keys [build] :as args}]
+  (let [build-config
+        (config/get-build! build)]
 
-(defn- start []
-  (let [cli-app
-        (merge
-          (common/app)
-          {:proc
-           {:depends-on [:fs-watch]
-            :start build/start
-            :stop build/stop}})]
+    (-> (comp/init :dev build-config)
+        (comp/compile)
+        (comp/flush)))
 
-    (-> {:config {}
-         :out (util/stdout-dump)}
-        (rt/init cli-app)
-        (rt/start-all))))
+  :done)
 
-(defn dev [& args]
-  (let [{:keys [build] :as args}
-        (parse-args args)
-
-        build-config
+(defn dev [{:keys [build] :as args}]
+  (let [build-config
         (config/get-build! build)
 
         sync-chan
@@ -153,7 +136,7 @@
 
              build-config
              {:id :node-repl
-              :target :script
+              :target :node-script
               :main 'shadow.devtools.client.node-repl/main
               :output-to script-name}
 
@@ -237,11 +220,8 @@
    :cljs/quit
     ))
 
-(defn release [& args]
-  (let [{:keys [build] :as args}
-        (parse-args args)
-
-        build-config
+(defn release [{:keys [build] :as args}]
+  (let [build-config
         (config/get-build! build)]
 
     (-> (comp/init :release build-config)
@@ -259,7 +239,8 @@
       ))
 
 (defn autotest
-  [& args]
+  "no way to interrupt this, don't run this in nREPL"
+  []
   (-> (test-setup)
       (cljs/watch-and-repeat!
         (fn [state modified]
@@ -275,10 +256,14 @@
 
 (defn test-all []
   (-> (test-setup)
-      (node/execute-all-tests!)
-      ))
+      (node/execute-all-tests!))
+  ::test-all)
 
-(defn test-affected [test-ns]
+(defn test-affected
+  [source-names]
+  {:pre [(seq source-names)
+         (not (string? source-names))
+         (every? string? source-names)]}
   (-> (test-setup)
-      (node/execute-affected-tests! [(cljs/ns->cljs-file test-ns)])
-      ))
+      (node/execute-affected-tests! source-names))
+  ::test-affected)

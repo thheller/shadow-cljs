@@ -137,8 +137,8 @@
             (= :browser target)
             (inject-devtools)
 
-            (or (= :library target)
-                (= :script target))
+            (or (= :node-library target)
+                (= :node-script target))
             (inject-node-repl)
             )))
 
@@ -159,6 +159,8 @@
       (>!!output build-state
         {:type
          :build-complete
+         :build-config
+         build-config
          :info
          (::comp/build-info compiler-state)})
 

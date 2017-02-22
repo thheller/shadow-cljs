@@ -1,4 +1,4 @@
-(ns shadow.devtools.server.embedded
+(ns shadow.devtools.embedded
   (:require [shadow.server.runtime :as rt]
             [shadow.devtools.server.services.build :as build]
             [shadow.devtools.server.services.supervisor :as super]
@@ -37,21 +37,30 @@
   ([]
     (start! default-config))
   ([config]
-   (let [system
-         (-> {::started (System/currentTimeMillis)
-              :config config}
-             (rt/init (app))
-             (rt/start-all))]
+   (if @system-ref
+     ::running
+     (let [system
+           (-> {::started (System/currentTimeMillis)
+                :config config}
+               (rt/init (app))
+               (rt/start-all))]
 
-     (vreset! system-ref system))))
+       (vreset! system-ref system)
+       ::started))))
 
 (defn stop! []
   (when-some [system @system-ref]
-    (rt/stop-all system)))
+    (rt/stop-all system)
+    (vreset! system-ref nil))
+  ::stopped)
 
 (defn start-autobuild [build-id]
+  (start!)
+
   (let [build-config
-        (config/get-build! build-id)
+        (if (map? build-id)
+          build-id
+          (config/get-build! build-id))
 
         {:keys [supervisor out] :as app}
         (system)]
@@ -59,5 +68,7 @@
     (-> (super/start-build supervisor build-id)
         (build/watch out false)
         (build/configure build-config)
-        (build/start-autobuild))))
+        (build/start-autobuild)))
+
+  build-id)
 

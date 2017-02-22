@@ -1,4 +1,4 @@
-(ns shadow.devtools.server.compiler.script
+(ns shadow.devtools.server.compiler.node-script
   (:refer-clojure :exclude (flush))
   (:require [shadow.cljs.build :as cljs]
             [shadow.cljs.node :as node]
@@ -14,7 +14,7 @@
     :release
     (node/flush-optimized state)))
 
-(defmethod comp/process :script
+(defmethod comp/process :node-script
   [{::comp/keys [mode stage config] :as state}]
   (case stage
     :init

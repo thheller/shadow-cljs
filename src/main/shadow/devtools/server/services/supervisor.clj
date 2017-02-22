@@ -2,6 +2,10 @@
   (:require [shadow.devtools.server.services.build :as build]
             [clojure.core.async :as async :refer (go <!)]))
 
+(defn get-build
+  [{:keys [builds-ref] :as svc} id]
+  (get @builds-ref id))
+
 (defn start-build
   [{:keys [fs-watch builds-ref] :as svc} id]
   (when (get @builds-ref id)

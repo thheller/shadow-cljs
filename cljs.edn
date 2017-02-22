@@ -1,5 +1,5 @@
 [{:id :script
-  :target :script
+  :target :node-script
   :main demo.script/main
   :output-to "out/demo-script/script.js"
 
@@ -8,7 +8,7 @@
    :after-load demo.script/start}}
 
  {:id :library
-  :target :library
+  :target :node-library
   :output-to "out/demo-library/lib.js"
   :exports
   {:hello demo.lib/hello}}

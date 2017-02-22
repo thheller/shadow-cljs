@@ -1,4 +1,4 @@
-(ns shadow.devtools.server.compiler.library
+(ns shadow.devtools.server.compiler.node-library
   (:refer-clojure :exclude (flush))
   (:require [shadow.cljs.build :as cljs]
             [shadow.cljs.umd :as umd]
@@ -20,7 +20,7 @@
     :release
     (umd/flush-module state)))
 
-(defmethod comp/process :library
+(defmethod comp/process :node-library
   [{::comp/keys [mode stage config] :as state}]
   (case stage
     :init

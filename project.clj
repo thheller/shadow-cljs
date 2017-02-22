@@ -5,7 +5,8 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/clojure "1.9.0-alpha14"]
+  [[org.clojure/clojure "1.9.0-alpha14" :scope "provided"]
+   [org.clojure/tools.nrepl "0.2.12" :scope "provided"]
    [org.clojure/clojurescript "1.9.473"]
    [org.clojure/core.async "0.2.395"]
 
@@ -15,9 +16,11 @@
    [aleph "0.4.2-alpha12"]
    [hiccup "1.0.5"]
 
-   [ring/ring-core "1.6.0-beta6"]
-   [ring/ring-devel "1.6.0-beta6"]
    ]
+
+  :repl-options
+  {:nrepl-middleware
+   [shadow.devtools.nrepl/inject-devtools]}
 
   :source-paths
   ["src/main"]

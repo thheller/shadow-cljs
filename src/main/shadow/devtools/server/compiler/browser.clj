@@ -1,8 +1,7 @@
 (ns shadow.devtools.server.compiler.browser
   (:refer-clojure :exclude (flush))
   (:require [shadow.devtools.server.compiler :as comp]
-            [shadow.cljs.build :as cljs]
-            [clojure.pprint :refer (pprint)]))
+            [shadow.cljs.build :as cljs]))
 
 (def default-browser-config
   {:public-dir "public/js"
@@ -12,7 +11,6 @@
   [state modules]
   (reduce-kv
     (fn [state module-id {:keys [entries depends-on] :as module-config}]
-      (prn [:configure-module module-id])
       (cljs/configure-module state module-id entries depends-on module-config))
     state
     modules))

@@ -21,7 +21,7 @@
      ::public-path]
     ))
 
-(defmethod target-spec :script [_]
+(defmethod target-spec :node-script [_]
   (s/keys
     :req-un
     [::s-script/main
@@ -30,7 +30,7 @@
     [::public-dir]
     ))
 
-(defmethod target-spec :library [_]
+(defmethod target-spec :node-library [_]
   (s/keys
     :req-un
     [::s-script/output-to

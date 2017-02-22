@@ -2,7 +2,6 @@
   (:require
     [hiccup.core :refer (html)]
     [clojure.string :as str]
-    [clojure.pprint :refer (pprint)]
     [shadow.devtools.server.web.common :as common]
     [shadow.devtools.server.web.explorer :as web-explorer]
     [shadow.devtools.server.web.api :as web-api]))

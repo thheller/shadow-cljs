@@ -33,10 +33,11 @@
               (println (format "[%s] Build started." (-> x :build-config :id)))
 
               :build-complete
-              (let [{:keys [info]} x
+              (let [{:keys [info build-config]} x
                     {:keys [sources compiled warnings]} info]
 
-                (println (format "Build completed. [%d files, %d compiled, %d warnings]"
+                (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings)"
+                           (:id build-config)
                            (count sources)
                            (count compiled)
                            (count warnings)))

@@ -1,13 +1,10 @@
-(ns shadow.devtools.server.standalone
+(ns shadow.devtools.standalone
   (:require [aleph.http :as aleph]
             [shadow.server.runtime :as rt]
             [shadow.devtools.server.web :as web]
             [shadow.devtools.server.services.explorer :as explorer]
             [shadow.devtools.server.services.config :as config]
             [clojure.core.async :as async :refer (thread)]
-            [clojure.java.io :as io]
-            [ring.middleware.file :as file]
-
             [shadow.devtools.server.common :as common]
             [aleph.netty :as netty]))
 
