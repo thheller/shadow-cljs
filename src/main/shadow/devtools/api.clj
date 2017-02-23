@@ -130,7 +130,7 @@
 (defn repl-features [build-proc]
   {::r-cljs/get-current-ns
    (fn []
-     'foo)
+     (-> build-proc :state-ref deref :compiler-state :repl-state :current))
    ::r-cljs/completions
    (fn [prefix]
      ['foo])})

@@ -2,21 +2,26 @@
   (:require [clojure.core.server :as srv]
             [clojure.main :as m]))
 
-(defn noop-takeover [child-features]
-  (prn [:takeover child-features])
-  ;; don't care what a child can do, will never call anything
-  ;; don't have anything to release
-  (fn noop-release []))
+(defonce ^:private levels-ref (volatile! (list)))
+
+(defn levels []
+  @levels-ref)
+
+(defn do-takeover [level-actions]
+  (let [my-level (count @levels-ref)]
+    (vswap! levels-ref conj (assoc level-actions ::level my-level ::ns (str *ns*)))
+    (fn release []
+      (vswap! levels-ref pop))))
 
 (def ^:dynamic *features*
-  {::takeover noop-takeover})
+  {::takeover do-takeover})
 
-(defmacro takeover [child-features & body]
+(defmacro takeover [level-actions & body]
   `(let [fn#
          (get *features* ::takeover)
 
          release-fn#
-         (fn# ~child-features)]
+         (fn# ~level-actions)]
      (try
        ~@body
        (finally
