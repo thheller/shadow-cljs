@@ -1,8 +1,5 @@
 (ns shadow.repl.cljs)
 
+;; empty, just for the keyword alias
 
-(comment
-
-  (defn compiler-warnings
-    [warnings
-     source-that-produced-warnings]))
+;; could probably put some specs here?

@@ -12,29 +12,30 @@
             [shadow.cljs.repl :as repl]
             [shadow.repl :as r]
             [shadow.repl.cljs :as r-cljs])
-  (:import (java.lang ProcessBuilder$Redirect)))
+  (:import (java.lang ProcessBuilder$Redirect)
+           (java.io Writer InputStreamReader BufferedReader IOException)))
 
 (defn- start []
   (let [cli-app
         (merge
           (common/app)
-          {:proc
+          {:worker
            {:depends-on [:fs-watch]
             :start worker/start
             :stop worker/stop}})]
 
     (-> {:config {}
-         :out (util/stdout-dump)}
+         :default-out (util/stdout-dump)}
         (rt/init cli-app)
         (rt/start-all))))
 
 (defn stdin-takeover!
-  [worker-proc sync-chan]
+  [worker sync-chan]
   (let [repl-in
         (async/chan 1)
 
         repl-result
-        (worker/repl-client-connect worker-proc ::stdin repl-in)
+        (worker/repl-client-connect worker ::stdin repl-in)
 
         state-chan
         (-> (async/sliding-buffer 1)
@@ -54,7 +55,7 @@
 
           ;; unlock stdin when we can't get repl-state
           (when-let [repl-state
-                     (-> worker-proc :state-ref deref :compiler-state :repl-state)]
+                     (-> worker :state-ref deref :compiler-state :repl-state)]
 
             (let [{:keys [eof? form] :as read-result}
                   (repl/read-one repl-state *in*)]
@@ -99,28 +100,45 @@
         sync-chan
         (async/chan 1)
 
-        {:keys [proc out fs-watch] :as app}
+        {:keys [worker default-out fs-watch] :as app}
         (start)]
 
     (try
-      (let [proc
-            (-> proc
-                (worker/watch out)
-                (worker/configure build-config)
-                (worker/start-autobuild))]
-        (stdin-takeover! proc sync-chan))
+      (-> worker
+          (worker/watch default-out)
+          (worker/configure build-config)
+          (worker/start-autobuild)
+          (stdin-takeover! sync-chan))
       (finally
         (rt/stop-all app)))
     ))
 
-(defn repl-level [worker-proc]
-  {::r-cljs/get-current-ns
+(defn repl-level [worker]
+  {::r/lang :cljs
+   ::r/get-current-ns
    (fn []
-     (-> worker-proc :state-ref deref :compiler-state :repl-state :current))
+     (-> worker :state-ref deref :compiler-state :repl-state :current))
 
    ::r-cljs/completions
    (fn [prefix]
      ['foo])})
+
+;; https://github.com/clojure/clojurescript/blob/master/src/main/clojure/cljs/repl/node.clj
+;; I would just call that but it is private ...
+(defn- pipe [^Process proc in ^Writer out]
+  ;; we really do want system-default encoding here
+  (with-open [^java.io.Reader in (-> in InputStreamReader. BufferedReader.)]
+    (loop [buf (char-array 1024)]
+      (when (.isAlive proc)
+        (try
+          (let [len (.read in buf)]
+            (when-not (neg? len)
+              (.write out buf 0 len)
+              (.flush out)))
+          (catch IOException e
+            (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
+              (.printStackTrace e *err*))))
+        (recur buf)))))
 
 (defn node-repl
   ([]
@@ -130,7 +148,7 @@
             pwd]
      :or {node-args []
           node-command "node"}}]
-   (let [{:keys [proc out fs-watch] :as app}
+   (let [{:keys [worker default-out fs-watch] :as app}
          (start)]
 
      (try
@@ -152,12 +170,12 @@
                    (when-some [msg (<! out-chan)]
                      (if-let [fn (r/get-feature ::r-cljs/compiler-info)]
                        (fn msg)
-                       (>! out msg))
+                       (util/print-worker-out msg))
                      (recur)
                      )))
 
              result
-             (-> proc
+             (-> worker
                  (worker/watch out-chan)
                  (worker/configure build-config)
                  (worker/compile!))]
@@ -173,23 +191,24 @@
                (-> (ProcessBuilder.
                      (into-array
                        (into [node-command] node-args)))
-                   (.redirectOutput ProcessBuilder$Redirect/INHERIT)
-                   (.redirectError ProcessBuilder$Redirect/INHERIT)
                    (.directory
                      ;; nil defaults to JVM working dir
                      (when pwd
                        (io/file pwd)))
                    (.start))]
 
+           (.start (Thread. (bound-fn [] (pipe node-proc (.getInputStream node-proc) *out*))))
+           (.start (Thread. (bound-fn [] (pipe node-proc (.getErrorStream node-proc) *err*))))
+
            ;; FIXME: validate that proc started
 
-           (r/takeover (repl-level proc)
+           (r/takeover (repl-level worker)
              (let [sync-chan
                    (async/chan 1)
 
                    stdin-fn
                    (bound-fn []
-                     (stdin-takeover! proc sync-chan))
+                     (stdin-takeover! worker sync-chan))
 
                    stdin-thread
                    (doto (Thread. stdin-fn)

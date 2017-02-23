@@ -1,7 +1,5 @@
 (ns shadow.devtools.client.node
-  (:require-macros [cljs.core.async.macros :refer (go)])
   (:require [shadow.devtools.client.env :as env]
-            [cljs.core.async :as async]
             [cljs.reader :as reader]
             [goog.object :as gobj]))
 

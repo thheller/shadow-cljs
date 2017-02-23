@@ -16,6 +16,41 @@
     shadow-log/BuildLog
     (log* [_ state msg])))
 
+
+(defn print-worker-out [x]
+  (locking cljs/stdout-lock
+    (case (:type x)
+      :build-log
+      (println (shadow-log/event-text (:event x)))
+
+      :build-start
+      (println (format "[%s] Build started." (-> x :build-config :id)))
+
+      :build-complete
+      (let [{:keys [info build-config]} x
+            {:keys [sources compiled warnings]} info]
+
+        (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings)"
+                   (:id build-config)
+                   (count sources)
+                   (count compiled)
+                   (count warnings)))
+
+        (when (seq warnings)
+          (println (format "====== %d Warnings" (count warnings)))
+          (doseq [{:keys [msg line column source-name] :as w} warnings]
+            (println (str "WARNING: " msg " (" source-name " at " line ":" column ") ")))
+          (println "======")))
+
+      :build-shutdown
+      (println "Build shutdown.")
+
+      :repl-action
+      :ignored
+
+      ;; default
+      (prn [:log x]))))
+
 (defn stdout-dump []
   (let [chan
         (-> (async/sliding-buffer 1)
@@ -24,38 +59,7 @@
     (async/go
       (loop []
         (when-some [x (<! chan)]
-          (locking cljs/stdout-lock
-            (case (:type x)
-              :build-log
-              (println (shadow-log/event-text (:event x)))
-
-              :build-start
-              (println (format "[%s] Build started." (-> x :build-config :id)))
-
-              :build-complete
-              (let [{:keys [info build-config]} x
-                    {:keys [sources compiled warnings]} info]
-
-                (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings)"
-                           (:id build-config)
-                           (count sources)
-                           (count compiled)
-                           (count warnings)))
-
-                (when (seq warnings)
-                  (println (format "====== %d Warnings" (count warnings)))
-                  (doseq [{:keys [msg line column source-name] :as w} warnings]
-                    (println (str "WARNING: " msg " (" source-name " at " line ":" column ") ")))
-                  (println "======")))
-
-              :build-shutdown
-              (println "Build shutdown.")
-
-              :repl-action
-              :ignored
-
-              ;; default
-              (prn [:log x])))
+          (print-worker-out x)
           (recur)
           )))
 

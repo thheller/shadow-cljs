@@ -1,46 +1,71 @@
 (ns shadow.repl)
 
-(defonce levels-ref (volatile! (list)))
+(defonce root-id-ref
+  (volatile! 0))
 
-(def ^:dynamic *features* {})
+(defn next-root-id []
+  (vswap! root-id-ref inc))
 
-(defn levels []
-  @levels-ref)
+(def ^:dynamic *root-id* (next-root-id))
+
+(defonce roots-ref
+  (volatile! {}))
+
+(defonce features-ref
+  (volatile! {}))
+
+(defn get-feature [id]
+  (get @features-ref id))
+
+(defn has-feature? [id]
+  (contains? @features-ref id))
+
+(defn roots []
+  @roots-ref)
 
 (defn push-level [level]
   (let [level-id
-        (count @levels-ref)
+        (-> @roots-ref (get *root-id*) ::levels count)
 
         level
         (assoc level
+          ::root-id *root-id*
           ::level-id level-id
           ::level-ns (str *ns*))]
 
-    (vswap! levels-ref conj level)
+    (vswap! roots-ref update-in [*root-id* ::levels] conj level)
 
     level
     ))
 
+(defn do-level-enter! [level]
+  (let [level (push-level level)]
+    (when-let [fn (get-feature ::level-enter)]
+      (fn level))
+    level))
+
+(defn do-level-exit! [level]
+  (when-let [fn (get-feature ::level-exit)]
+    (fn level))
+  (vswap! roots-ref update-in [*root-id* ::levels] pop))
+
 (defmacro takeover [level & body]
-  `(let [level# (push-level ~level)]
+  `(let [level# (do-level-enter! ~level)]
      (try
-       (when-let [fn# (get *features* ::level-enter)]
-         (fn# level#))
-
        ~@body
-
        (finally
-         (when-let [fn# (get *features* ::level-exit)]
-           (fn# level#))
-         (vswap! levels-ref pop)))))
+         (do-level-exit! level#)
+         ))))
 
-(defn get-feature [id]
-  (get *features* id))
+(defn provide! [features]
+  (vswap! features-ref merge features)
+  ::provided)
 
-(defn has-feature? [id]
-  (contains? *features* id))
+(defn clear! []
+  (vreset! features-ref {}))
 
-(defmacro with-features [new-features & body]
-  `(binding [*features* (merge *features* ~new-features)]
-     ~@body
-     ))
+(defmacro enter-root [root-info & body]
+  {:pre [(map? root-info)]}
+  `(binding [*root-id* (next-root-id)]
+     (vswap! roots-ref assoc *root-id* (assoc ~root-info ::levels (list)))
+     ~@body))
