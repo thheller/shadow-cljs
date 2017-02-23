@@ -1,8 +1,9 @@
-/target
-/classes
-/checkouts
-/test-projects
-/node_modules
+target/
+node_modules/
+classes/
+checkouts/
+out/
+js/
 pom.xml
 pom.xml.asc
 *.iml
@@ -14,15 +15,6 @@ pom.xml.asc
 /.lein-*
 /.nrepl-port
 /doc/codox
-/client/js
-/client/launcher.html
-/test-project/public/js
-/test-project/public/css
-/public/assets
-/public/js
 /tmp
-/lib/js-closure
-/lib/closure-library
-out/
 .DS_Store
 

@@ -21,15 +21,10 @@
   [proc]
   (impl/compile proc))
 
-(defn compile!
-  "triggers a compilation and waits for completion blocking the current thread"
-  [proc]
-  (impl/compile! proc))
-
 (defn watch
   "watch all output produced by the worker"
   ([proc chan]
-    (watch proc chan true))
+   (watch proc chan true))
   ([proc chan close?]
    (impl/watch proc chan close?)))
 
@@ -40,6 +35,14 @@
 
 (defn stop-autobuild [proc]
   (impl/stop-autobuild proc))
+
+(defn sync!
+  "ensures that all proc-control commands issued have completed"
+  [proc]
+  (let [chan (async/chan)]
+    (>!! (:proc-control proc) {:type :sync! :chan chan})
+    (<!! chan))
+  proc)
 
 (defn repl-eval-connect
   "called by processes that are able to eval repl commands and report their result

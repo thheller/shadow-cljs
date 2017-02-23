@@ -90,7 +90,7 @@
   (require '[shadow.devtools.api :as api])
 
   ;; first start a blank node repl
-  ;; very verbose and noisy
+  ;; very verbose and noisyM
   ;; no way to differentiate compiler output from repl output
   (shadow.devtools.api/node-repl)
 
@@ -113,9 +113,6 @@
   (shadow.devtools.api/node-repl)
 
   ;; run "nc localhost 5000" in terminal to query state of the repl
-
-  (let [fn (get (shadow.repl/current-level) :shadow.repl.cljs/get-current-ns)] (fn))
-
   (require 'demo.script)
 
   (in-ns 'demo.script)

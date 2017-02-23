@@ -1,0 +1,13 @@
+[{:id :main
+  :target :browser
+  :modules
+  {:main
+   {:entries [demo.app]
+    :depends-on #{}}}
+
+  :public-dir "public/js"
+  :public-path "js"
+
+  :devtools
+  {:before-load demo.app/stop
+   :after-load demo.app/start}}]

@@ -172,6 +172,11 @@
   (fn [worker-state msg]
     (:type msg)))
 
+(defmethod do-proc-control :sync!
+  [worker-state {:keys [chan] :as msg}]
+  (async/close! chan)
+  worker-state)
+
 (defmethod do-proc-control :eval-start
   [worker-state {:keys [id eval-out client-out]}]
   (>!! eval-out {:type :repl/init
@@ -440,7 +445,6 @@
         (async/chan)]
     (>!! proc-control {:type :compile :reply-to reply-to})
     (<!! reply-to)))
-
 
 (defn start-autobuild
   [{:keys [proc-control] :as proc}]

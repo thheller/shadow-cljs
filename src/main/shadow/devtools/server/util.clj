@@ -16,7 +16,6 @@
     shadow-log/BuildLog
     (log* [_ state msg])))
 
-
 (defn print-worker-out [x]
   (locking cljs/stdout-lock
     (case (:type x)
@@ -47,6 +46,9 @@
 
       :repl-action
       :ignored
+
+      :worker-shutdown
+      (println "Worker shutdown.")
 
       ;; default
       (prn [:log x]))))

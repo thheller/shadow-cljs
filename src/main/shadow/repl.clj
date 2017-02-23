@@ -20,9 +20,6 @@
 (defn has-feature? [id]
   (contains? @features-ref id))
 
-(defn roots []
-  @roots-ref)
-
 (defn push-level [level]
   (let [level-id
         (-> @roots-ref (get *root-id*) ::levels count)
@@ -49,13 +46,12 @@
     (fn level))
   (vswap! roots-ref update-in [*root-id* ::levels] pop))
 
-(defmacro takeover [level & body]
-  `(let [level# (do-level-enter! ~level)]
-     (try
-       ~@body
-       (finally
-         (do-level-exit! level#)
-         ))))
+
+
+;; PUBLIC API
+(defn roots []
+  @roots-ref)
+
 
 (defn provide! [features]
   (vswap! features-ref merge features)
@@ -63,6 +59,14 @@
 
 (defn clear! []
   (vreset! features-ref {}))
+
+(defmacro takeover [level & body]
+  `(let [level# (do-level-enter! ~level)]
+     (try
+       ~@body
+       (finally
+         (do-level-exit! level#)
+         ))))
 
 (defmacro enter-root [root-info & body]
   {:pre [(map? root-info)]}

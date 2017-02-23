@@ -60,6 +60,7 @@
             (let [{:keys [eof? form] :as read-result}
                   (repl/read-one repl-state *in*)]
 
+
               (cond
                 eof?
                 :eof
@@ -100,7 +101,7 @@
         sync-chan
         (async/chan 1)
 
-        {:keys [worker default-out fs-watch] :as app}
+        {:keys [worker default-out] :as app}
         (start)]
 
     (try
@@ -108,7 +109,9 @@
           (worker/watch default-out)
           (worker/configure build-config)
           (worker/start-autobuild)
+          (worker/sync!)
           (stdin-takeover! sync-chan))
+
       (finally
         (rt/stop-all app)))
     ))
