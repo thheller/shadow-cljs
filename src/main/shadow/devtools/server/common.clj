@@ -1,6 +1,6 @@
 (ns shadow.devtools.server.common
-  (:require [shadow.devtools.server.services.supervisor :as super]
-            [shadow.devtools.server.services.fs-watch :as fs-watch]
+  (:require [shadow.devtools.server.supervisor :as super]
+            [shadow.devtools.server.fs-watch :as fs-watch]
             [cognitect.transit :as transit]
             [clojure.edn :as edn]
 

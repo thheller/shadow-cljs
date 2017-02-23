@@ -1,7 +1,7 @@
-(ns shadow.devtools.server.services.explorer
+(ns shadow.devtools.server.explorer
   (:require [shadow.cljs.build :as cljs]
             [shadow.cljs.repl :as repl]
-            [shadow.devtools.server.services.fs-watch :as fs-watch]
+            [shadow.devtools.server.fs-watch :as fs-watch]
             [clojure.core.async :as async :refer (thread alt!! <!! >!!)]
             [shadow.devtools.server.util :as util]
             [clojure.java.io :as io]

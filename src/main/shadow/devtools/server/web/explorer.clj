@@ -1,5 +1,5 @@
 (ns shadow.devtools.server.web.explorer
-  (:require [shadow.devtools.server.services.explorer :as explorer]
+  (:require [shadow.devtools.server.explorer :as explorer]
             [shadow.devtools.server.web.common :as common]
             [hiccup.core :refer (html)]
             [clojure.pprint :refer (pprint)]

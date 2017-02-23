@@ -1,7 +1,7 @@
 (ns shadow.devtools.nrepl
   (:require [clojure.tools.nrepl.middleware :as middleware]
             [shadow.devtools.embedded :as cljs]
-            [shadow.devtools.server.services.supervisor :as super]))
+            [shadow.devtools.server.supervisor :as super]))
 
 ;; FIXME: HEADACHES!
 
@@ -11,10 +11,10 @@
   (let [{:keys [supervisor] :as sys}
         (cljs/system)
 
-        build-proc
+        worker-proc
         (when supervisor
-          (super/get-build supervisor build-id))]
-    (if (nil? build-proc)
+          (super/get-worker supervisor build-id))]
+    (if (nil? worker-proc)
       nil
       (do (vreset! redirect-to build-id)
           (println "now redirecting repl commands to " build-id)

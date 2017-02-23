@@ -1,7 +1,7 @@
 (ns shadow.devtools.embedded
   (:require [shadow.server.runtime :as rt]
-            [shadow.devtools.server.services.build :as build]
-            [shadow.devtools.server.services.supervisor :as super]
+            [shadow.devtools.server.worker :as worker]
+            [shadow.devtools.server.supervisor :as super]
             [shadow.devtools.server.config :as config]
             [shadow.devtools.server.util :as util]
             [shadow.devtools.server.common :as common]
@@ -65,10 +65,10 @@
         {:keys [supervisor out] :as app}
         (system)]
 
-    (-> (super/start-build supervisor build-id)
-        (build/watch out false)
-        (build/configure build-config)
-        (build/start-autobuild)))
+    (-> (super/start-worker supervisor build-id)
+        (worker/watch out false)
+        (worker/configure build-config)
+        (worker/start-autobuild)))
 
   build-id)
 

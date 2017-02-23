@@ -1,6 +1,6 @@
-(ns shadow.devtools.server.services.build.ws
+(ns shadow.devtools.server.worker.ws
   "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
-  (:require [shadow.devtools.server.services.build.impl :as impl]
+  (:require [shadow.devtools.server.worker.impl :as impl]
             [shadow.devtools.server.web.common :as common]
             [clojure.core.async :as async :refer (thread alt!! >!!)]
             [clojure.string :as str]
@@ -28,9 +28,9 @@
   state)
 
 (defn ws-loop!
-  [{:keys [build-proc watch-chan result-chan] :as client-state}]
+  [{:keys [worker-proc watch-chan result-chan] :as client-state}]
 
-  (impl/watch build-proc watch-chan true)
+  (impl/watch worker-proc watch-chan true)
 
   (loop [{:keys [eval-out
                  watch-chan
@@ -62,7 +62,7 @@
   (async/close! result-chan))
 
 (defn process
-  [{:keys [output] :as build-proc} {:keys [uri] :as req}]
+  [{:keys [output] :as worker-proc} {:keys [uri] :as req}]
 
   ;; "/ws/client/<proc-id>/<client-id>/<client-type>"
   ;; if proc-id does not match there is old js connecting to a new process
@@ -75,7 +75,7 @@
         proc-id
         (UUID/fromString proc-id)]
 
-    (if (not= proc-id (:proc-id build-proc))
+    (if (not= proc-id (:proc-id worker-proc))
       (do (>!! output {:type :rejected-client
                        :proc-id proc-id
                        :client-id client-id})
@@ -99,7 +99,7 @@
                 (async/chan))
 
             result-chan
-            (impl/repl-eval-connect build-proc client-id eval-out)
+            (impl/repl-eval-connect worker-proc client-id eval-out)
 
             ;; watch messages are forwarded to the client
             ;; could send everything there but most of it is uninterested
@@ -116,7 +116,7 @@
                   (filter #(contains? watch-forward (:type %)))))
 
             client-state
-            {:build-proc build-proc
+            {:worker-proc worker-proc
              :client-id client-id
              :client-type client-type
              :in client-in

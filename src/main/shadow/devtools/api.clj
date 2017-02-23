@@ -4,7 +4,7 @@
             [shadow.server.runtime :as rt]
             [shadow.devtools.server.config :as config]
             [shadow.devtools.server.compiler :as comp]
-            [shadow.devtools.server.services.build :as build]
+            [shadow.devtools.server.worker :as worker]
             [shadow.devtools.server.util :as util]
             [shadow.devtools.server.common :as common]
             [shadow.cljs.build :as cljs]
@@ -20,27 +20,28 @@
           (common/app)
           {:proc
            {:depends-on [:fs-watch]
-            :start build/start
-            :stop build/stop}})]
+            :start worker/start
+            :stop worker/stop}})]
 
     (-> {:config {}
          :out (util/stdout-dump)}
         (rt/init cli-app)
         (rt/start-all))))
 
-(defn stdin-takeover! [build-proc sync-chan]
+(defn stdin-takeover!
+  [worker-proc sync-chan]
   (let [repl-in
         (async/chan 1)
 
         repl-result
-        (build/repl-client-connect build-proc ::stdin repl-in)
+        (worker/repl-client-connect worker-proc ::stdin repl-in)
 
         state-chan
         (-> (async/sliding-buffer 1)
             (async/chan))
 
         ;; FIXME: how to display results properly?
-        ;; should probably pipe to the output channel of build-proc?
+        ;; should probably pipe to the output channel of worker-proc?
         _ (go (loop []
                 (when-some [result (<! repl-result)]
                   (if-let [cb (r/get-feature ::r/repl-result)]
@@ -50,46 +51,31 @@
 
         loop-result
         (loop []
-          (build/repl-state build-proc state-chan)
 
-          (let [repl-state
-                (alt!!
-                  sync-chan
-                  ([_]
-                    (prn [:sync-closed])
-                    nil)
+          ;; unlock stdin when we can't get repl-state
+          (when-let [repl-state
+                     (-> worker-proc :state-ref deref :compiler-state :repl-state)]
 
-                  (async/timeout 5000)
-                  ([_]
-                    (prn [:timeout-on-repl-state])
-                    nil)
+            (let [{:keys [eof? form] :as read-result}
+                  (repl/read-one repl-state *in*)]
 
-                  state-chan
-                  ([x]
-                    x))]
+              (cond
+                eof?
+                :eof
 
-            ;; unlock stdin when we can't get repl-state
-            (when repl-state
-              (let [{:keys [eof? form source] :as read-result}
-                    (repl/read-one repl-state *in*)]
+                (nil? form)
+                (recur)
 
-                (cond
-                  eof?
-                  :eof
+                (= :repl/quit form)
+                :quit
 
-                  (nil? form)
-                  (recur)
+                (= :cljs/quit form)
+                :quit
 
-                  (= :repl/quit form)
-                  :quit
-
-                  (= :cljs/quit form)
-                  :quit
-
-                  :else
-                  (do (>!! repl-in read-result)
-                      (recur))
-                  )))))]
+                :else
+                (do (>!! repl-in read-result)
+                    (recur))
+                ))))]
 
     (async/close! repl-in)
 
@@ -119,18 +105,19 @@
     (try
       (let [proc
             (-> proc
-                (build/watch out)
-                (build/configure build-config)
-                (build/start-autobuild))]
+                (worker/watch out)
+                (worker/configure build-config)
+                (worker/start-autobuild))]
         (stdin-takeover! proc sync-chan))
       (finally
         (rt/stop-all app)))
     ))
 
-(defn repl-features [build-proc]
+(defn repl-level [worker-proc]
   {::r-cljs/get-current-ns
    (fn []
-     (-> build-proc :state-ref deref :compiler-state :repl-state :current))
+     (-> worker-proc :state-ref deref :compiler-state :repl-state :current))
+
    ::r-cljs/completions
    (fn [prefix]
      ['foo])})
@@ -171,9 +158,9 @@
 
              result
              (-> proc
-                 (build/watch out-chan)
-                 (build/configure build-config)
-                 (build/compile!))]
+                 (worker/watch out-chan)
+                 (worker/configure build-config)
+                 (worker/compile!))]
 
          ;; FIXME: validate that compilation succeeded
 
@@ -196,7 +183,7 @@
 
            ;; FIXME: validate that proc started
 
-           (r/takeover (repl-features proc)
+           (r/takeover (repl-level proc)
              (let [sync-chan
                    (async/chan 1)
 

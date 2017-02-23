@@ -2,8 +2,8 @@
   (:require [aleph.http :as aleph]
             [shadow.server.runtime :as rt]
             [shadow.devtools.server.web :as web]
-            [shadow.devtools.server.services.explorer :as explorer]
-            [shadow.devtools.server.services.config :as config]
+            [shadow.devtools.server.explorer :as explorer]
+            [shadow.devtools.server.config-watch :as config]
             [clojure.core.async :as async :refer (thread)]
             [shadow.devtools.server.common :as common]
             [aleph.netty :as netty]))

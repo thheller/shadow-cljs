@@ -1,4 +1,4 @@
-(ns shadow.devtools.server.services.fs-watch
+(ns shadow.devtools.server.fs-watch
   (:require [shadow.cljs.build :as cljs]
             [clojure.core.async :as async :refer (alt!! thread >!!)]
             [shadow.devtools.server.util :as util]))

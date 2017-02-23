@@ -1,11 +1,11 @@
-(ns shadow.devtools.server.services.build
+(ns shadow.devtools.server.worker
   (:refer-clojure :exclude (compile))
   (:require [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
             [aleph.http :as aleph]
             [shadow.devtools.server.util :as util]
-            [shadow.devtools.server.services.fs-watch :as fs-watch]
-            [shadow.devtools.server.services.build.impl :as impl]
-            [shadow.devtools.server.services.build.ws :as ws]
+            [shadow.devtools.server.fs-watch :as fs-watch]
+            [shadow.devtools.server.worker.impl :as impl]
+            [shadow.devtools.server.worker.ws :as ws]
             [aleph.netty :as netty])
   (:import (java.util UUID)))
 
@@ -17,7 +17,7 @@
   (impl/configure proc config))
 
 (defn compile
-  "triggers an async compilation, use watch to receive notification about build state"
+  "triggers an async compilation, use watch to receive notification about worker state"
   [proc]
   (impl/compile proc))
 
@@ -27,7 +27,7 @@
   (impl/compile! proc))
 
 (defn watch
-  "watch all output produced by the build"
+  "watch all output produced by the worker"
   ([proc chan]
     (watch proc chan true))
   ([proc chan close?]
@@ -41,11 +41,6 @@
 (defn stop-autobuild [proc]
   (impl/stop-autobuild proc))
 
-(defn repl-state
-  "queries current state of repl (current ns, ...), written to chan"
-  [proc chan]
-  (impl/repl-state proc chan))
-
 (defn repl-eval-connect
   "called by processes that are able to eval repl commands and report their result
 
@@ -58,12 +53,12 @@
   (impl/repl-eval-connect proc client-id client-out))
 
 (defn repl-client-connect
-  "connects to a running build as a repl client who can send things to eval and receive their result
+  "connects to a running worker as a repl client who can send things to eval and receive their result
 
    client-in should receive strings which represent cljs code
    will remove the client when client-in closes
    returns a channel that will receive results from client-in
-   the returned channel is closed if the build is stopped"
+   the returned channel is closed if the worker is stopped"
   [proc client-id client-in]
   (impl/repl-client-connect proc client-id client-in))
 
@@ -76,11 +71,11 @@
         ;; closed when the proc-stops
         ;; nothing will ever be written here
         ;; its for linking other processes to the server process
-        ;; so they shut down when the build stops
+        ;; so they shut down when the worker stops
         proc-stop
         (async/chan)
 
-        ;; controls the build, registers new clients, etc
+        ;; controls the worker, registers new clients, etc
         proc-control
         (async/chan)
 
@@ -143,10 +138,10 @@
            fs-updates impl/do-fs-updates}
           {:do-shutdown
            (fn [state]
-             (>!! output {:type :build-shutdown})
+             (>!! output {:type :worker-shutdown})
              state)})
 
-        proc-info
+        worker-proc
         {::impl/proc true
          :proc-stop proc-stop
          :proc-id proc-id
@@ -176,7 +171,7 @@
           http
           (aleph/start-server
             (fn [ring]
-              (ws/process (assoc proc-info :http-config @http-config-ref) ring))
+              (ws/process (assoc worker-proc :http-config @http-config-ref) ring))
             http-config)
 
           http-config
@@ -184,7 +179,7 @@
             :port (netty/port http))]
 
       (vreset! http-config-ref http-config)
-      (assoc proc-info
+      (assoc worker-proc
         :http-config http-config
         :http http))))
 

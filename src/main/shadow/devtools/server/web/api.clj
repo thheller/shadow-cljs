@@ -1,6 +1,6 @@
 (ns shadow.devtools.server.web.api
   (:require [shadow.devtools.server.web.common :as common]
-            [shadow.devtools.server.services.config :as config]))
+            [shadow.devtools.server.config-watch :as config]))
 
 
 

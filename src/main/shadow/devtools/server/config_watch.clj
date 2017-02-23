@@ -1,4 +1,4 @@
-(ns shadow.devtools.server.services.config
+(ns shadow.devtools.server.config-watch
   (:require [shadow.devtools.server.config :as config]))
 
 (defn- service? [x]

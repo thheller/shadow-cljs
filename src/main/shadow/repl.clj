@@ -1,32 +1,38 @@
-(ns shadow.repl
-  (:require [clojure.core.server :as srv]
-            [clojure.main :as m]))
+(ns shadow.repl)
 
-(defonce ^:private levels-ref (volatile! (list)))
+(defonce levels-ref (volatile! (list)))
+
+(def ^:dynamic *features* {})
 
 (defn levels []
   @levels-ref)
 
-(defn do-takeover [level-actions]
-  (let [my-level (count @levels-ref)]
-    (vswap! levels-ref conj (assoc level-actions ::level my-level ::ns (str *ns*)))
-    (fn release []
-      (vswap! levels-ref pop))))
+(defn push-level [level]
+  (let [level-id
+        (count @levels-ref)
 
-(def ^:dynamic *features*
-  {::takeover do-takeover})
+        level
+        (assoc level
+          ::level-id level-id
+          ::level-ns (str *ns*))]
 
-(defmacro takeover [level-actions & body]
-  `(let [fn#
-         (get *features* ::takeover)
+    (vswap! levels-ref conj level)
 
-         release-fn#
-         (fn# ~level-actions)]
+    level
+    ))
+
+(defmacro takeover [level & body]
+  `(let [level# (push-level ~level)]
      (try
+       (when-let [fn# (get *features* ::level-enter)]
+         (fn# level#))
+
        ~@body
+
        (finally
-         (when release-fn#
-           (release-fn#))))))
+         (when-let [fn# (get *features* ::level-exit)]
+           (fn# level#))
+         (vswap! levels-ref pop)))))
 
 (defn get-feature [id]
   (get *features* id))
@@ -34,11 +40,7 @@
 (defn has-feature? [id]
   (contains? *features* id))
 
-(defn repl [features repl-opts]
-  (binding [*features* (merge *features* features)]
-
-    ;; dammit kw-args
-    (apply m/repl (->> repl-opts
-                       (merge {:init srv/repl-init
-                               :read srv/repl-read})
-                       (reduce-kv conj [])))))
+(defmacro with-features [new-features & body]
+  `(binding [*features* (merge *features* ~new-features)]
+     ~@body
+     ))

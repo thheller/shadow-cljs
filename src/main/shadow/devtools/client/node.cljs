@@ -50,7 +50,12 @@
 
     (js/console.log "REPL init completed! Have fun ...")))
 
-(defn repl-invoke [{:keys [id js] :as msg}]
+(defn print-warnings [warnings]
+  (doseq [{:keys [msg line column source-name] :as w} warnings]
+    (js/console.warn (str "WARNING: " msg " (" source-name " at " line ":" column ")"))))
+
+(defn repl-invoke [{:keys [id js warnings] :as msg}]
+  (print-warnings warnings)
   (let [result
         (-> (env/repl-call #(node-eval js) pr-str repl-error)
             (assoc :id id))]
@@ -63,9 +68,7 @@
 
 (defn repl-require
   [{:keys [js-sources warnings reload] :as msg}]
-  (doseq [{:keys [msg line column source-name] :as w} warnings]
-    (js/console.warn (str "WARNING: " msg " (" source-name " at " line ":" column ")")))
-
+  (print-warnings warnings)
   (doseq [src js-sources
           :when (or reload
                     (not (is-loaded? src)))]

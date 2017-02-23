@@ -51,6 +51,9 @@
               :build-shutdown
               (println "Build shutdown.")
 
+              :repl-action
+              :ignored
+
               ;; default
               (prn [:log x])))
           (recur)
