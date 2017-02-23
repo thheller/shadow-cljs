@@ -15,9 +15,9 @@
   (into [head] tail))
 
 (defn repl-defines
-  [{:keys [proc-id build-config http-info-ref] :as proc-state}]
+  [{:keys [proc-id build-config http-config-ref] :as proc-state}]
   (let [{:keys [host port]}
-        @http-info-ref
+        @http-config-ref
 
         {:keys [id]}
         build-config
@@ -317,6 +317,8 @@
           (doseq [[idx action] (map-indexed vector new-actions)
                   :let [idx (+ idx start-idx)
                         action (assoc action :id idx)]]
+            (>!!output state {:type :repl-action
+                              :action action})
             (>!! eval-out action))
 
           (assoc state

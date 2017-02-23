@@ -106,7 +106,7 @@
         config-updates
         (async/chan)
 
-        http-info-ref
+        http-config-ref
         (volatile! nil) ;; {:port 123 :localhost foo}
 
         channels
@@ -120,7 +120,7 @@
 
         thread-state
         {::proc-state true
-         :http-info-ref http-info-ref
+         :http-config-ref http-config-ref
          :proc-id proc-id
          :eval-clients {}
          :repl-clients {}
@@ -176,16 +176,16 @@
           http
           (aleph/start-server
             (fn [ring]
-              (ws/process (assoc proc-info :http @http-info-ref) ring))
+              (ws/process (assoc proc-info :http-config @http-config-ref) ring))
             http-config)
 
           http-config
           (assoc http-config
             :port (netty/port http))]
 
-      (vreset! http-info-ref http-config)
+      (vreset! http-config-ref http-config)
       (assoc proc-info
-        :http-info http-config
+        :http-config http-config
         :http http))))
 
 (defn stop [{:keys [http] :as proc}]

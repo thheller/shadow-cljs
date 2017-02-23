@@ -3,6 +3,8 @@
             [shadow.devtools.embedded :as cljs]
             [shadow.devtools.server.services.supervisor :as super]))
 
+;; FIXME: HEADACHES!
+
 (defonce redirect-to (volatile! nil))
 
 (defn redirect! [build-id]
