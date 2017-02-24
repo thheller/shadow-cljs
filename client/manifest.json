@@ -1,9 +1,0 @@
-{
-  "name": "shadow chrome devtools",
-  "description": "shadow chrome devtools",
-  "version": "1.0",
-  "devtools_page": "index.html",
-  "manifest_version": 2,
-  "content_security_policy": "default-src 'self'  chrome-extension-resource: ; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval';  connect-src *; frame-src *;",
-  "web_accessible_resources":["*"]
-}

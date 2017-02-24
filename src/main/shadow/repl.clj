@@ -47,7 +47,6 @@
   (doseq [[id level-callback] @callbacks-ref]
     (p/did-exit-level level-callback level)))
 
-
 ;; PUBLIC API
 
 (defn add-watch [watch-id level-callback]
