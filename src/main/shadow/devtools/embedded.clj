@@ -5,7 +5,11 @@
             [shadow.devtools.server.config :as config]
             [shadow.devtools.server.util :as util]
             [shadow.devtools.server.common :as common]
-            [clojure.core.async :as async]))
+            [clojure.core.async :as async :refer (go <!)]
+            [shadow.devtools.api :as api]))
+
+(def default-config
+  {:verbose false})
 
 (defonce system-ref
   (volatile! nil))
@@ -16,9 +20,6 @@
       (throw (ex-info "devtools not started" {})))
     x))
 
-(def default-config
-  {})
-
 (defn app []
   (merge
     (common/app)
@@ -28,14 +29,15 @@
       :stop super/stop}
 
      :out
-     {:depends-on []
-      :start util/stdout-dump
+     {:depends-on [:config]
+      :start (fn [{:keys [verbose]}]
+               (util/stdout-dump verbose))
       :stop async/close!}
      }))
 
 (defn start!
   ([]
-    (start! default-config))
+   (start! default-config))
   ([config]
    (if @system-ref
      ::running
@@ -54,21 +56,51 @@
     (vreset! system-ref nil))
   ::stopped)
 
-(defn start-autobuild [build-id]
-  (start!)
+(defn start-worker
+  ([build-id]
+   (start-worker build-id true))
+  ([build-id autobuild]
+   (start!)
+   (let [build-config
+         (if (map? build-id)
+           build-id
+           (config/get-build! build-id))
 
-  (let [build-config
-        (if (map? build-id)
-          build-id
-          (config/get-build! build-id))
+         {:keys [supervisor out] :as app}
+         (system)]
 
-        {:keys [supervisor out] :as app}
-        (system)]
+     (if-let [worker (super/get-worker supervisor build-id)]
+       (when autobuild
+         (worker/start-autobuild worker))
 
-    (-> (super/start-worker supervisor build-id)
-        (worker/watch out false)
-        (worker/configure build-config)
-        (worker/start-autobuild)))
+       (-> (super/start-worker supervisor build-id)
+           (worker/watch out false)
+           (worker/configure build-config)
+           (cond->
+             autobuild
+             (worker/start-autobuild))
+           (worker/sync!))
+       ))
+   ::started))
 
-  build-id)
+(defn stop-worker [build-id]
+  (when-let [{:keys [supervisor] :as sys} @system-ref]
+    (super/stop-worker supervisor build-id))
+  ::stopped)
 
+(defn stop-autobuild [build-id]
+  (let [{:keys [supervisor] :as sys} @system-ref]
+    (if-not sys
+      ::not-running
+      (let [worker (super/get-worker supervisor build-id)]
+        (if-not worker
+          ::no-worker
+          (do (worker/stop-autobuild worker)
+              ::stopped))))))
+
+;; FIXME: re-use running app instead of it starting a new one
+(defn node-repl
+  ([]
+    (api/node-repl))
+  ([opts]
+    (api/node-repl opts)))

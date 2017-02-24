@@ -18,9 +18,10 @@
 
    ]
 
-  :repl-options
-  {:nrepl-middleware
-   [shadow.devtools.nrepl/inject-devtools]}
+  ;; probably no nrepl
+  #_:repl-options
+  #_{:nrepl-middleware
+     [shadow.devtools.nrepl/inject-devtools]}
 
   :source-paths
   ["src/main"]

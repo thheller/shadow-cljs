@@ -95,18 +95,7 @@
         output-mult
         (async/mult output)
 
-        ;; for commands received to be compiled and eval'd by the repl
-        repl-in
-        (async/chan)
-
-        ;; results received by eval-clients
-        repl-result
-        (async/chan)
-
         fs-updates
-        (async/chan)
-
-        config-updates
         (async/chan)
 
         http-config-ref
@@ -116,13 +105,10 @@
         {:proc-stop proc-stop
          :proc-control proc-control
          :output output
-         :repl-in repl-in
-         :repl-result repl-result
-         :config-updates config-updates
          :fs-updates fs-updates}
 
         thread-state
-        {::proc-state true
+        {::impl/worker-state true
          :http-config-ref http-config-ref
          :proc-id proc-id
          :eval-clients {}
@@ -140,9 +126,6 @@
           thread-state
           {proc-stop nil
            proc-control impl/do-proc-control
-           repl-in impl/do-repl-in
-           repl-result impl/do-repl-result
-           config-updates impl/do-config-updates
            fs-updates impl/do-fs-updates}
           {:do-shutdown
            (fn [state]
@@ -157,8 +140,6 @@
          :fs-updates fs-updates
          :output output
          :output-mult output-mult
-         :repl-in repl-in
-         :repl-result repl-result
          :thread-ref thread-ref
          :state-ref state-ref}]
 
@@ -168,9 +149,7 @@
     (go (<! thread-ref)
         (async/close! output)
         (async/close! proc-stop)
-        (async/close! fs-updates)
-        (async/close! repl-in)
-        (async/close! repl-result))
+        (async/close! fs-updates))
 
     (let [http-config
           {:port 0

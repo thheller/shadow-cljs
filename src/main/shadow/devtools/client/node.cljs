@@ -48,7 +48,7 @@
 
     (js/console.log "REPL init completed! Have fun ...")
     ;; FIXME: nice fake prompt :P
-    (js/console.log "cljs.user=>")
+    (js/process.stdout.write "cljs.user=> ")
     ))
 
 (defn print-warnings [warnings]

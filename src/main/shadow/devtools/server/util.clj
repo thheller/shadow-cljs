@@ -17,11 +17,12 @@
     shadow-log/BuildLog
     (log* [_ state msg])))
 
-(defn print-worker-out [x]
+(defn print-worker-out [x verbose]
   (locking cljs/stdout-lock
     (case (:type x)
       :build-log
-      (println (shadow-log/event-text (:event x)))
+      (when verbose
+        (println (shadow-log/event-text (:event x))))
 
       :build-start
       (println (format "[%s] Build started." (-> x :build-config :id)))
@@ -59,7 +60,7 @@
       ;; default
       (prn [:log x]))))
 
-(defn stdout-dump []
+(defn stdout-dump [verbose]
   (let [chan
         (-> (async/sliding-buffer 1)
             (async/chan))]
@@ -67,7 +68,7 @@
     (async/go
       (loop []
         (when-some [x (<! chan)]
-          (print-worker-out x)
+          (print-worker-out x verbose)
           (recur)
           )))
 

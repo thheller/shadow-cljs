@@ -53,7 +53,7 @@
   [state]
   (update state ::build-info merge (extract-build-info state)))
 
-(defn- process-stage
+(defn process-stage
   [{::keys [config mode target] :as state} stage optional?]
   (let [before
         (assoc state ::stage stage)

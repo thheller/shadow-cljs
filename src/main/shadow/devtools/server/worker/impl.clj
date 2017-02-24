@@ -11,6 +11,9 @@
 (defn proc? [x]
   (and (map? x) (::proc x)))
 
+(defn worker-state? [x]
+  (and (map? x) (::worker-state x)))
+
 (defn- prepend [tail head]
   (into [head] tail))
 
@@ -53,15 +56,8 @@
      }))
 
 (defn inject-devtools
-  "config is a map with these options:
-   :host the interface to create the websocket server on (defaults to \"localhost\")
-   :port the port to listen to (defaults to random port)
-   :before-load fully qualified function name to execute BEFORE reloading new files
-   :after-load fully qualified function name to execute AFTER reloading ALL files
-
-   live-reload will only load namespaces that were already required"
-  [{:keys [proc-id build-config] :as proc-state}]
-  (let [{:keys [console-support] :as dt-config}
+  [{:keys [build-config] :as proc-state}]
+  (let [{:keys [console-support]}
         (:devtools build-config)]
 
     (update proc-state :compiler-state
@@ -76,14 +72,13 @@
             )))))
 
 (defn inject-node-repl
-  [{:keys [proc-id build-config] :as proc-state}]
-  (update proc-state :compiler-state
+  [worker-state]
+  (update worker-state :compiler-state
     (fn [compiler-state]
       (-> compiler-state
-          (update :closure-defines merge (repl-defines proc-state))
+          (update :closure-defines merge (repl-defines worker-state))
           (update-in [:modules (:default-module compiler-state) :entries] prepend 'shadow.devtools.client.node)
           ))))
-
 
 (defn >!!output [worker-state msg]
   {:pre [(map? msg)
@@ -139,14 +134,16 @@
 
             (or (= :node-library target)
                 (= :node-script target))
-            (inject-node-repl)
-            )))
+            (inject-node-repl))
+
+          (update :compiler-state comp/process-stage :config-complete true)
+          ))
 
     (catch Exception e
       (build-failure worker-state e))))
 
 (defn build-compile
-  [{:keys [channels compiler-state build-config] :as worker-state}]
+  [{:keys [compiler-state build-config] :as worker-state}]
   (>!!output worker-state {:type :build-start
                            :build-config build-config})
 
@@ -169,8 +166,8 @@
       (build-failure worker-state e))))
 
 (defmulti do-proc-control
-  (fn [worker-state msg]
-    (:type msg)))
+  (fn [worker-state {:keys [type] :as msg}]
+    type))
 
 (defmethod do-proc-control :sync!
   [worker-state {:keys [chan] :as msg}]
@@ -245,29 +242,9 @@
   [worker-state msg]
   (assoc worker-state :autobuild false))
 
-(defn do-repl-result
-  [{:keys [pending-results] :as worker-state}
-   {:keys [type] :as msg}]
-  (case type
-    :repl/result
-    (let [{:keys [id value]} msg
-
-          {:keys [reply-to] :as waiting}
-          (get pending-results id)]
-
-      (if (nil? waiting)
-        (do (build-msg worker-state (format "no one waiting for result: %s" (pr-str msg)))
-            worker-state)
-        ;; FIXME: should the reply include the msg that triggered it?
-        (do (when (not (nil? value))
-              (>!! reply-to value))
-            (update worker-state :pending-results dissoc id)
-            )))
-    worker-state))
-
-(defn do-repl-in
-  [{:keys [compiler-state eval-clients pending-results] :as worker-state} msg]
-
+(defmethod do-proc-control :repl-input
+  [{:keys [compiler-state eval-clients pending-results] :as worker-state}
+   {:keys [reply-to code]}]
   (let [client-count (count eval-clients)]
 
     (cond
@@ -287,9 +264,6 @@
       (try
         (let [{:keys [eval-out] :as eval-client}
               (first (vals eval-clients))
-
-              {:keys [reply-to code]}
-              msg
 
               start-idx
               (count (get-in compiler-state [:repl-state :repl-actions]))
@@ -314,7 +288,7 @@
                   :let [idx (+ idx start-idx)
                         action (assoc action :id idx)]]
             (>!!output worker-state {:type :repl-action
-                              :action action})
+                                     :action action})
             (>!! eval-out action))
 
           (assoc worker-state
@@ -325,6 +299,34 @@
           (repl-error worker-state e)
           worker-state)))))
 
+(defmethod do-proc-control :repl-result
+  [{:keys [pending-results] :as worker-state}
+   {:keys [result] :as msg}]
+  (let [{:keys [type]} result]
+
+    ;; forward everything to out as well
+    (>!!output worker-state msg)
+
+    (case type
+      :repl/result
+      (let [{:keys [id value]} msg
+
+            {:keys [reply-to] :as waiting}
+            (get pending-results id)]
+
+        (if (nil? waiting)
+          ;; no one is waiting, already forwarded to out, do nothing
+          worker-state
+
+          ;; FIXME: should the reply include the msg that triggered it?
+          (do (when (not (nil? value))
+                (>!! reply-to value))
+              (update worker-state :pending-results dissoc id))
+          ))
+
+      ;; FIXME: should we do something on errors?
+      worker-state)))
+
 (defn do-fs-updates
   [{:keys [autobuild] :as worker-state} modified]
   (if-not autobuild
@@ -333,11 +335,8 @@
         (update :compiler-state cljs/reload-modified-files! modified)
         (build-compile))))
 
-(defn do-config-updates [worker-state config]
-  worker-state)
-
 (defn repl-eval-connect
-  [{:keys [proc-stop proc-control repl-result] :as proc} client-id client-out]
+  [{:keys [proc-stop proc-control] :as proc} client-id client-out]
   {:pre [(proc? proc)]}
   ;; result-chan
   ;; creating a new chan here instead of just handing out repl-result
@@ -364,7 +363,8 @@
             result-chan
             ([msg]
               (when-not (nil? msg)
-                (>! repl-result msg)
+                (>! proc-control {:type :repl-result
+                                  :result msg})
                 (recur)))
 
             eval-out
@@ -389,7 +389,7 @@
    will remove the client when client-in closes
    returns a channel that will receive results from client-in
    the returned channel is closed if the worker is stopped"
-  [{:keys [proc-stop proc-control repl-in] :as proc} client-id client-in]
+  [{:keys [proc-stop proc-control] :as proc} client-id client-in]
 
   (let [client-result
         (async/chan
@@ -407,8 +407,9 @@
             client-in
             ([v]
               (when-not (nil? v)
-                (>! repl-in {:code v
-                             :reply-to client-result})
+                (>! proc-control {:type :repl-input
+                                  :code v
+                                  :reply-to client-result})
                 (recur)
                 ))))
 
