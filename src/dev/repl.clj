@@ -1,32 +1,30 @@
 (ns repl
-  (:require [shadow.devtools.server.livetest :as livetest]
+  (:require [shadow.devtools.server.standalone :as sys]
             [clojure.pprint :refer (pprint)]
             [clojure.spec.test :as st]
-            [clojure.tools.namespace.repl :as ns-tools]))
-
-(defonce instance-ref
-  (volatile! nil))
-
-(defn app []
-  (:app @instance-ref))
+            [shadow.devtools.server.services.build :as build]
+            [shadow.devtools.server.config :as config]
+            [shadow.devtools.server.embedded :as devtools]
+            ))
 
 (defn start []
   (st/instrument)
-
-  (let [livetest (livetest/start)]
-    (vreset! instance-ref livetest))
-  :started)
+  (devtools/start!)
+  (devtools/start-autobuild :script)
+  ::started)
 
 (defn stop []
   (st/unstrument)
+  (devtools/stop!)
+  ::stopped)
 
-  (when-let [inst @instance-ref]
-    (livetest/stop inst)
-    (vreset! instance-ref nil))
-  :stopped)
+;; (ns-tools/set-refresh-dirs "src/main")
 
 (defn go []
   (stop)
-  ;; THIS LOADS EVERY FUCKING CLJ FILE ON THE CLASSPATH, NOT COOL!
-  ;;  (ns-tools/refresh :after 'repl/start)
+  ;; this somehow breaks reloading
+  ;; the usual :reloading message tells me that is namespace is being reloaded
+  ;; but when the new instance is launched it is still using the old one
+  ;; i cannot figure out why
+  ;; (ns-tools/refresh :after 'repl/start)
   (start))

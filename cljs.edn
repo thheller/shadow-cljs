@@ -1,0 +1,15 @@
+[{:id :script
+  :target :node-script
+  :main demo.script/main
+  :output-to "out/demo-script/script.js"
+
+  :devtools
+  {:before-load demo.script/stop
+   :after-load demo.script/start}}
+
+ {:id :library
+  :target :node-library
+  :output-to "out/demo-library/lib.js"
+  :exports
+  {:hello demo.lib/hello}}
+ ]
