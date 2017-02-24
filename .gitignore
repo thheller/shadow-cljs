@@ -4,6 +4,8 @@ classes/
 checkouts/
 out/
 js/
+css/
+/public/assets
 pom.xml
 pom.xml.asc
 *.iml
