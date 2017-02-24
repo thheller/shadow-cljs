@@ -28,6 +28,15 @@
    (when (aget js/window "console" "debug")
      (.debug js/console a1 a2 a3))))
 
+(def loaded? js/goog.isProvided_)
+
+(defn goog-is-loaded? [name]
+  (gobj/get js/goog.dependencies_.written name))
+
+(defn src-is-loaded? [{:keys [js-name] :as src}]
+  (goog-is-loaded? js-name))
+
+
 (defn load-scripts
   [filenames after-load-fn]
   (swap! scripts-to-load into filenames)
@@ -90,7 +99,7 @@
                  (module-is-active? module)))
              (filter
                (fn [{:keys [js-name name]}]
-                 (or (not (env/goog-is-loaded? js-name))
+                 (or (not (goog-is-loaded? js-name))
                      (contains? compiled name))))
              (map :js-name)
              (into []))]
@@ -170,14 +179,14 @@
       (= :reload reload)
       (let [all (butlast js-sources)
             self (last js-sources)]
-        (-> (into [] (remove env/goog-is-loaded? all))
+        (-> (into [] (remove goog-is-loaded? all))
             (conj self)))
 
       (= :reload-all reload)
       js-sources
 
       :else
-      (remove env/goog-is-loaded? js-sources))
+      (remove goog-is-loaded? js-sources))
     (fn []
       (js/console.log "repl-require finished"))))
 
@@ -185,7 +194,7 @@
   (load-scripts
     ;; don't load if already loaded
     (->> (:repl-js-sources repl-state)
-         (remove env/goog-is-loaded?))
+         (remove goog-is-loaded?))
     (fn [] (js/console.log "repl init complete"))))
 
 (defn repl-set-ns [{:keys [ns]}]

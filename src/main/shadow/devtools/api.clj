@@ -37,29 +37,25 @@
         repl-result
         (worker/repl-client-connect worker ::stdin repl-in)
 
-        state-chan
-        (-> (async/sliding-buffer 1)
-            (async/chan))
+        get-repl-state
+        #(-> worker :state-ref deref :compiler-state :repl-state)
 
         ;; FIXME: how to display results properly?
         ;; should probably pipe to the output channel of worker-proc?
         _ (go (loop []
                 (when-some [result (<! repl-result)]
-                  (if-let [cb (r/get-feature ::r/repl-result)]
-                    (cb result)
-                    (println result))
+                  (println result)
+                  (println (format "%s=> " (-> (get-repl-state) :current :ns)))
                   (recur))))
 
         loop-result
         (loop []
+          ;; unlock stdin when we can't get repl-state, just in case
+          (when-let [repl-state (get-repl-state)]
 
-          ;; unlock stdin when we can't get repl-state
-          (when-let [repl-state
-                     (-> worker :state-ref deref :compiler-state :repl-state)]
-
+            ;; need the repl state to properly support reading ::alias/foo
             (let [{:keys [eof? form] :as read-result}
                   (repl/read-one repl-state *in*)]
-
 
               (cond
                 eof?
@@ -122,7 +118,7 @@
    (fn []
      (-> worker :state-ref deref :compiler-state :repl-state :current))
 
-   ::r-cljs/completions
+   ::r/completions
    (fn [prefix]
      ['foo])})
 
@@ -171,9 +167,7 @@
              _
              (go (loop []
                    (when-some [msg (<! out-chan)]
-                     (if-let [fn (r/get-feature ::r-cljs/compiler-info)]
-                       (fn msg)
-                       (util/print-worker-out msg))
+                     (util/print-worker-out msg)
                      (recur)
                      )))
 

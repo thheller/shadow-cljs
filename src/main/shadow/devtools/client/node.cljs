@@ -46,7 +46,10 @@
             :when (not (is-loaded? js))]
       (closure-import js))
 
-    (js/console.log "REPL init completed! Have fun ...")))
+    (js/console.log "REPL init completed! Have fun ...")
+    ;; FIXME: nice fake prompt :P
+    (js/console.log "cljs.user=>")
+    ))
 
 (defn print-warnings [warnings]
   (doseq [{:keys [msg line column source-name] :as w} warnings]

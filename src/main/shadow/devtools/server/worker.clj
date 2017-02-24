@@ -21,6 +21,11 @@
   [proc]
   (impl/compile proc))
 
+(defn compile!
+  "triggers an async compilation and waits for the compilation result (blocking)"
+  [proc]
+  (impl/compile! proc))
+
 (defn watch
   "watch all output produced by the worker"
   ([proc chan]

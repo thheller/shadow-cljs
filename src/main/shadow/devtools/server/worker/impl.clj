@@ -129,7 +129,7 @@
           (-> (cljs/init-state)
               (assoc :logger (util/async-logger (-> worker-state :channels :output)))
               (comp/init :dev build-config)
-              (repl/prepare))]
+              (repl/setup))]
 
       (-> worker-state
           (assoc :compiler-state compiler-state)

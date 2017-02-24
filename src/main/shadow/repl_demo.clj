@@ -1,14 +1,10 @@
 (ns shadow.repl-demo
   (:require [shadow.repl :as repl]
-            [shadow.repl.cljs :as repl-cljs]
+            [clojure.pprint :refer (pprint)]
             [clojure.main :as m]
             [clojure.string :as str]
-            [clojure.core.server :as srv]
-            )
+            [clojure.core.server :as srv])
   (:import java.net.ServerSocket))
-
-(defn append-to-file [x]
-  (spit "target/compiler-info.log" (str (pr-str x) "\n") :append true))
 
 (defn simple-server
   "just the most simple demo I could think of to actually query something remotely"
@@ -21,106 +17,129 @@
 
                 report
                 (->> (for [[root-id root-info] (repl/roots)
-
-                           :let [{::repl/keys [levels]} root-info]
-
-                           {::repl/keys [level-id get-current-ns]}
-                           levels]
-                       (pr-str [root-id level-id (when get-current-ns (get-current-ns))]))
+                           {::repl/keys [level-id lang get-current-ns]}
+                           (::repl/levels root-info)]
+                       (pr-str [root-id level-id lang (when get-current-ns (get-current-ns))]))
                      (str/join "\n"))]
+
             (spit out (str report "\n")))
           (.close client))
         (recur)))
     ss
     ))
 
-(defn provide! []
-  (let [repl-features
-        {::repl-cljs/compiler-info
-         append-to-file
-
-         ::repl/level-enter
-         (fn [level]
-           (prn ::level-enter))
-
-         ::repl/level-exit
-         (fn [level]
-           (prn ::level-exit))}]
-
-    (repl/provide! repl-features)
-    ))
+(defn repl-prompt []
+  (printf "[%d:%d] %s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))
 
 (defn repl []
-  (repl/takeover
-    ;; FIXME: doesn't work, not sure why
-    {::repl/get-current-ns
-     (fn [] (str *ns*))}
+  (let [latest-ns (volatile! 'user)]
+    (repl/takeover
+      {::repl/lang :clj
+       ;; FIXME: that is just a string, should contain more info
+       ::repl/get-current-ns
+       (fn []
+         (str @latest-ns))}
 
-    (m/repl
-      :init srv/repl-init
-      ;; need :repl/quit support
-      :read srv/repl-read)))
+      (m/repl
+        :init
+        srv/repl-init
+
+        ;; need :repl/quit support, so not just the default read
+        :read
+        srv/repl-read
+
+        :prompt
+        repl-prompt
+
+        :eval
+        (fn [form]
+          ;; (prn [:eval form]) ;; damn you Colin for not sending what I want on Send to REPL
+          (let [result (eval form)]
+            (vreset! latest-ns *ns*)
+            result))
+        ))))
 
 (defn remote-accept []
-  (repl/enter-root {}
+  (repl/enter-root
+    {::repl/type :remote}
     (repl)))
 
-(defn socket-repl []
+(defn start-server []
   (srv/start-server
     {:name "foo"
      :port 5001
      :accept `remote-accept}))
 
 (defn main []
-  (provide!)
-  (with-open [simple-srv
-              (simple-server)
-
-              repl-srv
-              (socket-repl)]
-
-    ;; this probably wouldn't use a repl, just to make interacting with it easier
-    (println "Server running, :repl/quit to stop it")
-    (repl)
-    (println "Server stop ...")
-    :repl/quit))
+  (println "Server running, :repl/quit to stop it")
+  (repl/enter-root
+    {::repl/type ::main}
+    (repl))
+  (println "Server stop ...")
+  :repl/quit)
 
 (comment
 
-  (require '[shadow.devtools.api :as api])
 
-  ;; first start a blank node repl
-  ;; very verbose and noisyM
-  ;; no way to differentiate compiler output from repl output
-  (shadow.devtools.api/node-repl)
-
-  (shadow.repl/clear!)
-  (shadow.repl-demo/provide!)
-
-  ;; resume normal repl
   ;; Cursive "Send to REPL" is evil and doesn't send exactly what we want
-  ;; so need to type these out
+  ;; so need to type this one out
   :repl/quit
+
+  (shadow.repl-demo/main)
+
+  (shadow.repl-demo/repl)
+
+  (shadow.repl/self)
+
+  (keys (shadow.repl/self))
+
+  (shadow.repl/root)
+
+  (set! *print-namespace-maps* false)
+
+  (pprint (shadow.repl/root))
+
+  ((-> (shadow.repl/root) ::repl/levels first ::repl/get-current-ns))
+  ((-> (shadow.repl/self) ::repl/get-current-ns))
 
   ;; now start a server to allow remote access to some data
   (def x (simple-server))
   (.close x)
 
-  (shadow.repl-demo/main)
+  ;; run "nc localhost 5000" in terminal to query state of the repl
 
-  ;; and lets try that again
-  ;; much less verbose, output goes to different places
+  ;; or a remote repl one
+  (def y (start-server))
+  (.close y)
+
+  ;; run "rlwrap telnet localhost 5001" to connect to the remote repl
+
+  ;; try with cljs-repl
+
+  (require '[shadow.devtools.api :as api])
   (shadow.devtools.api/node-repl)
 
-  ;; run "nc localhost 5000" in terminal to query state of the repl
   (require 'demo.script)
-
   (in-ns 'demo.script)
+  (require 'clojure.string)
 
-  ;; query state again
 
-  (require 'goog.net.XhrIo)
+  ;; this would be done an editor/IDE that wants to be notified should the level of a REPL change
+  ;; ie. when CLJS loop is started Cursive can switch to CLJS mode
+  ;; although it can always query it using the methods above
 
-  ;; query state again
+  (shadow.repl/add-watch ::foo
+    (reify
+      shadow.repl.protocols/ILevelCallback
+      (will-enter-level [_ level]
+        (prn [:level level])
+        level)
+
+      (did-exit-level [_ level]
+        (prn [:level-exit level])
+        level)))
+
+  (shadow.repl/remove-watch ::foo)
+
 
   )

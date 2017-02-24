@@ -1,6 +1,7 @@
 (ns shadow.devtools.server.util
   (:require [shadow.cljs.log :as shadow-log]
             [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
+            [clojure.pprint :refer (pprint)]
             [shadow.cljs.build :as cljs]))
 
 (defn async-logger [ch]
@@ -46,6 +47,11 @@
 
       :repl-action
       :ignored
+
+      :repl-error
+      (binding [*err* *out*]
+        (println "REPL-Error" (:message x))
+        (-> x (dissoc :type :message) (pprint)))
 
       :worker-shutdown
       (println "Worker shutdown.")

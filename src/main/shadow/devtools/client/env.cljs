@@ -1,5 +1,7 @@
 (ns shadow.devtools.client.env
-  (:require [goog.object :as gobj]))
+  (:require [goog.object :as gobj]
+            ;; not actually used but here to ensure that it is loaded properly before this
+            [cljs.user]))
 
 (def x 1)
 
@@ -24,14 +26,6 @@
 (defn ws-url [client-type]
   {:pre [(keyword? client-type)]}
   (str "ws://" repl-host ":" repl-port "/ws/client/" proc-id "/" client-id "/" (name client-type)))
-
-(def loaded? js/goog.isProvided_)
-
-(defn goog-is-loaded? [name]
-  (gobj/get js/goog.dependencies_.written name))
-
-(defn src-is-loaded? [{:keys [js-name] :as src}]
-  (goog-is-loaded? js-name))
 
 (defn repl-call [repl-expr repl-print repl-error]
   (let [result {:type :repl/result}]
