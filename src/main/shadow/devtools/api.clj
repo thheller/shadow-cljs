@@ -30,52 +30,57 @@
         (rt/init cli-app)
         (rt/start-all))))
 
+(defn print-result [result]
+  (locking cljs/stdout-lock
+    (case (:type result)
+      :repl/result
+      (println (:value result))
+
+      :repl/set-ns-complete
+      nil
+
+      :repl/require-complete
+      nil
+
+      :repl/interrupt
+      nil
+
+      :repl/timeout
+      (println "Timeout while waiting for REPL result.")
+
+      (prn [:result result]))
+    (flush)))
+
 (defn stdin-takeover!
-  [worker sync-chan]
-  ;; FIXME: ignoring sync-chan which is meant as a way to interrupt this loop
-  ;; ie. when the node process dies, but we cannot interrupt a read off *in* anyways
-  (let [get-repl-state
-        #(-> worker :state-ref deref :compiler-state :repl-state)]
+  [worker]
+  (loop []
+    ;; unlock stdin when we can't get repl-state, just in case
+    (when-let [repl-state (-> worker :state-ref deref :compiler-state :repl-state)]
 
-    (loop []
-      ;; unlock stdin when we can't get repl-state, just in case
-      (when-let [repl-state (get-repl-state)]
+      (print (format "%s=> " (-> repl-state :current :ns)))
+      (flush)
 
-        (print (format "%s=> " (-> (get-repl-state) :current :ns)))
-        (flush)
+      ;; need the repl state to properly support reading ::alias/foo
+      (let [{:keys [eof? form] :as read-result}
+            (repl/read-one repl-state *in*)]
 
-        ;; need the repl state to properly support reading ::alias/foo
-        (let [{:keys [eof? form] :as read-result}
-              (repl/read-one repl-state *in*)]
+        (cond
+          eof?
+          :eof
 
-          (cond
-            eof?
-            :eof
+          (nil? form)
+          (recur)
 
-            (nil? form)
-            (recur)
+          (= :repl/quit form)
+          :quit
 
-            (= :repl/quit form)
-            :quit
+          (= :cljs/quit form)
+          :quit
 
-            (= :cljs/quit form)
-            :quit
-
-            :else
-            (when-some [result (worker/repl-eval worker ::stdin read-result)]
-              (locking cljs/stdout-lock
-                (case (:type result)
-                  :repl/result
-                  (println (:value result))
-
-                  :repl/set-ns-complete
-                  nil
-
-                  :repl/require-complete
-                  nil
-
-                  (prn [:result result]))
-                (flush))
+          :else
+          (when-some [result (worker/repl-eval worker ::stdin read-result)]
+            (print-result result)
+            (when (not= :repl/interrupt (:type result))
               (recur))))))))
 
 (defn once [{:keys [build] :as args}]
@@ -92,9 +97,6 @@
   (let [build-config
         (config/get-build! build)
 
-        sync-chan
-        (async/chan 1)
-
         {:keys [worker out] :as app}
         (start)]
 
@@ -104,7 +106,7 @@
           (worker/configure build-config)
           (worker/start-autobuild)
           (worker/sync!)
-          (stdin-takeover! sync-chan))
+          (stdin-takeover!))
 
       (finally
         (rt/stop-all app)))
@@ -194,12 +196,9 @@
       ;; FIXME: validate that proc started
 
       (r/takeover (repl-level worker)
-        (let [sync-chan
-              (async/chan 1)
-
-              stdin-fn
+        (let [stdin-fn
               (bound-fn []
-                (stdin-takeover! worker sync-chan))
+                (stdin-takeover! worker))
 
               stdin-thread
               (doto (Thread. stdin-fn)
@@ -211,12 +210,9 @@
             (try
               (.waitFor node-proc)
 
-              (async/close! sync-chan)
-
-              ;; process crashed, may still be reading stdin
+              ;; process crashed, try to interrupt stdin block
+              ;; wont' work if it is reading off *in* but we can try
               (when (.isAlive stdin-thread)
-                (println "node.js process died, please type something to exit repl loop")
-                ;; this doesn't do anything when already in System.in.read ...
                 (.interrupt stdin-thread))
 
               (catch Exception e

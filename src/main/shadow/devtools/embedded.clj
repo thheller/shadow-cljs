@@ -58,8 +58,8 @@
 
 (defn start-worker
   ([build-id]
-   (start-worker build-id true))
-  ([build-id autobuild]
+   (start-worker build-id {:autobuild true}))
+  ([build-id {:keys [autobuild] :as opts}]
    (start!)
    (let [build-config
          (if (map? build-id)
@@ -82,6 +82,14 @@
            (worker/sync!))
        ))
    ::started))
+
+(defn repl [build-id]
+  (let [{:keys [supervisor] :as sys} (system)]
+    (let [worker (super/get-worker supervisor build-id)]
+      (if-not worker
+        ::worker-not-started
+        (api/stdin-takeover! worker)
+        ))))
 
 (defn stop-worker [build-id]
   (when-let [{:keys [supervisor] :as sys} @system-ref]

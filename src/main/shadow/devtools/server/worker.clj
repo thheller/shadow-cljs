@@ -71,13 +71,18 @@
                        :input input
                        :result-chan result-chan})
 
-    (alt!!
-      result-chan
-      ([x] x)
+    (try
+      (alt!!
+        result-chan
+        ([x] x)
 
-      (async/timeout 5000)
-      ([_]
-        {:type ::timeout}))))
+        ;; FIXME: things that actually take >10s will timeout and never show their result
+        (async/timeout 10000)
+        ([_]
+          {:type :repl/timeout}))
+
+      (catch InterruptedException e
+        {:type :repl/interrupt}))))
 
 ;; SERVICE API
 

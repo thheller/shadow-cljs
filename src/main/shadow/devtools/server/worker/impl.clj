@@ -252,14 +252,17 @@
     (cond
       (nil? compiler-state)
       (do (build-msg worker-state "build not configured yet, how did you connect to the repl?")
+          (>!! result-chan {:type :repl/illegal-state})
           worker-state)
 
       (> eval-count 1)
       (do (build-msg worker-state "too many eval clients")
+          (>!! result-chan {:type :repl/too-many-eval-clients :count eval-count})
           worker-state)
 
       (zero? eval-count)
       (do (build-msg worker-state "no eval client")
+          (>!! result-chan {:type :repl/no-eval-target})
           worker-state)
 
       :else

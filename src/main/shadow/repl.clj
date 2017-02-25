@@ -12,7 +12,7 @@
 (defn next-root-id []
   (vswap! root-id-ref inc))
 
-(def ^:dynamic *root-id* (next-root-id))
+(def ^:dynamic *root-id* 0)
 (def ^:dynamic *level-id* 0)
 
 (defonce roots-ref
@@ -57,9 +57,6 @@
 (defn remove-watch [watch-id]
   (vswap! callbacks-ref dissoc watch-id))
 
-(defn roots []
-  @roots-ref)
-
 (defmacro takeover [level & body]
   `(let [level# (level-enter ~level)]
      (try
@@ -80,12 +77,23 @@
          (vswap! roots-ref dissoc *root-id*)))))
 
 
-;; meta things you can use inside the repl
+(defn roots []
+  @roots-ref)
 
-(defn root []
-  (get @roots-ref *root-id*))
+(defn root
+  ([]
+    (root *root-id*))
+  ([root-id]
+   (get @roots-ref root-id)))
+
+(defn level
+  ([]
+    (level *root-id* *level-id*))
+  ([level-id]
+    (level *root-id* level-id))
+  ([root-id level-id]
+   (get-in @roots-ref [root-id ::levels level-id])
+    ))
 
 (defn self []
-  (get-in @roots-ref [*root-id* ::levels *level-id*]))
-
-
+  (level))

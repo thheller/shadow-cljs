@@ -26,8 +26,8 @@
   (js/console.error "eval error" e)
   result)
 
-(defn node-eval [code]
-  (let [result (js/SHADOW_ENV.NODE_EVAL code)]
+(defn node-eval [{:keys [js source-map-json] :as msg}]
+  (let [result (js/SHADOW_ENV.NODE_EVAL js source-map-json)]
     result))
 
 (defn is-loaded? [src]
@@ -50,12 +50,12 @@
 
 (defn print-warnings [warnings]
   (doseq [{:keys [msg line column source-name] :as w} warnings]
-    (js/console.warn (str "WARNING: " msg " (" source-name " at " line ":" column ")"))))
+    (js/console.warn (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
 
 (defn repl-invoke [{:keys [id js warnings] :as msg}]
   (print-warnings warnings)
   (let [result
-        (-> (env/repl-call #(node-eval js) pr-str repl-error)
+        (-> (env/repl-call #(node-eval msg) pr-str repl-error)
             (assoc :id id))]
 
     (ws-msg result)))

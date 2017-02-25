@@ -31,33 +31,42 @@
 (defn repl-prompt []
   (printf "[%d:%d] %s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))
 
-(defn repl []
-  (let [latest-ns (volatile! 'user)]
-    (repl/takeover
-      {::repl/lang :clj
-       ;; FIXME: that is just a string, should contain more info
-       ::repl/get-current-ns
-       (fn []
-         (str @latest-ns))}
+(defn repl
+  ([]
+    (repl {}))
+  ([{:keys [debug] :as opts}]
+   (let [latest-ns (volatile! 'user)]
+     (repl/takeover
+       {::repl/lang :clj
+        ::repl/get-current-ns
+        (fn []
+          ;; FIXME: dont return just the string, should contain more info
+          (str @latest-ns))}
 
-      (m/repl
-        :init
-        srv/repl-init
+       (m/repl
+         :init
+         srv/repl-init
 
-        ;; need :repl/quit support, so not just the default read
-        :read
-        srv/repl-read
+         ;; need :repl/quit support, so not just the default read
+         :read
+         (if debug
+           (fn [request-prompt request-exit]
+             (let [result (srv/repl-read request-prompt request-exit)]
+               (prn [:repl-read result])
+               result
+               ))
+           srv/repl-read)
 
-        :prompt
-        repl-prompt
+         :prompt
+         repl-prompt
 
-        :eval
-        (fn [form]
-          ;; (prn [:eval form]) ;; damn you Colin for not sending what I want on Send to REPL
-          (let [result (eval form)]
-            (vreset! latest-ns *ns*)
-            result))
-        ))))
+         :eval
+         (fn [form]
+           ;; (prn [:eval form]) ;; damn you Colin for not sending what I want on Send to REPL
+           (let [result (eval form)]
+             (vreset! latest-ns *ns*)
+             result))
+         )))))
 
 (defn remote-accept []
   (repl/enter-root
@@ -71,11 +80,11 @@
      :accept `remote-accept}))
 
 (defn main []
-  (println "Server running, :repl/quit to stop it")
+  (println "REPL ready, type :repl/quit to exit")
   (repl/enter-root
     {::repl/type ::main}
     (repl))
-  (println "Server stop ...")
+  (println "REPL stop. Goodbye ...")
   :repl/quit)
 
 (comment
@@ -89,9 +98,13 @@
 
   (shadow.repl-demo/repl)
 
-  (shadow.repl/self)
+  (shadow.repl-demo/repl {:debug true})
+
+  (pprint (shadow.repl/self))
 
   (keys (shadow.repl/self))
+
+  (pprint (shadow.repl/roots))
 
   (shadow.repl/root)
 
@@ -103,13 +116,13 @@
   ((-> (shadow.repl/self) ::repl/get-current-ns))
 
   ;; now start a server to allow remote access to some data
-  (def x (simple-server))
+  (def x (shadow.repl-demo/simple-server))
   (.close x)
 
   ;; run "nc localhost 5000" in terminal to query state of the repl
 
   ;; or a remote repl one
-  (def y (start-server))
+  (def y (shadow.repl-demo/start-server))
   (.close y)
 
   ;; run "rlwrap telnet localhost 5001" to connect to the remote repl

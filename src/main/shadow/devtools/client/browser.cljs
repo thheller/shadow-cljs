@@ -13,6 +13,11 @@
 
 (defonce socket-ref (atom nil))
 
+(defn socket-msg [msg]
+  (if-let [s @socket-ref]
+    (.send s (pr-str msg))
+    (js/console.warn "WEBSOCKET NOT CONNECTED" (pr-str msg))))
+
 (defonce scripts-to-load (atom []))
 
 (def debug)
@@ -133,10 +138,7 @@
 
 
 
-(defn socket-msg [msg]
-  (if-let [s @socket-ref]
-    (.send s (pr-str msg))
-    (js/console.warn "WEBSOCKET NOT CONNECTED" (pr-str msg))))
+
 
 
 ;; from https://github.com/clojure/clojurescript/blob/master/src/main/cljs/clojure/browser/repl.cljs
