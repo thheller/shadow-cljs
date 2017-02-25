@@ -10,23 +10,6 @@
             [clojure.edn :as edn])
   (:import (java.util UUID)))
 
-(defn do-in
-  [{:keys [result-chan] :as state}
-   {:keys [type] :as msg}]
-  {:pre [(map? msg)
-         (keyword? type)]}
-  (case type
-    :repl/result
-    (do (>!! result-chan msg)
-        state)
-
-    state))
-
-(defn do-eval-out
-  [{:keys [out] :as state} msg]
-  (>!! out msg)
-  state)
-
 (defn ws-loop!
   [{:keys [worker-proc watch-chan result-chan] :as client-state}]
 
@@ -43,7 +26,8 @@
       eval-out
       ([msg]
         (when-not (nil? msg)
-          (recur (do-eval-out client-state msg))))
+          (>!! out msg)
+          (recur client-state)))
 
       ;; forward some build watch messages to the client
       watch-chan
@@ -56,7 +40,8 @@
       in
       ([msg]
         (when-not (nil? msg)
-          (recur (do-in client-state msg)))
+          (>!! result-chan msg)
+          (recur client-state))
         )))
 
   (async/close! result-chan))

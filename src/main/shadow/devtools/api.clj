@@ -32,61 +32,51 @@
 
 (defn stdin-takeover!
   [worker sync-chan]
-  (let [repl-in
-        (async/chan 1)
+  ;; FIXME: ignoring sync-chan which is meant as a way to interrupt this loop
+  ;; ie. when the node process dies, but we cannot interrupt a read off *in* anyways
+  (let [get-repl-state
+        #(-> worker :state-ref deref :compiler-state :repl-state)]
 
-        repl-result
-        (worker/repl-client-connect worker ::stdin repl-in)
+    (loop []
+      ;; unlock stdin when we can't get repl-state, just in case
+      (when-let [repl-state (get-repl-state)]
 
-        get-repl-state
-        (fn []
-          ;; FIXME: sync does not work as it repl-in is different channel
-          ;; read-one -> put that on repl-in -> that will put it on proc-control
-          ;; but the loop below will already pass (get-repl-state)
-          (worker/sync! worker)
-          (-> worker :state-ref deref :compiler-state :repl-state))
+        (print (format "%s=> " (-> (get-repl-state) :current :ns)))
+        (flush)
 
-        ;; FIXME: how to display results properly?
-        ;; should probably pipe to the output channel of worker-proc?
-        _ (go (loop []
-                (when-some [result (<! repl-result)]
-                  (println result)
-                  (print (format "%s=> " (-> (get-repl-state) :current :ns)))
-                  (flush)
-                  (recur))))
+        ;; need the repl state to properly support reading ::alias/foo
+        (let [{:keys [eof? form] :as read-result}
+              (repl/read-one repl-state *in*)]
 
-        loop-result
-        (loop []
-          ;; unlock stdin when we can't get repl-state, just in case
-          (when-let [repl-state (get-repl-state)]
-            ;; (pprint (:current repl-state))
+          (cond
+            eof?
+            :eof
 
-            ;; need the repl state to properly support reading ::alias/foo
-            (let [{:keys [eof? form] :as read-result}
-                  (repl/read-one repl-state *in*)]
+            (nil? form)
+            (recur)
 
-              (cond
-                eof?
-                :eof
+            (= :repl/quit form)
+            :quit
 
-                (nil? form)
-                (recur)
+            (= :cljs/quit form)
+            :quit
 
-                (= :repl/quit form)
-                :quit
+            :else
+            (when-some [result (worker/repl-eval worker ::stdin read-result)]
+              (locking cljs/stdout-lock
+                (case (:type result)
+                  :repl/result
+                  (println (:value result))
 
-                (= :cljs/quit form)
-                :quit
+                  :repl/set-ns-complete
+                  nil
 
-                :else
-                (do (>!! repl-in read-result)
-                    (recur))
-                ))))]
+                  :repl/require-complete
+                  nil
 
-    (async/close! repl-in)
-
-    loop-result
-    ))
+                  (prn [:result result]))
+                (flush))
+              (recur))))))))
 
 (defn once [{:keys [build] :as args}]
   (let [build-config

@@ -60,15 +60,24 @@
   [proc client-id client-out]
   (impl/repl-eval-connect proc client-id client-out))
 
-(defn repl-client-connect
-  "connects to a running worker as a repl client who can send things to eval and receive their result
+(defn repl-eval
+  [{:keys [proc-control] :as worker} client-id input]
 
-   client-in should receive strings which represent cljs code
-   will remove the client when client-in closes
-   returns a channel that will receive results from client-in
-   the returned channel is closed if the worker is stopped"
-  [proc client-id client-in]
-  (impl/repl-client-connect proc client-id client-in))
+  (let [result-chan
+        (async/chan 1)]
+
+    (>!! proc-control {:type :repl-eval
+                       :client-id client-id
+                       :input input
+                       :result-chan result-chan})
+
+    (alt!!
+      result-chan
+      ([x] x)
+
+      (async/timeout 5000)
+      ([_]
+        {:type ::timeout}))))
 
 ;; SERVICE API
 

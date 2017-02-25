@@ -49,6 +49,10 @@
       :repl-action
       :ignored
 
+      ;; should have been handled somewhere else
+      :repl-result
+      :ignored
+
       :repl-error
       (binding [*err* *out*]
         (println "REPL-Error" (:message x))

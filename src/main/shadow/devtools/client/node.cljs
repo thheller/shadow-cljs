@@ -15,7 +15,6 @@
     (vreset! ws-ref nil)))
 
 (defn ws-msg [msg]
-
   (when-some [ws @ws-ref]
     (.send ws (pr-str msg)
       (fn [err]
@@ -38,7 +37,7 @@
   (js/SHADOW_ENV.SHADOW_IMPORT src))
 
 (defn repl-init
-  [{:keys [repl-state] :as msg}]
+  [{:keys [id repl-state] :as msg}]
   (let [{:keys [repl-js-sources]}
         repl-state]
 
@@ -46,9 +45,7 @@
             :when (not (is-loaded? js))]
       (closure-import js))
 
-    (js/console.log "REPL init completed! Have fun ...")
-    ;; FIXME: nice fake prompt :P
-    (js/process.stdout.write "cljs.user=> ")
+    (ws-msg {:type :repl/init-complete :id id})
     ))
 
 (defn print-warnings [warnings]
@@ -63,17 +60,24 @@
 
     (ws-msg result)))
 
-(defn repl-set-ns [{:keys [ns] :as msg}]
+(defn repl-set-ns [{:keys [id ns] :as msg}]
   ;; nothing for the client to do really
-  (js/console.log "REPL set ns:" (pr-str ns)))
+  (ws-msg {:type :repl/set-ns-complete :id id}))
 
 (defn repl-require
-  [{:keys [js-sources warnings reload] :as msg}]
+  [{:keys [id js-sources warnings reload] :as msg}]
   (print-warnings warnings)
-  (doseq [src js-sources
-          :when (or reload
-                    (not (is-loaded? src)))]
-    (closure-import src)))
+  (try
+    (doseq [src js-sources
+            :when (or reload
+                      (not (is-loaded? src)))]
+      (closure-import src))
+    (ws-msg {:type :repl/require-complete :id id})
+
+    (catch :default e
+      (js/console.error "repl/require failed" e)
+      (ws-msg {:type :repl/require-error :id id})
+      )))
 
 (defn build-complete
   [{:keys [info] :as msg}]
@@ -124,7 +128,6 @@
     :repl/require
     (repl-require msg)
 
-    ;; when autobuild completes
     :build-complete
     (build-complete msg)
 
@@ -141,7 +144,6 @@
 
     (.on client "open"
       (fn []
-        (js/console.log "REPL client connected!")
         (vreset! ws-ref client)))
 
     (.on client "unexpected-response"

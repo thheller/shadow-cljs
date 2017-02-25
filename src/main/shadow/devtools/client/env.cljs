@@ -1,7 +1,5 @@
 (ns shadow.devtools.client.env
-  (:require [goog.object :as gobj]
-            ;; not actually used but here to ensure that it is loaded properly before this
-            [cljs.user]))
+  (:require [goog.object :as gobj]))
 
 (def x 1)
 
