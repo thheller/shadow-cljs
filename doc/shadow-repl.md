@@ -126,13 +126,38 @@ You can get its output via `nc localhost 5000` or `telnet localhost 5000`.
 [1 1 :clj "shadow.repl-demo"]
 ```
 
-Now for fun lets start a remote server `(def y (shadow.repl-demo/start-server))` and `telnet localhost 5001` into it.
+We could probably use something more sophisticated here but the point of this demo is to be simple. Each Tool could implement its own protocol here, maybe some RPC-ish on top of HTTP.
 
 These functions can be used to inspect the current state of any `root`/`level`.
 ```
 (shadow.repl/roots)
-(shadow.repl/root)
-(shadow.repl/level)
+(shadow.repl/root root-id) ;; root-id optional, defaults to current root
+(shadow.repl/level root-id level-id) ;; both optional
 ```
 
-The `:shadow.repl/get-current-ns` feature is just an example of how this would work. The REPL in question can export anything it wants here. There should probably be a standard somewhere for which keyword has which meaning. Maybe even use `clojure.spec` to make it formal.
+Can try this remotely via `(def y (shadow.repl-demo/start-server))` and then `telnet localhost 5001` into it.
+
+The `:shadow.repl/get-current-ns` feature is just an example of how this would work. The REPL in question can export anything it wants here. There should probably be a standard somewhere for which keyword has which meaning. Maybe even use `clojure.spec` in some fashion.
+
+The REPL implementation of `shadow.devtools` already supports this API
+```
+(require '[shadow.devtools.api :as api])
+(shadow.devtools.api/node-repl)
+
+[:node-repl] Build started.
+[:node-repl] Build completed. (22 files, 1 compiled, 0 warnings)
+cljs.user=> 
+```
+
+Run `nc localhost 5000` to query it (or use the other REPL). Note that `:shadow.repl/get-current-ns` returns more data as I have not formally decided what it should return, just to show what it could return.
+
+```
+[1 0 :clj "user"]
+[1 1 :clj "shadow.repl-demo"]
+[1 2 :cljs {:ns cljs.user, :name "cljs/user.cljs", :ns-info {:rename-macros {}, :renames {}, :meta nil, :require-order [cljs.repl], :use-macros {}, :excludes #{}, :name cljs.user, :requires {cljs.repl cljs.repl}, :seen #{:require}, :uses {doc cljs.repl, find-doc cljs.repl, source cljs.repl, apropos cljs.repl, pst cljs.repl, dir cljs.repl}, :require-macros {}}}]
+```
+
+The `node-repl` does not support the whole nesting concept because I have not figured out how that should work but that is a topic for another time. `eval` happens in another runtime after all, probably safer to stop there.
+
+
+
