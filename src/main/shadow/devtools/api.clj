@@ -12,9 +12,8 @@
             [shadow.cljs.node :as node]
             [shadow.cljs.repl :as repl]
             [shadow.repl :as r]
-            [shadow.repl.cljs :as r-cljs])
-  (:import (java.lang ProcessBuilder$Redirect)
-           (java.io Writer InputStreamReader BufferedReader IOException)))
+            )
+  (:import (java.io PushbackReader StringReader)))
 
 (defn- start []
   (let [cli-app
@@ -51,18 +50,42 @@
       (prn [:result result]))
     (flush)))
 
+(defn worker-repl-state [worker]
+  (-> worker :state-ref deref :compiler-state :repl-state))
+
+(defn worker-read-string [worker s]
+  (let [rdr
+        (-> s
+            (StringReader.)
+            (PushbackReader.))
+
+        repl-state
+        (worker-repl-state worker)]
+
+    (repl/read-one repl-state rdr {})))
+
+(defn repl-level [worker]
+  {::r/lang :cljs
+   ::r/get-current-ns
+   #(:current (worker-repl-state worker))
+
+   ::r/read-string
+   #(worker-read-string worker %)
+   })
+
+
 (defn stdin-takeover!
   [worker]
   (loop []
     ;; unlock stdin when we can't get repl-state, just in case
-    (when-let [repl-state (-> worker :state-ref deref :compiler-state :repl-state)]
+    (when-let [repl-state (worker-repl-state worker)]
 
       (print (format "%s=> " (-> repl-state :current :ns)))
       (flush)
 
       ;; need the repl state to properly support reading ::alias/foo
       (let [{:keys [eof? form] :as read-result}
-            (repl/read-one repl-state *in*)]
+            (repl/read-one repl-state *in* {})]
 
         (cond
           eof?
@@ -82,62 +105,6 @@
             (print-result result)
             (when (not= :repl/interrupt (:type result))
               (recur))))))))
-
-(defn once [{:keys [build] :as args}]
-  (let [build-config
-        (config/get-build! build)]
-
-    (-> (comp/init :dev build-config)
-        (comp/compile)
-        (comp/flush)))
-
-  :done)
-
-(defn dev [{:keys [build] :as args}]
-  (let [build-config
-        (config/get-build! build)
-
-        {:keys [worker out] :as app}
-        (start)]
-
-    (try
-      (-> worker
-          (worker/watch out)
-          (worker/configure build-config)
-          (worker/start-autobuild)
-          (worker/sync!)
-          (stdin-takeover!))
-
-      (finally
-        (rt/stop-all app)))
-    ))
-
-(defn repl-level [worker]
-  {::r/lang :cljs
-   ::r/get-current-ns
-   (fn []
-     (-> worker :state-ref deref :compiler-state :repl-state :current))
-
-   ::r/completions
-   (fn [prefix]
-     ['foo])})
-
-;; https://github.com/clojure/clojurescript/blob/master/src/main/clojure/cljs/repl/node.clj
-;; I would just call that but it is private ...
-(defn- pipe [^Process proc in ^Writer out]
-  ;; we really do want system-default encoding here
-  (with-open [^java.io.Reader in (-> in InputStreamReader. BufferedReader.)]
-    (loop [buf (char-array 1024)]
-      (when (.isAlive proc)
-        (try
-          (let [len (.read in buf)]
-            (when-not (neg? len)
-              (.write out buf 0 len)
-              (.flush out)))
-          (catch IOException e
-            (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
-              (.printStackTrace e *err*))))
-        (recur buf)))))
 
 (defn node-repl*
   [{:keys [worker] :as app}
@@ -190,8 +157,8 @@
                   (io/file pwd)))
               (.start))]
 
-      (.start (Thread. (bound-fn [] (pipe node-proc (.getInputStream node-proc) *out*))))
-      (.start (Thread. (bound-fn [] (pipe node-proc (.getErrorStream node-proc) *err*))))
+      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
+      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
 
       ;; FIXME: validate that proc started
 
@@ -250,6 +217,35 @@
        (node-repl* app opts)
        (finally
          (rt/stop-all app))))))
+
+(defn once [{:keys [build] :as args}]
+  (let [build-config
+        (config/get-build! build)]
+
+    (-> (comp/init :dev build-config)
+        (comp/compile)
+        (comp/flush)))
+
+  :done)
+
+(defn dev [{:keys [build] :as args}]
+  (let [build-config
+        (config/get-build! build)
+
+        {:keys [worker out] :as app}
+        (start)]
+
+    (try
+      (-> worker
+          (worker/watch out)
+          (worker/configure build-config)
+          (worker/start-autobuild)
+          (worker/sync!)
+          (stdin-takeover!))
+
+      (finally
+        (rt/stop-all app)))
+    ))
 
 (defn release [{:keys [build] :as args}]
   (let [build-config

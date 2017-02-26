@@ -4,7 +4,8 @@
             [clojure.main :as m]
             [clojure.string :as str]
             [clojure.core.server :as srv])
-  (:import java.net.ServerSocket))
+  (:import java.net.ServerSocket
+           (java.io StringReader PushbackReader)))
 
 (defn simple-server
   "just the most simple demo I could think of to actually query something remotely"
@@ -33,15 +34,39 @@
 
 (defn repl
   ([]
-    (repl {}))
+   (repl {}))
   ([{:keys [debug] :as opts}]
-   (let [latest-ns (volatile! 'user)]
+   (let [latest-ns (volatile! 'user)
+
+         {::repl/keys [print] :as root}
+         (repl/root)]
      (repl/takeover
        {::repl/lang :clj
         ::repl/get-current-ns
         (fn []
           ;; FIXME: dont return just the string, should contain more info
-          (str @latest-ns))}
+          (str @latest-ns))
+
+        ::repl/read-string
+        (fn [s]
+          (binding [*ns* @latest-ns]
+            (try
+              (let [eof
+                    (Object.)
+
+                    result
+                    (read
+                      {:read-cond true
+                       :features #{:clj}
+                       :eof eof}
+                      (PushbackReader. (StringReader. s)))]
+                (if (identical? eof result)
+                  {:result eof}
+                  {:result :success :value result}))
+              (catch Exception e
+                {:result :exception
+                 :e e}
+                ))))}
 
        (m/repl
          :init
@@ -56,6 +81,12 @@
                result
                ))
            srv/repl-read)
+
+         :print
+         (fn [x]
+           (if print
+             (print x)
+             (prn x)))
 
          :prompt
          repl-prompt
@@ -115,6 +146,9 @@
   ((-> (shadow.repl/root) ::repl/levels first ::repl/get-current-ns))
   ((-> (shadow.repl/self) ::repl/get-current-ns))
 
+  (let [read-string (:shadow.repl/read-string (shadow.repl/level 7 1))]
+    (read-string "foo"))
+
   ;; now start a server to allow remote access to some data
   (def x (shadow.repl-demo/simple-server))
   (.close x)
@@ -153,6 +187,5 @@
         level)))
 
   (shadow.repl/remove-watch ::foo)
-
 
   )

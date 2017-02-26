@@ -97,3 +97,6 @@
 
 (defn self []
   (level))
+
+(defn id []
+  [*root-id* *level-id*])

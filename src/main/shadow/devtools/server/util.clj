@@ -2,7 +2,8 @@
   (:require [shadow.cljs.log :as shadow-log]
             [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
             [clojure.pprint :refer (pprint)]
-            [shadow.cljs.build :as cljs]))
+            [shadow.cljs.build :as cljs])
+  (:import (java.io Writer InputStreamReader BufferedReader IOException)))
 
 (defn async-logger [ch]
   (reify
@@ -113,3 +114,22 @@
           last-state
           (do-shutdown last-state)
           )))))
+
+;; https://github.com/clojure/clojurescript/blob/master/src/main/clojure/cljs/repl/node.clj
+;; I would just call that but it is private ...
+(defn pipe [^Process proc in ^Writer out]
+  ;; we really do want system-default encoding here
+  (with-open [^java.io.Reader in (-> in InputStreamReader. BufferedReader.)]
+    (loop [buf (char-array 1024)]
+      (when (.isAlive proc)
+        (try
+          (let [len (.read in buf)]
+            (when-not (neg? len)
+              (.write out buf 0 len)
+              (.flush out)))
+          (catch IOException e
+            (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
+              (.printStackTrace e *err*))))
+        (recur buf)))))
+
+
