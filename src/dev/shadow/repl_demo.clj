@@ -93,7 +93,6 @@
 
          :eval
          (fn [form]
-           ;; (prn [:eval form]) ;; damn you Colin for not sending what I want on Send to REPL
            (let [result (eval form)]
              (vreset! latest-ns *ns*)
              result))
@@ -143,8 +142,9 @@
 
   (pprint (shadow.repl/root))
 
-  ((-> (shadow.repl/root) ::repl/levels first ::repl/get-current-ns))
-  ((-> (shadow.repl/self) ::repl/get-current-ns))
+  (clojure.pprint/pprint *1)
+
+  ((-> (shadow.repl/level 2 1) ::repl/get-current-ns))
 
   (let [read-string (:shadow.repl/read-string (shadow.repl/level 7 1))]
     (read-string "foo"))
@@ -168,7 +168,9 @@
 
   (require 'demo.script)
   (in-ns 'demo.script)
-  (require 'clojure.string)
+  (require '[clojure.string :as str])
+
+  ((:shadow.repl/read-string (shadow.repl/level 2 1)) "::str/foo")
 
 
   ;; this would be done an editor/IDE that wants to be notified should the level of a REPL change

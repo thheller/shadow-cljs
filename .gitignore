@@ -13,6 +13,7 @@ pom.xml.asc
 *.class
 /.cljs-cache
 /.cljs-repl
+/.cljs_node_repl
 /.idea
 /.lein-*
 /.nrepl-port
