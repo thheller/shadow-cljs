@@ -6,6 +6,7 @@
 
     ;; these are unused but must be imported for the comp/process defmulti
             [shadow.devtools.server.compiler]
+            [shadow.devtools.server.compiler.custom]
             [shadow.devtools.server.compiler.browser]
             [shadow.devtools.server.compiler.node-library]
             [shadow.devtools.server.compiler.node-script])

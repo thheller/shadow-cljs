@@ -68,7 +68,7 @@
                 :config config}))
       after)))
 
-(defn process-target
+(defn process-delegate
   "process the same stage of another target
    (for custom targets that just want to enhance one thing)"
   [{::keys [target] :as state} other-target]
@@ -80,7 +80,7 @@
 (defn init
   ([mode config]
    (init (cljs/init-state) mode config))
-  ([init-state mode {:keys [id target] :as config}]
+  ([init-state mode {:keys [id target build-options] :as config}]
    {:pre [(cljs/compiler-state? init-state)
           (map? config)
           (keyword? mode)
@@ -98,6 +98,9 @@
                 ::target target
                 ::mode mode)
          (cond->
+           build-options
+           (cljs/set-build-options build-options)
+
            (= :dev mode)
            (-> (cljs/enable-source-maps)
                (cljs/set-build-options

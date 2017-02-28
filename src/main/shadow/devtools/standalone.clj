@@ -87,10 +87,12 @@
     ::started
     ))
 
+(defn stop! []
+  (shutdown-system @runtime)
+  ::stopped)
+
 (defn -main [& args]
   (start!)
   (netty/wait-for-close (:http @runtime)))
 
-(defn stop! []
-  (shutdown-system @runtime)
-  ::stopped)
+

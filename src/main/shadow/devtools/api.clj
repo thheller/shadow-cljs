@@ -247,11 +247,16 @@
         (rt/stop-all app)))
     ))
 
-(defn release [{:keys [build] :as args}]
+(defn release [{:keys [build debug] :as args}]
   (let [build-config
         (config/get-build! build)]
 
     (-> (comp/init :release build-config)
+        (cond->
+          debug
+          (-> #_ (cljs/enable-source-maps)
+              (assoc :pretty-print true)
+              #_ (assoc :pseudo-names true)))
         (comp/compile)
         (comp/flush)))
   :done)

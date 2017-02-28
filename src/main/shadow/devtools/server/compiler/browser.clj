@@ -1,7 +1,8 @@
 (ns shadow.devtools.server.compiler.browser
   (:refer-clojure :exclude (flush))
   (:require [shadow.devtools.server.compiler :as comp]
-            [shadow.cljs.build :as cljs]))
+            [shadow.cljs.build :as cljs])
+  (:import (java.time LocalDateTime)))
 
 (def default-browser-config
   {:public-dir "public/js"

@@ -36,20 +36,23 @@
   ([]
    (repl {}))
   ([{:keys [debug] :as opts}]
-   (let [latest-ns (volatile! 'user)
+   (let [loop-bindings
+         (volatile! {})
 
          {::repl/keys [print] :as root}
          (repl/root)]
+
      (repl/takeover
        {::repl/lang :clj
         ::repl/get-current-ns
         (fn []
           ;; FIXME: dont return just the string, should contain more info
-          (str @latest-ns))
+          (with-bindings @loop-bindings
+            (str *ns*)))
 
         ::repl/read-string
         (fn [s]
-          (binding [*ns* @latest-ns]
+          (with-bindings @loop-bindings
             (try
               (let [eof
                     (Object.)
@@ -94,7 +97,7 @@
          :eval
          (fn [form]
            (let [result (eval form)]
-             (vreset! latest-ns *ns*)
+             (vreset! loop-bindings (get-thread-bindings))
              result))
          )))))
 
@@ -144,7 +147,7 @@
 
   (clojure.pprint/pprint *1)
 
-  ((-> (shadow.repl/level 2 1) ::repl/get-current-ns))
+  ((:shadow.repl/get-current-ns (shadow.repl/level 2 0)))
 
   (let [read-string (:shadow.repl/read-string (shadow.repl/level 7 1))]
     (read-string "foo"))

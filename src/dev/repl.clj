@@ -10,8 +10,10 @@
 (defn start []
   (st/instrument)
   (devtools/start!)
-  (devtools/start-autobuild :script)
+  ;; (devtools/start-autobuild :script)
   ::started)
+
+
 
 (defn stop []
   (st/unstrument)

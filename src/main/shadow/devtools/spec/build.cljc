@@ -39,6 +39,21 @@
     [::public-dir]
     ))
 
+(s/def ::target-fn qualified-symbol?)
+
+(defmulti custom-spec :target-fn :default ::default)
+
+;; FIXME: should we be strict and force a spec for custom build configs?
+(defmethod custom-spec ::default [_]
+  (s/spec any?))
+
+(defmethod target-spec :custom [_]
+  (s/and
+    (s/keys
+      :req-un
+      [::target-fn])
+    (s/multi-spec custom-spec :target-fn)))
+
 (s/def ::build
   (s/and
     (s/keys
