@@ -9,7 +9,7 @@
     (-> state
         (cond->
           (= :release mode)
-          (cljs/set-build-options
+          (cljs/merge-compiler-options
             {:optimizations :simple}))
         (umd/create-module exports config))))
 

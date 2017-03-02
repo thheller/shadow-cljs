@@ -68,7 +68,7 @@
                 :config config}))
       after)))
 
-(defn process-delegate
+(defn delegate-process-stage
   "process the same stage of another target
    (for custom targets that just want to enhance one thing)"
   [{::keys [target] :as state} other-target]
@@ -77,10 +77,16 @@
       (process)
       (assoc ::target target)))
 
+(defn config-merge [config mode]
+  ;; FIXME: merge nested maps, vectors
+  (let [mode-opts
+        (get config mode)]
+    (merge config mode-opts)))
+
 (defn init
   ([mode config]
    (init (cljs/init-state) mode config))
-  ([init-state mode {:keys [id target build-options] :as config}]
+  ([init-state mode {:keys [id target compiler-options] :as config}]
    {:pre [(cljs/compiler-state? init-state)
           (map? config)
           (keyword? mode)
@@ -88,8 +94,7 @@
           (keyword? target)]
     :post [(cljs/compiler-state? %)]}
 
-   (let [{:keys [public-dir public-path]}
-         config]
+   (let [config (config-merge config mode)]
 
      (-> init-state
          (assoc :cache-dir (io/file "target" "shadow-cache" (name id) (name mode))
@@ -98,27 +103,23 @@
                 ::target target
                 ::mode mode)
          (cond->
-           build-options
-           (cljs/set-build-options build-options)
+           compiler-options
+           (cljs/merge-compiler-options compiler-options)
 
+           ;; generic dev mode, each target can overwrite in :init stage
            (= :dev mode)
            (-> (cljs/enable-source-maps)
-               (cljs/set-build-options
-                 {:optimizations :none
-                  :use-file-min false}))
+               (cljs/merge-build-options
+                 {:use-file-min false})
+               (cljs/merge-compiler-options
+                 {:optimizations :none}))
 
+           ;; generic release mode
            (= :release mode)
-           (cljs/set-build-options
+           (cljs/merge-compiler-options
              {:optimizations :advanced
+              :elide-asserts true
               :pretty-print false}))
-
-         (cond->
-           public-dir
-           (cljs/set-build-options
-             {:public-dir (io/file public-dir)})
-           public-path
-           (cljs/set-build-options
-             {:public-path public-path}))
 
          (process-stage :init false)
          (cljs/find-resources-in-classpath)))

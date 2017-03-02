@@ -131,11 +131,16 @@
       (-> worker-state
           (assoc :compiler-state compiler-state)
           (cond->
-            (= :browser target)
+            ;; defaults to browser repl unless otherwise specified
+            (or (= :browser target)
+                (let [rt (get-in build-config [:devtools :runtime])]
+                  (or (nil? rt)
+                      (= :browser rt))))
             (inject-devtools)
 
             (or (= :node-library target)
-                (= :node-script target))
+                (= :node-script target)
+                (= :node (get-in build-config [:devtools :runtime])))
             (inject-node-repl))
 
           (update :compiler-state comp/process-stage :config-complete true)
@@ -251,18 +256,15 @@
 
     (cond
       (nil? compiler-state)
-      (do (build-msg worker-state "build not configured yet, how did you connect to the repl?")
-          (>!! result-chan {:type :repl/illegal-state})
+      (do (>!! result-chan {:type :repl/illegal-state})
           worker-state)
 
       (> eval-count 1)
-      (do (build-msg worker-state "too many eval clients")
-          (>!! result-chan {:type :repl/too-many-eval-clients :count eval-count})
+      (do (>!! result-chan {:type :repl/too-many-eval-clients :count eval-count})
           worker-state)
 
       (zero? eval-count)
-      (do (build-msg worker-state "no eval client")
-          (>!! result-chan {:type :repl/no-eval-target})
+      (do (>!! result-chan {:type :repl/no-eval-target})
           worker-state)
 
       :else

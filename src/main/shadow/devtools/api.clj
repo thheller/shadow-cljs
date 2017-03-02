@@ -264,7 +264,7 @@
 (defn- test-setup []
   (-> (cljs/init-state)
       (cljs/enable-source-maps)
-      (cljs/set-build-options
+      (cljs/merge-build-options
         {:public-dir (io/file "target" "shadow-test")
          :public-path "target/shadow-test"})
       (cljs/find-resources-in-classpath)

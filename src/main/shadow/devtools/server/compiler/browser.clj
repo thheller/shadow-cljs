@@ -1,8 +1,8 @@
 (ns shadow.devtools.server.compiler.browser
   (:refer-clojure :exclude (flush))
   (:require [shadow.devtools.server.compiler :as comp]
-            [shadow.cljs.build :as cljs])
-  (:import (java.time LocalDateTime)))
+            [shadow.cljs.build :as cljs]
+            [clojure.java.io :as io]))
 
 (def default-browser-config
   {:public-dir "public/js"
@@ -16,13 +16,19 @@
     state
     modules))
 
-(defn- configure [state config]
-  (let [{:keys [modules] :as config}
-        (merge default-browser-config config)]
-    ))
-
 (defn init [state mode {:keys [modules] :as config}]
-  (configure-modules state modules))
+  (let [{:keys [public-dir public-path]}
+        (merge default-browser-config config)]
+
+    (-> state
+        (cond->
+          public-path
+          (cljs/merge-build-options {:public-path public-path})
+
+          public-dir
+          (cljs/merge-build-options {:public-dir (io/file public-dir)}))
+
+        (configure-modules modules))))
 
 (defn flush [state mode config]
   (case mode
