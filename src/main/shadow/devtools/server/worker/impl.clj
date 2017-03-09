@@ -6,7 +6,8 @@
             [shadow.cljs.repl :as repl]
             [shadow.devtools.server.compiler :as comp]
             [shadow.devtools.server.util :as util]
-            ))
+            [clojure.string :as str]
+            [clojure.set :as set]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -327,13 +328,85 @@
           (update worker-state :pending-results dissoc id))
       )))
 
+;; FIXME: this always modifies the compiler-state for any cljs/cljc file
+;; this means it always triggers a compile even if the build is not affected by it
+;; it still won't compile the files but it will trigger everything else
+;; should probably be smarter about this somehow so we can avoid some work
+;; still need to merge updates in case we use them later though
+(defn merge-fs-update-cljs [compiler-state {:keys [event name] :as fs-update}]
+  (let [rc (get-in compiler-state [:sources name])]
+
+    ;; skip the update if a name exists but points to a different file
+    (if (and rc (not= (:file rc) (:file fs-update)))
+      (do (prn [:updated-file-does-not-match fs-update])
+          compiler-state)
+      (cond
+        (= :del event)
+        (cljs/unmerge-resource compiler-state name)
+
+        (not rc) ;; :new or :mod can cause this
+        (let [new-rc (cljs/make-fs-resource compiler-state (.getCanonicalPath (:dir fs-update)) name (:file fs-update))]
+          (cljs/merge-resource compiler-state new-rc))
+
+        ;; FIXME: could get here with :new but the rc already existing
+        (= :mod event)
+        (let [dependents (cljs/find-dependent-names compiler-state (:ns rc))]
+          (reduce cljs/reset-resource-by-name compiler-state (conj dependents name)))
+
+        :else
+        compiler-state
+        ))))
+
+(defn clj-name->ns [name]
+  (-> name
+      (str/replace #"\.clj(c)?$" "")
+      (str/replace #"_" "-")
+      (str/replace #"[/\\]" ".")
+      (symbol)))
+
+(defn merge-fs-update-clj
+  [{:keys [build-sources] :as compiler-state}
+   {:keys [event name] :as fs-update}]
+  (if (not= :mod event)
+    compiler-state
+    ;; only do work if macro ns is modified
+    ;; new will be required by the compile
+    ;; del doesn't matter, we don't track CLJ files
+    (let [macro-ns
+          (clj-name->ns name)
+
+          macros-used-by-build
+          (->> build-sources
+               (map #(get-in compiler-state [:sources % :macro-namespaces]))
+               (reduce set/union))]
+
+      (if-not (contains? macros-used-by-build macro-ns)
+        compiler-state
+        (do (require macro-ns :reload)
+            (cljs/reset-resources-using-macro compiler-state macro-ns)
+            )))))
+
+(defn merge-fs-update [compiler-state {:keys [dir-type ext] :as fs-update}]
+  (if (not= :classpath dir-type)
+    compiler-state
+    (-> compiler-state
+        (cond->
+          (contains? #{"cljs" "cljc" "js"} ext)
+          (merge-fs-update-cljs fs-update)
+          (contains? #{"clj" "cljc"} ext)
+          (merge-fs-update-clj fs-update)))))
+
 (defn do-fs-updates
-  [{:keys [autobuild] :as worker-state} modified]
+  [{:keys [autobuild compiler-state] :as worker-state} fs-updates]
   (if-not autobuild
     worker-state
-    (-> worker-state
-        (update :compiler-state cljs/reload-modified-files! modified)
-        (build-compile))))
+    (let [next-state (reduce merge-fs-update compiler-state fs-updates)]
+      (if (identical? next-state compiler-state)
+        worker-state
+        ;; only recompile if something actually affected us
+        (-> worker-state
+            (assoc :compiler-state next-state)
+            (build-compile))))))
 
 (defn repl-eval-connect
   [{:keys [proc-stop proc-control] :as proc} client-id client-out]

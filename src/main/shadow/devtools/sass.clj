@@ -49,9 +49,15 @@
     (throw (ex-info "invalid module (expect string or file)" {:module it}))))
 
 (defn build-package [{:keys [public-dir rename-fn modules] :as pkg}]
-  (let [rename-fn (or rename-fn identity)
-        modules (mapv as-file modules)
-        public-dir (as-file public-dir)
+  (let [rename-fn
+        (or rename-fn identity)
+
+        modules
+        (mapv as-file modules)
+
+        public-dir
+        (as-file public-dir)
+
         manifest
         (reduce
           (fn [manifest module]
@@ -75,14 +81,18 @@
   (mapv build-package pkgs))
 
 (defn create-package-watch [{:keys [modules] :as pkg}]
-  (let [dirs (->> modules
-                  (map #(.getParentFile %))
-                  (into #{}))
-        watchers (->> dirs
-                      (map #(FileWatcher/create % ["scss"]))
-                      (into []))
+  (let [dirs
+        (->> modules
+             (map #(.getParentFile %))
+             (into #{}))
 
-        n (count watchers)
+        watchers
+        (->> dirs
+             (map #(FileWatcher/create % ["scss"]))
+             (into []))
+
+        n
+        (count watchers)
 
         ;; returns true of this package got dirty since last check
         ;; FIXME: should at some point check indiviual modules so we don't recompile everything all the time

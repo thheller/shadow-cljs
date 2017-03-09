@@ -70,7 +70,7 @@ public class FileWatcher implements AutoCloseable {
         return pollForChanges(false);
     }
 
-    public IPersistentMap pollForChanges(boolean block) throws IOException, InterruptedException {
+    IPersistentMap pollForChanges(boolean block) throws IOException, InterruptedException {
         ITransientMap changes = PersistentHashMap.EMPTY.asTransient();
 
         WatchKey key;
@@ -97,7 +97,6 @@ public class FileWatcher implements AutoCloseable {
                 Path name = ev.context();
                 Path child = root.relativize(dir.resolve(name));
                 String childName = child.toString();
-
 
                 if (Files.isDirectory(child, NOFOLLOW_LINKS)) {
                     // monitor new directories

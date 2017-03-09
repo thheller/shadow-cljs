@@ -41,7 +41,8 @@
     :stop (fn [x])}
 
    :fs-watch
-   {:depends-on []
-    :start fs-watch/start
+   {:depends-on [:config]
+    :start (fn [{:keys [fs-watch] :as config}]
+             (fs-watch/start fs-watch))
     :stop fs-watch/stop}
    })

@@ -122,8 +122,9 @@
               :pretty-print false}))
 
          (process-stage :init false)
-         (cljs/find-resources-in-classpath)))
-    ))
+         (cljs/find-resources-in-classpath)
+         ))))
+
 
 (defn compile
   [{::keys [mode] :as state}]
@@ -139,7 +140,6 @@
       (cljs/do-compile-modules)
       (update-build-info-after-compile)
       (process-stage :compile-finish true)
-
       (cond->
         (= :release mode)
         (-> (process-stage :optimize-prepare true)

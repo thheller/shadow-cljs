@@ -71,6 +71,7 @@
               1
               (map edn/read-string))
 
+            ;; FIXME: n=10 is rather arbitrary
             client-out
             (async/chan
               (async/sliding-buffer 10)
@@ -86,19 +87,14 @@
             result-chan
             (impl/repl-eval-connect worker-proc client-id eval-out)
 
-            ;; watch messages are forwarded to the client
-            ;; could send everything there but most of it is uninterested
-            ;; dont need to see build-log as it should be displayed elsewhere already
-            ;; not interested in anything else for now
-            ;; :build-complete is for live-reloading
-            watch-forward
-            #{:build-complete
-              :build-failure}
+            ;; no need to forward :build-log messages to the client
+            watch-ignore
+            #{:build-log}
 
             watch-chan
             (-> (async/sliding-buffer 10)
                 (async/chan
-                  (filter #(contains? watch-forward (:type %)))))
+                  (remove #(contains? watch-ignore (:type %)))))
 
             client-state
             {:worker-proc worker-proc

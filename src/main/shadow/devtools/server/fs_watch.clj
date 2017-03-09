@@ -1,7 +1,11 @@
 (ns shadow.devtools.server.fs-watch
   (:require [shadow.cljs.build :as cljs]
             [clojure.core.async :as async :refer (alt!! thread >!!)]
-            [shadow.devtools.server.util :as util]))
+            [shadow.devtools.server.util :as util]
+            [clojure.java.io :as io]
+            [clojure.pprint :refer (pprint)]
+            [clojure.string :as str])
+  (:import (shadow.util FileWatcher)))
 
 
 (defn service? [x]
@@ -14,17 +18,24 @@
    #"classes(/?)$"
    #"java(/?)$"])
 
+(defn poll-changes [{:keys [dir dir-type watcher]}]
+  (let [changes (.pollForChanges watcher)]
+    (when (seq changes)
+      (->> changes
+           (map (fn [[name event]]
+                  {:dir dir
+                   :dir-type dir-type
+                   :name name
+                   :ext (when-let [x (str/index-of name ".")]
+                          (subs name (inc x)))
+                   :file (io/file dir name)
+                   :event event}))
+           ))))
+
 (defn watch-thread
-  [control output]
+  [watch-dirs control output]
 
-  (loop [state
-         (-> (cljs/init-state)
-             (assoc :logger util/null-log)
-             (cljs/find-resources-in-classpath))
-
-         fs-seq
-         1]
-
+  (loop []
     (alt!!
       control
       ([_]
@@ -32,40 +43,36 @@
 
       (async/timeout 500)
       ([_]
-        (let [modified
-              (cljs/scan-for-modified-files state)
+        (let [fs-updates
+              (->> watch-dirs
+                   (mapcat poll-changes)
+                   (into []))]
 
-              ;; scanning for new files is expensive, don't do it that often
-              modified
-              (if (zero? (mod fs-seq 5))
-                (concat modified (cljs/scan-for-new-files state))
-                modified)]
+          (when (seq fs-updates)
+            (>!! output fs-updates))
 
-          (if-not (seq modified)
-            ;; no files changed, try again
-            (recur state (inc fs-seq))
+          (recur)))))
 
-            ;; reload and notify
-            ;; FIXME: everyone does the same thing here, this sucks
-            ;; when 2 builds are running
-            ;; this thread will reload all files (and macros)
-            ;; so will each of the build processes
-            (let [state
-                  (cljs/reload-modified-files! state modified)]
-              (>!! output modified)
-              (recur state (inc fs-seq))
-              ))))))
+  ;; shut down watchers when loop ends
+  (doseq [{:keys [watcher]} watch-dirs]
+    (.close watcher))
 
-  ;; (log/info "watch-thread shutdown")
-
-  ;; final value of the thread
   ::shutdown-complete)
 
 (defn subscribe [{:keys [output-mult] :as svc} sub-chan]
   {:pre [(service? svc)]}
   (async/tap output-mult sub-chan true))
 
-(defn start []
+(defn get-watch-directories []
+  (->> (cljs/classpath-entries)
+       (remove #(cljs/should-exclude-classpath classpath-excludes %))
+       (map io/file)
+       (filter #(.isDirectory %))
+       (map #(.getCanonicalFile %))
+       (distinct)
+       (into [])))
+
+(defn start [{:keys [css-dirs] :as config}]
   (let [control
         (async/chan)
 
@@ -73,15 +80,36 @@
         (async/chan (async/sliding-buffer 10))
 
         output-mult
-        (async/mult output)]
+        (async/mult output)
+
+        css-dirs
+        (->> css-dirs
+             (map io/file)
+             (filter #(.isDirectory %))
+             (map (fn [dir]
+                    {:dir dir
+                     :dir-type :css
+                     :watcher (FileWatcher/create dir ["css" "scss"])}))
+             (into []))
+
+        watch-dirs
+        (->> (get-watch-directories)
+             (map (fn [dir]
+                    {:dir dir
+                     :dir-type :classpath
+                     :watcher (FileWatcher/create dir ["cljs" "cljc" "clj" "js"])}))
+             (into css-dirs))]
 
     {::service true
      :control control
+     :watch-dirs watch-dirs
      :output output
      :output-mult output-mult
-     :thread (thread (watch-thread control output))}))
+     :thread (thread (watch-thread watch-dirs control output))}))
 
-(defn stop [svc]
+(defn stop [{:keys [control thread] :as svc}]
   {:pre [(service? svc)]}
-  (async/close! (:control svc)))
+  (async/close! control)
+  (async/<!! thread))
+
 

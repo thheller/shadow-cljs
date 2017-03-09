@@ -143,7 +143,7 @@
            fs-updates impl/do-fs-updates}
           {:do-shutdown
            (fn [state]
-             (>!! output {:type :worker-shutdown})
+             (>!! output {:type :worker-shutdown :proc-id proc-id})
              state)})
 
         worker-proc

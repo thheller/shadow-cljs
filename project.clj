@@ -1,4 +1,4 @@
-(defproject thheller/shadow-devtools "0.1.73"
+(defproject thheller/shadow-devtools "0.1.75"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-devtools"
   :license {:name "Eclipse Public License"
@@ -10,7 +10,7 @@
    [org.clojure/clojurescript "1.9.473"]
    [org.clojure/core.async "0.2.395"]
 
-   [thheller/shadow-build "1.0.272"]
+   [thheller/shadow-build "1.0.276"]
    [thheller/shadow-util "0.3.0"]
 
    [aleph "0.4.2-alpha12"]
