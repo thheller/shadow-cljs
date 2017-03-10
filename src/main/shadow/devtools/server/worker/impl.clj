@@ -57,7 +57,7 @@
      (boolean reload-with-state)
      }))
 
-(defn inject-devtools
+(defn inject-devtools-browser
   [{:keys [build-config] :as proc-state}]
   (let [{:keys [console-support]}
         (:devtools build-config)]
@@ -82,6 +82,23 @@
           (update :closure-defines merge (repl-defines worker-state))
           (update-in [:modules (:default-module compiler-state) :entries] prepend '[cljs.user shadow.devtools.client.node])
           ))))
+
+(defn inject-devtools
+  [{:keys [build-config] :as proc-state}]
+  (let [{:keys [target]} build-config]
+    (cond
+      (or (= :node-library target)
+          (= :node-script target)
+          (= :node (get-in build-config [:devtools :runtime])))
+      (inject-node-repl proc-state)
+
+      ;; defaults to browser repl unless otherwise specified
+      (or (= :browser target)
+          (let [rt (get-in build-config [:devtools :runtime])]
+            (or (nil? rt)
+                (= :browser rt))))
+      (inject-devtools-browser proc-state)
+      )))
 
 (defn >!!output [worker-state msg]
   {:pre [(map? msg)
@@ -120,10 +137,7 @@
   "configure the build according to build-config in state"
   [{:keys [build-config] :as worker-state}]
   (try
-    (let [{:keys [target]}
-          build-config
-
-          compiler-state
+    (let [compiler-state
           (-> (cljs/init-state)
               (assoc :logger (util/async-logger (-> worker-state :channels :output)))
               (comp/init :dev build-config)
@@ -131,19 +145,7 @@
 
       (-> worker-state
           (assoc :compiler-state compiler-state)
-          (cond->
-            ;; defaults to browser repl unless otherwise specified
-            (or (= :browser target)
-                (let [rt (get-in build-config [:devtools :runtime])]
-                  (or (nil? rt)
-                      (= :browser rt))))
-            (inject-devtools)
-
-            (or (= :node-library target)
-                (= :node-script target)
-                (= :node (get-in build-config [:devtools :runtime])))
-            (inject-node-repl))
-
+          (inject-devtools)
           (update :compiler-state comp/process-stage :config-complete true)
           ))
 
