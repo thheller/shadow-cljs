@@ -6,17 +6,16 @@
 
   :dependencies
   [[org.clojure/clojure "1.9.0-alpha14" :scope "provided"]
-   [org.clojure/tools.nrepl "0.2.12" :scope "provided"]
    [org.clojure/clojurescript "1.9.473"]
-   [org.clojure/core.async "0.2.395"]
+   ;; [org.clojure/tools.nrepl "0.2.12" :scope "provided"]
+   [org.clojure/data.json "0.2.6"]
+   [org.clojure/core.async "0.3.441"]
 
    [thheller/shadow-build "1.0.276"]
    [thheller/shadow-util "0.3.0"]
 
    [aleph "0.4.2-alpha12"]
-   [hiccup "1.0.5"]
-
-   ]
+   [hiccup "1.0.5"]]
 
   ;; probably no nrepl
   #_:repl-options
