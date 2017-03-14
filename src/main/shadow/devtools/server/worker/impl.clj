@@ -388,21 +388,20 @@
             (cljs/reset-resources-using-macro compiler-state macro-ns)
             )))))
 
-(defn merge-fs-update [compiler-state {:keys [dir-type ext] :as fs-update}]
-  (if (not= :classpath dir-type)
-    compiler-state
-    (-> compiler-state
-        (cond->
-          (contains? #{"cljs" "cljc" "js"} ext)
-          (merge-fs-update-cljs fs-update)
-          (contains? #{"clj" "cljc"} ext)
-          (merge-fs-update-clj fs-update)))))
+(defn merge-fs-update [compiler-state {:keys [ext] :as fs-update}]
+  (-> compiler-state
+      (cond->
+        (contains? #{"cljs" "cljc" "js"} ext)
+        (merge-fs-update-cljs fs-update)
+        (contains? #{"clj" "cljc"} ext)
+        (merge-fs-update-clj fs-update))))
 
-(defn do-fs-updates
-  [{:keys [autobuild compiler-state] :as worker-state} fs-updates]
+(defn do-cljs-watch
+  [{:keys [autobuild compiler-state] :as worker-state}
+   {:keys [updates] :as msg}]
   (if-not autobuild
     worker-state
-    (let [next-state (reduce merge-fs-update compiler-state fs-updates)]
+    (let [next-state (reduce merge-fs-update compiler-state updates)]
       (if (identical? next-state compiler-state)
         worker-state
         ;; only recompile if something actually affected us

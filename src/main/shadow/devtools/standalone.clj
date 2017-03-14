@@ -15,16 +15,16 @@
    {:port 8200
     :host "localhost"}})
 
-(defn app []
+(defn app [config]
   (merge
-    (common/app)
+    (common/app config)
     {:build-config
      {:depends-on []
       :start config/start
       :stop config/stop}
 
      :explorer
-     {:depends-on [:fs-watch]
+     {:depends-on [:system-bus]
       :start explorer/start
       :stop explorer/stop}
      }))
@@ -63,7 +63,7 @@
          app
          (-> {::started (System/currentTimeMillis)
               :config config}
-             (rt/init (app))
+             (rt/init (app config))
              (rt/start-all))
          ]
 

@@ -7,12 +7,12 @@
   (get @workers-ref id))
 
 (defn start-worker
-  [{:keys [fs-watch workers-ref] :as svc} id]
+  [{:keys [system-bus workers-ref] :as svc} id]
   (when (get @workers-ref id)
     (throw (ex-info "already started" {:id id})))
 
   (let [{:keys [proc-stop] :as proc}
-        (worker/start fs-watch)]
+        (worker/start system-bus)]
 
     (go (<! proc-stop)
         (vswap! workers-ref dissoc id))
@@ -26,8 +26,8 @@
   (when-some [proc (get @workers-ref id)]
     (worker/stop proc)))
 
-(defn start [fs-watch]
-  {:fs-watch fs-watch
+(defn start [system-bus]
+  {:system-bus system-bus
    :workers-ref (volatile! {})})
 
 (defn stop [{:keys [workers-ref] :as svc}]

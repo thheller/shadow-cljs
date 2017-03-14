@@ -2,6 +2,8 @@
   (:require [shadow.cljs.build :as cljs]
             [clojure.core.async :as async :refer (alt!! thread >!!)]
             [shadow.devtools.server.util :as util]
+            [shadow.devtools.server.system-bus :as system-bus]
+            [shadow.devtools.server.system-msg :as system-msg]
             [clojure.java.io :as io]
             [clojure.pprint :refer (pprint)]
             [clojure.string :as str])
@@ -12,19 +14,12 @@
   (and (map? x)
        (::service x)))
 
-;; FIXME: make config option of shadow-build and re-use don't copy
-(def classpath-excludes
-  [#"resources(/?)$"
-   #"classes(/?)$"
-   #"java(/?)$"])
-
-(defn poll-changes [{:keys [dir dir-type watcher]}]
+(defn poll-changes [{:keys [dir watcher]}]
   (let [changes (.pollForChanges watcher)]
     (when (seq changes)
       (->> changes
            (map (fn [[name event]]
                   {:dir dir
-                   :dir-type dir-type
                    :name name
                    :ext (when-let [x (str/index-of name ".")]
                           (subs name (inc x)))
@@ -33,7 +28,7 @@
            ))))
 
 (defn watch-thread
-  [watch-dirs control output]
+  [watch-dirs control sys-bus topic]
 
   (loop []
     (alt!!
@@ -49,7 +44,7 @@
                    (into []))]
 
           (when (seq fs-updates)
-            (>!! output fs-updates))
+            (system-bus/publish! sys-bus topic {:updates fs-updates}))
 
           (recur)))))
 
@@ -59,53 +54,21 @@
 
   ::shutdown-complete)
 
-(defn subscribe [{:keys [output-mult] :as svc} sub-chan]
-  {:pre [(service? svc)]}
-  (async/tap output-mult sub-chan true))
-
-(defn get-watch-directories []
-  (->> (cljs/classpath-entries)
-       (remove #(cljs/should-exclude-classpath classpath-excludes %))
-       (map io/file)
-       (filter #(.isDirectory %))
-       (map #(.getCanonicalFile %))
-       (distinct)
-       (into [])))
-
-(defn start [{:keys [css-dirs] :as config}]
+(defn start [system-bus topic directories file-exts]
   (let [control
         (async/chan)
 
-        output
-        (async/chan (async/sliding-buffer 10))
-
-        output-mult
-        (async/mult output)
-
-        css-dirs
-        (->> css-dirs
-             (map io/file)
-             (filter #(.isDirectory %))
-             (map (fn [dir]
-                    {:dir dir
-                     :dir-type :css
-                     :watcher (FileWatcher/create dir ["css" "scss"])}))
-             (into []))
-
         watch-dirs
-        (->> (get-watch-directories)
+        (->> directories
              (map (fn [dir]
                     {:dir dir
-                     :dir-type :classpath
-                     :watcher (FileWatcher/create dir ["cljs" "cljc" "clj" "js"])}))
-             (into css-dirs))]
+                     :watcher (FileWatcher/create dir file-exts)}))
+             (into []))]
 
     {::service true
      :control control
      :watch-dirs watch-dirs
-     :output output
-     :output-mult output-mult
-     :thread (thread (watch-thread watch-dirs control output))}))
+     :thread (thread (watch-thread watch-dirs control system-bus topic))}))
 
 (defn stop [{:keys [control thread] :as svc}]
   {:pre [(service? svc)]}

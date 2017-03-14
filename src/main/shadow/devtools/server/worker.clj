@@ -1,12 +1,13 @@
 (ns shadow.devtools.server.worker
   (:refer-clojure :exclude (compile))
   (:require [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
-            [aleph.http :as aleph]
-            [shadow.devtools.server.util :as util]
-            [shadow.devtools.server.fs-watch :as fs-watch]
+            [shadow.devtools.server.system-bus :as sys-bus]
+            [shadow.devtools.server.system-msg :as sys-msg]
             [shadow.devtools.server.worker.impl :as impl]
             [shadow.devtools.server.worker.ws :as ws]
-            [aleph.netty :as netty])
+            [shadow.devtools.server.util :as util]
+            [aleph.netty :as netty]
+            [aleph.http :as aleph])
   (:import (java.util UUID)))
 
 (defn configure
@@ -86,7 +87,7 @@
 
 ;; SERVICE API
 
-(defn start [fs-watch]
+(defn start [system-bus]
   (let [proc-id
         (UUID/randomUUID) ;; FIXME: not really unique but unique enough
 
@@ -109,7 +110,7 @@
         output-mult
         (async/mult output)
 
-        fs-updates
+        cljs-watch
         (async/chan)
 
         http-config-ref
@@ -119,7 +120,7 @@
         {:proc-stop proc-stop
          :proc-control proc-control
          :output output
-         :fs-updates fs-updates}
+         :cljs-watch cljs-watch}
 
         thread-state
         {::impl/worker-state true
@@ -140,7 +141,7 @@
           thread-state
           {proc-stop nil
            proc-control impl/do-proc-control
-           fs-updates impl/do-fs-updates}
+           cljs-watch impl/do-cljs-watch}
           {:do-shutdown
            (fn [state]
              (>!! output {:type :worker-shutdown :proc-id proc-id})
@@ -151,19 +152,22 @@
          :proc-stop proc-stop
          :proc-id proc-id
          :proc-control proc-control
-         :fs-updates fs-updates
+         :system-bus system-bus
+         :cljs-watch cljs-watch
          :output output
          :output-mult output-mult
          :thread-ref thread-ref
          :state-ref state-ref}]
 
-    (fs-watch/subscribe fs-watch fs-updates)
+    (sys-bus/sub system-bus ::sys-msg/cljs-watch cljs-watch)
 
-    ;; ensure all channels are cleanup up properly
+    ;; ensure all channels are cleaned up properly
     (go (<! thread-ref)
+        ;; FIXME: I think unsub happens automatically if we close the channel, need to confirm
+        (sys-bus/unsub system-bus ::sys-msg/cljs-watch cljs-watch)
         (async/close! output)
         (async/close! proc-stop)
-        (async/close! fs-updates))
+        (async/close! cljs-watch))
 
     (let [http-config
           {:port 0

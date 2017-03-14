@@ -20,11 +20,11 @@
       (throw (ex-info "devtools not started" {})))
     x))
 
-(defn app []
+(defn app [config]
   (merge
-    (common/app)
+    (common/app config)
     {:supervisor
-     {:depends-on [:fs-watch]
+     {:depends-on [:system-bus]
       :start super/start
       :stop super/stop}
 
@@ -44,7 +44,7 @@
      (let [system
            (-> {::started (System/currentTimeMillis)
                 :config config}
-               (rt/init (app))
+               (rt/init (app config))
                (rt/start-all))]
 
        (vreset! system-ref system)

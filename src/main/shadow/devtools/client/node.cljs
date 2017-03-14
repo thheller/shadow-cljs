@@ -156,9 +156,13 @@
 
     (.on client "message"
       (fn [data flags]
-        (-> data
-            (reader/read-string)
-            (process-message))))
+        (try
+          (-> data
+              (reader/read-string)
+              (process-message))
+
+          (catch :default e
+            (js/console.error "failed to process message" data e)))))
 
     (.on client "close"
       (fn []

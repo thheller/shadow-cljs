@@ -1,18 +1,17 @@
 (ns shadow.devtools.server.explorer
   (:require [shadow.cljs.build :as cljs]
             [shadow.cljs.repl :as repl]
-            [shadow.devtools.server.fs-watch :as fs-watch]
             [clojure.core.async :as async :refer (thread alt!! <!! >!!)]
             [shadow.devtools.server.util :as util]
             [clojure.java.io :as io]
             [cljs.analyzer :as ana]
-            ))
+            [shadow.devtools.server.system-bus :as sys-bus]))
 
 (defn service? [svc]
   (and (map? svc)
        (::service svc)))
 
-(defn- do-fs-updates [state msg]
+(defn- do-cljs-watch [state msg]
   (-> state
       (cljs/reload-modified-files! msg)
       (cljs/finalize-config)))
@@ -113,8 +112,8 @@
     ))
 
 
-(defn start [fs-watch]
-  (let [fs-updates
+(defn start [system-bus]
+  (let [cljs-watch
         (async/chan)
 
         control
@@ -137,24 +136,26 @@
                   (io/make-parents)))
               (cljs/find-resources-in-classpath)
               (cljs/finalize-config))
-          {fs-updates do-fs-updates
+          {cljs-watch do-cljs-watch
            control do-control}
           {:do-shutdown
            (fn [state]
              ;; (prn [:closing-down-explorer])
              state)})]
 
-    (fs-watch/subscribe fs-watch fs-updates)
+    (sys-bus/sub system-bus ::sys-msg/cljs-watch cljs-watch)
 
     {::service true
+     :system-bus system-bus
      :state-ref state-ref
-     :fs-updates fs-updates
+     :cljs-watch cljs-watch
      :control control
      :thread-ref thread-ref}
     ))
 
-(defn stop [svc]
+(defn stop [{:keys [system-bus cljs-watch control]} svc]
   {:pre [(service? svc)]}
-  (async/close! (:fs-updates svc))
-  (async/close! (:control svc))
+  (sys-bus/unsub system-bus ::sys-msg/cljs-watch cljs-watch)
+  (async/close! cljs-watch)
+  (async/close! control)
   (<!! (:thread-ref svc)))

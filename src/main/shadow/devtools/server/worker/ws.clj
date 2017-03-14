@@ -7,44 +7,44 @@
             [aleph.http :as http]
             [manifold.deferred :as md]
             [manifold.stream :as ms]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [shadow.devtools.server.system-bus :as sys-bus]
+            [shadow.devtools.server.system-msg :as sys-msg])
   (:import (java.util UUID)))
 
 (defn ws-loop!
-  [{:keys [worker-proc watch-chan result-chan] :as client-state}]
+  [{:keys [worker-proc watch-chan eval-out in out result-chan] :as client-state}]
+  (let [{:keys [system-bus]} worker-proc]
 
-  (impl/watch worker-proc watch-chan true)
+    (impl/watch worker-proc watch-chan true)
 
-  (loop [{:keys [eval-out
-                 watch-chan
-                 in
-                 out]
-          :as client-state}
-         client-state]
+    (sys-bus/sub system-bus ::sys-msg/css-reload out false)
 
-    (alt!!
-      eval-out
-      ([msg]
-        (when-not (nil? msg)
-          (>!! out msg)
-          (recur client-state)))
+    (loop [client-state client-state]
 
-      ;; forward some build watch messages to the client
-      watch-chan
-      ([msg]
-        (when-not (nil? msg)
-          (>!! out msg)
-          (recur client-state)
-          ))
+      (alt!!
+        eval-out
+        ([msg]
+          (when-not (nil? msg)
+            (>!! out msg)
+            (recur client-state)))
 
-      in
-      ([msg]
-        (when-not (nil? msg)
-          (>!! result-chan msg)
-          (recur client-state))
-        )))
+        ;; forward some build watch messages to the client
+        watch-chan
+        ([msg]
+          (when-not (nil? msg)
+            (>!! out msg)
+            (recur client-state)
+            ))
 
-  (async/close! result-chan))
+        in
+        ([msg]
+          (when-not (nil? msg)
+            (>!! result-chan msg)
+            (recur client-state))
+          )))
+
+    (async/close! result-chan)))
 
 (defn process
   [{:keys [output] :as worker-proc} {:keys [uri] :as req}]

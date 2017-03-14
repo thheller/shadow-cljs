@@ -16,11 +16,14 @@
   (:import (java.io PushbackReader StringReader)))
 
 (defn- start []
-  (let [cli-app
+  (let [config
+        {}
+
+        cli-app
         (merge
-          (common/app)
+          (common/app config)
           {:worker
-           {:depends-on [:fs-watch]
+           {:depends-on [:system-bus]
             :start worker/start
             :stop worker/stop}})]
 
