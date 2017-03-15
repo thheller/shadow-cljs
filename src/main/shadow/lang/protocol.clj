@@ -51,19 +51,3 @@
     :cancelled #{}
     :open-files #{}
     :initialized? false))
-
-(defmethod handle-cast "initialized"
-  [client-state _ params]
-  (assoc client-state :initialized? true))
-
-;; FIXME: protocol says this should completely terminate the server
-;; but so far it doesn't launch this in the first place, so just ignore it
-(defmethod handle-call "shutdown"
-  [client-state method params]
-  (-> client-state
-      (client-reset)
-      (call-ok nil)))
-
-(defmethod handle-cast "exit"
-  [client-state _ params]
-  (client-reset client-state))

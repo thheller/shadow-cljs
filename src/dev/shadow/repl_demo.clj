@@ -5,7 +5,7 @@
             [clojure.string :as str]
             [clojure.core.server :as srv])
   (:import java.net.ServerSocket
-           (java.io StringReader PushbackReader)))
+           (java.io StringReader PushbackReader PrintStream)))
 
 (defn simple-server
   "just the most simple demo I could think of to actually query something remotely"
@@ -28,6 +28,8 @@
         (recur)))
     ss
     ))
+
+
 
 (defn repl-prompt []
   (printf "[%d:%d] %s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))

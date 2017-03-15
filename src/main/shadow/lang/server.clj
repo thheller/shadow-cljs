@@ -1,55 +1,11 @@
 (ns shadow.lang.server
-  (:require [clojure.java.io :as io]
-            [clojure.pprint :refer (pprint)]
-            [clojure.string :as str]
-            [clojure.data.json :as json]
-            [clojure.core.async :as async :refer (go >! <! alt!! <!! >!!)]
-            [shadow.lang.json-rpc :as jrpc]
+  (:require [clojure.core.async :as async :refer (go >! <! alt!! alt! <!! >!!)]
             [shadow.lang.protocol :as p]
-            [shadow.lang.protocol.text-document])
-  (:import (java.net ServerSocket SocketException Socket)))
 
-(defn InitializeResult []
-  {"capabilities"
-   ;; ServerCapabilities
-   {"textDocumentSync"
-    2
-    ;; doesn't seem to accept detailed options
-    #_{"openClose" true
-       "change" 1 ;; 0 = off, 1 = full, 2 = incremental
-       "willSave" false
-       "willSaveWaitUntil" false
-       "save"
-       {"includeText" true}}
-
-    "hoverProvider"
-    false
-
-    "documentHighlightProvider"
-    false
-
-    "documentSymbolProvider"
-    false
-
-    "workspaceSymbolProvider"
-    false
-
-    "completionProvider"
-    ;; CompletionOptions
-    {"resolveProvider" true
-     "triggerCharacters" ["("]}}})
-
-(defmethod p/handle-call "initialize"
-  [client-state method params]
-  (let [{:strs [processId capabilities]} params]
-    (-> client-state
-        (assoc :process-id processId
-          :capabilities capabilities)
-        (p/call-ok (InitializeResult)))))
-
-(defmethod p/handle-cast "$/cancelRequest"
-  [client-state method {:strs [id] :as params}]
-  (update client-state :cancelled conj id))
+    ;; FIXME: this is basically defining the protocol, not sure this is the best place to do this
+    ;; but don't remove these or otherwise the server won't do anything
+            [shadow.lang.protocol.connection]
+            [shadow.lang.protocol.text-document]))
 
 (defn process-client
   [client-state msg]
@@ -57,7 +13,7 @@
   client-state)
 
 (defn do-call
-  [{:keys [result-chan] :as client-state} {:strs [id method params] :as msg}]
+  [{:keys [result-chan] :as client-state} {:keys [id method params] :as msg}]
   (let [{::p/keys [result-type] :as call-result}
         (p/handle-call client-state method params)]
 
@@ -83,29 +39,29 @@
       (throw (ex-info "invalid call result" {:result-type result-type :msg msg :result call-result})))
     ))
 
-(defn do-cast [client-state {:strs [method params] :as msg}]
+(defn do-cast [client-state {:keys [method params] :as msg}]
   (p/handle-cast client-state method params))
 
 (defn process-input
-  [client-state {:strs [id method params] :as msg}]
+  [client-state {:keys [id method params] :as msg}]
   (prn [:in method id])
   ;; spec says everything with an idea is a request otherwise a notification
-  (if (contains? msg "id")
+  (if (contains? msg :id)
     (do-call client-state msg)
     (do-cast client-state msg)))
 
 (defn write-result
-  [write-fn
+  [output
    id
    {::p/keys [result-type] :as call-result}]
 
   (case result-type
     :ok
-    (write-fn {"id" id "result" (:result call-result)})
+    (>!! output {"id" id "result" (:result call-result)})
 
     :error
     (let [{:keys [error-code error-msg error-data]} call-result]
-      (write-fn
+      (>!! output
         {"id" id
          "error"
          (-> {"code" error-code
@@ -116,39 +72,27 @@
 
     (throw (ex-info "invalid call result" {:result-type result-type :result call-result}))))
 
-(defn client-loop [^Socket socket server-stop]
+(defn server-loop
+  [server input output]
   (let [control
         (async/chan 10)
 
-        input
-        (async/chan 100)
-
-        ;; async results go here
+        ;; results go here and are forwarded to ouput unless cancelled
         result-chan
         (async/chan 100)
 
         ;; server->client notifications go here
         notify-chan
-        (async/chan 100)
-
-        write-fn
-        (jrpc/write-fn socket)]
-
-    ;; reads until the socket is closed
-    (doto (Thread. #(jrpc/client-reader socket input))
-      (.start))
+        (async/chan 100)]
 
     (loop [client-state
            (p/client-reset
-             {:control control
+             {:server server
+              :control control
               :result-chan result-chan
               :notify-chan notify-chan})]
-      (alt!!
-        server-stop
-        ([_]
-          ;; FIXME: do any necessary cleanup, cancel request is possible
-          ::server-stop)
 
+      (alt!!
         control
         ([msg]
           (when-not (nil? msg)
@@ -163,7 +107,7 @@
                     (update :cancelled disj id)
                     (update :pending dissoc id)
                     (recur))
-                (do (write-result write-fn id result)
+                (do (write-result output id result)
                     (-> client-state
                         (update :pending dissoc id)
                         (recur)))
@@ -172,7 +116,7 @@
         notify-chan
         ([msg]
           (when-not (nil? msg)
-            (write-fn msg)
+            (>!! output msg)
             (recur client-state)))
 
         input
@@ -186,45 +130,8 @@
                       client-state))]
               (recur next-state))))))
 
-    (async/close! input)
     (async/close! notify-chan)
-    (.close socket)
+    (async/close! control)
     ))
-
-(defn accept-loop [server-socket server-stop]
-  (loop []
-    (when-let [socket
-               (try
-                 (.accept server-socket)
-                 (catch SocketException e nil))]
-      (doto (Thread. #(client-loop socket server-stop))
-        (.start))
-      (recur))))
-
-(defn start []
-  (let [ss
-        (ServerSocket. 8201)
-
-        server-stop
-        (async/chan)
-
-        accept-thread
-        (doto (Thread. #(accept-loop ss server-stop))
-          (.start))]
-
-    {:server-socket ss
-     :server-stop server-stop
-     :accept-thread accept-thread}
-    ))
-
-(defn stop [{:keys [server-stop server-socket] :as svc}]
-  (async/close! server-stop)
-  (.close server-socket))
-
-(comment
-  (def x (start))
-
-  (stop x)
-  )
 
 

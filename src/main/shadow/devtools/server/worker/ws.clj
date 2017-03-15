@@ -18,6 +18,8 @@
 
     (impl/watch worker-proc watch-chan true)
 
+    ;; FIXME: the client should probably trigger this
+    ;; a node-repl isn't interested in this at all
     (sys-bus/sub system-bus ::sys-msg/css-reload out false)
 
     (loop [client-state client-state]
