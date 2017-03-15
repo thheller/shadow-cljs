@@ -53,7 +53,9 @@
 
   (try
     (let [state
-          (cljs/compile-all-for-src state source-name)]
+          (-> state
+              (cljs/reset-resource-by-name source-name)
+              (cljs/compile-all-for-src source-name))]
 
       (>!! reply-to {:source-name source-name
                      :info (collect-source-info state source-name)})
