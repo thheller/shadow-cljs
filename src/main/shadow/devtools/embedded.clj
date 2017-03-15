@@ -112,3 +112,13 @@
     (api/node-repl))
   ([opts]
     (api/node-repl opts)))
+
+
+(comment
+  (start!)
+
+  (start-worker :website)
+
+  (stop-worker :website)
+
+  (stop!))

@@ -44,16 +44,14 @@
 
 (defn process-input
   [client-state {:keys [id method params] :as msg}]
-  (prn [:in method id])
-  ;; spec says everything with an idea is a request otherwise a notification
+  (prn [:in method id params])
+  ;; spec says everything with an id is a request otherwise a notification
   (if (contains? msg :id)
     (do-call client-state msg)
     (do-cast client-state msg)))
 
 (defn write-result
-  [output
-   id
-   {::p/keys [result-type] :as call-result}]
+  [output id {::p/keys [result-type] :as call-result}]
 
   (case result-type
     :ok
@@ -73,7 +71,7 @@
     (throw (ex-info "invalid call result" {:result-type result-type :result call-result}))))
 
 (defn server-loop
-  [server input output]
+  [system input output]
   (let [control
         (async/chan 10)
 
@@ -87,11 +85,14 @@
 
     (loop [client-state
            (p/client-reset
-             {:server server
+             {:system system
               :control control
               :result-chan result-chan
               :notify-chan notify-chan})]
 
+      ;; FIXME: if any of these channels is closed the loop will exit
+      ;; input can be closed by the system (if the socket dies)
+      ;; everything else should probably not be closed
       (alt!!
         control
         ([msg]

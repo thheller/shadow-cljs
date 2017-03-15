@@ -5,15 +5,19 @@
             [shadow.devtools.server.util :as util]
             [clojure.java.io :as io]
             [cljs.analyzer :as ana]
-            [shadow.devtools.server.system-bus :as sys-bus]))
+            [shadow.devtools.server.system-bus :as sys-bus]
+            [shadow.devtools.server.system-msg :as sys-msg]
+            [shadow.devtools.server.worker :as worker]
+            [shadow.devtools.server.worker.impl :as worker-impl]
+
+            ))
 
 (defn service? [svc]
   (and (map? svc)
        (::service svc)))
 
-(defn- do-cljs-watch [state msg]
-  (-> state
-      (cljs/reload-modified-files! msg)
+(defn- do-cljs-watch [state {:keys [updates] :as msg}]
+  (-> (reduce worker-impl/merge-fs-update state updates)
       (cljs/finalize-config)))
 
 (defmulti do-control
@@ -153,7 +157,7 @@
      :thread-ref thread-ref}
     ))
 
-(defn stop [{:keys [system-bus cljs-watch control]} svc]
+(defn stop [{:keys [system-bus cljs-watch control] :as svc}]
   {:pre [(service? svc)]}
   (sys-bus/unsub system-bus ::sys-msg/cljs-watch cljs-watch)
   (async/close! cljs-watch)

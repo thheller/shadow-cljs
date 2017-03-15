@@ -6,7 +6,8 @@
             [shadow.devtools.server.config-watch :as config]
             [clojure.core.async :as async :refer (thread)]
             [shadow.devtools.server.common :as common]
-            [aleph.netty :as netty]))
+            [aleph.netty :as netty]
+            [shadow.devtools.server.supervisor :as super]))
 
 (defonce runtime nil)
 
@@ -22,6 +23,11 @@
      {:depends-on []
       :start config/start
       :stop config/stop}
+
+     :supervisor
+     {:depends-on [:system-bus]
+      :start super/start
+      :stop super/stop}
 
      :explorer
      {:depends-on [:system-bus]
@@ -96,3 +102,7 @@
   (netty/wait-for-close (:http @runtime)))
 
 
+(comment
+  (start!)
+
+  (stop!))

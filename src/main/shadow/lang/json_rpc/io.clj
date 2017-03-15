@@ -3,7 +3,8 @@
             [clojure.core.async :as async :refer (go alt!)]
             [clojure.string :as str]
             [clojure.java.io :as io])
-  (:import (java.io EOFException)))
+  (:import (java.io EOFException)
+           (java.net SocketException)))
 
 (defn read-msg! [in len]
   (let [msg-chars
@@ -47,8 +48,11 @@
                 (if-not (async/offer! input-chan msg)
                   (throw (ex-info "input offer failed!" {:msg msg}))
                   (recur)))))))
+      ;; ignore this
+      (catch SocketException e
+        nil)
+      ;; FIXME: ignoring what happened, just assuming the input-stream is dead
       (catch Exception e
-        ;; FIXME: ignoring what happened, just assuming the input-stream is dead
         (prn [:stream-reader e])
         nil)
       (finally
@@ -98,9 +102,13 @@
                     (.flush)))
                 (recur)))))
 
-      (async/close! input))
+        ;; this should lead to an exit in server-fn
+        (async/close! input)
+
+        ;; interrupt won't work while the thread is in .read
+        ;; when the stream has an underlying socket and thats closed the thread will terminate
+        (when (.isAlive in-thread)
+          (.interrupt in-thread)))
 
     (server-fn input output)
-
-    (.interrupt in-thread)
     ))

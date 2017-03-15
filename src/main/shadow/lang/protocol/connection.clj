@@ -1,5 +1,6 @@
 (ns shadow.lang.protocol.connection
-  (:require [shadow.lang.protocol :as p]))
+  (:require [shadow.lang.protocol :as p]
+            [clojure.pprint :refer (pprint)]))
 
 (defn InitializeResult []
   {"capabilities"
@@ -34,6 +35,7 @@
 (defmethod p/handle-call "initialize"
   [client-state method params]
   (let [{:keys [processId capabilities]} params]
+    (pprint capabilities)
     (-> client-state
         (assoc :process-id processId
           :capabilities capabilities)
