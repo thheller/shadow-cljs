@@ -26,7 +26,7 @@
   (s/coll-of ::build :kind vector?))
 
 (defn load-cljs-edn []
-  (-> (io/file "cljs.edn")
+  (-> (io/file "shadow-cljs.edn")
       (slurp)
       (edn/read-string)))
 

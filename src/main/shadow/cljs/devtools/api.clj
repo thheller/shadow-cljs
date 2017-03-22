@@ -264,7 +264,7 @@
         (comp/flush)))
   :done)
 
-(defn- test-setup []
+(defn test-setup []
   (-> (cljs/init-state)
       (cljs/enable-source-maps)
       (cljs/merge-build-options
@@ -272,22 +272,6 @@
          :public-path "target/shadow-test"})
       (cljs/find-resources-in-classpath)
       ))
-
-(defn autotest
-  "no way to interrupt this, don't run this in nREPL"
-  []
-  (-> (test-setup)
-      (cljs/watch-and-repeat!
-        (fn [state modified]
-          (-> state
-              (cond->
-                ;; first pass, run all tests
-                (empty? modified)
-                (node/execute-all-tests!)
-                ;; only execute tests that might have been affected by the modified files
-                (not (empty? modified))
-                (node/execute-affected-tests! modified))
-              )))))
 
 (defn test-all []
   (-> (test-setup)
