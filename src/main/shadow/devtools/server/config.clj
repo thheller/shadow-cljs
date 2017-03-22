@@ -1,13 +1,29 @@
 (ns shadow.devtools.server.config
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.spec :as s]
-            [shadow.devtools.spec.build :as s-build]))
+            [clojure.spec :as s]))
+
+(s/def ::id keyword?)
+
+(s/def ::target
+  (s/or :keyword keyword?
+        :symbol qualified-symbol?))
+
+(defmulti target-spec :target :default ::default)
+
+(defmethod target-spec ::default [_]
+  (s/spec any?))
+
+(s/def ::build
+  (s/and
+    (s/keys
+      :req-un
+      [::id
+       ::target])
+    (s/multi-spec target-spec :target)))
 
 (s/def ::config
-  (s/coll-of ::s-build/build
-    :kind vector?
-    :distinct true?))
+  (s/coll-of ::build :kind vector?))
 
 (defn load-cljs-edn []
   (-> (io/file "cljs.edn")
@@ -24,7 +40,7 @@
 
 (defn get-build!
   ([id]
-    (get-build! (load-cljs-edn!) id))
+   (get-build! (load-cljs-edn!) id))
   ([config id]
    (let [build
          (->> config

@@ -1,7 +1,9 @@
 (ns shadow.devtools.server.compiler
   (:refer-clojure :exclude (compile flush))
   (:require [clojure.java.io :as io]
-            [shadow.cljs.build :as cljs]))
+            [clojure.spec :as s]
+            [shadow.cljs.build :as cljs]
+            [shadow.devtools.server.config :as config]))
 
 (defn extract-build-info [state]
   (let [source->module
@@ -74,11 +76,11 @@
           (keyword? target)
           (case target
             :browser
-            'shadow.devtools.server.compiler.browser/process
+            'shadow.devtools.targets.browser/process
             :node-script
-            'shadow.devtools.server.compiler.node-script/process
+            'shadow.devtools.targets.node-script/process
             :node-library
-            'shadow.devtools.server.compiler.node-library/process
+            'shadow.devtools.targets.node-library/process
             (throw (ex-info "invalid build target keyword, please use a symbol" {:target target})))
 
           :else
@@ -110,13 +112,22 @@
           (some? target)]
     :post [(cljs/compiler-state? %)]}
 
-   (let [config (config-merge config mode)]
+   (let [config
+         (config-merge config mode)
+
+         target-fn
+         (get-target-fn target)]
+
+     ;; must do this after calling get-target-fn
+     ;; the namespace that is in may have added to the multi-spec
+     (when-not (s/valid? ::config/build config)
+       (throw (ex-info "invalid build config" {:config config})))
 
      (-> init-state
          (assoc :cache-dir (io/file "target" "shadow-cache" (name id) (name mode))
                 ::stage :init
                 ::config config
-                ::target-fn (get-target-fn target)
+                ::target-fn target-fn
                 ::mode mode)
          (cond->
            compiler-options

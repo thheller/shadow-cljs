@@ -1,8 +1,51 @@
-(ns shadow.devtools.server.compiler.browser
+(ns shadow.devtools.targets.browser
   (:refer-clojure :exclude (flush))
-  (:require [shadow.devtools.server.compiler :as comp]
+  (:require [clojure.java.io :as io]
+            [clojure.spec :as s]
             [shadow.cljs.build :as cljs]
-            [clojure.java.io :as io]))
+            [shadow.devtools.server.compiler :as comp]
+            [shadow.devtools.targets.shared :as shared]
+            [shadow.devtools.server.config :as config]))
+
+(s/def ::entries
+  (s/coll-of symbol? :kind vector?))
+
+(s/def ::public-path
+  shared/non-empty-string?)
+
+(s/def ::prepend
+  shared/non-empty-string?)
+
+(s/def ::depends-on
+  (s/coll-of keyword? :kind set?))
+
+(s/def ::module
+  (s/keys
+    :req-un
+    [::entries
+     ::depends-on]
+    :opt-un
+    [::prepend]))
+
+(s/def ::modules
+  (s/map-of
+    keyword?
+    ::module))
+
+(s/def ::target
+  (s/keys
+    :req-un
+    [::modules]
+    :opt-un
+    [::public-dir
+     ::public-path]
+    ))
+
+(defmethod config/target-spec :browser [_]
+  (s/spec ::target))
+
+(defmethod config/target-spec `process [_]
+  (s/spec ::target))
 
 (def default-browser-config
   {:public-dir "public/js"

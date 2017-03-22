@@ -1,8 +1,32 @@
-(ns shadow.devtools.server.compiler.node-library
+(ns shadow.devtools.targets.node-library
   (:refer-clojure :exclude (flush))
-  (:require [shadow.cljs.build :as cljs]
+  (:require [clojure.spec :as s]
+            [shadow.cljs.build :as cljs]
             [shadow.cljs.umd :as umd]
-            [shadow.devtools.server.compiler :as comp]))
+            [shadow.devtools.server.compiler :as comp]
+            [shadow.devtools.targets.shared :as shared]
+            [shadow.devtools.server.config :as config]
+            ))
+
+(s/def ::exports
+  (s/map-of
+    keyword?
+    qualified-symbol?))
+
+(s/def ::target
+  (s/keys
+    :req-un
+    [::exports
+     ::shared/output-to]
+    :opt-un
+    [::shared/public-dir]
+    ))
+
+(defmethod config/target-spec :node-library [_]
+  (s/spec ::target))
+
+(defmethod config/target-spec `process [_]
+  (s/spec ::target))
 
 (defn init [state mode {:keys [dev] :as config}]
   (let [{:keys [exports]} config]
