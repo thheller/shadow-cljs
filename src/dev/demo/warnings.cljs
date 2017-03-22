@@ -1,9 +1,12 @@
 (ns demo.warnings)
 
-i-dont-exist
+(defn x [foo]
+  foo)
 
-(def x abc)
+#_ i-dont-exist
 
-(+ "a" 1)
+#_ (def x abc)
 
-(have-some-more-warnings foo)
+#_ (+ "a" 1)
+
+#_ (have-some-more-warnings foo)

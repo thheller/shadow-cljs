@@ -15,11 +15,10 @@
       (edn/read-string)))
 
 (defn load-cljs-edn! []
-  (let [input (load-cljs-edn)
-        config (s/conform ::config input)]
-    (when (= config ::s/invalid)
-      (s/explain ::config input)
-      (throw (ex-info "invalid config" (s/explain-data ::config input))))
+  (let [config (load-cljs-edn)]
+    (when-not (s/valid? ::config config)
+      (s/explain ::config config)
+      (throw (ex-info "invalid config" (s/explain-data ::config config))))
     config
     ))
 

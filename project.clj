@@ -35,5 +35,6 @@
     ["src/dev"]
 
     :dependencies
-    [[org.clojure/tools.namespace "0.2.11"]]
+    [#_ [org.clojure/clojure "1.9.0-master-SNAPSHOT"]
+     [org.clojure/tools.namespace "0.2.11"]]
     }})

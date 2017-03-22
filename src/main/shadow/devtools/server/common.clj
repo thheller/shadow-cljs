@@ -5,13 +5,7 @@
             [shadow.devtools.server.sass-worker :as sass-worker]
             [cognitect.transit :as transit]
             [clojure.edn :as edn]
-
-    ;; these are unused but must be imported for the comp/process defmulti
             [shadow.devtools.server.compiler]
-            [shadow.devtools.server.compiler.custom]
-            [shadow.devtools.server.compiler.browser]
-            [shadow.devtools.server.compiler.node-library]
-            [shadow.devtools.server.compiler.node-script]
             [shadow.cljs.build :as cljs]
             [clojure.java.io :as io])
   (:import (java.io ByteArrayOutputStream InputStream)))

@@ -37,7 +37,7 @@
     :release
     (cljs/flush-modules-to-disk state)))
 
-(defmethod comp/process :browser
+(defn process
   [{::comp/keys [stage mode config] :as state}]
   (case stage
     :init

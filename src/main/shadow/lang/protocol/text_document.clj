@@ -46,12 +46,12 @@
           path
           (subs uri (count "file://"))
 
-          [cp name :as x]
+          [cp name :as match]
           (classpath/match-to-classpath classpath path)]
 
       ;; FIXME: special case for project.clj
       (cond
-        (nil? x)
+        (nil? match)
         (p/notify! client-state "window/logMessage" {:type 3 :message (format "%s not on classpath" path)})
 
         (str/ends-with? path ".clj")

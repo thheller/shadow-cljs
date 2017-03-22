@@ -14,7 +14,7 @@
     :release
     (node/flush-optimized state)))
 
-(defmethod comp/process :node-script
+(defn process
   [{::comp/keys [mode stage config] :as state}]
   (case stage
     :init

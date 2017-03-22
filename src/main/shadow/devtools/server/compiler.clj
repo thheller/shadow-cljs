@@ -3,14 +3,6 @@
   (:require [clojure.java.io :as io]
             [shadow.cljs.build :as cljs]))
 
-(defmulti process
-  (fn [state]
-    (::target state))
-  :default ::noop)
-
-(defmethod process ::noop [state]
-  state)
-
 (defn extract-build-info [state]
   (let [source->module
         (reduce
@@ -54,34 +46,58 @@
   (update state ::build-info merge (extract-build-info state)))
 
 (defn process-stage
-  [{::keys [config mode target] :as state} stage optional?]
+  [{::keys [config mode target-fn] :as state} stage optional?]
   (let [before
         (assoc state ::stage stage)
 
         after
-        (process before)]
+        (target-fn before)]
     (if (and (not optional?) (identical? before after))
       (throw (ex-info "process didn't do anything on non-optional stage"
-               {:stage stage
-                :mode mode
-                :target target
-                :config config}))
+               {:stage stage :mode mode :config config}))
       after)))
-
-(defn delegate-process-stage
-  "process the same stage of another target
-   (for custom targets that just want to enhance one thing)"
-  [{::keys [target] :as state} other-target]
-  (-> state
-      (assoc ::target other-target)
-      (process)
-      (assoc ::target target)))
 
 (defn config-merge [config mode]
   ;; FIXME: merge nested maps, vectors
   (let [mode-opts
         (get config mode)]
     (merge config mode-opts)))
+
+(defn get-target-fn [target]
+
+  (let [target-fn-sym
+        (cond
+          (qualified-symbol? target)
+          target
+
+          ;; FIXME: maybe these shouldn't be as hard-coded
+          (keyword? target)
+          (case target
+            :browser
+            'shadow.devtools.server.compiler.browser/process
+            :node-script
+            'shadow.devtools.server.compiler.node-script/process
+            :node-library
+            'shadow.devtools.server.compiler.node-library/process
+            (throw (ex-info "invalid build target keyword, please use a symbol" {:target target})))
+
+          :else
+          (throw (ex-info (format "invalid target: %s" (pr-str target)) {:target target})))
+
+        target-ns (-> target-fn-sym namespace symbol)]
+
+    (when-not (find-ns target-ns)
+      (try
+        (require target-ns)
+        (catch Exception e
+          (throw (ex-info "failed to require build target-fn" {:target target} e)))))
+
+    (let [fn (ns-resolve target-ns target-fn-sym)]
+      (when-not fn
+        (throw (ex-info (str "target-fn " target-fn-sym " not found") {:target target})))
+
+      fn
+      )))
 
 (defn init
   ([mode config]
@@ -91,7 +107,7 @@
           (map? config)
           (keyword? mode)
           (keyword? id)
-          (keyword? target)]
+          (some? target)]
     :post [(cljs/compiler-state? %)]}
 
    (let [config (config-merge config mode)]
@@ -100,7 +116,7 @@
          (assoc :cache-dir (io/file "target" "shadow-cache" (name id) (name mode))
                 ::stage :init
                 ::config config
-                ::target target
+                ::target-fn (get-target-fn target)
                 ::mode mode)
          (cond->
            compiler-options

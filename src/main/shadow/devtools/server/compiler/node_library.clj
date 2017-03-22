@@ -20,7 +20,7 @@
     :release
     (umd/flush-module state)))
 
-(defmethod comp/process :node-library
+(defn process
   [{::comp/keys [mode stage config] :as state}]
   (case stage
     :init
