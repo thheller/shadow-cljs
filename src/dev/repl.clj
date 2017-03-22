@@ -1,10 +1,10 @@
 (ns repl
-  (:require [shadow.devtools.server.standalone :as sys]
-            [clojure.pprint :refer (pprint)]
+  (:require [clojure.pprint :refer (pprint)]
             [clojure.spec.test :as st]
-            [shadow.devtools.server.services.build :as build]
-            [shadow.devtools.server.config :as config]
-            [shadow.devtools.server.embedded :as devtools]
+            [shadow.cljs.devtools.server.standalone :as sys]
+            [shadow.cljs.devtools.server.services.build :as build]
+            [shadow.cljs.devtools.server.config :as config]
+            [shadow.cljs.devtools.server.embedded :as devtools]
             ))
 
 (defn start []

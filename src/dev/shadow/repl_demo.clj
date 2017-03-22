@@ -168,8 +168,8 @@
 
   ;; try with cljs-repl
 
-  (require '[shadow.devtools.api :as api])
-  (shadow.devtools.api/node-repl)
+  (require '[shadow.cljs.devtools.api :as api])
+  (shadow.cljs.devtools.api/node-repl)
 
   (require 'demo.script)
   (in-ns 'demo.script)

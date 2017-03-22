@@ -1,7 +1,7 @@
 (ns shadow.lang.protocol.text-document
   (:require [shadow.lang.protocol :as p]
             [shadow.lang.classpath :as classpath]
-            [shadow.devtools.server.explorer :as cljs-explorer]
+            [shadow.cljs.devtools.server.explorer :as cljs-explorer]
             [clojure.core.async :as async :refer (go)]
             [clojure.pprint :refer (pprint)]
             [clojure.string :as str]))
