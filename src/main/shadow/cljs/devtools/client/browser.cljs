@@ -13,25 +13,15 @@
 
 (defonce socket-ref (atom nil))
 
-(defn socket-msg [msg]
+(defn devtools-msg [msg & args]
+  (.apply (.-log js/console) nil (into-array (into [(str "%c" msg) "color: blue;"] args))))
+
+(defn ws-msg [msg]
   (if-let [s @socket-ref]
     (.send s (pr-str msg))
     (js/console.warn "WEBSOCKET NOT CONNECTED" (pr-str msg))))
 
 (defonce scripts-to-load (atom []))
-
-(def debug)
-
-(defn debug
-  ([a1]
-   (when (aget js/window "console" "debug")
-     (.debug js/console a1)))
-  ([a1 a2]
-   (when (aget js/window "console" "debug")
-     (.debug js/console a1 a2)))
-  ([a1 a2 a3]
-   (when (aget js/window "console" "debug")
-     (.debug js/console a1 a2 a3))))
 
 (def loaded? js/goog.isProvided_)
 
@@ -40,7 +30,6 @@
 
 (defn src-is-loaded? [{:keys [js-name] :as src}]
   (goog-is-loaded? js-name))
-
 
 (defn load-scripts
   [filenames after-load-fn]
@@ -53,7 +42,7 @@
                                          ;; rest will result in () if nothing is left
                                          ;; we need to keep this a vector
                                          (into [] (rest remaining))))
-                (debug "LOAD JS:" next)
+                (devtools-msg "LOAD JS:" next)
                 (-> (loader/load (str js/CLOSURE_BASE_PATH next "?r=" (rand)))
                     (.addBoth (fn []
                                 (gobj/set js/goog.dependencies_.written next true)
@@ -72,7 +61,7 @@
     (when (seq js-to-load)
       (when env/before-load
         (let [fn (js/goog.getObjectByName env/before-load)]
-          (debug "Executing :before-load" env/before-load)
+          (devtools-msg "Executing :before-load" env/before-load)
           (let [state (fn)]
             (reset! reload-state state))))
 
@@ -80,10 +69,11 @@
             (fn []
               (when env/after-load
                 (let [fn (js/goog.getObjectByName env/after-load)]
-                  (debug "Executing :after-load " env/after-load)
+                  (devtools-msg "Executing :after-load " env/after-load)
                   (if-not env/reload-with-state
                     (fn)
                     (fn @reload-state)))))]
+
         (load-scripts
           js-to-load
           after-load-fn)))))
@@ -131,15 +121,10 @@
               (.setAttribute "data-css-package" name)
               (.setAttribute "data-css-module" css-name))]
 
-        (debug "LOAD CSS:" full-path)
+        (devtools-msg "LOAD CSS:" full-path)
         (gdom/insertSiblingAfter new-link node)
         (gdom/removeNode node)
         ))))
-
-
-
-
-
 
 ;; from https://github.com/clojure/clojurescript/blob/master/src/main/cljs/clojure/browser/repl.cljs
 ;; I don't want to pull in all its other dependencies just for this function
@@ -173,7 +158,7 @@
   (let [result (env/repl-call #(js/eval js) pr-str repl-error)]
     (-> result
         (assoc :id id)
-        (socket-msg))))
+        (ws-msg))))
 
 (defn repl-require [{:keys [js-sources reload] :as msg}]
   (load-scripts
@@ -197,10 +182,13 @@
     ;; don't load if already loaded
     (->> (:repl-js-sources repl-state)
          (remove goog-is-loaded?))
-    (fn [] (js/console.log "repl init complete"))))
+    (fn []
+      (ws-msg {:type :repl/init-complete})
+      (devtools-msg "DEVTOOLS: repl init successful"))))
 
 (defn repl-set-ns [{:keys [ns]}]
-  (js/console.log "repl/set-ns" (str ns)))
+  ;; (js/console.log "repl/set-ns" (str ns))
+  (ws-msg {:type :repl/set-ns-complete}))
 
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]
@@ -238,14 +226,12 @@
         socket
         (js/WebSocket. ws-url)]
 
-    (js/console.log "ws-connect" ws-url)
-
     (reset! socket-ref socket)
 
     (set! (.-onmessage socket)
       (fn [e]
         (set-print-fn! (fn [& args]
-                         (socket-msg {:type :repl/out
+                         (ws-msg {:type :repl/out
                                       :out (into [] args)})
                          (apply print-fn args)))
 
@@ -266,14 +252,14 @@
       (fn [e]
         ;; patch away the already declared exception
         (set! (.-provide js/goog) js/goog.constructNamespace_)
-        (.log js/console "DEVTOOLS: connected!")
+        (devtools-msg "DEVTOOLS: connected!")
         ))
 
     (set! (.-onclose socket)
       (fn [e]
         ;; not a big fan of reconnecting automatically since a disconnect
         ;; may signal a change of config, safer to just reload the page
-        (.warn js/console "DEVTOOLS: disconnected!")
+        (devtools-msg "DEVTOOLS: disconnected!")
         (reset! socket-ref nil)
         ))
 
@@ -285,7 +271,7 @@
   ;; disconnect an already connected socket, happens if this file is reloaded
   ;; pretty much only for me while working on this file
   (when-let [s @socket-ref]
-    (js/console.log "DEVTOOLS: connection reset!")
+    (devtools-msg "DEVTOOLS: connection reset!")
     (set! (.-onclose s) (fn [e]))
     (.close s))
   (ws-connect))
