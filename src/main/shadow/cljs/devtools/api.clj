@@ -257,9 +257,9 @@
     (-> (comp/init :release build-config)
         (cond->
           debug
-          (-> #_ (cljs/enable-source-maps)
-              (assoc :pretty-print true)
-              #_ (assoc :pseudo-names true)))
+          (-> (cljs/enable-source-maps)
+              (assoc :pretty-print true
+                     :pseudo-names true)))
         (comp/compile)
         (comp/flush)))
   :done)
