@@ -108,7 +108,7 @@
   (shadow$formatter [this] true)
   (header [this obj]
     (when (symbol? obj)
-      (clj->jsonml [:span keyword-style (str "'" (pr-str obj))])
+      (clj->jsonml [:span keyword-style (pr-str obj)])
       ))
   (hasBody [this obj]
     false)

@@ -258,8 +258,9 @@
         (cond->
           debug
           (-> (cljs/enable-source-maps)
-              (assoc :pretty-print true
-                     :pseudo-names true)))
+              (cljs/merge-compiler-options
+                {:pretty-print true
+                 :pseudo-names true})))
         (comp/compile)
         (comp/flush)))
   :done)
