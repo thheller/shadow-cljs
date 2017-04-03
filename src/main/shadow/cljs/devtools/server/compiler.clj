@@ -2,6 +2,7 @@
   (:refer-clojure :exclude (compile flush))
   (:require [clojure.java.io :as io]
             [clojure.spec :as s]
+            [clojure.pprint :refer (pprint)]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.server.config :as config]))
 
@@ -59,11 +60,34 @@
                {:stage stage :mode mode :config config}))
       after)))
 
+(defn deep-merge [a b]
+  (cond
+    (and (map? a) (map? b))
+    (merge-with deep-merge a b)
+
+    (and (vector? a) (vector? b))
+    (->> (concat a b)
+         (distinct)
+         (into []))
+
+    (string? b)
+    b
+
+    (number? b)
+    b
+
+    (boolean? b)
+    b
+
+    :else
+    (throw (ex-info "failed to merge config value" {:a a :b b}))
+    ))
+
 (defn config-merge [config mode]
-  ;; FIXME: merge nested maps, vectors
-  (let [mode-opts
-        (get config mode)]
-    (merge config mode-opts)))
+  (let [mode-opts (get config mode)]
+    (-> config
+        (deep-merge mode-opts)
+        (dissoc :release :dev))))
 
 (defn get-target-fn [target]
 
@@ -104,7 +128,7 @@
 (defn init
   ([mode config]
    (init (cljs/init-state) mode config))
-  ([init-state mode {:keys [id target compiler-options] :as config}]
+  ([init-state mode {:keys [id target] :as config}]
    {:pre [(cljs/compiler-state? init-state)
           (map? config)
           (keyword? mode)
@@ -112,7 +136,7 @@
           (some? target)]
     :post [(cljs/compiler-state? %)]}
 
-   (let [config
+   (let [{:keys [compiler-options] :as config}
          (config-merge config mode)
 
          target-fn
