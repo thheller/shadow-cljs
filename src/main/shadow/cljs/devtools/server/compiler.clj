@@ -62,6 +62,12 @@
 
 (defn deep-merge [a b]
   (cond
+    (nil? a)
+    b
+
+    (nil? b)
+    a
+
     (and (map? a) (map? b))
     (merge-with deep-merge a b)
 
@@ -86,7 +92,9 @@
 (defn config-merge [config mode]
   (let [mode-opts (get config mode)]
     (-> config
-        (deep-merge mode-opts)
+        (cond->
+          mode-opts
+          (deep-merge mode-opts))
         (dissoc :release :dev))))
 
 (defn get-target-fn [target]
