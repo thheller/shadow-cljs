@@ -5,7 +5,8 @@
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.server.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
-            [shadow.cljs.devtools.server.config :as config]))
+            [shadow.cljs.devtools.server.config :as config]
+            [clojure.data.json :as json]))
 
 (s/def ::entries
   (s/coll-of symbol? :kind vector?))
@@ -59,7 +60,63 @@
     state
     modules))
 
-(defn init [state mode {:keys [modules] :as config}]
+(defn json [obj]
+  (json/write-str obj :escape-slash false))
+
+;; FIXME: really not sure how I feel about this
+(defn create-loader [{:keys [public-path modules] :as state} loader-config]
+  (let [loader-config
+        (cond
+          (true? loader-config)
+          {:name :loader
+           :entries []}
+          (map? loader-config)
+          loader-config
+          :else
+          (throw (ex-info "invalid loader config" {:config loader-config})))
+
+        loader-name
+        (or (:name loader-config) :loader)
+
+        module-infos
+        (reduce-kv
+          (fn [mi mod-name mod]
+            (assoc mi (name mod-name)
+              (->> mod
+                   :depends-on
+                   (remove #{loader-name})
+                   (map name)
+                   (into []))))
+          {}
+          modules)
+
+        module-uris
+        (reduce-kv
+          (fn [mi mod-name mod]
+            (assoc mi (name mod-name) (str public-path "/" (:js-name mod))))
+          {}
+          modules)
+
+        modules
+        (reduce-kv
+          (fn [mi mod-name mod]
+            (assoc mi mod-name
+              (-> mod
+                  (dissoc :default)
+                  (update :append-js str "\nshadow.loader.set_loaded('" (name mod-name) "');\n")
+                  (update :depends-on conj loader-name)
+                  )))
+          {}
+          modules)]
+
+    (-> state
+        (assoc :modules modules)
+        (dissoc :default-module)
+        (cljs/configure-module loader-name (into ['shadow.loader] (:entries loader-config)) #{}
+          {:append-js
+           (str "shadow.loader.setup(" (json module-uris) ", " (json module-infos) ");")}))))
+
+(defn init [state mode {:keys [modules loader] :as config}]
   (let [{:keys [public-dir public-path]}
         (merge default-browser-config config)]
 
@@ -71,12 +128,17 @@
           public-dir
           (cljs/merge-build-options {:public-dir (io/file public-dir)}))
 
-        (configure-modules modules))))
+        (configure-modules modules)
+        (cond->
+          loader
+          (create-loader loader)))))
 
 (defn flush [state mode config]
   (case mode
     :dev
-    (cljs/flush-unoptimized state)
+    (if (:loader config)
+      (cljs/flush-unoptimized-compact state)
+      (cljs/flush-unoptimized state))
     :release
     (cljs/flush-modules-to-disk state)))
 

@@ -2,8 +2,6 @@
 
 This library provides a basic configuration layer for ClojureScript and attempts to provide some good defaults so you can limit the amount of config repetition for your builds. 
 
-## Usage
-
 **Please see the [wiki](https://github.com/thheller/shadow-devtools/wiki/Using-shadow-devtools) for further instructions.**
 
 You can find the latest version here:
