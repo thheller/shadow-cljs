@@ -92,8 +92,13 @@
             ;; no need to forward :build-log messages to the client
             watch-ignore
             #{:build-log
-              :repl-result
-              :repl-action}
+              :repl/result
+              :repl/error ;; server-side error
+              :repl/action
+              :repl/eval-start
+              :repl/eval-stop
+              :repl/client-start
+              :repl/client-stop}
 
             watch-chan
             (-> (async/sliding-buffer 10)

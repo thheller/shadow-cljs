@@ -27,11 +27,14 @@
         {:keys [id]}
         build-config
 
-        {:keys [reload-with-state before-load after-load]}
+        {:keys [reload-with-state before-load after-load autoload]}
         (:devtools build-config)]
 
     {"shadow.cljs.devtools.client.env.enabled"
      true
+
+     "shadow.cljs.devtools.client.env.autoload"
+     (or autoload (some? before-load) (some? after-load))
 
      "shadow.cljs.devtools.client.env.repl_host"
      host
@@ -114,18 +117,16 @@
     {:type :build-message
      :msg msg}))
 
-(defn repl-error
-  [worker-state e]
-  (>!!output worker-state
-    {:type :repl-error
-     :message (.getMessage e)
-     :data (ex-data e)
-     :causes
-     (loop [e (.getCause e)
-            causes []]
-       (if e
-         (recur (.getCause e) (conj causes (.getMessage e)))
-         causes))}))
+(defn repl-error [e]
+  {:type :repl/error
+   :message (.getMessage e)
+   :data (ex-data e)
+   :causes
+   (loop [e (.getCause e)
+          causes []]
+     (if e
+       (recur (.getCause e) (conj causes (.getMessage e)))
+       causes))})
 
 (defn build-failure
   [worker-state e]
@@ -189,6 +190,7 @@
   (>!! eval-out {:type :repl/init
                  :repl-state (-> worker-state :compiler-state :repl-state)})
 
+  (>!!output worker-state {:type :repl/eval-start :id id})
   (update worker-state :eval-clients assoc id {:id id
                                                :eval-out eval-out
                                                :client-out client-out}))
@@ -196,14 +198,17 @@
 
 (defmethod do-proc-control :eval-stop
   [worker-state {:keys [id]}]
+  (>!!output worker-state {:type :repl/eval-stop :id id})
   (update worker-state :eval-clients dissoc id))
 
 (defmethod do-proc-control :client-start
   [worker-state {:keys [id in]}]
+  (>!!output worker-state {:type :repl/client-start :id id})
   (update worker-state :repl-clients assoc id {:id id :in in}))
 
 (defmethod do-proc-control :client-stop
   [worker-state {:keys [id]}]
+  (>!!output worker-state {:type :repl/client-stop :id id})
   (update worker-state :repl-clients dissoc id))
 
 (defmethod do-proc-control :start-autobuild
@@ -297,7 +302,7 @@
           (doseq [[idx action] (map-indexed vector new-actions)
                   :let [idx (+ idx start-idx)
                         action (assoc action :id idx)]]
-            (>!!output worker-state {:type :repl-action
+            (>!!output worker-state {:type :repl/action
                                      :action action})
             (>!! eval-out action))
 
@@ -306,10 +311,12 @@
             :pending-results pending-results))
 
         (catch Exception e
-          (repl-error worker-state e)
+          (let [msg (repl-error e)]
+            (>!! result-chan msg)
+            (>!!output worker-state msg))
           worker-state)))))
 
-(defmethod do-proc-control :repl-result
+(defmethod do-proc-control :repl/result
   [{:keys [pending-results] :as worker-state}
    {:keys [result] :as msg}]
 
@@ -437,7 +444,7 @@
             result-chan
             ([msg]
               (when-not (nil? msg)
-                (>! proc-control {:type :repl-result
+                (>! proc-control {:type :repl/result
                                   :result msg})
                 (recur)))
 

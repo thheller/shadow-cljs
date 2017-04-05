@@ -15,7 +15,7 @@
             )
   (:import (java.io PushbackReader StringReader)))
 
-(defn- start []
+(defn- start [opts]
   (let [config
         {}
 
@@ -49,6 +49,12 @@
 
       :repl/timeout
       (println "Timeout while waiting for REPL result.")
+
+      :repl/no-eval-target
+      (println "There is no connected JS runtime.")
+
+      :repl/too-many-eval-clients
+      (println "There are too many connected processes.")
 
       (prn [:result result]))
     (flush)))
@@ -215,55 +221,65 @@
   ([]
    (node-repl {}))
   ([opts]
-   (let [app (start)]
+   (let [app (start opts)]
      (try
        (node-repl* app opts)
        (finally
          (rt/stop-all app))))))
 
-(defn once [{:keys [build] :as args}]
-  (let [build-config
-        (config/get-build! build)]
+(defn once
+  ([build]
+    (once build {}))
+  ([build opts]
+   (let [build-config
+         (config/get-build! build)]
 
-    (-> (comp/init :dev build-config)
-        (comp/compile)
-        (comp/flush)))
+     (-> (comp/init :dev build-config)
+         (comp/compile)
+         (comp/flush)))
+   :done))
 
-  :done)
+(defn dev
+  ([build]
+    (dev build {}))
+  ([build opts]
+   (let [build-config
+         (config/get-build! build)
 
-(defn dev [{:keys [build] :as args}]
-  (let [build-config
-        (config/get-build! build)
+         {:keys [worker out] :as app}
+         (start opts)]
 
-        {:keys [worker out] :as app}
-        (start)]
+     (try
+       (-> worker
+           (worker/watch out)
+           (worker/configure build-config)
+           (worker/start-autobuild)
+           (worker/sync!)
+           (stdin-takeover!))
 
-    (try
-      (-> worker
-          (worker/watch out)
-          (worker/configure build-config)
-          (worker/start-autobuild)
-          (worker/sync!)
-          (stdin-takeover!))
+       (finally
+         (rt/stop-all app))))
 
-      (finally
-        (rt/stop-all app)))
+    :done
     ))
 
-(defn release [{:keys [build debug] :as args}]
-  (let [build-config
-        (config/get-build! build)]
+(defn release
+  ([build]
+    (release build {}))
+  ([build {:keys [debug] :as opts}]
+   (let [build-config
+         (config/get-build! build)]
 
-    (-> (comp/init :release build-config)
-        (cond->
-          debug
-          (-> (cljs/enable-source-maps)
-              (cljs/merge-compiler-options
-                {:pretty-print true
-                 :pseudo-names true})))
-        (comp/compile)
-        (comp/flush)))
-  :done)
+     (-> (comp/init :release build-config)
+         (cond->
+           debug
+           (-> (cljs/enable-source-maps)
+               (cljs/merge-compiler-options
+                 {:pretty-print true
+                  :pseudo-names true})))
+         (comp/compile)
+         (comp/flush)))
+   :done))
 
 (defn test-setup []
   (-> (cljs/init-state)

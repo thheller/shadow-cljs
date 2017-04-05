@@ -1,22 +1,22 @@
 (ns repl
   (:require [clojure.pprint :refer (pprint)]
             [clojure.spec.test :as st]
-            [shadow.cljs.devtools.server.standalone :as sys]
-            [shadow.cljs.devtools.server.services.build :as build]
-            [shadow.cljs.devtools.server.config :as config]
-            [shadow.cljs.devtools.server.embedded :as devtools]
+            [shadow.cljs.devtools.embedded :as devtools]
             ))
 
 (defn start []
   (st/instrument)
-  (devtools/start!)
-  ;; (devtools/start-autobuild :script)
+  (devtools/start! {:verbose true})
+  (devtools/start-worker :script)
   ::started)
 
 (defn stop []
   (st/unstrument)
   (devtools/stop!)
   ::stopped)
+
+(defn repl []
+  (devtools/repl :script))
 
 ;; (ns-tools/set-refresh-dirs "src/main")
 

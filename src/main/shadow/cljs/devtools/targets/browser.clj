@@ -22,10 +22,10 @@
 (s/def ::module
   (s/keys
     :req-un
-    [::entries
-     ::depends-on]
+    [::entries]
     :opt-un
-    [::prepend]))
+    [::depends-on
+     ::prepend]))
 
 (s/def ::modules
   (s/map-of
@@ -55,7 +55,7 @@
   [state modules]
   (reduce-kv
     (fn [state module-id {:keys [entries depends-on] :as module-config}]
-      (cljs/configure-module state module-id entries depends-on module-config))
+      (cljs/configure-module state module-id entries (or depends-on #{}) module-config))
     state
     modules))
 

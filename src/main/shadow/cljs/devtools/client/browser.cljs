@@ -80,33 +80,32 @@
 
 (defn handle-build-complete [{:keys [info] :as msg}]
   (let [{:keys [warnings sources compiled]}
-        info
+        info]
 
-        ;; load all files for current build:
-        ;; of modules that are active
-        ;; and are either not loaded yet
-        ;; or specifically marked for reload
+    (doseq [warning warnings]
+      (js/console.warn "BUILD-WARNING" warning))
 
-        js-to-load
-        (->> sources
-             (filter
-               (fn [{:keys [module]}]
-                 (module-is-active? module)))
-             (filter
-               (fn [{:keys [js-name name]}]
-                 (or (not (goog-is-loaded? js-name))
-                     (contains? compiled name))))
-             (map :js-name)
-             (into []))]
+    (when env/autoload
+      ;; load all files for current build:
+      ;; of modules that are active
+      ;; and are either not loaded yet
+      ;; or specifically marked for reload
+      (let [js-to-load
+            (->> sources
+                 (filter
+                   (fn [{:keys [module]}]
+                     (module-is-active? module)))
+                 (filter
+                   (fn [{:keys [js-name name]}]
+                     (or (not (goog-is-loaded? js-name))
+                         (contains? compiled name))))
+                 (map :js-name)
+                 (into []))]
 
-    ;; FIXME: figwheel-ish warnings?
-    ;; I really want them in my editor, not the browser
-    (if (seq warnings)
-      (doseq [warning warnings]
-        (js/console.warn "BUILD-WARNING" warning))
-
-      (do-js-reload js-to-load))
-    ))
+        ;; FIXME: reload despite warnings?
+        (when (empty? warnings)
+          (do-js-reload js-to-load))
+        ))))
 
 (defn handle-css-changes [{:keys [public-path name manifest] :as pkg}]
   (doseq [[css-name css-file-name] manifest]

@@ -5,37 +5,47 @@
 
 ;; FIXME: spec for cli
 (defn- parse-args [[build-id & more :as args]]
-  {:build (keyword build-id)})
+  {:build
+   (keyword
+     (if (.startsWith build-id ":")
+       (subs build-id 1)
+       build-id))})
 
 (defn once [& args]
-  (-> args (parse-args) (api/once)))
+  (let [{:keys [build] :as opts}
+        (parse-args args)]
+    (api/once build opts)))
 
 (defn dev [& args]
-  (-> args (parse-args) (api/dev)))
+  (let [{:keys [build] :as opts}
+        (parse-args args)]
+    (api/dev build opts)))
+
+(defn release [& args]
+  (let [{:keys [build] :as opts}
+        (parse-args args)]
+    (api/release build opts)))
 
 (defn node-repl [& args]
   ;; FIXME: ignoring args
   (api/node-repl))
 
-(defn release [& args]
-  (-> args (parse-args) (api/release)))
-
-(defn autotest
-  "no way to interrupt this, don't run this in nREPL"
-  []
-  (-> (api/test-setup)
-      (cljs/watch-and-repeat!
-        (fn [state modified]
-          (-> state
-              (cond->
-                ;; first pass, run all tests
-                (empty? modified)
-                (node/execute-all-tests!)
-                ;; only execute tests that might have been affected by the modified files
-                (not (empty? modified))
-                (node/execute-affected-tests! modified))
-              )))))
-
+;; too many issues
+#_(defn autotest
+    "no way to interrupt this, don't run this in nREPL"
+    []
+    (-> (api/test-setup)
+        (cljs/watch-and-repeat!
+          (fn [state modified]
+            (-> state
+                (cond->
+                  ;; first pass, run all tests
+                  (empty? modified)
+                  (node/execute-all-tests!)
+                  ;; only execute tests that might have been affected by the modified files
+                  (not (empty? modified))
+                  (node/execute-affected-tests! modified))
+                )))))
 
 (defn test-all []
   (api/test-all))

@@ -6,6 +6,7 @@ out/
 js/
 css/
 /public/assets
+/wiki
 pom.xml
 pom.xml.asc
 *.iml

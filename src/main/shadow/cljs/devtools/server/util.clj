@@ -18,52 +18,62 @@
     shadow-log/BuildLog
     (log* [_ state msg])))
 
+(defn print-warnings [warnings]
+  (doseq [{:keys [msg line column source-name] :as w} warnings]
+    (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
+
 (defn print-worker-out [x verbose]
   (locking cljs/stdout-lock
-    (case (:type x)
-      :build-log
-      (when verbose
-        (println (shadow-log/event-text (:event x))))
+    (binding [*out* *err*]
+      (case (:type x)
+        :build-log
+        (when verbose
+          (println (shadow-log/event-text (:event x))))
 
-      :build-start
-      (println (format "[%s] Build started." (-> x :build-config :id)))
+        :build-start
+        (println (format "[%s] Build started." (-> x :build-config :id)))
 
-      :build-complete
-      (let [{:keys [info build-config]} x
-            {:keys [sources compiled warnings]} info]
+        :build-complete
+        (let [{:keys [info build-config]} x
+              {:keys [sources compiled warnings]} info]
 
-        (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings)"
-                   (:id build-config)
-                   (count sources)
-                   (count compiled)
-                   (count warnings)))
+          (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings)"
+                     (:id build-config)
+                     (count sources)
+                     (count compiled)
+                     (count warnings)))
 
-        (when (seq warnings)
-          (println (format "====== %d Warnings" (count warnings)))
-          (doseq [{:keys [msg line column source-name] :as w} warnings]
-            (println (str "WARNING: " msg " (" source-name " at " line ":" column ") ")))
-          (println "======")))
+          (when (seq warnings)
+            (println (format "====== %d Warnings" (count warnings)))
+            (doseq [{:keys [msg line column source-name] :as w} warnings]
+              (println (str "WARNING: " msg " (" source-name " at " line ":" column ") ")))
+            (println "======")))
 
-      :build-shutdown
-      (println "Build shutdown.")
+        :build-shutdown
+        (println "Build shutdown.")
 
-      :repl-action
-      :ignored
+        :repl/action
+        (let [warnings (get-in x [:action :warnings])]
+          (print-warnings warnings))
 
-      ;; should have been handled somewhere else
-      :repl-result
-      :ignored
+        ;; should have been handled somewhere else
+        :repl/result
+        :ignored
 
-      :repl-error
-      (binding [*err* *out*]
-        (println "REPL-Error" (:message x))
-        (-> x (dissoc :type :message) (pprint)))
+        :repl/error
+        :ignored ;; also handled by out
 
-      :worker-shutdown
-      (println "Worker shutdown.")
+        :repl/eval-start
+        (println "JS runtime connected.")
 
-      ;; default
-      (prn [:log x]))))
+        :repl/eval-stop
+        (println "JS runtime disconnected.")
+
+        :worker-shutdown
+        (println "Worker shutdown.")
+
+        ;; default
+        (prn [:log x])))))
 
 (defn stdout-dump [verbose]
   (let [chan

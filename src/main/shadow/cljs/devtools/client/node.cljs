@@ -48,25 +48,19 @@
     (ws-msg {:type :repl/init-complete :id id})
     ))
 
-(defn print-warnings [warnings]
-  (doseq [{:keys [msg line column source-name] :as w} warnings]
-    (js/console.warn (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
-
-(defn repl-invoke [{:keys [id js warnings] :as msg}]
-  (print-warnings warnings)
+(defn repl-invoke [{:keys [id] :as msg}]
   (let [result
         (-> (env/repl-call #(node-eval msg) pr-str repl-error)
             (assoc :id id))]
 
     (ws-msg result)))
 
-(defn repl-set-ns [{:keys [id ns] :as msg}]
+(defn repl-set-ns [{:keys [id] :as msg}]
   ;; nothing for the client to do really
   (ws-msg {:type :repl/set-ns-complete :id id}))
 
 (defn repl-require
-  [{:keys [id js-sources warnings reload] :as msg}]
-  (print-warnings warnings)
+  [{:keys [id js-sources reload] :as msg}]
   (try
     (doseq [src js-sources
             :when (or reload
@@ -82,35 +76,36 @@
 (defn build-complete
   [{:keys [info] :as msg}]
 
-  (let [{:keys [sources compiled]}
-        info
+  (when env/autoload
+    (let [{:keys [sources compiled]}
+          info
 
-        files-to-require
-        (->> sources
-             (filter (fn [{:keys [name]}]
-                       (contains? compiled name)))
-             (map :js-name)
-             (into []))]
+          files-to-require
+          (->> sources
+               (filter (fn [{:keys [name]}]
+                         (contains? compiled name)))
+               (map :js-name)
+               (into []))]
 
-    (when (seq files-to-require)
+      (when (seq files-to-require)
 
-      (let [reload-state (volatile! nil)]
+        (let [reload-state (volatile! nil)]
 
-        (when env/before-load
-          (let [fn (js/goog.getObjectByName env/before-load)]
-            (js/console.warn "REPL before-load" env/before-load)
-            (vreset! reload-state (fn))))
+          (when env/before-load
+            (let [fn (js/goog.getObjectByName env/before-load)]
+              (js/console.warn "REPL before-load" env/before-load)
+              (vreset! reload-state (fn))))
 
-        (doseq [src files-to-require]
-          (closure-import src))
+          (doseq [src files-to-require]
+            (closure-import src))
 
-        (when env/after-load
-          (let [fn (js/goog.getObjectByName env/after-load)]
-            (js/console.warn "REPL after-load " env/after-load)
-            (if-not env/reload-with-state
-              (fn)
-              (fn @reload-state))))))
-    ))
+          (when env/after-load
+            (let [fn (js/goog.getObjectByName env/after-load)]
+              (js/console.warn "REPL after-load " env/after-load)
+              (if-not env/reload-with-state
+                (fn)
+                (fn @reload-state))))))
+      )))
 
 (defn process-message
   [{:keys [type] :as msg}]
@@ -127,6 +122,9 @@
 
     :repl/require
     (repl-require msg)
+
+    :build-start
+    :ignored
 
     :build-complete
     (build-complete msg)

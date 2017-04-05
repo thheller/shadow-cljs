@@ -7,6 +7,8 @@
 
 (goog-define enabled false)
 
+(goog-define autoload true)
+
 (goog-define before-load "")
 
 (goog-define after-load "")
