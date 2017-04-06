@@ -144,7 +144,7 @@
           (some? target)]
     :post [(cljs/compiler-state? %)]}
 
-   (let [{:keys [compiler-options] :as config}
+   (let [{:keys [closure-defines compiler-options] :as config}
          (config-merge config mode)
 
          target-fn
@@ -162,14 +162,12 @@
                 ::target-fn target-fn
                 ::mode mode)
          (cond->
-           compiler-options
-           (cljs/merge-compiler-options compiler-options)
-
            ;; generic dev mode, each target can overwrite in :init stage
            (= :dev mode)
            (-> (cljs/enable-source-maps)
                (cljs/merge-build-options
-                 {:use-file-min false})
+                 {:use-file-min false
+                  :closure-defines {"goog.DEBUG" true}})
                (cljs/merge-compiler-options
                  {:optimizations :none}))
 
@@ -178,7 +176,13 @@
            (cljs/merge-compiler-options
              {:optimizations :advanced
               :elide-asserts true
-              :pretty-print false}))
+              :pretty-print false})
+
+           closure-defines
+           (cljs/merge-build-options {:closure-defines closure-defines})
+
+           compiler-options
+           (cljs/merge-compiler-options compiler-options))
 
          (process-stage :init false)
          (cljs/find-resources-in-classpath)
@@ -196,7 +200,7 @@
       (cljs/prepare-compile)
       (cljs/prepare-modules)
       (update-build-info-from-modules)
-      (cljs/do-compile-modules)
+      (cljs/compile-modules*)
       (update-build-info-after-compile)
       (process-stage :compile-finish true)
       (cond->

@@ -4,7 +4,8 @@
             [shadow.cljs.devtools.server.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.server.config :as config]
-            [clojure.spec :as s]))
+            [clojure.spec :as s]
+            [shadow.cljs.build :as cljs]))
 
 (s/def ::main qualified-symbol?)
 
@@ -23,8 +24,14 @@
 (defmethod config/target-spec `process [_]
   (s/spec ::target))
 
+;; FIXME: should allow using :advanced
 (defn init [state mode config]
-  (node/configure state config))
+  (-> state
+      (cond->
+        (= :release mode)
+        (cljs/merge-compiler-options
+          {:optimizations :simple}))
+      (node/configure config)))
 
 (defn flush [state mode config]
   (case mode

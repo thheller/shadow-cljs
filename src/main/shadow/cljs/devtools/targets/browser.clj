@@ -100,15 +100,27 @@
   (let [[loader-module & modules]
         build-modules
 
+        modules
+        (remove :web-worker modules)
+
         loader-sources
         (into #{} (:sources loader-module))
 
         module-uris
         (reduce
-          (fn [m {:keys [name sources] :as module}]
+          (fn [m {:keys [name foreign-files sources] :as module}]
             (assoc m name
               (if release?
-                [(str public-path "/" (:js-name module))]
+                (let [foreign-uris
+                      (->> foreign-files
+                           (map (fn [{:keys [js-name]}]
+                                  (str public-path "/" js-name)))
+                           (into []))
+                      mod-uri
+                      (str public-path "/" (:js-name module))]
+                  (conj foreign-uris mod-uri))
+
+                ;; :dev, never bundles foreign
                 (->> sources
                      (remove loader-sources)
                      (map (fn [src-name]
@@ -138,7 +150,7 @@
     ))
 
 (defn init [state mode {:keys [modules module-loader] :as config}]
-  (let [{:keys [public-dir public-path]}
+  (let [{:keys [public-dir public-path bundle-foreign]}
         (merge default-browser-config config)]
 
     (-> state
@@ -147,7 +159,10 @@
           (cljs/merge-build-options {:public-path public-path})
 
           public-dir
-          (cljs/merge-build-options {:public-dir (io/file public-dir)}))
+          (cljs/merge-build-options {:public-dir (io/file public-dir)})
+
+          bundle-foreign
+          (cljs/merge-build-options {:bundle-foreign bundle-foreign}))
 
         (configure-modules modules)
         (cond->

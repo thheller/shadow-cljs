@@ -15,6 +15,9 @@ shadow.loader.enable = function() {
 };
 
 shadow.loader.setup = function(uris, modules) {
+  if (goog.DEBUG) {
+    console.log("shadow.loader.setup", uris, modules);
+  }
   shadow.loader.mm.setAllModuleInfo(modules);
   shadow.loader.mm.setModuleUris(uris);
 };
