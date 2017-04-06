@@ -11,7 +11,7 @@ shadow.loader.mm = goog.module.ModuleManager.getInstance();
 shadow.loader.mm.setLoader(shadow.loader.ml);
 
 shadow.loader.enable = function() {
-  // called just before setup
+  // called after setup, not sure there is something useful we could do here
 };
 
 shadow.loader.setup = function(uris, modules) {

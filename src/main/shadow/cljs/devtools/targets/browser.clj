@@ -133,7 +133,8 @@
       (throw (ex-info "no loader append rc" {:rc loader-append-rc})))
 
     (update-in state [:sources loader-append-rc :output]
-      str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");")
+      ;; prepend so it is emitted called before he enable()
+      #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
     ))
 
 (defn init [state mode {:keys [modules module-loader] :as config}]
