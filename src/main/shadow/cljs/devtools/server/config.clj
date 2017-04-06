@@ -26,9 +26,10 @@
   (s/coll-of ::build :kind vector?))
 
 (defn load-cljs-edn []
-  (-> (io/file "shadow-cljs.edn")
-      (slurp)
-      (edn/read-string)))
+  (let [file (io/file "shadow-cljs.edn")]
+    (if-not (.exists file)
+      [] ;; FIXME: throw instead? we can't do anything without configured builds
+      (-> file (slurp) (edn/read-string)))))
 
 (defn load-cljs-edn! []
   (let [config (load-cljs-edn)]

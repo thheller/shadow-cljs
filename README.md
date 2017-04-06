@@ -10,6 +10,13 @@ You can find the latest version here:
 
 **Clojure 1.9-alpha15 is required, which makes this just as alpha!**
 
+
+## Example project
+
+An example project using leiningen can be found here:
+
+https://github.com/thheller/shadow-devtools-example
+
 ## License
 
 Copyright © 2017 Thomas Heller
