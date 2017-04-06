@@ -2,20 +2,25 @@
   (:refer-clojure :exclude (flush))
   (:require [clojure.java.io :as io]
             [clojure.spec :as s]
+            [clojure.data.json :as json]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.server.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.server.config :as config]
-            [clojure.data.json :as json]))
+            ))
 
 (s/def ::entries
   (s/coll-of symbol? :kind vector?))
 
-(s/def ::public-path
-  shared/non-empty-string?)
+(s/def ::public-path shared/non-empty-string?)
 
-(s/def ::prepend
-  shared/non-empty-string?)
+;; will just be added as is (useful for comments, license, ...)
+(s/def ::prepend string?)
+(s/def ::append string?)
+
+;; these go through closure optimized, should be valid js
+(s/def ::prepend-js string?)
+(s/def ::append-js string?)
 
 (s/def ::module-loader boolean?)
 
@@ -28,7 +33,10 @@
     [::entries]
     :opt-un
     [::depends-on
-     ::prepend]))
+     ::prepend
+     ::prepend-js
+     ::append-js
+     ::append]))
 
 (s/def ::modules
   (s/map-of
@@ -145,7 +153,7 @@
       (throw (ex-info "no loader append rc" {:rc loader-append-rc})))
 
     (update-in state [:sources loader-append-rc :output]
-      ;; prepend so it is emitted called before he enable()
+      ;; prepend so it is emitted called before the enable()
       #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
     ))
 
