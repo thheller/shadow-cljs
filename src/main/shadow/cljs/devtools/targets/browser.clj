@@ -17,6 +17,8 @@
 (s/def ::prepend
   shared/non-empty-string?)
 
+(s/def ::module-loader boolean?)
+
 (s/def ::depends-on
   (s/coll-of keyword? :kind set?))
 
@@ -38,7 +40,8 @@
     :req-un
     [::modules]
     :opt-un
-    [::public-dir
+    [::module-loader
+     ::public-dir
      ::public-path]
     ))
 
@@ -63,60 +66,77 @@
 (defn json [obj]
   (json/write-str obj :escape-slash false))
 
-;; FIXME: really not sure how I feel about this
-(defn create-loader [{:keys [public-path modules] :as state} loader-config]
-  (let [loader-config
-        (cond
-          (true? loader-config)
-          {:name :loader
-           :entries []}
-          (map? loader-config)
-          loader-config
-          :else
-          (throw (ex-info "invalid loader config" {:config loader-config})))
+;; FIXME: assumes default module is the loader
+;; FIXME: I think this should rewrite the config instead of the state
+;; feels wrong to configure-modules normally and then modify it
+(defn inject-loader-callbacks [{:keys [public-path modules] :as state}]
+  (when (<= (count modules) 1)
+    (throw (ex-info "cannot use module-loader with just one module" {})))
 
-        loader-name
-        (or (:name loader-config) :loader)
-
-        module-infos
+  (let [modules
         (reduce-kv
-          (fn [mi mod-name mod]
-            (assoc mi (name mod-name)
-              (->> mod
-                   :depends-on
-                   (remove #{loader-name})
-                   (map name)
-                   (into []))))
-          {}
-          modules)
-
-        module-uris
-        (reduce-kv
-          (fn [mi mod-name mod]
-            (assoc mi (name mod-name) (str public-path "/" (:js-name mod))))
-          {}
-          modules)
-
-        modules
-        (reduce-kv
-          (fn [mi mod-name mod]
+          (fn [mi mod-name {:keys [default] :as mod}]
             (assoc mi mod-name
               (-> mod
-                  (dissoc :default)
-                  (update :append-js str "\nshadow.loader.set_loaded('" (name mod-name) "');\n")
-                  (update :depends-on conj loader-name)
+                  (cond->
+                    ;; default module brings in shadow.loader
+                    ;; must create some :append-js so the pseudo-rc is created
+                    ;; the enable call is currently a noop
+                    default
+                    (-> (update :entries #(into '[shadow.loader] %))
+                        (update :append-js str "\nshadow.loader.enable();"))
+
+                    ;; other modules just need to tell the loader they finished loading
+                    (not default)
+                    (update :append-js str "\nshadow.loader.set_loaded('" (name mod-name) "');"))
                   )))
           {}
           modules)]
+    (assoc state :modules modules)
+    ))
 
-    (-> state
-        (assoc :modules modules)
-        (dissoc :default-module)
-        (cljs/configure-module loader-name (into ['shadow.loader] (:entries loader-config)) #{}
-          {:append-js
-           (str "shadow.loader.setup(" (json module-uris) ", " (json module-infos) ");")}))))
+(defn inject-loader-setup
+  [{:keys [public-path cljs-runtime-path build-modules] :as state} release?]
+  (let [[loader-module & modules]
+        build-modules
 
-(defn init [state mode {:keys [modules loader] :as config}]
+        loader-sources
+        (into #{} (:sources loader-module))
+
+        module-uris
+        (reduce
+          (fn [m {:keys [name sources] :as module}]
+            (assoc m name
+              (if release?
+                [(str public-path "/" (:js-name module))]
+                (->> sources
+                     (remove loader-sources)
+                     (map (fn [src-name]
+                            (let [js-name (get-in state [:sources src-name :js-name])]
+                              (str public-path "/" cljs-runtime-path "/" js-name))))
+                     (into [])
+                     ))))
+          {}
+          modules)
+
+        module-infos
+        (reduce
+          (fn [m {:keys [name depends-on]}]
+            (assoc m name (disj depends-on (:name loader-module))))
+          {}
+          modules)
+
+        loader-append-rc
+        (str "shadow/module/append/" (-> loader-module :name name) ".js")]
+
+    (when-not (get-in state [:sources loader-append-rc])
+      (throw (ex-info "no loader append rc" {:rc loader-append-rc})))
+
+    (update-in state [:sources loader-append-rc :output]
+      str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");")
+    ))
+
+(defn init [state mode {:keys [modules module-loader] :as config}]
   (let [{:keys [public-dir public-path]}
         (merge default-browser-config config)]
 
@@ -130,15 +150,13 @@
 
         (configure-modules modules)
         (cond->
-          loader
-          (create-loader loader)))))
+          module-loader
+          (inject-loader-callbacks)))))
 
 (defn flush [state mode config]
   (case mode
     :dev
-    (if (:loader config)
-      (cljs/flush-unoptimized-compact state)
-      (cljs/flush-unoptimized state))
+    (cljs/flush-unoptimized state)
     :release
     (cljs/flush-modules-to-disk state)))
 
@@ -147,6 +165,11 @@
   (case stage
     :init
     (init state mode config)
+
+    :compile-finish
+    (if (:module-loader config)
+      (inject-loader-setup state (= :release mode))
+      state)
 
     :flush
     (flush state mode config)

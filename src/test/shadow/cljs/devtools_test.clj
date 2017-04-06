@@ -4,7 +4,8 @@
             [clojure.data.json :as json]
             [clojure.pprint :refer (pprint)]
             [clojure.test :refer :all]
-            [shadow.cljs.devtools.targets.browser :as browser]))
+            [shadow.cljs.devtools.targets.browser :as browser]
+            [shadow.cljs.devtools.server.compiler :as comp]))
 
 
 (comment
@@ -16,34 +17,55 @@
       (set! (.-stripNameSuffixes co) #{"logger" "logger_"})
       )))
 
+
+
 (defn test-loader []
-  (let [state
-        (-> (cljs/init-state)
-            (cljs/merge-build-options
-              {:public-dir (io/file "target" "module-loader")
-               :public-path "/module-loader"})
-            (cljs/merge-compiler-options
-              {:optimizations :advanced
-               :pretty-print false
-               :pseudo-names false})
+  (let [config
+        '{:id :loader
+          :target :browser
+          :public-dir "target/module-loader"
+          :public-path "/module-loader"
+          :module-loader true
+          :modules
+          {:core
+           {:entries [cljs.core]}
+           :foo
+           {:entries [test.foo]
+            :depends-on #{:core}}
+           :bar
+           {:entries [test.bar]
+            :depends-on #{:foo}}
+           }}
 
-            (cljs/enable-source-maps)
-            (cljs/find-resources-in-classpath)
-
-            (cljs/configure-module :core '[cljs.core] #{})
-            (cljs/configure-module :foo ['test.foo] #{:core})
-            (cljs/configure-module :bar ['test.bar] #{:foo})
-            (browser/create-loader)
-
-            (cljs/compile-modules)
-            ;; (cljs/flush-unoptimized) ;; doesn't work
-            (cljs/flush-unoptimized-compact)
-            ;; (cljs/closure-optimize)
-            ;; (cljs/flush-modules-to-disk)
-            )]
+        state
+        (-> (comp/init :release config)
+            (comp/compile)
+            (comp/flush))]
 
     :done
     ))
 
 (deftest test-module-loader
   (test-loader))
+
+(deftest test-code-snippet
+  (-> (cljs/init-state)
+      (cljs/merge-build-options
+        {:public-dir (io/file "target" "test-snippet")
+         :public-path "/"})
+      (cljs/merge-compiler-options
+        {:optimizations :none
+         :pretty-print false
+         :pseudo-names false})
+
+      (cljs/enable-source-maps)
+      (cljs/find-resources-in-classpath)
+
+      (cljs/configure-module :test '[test.snippet] #{})
+      (cljs/compile-modules)
+      (cljs/flush-unoptimized) ;; doesn't work
+      ;; (cljs/flush-unoptimized-compact)
+      ;; (cljs/closure-optimize)
+      ;; (cljs/flush-modules-to-disk)
+      )
+  :done)
