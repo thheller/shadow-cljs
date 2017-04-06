@@ -8,7 +8,7 @@ You can find the latest version here:
 
 [![Clojars Project](https://img.shields.io/clojars/v/thheller/shadow-devtools.svg)](https://clojars.org/thheller/shadow-devtools)
 
-
+**Clojure 1.9-alpha15 is required, which makes this just as alpha!**
 
 ## License
 
