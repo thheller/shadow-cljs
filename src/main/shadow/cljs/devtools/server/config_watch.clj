@@ -1,5 +1,5 @@
 (ns shadow.cljs.devtools.server.config-watch
-  (:require [shadow.cljs.devtools.server.config :as config]))
+  (:require [shadow.cljs.devtools.config :as config]))
 
 (defn- service? [x]
   (and (map? x)

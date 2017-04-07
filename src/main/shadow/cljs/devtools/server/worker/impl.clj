@@ -4,7 +4,7 @@
             [clojure.core.async :as async :refer (go >! <! >!! <!! alt!)]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.repl :as repl]
-            [shadow.cljs.devtools.server.compiler :as comp]
+            [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.server.util :as util]
             [clojure.string :as str]
             [clojure.set :as set]))

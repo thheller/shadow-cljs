@@ -4,9 +4,9 @@
             [clojure.spec :as s]
             [clojure.data.json :as json]
             [shadow.cljs.build :as cljs]
-            [shadow.cljs.devtools.server.compiler :as comp]
+            [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
-            [shadow.cljs.devtools.server.config :as config]
+            [shadow.cljs.devtools.config :as config]
             [shadow.cljs.repl :as repl]))
 
 (s/def ::entries

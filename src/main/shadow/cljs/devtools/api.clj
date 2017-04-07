@@ -3,8 +3,9 @@
             [clojure.java.io :as io]
             [clojure.pprint :refer (pprint)]
             [shadow.server.runtime :as rt]
-            [shadow.cljs.devtools.server.config :as config]
-            [shadow.cljs.devtools.server.compiler :as comp]
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.errors :as e]
+            [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.common :as common]
@@ -227,21 +228,9 @@
        (finally
          (rt/stop-all app))))))
 
-(defn once
-  ([build]
-    (once build {}))
-  ([build opts]
-   (let [build-config
-         (config/get-build! build)]
-
-     (-> (comp/init :dev build-config)
-         (comp/compile)
-         (comp/flush)))
-   :done))
-
 (defn dev
   ([build]
-    (dev build {:autobuild true}))
+   (dev build {:autobuild true}))
   ([build {:keys [autobuild] :as opts}]
    (let [build-config
          (config/get-build! build)
@@ -259,29 +248,57 @@
            (worker/sync!)
            (stdin-takeover!))
 
-       (finally
-         (rt/stop-all app))))
+       :done
+       (catch Exception e
+         (e/user-friendly-error e))
 
-    :done
-    ))
+       (finally
+         (rt/stop-all app))))))
+
+(defn build-finish [{::comp/keys [build-info] :as state} config]
+  (util/print-build-complete build-info config)
+  state)
+
+(defn once
+  ([build]
+   (once build {}))
+  ([build opts]
+   (let [build-config
+         (config/get-build! build)]
+
+     (try
+       (util/print-build-start build-config)
+       (-> (comp/init :dev build-config)
+           (comp/compile)
+           (comp/flush)
+           (build-finish build-config))
+       :done
+       (catch Exception e
+         (e/user-friendly-error e))
+       ))))
 
 (defn release
   ([build]
-    (release build {}))
+   (release build {}))
   ([build {:keys [debug] :as opts}]
    (let [build-config
          (config/get-build! build)]
 
-     (-> (comp/init :release build-config)
-         (cond->
-           debug
-           (-> (cljs/enable-source-maps)
-               (cljs/merge-compiler-options
-                 {:pretty-print true
-                  :pseudo-names true})))
-         (comp/compile)
-         (comp/flush)))
-   :done))
+     (try
+       (util/print-build-start build-config)
+       (-> (comp/init :release build-config)
+           (cond->
+             debug
+             (-> (cljs/enable-source-maps)
+                 (cljs/merge-compiler-options
+                   {:pretty-print true
+                    :pseudo-names true})))
+           (comp/compile)
+           (comp/flush)
+           (build-finish build-config))
+       :done
+       (catch Exception e
+         (e/user-friendly-error e))))))
 
 (defn test-setup []
   (-> (cljs/init-state)

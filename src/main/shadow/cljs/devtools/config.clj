@@ -1,4 +1,4 @@
-(ns shadow.cljs.devtools.server.config
+(ns shadow.cljs.devtools.config
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec :as s]))

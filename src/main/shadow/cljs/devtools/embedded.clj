@@ -2,7 +2,7 @@
   (:require [shadow.server.runtime :as rt]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.supervisor :as super]
-            [shadow.cljs.devtools.server.config :as config]
+            [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.common :as common]
             [clojure.core.async :as async :refer (go <!)]

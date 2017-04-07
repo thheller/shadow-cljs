@@ -5,8 +5,9 @@
             [clojure.pprint :refer (pprint)]
             [clojure.test :refer :all]
             [shadow.cljs.devtools.targets.browser :as browser]
-            [shadow.cljs.devtools.server.compiler :as comp]
-            [cljs.externs :as externs])
+            [shadow.cljs.devtools.compiler :as comp]
+            [cljs.externs :as externs]
+            [shadow.cljs.devtools.api :as api])
   (:import (com.google.javascript.jscomp SourceFile)))
 
 
@@ -139,3 +140,10 @@
   (let [x (externs/parse-externs (SourceFile/fromFile (io/file "tmp" "test.externs.js")))]
     (binding [*print-meta* true]
       (pprint x))))
+
+(deftest test-error-msg
+  (api/release :custom {:debug true}))
+
+(deftest test-warnings
+  (api/once :warnings))
+

@@ -25,4 +25,22 @@
   :output-to "out/demo-library/lib.js"
   :exports
   {:hello demo.lib/hello}}
+
+ {:id :custom
+  :target build/custom
+
+  :public-dir "out/demo-browser/js"
+  :public-path "/js"
+
+  :modules
+  {:demo {:entries [demo.browser]}}
+
+  :devtools
+  {:before-load demo.browser/stop
+   :after-load demo.browser/start}}
+
+ {:id :warnings
+  :target :node-script
+  :main demo.warnings/main
+  :output-to "out/demo-warnings/script.js"}
  ]

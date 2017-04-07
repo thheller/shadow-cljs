@@ -22,6 +22,24 @@
   (doseq [{:keys [msg line column source-name] :as w} warnings]
     (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
 
+(defn print-build-start [build-config]
+  (println (format "[%s] Build started." (:id build-config))))
+
+(defn print-build-complete [build-info build-config]
+  (let [{:keys [sources compiled warnings]}
+        build-info]
+    (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings)"
+               (:id build-config)
+               (count sources)
+               (count compiled)
+               (count warnings)))
+
+    (when (seq warnings)
+      (println (format "====== %d Warnings" (count warnings)))
+      (doseq [{:keys [msg line column source-name] :as w} warnings]
+        (println (str "WARNING: " msg " (" source-name " at " line ":" column ") ")))
+      (println "======"))))
+
 (defn print-worker-out [x verbose]
   (locking cljs/stdout-lock
     (binding [*out* *err*]
@@ -31,23 +49,11 @@
           (println (shadow-log/event-text (:event x))))
 
         :build-start
-        (println (format "[%s] Build started." (-> x :build-config :id)))
+        (print-build-start (:build-config x))
 
         :build-complete
-        (let [{:keys [info build-config]} x
-              {:keys [sources compiled warnings]} info]
-
-          (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings)"
-                     (:id build-config)
-                     (count sources)
-                     (count compiled)
-                     (count warnings)))
-
-          (when (seq warnings)
-            (println (format "====== %d Warnings" (count warnings)))
-            (doseq [{:keys [msg line column source-name] :as w} warnings]
-              (println (str "WARNING: " msg " (" source-name " at " line ":" column ") ")))
-            (println "======")))
+        (let [{:keys [info build-config]} x]
+          (print-build-complete info build-config))
 
         :build-shutdown
         (println "Build shutdown.")

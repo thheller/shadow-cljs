@@ -1,10 +1,11 @@
-(ns shadow.cljs.devtools.server.compiler
+(ns shadow.cljs.devtools.compiler
   (:refer-clojure :exclude (compile flush))
   (:require [clojure.java.io :as io]
             [clojure.spec :as s]
             [clojure.pprint :refer (pprint)]
             [shadow.cljs.build :as cljs]
-            [shadow.cljs.devtools.server.config :as config]))
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.cljs-specs]))
 
 (defn extract-build-info [state]
   (let [source->module

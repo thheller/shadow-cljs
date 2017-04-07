@@ -1,9 +1,9 @@
 (ns shadow.cljs.devtools.targets.node-script
   (:refer-clojure :exclude (flush))
   (:require [shadow.cljs.node :as node]
-            [shadow.cljs.devtools.server.compiler :as comp]
+            [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
-            [shadow.cljs.devtools.server.config :as config]
+            [shadow.cljs.devtools.config :as config]
             [clojure.spec :as s]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.repl :as repl]))

@@ -3,10 +3,10 @@
 (defn x [foo]
   foo)
 
-#_ i-dont-exist
+i-dont-exist
 
-#_ (def x abc)
+(def x abc)
 
-#_ (+ "a" 1)
+(+ "a" 1)
 
-#_ (have-some-more-warnings foo)
+(have-some-more-warnings foo)
