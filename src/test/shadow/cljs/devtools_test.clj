@@ -5,7 +5,9 @@
             [clojure.pprint :refer (pprint)]
             [clojure.test :refer :all]
             [shadow.cljs.devtools.targets.browser :as browser]
-            [shadow.cljs.devtools.server.compiler :as comp]))
+            [shadow.cljs.devtools.server.compiler :as comp]
+            [cljs.externs :as externs])
+  (:import (com.google.javascript.jscomp SourceFile)))
 
 
 (comment
@@ -49,23 +51,91 @@
   (test-loader))
 
 (deftest test-code-snippet
-  (-> (cljs/init-state)
-      (cljs/merge-build-options
-        {:public-dir (io/file "target" "test-snippet")
-         :public-path "/"})
-      (cljs/merge-compiler-options
-        {:optimizations :none
-         :pretty-print false
-         :pseudo-names false})
+  (let [{:keys [compiler-env] :as state}
+        (-> (cljs/init-state)
+            (cljs/merge-build-options
+              {:public-dir (io/file "target" "test-snippet")
+               :public-path "/"
+               :infer-externs true
+               :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]})
+            (cljs/merge-compiler-options
+              {:optimizations :none
+               :pretty-print false
+               :pseudo-names false})
 
-      (cljs/enable-source-maps)
-      (cljs/find-resources-in-classpath)
+            (cljs/enable-source-maps)
+            (cljs/find-resources-in-classpath)
 
-      (cljs/configure-module :test '[test.snippet] #{})
-      (cljs/compile-modules)
-      (cljs/flush-unoptimized) ;; doesn't work
-      ;; (cljs/flush-unoptimized-compact)
-      ;; (cljs/closure-optimize)
-      ;; (cljs/flush-modules-to-disk)
-      )
+            (cljs/configure-module :test '[test.snippet] #{})
+            (cljs/compile-modules)
+            ;; (cljs/flush-unoptimized) ;; doesn't work
+            ;; (cljs/flush-unoptimized-compact)
+            ;; (cljs/closure-optimize)
+            ;; (cljs/flush-modules-to-disk)
+            )]
+
+    (binding [*print-meta* true]
+
+      (println (get-in state [:sources "test/snippet.cljs" :output]))
+      (pprint (get-in compiler-env [:cljs.analyzer/externs 'Foreign]))
+      (pprint (get-in compiler-env [:cljs.analyzer/namespaces 'test.snippet :externs])))
+    )
   :done)
+
+(deftest test-ext
+  (let [{:keys [compiler-env closure-compiler] :as state}
+        (-> (cljs/init-state)
+            (cljs/merge-build-options
+              {:public-dir (io/file "target" "test-ext")
+               :public-path "/"
+               :infer-externs true
+               :externs ["tmp/test.externs.js"]
+               ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
+               })
+            (cljs/merge-compiler-options
+              {:optimizations :advanced
+               :pretty-print true
+               :pseudo-names false
+               :closure-warnings
+               {:check-types :warning}})
+            (cljs/add-closure-configurator
+              (fn [cc co state]
+                (.setCheckTypes co true)))
+
+            (cljs/enable-source-maps)
+            (cljs/find-resources-in-classpath)
+
+            (cljs/configure-module :test '[test.ext] #{})
+            (cljs/compile-modules)
+            ;; (cljs/flush-unoptimized) ;; doesn't work
+            ;; (cljs/flush-unoptimized-compact)
+            (cljs/closure-optimize)
+            (cljs/flush-modules-to-disk))]
+
+    ;; (prn (.getExternProperties closure-compiler))
+
+    (binding [*print-meta* true]
+
+      (println (get-in state [:sources "test/snippet.cljs" :output]))
+      (pprint (get-in compiler-env [:cljs.analyzer/externs 'Foreign]))
+      (pprint (get-in compiler-env [:cljs.analyzer/namespaces 'test.snippet :externs])))
+    )
+  :done)
+
+
+(deftest test-externs-map
+  (let [x (externs/externs-map)]
+    (binding [*print-meta* true]
+
+      (-> x
+          (get 'Window)
+          (get 'prototype)
+          (keys)
+          (sort)
+          (pprint))
+      )))
+
+(deftest test-parse-externs
+  (let [x (externs/parse-externs (SourceFile/fromFile (io/file "tmp" "test.externs.js")))]
+    (binding [*print-meta* true]
+      (pprint x))))
