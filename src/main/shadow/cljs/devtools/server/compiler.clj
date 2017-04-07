@@ -144,7 +144,7 @@
           (some? target)]
     :post [(cljs/compiler-state? %)]}
 
-   (let [{:keys [closure-defines compiler-options] :as config}
+   (let [{:keys [build-options closure-defines compiler-options] :as config}
          (config-merge config mode)
 
          target-fn
@@ -169,7 +169,11 @@
                  {:use-file-min false
                   :closure-defines {"goog.DEBUG" true}})
                (cljs/merge-compiler-options
-                 {:optimizations :none}))
+                 {:optimizations :none})
+
+               ;; FIXME: not setting this for :release builds may cause errors
+               ;; when user is trying to prn,
+               (update :runtime assoc :print-fn :console))
 
            ;; generic release mode
            (= :release mode)
@@ -182,11 +186,15 @@
            (cljs/merge-build-options {:closure-defines closure-defines})
 
            compiler-options
-           (cljs/merge-compiler-options compiler-options))
+           (cljs/merge-compiler-options compiler-options)
 
-         (process-stage :init false)
+           ;; FIXME: CAREFUL WITH THESE, may destroy everything
+           ;; run them through some kind of spec at least
+           build-options
+           (cljs/merge-build-options build-options))
+
          (cljs/find-resources-in-classpath)
-         ))))
+         (process-stage :init false)))))
 
 
 (defn compile

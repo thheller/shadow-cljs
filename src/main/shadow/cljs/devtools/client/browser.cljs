@@ -11,6 +11,12 @@
             [shadow.cljs.devtools.client.env :as env]
             ))
 
+(defonce active-modules-ref
+  (volatile! #{}))
+
+(defn module-loaded [name]
+  (vswap! active-modules-ref conj (keyword name)))
+
 (defonce socket-ref (atom nil))
 
 (defn devtools-msg [msg & args]
@@ -51,7 +57,7 @@
     (load-next)))
 
 (defn module-is-active? [module]
-  (js/goog.object.get js/SHADOW_MODULES (str module)))
+  (contains? @active-modules-ref module))
 
 (defn do-js-reload [js-to-load]
   ;; reload is a set of js-names that should be reloaded

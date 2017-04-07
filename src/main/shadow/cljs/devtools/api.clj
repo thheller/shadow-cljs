@@ -241,8 +241,8 @@
 
 (defn dev
   ([build]
-    (dev build {}))
-  ([build opts]
+    (dev build {:autobuild true}))
+  ([build {:keys [autobuild] :as opts}]
    (let [build-config
          (config/get-build! build)
 
@@ -253,7 +253,9 @@
        (-> worker
            (worker/watch out)
            (worker/configure build-config)
-           (worker/start-autobuild)
+           (cond->
+             autobuild
+             (worker/start-autobuild))
            (worker/sync!)
            (stdin-takeover!))
 

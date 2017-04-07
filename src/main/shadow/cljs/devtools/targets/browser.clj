@@ -7,7 +7,7 @@
             [shadow.cljs.devtools.server.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.server.config :as config]
-            ))
+            [shadow.cljs.repl :as repl]))
 
 (s/def ::entries
   (s/coll-of symbol? :kind vector?))
@@ -64,19 +64,41 @@
    :public-path "/js"})
 
 (defn- configure-modules
-  [state modules]
+  [state mode config modules]
   (reduce-kv
-    (fn [state module-id {:keys [entries depends-on] :as module-config}]
-      (cljs/configure-module state module-id entries (or depends-on #{}) module-config))
+    (fn [state module-id module-config]
+      (let [{:keys [entries depends-on] :as module-config}
+            (-> module-config
+                (cond->
+                  (:worker-info state)
+                  (update :append-js str "\nshadow.cljs.devtools.client.browser.module_loaded('" (name module-id) "');\n")))]
+
+        (cljs/configure-module state module-id entries (or depends-on #{}) module-config)))
     state
     modules))
+
+;; FIXME: I think this should rewrite the config instead of the state
+;; feels wrong to configure-modules normally and then modify it
+
+(defn inject-devtools
+  [{:keys [default-module] :as state} config]
+  (let [{:keys [console-support]}
+        (:devtools config)]
+
+    (-> state
+        (update :closure-defines merge (shared/repl-defines state config))
+
+        ;; inject an entry for 'cljs.user to ensure that it is loaded as the repl eval will begin in that namespace
+        (update-in [:modules default-module :entries] shared/prepend '[cljs.user shadow.cljs.devtools.client.browser])
+        (cond->
+          (not (false? console-support))
+          (update-in [:modules default-module :entries] shared/prepend '[shadow.cljs.devtools.client.console]))
+        )))
 
 (defn json [obj]
   (json/write-str obj :escape-slash false))
 
 ;; FIXME: assumes default module is the loader
-;; FIXME: I think this should rewrite the config instead of the state
-;; feels wrong to configure-modules normally and then modify it
 (defn inject-loader-callbacks [{:keys [public-path modules] :as state}]
   (when (<= (count modules) 1)
     (throw (ex-info "cannot use module-loader with just one module" {})))
@@ -157,7 +179,8 @@
       #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
     ))
 
-(defn init [state mode {:keys [modules module-loader] :as config}]
+(defn init
+  [state mode {:keys [modules module-loader] :as config}]
   (let [{:keys [public-dir public-path bundle-foreign]}
         (merge default-browser-config config)]
 
@@ -172,8 +195,13 @@
           bundle-foreign
           (cljs/merge-build-options {:bundle-foreign bundle-foreign}))
 
-        (configure-modules modules)
+        (configure-modules mode config modules)
+
         (cond->
+          (:worker-info state)
+          (-> (repl/setup)
+              (inject-devtools config))
+
           module-loader
           (inject-loader-callbacks)))))
 

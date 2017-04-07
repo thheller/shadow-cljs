@@ -5,7 +5,8 @@
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.server.config :as config]
             [clojure.spec :as s]
-            [shadow.cljs.build :as cljs]))
+            [shadow.cljs.build :as cljs]
+            [shadow.cljs.repl :as repl]))
 
 (s/def ::main qualified-symbol?)
 
@@ -31,7 +32,13 @@
         (= :release mode)
         (cljs/merge-compiler-options
           {:optimizations :simple}))
-      (node/configure config)))
+      (node/configure config)
+
+      (cond->
+        (:worker-info state)
+        (-> (repl/setup)
+            (shared/inject-node-repl config)))
+      ))
 
 (defn flush [state mode config]
   (case mode

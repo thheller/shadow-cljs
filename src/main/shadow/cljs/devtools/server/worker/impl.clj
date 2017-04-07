@@ -15,94 +15,6 @@
 (defn worker-state? [x]
   (and (map? x) (::worker-state x)))
 
-(defn- prepend [tail head]
-  {:pre [(vector? head)]}
-  (into head tail))
-
-(defn repl-defines
-  [{:keys [proc-id build-config http-config-ref] :as proc-state}]
-  (let [{:keys [host port]}
-        @http-config-ref
-
-        {:keys [id]}
-        build-config
-
-        {:keys [reload-with-state before-load after-load autoload]}
-        (:devtools build-config)]
-
-    {"shadow.cljs.devtools.client.env.enabled"
-     true
-
-     "shadow.cljs.devtools.client.env.autoload"
-     (or autoload (some? before-load) (some? after-load))
-
-     "shadow.cljs.devtools.client.env.repl_host"
-     host
-
-     "shadow.cljs.devtools.client.env.repl_port"
-     port
-
-     "shadow.cljs.devtools.client.env.build_id"
-     (name id)
-
-     "shadow.cljs.devtools.client.env.proc_id"
-     (str proc-id)
-
-     "shadow.cljs.devtools.client.env.before_load"
-     (when before-load
-       (str (cljs-comp/munge before-load)))
-
-     "shadow.cljs.devtools.client.env.after_load"
-     (when after-load
-       (str (cljs-comp/munge after-load)))
-
-     "shadow.cljs.devtools.client.env.reload_with_state"
-     (boolean reload-with-state)
-     }))
-
-(defn inject-devtools-browser
-  [{:keys [build-config] :as proc-state}]
-  (let [{:keys [console-support]}
-        (:devtools build-config)]
-
-    (update proc-state :compiler-state
-      (fn [compiler-state]
-        (-> compiler-state
-            (update :closure-defines merge (repl-defines proc-state))
-
-            ;; inject an entry for 'cljs.user to ensure that it is loaded as the repl eval will begin in that namespace
-            (update-in [:modules (:default-module compiler-state) :entries] prepend '[cljs.user shadow.cljs.devtools.client.browser])
-            (cond->
-              (not (false? console-support))
-              (update-in [:modules (:default-module compiler-state) :entries] prepend '[shadow.cljs.devtools.client.console]))
-            )))))
-
-(defn inject-node-repl
-  [worker-state]
-  (update worker-state :compiler-state
-    (fn [compiler-state]
-      (-> compiler-state
-          (update :closure-defines merge (repl-defines worker-state))
-          (update-in [:modules (:default-module compiler-state) :entries] prepend '[cljs.user shadow.cljs.devtools.client.node])
-          ))))
-
-(defn inject-devtools
-  [{:keys [build-config] :as proc-state}]
-  (let [{:keys [target]} build-config]
-    (cond
-      (or (= :node-library target)
-          (= :node-script target)
-          (= :node (get-in build-config [:devtools :runtime])))
-      (inject-node-repl proc-state)
-
-      ;; defaults to browser repl unless otherwise specified
-      (or (= :browser target)
-          (let [rt (get-in build-config [:devtools :runtime])]
-            (or (nil? rt)
-                (= :browser rt))))
-      (inject-devtools-browser proc-state)
-      )))
-
 (defn >!!output [worker-state msg]
   {:pre [(map? msg)
          (:type msg)]}
@@ -136,20 +48,22 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config] :as worker-state}]
+  [{:keys [build-config proc-id http-config-ref] :as worker-state}]
   (try
-    (let [compiler-state
+    ;; FIXME: allow the target-fn read-only access to worker-state? not just worker-info?
+    ;; it may want to put things on the websocket?
+    (let [worker-info
+          (-> @http-config-ref ;; :host+:port
+              (assoc :proc-id proc-id))
+
+          compiler-state
           (-> (cljs/init-state)
-              (assoc :logger (util/async-logger (-> worker-state :channels :output)))
-              (comp/init :dev build-config)
-              (repl/setup))]
+              (assoc
+                :logger (util/async-logger (-> worker-state :channels :output))
+                :worker-info worker-info)
+              (comp/init :dev build-config))]
 
-      (-> worker-state
-          (assoc :compiler-state compiler-state)
-          (inject-devtools)
-          (update :compiler-state comp/process-stage :config-complete true)
-          ))
-
+      (assoc worker-state :compiler-state compiler-state))
     (catch Exception e
       (build-failure worker-state e))))
 

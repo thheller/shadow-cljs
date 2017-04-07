@@ -6,7 +6,7 @@
             [shadow.cljs.devtools.server.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.server.config :as config]
-            ))
+            [shadow.cljs.repl :as repl]))
 
 (s/def ::exports
   (s/map-of
@@ -35,7 +35,13 @@
           (= :release mode)
           (cljs/merge-compiler-options
             {:optimizations :simple}))
-        (umd/create-module exports config))))
+        (umd/create-module exports config)
+
+        (cond->
+          (:worker-info state)
+          (-> (repl/setup)
+              (shared/inject-node-repl config)))
+        )))
 
 (defn flush [state mode config]
   (case mode

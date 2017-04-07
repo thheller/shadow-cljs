@@ -1,4 +1,17 @@
-[{:id :script
+[{:id :browser
+  :target :browser
+
+  :public-dir "out/demo-browser/js"
+  :public-path "/js"
+
+  :modules
+  {:demo {:entries [demo.browser]}}
+
+  :devtools
+  {:before-load demo.browser/stop
+   :after-load demo.browser/start}}
+
+ {:id :script
   :target :node-script
   :main demo.script/main
   :output-to "out/demo-script/script.js"
