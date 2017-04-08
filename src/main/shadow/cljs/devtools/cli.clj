@@ -52,3 +52,10 @@
 
 (defn test-affected [test-ns]
   (api/test-affected [(cljs/ns->cljs-file test-ns)]))
+
+(defn main [action & args]
+  (case action
+    "dev" (apply dev args)
+    "once" (apply once args)
+    "release" (apply release args)
+    ))

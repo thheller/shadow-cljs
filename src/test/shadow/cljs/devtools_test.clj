@@ -8,7 +8,7 @@
             [shadow.cljs.devtools.compiler :as comp]
             [cljs.externs :as externs]
             [shadow.cljs.devtools.api :as api])
-  (:import (com.google.javascript.jscomp SourceFile)))
+  (:import (com.google.javascript.jscomp SourceFile CompilationLevel)))
 
 
 (comment
@@ -90,7 +90,7 @@
               {:public-dir (io/file "target" "test-ext")
                :public-path "/"
                :infer-externs true
-               :externs ["tmp/test.externs.js"]
+               ;; :externs ["tmp/test.externs.js"]
                ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
                })
             (cljs/merge-compiler-options
@@ -101,7 +101,9 @@
                {:check-types :warning}})
             (cljs/add-closure-configurator
               (fn [cc co state]
-                (.setCheckTypes co true)))
+                (.setTypeBasedOptimizationOptions CompilationLevel/ADVANCED_OPTIMIZATIONS co)
+                (prn co)
+                ))
 
             (cljs/enable-source-maps)
             (cljs/find-resources-in-classpath)
@@ -115,11 +117,13 @@
 
     ;; (prn (.getExternProperties closure-compiler))
 
-    (binding [*print-meta* true]
+    (println (get-in state [:optimized 0 :output]))
 
-      (println (get-in state [:sources "test/snippet.cljs" :output]))
-      (pprint (get-in compiler-env [:cljs.analyzer/externs 'Foreign]))
-      (pprint (get-in compiler-env [:cljs.analyzer/namespaces 'test.snippet :externs])))
+    #_(binding [*print-meta* true]
+
+        (println (get-in state [:sources "test/snippet.cljs" :output]))
+        (pprint (get-in compiler-env [:cljs.analyzer/externs 'Foreign]))
+        (pprint (get-in compiler-env [:cljs.analyzer/namespaces 'test.snippet :externs])))
     )
   :done)
 
