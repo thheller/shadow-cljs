@@ -70,7 +70,7 @@
       (let [{:keys [entries depends-on] :as module-config}
             (-> module-config
                 (cond->
-                  (:worker-info state)
+                  (and (:worker-info state) (not (:web-worker module-config)))
                   (update :append-js str "\nshadow.cljs.devtools.client.browser.module_loaded('" (name module-id) "');\n")))]
 
         (cljs/configure-module state module-id entries (or depends-on #{}) module-config)))

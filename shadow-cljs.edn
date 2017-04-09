@@ -21,7 +21,13 @@
    {:entries
     [demo.browser-extra]
     :depends-on
-    #{:demo}}}
+    #{:demo}}
+
+   :worker
+   {:entries
+    [demo.worker]
+    :depends-on #{:base}
+    :web-worker true}}
 
   :devtools
   {:before-load demo.browser/stop
