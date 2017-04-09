@@ -10,7 +10,9 @@
     (.write (.. e (getClass) (getName)))
     (.write ": ")
     (.write (.getMessage e))
-    (.write "\n")))
+    (.write "\n"))
+
+  (throw e))
 
 (defn get-tag [data]
   (or (:tag data)
@@ -30,7 +32,12 @@
     (.write (-> e type (.getName)))
     (.write " ")
     (.write (str (or (get-tag data) "<:tag missing>")))
-    ))
+    (.write "\n")
+    (.write (.getMessage e))
+    (.write "\n"))
+
+  (throw e)
+  )
 
 (defmethod ex-data-format ::s/problems
   [w e {::s/keys [problems value] :as data}]
@@ -43,6 +50,11 @@
     (doto w
       (.write "---\n")
       (.write msg))))
+
+(defmethod ex-data-format :shadow.cljs.devtools.compiler/config
+  [w e {:keys [config] :as data}]
+  (.write w "Invalid configuration\n")
+  (.write w (with-out-str (s/explain-out data))))
 
 (defmethod ex-data-format :cljs/analysis-error
   [w e {:keys [file line column] :as data}]

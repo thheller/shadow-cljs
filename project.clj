@@ -6,7 +6,7 @@
 
 
   :dependencies
-  [[org.clojure/clojure "1.9.0-alpha15" :scope "provided"]
+  [[org.clojure/clojure "1.9.0-alpha15"]
    [org.clojure/clojurescript "1.9.473"]
    ;; [org.clojure/tools.nrepl "0.2.12" :scope "provided"]
    [org.clojure/data.json "0.2.6"]

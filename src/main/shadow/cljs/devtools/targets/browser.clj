@@ -10,7 +10,7 @@
             [shadow.cljs.repl :as repl]))
 
 (s/def ::entries
-  (s/coll-of symbol? :kind vector?))
+  (s/coll-of simple-symbol? :kind vector?))
 
 (s/def ::public-path shared/non-empty-string?)
 

@@ -153,8 +153,10 @@
 
      ;; must do this after calling get-target-fn
      ;; the namespace that is in may have added to the multi-spec
-     (when-not (s/valid? ::config/build config)
-       (throw (ex-info "invalid build config" {:config config})))
+     (when-not (s/valid? ::config/build+target config)
+       (throw (ex-info "invalid build config" (assoc (s/explain-data ::config/build+target config)
+                                                     :tag ::config
+                                                     :config config))))
 
      (-> init-state
          (assoc :cache-dir (io/file "target" "shadow-cache" (name id) (name mode))

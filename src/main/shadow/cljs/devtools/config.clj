@@ -6,8 +6,8 @@
 (s/def ::id keyword?)
 
 (s/def ::target
-  (s/or :keyword keyword?
-        :symbol qualified-symbol?))
+  #(or (keyword? %)
+       (qualified-symbol? %)))
 
 (defmulti target-spec :target :default ::default)
 
@@ -15,11 +15,14 @@
   (s/spec any?))
 
 (s/def ::build
+  (s/keys
+    :req-un
+    [::id
+     ::target]))
+
+(s/def ::build+target
   (s/and
-    (s/keys
-      :req-un
-      [::id
-       ::target])
+    ::build
     (s/multi-spec target-spec :target)))
 
 (s/def ::config
