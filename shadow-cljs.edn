@@ -5,7 +5,23 @@
   :public-path "/js"
 
   :modules
-  {:demo {:entries [demo.browser]}}
+  {:base
+   {:entries
+    [cljs.core]
+    :depends-on
+    #{}}
+
+   :demo
+   {:entries
+    [demo.browser]
+    :depends-on
+    #{:base}}
+
+   :extra
+   {:entries
+    [demo.browser-extra]
+    :depends-on
+    #{:demo}}}
 
   :devtools
   {:before-load demo.browser/stop

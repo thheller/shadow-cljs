@@ -20,8 +20,6 @@
       (set! (.-stripNameSuffixes co) #{"logger" "logger_"})
       )))
 
-
-
 (defn test-loader []
   (let [config
         '{:id :loader

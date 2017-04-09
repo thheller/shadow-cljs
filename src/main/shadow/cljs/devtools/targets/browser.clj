@@ -205,12 +205,40 @@
           module-loader
           (inject-loader-callbacks)))))
 
+
+(defn flush-manifest
+  [{:keys [public-dir] :as state} include-foreign?]
+  (spit
+    (io/file public-dir "manifest.json")
+    (let [data
+          (->> (:build-modules state)
+               (map (fn [{:keys [name js-name entries depends-on default sources foreign-files] :as mod}]
+                      (-> {:name name
+                           :js-name js-name
+                           :entries entries
+                           :depends-on depends-on
+                           :default default
+                           :sources sources}
+                          (cond->
+                            (and include-foreign? (seq foreign-files))
+                            (assoc :foreign (mapv #(select-keys % [:js-name :provides]) foreign-files))))
+                      )))]
+      (with-out-str
+        (json/pprint data :escape-slash false))))
+
+  state)
+
 (defn flush [state mode config]
+  ;; these don't modify state
   (case mode
     :dev
-    (cljs/flush-unoptimized state)
+    (do (cljs/flush-unoptimized state)
+        (flush-manifest state false))
     :release
-    (cljs/flush-modules-to-disk state)))
+    (do (cljs/flush-modules-to-disk state)
+        (flush-manifest state true)))
+
+  state)
 
 (defn process
   [{::comp/keys [stage mode config] :as state}]
