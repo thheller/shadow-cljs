@@ -4,6 +4,7 @@
   :public-dir "out/demo-browser/js"
   :public-path "/js"
 
+  :module-loader true
   :modules
   {:base
    {:entries

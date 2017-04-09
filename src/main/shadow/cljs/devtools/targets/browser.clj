@@ -105,7 +105,7 @@
 
   (let [modules
         (reduce-kv
-          (fn [mi mod-name {:keys [default] :as mod}]
+          (fn [mi mod-name {:keys [default web-worker] :as mod}]
             (assoc mi mod-name
               (-> mod
                   (cond->
@@ -117,7 +117,7 @@
                         (update :append-js str "\nshadow.loader.enable();"))
 
                     ;; other modules just need to tell the loader they finished loading
-                    (not default)
+                    (and (not default) (not web-worker))
                     (update :append-js str "\nshadow.loader.set_loaded('" (name mod-name) "');"))
                   )))
           {}
