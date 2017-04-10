@@ -7,7 +7,8 @@
             [clojure.edn :as edn]
             [shadow.cljs.devtools.compiler]
             [shadow.cljs.build :as cljs]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [clojure.java.classpath :as cp])
   (:import (java.io ByteArrayOutputStream InputStream)))
 
 ;; FIXME: make config option
@@ -17,9 +18,8 @@
    #"java(/?)$"])
 
 (defn get-classpath-directories []
-  (->> (cljs/classpath-entries)
+  (->> (cp/classpath)
        (remove #(cljs/should-exclude-classpath classpath-excludes %))
-       (map io/file)
        (filter #(.isDirectory %))
        (map #(.getCanonicalFile %))
        (distinct)

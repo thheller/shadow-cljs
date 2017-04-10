@@ -1,15 +1,15 @@
 (ns shadow.lang.classpath
   (:require [clojure.java.io :as io]
             [shadow.cljs.build :as cljs]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [clojure.java.classpath :as cp]))
 
 (defn- svc? [x]
   (and (map? x) (::service x)))
 
 ;; FIXME: needs to supports jars if the editor supports looking into jars
 (defn get-classpath-entries []
-  (->> (cljs/classpath-entries)
-       (map io/file)
+  (->> (cp/classpath)
        (filter #(.isDirectory %))
        (map #(-> % (.getAbsolutePath)))
        (distinct)
