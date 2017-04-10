@@ -164,6 +164,9 @@
                 ::config config
                 ::target-fn target-fn
                 ::mode mode)
+         ;; FIXME: not setting this for :release builds may cause errors
+         ;; http://dev.clojure.org/jira/browse/CLJS-2002
+         (update :runtime assoc :print-fn :console)
          (cond->
            ;; generic dev mode, each target can overwrite in :init stage
            (= :dev mode)
@@ -174,9 +177,7 @@
                (cljs/merge-compiler-options
                  {:optimizations :none})
 
-               ;; FIXME: not setting this for :release builds may cause errors
-               ;; when user is trying to prn,
-               (update :runtime assoc :print-fn :console))
+               )
 
            ;; generic release mode
            (= :release mode)

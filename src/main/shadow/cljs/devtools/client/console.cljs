@@ -119,7 +119,8 @@
   Object
   (shadow$formatter [this] true)
   (header [this obj]
-    (when (satisfies? IDeref obj)
+    (when (or (instance? Atom obj)
+              (instance? Volatile obj))
       (clj->jsonml [:span keyword-style (str "@DEREF " (pr-str (type obj)))])
       ))
   (hasBody [this obj]
