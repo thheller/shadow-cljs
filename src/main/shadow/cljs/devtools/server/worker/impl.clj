@@ -398,8 +398,7 @@
 (defn compile!
   [{:keys [proc-control] :as proc}]
   {:pre [(proc? proc)]}
-  (let [reply-to
-        (async/chan)]
+  (let [reply-to (async/chan)]
     (>!! proc-control {:type :compile :reply-to reply-to})
     (<!! reply-to)))
 
@@ -415,5 +414,11 @@
   (>!! proc-control {:type :stop-autobuild})
   proc)
 
+(defn sync! [{:keys [proc-control] :as proc}]
+  {:pre [(proc? proc)]}
+  (let [chan (async/chan)]
+    (>!! proc-control {:type :sync! :chan chan})
+    (<!! chan))
+  proc)
 
 

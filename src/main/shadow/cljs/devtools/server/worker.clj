@@ -45,10 +45,7 @@
 (defn sync!
   "ensures that all proc-control commands issued have completed"
   [proc]
-  (let [chan (async/chan)]
-    (>!! (:proc-control proc) {:type :sync! :chan chan})
-    (<!! chan))
-  proc)
+  (impl/sync! proc))
 
 (defn repl-eval-connect
   "called by processes that are able to eval repl commands and report their result

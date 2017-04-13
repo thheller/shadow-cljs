@@ -2,7 +2,7 @@
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [clojure.java.io :as io]
             [clojure.pprint :refer (pprint)]
-            [shadow.server.runtime :as rt]
+            [shadow.runtime.services :as rt]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as e]
             [shadow.cljs.devtools.compiler :as comp]
@@ -244,7 +244,10 @@
            (worker/configure build-config)
            (cond->
              autobuild
-             (worker/start-autobuild))
+             (worker/start-autobuild)
+
+             (not autobuild)
+             (worker/compile))
            (worker/sync!)
            (stdin-takeover!))
 
@@ -289,6 +292,8 @@
        (-> (comp/init :release build-config)
            (cond->
              debug
+             ;; FIXME: not sure if you actually want source-maps
+             ;; when debugging it may be more useful to look at actual JS and not the CLJS
              (-> (cljs/enable-source-maps)
                  (cljs/merge-compiler-options
                    {:pretty-print true

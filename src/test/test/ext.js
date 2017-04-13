@@ -4,9 +4,18 @@ document.createElement("foo");
 
 React.createElement("foo");
 
-
-test.ext.foo = function(tag) {
-  return React.createElement(tag);
+/**
+ * @constructor
+ */
+test.ext.Foo = function(x) {
+  this.foo = x;
 }
 
-console.log(test.ext.foo("foo"));
+test.ext.dummy = function(x) {
+  console.log(x.foo);
+}
+
+test.ext.dummy(new test.ext.Foo("1"));
+test.ext.dummy(new test.ext.Foo("2"));
+test.ext.dummy(new test.ext.Foo("3"));
+

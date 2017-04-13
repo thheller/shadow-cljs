@@ -1,5 +1,5 @@
 (ns shadow.cljs.devtools.embedded
-  (:require [shadow.server.runtime :as rt]
+  (:require [shadow.runtime.services :as rt]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.config :as config]

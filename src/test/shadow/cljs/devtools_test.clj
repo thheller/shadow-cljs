@@ -88,7 +88,7 @@
               {:public-dir (io/file "target" "test-ext")
                :public-path "/"
                :infer-externs true
-               ;; :externs ["tmp/test.externs.js"]
+               :externs ["tmp/externs.js"]
                ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
                })
             (cljs/merge-compiler-options
@@ -96,14 +96,15 @@
                :pretty-print true
                :pseudo-names false
                :closure-warnings
-               {:check-types :warning}})
+               {:check-types :warning
+                :check-variables :warning}})
             (cljs/add-closure-configurator
               (fn [cc co state]
                 (.setTypeBasedOptimizationOptions CompilationLevel/ADVANCED_OPTIMIZATIONS co)
-                (prn co)
+                ;; (.setPrintSourceAfterEachPass co true)
                 ))
 
-            (cljs/enable-source-maps)
+            ;; (cljs/enable-source-maps)
             (cljs/find-resources-in-classpath)
 
             (cljs/configure-module :test '[test.ext] #{})

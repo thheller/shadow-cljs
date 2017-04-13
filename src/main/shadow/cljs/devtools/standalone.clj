@@ -1,6 +1,6 @@
 (ns shadow.cljs.devtools.standalone
   (:require [aleph.http :as aleph]
-            [shadow.server.runtime :as rt]
+            [shadow.runtime.services :as rt]
             [shadow.cljs.devtools.server.web :as web]
             [shadow.cljs.devtools.server.explorer :as explorer]
             [shadow.cljs.devtools.server.config-watch :as config]
