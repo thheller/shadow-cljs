@@ -3,6 +3,9 @@
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.node :as node]))
 
+(def default-opts
+  {:autobuild true})
+
 ;; FIXME: spec for cli
 (defn- parse-args [[build-id & more :as args]]
   {:build
@@ -18,7 +21,9 @@
 
 (defn dev [& args]
   (let [{:keys [build] :as opts}
-        (parse-args args)]
+        (merge
+          default-opts
+          (parse-args args))]
     (api/dev build opts)))
 
 (defn release [& args]

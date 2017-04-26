@@ -107,8 +107,19 @@
         output-mult
         (async/mult output)
 
+        ;; FIXME: must use buffer, but can't use 1
+        ;; when a notify happens and autobuild is running the process may be busy for a while recompiling
+        ;; if another fs update happens in the meantime
+        ;; and we don't have a buffer the whole config update will block
+        ;; if the buffer is too small we may miss an update
+        ;; ideally this would accumulate all updates into one but not sure how to go about that
+        ;; (would need to track busy state of worker)
         cljs-watch
-        (async/chan)
+        (async/chan (async/sliding-buffer 10))
+
+        ;; same deal here, 1 msg is sent per build so this may produce many messages
+        config-watch
+        (async/chan (async/sliding-buffer 100))
 
         http-config-ref
         (volatile! nil) ;; {:port 123 :localhost foo}
@@ -117,7 +128,8 @@
         {:proc-stop proc-stop
          :proc-control proc-control
          :output output
-         :cljs-watch cljs-watch}
+         :cljs-watch cljs-watch
+         :config-watch config-watch}
 
         thread-state
         {::impl/worker-state true
@@ -127,6 +139,7 @@
          :repl-clients {}
          :pending-results {}
          :channels channels
+         :system-bus system-bus
          :compiler-state nil}
 
         state-ref
@@ -138,7 +151,8 @@
           thread-state
           {proc-stop nil
            proc-control impl/do-proc-control
-           cljs-watch impl/do-cljs-watch}
+           cljs-watch impl/do-cljs-watch
+           config-watch impl/do-config-watch}
           {:do-shutdown
            (fn [state]
              (>!! output {:type :worker-shutdown :proc-id proc-id})

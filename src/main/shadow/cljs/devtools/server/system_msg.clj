@@ -5,4 +5,5 @@
 
 (s/def ::cljs-watch any?)
 (s/def ::sass-watch any?)
+(s/def ::config-watch any?)
 

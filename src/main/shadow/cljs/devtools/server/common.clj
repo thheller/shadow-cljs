@@ -8,7 +8,8 @@
             [shadow.cljs.devtools.compiler]
             [shadow.cljs.build :as cljs]
             [clojure.java.io :as io]
-            [clojure.java.classpath :as cp])
+            [clojure.java.classpath :as cp]
+            [shadow.cljs.devtools.server.config-watch :as config-watch])
   (:import (java.io ByteArrayOutputStream InputStream)))
 
 ;; FIXME: make config option
@@ -58,7 +59,13 @@
        :system-bus
        {:depends-on []
         :start sys-bus/start
-        :stop sys-bus/stop}}
+        :stop sys-bus/stop}
+
+       :config-watch
+       {:depends-on [:system-bus]
+        :start config-watch/start
+        :stop config-watch/stop}
+       }
 
       (cond->
         (get config :watch true)

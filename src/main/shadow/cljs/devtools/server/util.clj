@@ -23,7 +23,7 @@
     (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
 
 (defn print-build-start [build-config]
-  (println (format "[%s] Build started." (:id build-config))))
+  (println (format "[%s] Compiling ..." (:id build-config))))
 
 (defn print-build-complete [build-info build-config]
   (let [{:keys [sources compiled warnings]}
@@ -47,6 +47,10 @@
         :build-log
         (when verbose
           (println (shadow-log/event-text (:event x))))
+
+        :build-configure
+        (let [{:keys [build-config]} x]
+          (println (format "[%s] Configuring build." (:id build-config))))
 
         :build-start
         (print-build-start (:build-config x))

@@ -107,7 +107,7 @@
             ;; (cljs/enable-source-maps)
             (cljs/find-resources-in-classpath)
 
-            (cljs/configure-module :test '[test.ext] #{})
+            (cljs/configure-module :test '[cljs.core] #{})
             (cljs/compile-modules)
             ;; (cljs/flush-unoptimized) ;; doesn't work
             ;; (cljs/flush-unoptimized-compact)

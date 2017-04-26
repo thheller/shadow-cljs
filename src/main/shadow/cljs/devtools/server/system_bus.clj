@@ -19,20 +19,17 @@
   ([svc topic sub-chan]
     (sub svc topic sub-chan true))
   ([{:keys [bus-pub] :as svc} topic sub-chan close?]
-   {:pre [(svc? svc)
-          (keyword? topic)]}
+   {:pre [(svc? svc)]}
    (async/sub bus-pub topic sub-chan close?)))
 
 (defn unsub
   [{:keys [bus-pub] :as svc} topic sub-chan]
-  {:pre [(svc? svc)
-         (keyword? topic)]}
+  {:pre [(svc? svc)]}
   (async/unsub bus-pub topic sub-chan))
 
 (defn publish!
   [{:keys [bus-pub-chan] :as svc} topic msg]
   {:pre [(svc? svc)
-         (keyword? topic)
          (map? msg)]}
   (async/>!! bus-pub-chan (assoc msg ::topic topic)))
 

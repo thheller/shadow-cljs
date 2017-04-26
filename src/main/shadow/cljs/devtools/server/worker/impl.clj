@@ -7,7 +7,10 @@
             [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.server.util :as util]
             [clojure.string :as str]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [shadow.cljs.devtools.server.system-bus :as sys-bus]
+            [shadow.cljs.devtools.server.system-msg :as sys-msg]
+            ))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -49,6 +52,8 @@
 (defn build-configure
   "configure the build according to build-config in state"
   [{:keys [build-config proc-id http-config-ref] :as worker-state}]
+  (>!!output worker-state {:type :build-configure
+                           :build-config build-config})
   (try
     ;; FIXME: allow the target-fn read-only access to worker-state? not just worker-info?
     ;; it may want to put things on the websocket?
@@ -63,6 +68,7 @@
                 :worker-info worker-info)
               (comp/init :dev build-config))]
 
+      ;; FIXME: should maybe cleanup old :compiler-state if there is one (re-configure)
       (assoc worker-state :compiler-state compiler-state))
     (catch Exception e
       (build-failure worker-state e))))
@@ -162,10 +168,18 @@
     ))
 
 (defmethod do-proc-control :configure
-  [worker-state {:keys [config] :as msg}]
+  [{:keys [system-bus channels build-config] :as worker-state} {:keys [config] :as msg}]
+
+  ;; subscribe config-watch for the build
+  (let [{:keys [config-watch]} channels]
+    (when build-config
+      (sys-bus/unsub system-bus [::sys-msg/config-watch (:id build-config)] config-watch))
+    (sys-bus/sub system-bus [::sys-msg/config-watch (:id config)] config-watch))
+
   (assoc worker-state
-    :build-config config
-    :autobuild false))
+         :build-config config
+         ;; FIXME: should this reset autobuild?
+         :autobuild false))
 
 (defmethod do-proc-control :stop-autobuild
   [worker-state msg]
@@ -221,8 +235,8 @@
             (>!! eval-out action))
 
           (assoc worker-state
-            :compiler-state compiler-state
-            :pending-results pending-results))
+                 :compiler-state compiler-state
+                 :pending-results pending-results))
 
         (catch Exception e
           (let [msg (repl-error e)]
@@ -329,6 +343,15 @@
         (-> worker-state
             (assoc :compiler-state next-state)
             (build-compile))))))
+
+(defn do-config-watch
+  [{:keys [autobuild] :as worker-state} {:keys [config] :as msg}]
+  (-> worker-state
+      (assoc :build-config config)
+      (cond->
+        autobuild
+        (-> (build-configure)
+            (build-compile)))))
 
 (defn repl-eval-connect
   [{:keys [proc-stop proc-control] :as proc} client-id client-out]
