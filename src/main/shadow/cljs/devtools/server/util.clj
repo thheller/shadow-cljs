@@ -1,8 +1,8 @@
 (ns shadow.cljs.devtools.server.util
   (:require [shadow.cljs.log :as shadow-log]
             [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
-            [clojure.pprint :refer (pprint)]
-            [shadow.cljs.build :as cljs])
+            [shadow.cljs.build :as cljs]
+            [shadow.cljs.devtools.errors :as errors])
   (:import (java.io Writer InputStreamReader BufferedReader IOException)))
 
 (defn async-logger [ch]
@@ -40,6 +40,10 @@
         (println (str "WARNING: " msg " (" source-name " at " line ":" column ") ")))
       (println "======"))))
 
+(defn print-build-failure [{:keys [build-config e] :as x}]
+  (println (format "[%s] Build failure:" (:id build-config)))
+  (errors/user-friendly-error e))
+
 (defn print-worker-out [x verbose]
   (locking cljs/stdout-lock
     (binding [*out* *err*]
@@ -54,6 +58,9 @@
 
         :build-start
         (print-build-start (:build-config x))
+
+        :build-failure
+        (print-build-failure x)
 
         :build-complete
         (let [{:keys [info build-config]} x]

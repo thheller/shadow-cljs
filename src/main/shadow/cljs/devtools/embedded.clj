@@ -24,7 +24,7 @@
   (merge
     (common/app config)
     {:supervisor
-     {:depends-on [:system-bus]
+     {:depends-on [:system-bus :executor]
       :start super/start
       :stop super/stop}
 
@@ -79,7 +79,9 @@
            (cond->
              autobuild
              (worker/start-autobuild))
-           (worker/sync!))
+           ;; FIXME: sync to ensure the build finished before start-worker returns?
+           ;; (worker/sync!)
+           )
        ))
    ::started))
 
@@ -88,7 +90,11 @@
     (let [worker (super/get-worker supervisor build-id)]
       (if-not worker
         ::worker-not-started
-        (api/stdin-takeover! worker)
+        (-> worker
+            ;; sync to ensure the worker isn't still compiling
+            ;; calling (start-worker :foo) (repl :foo) too quickly may not work otherwise
+            (worker/sync!)
+            (api/stdin-takeover!))
         ))))
 
 (defn stop-worker [build-id]

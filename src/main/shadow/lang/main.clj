@@ -28,7 +28,7 @@
   (merge
     (common/app config)
     {:supervisor
-     {:depends-on [:system-bus]
+     {:depends-on [:system-bus :executor]
       :start super/start
       :stop super/stop}
 

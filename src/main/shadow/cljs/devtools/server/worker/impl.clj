@@ -44,14 +44,15 @@
        causes))})
 
 (defn build-failure
-  [worker-state e]
+  [{:keys [build-config] :as worker-state} e]
   (>!!output worker-state
     {:type :build-failure
+     :build-config build-config
      :e e}))
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config proc-id http-config-ref] :as worker-state}]
+  [{:keys [build-config proc-id http-config-ref executor] :as worker-state}]
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
   (try
@@ -64,6 +65,7 @@
           compiler-state
           (-> (cljs/init-state)
               (assoc
+                :executor executor
                 :logger (util/async-logger (-> worker-state :channels :output))
                 :worker-info worker-info)
               (comp/init :dev build-config))]

@@ -1,7 +1,8 @@
 (ns shadow.cljs.devtools.errors
   (:require [clojure.repl :as repl]
             [clojure.string :as str]
-            [clojure.spec :as s])
+            [clojure.spec :as s]
+            [clojure.pprint :refer (pprint)])
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
 
@@ -36,12 +37,19 @@
     (.write (.getMessage e))
     (.write "\n"))
 
-  (throw e)
-  )
+  (throw e))
 
 (defmethod ex-data-format ::s/problems
   [w e {::s/keys [problems value] :as data}]
-  (.write w (with-out-str (s/explain-out data))))
+  (.write w (.getMessage e))
+  (.write w "== Spec\n")
+  (.write w
+    (with-out-str
+      (-> data
+          (dissoc ::s/args)
+          (s/explain-out)
+          )))
+  (.write w "==\n"))
 
 (defmethod ex-data-format :shadow.cljs.build/closure
   [w e {:keys [errors] :as data}]
@@ -67,6 +75,7 @@
     (.write ":")
     (.write (str (or column 0)))
     (.write "\n"))
+
   (error-format w (.getCause e)))
 
 (defn error-format
@@ -80,7 +89,6 @@
        (if data
          (ex-data-format w e data)
          (ex-format w e))
-       (.write w "===\n")
        ))))
 
 (defn user-friendly-error [e]

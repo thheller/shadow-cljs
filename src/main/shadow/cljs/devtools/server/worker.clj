@@ -84,7 +84,7 @@
 
 ;; SERVICE API
 
-(defn start [system-bus]
+(defn start [system-bus executor]
   (let [proc-id
         (UUID/randomUUID) ;; FIXME: not really unique but unique enough
 
@@ -140,6 +140,7 @@
          :pending-results {}
          :channels channels
          :system-bus system-bus
+         :executor executor
          :compiler-state nil}
 
         state-ref
@@ -184,11 +185,16 @@
           {:port 0
            :host "localhost"}
 
+          http-handler
+          (fn [ring]
+            (ws/process (assoc worker-proc :http-config @http-config-ref) ring))
+
           http
           (aleph/start-server
-            (fn [ring]
-              (ws/process (assoc worker-proc :http-config @http-config-ref) ring))
-            http-config)
+            http-handler
+            (assoc http-config
+                   :executor executor
+                   :shutdown-executor? false))
 
           http-config
           (assoc http-config

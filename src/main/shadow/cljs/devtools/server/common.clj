@@ -10,7 +10,8 @@
             [clojure.java.io :as io]
             [clojure.java.classpath :as cp]
             [shadow.cljs.devtools.server.config-watch :as config-watch])
-  (:import (java.io ByteArrayOutputStream InputStream)))
+  (:import (java.io ByteArrayOutputStream InputStream)
+           (java.util.concurrent Executors)))
 
 ;; FIXME: make config option
 (def classpath-excludes
@@ -55,6 +56,16 @@
               )))
 
         :stop (fn [x])}
+
+       :executor
+       {:depends-on []
+        :start
+        (fn []
+          (let [n-threads (.. Runtime getRuntime availableProcessors)]
+            (Executors/newFixedThreadPool (* 2 n-threads))))
+        :stop
+        (fn [ex]
+          (.shutdown ex))}
 
        :system-bus
        {:depends-on []

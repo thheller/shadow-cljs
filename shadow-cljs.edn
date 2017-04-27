@@ -66,4 +66,9 @@
   :target :node-script
   :main demo.warnings/main
   :output-to "out/demo-warnings/script.js"}
+
+ {:id :errors
+  :target :node-script
+  :main demo.errors/main
+  :output-to "out/demo-errors/script.js"}
  ]

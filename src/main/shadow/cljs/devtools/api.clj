@@ -24,7 +24,7 @@
         (merge
           (common/app config)
           {:worker
-           {:depends-on [:system-bus]
+           {:depends-on [:system-bus :executor]
             :start worker/start
             :stop worker/stop}})]
 
