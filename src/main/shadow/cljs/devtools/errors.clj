@@ -6,14 +6,28 @@
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
 
-(defn ex-format [w e]
-  (doto w
-    (.write (.. e (getClass) (getName)))
-    (.write ": ")
-    (.write (.getMessage e))
-    (.write "\n"))
+(declare error-format)
 
-  (throw e))
+(def ignored-stack-elements
+  #{"clojure.lang.RestFn"
+    "clojure.lang.AFn"})
+
+(defn ex-format [w e]
+  ;; pretty similar to repl/pst
+  (.write w (str (-> e class .getSimpleName) ": " (.getMessage e) "\n"))
+  (let [stack
+        (->> (.getStackTrace e)
+             (remove #(contains? ignored-stack-elements (.getClassName %)))
+             (take 12)
+             (map repl/stack-element-str))]
+
+    (doseq [x stack]
+      (.write w (str "\t" x "\n")))
+
+    (when-let [cause (.getCause e)]
+      (.write w "Caused by:\n")
+      (error-format w cause)
+      )))
 
 (defn get-tag [data]
   (or (:tag data)
@@ -24,8 +38,6 @@
   (fn [w e data]
     (get-tag data))
   :default ::default)
-
-(declare error-format)
 
 (defmethod ex-data-format ::default [w e data]
   (doto w

@@ -154,7 +154,19 @@
            proc-control impl/do-proc-control
            cljs-watch impl/do-cljs-watch
            config-watch impl/do-config-watch}
-          {:do-shutdown
+          {:validate
+           impl/worker-state?
+           :validate-error
+           (fn [state-before state-after msg]
+             ;; FIXME: handle this better
+             (prn [:invalid-worker-result-after (keys state-after) msg])
+             state-before)
+           :on-error
+           (fn [state-before msg ex]
+             ;; FIXME: handle this better
+             (prn [:worker-error msg ex])
+             state-before)
+           :do-shutdown
            (fn [state]
              (>!! output {:type :worker-shutdown :proc-id proc-id})
              state)})

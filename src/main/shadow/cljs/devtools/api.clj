@@ -140,7 +140,10 @@
         _
         (go (loop []
               (when-some [msg (<! out-chan)]
-                (util/print-worker-out msg verbose)
+                (try
+                  (util/print-worker-out msg verbose)
+                  (catch Exception e
+                    (prn [:print-worker-out-error e])))
                 (recur)
                 )))
 

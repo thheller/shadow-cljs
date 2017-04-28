@@ -42,7 +42,8 @@
 
 (defn print-build-failure [{:keys [build-config e] :as x}]
   (println (format "[%s] Build failure:" (:id build-config)))
-  (errors/user-friendly-error e))
+  (errors/user-friendly-error e)
+  )
 
 (defn print-worker-out [x verbose]
   (locking cljs/stdout-lock
@@ -100,7 +101,10 @@
     (async/go
       (loop []
         (when-some [x (<! chan)]
-          (print-worker-out x verbose)
+          (try
+            (print-worker-out x verbose)
+            (catch Exception e
+              (prn [:stdout-dump-ex e])))
           (recur)
           )))
 
@@ -108,7 +112,15 @@
     ))
 
 (defn server-thread
-  [state-ref init-state dispatch-table {:keys [do-shutdown] :as options}]
+  "options
+
+  :on-error (fn [state msg ex] state)
+  :validate (fn [state])
+  :validate-error (fn [state-before state-after msg] state-before)
+  :do-shutdown (fn [last-state])"
+
+  [state-ref init-state dispatch-table
+   {:keys [validate validate-error on-error do-shutdown] :as options}]
   (let [chans
         (into [] (keys dispatch-table))]
 
@@ -128,14 +140,21 @@
                   state
                   (if (nil? msg)
                     state
-                    (let [state
-                          (try
-                            (handler state msg)
-                            (catch Exception e
-                              (prn [:error-occured-in-server e])
-                              state))]
-                      (recur state))
-                    ))))]
+                    (-> (let [state-after
+                              (try
+                                (handler state msg)
+                                (catch Throwable ex
+                                  (prn [:handler-error msg ex])
+                                  (if (ifn? on-error)
+                                    (on-error state msg ex)
+                                    ;; FIXME: silently dropping e if no on-error is defined is bad
+                                    (do (prn [:server-thread-ex ex])
+                                        state))))]
+                          (if (and (ifn? validate)
+                                   (not (validate state-after)))
+                            (validate-error state state-after msg)
+                            state-after))
+                        (recur))))))]
 
         (if-not do-shutdown
           last-state
@@ -158,5 +177,4 @@
             (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
               (.printStackTrace e *err*))))
         (recur buf)))))
-
 
