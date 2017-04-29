@@ -154,6 +154,7 @@
 (comment
   (em/start! {:verbose true})
   (em/start-worker :browser)
+  (em/start-worker :script)
   (em/stop!)
 
   (def file (io/file "src/dev/demo/browser.cljs"))
@@ -163,6 +164,4 @@
   ;; simulate empty file
   (spit file "")
   (spit file content)
-
-
   )

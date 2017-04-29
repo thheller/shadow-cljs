@@ -33,3 +33,5 @@
     (.close srv
       (fn [err]
         (js/console.log "stop completed" err)))))
+
+(js/goog.global.setTimeout (fn [] (js/console.log "foo")) 50)
