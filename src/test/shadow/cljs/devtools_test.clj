@@ -7,7 +7,8 @@
             [shadow.cljs.devtools.targets.browser :as browser]
             [shadow.cljs.devtools.compiler :as comp]
             [cljs.externs :as externs]
-            [shadow.cljs.devtools.api :as api])
+            [shadow.cljs.devtools.api :as api]
+            [shadow.cljs.devtools.embedded :as em])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel)))
 
 
@@ -150,3 +151,18 @@
 (deftest test-warnings
   (api/once :warnings))
 
+(comment
+  (em/start! {:verbose true})
+  (em/start-worker :browser)
+  (em/stop!)
+
+  (def file (io/file "src/dev/demo/browser.cljs"))
+
+  (def content (slurp file))
+
+  ;; simulate empty file
+  (spit file "")
+  (spit file content)
+
+
+  )

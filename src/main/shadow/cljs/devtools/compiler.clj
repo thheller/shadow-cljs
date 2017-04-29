@@ -52,14 +52,16 @@
 (defn process-stage
   [{::keys [config mode target-fn] :as state} stage optional?]
   (let [before
-        (assoc state ::stage stage)
+        (-> state
+            (assoc ::stage stage)
+            (assoc-in [::build-info stage :enter] (System/currentTimeMillis)))
 
         after
         (target-fn before)]
     (if (and (not optional?) (identical? before after))
       (throw (ex-info "process didn't do anything on non-optional stage"
                {:stage stage :mode mode :config config}))
-      after)))
+      (assoc-in after [::build-info stage :exit] (System/currentTimeMillis)))))
 
 (defn deep-merge [a b]
   (cond
@@ -207,8 +209,8 @@
    :post [(cljs/compiler-state? %)]}
 
   (-> state
-      (process-stage :compile-prepare true)
       (assoc ::build-info {})
+      (process-stage :compile-prepare true)
       (cljs/prepare-compile)
       (cljs/prepare-modules)
       (update-build-info-from-modules)
@@ -219,8 +221,7 @@
         (= :release mode)
         (-> (process-stage :optimize-prepare true)
             (cljs/closure-optimize)
-            (process-stage :optimize-finish true)
-            ))))
+            (process-stage :optimize-finish true)))))
 
 (defn flush
   [state]

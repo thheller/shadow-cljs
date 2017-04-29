@@ -26,13 +26,18 @@
   (println (format "[%s] Compiling ..." (:id build-config))))
 
 (defn print-build-complete [build-info build-config]
-  (let [{:keys [sources compiled warnings]}
+  (let [{:keys [compile-prepare flush sources compiled warnings]}
         build-info]
-    (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings)"
+
+    (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings, %.2fs)"
                (:id build-config)
                (count sources)
                (count compiled)
-               (count warnings)))
+               (count warnings)
+               (-> (- (:exit flush 0)
+                      (:enter compile-prepare 0))
+                   (double)
+                   (/ 1000))))
 
     (when (seq warnings)
       (println (format "====== %d Warnings" (count warnings)))

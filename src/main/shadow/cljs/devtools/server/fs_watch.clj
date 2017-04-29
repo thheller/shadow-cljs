@@ -25,6 +25,9 @@
                           (subs name (inc x)))
                    :file (io/file dir name)
                    :event event}))
+           ;; ignore empty files
+           (remove (fn [{:keys [file]}]
+                     (zero? (.length file))))
            ))))
 
 (defn watch-thread
