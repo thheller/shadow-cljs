@@ -1,4 +1,5 @@
 (ns shadow.cljs.devtools.embedded
+  (:refer-clojure :exclude (sync))
   (:require [shadow.runtime.services :as rt]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.supervisor :as super]
@@ -81,9 +82,16 @@
              (worker/start-autobuild))
            ;; FIXME: sync to ensure the build finished before start-worker returns?
            ;; (worker/sync!)
-           )
-       ))
+           )))
    ::started))
+
+(defn sync [build-id]
+  (let [{:keys [supervisor] :as sys} (system)]
+    (let [worker (super/get-worker supervisor build-id)]
+      (if-not worker
+        ::worker-not-started
+        (do (worker/sync! worker)
+            ::sync)))))
 
 (defn repl [build-id]
   (let [{:keys [supervisor] :as sys} (system)]
