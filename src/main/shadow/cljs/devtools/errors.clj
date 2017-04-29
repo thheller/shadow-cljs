@@ -77,7 +77,7 @@
   (.write w (with-out-str (s/explain-out data))))
 
 (defmethod ex-data-format :cljs/analysis-error
-  [w e {:keys [file line column] :as data}]
+  [w e {:keys [file line column error-type] :as data}]
   (doto w
     (.write "CLJS error in ")
     (.write (or file "<unknown>"))
@@ -88,7 +88,18 @@
     (.write (str (or column 0)))
     (.write "\n"))
 
-  (error-format w (.getCause e)))
+  (let [cause (.getCause e)]
+    (cond
+      (keyword? error-type)
+      (.write w (:msg data))
+
+      ;; FIXME: this skips printing (.getMessage e) as it seems to be a repetition of the cause most of the time?
+      cause
+      (error-format w cause)
+
+      :else
+      (.write w (.getMessage e))
+      )))
 
 (defn error-format
   ([e]
