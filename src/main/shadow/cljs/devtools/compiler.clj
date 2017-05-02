@@ -217,7 +217,7 @@
       (process-stage :compile-finish true)))
 
 (defn optimize
-  [{:keys [mode] :as state}]
+  [{::keys [mode] :as state}]
   {:pre [(cljs/compiler-state? state)]
    :post [(cljs/compiler-state? %)]}
   (-> state
