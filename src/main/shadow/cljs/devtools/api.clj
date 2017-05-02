@@ -286,7 +286,7 @@
 (defn release
   ([build]
    (release build {}))
-  ([build {:keys [debug] :as opts}]
+  ([build {:keys [debug source-maps pseudo-names] :as opts}]
    (let [build-config
          (config/get-build! build)]
 
@@ -294,19 +294,44 @@
        (util/print-build-start build-config)
        (-> (comp/init :release build-config)
            (cond->
-             debug
-             ;; FIXME: not sure if you actually want source-maps
-             ;; when debugging it may be more useful to look at actual JS and not the CLJS
-             (-> (cljs/enable-source-maps)
-                 (cljs/merge-compiler-options
-                   {:pretty-print true
-                    :pseudo-names true})))
+             (or debug source-maps)
+             (cljs/enable-source-maps)
+
+             (or debug pseudo-names)
+             (cljs/merge-compiler-options
+               {:pretty-print true
+                :pseudo-names true}))
            (comp/compile)
+           (comp/optimize)
            (comp/flush)
            (build-finish build-config))
        :done
        (catch Exception e
          (e/user-friendly-error e))))))
+
+(defn check [build]
+  (let [build-config
+        (config/get-build! build)]
+
+    (try
+      ;; FIXME: pretend release mode so targets don't need to account for extra mode
+      ;; in most cases we want exactly :release but not sure that is true for everything?
+      (-> (comp/init :release build-config)
+          ;; using another dir because of source maps
+          ;; not sure :release builds want to enable source maps by default
+          ;; so running check on the release dir would cause a recompile which is annoying
+          ;; but check errors are really useless without source maps
+          (assoc :cache-dir (io/file "target" "shadow-cache" (name build) "check"))
+          (cljs/enable-source-maps)
+          ;; needed to get rid of process/global errors in cljs/core.cljs
+          (update-in [:compiler-options :externs] conj "shadow/cljs/externs.js")
+          ;; need CLJS-2019 to be useful
+          (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
+          (comp/compile)
+          (comp/check))
+      :done
+      (catch Exception e
+        (e/user-friendly-error e)))))
 
 (defn test-setup []
   (-> (cljs/init-state)

@@ -71,4 +71,14 @@
   :target :node-script
   :main demo.errors/main
   :output-to "out/demo-errors/script.js"}
+
+ {:id :foreign
+  :target :browser
+  :public-dir "out/demo-foreign/js"
+  :public-path "/js"
+  :compiler-options
+  {:externs
+   ["src/dev/demo/foreign-ext.js"]}
+  :modules
+  {:main {:entries [demo.foreign]}}}
  ]

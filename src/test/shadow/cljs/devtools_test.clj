@@ -7,9 +7,12 @@
             [shadow.cljs.devtools.targets.browser :as browser]
             [shadow.cljs.devtools.compiler :as comp]
             [cljs.externs :as externs]
+            [cljs.analyzer :as ana]
+            [cljs.compiler :as cljs-comp]
             [shadow.cljs.devtools.api :as api]
-            [shadow.cljs.devtools.embedded :as em])
-  (:import (com.google.javascript.jscomp SourceFile CompilationLevel)))
+            [shadow.cljs.devtools.embedded :as em]
+            [clojure.repl :as repl])
+  (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)))
 
 
 (comment
@@ -98,7 +101,8 @@
                :pseudo-names false
                :closure-warnings
                {:check-types :warning
-                :check-variables :warning}})
+                :check-variables :warning
+                :undefined-variables :warning}})
             (cljs/add-closure-configurator
               (fn [cc co state]
                 (.setTypeBasedOptimizationOptions CompilationLevel/ADVANCED_OPTIMIZATIONS co)
@@ -150,6 +154,88 @@
 
 (deftest test-warnings
   (api/once :warnings))
+
+(deftest test-foreign
+  (api/release :foreign {:source-maps true}))
+
+(defn load-from-disk [{:keys [public-dir build-sources] :as state}]
+  (-> state
+      (cljs/prepare-compile)
+      (cljs/prepare-modules)
+      (as-> state
+        (reduce
+          (fn [state source-name]
+            (prn [:load source-name])
+            (let [{:keys [js-name] :as rc}
+                  (get-in state [:sources source-name])
+
+                  target-file
+                  (io/file public-dir "cljs-runtime" js-name)]
+
+              (when-not (.exists target-file)
+                (throw (ex-info (format "cannot load file %s" target-file) {:src source-name :file target-file})))
+
+              (let [content (slurp target-file)]
+                (when-not (seq content)
+                  (throw (ex-info (format "no content %s" target-file) {})))
+                (assoc-in state [:sources source-name :output] content))
+              ))
+          state
+          build-sources))))
+
+
+
+#_(doseq [prop protocol-props]
+    (.registerPropertyOnType type-reg prop obj-type))
+;; (.resetWarningsGuard co)
+;; (.setWarningLevel co DiagnosticGroups/CHECK_TYPES CheckLevel/OFF)
+;; really only want the undefined variables warnings
+;; (.setWarningLevel co DiagnosticGroups/CHECK_VARIABLES CheckLevel/OFF)
+;; (.setWarningLevel co DiagnosticGroups/UNDEFINED_VARIABLES CheckLevel/WARNING)
+;; (.setWarningLevel co DiagnosticGroups/MISSING_SOURCES_WARNINGS CheckLevel/WARNING)
+;; (.setWarningLevel co (DiagnosticGroup/forType VarCheck/UNDEFINED_VAR_ERROR) CheckLevel/WARNING)
+;; (.setTypeBasedOptimizationOptions CompilationLevel/ADVANCED_OPTIMIZATIONS co)
+;; (.setPrintSourceAfterEachPass co true)
+
+(deftest test-warnings
+  (try
+    (let [{:keys [compiler-env closure-compiler] :as state}
+          (-> (cljs/init-state)
+              (cljs/merge-build-options
+                {:public-dir (io/file "out" "demo-foreign" "js")
+                 :public-path "js"
+                 :cache-level :off
+
+                 ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
+                 })
+              (cljs/merge-compiler-options
+                {:optimizations :advanced
+                 :pretty-print false
+                 :pseudo-names false
+                 :externs
+                 ["shadow/cljs/externs.js"]
+                 :closure-warnings
+                 {:check-types :warning}
+                 })
+              (cljs/enable-source-maps)
+              (cljs/find-resources-in-classpath)
+
+              (cljs/configure-module :main
+                '[demo.prototype demo.foreign]
+                #{}
+                {:prepend-js
+                 "goog.nodeGlobalRequire = function(/** String */ name) {};"})
+              ;; (load-from-disk)
+              (cljs/compile-modules)
+              ;; (cljs/flush-unoptimized) ;; doesn't work
+              ;; (cljs/flush-unoptimized-compact)
+              (cljs/closure-check)
+              ;; (cljs/flush-modules-to-disk)
+              )]
+
+      :done)
+    (catch Exception e
+      (repl/pst e))))
 
 (comment
   (em/start! {:verbose true})

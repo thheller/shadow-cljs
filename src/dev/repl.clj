@@ -7,7 +7,7 @@
 (defn start []
   (st/instrument)
   (cljs/start! {:verbose true})
-  (cljs/start-worker :errors)
+  (cljs/start-worker :script)
   ::started)
 
 (defn stop []

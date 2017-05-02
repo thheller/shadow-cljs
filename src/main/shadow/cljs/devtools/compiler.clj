@@ -177,9 +177,7 @@
                  {:use-file-min false
                   :closure-defines {"goog.DEBUG" true}})
                (cljs/merge-compiler-options
-                 {:optimizations :none})
-
-               )
+                 {:optimizations :none}))
 
            ;; generic release mode
            (= :release mode)
@@ -216,12 +214,27 @@
       (update-build-info-from-modules)
       (cljs/compile-modules*)
       (update-build-info-after-compile)
-      (process-stage :compile-finish true)
+      (process-stage :compile-finish true)))
+
+(defn optimize
+  [{:keys [mode] :as state}]
+  {:pre [(cljs/compiler-state? state)]
+   :post [(cljs/compiler-state? %)]}
+  (-> state
       (cond->
         (= :release mode)
         (-> (process-stage :optimize-prepare true)
             (cljs/closure-optimize)
             (process-stage :optimize-finish true)))))
+
+(defn check
+  [state]
+  {:pre [(cljs/compiler-state? state)]
+   :post [(cljs/compiler-state? %)]}
+  (-> state
+      (process-stage :check-prepare true)
+      (cljs/closure-check)
+      (process-stage :check-finish true)))
 
 (defn flush
   [state]
