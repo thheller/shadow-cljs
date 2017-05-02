@@ -181,10 +181,12 @@
 
            ;; generic release mode
            (= :release mode)
-           (cljs/merge-compiler-options
-             {:optimizations :advanced
-              :elide-asserts true
-              :pretty-print false})
+           (-> (cljs/merge-compiler-options
+                 {:optimizations :advanced
+                  :elide-asserts true
+                  :pretty-print false})
+               ;; needed to get rid of process/global errors in cljs/core.cljs
+               (update-in [:compiler-options :externs] conj "shadow/cljs/externs.js"))
 
            closure-defines
            (cljs/merge-build-options {:closure-defines closure-defines})

@@ -18,3 +18,15 @@ process.hrtime;
  * @const
  */
 var global;
+
+/** @const {string} */
+var __filename;
+
+/** @const {string} */
+var __dirname;
+
+/**
+ * @param {string} name
+ * @return {?}
+ */
+function require(name) {}

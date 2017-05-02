@@ -323,8 +323,6 @@
           ;; but check errors are really useless without source maps
           (assoc :cache-dir (io/file "target" "shadow-cache" (name build) "check"))
           (cljs/enable-source-maps)
-          ;; needed to get rid of process/global errors in cljs/core.cljs
-          (update-in [:compiler-options :externs] conj "shadow/cljs/externs.js")
           ;; need CLJS-2019 to be useful
           (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
           (comp/compile)
