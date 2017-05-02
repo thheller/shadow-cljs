@@ -4,12 +4,8 @@
 
 ;; FIXME: remove once this is in cljs.core
 
-(s/def ::bindings
-  (s/and #(even? (count %))
-         ::cs/bindings))
-
-(s/fdef clojure.core/let
-  :args (s/cat :bindings ::bindings
+(s/fdef cljs.core/let
+  :args (s/cat :bindings ::cs/bindings
                :body (s/* any?)))
 
 (s/fdef cljs.core/let
