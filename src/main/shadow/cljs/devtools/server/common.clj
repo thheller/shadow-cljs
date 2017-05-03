@@ -62,7 +62,7 @@
         :start
         (fn []
           (let [n-threads (.. Runtime getRuntime availableProcessors)]
-            (Executors/newFixedThreadPool (* 2 n-threads))))
+            (Executors/newFixedThreadPool n-threads)))
         :stop
         (fn [ex]
           (.shutdown ex))}
