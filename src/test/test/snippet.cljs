@@ -1,4 +1,10 @@
-(ns test.snippet
-  (:require-macros [cljs.core.async.macros :refer (go)])
-  (:require [cljs.core.async :as async]))
+(ns test.snippet)
 
+(set! *warn-on-infer* true)
+
+(defn foo [x]
+  (.bar x))
+
+(list)
+
+(js/React.createElement "foo")

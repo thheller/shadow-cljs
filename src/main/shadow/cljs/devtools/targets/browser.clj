@@ -7,7 +7,8 @@
             [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.repl :as repl]))
+            [shadow.cljs.repl :as repl]
+            [clojure.string :as str]))
 
 (s/def ::entries
   (s/coll-of simple-symbol? :kind vector?))
@@ -107,19 +108,19 @@
         (reduce-kv
           (fn [mi mod-name {:keys [default web-worker] :as mod}]
             (assoc mi mod-name
-              (-> mod
-                  (cond->
-                    ;; default module brings in shadow.loader
-                    ;; must create some :append-js so the pseudo-rc is created
-                    ;; the enable call is currently a noop
-                    default
-                    (-> (update :entries #(into '[shadow.loader] %))
-                        (update :append-js str "\nshadow.loader.enable();"))
+                   (-> mod
+                       (cond->
+                         ;; default module brings in shadow.loader
+                         ;; must create some :append-js so the pseudo-rc is created
+                         ;; the enable call is currently a noop
+                         default
+                         (-> (update :entries #(into '[shadow.loader] %))
+                             (update :append-js str "\nshadow.loader.enable();"))
 
-                    ;; other modules just need to tell the loader they finished loading
-                    (and (not default) (not web-worker))
-                    (update :append-js str "\nshadow.loader.set_loaded('" (name mod-name) "');"))
-                  )))
+                         ;; other modules just need to tell the loader they finished loading
+                         (and (not default) (not web-worker))
+                         (update :append-js str "\nshadow.loader.set_loaded('" (name mod-name) "');"))
+                       )))
           {}
           modules)]
     (assoc state :modules modules)
@@ -139,25 +140,25 @@
         module-uris
         (reduce
           (fn [m {:keys [name foreign-files sources] :as module}]
-            (assoc m name
-              (if release?
-                (let [foreign-uris
-                      (->> foreign-files
-                           (map (fn [{:keys [js-name]}]
-                                  (str public-path "/" js-name)))
-                           (into []))
-                      mod-uri
-                      (str public-path "/" (:js-name module))]
-                  (conj foreign-uris mod-uri))
+            (let [uris
+                  (if release?
+                    (let [foreign-uris
+                          (->> foreign-files
+                               (map (fn [{:keys [js-name]}]
+                                      (str public-path "/" js-name)))
+                               (into []))
+                          mod-uri
+                          (str public-path "/" (:js-name module))]
+                      (conj foreign-uris mod-uri))
 
-                ;; :dev, never bundles foreign
-                (->> sources
-                     (remove loader-sources)
-                     (map (fn [src-name]
-                            (let [js-name (get-in state [:sources src-name :js-name])]
-                              (str public-path "/" cljs-runtime-path "/" js-name))))
-                     (into [])
-                     ))))
+                    ;; :dev, never bundles foreign
+                    (->> sources
+                         (remove loader-sources)
+                         (map (fn [src-name]
+                                (let [js-name (get-in state [:sources src-name :js-name])]
+                                  (str public-path "/" cljs-runtime-path "/" js-name))))
+                         (into [])))]
+              (assoc m name uris)))
           {}
           modules)
 
@@ -178,6 +179,8 @@
       ;; prepend so it is emitted called before the enable()
       #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
     ))
+
+
 
 (defn init
   [state mode {:keys [modules module-loader] :as config}]
@@ -211,7 +214,8 @@
   (spit
     (io/file public-dir "manifest.json")
     (let [data
-          (->> (:build-modules state)
+          (->> (or (:optimized state) ;; must use :optimized for :release builds because of :module-hash-names
+                   (:build-modules state))
                (map (fn [{:keys [name js-name entries depends-on default sources foreign-files] :as mod}]
                       (-> {:name name
                            :js-name js-name
@@ -228,17 +232,34 @@
 
   state)
 
-(defn flush [state mode config]
-  ;; these don't modify state
+(defn hash-optimized-module [{:keys [output js-name] :as mod}]
+  (let [signature (cljs/md5hex output)]
+    (assoc mod :js-name (str/replace js-name #".js$" (str "." signature ".js")))))
+
+(defn hash-optimized-modules [state]
+  (update state :optimized
+    (fn [optimized]
+      (->> optimized
+           (map hash-optimized-module)
+           (into [])))))
+
+(defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
   (case mode
     :dev
-    (do (cljs/flush-unoptimized state)
-        (flush-manifest state false))
+    (-> state
+        (cljs/flush-unoptimized)
+        (flush-manifest false))
     :release
-    (do (cljs/flush-modules-to-disk state)
-        (flush-manifest state true)))
-
-  state)
+    (do (when (and (true? module-loader)
+                   (true? module-hash-names))
+          ;; FIXME: provide a way to export module config instead of appending it always.
+          (throw (ex-info ":module-loader true defeats purpose of :module-hash-names" {})))
+        (-> state
+            (cond->
+              module-hash-names
+              (hash-optimized-modules))
+            (cljs/flush-modules-to-disk)
+            (flush-manifest true)))))
 
 (defn process
   [{::comp/keys [stage mode config] :as state}]

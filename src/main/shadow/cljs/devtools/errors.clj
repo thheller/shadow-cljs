@@ -49,7 +49,12 @@
     (.write (.getMessage e))
     (.write "\n"))
 
-  (throw e))
+  (ex-format w e))
+
+(defmethod ex-data-format :shadow.cljs.build/missing-ns
+  [w e data]
+  (doto w
+    (.write (.getMessage e))))
 
 (defmethod ex-data-format ::s/problems
   [w e {::s/keys [problems value] :as data}]

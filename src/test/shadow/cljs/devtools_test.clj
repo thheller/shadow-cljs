@@ -9,9 +9,13 @@
             [cljs.externs :as externs]
             [cljs.analyzer :as ana]
             [cljs.compiler :as cljs-comp]
+            [cljs.env :as cljs-env]
+            [cljs.closure :as cljs-closure]
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.devtools.embedded :as em]
-            [clojure.repl :as repl])
+            [clojure.repl :as repl]
+            [cljs.analyzer.api :as ana-api]
+            [clojure.walk :as walk])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)))
 
 
@@ -59,14 +63,64 @@
             (cljs/merge-build-options
               {:public-dir (io/file "target" "test-snippet")
                :public-path "/"
-               :infer-externs true
-               :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]})
+               ;; :infer-externs true
+               ;; :externs-sources [(SourceFile/fromFile (io/file "src/test/test.externs.js"))]
+               })
             (cljs/merge-compiler-options
-              {:optimizations :none
+              {:optimizations :advanced
                :pretty-print false
-               :pseudo-names false})
+               :pseudo-names false
+               :externs
+               ["test.externs.js"]})
 
             (cljs/enable-source-maps)
+            (cljs/find-resources-in-classpath)
+
+            (cljs/configure-module :base '[cljs.core shadow.runtime-setup] #{})
+            (cljs/configure-module :test '[test.snippet] #{:base})
+            (cljs/compile-modules)
+            ;; (cljs/flush-unoptimized) ;; doesn't work
+            ;; (cljs/flush-unoptimized-compact)
+            (cljs/closure-optimize)
+            ;; (cljs/flush-modules-to-disk)
+            )]
+
+    (binding [*print-meta* true]
+      (println (get-in state [:sources "test/snippet.cljs" :output]))
+      (println (get-in state [:optimized 1 :output]))
+      ))
+  :done)
+
+(deftest test-ext
+  (let [{:keys [compiler-env closure-compiler] :as state}
+        (-> (cljs/init-state)
+            (cljs/merge-build-options
+              {:public-dir (io/file "target" "test-ext")
+               :public-path "/"
+               :infer-externs true
+               ;; :externs ["test.externs.js"]
+               ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
+               })
+            (cljs/merge-compiler-options
+              {:optimizations :advanced
+               :pretty-print true
+               :pseudo-names false
+
+               :closure-warnings
+               {:check-types :warning
+                ;; :report-unknown-types :warning ;; doesn't work? reports huge amounts of errors in goog/*
+                :type-invalidation :warning
+                ;; :check-variables :warning
+                ;; :undefined-variables :warning
+                }})
+            (cljs/add-closure-configurator
+              (fn [cc co state]
+                (.setCheckTypes co true)
+                (.setTypeBasedOptimizationOptions CompilationLevel/ADVANCED_OPTIMIZATIONS co)
+                ;; (.setPrintSourceAfterEachPass co true)
+                ))
+
+            ;; (cljs/enable-source-maps)
             (cljs/find-resources-in-classpath)
 
             (cljs/configure-module :test '[test.snippet] #{})
@@ -77,59 +131,57 @@
             ;; (cljs/flush-modules-to-disk)
             )]
 
-    (binding [*print-meta* true]
+    ;; (prn (.getExternProperties closure-compiler))
 
+    ;; (println (get-in state [:optimized 1 :output]))
+
+    (binding [*print-meta* true]
       (println (get-in state [:sources "test/snippet.cljs" :output]))
       (pprint (get-in compiler-env [:cljs.analyzer/externs 'Foreign]))
       (pprint (get-in compiler-env [:cljs.analyzer/namespaces 'test.snippet :externs])))
     )
   :done)
 
-(deftest test-ext
-  (let [{:keys [compiler-env closure-compiler] :as state}
+(defn remove-env [x]
+  (if (map? x)
+    (dissoc x :env)
+    x))
+
+(defn analyze-form
+  [form in-ns]
+  {:pre [(symbol? in-ns)]}
+  (let [state
         (-> (cljs/init-state)
-            (cljs/merge-build-options
-              {:public-dir (io/file "target" "test-ext")
-               :public-path "/"
-               :infer-externs true
-               :externs ["tmp/externs.js"]
-               ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
-               })
-            (cljs/merge-compiler-options
-              {:optimizations :advanced
-               :pretty-print true
-               :pseudo-names false
-               :closure-warnings
-               {:check-types :warning
-                :check-variables :warning
-                :undefined-variables :warning}})
-            (cljs/add-closure-configurator
-              (fn [cc co state]
-                (.setTypeBasedOptimizationOptions CompilationLevel/ADVANCED_OPTIMIZATIONS co)
-                ;; (.setPrintSourceAfterEachPass co true)
-                ))
-
-            ;; (cljs/enable-source-maps)
             (cljs/find-resources-in-classpath)
+            (cljs/compile-all-for-ns in-ns))
 
-            (cljs/configure-module :test '[cljs.core] #{})
-            (cljs/compile-modules)
-            ;; (cljs/flush-unoptimized) ;; doesn't work
-            ;; (cljs/flush-unoptimized-compact)
-            (cljs/closure-optimize)
-            (cljs/flush-modules-to-disk))]
+        {:keys [compiler-env] :as state}
+        (cljs/with-compiler-env
+          state
 
-    ;; (prn (.getExternProperties closure-compiler))
+          (binding [ana/*cljs-ns* in-ns]
+            (let [ast (ana-api/analyze (ana/empty-env) form "test.cljs" {})]
+              (assoc state ::result ast))))]
 
-    (println (get-in state [:optimized 0 :output]))
+    [(::result state) compiler-env]))
 
-    #_(binding [*print-meta* true]
+(deftest test-analyze
+  (let [form
+        ;; bad
+        (with-meta 'js/goog.DEBUG {:tag 'boolean})
+        ;; good
+        ;; (with-meta '(.-DEBUG js/goog) {:tag 'boolean})
 
-        (println (get-in state [:sources "test/snippet.cljs" :output]))
-        (pprint (get-in compiler-env [:cljs.analyzer/externs 'Foreign]))
-        (pprint (get-in compiler-env [:cljs.analyzer/namespaces 'test.snippet :externs])))
-    )
-  :done)
+        [ast env]
+        (analyze-form form 'test.empty)]
+
+    (binding [*print-meta* true]
+      (-> (walk/prewalk remove-env ast)
+          (pprint))
+
+      #_(-> (get-in env [::ana/namespaces 'test.empty :externs])
+            (pprint))
+      )))
 
 
 (deftest test-externs-map
