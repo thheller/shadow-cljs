@@ -1,4 +1,4 @@
-(defproject thheller/shadow-devtools "1.0.20170512"
+(defproject thheller/shadow-devtools "1.0.20170512-13"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-devtools"
   :license {:name "Eclipse Public License"
@@ -17,7 +17,7 @@
      org.clojure/tools.reader]]
    [com.google.javascript/closure-compiler-unshaded "v20170423"]
 
-   [thheller/shadow-build "1.0.20170512"]
+   [thheller/shadow-build "1.0.20170512-13"]
    [thheller/shadow-util "0.5.0"]
 
    [aleph "0.4.3"]
