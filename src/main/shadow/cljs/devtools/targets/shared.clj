@@ -58,10 +58,12 @@
 
 
 (defn inject-node-repl
-  [state config]
-  (-> state
-      (update :closure-defines merge (repl-defines state config))
-      (update-in [:modules (:default-module state) :entries] prepend '[cljs.user shadow.cljs.devtools.client.node])
-      ))
+  [state {:keys [devtools] :as config}]
+  (if (false? (:enabled devtools))
+    state
+    (-> state
+        (update :closure-defines merge (repl-defines state config))
+        (update-in [:modules (:default-module state) :entries] prepend '[cljs.user shadow.cljs.devtools.client.node])
+        )))
 
 
