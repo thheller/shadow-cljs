@@ -1,6 +1,6 @@
 (ns repl
   (:require [clojure.pprint :refer (pprint)]
-            [clojure.spec.test :as st]
+            [clojure.spec.alpha.test :as st]
             [shadow.cljs.devtools.embedded :as cljs]
             ))
 

@@ -4,7 +4,7 @@
             [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.config :as config]
-            [clojure.spec :as s]
+            [clojure.spec.alpha :as s]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.repl :as repl]))
 
@@ -32,6 +32,7 @@
         (= :release mode)
         (cljs/merge-compiler-options
           {:optimizations :simple}))
+      (shared/set-public-dir mode config)
       (node/configure config)
 
       (cond->

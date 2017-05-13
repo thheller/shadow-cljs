@@ -1,6 +1,6 @@
 (ns shadow.cljs.devtools.cljs-specs
-  (:require [clojure.spec :as s]
-            [clojure.core.specs :as cs]))
+  (:require [clojure.spec.alpha :as s]
+            [clojure.core.specs.alpha :as cs]))
 
 ;; FIXME: remove once this is in cljs.core
 

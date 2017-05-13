@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.targets.browser
   (:refer-clojure :exclude (flush))
   (:require [clojure.java.io :as io]
-            [clojure.spec :as s]
+            [clojure.spec.alpha :as s]
             [clojure.data.json :as json]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.compiler :as comp]

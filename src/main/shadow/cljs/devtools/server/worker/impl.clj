@@ -73,30 +73,35 @@
       ;; FIXME: should maybe cleanup old :compiler-state if there is one (re-configure)
       (assoc worker-state :compiler-state compiler-state))
     (catch Exception e
-      (build-failure worker-state e))))
+      (-> worker-state
+          (dissoc :compiler-state) ;; just in case there is an old one
+          (build-failure e)))))
 
 (defn build-compile
   [{:keys [compiler-state build-config] :as worker-state}]
   (>!!output worker-state {:type :build-start
                            :build-config build-config})
 
-  (try
-    (let [compiler-state
-          (-> compiler-state
-              (comp/compile)
-              (comp/flush))]
+  ;; this may be nil if configure failed, just silently do nothing for now
+  (if (nil? compiler-state)
+    worker-state
+    (try
+      (let [compiler-state
+            (-> compiler-state
+                (comp/compile)
+                (comp/flush))]
 
-      (>!!output worker-state
-        {:type
-         :build-complete
-         :build-config
-         build-config
-         :info
-         (::comp/build-info compiler-state)})
+        (>!!output worker-state
+          {:type
+           :build-complete
+           :build-config
+           build-config
+           :info
+           (::comp/build-info compiler-state)})
 
-      (assoc worker-state :compiler-state compiler-state))
-    (catch Exception e
-      (build-failure worker-state e))))
+        (assoc worker-state :compiler-state compiler-state))
+      (catch Exception e
+        (build-failure worker-state e)))))
 
 (defmulti do-proc-control
   (fn [worker-state {:keys [type] :as msg}]
@@ -137,15 +142,16 @@
   [{:keys [build-config autobuild] :as worker-state} msg]
   (if autobuild
     worker-state ;; do nothing if already in auto mode
-    (if (nil? build-config)
+    (cond
+      (nil? build-config)
       (build-msg worker-state "No build configured.")
-      (try
-        (-> worker-state
-            (build-configure)
-            (build-compile)
-            (assoc :autobuild true))
-        (catch Exception e
-          (build-failure worker-state e))))))
+
+      :else
+      (-> worker-state
+          (build-configure)
+          (build-compile)
+          (assoc :autobuild true)
+          ))))
 
 (defmethod do-proc-control :stop-autobuild
   [worker-state msg]
@@ -156,12 +162,9 @@
   (let [result
         (if (nil? build-config)
           (build-msg worker-state "No build configured.")
-          (try
-            (-> worker-state
-                (build-configure)
-                (build-compile))
-            (catch Exception e
-              (build-failure worker-state e))))]
+          (-> worker-state
+              (build-configure)
+              (build-compile)))]
 
     (when reply-to
       (>!! reply-to :done))

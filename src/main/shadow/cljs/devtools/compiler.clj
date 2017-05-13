@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.compiler
   (:refer-clojure :exclude (compile flush))
   (:require [clojure.java.io :as io]
-            [clojure.spec :as s]
+            [clojure.spec.alpha :as s]
             [clojure.pprint :refer (pprint)]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.config :as config]
@@ -100,12 +100,15 @@
           (deep-merge mode-opts))
         (dissoc :release :dev))))
 
-(defn get-target-fn [target]
+(defn get-target-fn [target build-id]
 
   (let [target-fn-sym
         (cond
           (qualified-symbol? target)
           target
+
+          (simple-symbol? target)
+          (symbol (str target) "process")
 
           ;; FIXME: maybe these shouldn't be as hard-coded
           (keyword? target)
@@ -127,7 +130,8 @@
       (try
         (require target-ns)
         (catch Exception e
-          (throw (ex-info "failed to require build target-fn" {:target target} e)))))
+          (throw (ex-info (format "failed to require :target %s for build %s" target build-id)
+                   {:tag ::get-target-fn :target target} e)))))
 
     (let [fn (ns-resolve target-ns target-fn-sym)]
       (when-not fn
@@ -151,7 +155,7 @@
          (config-merge config mode)
 
          target-fn
-         (get-target-fn target)]
+         (get-target-fn target id)]
 
      ;; must do this after calling get-target-fn
      ;; the namespace that is in may have added to the multi-spec

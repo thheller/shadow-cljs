@@ -1,13 +1,13 @@
 (ns shadow.cljs.devtools.config
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.spec :as s]))
+            [clojure.spec.alpha :as s]))
 
 (s/def ::id keyword?)
 
 (s/def ::target
-  #(or (keyword? %)
-       (qualified-symbol? %)))
+  #(or (simple-keyword? %)
+       (symbol? %)))
 
 (defmulti target-spec :target :default ::default)
 

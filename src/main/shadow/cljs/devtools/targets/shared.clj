@@ -1,7 +1,8 @@
 (ns shadow.cljs.devtools.targets.shared
-  (:require [clojure.spec :as s]
+  (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]
-            [cljs.compiler :as cljs-comp]))
+            [cljs.compiler :as cljs-comp]
+            [clojure.java.io :as io]))
 
 (defn non-empty-string? [x]
   (and (string? x)
@@ -66,4 +67,13 @@
         (update-in [:modules (:default-module state) :entries] prepend '[cljs.user shadow.cljs.devtools.client.node])
         )))
 
+(defn set-public-dir [state mode {:keys [id public-dir] :as config}]
+  (-> state
+      (cond->
+        ;; FIXME: doesn't make sense to name this public-dir for node
+        (seq public-dir)
+        (assoc :public-dir (io/file public-dir))
+
+        (not public-dir)
+        (assoc :public-dir (io/file "target" "shadow-cache" (name id) (name mode))))))
 

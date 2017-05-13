@@ -1,5 +1,5 @@
 (ns shadow.cljs.devtools.server.system-msg
-  (:require [clojure.spec :as s]))
+  (:require [clojure.spec.alpha :as s]))
 
 ;; FIXME: do this properly and actually validate somewhere
 

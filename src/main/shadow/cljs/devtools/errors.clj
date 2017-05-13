@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.errors
   (:require [clojure.repl :as repl]
             [clojure.string :as str]
-            [clojure.spec :as s]
+            [clojure.spec.alpha :as s]
             [clojure.pprint :refer (pprint)])
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
@@ -51,10 +51,17 @@
 
   (ex-format w e))
 
+(defn write-msg [w e]
+  (.write w (str (.getMessage e) "\n")))
+
+(defmethod ex-data-format :shadow.cljs.devtools.compiler/get-target-fn
+  [w e data]
+  (write-msg w e)
+  (ex-format w (.getCause e)))
+
 (defmethod ex-data-format :shadow.cljs.build/missing-ns
   [w e data]
-  (doto w
-    (.write (.getMessage e))))
+  (write-msg w e))
 
 (defmethod ex-data-format ::s/problems
   [w e {::s/keys [problems value] :as data}]
