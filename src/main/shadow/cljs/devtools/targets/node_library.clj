@@ -60,7 +60,7 @@
            ])
 
         requires
-        (set/union #{'cljs.core} entries)
+        (conj entries 'cljs.core)
 
         umd-helper
         {:name "shadow/umd_helper.cljs"

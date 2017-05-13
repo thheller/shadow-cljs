@@ -1563,7 +1563,12 @@ normalize-resource-name
                     target-mod
                     (if (= 1 (count deps))
                       (first deps)
-                      (find-closest-common-dependency src deps))]
+                      (let [target-mod (find-closest-common-dependency src deps)]
+                        (util/log state {:type :module-move
+                                         :src src
+                                         :deps deps
+                                         :moved-to target-mod})
+                        target-mod))]
 
                 (update final target-mod vec-conj src)))
             {}
@@ -1571,8 +1576,12 @@ normalize-resource-name
 
       (->> module-order
            (map (fn [mod-id]
-                  (-> (get modules mod-id)
-                      (assoc :sources (get final-sources mod-id)))))
+                  (let [sources
+                        (get final-sources mod-id)]
+                    (when (empty? sources)
+                      (util/log state {:type :empty-module :mod-id mod-id}))
+                    (-> (get modules mod-id)
+                        (assoc :sources sources)))))
            (into [])))))
 
 (defn extract-warnings
