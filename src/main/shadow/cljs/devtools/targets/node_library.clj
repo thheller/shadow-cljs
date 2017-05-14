@@ -99,7 +99,7 @@
           {:prepend prepend
            :append append}))))
 
-(defn init [state mode {:keys [id exports] :as config}]
+(defn init [state mode {:keys [id] :as config}]
   (-> state
       (cond->
         (= :release mode)

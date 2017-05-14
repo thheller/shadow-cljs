@@ -44,12 +44,9 @@
 
 (defmethod ex-data-format ::default [w e data]
   (doto w
-    (.write "FIXME: error format for ")
-    (.write (-> e type (.getName)))
-    (.write " ")
-    (.write (str (or (get-tag data) "<:tag missing>")))
-    (.write "\n")
     (.write (.getMessage e))
+    (.write "\n")
+    (.write (pr-str data))
     (.write "\n"))
 
   (ex-format w e))

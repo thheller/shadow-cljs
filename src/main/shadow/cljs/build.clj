@@ -868,10 +868,13 @@ normalize-resource-name
       compile-state
       cljs-forms)))
 
+(defn source-mapping-url-for-rc [state {:keys [js-name] :as rc}]
+  (str (util/file-basename js-name) ".map\n"))
+
 (defn do-compile-cljs-resource
   "given the compiler state and a cljs resource, compile it and return the updated resource
    should not touch global state"
-  [{:keys [compiler-options] :as state} {:keys [name js-name input] :as rc}]
+  [{:keys [compiler-options source-map-comment] :as state} {:keys [name js-name input] :as rc}]
   (let [{:keys [static-fns elide-asserts]}
         compiler-options]
 
@@ -910,8 +913,8 @@ normalize-resource-name
                   (throw (ex-info "invalid cljs source type" {:name name :source source})))
 
                 js
-                (if (and source-map (:source-map state))
-                  (str js "\n//# sourceMappingURL=" (util/file-basename js-name) ".map\n")
+                (if (and source-map-comment source-map (:source-map state))
+                  (str js "\n//# sourceMappingURL=" (source-mapping-url-for-rc state rc))
                   js)]
 
             (when-not ns
@@ -2274,6 +2277,7 @@ enable-emit-constants [state]
 (defn enable-source-maps [state]
   (-> state
       (update :compiler-options assoc :source-map "/dev/null")
+      (assoc :source-map-comment true)
       (assoc :source-map true)))
 
 (defn merge-compiler-options [state opts]

@@ -16,7 +16,7 @@
             )
   (:import (java.io PushbackReader StringReader)))
 
-(defn- start [opts]
+(defn start [opts]
   (let [config
         {}
 
@@ -261,9 +261,42 @@
        (finally
          (rt/stop-all app))))))
 
+;; FIXME: need to enable REPL to use dev and stdin-takeover
+(defn dev-watch* [{:keys [verbose] :as build-config}]
+  (let [{:keys [worker out] :as app}
+        (start {:verbose verbose})]
+    (try
+      (-> worker
+          (worker/watch out)
+          (worker/configure build-config)
+          (worker/start-autobuild)
+          (worker/sync!))
+
+      ;; FIXME: this should maybe be a REPL loop?
+      (read)
+
+      :done
+      (catch Exception e
+        (e/user-friendly-error e))
+
+      (finally
+        (rt/stop-all app)))))
+
 (defn build-finish [{::comp/keys [build-info] :as state} config]
   (util/print-build-complete build-info config)
   state)
+
+(defn once* [build-config]
+  (try
+    (util/print-build-start build-config)
+    (-> (comp/init :dev build-config)
+        (comp/compile)
+        (comp/flush)
+        (build-finish build-config))
+    :done
+    (catch Exception e
+      (e/user-friendly-error e))
+    ))
 
 (defn once
   ([build]
@@ -272,16 +305,8 @@
    (let [build-config
          (config/get-build! build)]
 
-     (try
-       (util/print-build-start build-config)
-       (-> (comp/init :dev build-config)
-           (comp/compile)
-           (comp/flush)
-           (build-finish build-config))
-       :done
-       (catch Exception e
-         (e/user-friendly-error e))
-       ))))
+     (once* build-config)
+     )))
 
 (defn release
   ([build]

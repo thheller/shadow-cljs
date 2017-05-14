@@ -110,16 +110,8 @@
           (simple-symbol? target)
           (symbol (str target) "process")
 
-          ;; FIXME: maybe these shouldn't be as hard-coded
           (keyword? target)
-          (case target
-            :browser
-            'shadow.cljs.devtools.targets.browser/process
-            :node-script
-            'shadow.cljs.devtools.targets.node-script/process
-            :node-library
-            'shadow.cljs.devtools.targets.node-library/process
-            (throw (ex-info "invalid build target keyword, please use a symbol" {:target target})))
+          (symbol (str "shadow.cljs.devtools.targets." (name target)) "process")
 
           :else
           (throw (ex-info (format "invalid target: %s" (pr-str target)) {:target target})))

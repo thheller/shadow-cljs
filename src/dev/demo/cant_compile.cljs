@@ -1,4 +1,3 @@
 (ns demo.cant-compile)
 
-
-(foo
+;; (foo

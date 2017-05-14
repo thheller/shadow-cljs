@@ -80,6 +80,12 @@
        (every? #(str/starts-with? (str %) "goog") provides)
        ))
 
+(defn line-count [s]
+  (-> (StringReader. s)
+      (BufferedReader.)
+      (line-seq)
+      (count)))
+
 (defn flush-sources-by-name
   ([state]
    (flush-sources-by-name state (mapcat :sources (:build-modules state))))
@@ -126,11 +132,7 @@
                    (sm/encode
                      {name source-map}
                      ;; very important that :lines is accurate for closure source maps, otherwise unused
-                     {:lines
-                      (-> (StringReader. output)
-                          (BufferedReader.)
-                          (line-seq)
-                          (count))
+                     {:lines (line-count output)
                       :file js-name
                       :preamble-line-count 0}))]
 

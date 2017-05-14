@@ -1,4 +1,4 @@
-(defproject thheller/shadow-devtools "1.0.20170513"
+(defproject thheller/shadow-devtools "1.0.20170514"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-devtools"
   :license {:name "Eclipse Public License"
@@ -9,6 +9,7 @@
   [[org.clojure/clojure "1.9.0-alpha16"]
    [org.clojure/java.classpath "0.2.3"]
    [org.clojure/data.json "0.2.6"]
+   [org.clojure/tools.cli "0.3.5"]
 
    [com.cognitect/transit-clj "0.8.300"
     :exclusions
