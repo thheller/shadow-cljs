@@ -3,7 +3,7 @@
             [clojure.tools.cli :as cli]))
 
 (def npm-opts
-  [["-r" "--runtime TARGET" "node or browser"
+  [["-r" "--runtime TARGET" "node or browser (default: browser)"
     :parse-fn keyword]
    ["-e" "--entries NAMESPACES" "comma seperated list of CLJS entry namespaces"
     :parse-fn
@@ -21,7 +21,6 @@
 
         loaded?
         (find-ns 'shadow.cljs.devtools.api)]
-
 
     (when-not loaded?
       (println "shadow.npm.cli - loading ... this takes a while ..."))

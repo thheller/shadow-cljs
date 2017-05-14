@@ -79,7 +79,7 @@
     (str "var CLJS_ENV = {};\n"
          "var goog = CLJS_ENV.goog = {};\n"
          @(get-in state [:sources "goog/base.js" :input])
-         "goog.global = " global ";\n"
+         "goog.global = process.browser ? window : global;\n"
          "goog.provide = function(name) { return goog.exportPath_(name, undefined, CLJS_ENV); };\n"
          "goog.require = function(name) { return true; };\n"
          "module.exports = CLJS_ENV;\n"
