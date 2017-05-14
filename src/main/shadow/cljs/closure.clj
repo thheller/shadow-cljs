@@ -251,12 +251,12 @@
     (doseq [provide provides]
       (doto sb
         (.append "goog.provide(\"")
-        (.append (munge-goog-ns provide))
+        (.append (str (comp/munge provide)))
         (.append "\");\n")))
     (doseq [require require-order]
       (doto sb
         (.append "goog.require(\"")
-        (.append (munge-goog-ns require))
+        (.append (str (comp/munge require)))
         (.append "\");\n")))
     (.toString sb)
     ))
@@ -289,7 +289,8 @@
                   ;; foreign files only include the goog.require/goog.provide statements
                   ;; not the actual foreign code, that will be prepended after optimizations
                   :foreign
-                  (.add js-mod (SourceFile/fromCode js-name (make-foreign-js-header src)))
+                  (let [content (make-foreign-js-header src)]
+                    (.add js-mod (SourceFile/fromCode js-name content)))
 
                   :js
                   (.add js-mod (SourceFile/fromCode js-name output))
