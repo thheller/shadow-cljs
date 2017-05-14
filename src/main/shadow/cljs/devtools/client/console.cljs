@@ -129,7 +129,7 @@
     (clj->jsonml [:div {:margin-left "14px"} (object-ref @v)])))
 
 (defn install-all! []
-  (when-let [f js/window.devtoolsFormatters]
+  (when-let [f js/goog.global.devtoolsFormatters]
     (doto f
       (.push (KeywordFormatter.))
       (.push (MapFormatter.))
@@ -142,11 +142,11 @@
 
 (defn remove-all! []
   (let [all
-        (->> (or js/window.devtoolsFormatters #js [])
+        (->> (or js/goog.global.devtoolsFormatters #js [])
              (array-seq)
              (remove #(js/goog.object.get % "shadow$formatter"))
              (into-array))]
-    (js/goog.object.set js/window "devtoolsFormatters" all)))
+    (js/goog.object.set js/goog.global "devtoolsFormatters" all)))
 
 ;; in case this is live-reloaded, clean up first
 ;; has the side effect of creating window.devtoolsFormatters

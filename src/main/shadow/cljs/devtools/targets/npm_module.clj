@@ -22,7 +22,7 @@
       (subs s 0 idx)
       s)))
 
-(defn src-prefix [state {:keys [name provides requires] :as src}]
+(defn src-prefix [state {:keys [type ns name provides requires] :as src}]
   (let [roots
         (->> requires
              (map get-root)
@@ -165,7 +165,10 @@
                  (vals)
                  (remove :from-jar)
                  (map :provides)
-                 (reduce set/union #{'cljs.core})))]
+                 (reduce set/union #{'cljs.core})))
+
+        entries
+        (conj entries 'shadow.cljs.devtools.client.console)]
 
     (-> state
         (assoc :source-map-comment false)
