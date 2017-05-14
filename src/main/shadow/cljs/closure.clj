@@ -382,7 +382,7 @@
   (let [{:keys [compiler result]} closure]
     (let [warnings (into [] (js-error-xf state compiler) (.warnings result))]
       (when (seq warnings)
-        (util/log state {:type :closure-warnings
+        (util/log state {:type ::warnings
                          :warnings warnings}))))
 
   state)
@@ -391,7 +391,7 @@
   (let [{:keys [compiler result]} closure]
     (when-not (.success result)
       (let [errors (into [] (js-error-xf state compiler) (.errors result))]
-        (throw (ex-info "closure errors" {:tag ::closure :errors errors})))))
+        (throw (ex-info "closure errors" {:tag ::errors :errors errors})))))
 
   state)
 

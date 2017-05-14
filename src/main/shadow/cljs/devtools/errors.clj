@@ -2,7 +2,10 @@
   (:require [clojure.repl :as repl]
             [clojure.string :as str]
             [clojure.spec.alpha :as s]
-            [clojure.pprint :refer (pprint)])
+            [clojure.pprint :refer (pprint)]
+            [shadow.cljs.closure :as closure]
+            [shadow.cljs.build :as build]
+            [shadow.cljs.devtools.compiler :as comp])
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
 
@@ -54,12 +57,17 @@
 (defn write-msg [w e]
   (.write w (str (.getMessage e) "\n")))
 
-(defmethod ex-data-format :shadow.cljs.devtools.compiler/get-target-fn
+(defmethod ex-data-format ::comp/get-target-fn
   [w e data]
   (write-msg w e)
   (ex-format w (.getCause e)))
 
-(defmethod ex-data-format :shadow.cljs.build/missing-ns
+(defmethod ex-data-format ::comp/config
+  [w e {:keys [config] :as data}]
+  (.write w "Invalid configuration\n")
+  (.write w (with-out-str (s/explain-out data))))
+
+(defmethod ex-data-format ::build/missing-ns
   [w e data]
   (write-msg w e))
 
@@ -75,18 +83,13 @@
           )))
   (.write w "==\n"))
 
-(defmethod ex-data-format :shadow.cljs.build/closure
+(defmethod ex-data-format ::closure/errors
   [w e {:keys [errors] :as data}]
   (.write w "Closure optimization failed:\n")
   (doseq [{:keys [msg] :as err} errors]
     (doto w
       (.write "---\n")
       (.write msg))))
-
-(defmethod ex-data-format :shadow.cljs.devtools.compiler/config
-  [w e {:keys [config] :as data}]
-  (.write w "Invalid configuration\n")
-  (.write w (with-out-str (s/explain-out data))))
 
 (defmethod ex-data-format :cljs/analysis-error
   [w e {:keys [file line column error-type] :as data}]
