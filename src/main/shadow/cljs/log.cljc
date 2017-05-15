@@ -130,7 +130,7 @@
          "\n\tProvided: " source-path "/" name
          )))
 
-(defmethod event->str :closure-warnings
+(defmethod event->str :shadow.cljs.closure/warnings
   [{:keys [warnings]}]
   (->> warnings
        (map :msg)
