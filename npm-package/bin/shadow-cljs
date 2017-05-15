@@ -3,8 +3,6 @@
 const path = require("path");
 const spawn = require('child_process').spawnSync;
 
-console.log(__dirname);
-
 var java_args = [
   "-jar",
   path.resolve(__dirname, "shadow-cljs.jar"),

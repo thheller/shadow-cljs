@@ -16,7 +16,7 @@
     ]
   },
   "dependencies": {
-    "node-jre": "^0.2.0",
-    "react": "^15.5.4"
+    "react": "^15.5.4",
+    "shadow-cljs": "^0.2.0"
   }
 }
