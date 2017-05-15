@@ -30,6 +30,9 @@
              (into #{}))]
 
     (str "var CLJS_ENV = require(\"./cljs_env\");\n"
+         ;; the only actually global var goog sometimes uses that is not on goog.global
+         ;; actually only: goog/promise/thenable.js goog/proto2/util.js?
+         "var COMPILED = false;\n"
          (->> requires
               (remove #{'goog})
               (map (fn [sym]
@@ -57,33 +60,30 @@
          "\n")))
 
 (defn src-suffix [state {:keys [provides] :as src}]
+  ;; export the shortest name always, some goog files have multiple provides
   (let [export
         (->> provides
              (map str)
              (sort)
-             (reverse)
              (map cljs-comp/munge)
              (first))]
-
     (str "\nmodule.exports = " export ";\n")))
 
 (defn cljs-env
   [state {:keys [runtime] :or {runtime :node} :as config}]
-  (let [global
-        (case runtime
-          :node
-          "global"
-          :browser
-          "window")]
-
-    (str "var CLJS_ENV = {};\n"
-         "var goog = CLJS_ENV.goog = {};\n"
-         @(get-in state [:sources "goog/base.js" :input])
-         "goog.global = process.browser ? window : global;\n"
-         "goog.provide = function(name) { return goog.exportPath_(name, undefined, CLJS_ENV); };\n"
-         "goog.require = function(name) { return true; };\n"
-         "module.exports = CLJS_ENV;\n"
-         )))
+  (str "var CLJS_ENV = {};\n"
+       "var CLJS_GLOBAL = process.browser ? window : global;\n"
+       ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
+       "CLJS_GLOBAL.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
+       "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
+       "var goog = CLJS_ENV.goog = {};\n"
+       @(get-in state [:sources "goog/base.js" :input])
+       ;; override goog.global = this;
+       "goog.global = CLJS_GLOBAL;\n"
+       "goog.provide = function(name) { return goog.exportPath_(name, undefined, CLJS_ENV); };\n"
+       "goog.require = function(name) { return true; };\n"
+       "module.exports = CLJS_ENV;\n"
+       ))
 
 (defn flush
   [state mode
@@ -165,10 +165,11 @@
                  (vals)
                  (remove :from-jar)
                  (map :provides)
-                 (reduce set/union #{'cljs.core})))
+                 (reduce set/union #{})))
 
+        ;; FIXME: not sure it should always compiled console helper?
         entries
-        (conj entries 'shadow.cljs.devtools.client.console)]
+        (conj entries 'cljs.core 'shadow.cljs.devtools.client.console)]
 
     (-> state
         (assoc :source-map-comment false)
