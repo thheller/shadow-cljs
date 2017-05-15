@@ -7,4 +7,4 @@
 (defn root [{:keys [build-config] :as req}]
   (common/transit
     req
-    (config/get-configured-builds build-config)))
+    []))

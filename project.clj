@@ -29,7 +29,8 @@
    [thheller/shadow-util "0.5.1"]
 
    [aleph "0.4.3"]
-   [hiccup "1.0.5"]]
+   [hiccup "1.0.5"]
+   [org.clojure/tools.nrepl "0.2.12"]]
 
   :source-paths
   ["src/main"]
@@ -39,6 +40,9 @@
 
   :java-source-paths
   ["src/main"]
+
+  :main shadow.cli
+  :aot :all
 
   :profiles
   {:dev
