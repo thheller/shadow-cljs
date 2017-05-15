@@ -81,4 +81,8 @@
    ["src/dev/demo/foreign-ext.js"]}
   :modules
   {:main {:entries [demo.foreign]}}}
+
+ {:id :npm-module
+  :target :npm-module
+  :entries [demo.npm]}
  ]

@@ -140,3 +140,7 @@
 (defmethod event->str :cache-error
   [{:keys [ns error]}]
   (format "Failed loading cache for %s: %s" ns (.getMessage error)))
+
+(defmethod event->str :npm-flush
+  [{:keys [output-path]}]
+  (format "NPM module flush: %s" output-path))

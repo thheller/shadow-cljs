@@ -215,12 +215,12 @@
       (process-stage :compile-finish true)))
 
 (defn optimize
-  [{::keys [mode] :as state}]
+  [{::keys [mode skip-optimize] :as state}]
   {:pre [(cljs/compiler-state? state)]
    :post [(cljs/compiler-state? %)]}
   (-> state
       (cond->
-        (= :release mode)
+        (and (= :release mode) (not skip-optimize))
         (-> (process-stage :optimize-prepare true)
             (cljs/closure-optimize)
             (process-stage :optimize-finish true)))))

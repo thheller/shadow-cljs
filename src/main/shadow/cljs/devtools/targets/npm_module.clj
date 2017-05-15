@@ -7,6 +7,7 @@
             [clojure.string :as str]
             [cljs.compiler :as cljs-comp]
             [cljs.source-map :as sm]
+            [cljs.analyzer :as ana]
             [shadow.cljs.output :as output]
             [shadow.cljs.util :as util]
             [clojure.data.json :as json])
@@ -59,7 +60,26 @@
               (str/join "\n"))
          "\n")))
 
-(defn src-suffix [state {:keys [provides] :as src}]
+(defn make-constant-table [{:keys [build-sources] :as state}]
+  ;; cannot use this cause it doesn't work with incremental compiles
+  ;; (get-in state [:compiler-env ::ana/constant-table])
+  ;; instead must rebuild it from all compiled files since the info about constants
+  ;; is contained in each individual ns cache
+
+  (let [constants
+        (->> build-sources
+             (map #(get-in state [:sources %]))
+             (filter #(= :cljs (:type %)))
+             (map :ns)
+             (map #(get-in state [:compiler-env ::ana/namespaces % ::ana/constants :seen]))
+             (reduce set/union #{}))]
+
+    (->> constants
+         (map (fn [x] {x (ana/gen-constant-id x)}))
+         (into {}))
+    ))
+
+(defn src-suffix [{:keys [build-sources] :as state} {:keys [ns provides] :as src}]
   ;; export the shortest name always, some goog files have multiple provides
   (let [export
         (->> provides
@@ -67,7 +87,14 @@
              (sort)
              (map cljs-comp/munge)
              (first))]
-    (str "\nmodule.exports = " export ";\n")))
+
+    ;; emit all constants into ./cljs.core.js
+    ;; FIXME: lazy, create the proper cljs.core.constants.js
+    (str (when (= ns 'cljs.core)
+           (let [table (make-constant-table state)]
+             (with-out-str
+               (cljs-comp/emit-constants-table table))))
+         "\nmodule.exports = " export ";\n")))
 
 (defn cljs-env
   [state {:keys [runtime] :or {runtime :node} :as config}]
@@ -86,75 +113,82 @@
        ))
 
 (defn flush
-  [state mode
+  [{::comp/keys [build-info] :as state} mode
    {:keys [module-root module-name]
     :or {module-name "shadow-npm"
          module-root "./"}
     :as config}]
 
-  (let [root
-        (-> (io/file module-root)
-            (.getCanonicalFile))
 
-        output-dir
-        (io/file root "node_modules" module-name)
+  (if-not (seq (:compiled build-info))
+    ;; FIXME: is it safe to skip emitting if nothing was compiled?
+    ;; config may have changed? does that always trigger a compile?
+    state
 
-        env
-        (cljs-env state config)
+    ;; otherwise re-emit everything until there is a stable strategy for caching
+    ;; need to work out some details of :emit-constants since we usually use closure for that
+    (let [root
+          (-> (io/file module-root)
+              (.getCanonicalFile))
 
-        env-file
-        (io/file output-dir "cljs_env.js")]
+          output-dir
+          (io/file root "node_modules" module-name)
 
-    (io/make-parents env-file)
+          env-file
+          (io/file output-dir "cljs_env.js")]
 
-    (spit env-file env)
+      (util/with-logged-time [state {:type :npm-flush :output-path (.getAbsolutePath output-dir)}]
+        (io/make-parents env-file)
 
-    (doseq [src-name (:build-sources state)]
-      (let [{:keys [name js-name input output requires source-map last-modified] :as src}
-            (get-in state [:sources src-name])
+        (spit env-file (cljs-env state config))
 
-            flat-name
-            (flat-js-name js-name)
+        (doseq [src-name (:build-sources state)]
+          (let [{:keys [name js-name input output requires source-map last-modified] :as src}
+                (get-in state [:sources src-name])
 
-            target
-            (io/file output-dir flat-name)]
+                flat-name
+                (flat-js-name js-name)
 
-        (when (or (not (.exists target))
-                  (>= last-modified (.lastModified target))))
+                target
+                (io/file output-dir flat-name)]
 
-        (let [prefix
-              (src-prefix state src)
+            ;; eventually should skip emitting some files since source-map generation is kinda expensive
+            #_(when (or (not (.exists target))
+                        (>= last-modified (.lastModified target))))
 
-              suffix
-              (src-suffix state src)
+            (let [prefix
+                  (src-prefix state src)
 
-              sm-text
-              (when source-map
-                (let [sm-opts
-                      {:lines (output/line-count output)
-                       :file flat-name
-                       :preamble-line-count (output/line-count prefix)
-                       :sources-content [@input]}
+                  suffix
+                  (src-suffix state src)
 
-                      source-map-v3
-                      (-> {flat-name source-map}
-                          (sm/encode* sm-opts)
-                          (assoc "sources" [name]))
+                  sm-text
+                  (when source-map
+                    (let [sm-opts
+                          {:lines (output/line-count output)
+                           :file flat-name
+                           :preamble-line-count (output/line-count prefix)
+                           :sources-content [@input]}
 
-                      source-map-json
-                      (json/write-str source-map-v3)
+                          source-map-v3
+                          (-> {flat-name source-map}
+                              (sm/encode* sm-opts)
+                              (assoc "sources" [name]))
 
-                      b64
-                      (-> (Base64/getEncoder)
-                          (.encodeToString (.getBytes source-map-json)))]
+                          source-map-json
+                          (json/write-str source-map-v3)
 
-                  (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n")
-                  ))
+                          b64
+                          (-> (Base64/getEncoder)
+                              (.encodeToString (.getBytes source-map-json)))]
 
-              output
-              (str prefix output suffix sm-text)]
+                      (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n")
+                      ))
 
-          (spit target output)))))
+                  output
+                  (str prefix output suffix sm-text)]
+
+              (spit target output)))))))
 
   state)
 
@@ -172,7 +206,18 @@
         (conj entries 'cljs.core 'shadow.cljs.devtools.client.console)]
 
     (-> state
-        (assoc :source-map-comment false)
+        (assoc :source-map-comment false
+               ::comp/skip-optimize true)
+        ;; always emit constants as an experiment for now
+        ;; see if we can get way with not having a :release mode at all
+        ;; since that usually involved closure
+        ;; don't care about the goog.require('cljs.core.constants');
+        ;; since goog.require is a noop anyways
+        #_(cond->
+            (= :release mode)
+            (->))
+        (update :compiler-options merge {:optimize-constants true
+                                         :emit-constants true})
         (cljs/configure-module :default entries {}))))
 
 (defn process
