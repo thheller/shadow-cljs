@@ -23,7 +23,7 @@
         (find-ns 'shadow.cljs.devtools.api)]
 
     (when-not loaded?
-      (println "shadow.npm.cli - loading ... this takes a while ..."))
+      (println "shadow.npm.cli - starting"))
 
     (if (or (seq errors) (:help options))
       (do (doseq [err errors]
@@ -33,9 +33,11 @@
           (println summary)
           (println "-----"))
 
+      ;; I require this dynamically to give the illusion of faster startup speeds
+      ;; with :aot it isn't too bad actually but still you still get some "feedback" earlier
       (do (when-not loaded?
             (require 'shadow.cljs.devtools.api)
-            (println "shadow.npm.cli - finished loading"))
+            (println "shadow.npm.cli - ready"))
 
           (let [{:keys [entries watch]}
                 options

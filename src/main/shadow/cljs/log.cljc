@@ -137,4 +137,6 @@
        (map #(str "CLOSURE-WARNING: " %))
        (str/join "\n\n")))
 
-
+(defmethod event->str :cache-error
+  [{:keys [ns error]}]
+  (format "Failed loading cache for %s: %s" ns (.getMessage error)))
