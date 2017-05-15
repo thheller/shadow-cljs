@@ -13,37 +13,77 @@
 (def default-opts
   {:autobuild true})
 
-;; FIXME: spec for cli
-(defn- parse-args [[build-id & more :as args]]
-  {:build
-   (keyword
-     (if (.startsWith build-id ":")
-       (subs build-id 1)
-       build-id))})
+(def cli-spec
+  [["-b" "--build BUILD-ID" "use build defined in shadow-cljs.edn"
+    :parse-fn keyword]
+   [nil "--dev" "compile once and watch"
+    :default true]
+   [nil "--once" "compile once and exit"]
+   [nil "--release" "compile in release mode and exit"]
+   [nil "--debug" "debug mode, useful in combo with --release (pseudo-names, source-map)"]
+   [nil "--npm" "run in npm compatibility mode"]
+   [nil "--runtime TARGET" "(npm-only) node or browser"
+    :parse-fn keyword
+    :default :node]
+   ["-e" "--entries NAMESPACES" "(npm-only) comma seperated list of CLJS entry namespaces"
+    :parse-fn #(->> (str/split % #",") (map symbol) (into []))]
+   ["-v" "--verbose"]
+   ["-h" "--help"]])
 
-(defn once [& args]
-  (let [{:keys [build] :as opts}
-        (parse-args args)]
-    (api/once build opts)))
+(defn help [{:keys [errors summary] :as opts}]
+  (do (doseq [err errors]
+        (println err))
+      (println "Command line args:")
+      (println "-----")
+      (println summary)
+      (println "-----")))
 
-(defn dev [& args]
-  (let [{:keys [build] :as opts}
-        (merge
-          default-opts
-          (parse-args args))]
-    (api/dev build opts)))
+(defn main [& args]
+  (let [{:keys [options summary errors] :as opts}
+        (cli/parse-opts args cli-spec)]
 
-(defn release [& args]
-  (let [{:keys [build] :as opts}
-        (parse-args args)]
-    (api/release build opts)))
+    (cond
+      (or (:help options) (seq errors))
+      (help opts)
 
-(defn node-repl [& args]
-  ;; FIXME: ignoring args
-  (api/node-repl))
+      ;; specific build
+      (:build options)
+      (let [{:keys [build dev once release]} options]
+        (cond
+          release
+          (api/release build options)
 
-;; too many issues
-#_(defn autotest
+          once
+          (api/once build options)
+
+          :else
+          (api/dev build (merge default-opts options))
+          ))
+
+      ;; npm mode
+      (:npm options)
+      (let [{:keys [entries once]}
+            options
+
+            build-config
+            (merge (select-keys options [:entries :verbose :runtime])
+                   {:id :npm-module :target :npm-module})]
+
+        (if once
+          (api/once* build-config)
+          (api/dev-watch* build-config)
+          ))
+
+      :else
+      (do (println "Please use specify a build or use --npm")
+          (help opts)))))
+
+(defn -main [& args]
+  (apply main args))
+
+(comment
+  ;; FIXME: fix these properly and create CLI args for them
+  (defn autotest
     "no way to interrupt this, don't run this in nREPL"
     []
     (-> (api/test-setup)
@@ -59,18 +99,8 @@
                   (node/execute-affected-tests! modified))
                 )))))
 
-(defn test-all []
-  (api/test-all))
+  (defn test-all []
+    (api/test-all))
 
-(defn test-affected [test-ns]
-  (api/test-affected [(cljs/ns->cljs-file test-ns)]))
-
-(defn main [action & args]
-  (case action
-    "dev" (apply dev args)
-    "once" (apply once args)
-    "release" (apply release args)
-    ))
-
-(defn cli* [args]
-  (apply main (into [] args)))
+  (defn test-affected [test-ns]
+    (api/test-affected [(cljs/ns->cljs-file test-ns)])))

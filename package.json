@@ -3,7 +3,20 @@
     "source-map-support": "^0.4.14",
     "ws": "^2.2.3"
   },
+  "shadow-cljs": {
+    "dependencies": [
+      [
+        "thheller/shadow-client",
+        "1.0.186"
+      ]
+    ],
+    "source-paths": [
+      "src/dev",
+      "src/main"
+    ]
+  },
   "dependencies": {
+    "node-jre": "^0.2.0",
     "react": "^15.5.4"
   }
 }

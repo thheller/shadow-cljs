@@ -35,20 +35,7 @@
 
       ;; I require this dynamically to give the illusion of faster startup speeds
       ;; with :aot it isn't too bad actually but still you still get some "feedback" earlier
-      (do (when-not loaded?
-            (require 'shadow.cljs.devtools.api)
-            (println "shadow.npm.cli - ready"))
-
-          (let [{:keys [entries watch]}
-                options
-
-                build-config
-                (merge options {:id :npm-module :target :npm-module})]
-
-            (if-not watch
-              ((find-var 'shadow.cljs.devtools.api/once*) build-config)
-              ((find-var 'shadow.cljs.devtools.api/dev-watch*) build-config)
-              ))))))
+      )))
 
 (defn -main [& args]
   (apply npm args))
