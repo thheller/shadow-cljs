@@ -135,7 +135,7 @@
 (defn init
   ([mode config]
    (init (cljs/init-state) mode config))
-  ([init-state mode {:keys [id target] :as config}]
+  ([{:keys [work-dir] :as init-state} mode {:keys [id target] :as config}]
    {:pre [(cljs/compiler-state? init-state)
           (map? config)
           (keyword? mode)
@@ -157,7 +157,7 @@
                                                      :config config))))
 
      (-> init-state
-         (assoc :cache-dir (io/file "target" "shadow-cache" (name id) (name mode))
+         (assoc :cache-dir (io/file work-dir "shadow-cache" (name id) (name mode))
                 ::stage :init
                 ::config config
                 ::target-fn target-fn

@@ -346,7 +346,8 @@
           ;; not sure :release builds want to enable source maps by default
           ;; so running check on the release dir would cause a recompile which is annoying
           ;; but check errors are really useless without source maps
-          (assoc :cache-dir (io/file "target" "shadow-cache" (name build) "check"))
+          (as-> X
+            (assoc X :cache-dir (io/file (:work-dir X) "shadow-cache" (name build) "check")))
           (cljs/enable-source-maps)
           ;; need CLJS-2019 to be useful
           (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
@@ -359,9 +360,10 @@
 (defn test-setup []
   (-> (cljs/init-state)
       (cljs/enable-source-maps)
-      (cljs/merge-build-options
-        {:public-dir (io/file "target" "shadow-test")
-         :public-path "target/shadow-test"})
+      (as-> X
+        (cljs/merge-build-options X
+          {:public-dir (io/file (:work-dir X) "shadow-test")
+           :public-path "target/shadow-test"}))
       (cljs/find-resources-in-classpath)
       ))
 

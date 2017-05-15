@@ -38,7 +38,7 @@
         (->> (get-in env [::ana/namespaces ns :defs])
              (vals)
              (sort-by (fn [{:keys [name line]}]
-                    [line name]))
+                        [line name]))
              (map :name)
              (into []))]
 
@@ -132,14 +132,16 @@
         (util/server-thread
           state-ref
           (-> (cljs/init-state)
-              (assoc ;; :logger util/null-log
-                ;; race condition accessing the cache file when this starts up in parallel to something else
-                :manifest-cache-dir
-                (doto (io/file "target" "shadow-explorer" "manifest-cache")
-                  (io/make-parents))
-                :cache-dir
-                (doto (io/file "target" "shadow-explorer" "cache")
-                  (io/make-parents)))
+              (as-> X
+                (assoc X
+                       ;; :logger util/null-log
+                       ;; race condition accessing the cache file when this starts up in parallel to something else
+                       :manifest-cache-dir
+                       (doto (io/file (:work-dir X) "shadow-explorer" "manifest-cache")
+                         (io/make-parents))
+                       :cache-dir
+                       (doto (io/file (:work-dir X) "shadow-explorer" "cache")
+                         (io/make-parents))))
               (cljs/find-resources-in-classpath)
               (cljs/finalize-config))
           {cljs-watch do-cljs-watch

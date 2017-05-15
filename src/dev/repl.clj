@@ -1,17 +1,14 @@
 (ns repl
   (:require [clojure.pprint :refer (pprint)]
-            [clojure.spec.alpha.test :as st]
             [shadow.cljs.devtools.embedded :as cljs]
             ))
 
 (defn start []
-  (st/instrument)
   (cljs/start! {:verbose true})
-  (cljs/start-worker :script)
+  ;; (cljs/start-worker :script)
   ::started)
 
 (defn stop []
-  (st/unstrument)
   (cljs/stop!)
   ::stopped)
 

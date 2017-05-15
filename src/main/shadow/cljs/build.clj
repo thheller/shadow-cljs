@@ -2311,91 +2311,95 @@ enable-emit-constants [state]
         ))))
 
 (defn init-state []
-  (-> {::util/is-compiler-state true
+  (let [work-dir (io/file "target")]
 
-       :ignore-patterns
-       #{#"^node_modules/"
-         #"^goog/demos/"
-         #".aot.js$"
-         #"^goog/(.+)_test.js$"
-         #"^public/"}
+    (-> {::util/is-compiler-state true
 
-       :classpath-excludes
-       [#"resources(/?)$"
-        #"classes(/?)$"
-        #"java(/?)$"]
+         :ignore-patterns
+         #{#"^node_modules/"
+           #"^goog/demos/"
+           #".aot.js$"
+           #"^goog/(.+)_test.js$"
+           #"^public/"}
 
-       ::cc (closure/make-closure-compiler)
+         :classpath-excludes
+         [#"resources(/?)$"
+          #"classes(/?)$"
+          #"java(/?)$"]
 
-       ;; map of {source-path [global-extern-names ...]}
-       ;; provided by the deps.cljs of all source-paths
-       :deps-externs
-       {}
+         ::cc (closure/make-closure-compiler)
 
-       :analyzer-passes
-       [ana/infer-type]
+         ;; map of {source-path [global-extern-names ...]}
+         ;; provided by the deps.cljs of all source-paths
+         :deps-externs
+         {}
 
-       :compiler-options
-       {:optimizations :none
-        :static-fns true
-        :elide-asserts false
+         :analyzer-passes
+         [ana/infer-type]
 
-        :closure-warnings
-        {:check-types :off}}
+         :compiler-options
+         {:optimizations :none
+          :static-fns true
+          :elide-asserts false
 
-       :closure-defines
-       {"goog.DEBUG" false
-        "goog.LOCALE" "en"
-        "goog.TRANSPILE" "never"}
+          :closure-warnings
+          {:check-types :off}}
 
-       :runtime
-       {:print-fn :none}
+         :closure-defines
+         {"goog.DEBUG" false
+          "goog.LOCALE" "en"
+          "goog.TRANSPILE" "never"}
 
-       :use-file-min true
+         :runtime
+         {:print-fn :none}
 
-       :bundle-foreign :inline
-       :dev-inline-js true
+         :use-file-min true
 
-       :ns-aliases
-       '{clojure.pprint cljs.pprint
-         clojure.spec.alpha cljs.spec.alpha}
+         :bundle-foreign :inline
+         :dev-inline-js true
 
-       ;; (fn [compiler-state ns] alias-ns|nil)
-       ;; CLJS by default aliases ALL clojure.* namespaces to cljs.* if the cljs.* version exist
-       ;; I prefer a static map since it may be extended by the user and avoids touching the filesystem
-       :ns-alias-fn
-       (fn [{:keys [ns-aliases] :as state} ns]
-         (get ns-aliases ns))
+         :ns-aliases
+         '{clojure.pprint cljs.pprint
+           clojure.spec.alpha cljs.spec.alpha}
 
-       :closure-configurators []
+         ;; (fn [compiler-state ns] alias-ns|nil)
+         ;; CLJS by default aliases ALL clojure.* namespaces to cljs.* if the cljs.* version exist
+         ;; I prefer a static map since it may be extended by the user and avoids touching the filesystem
+         :ns-alias-fn
+         (fn [{:keys [ns-aliases] :as state} ns]
+           (get ns-aliases ns))
 
-       ;; :none supprt files are placed into <public-dir>/<cljs-runtime-path>/cljs/core.js
-       ;; this used to be just "src" but that is too generic and easily breaks something
-       ;; if public-dir is equal to the current working directory
-       :cljs-runtime-path "cljs-runtime"
+         :closure-configurators []
 
-       :manifest-cache-dir
-       (let [dir (io/file "target" "shadow-build" "jar-manifest")]
-         (io/make-parents dir)
-         dir)
+         ;; :none supprt files are placed into <public-dir>/<cljs-runtime-path>/cljs/core.js
+         ;; this used to be just "src" but that is too generic and easily breaks something
+         ;; if public-dir is equal to the current working directory
+         :cljs-runtime-path "cljs-runtime"
 
-       :cache-dir (io/file "target" "shadow-build" "cljs-cache")
-       :cache-level :all
+         :work-dir work-dir
 
-       :public-dir (io/file "public" "js")
-       :public-path "js"
+         :manifest-cache-dir
+         (let [dir (io/file work-dir "shadow-build" "jar-manifest")]
+           (io/make-parents dir)
+           dir)
 
-       :n-compile-threads (.. Runtime getRuntime availableProcessors)
+         :cache-dir (io/file work-dir "shadow-build" "cljs-cache")
+         :cache-level :all
 
-       :source-paths {}
+         :public-dir (io/file "public" "js")
+         :public-path "js"
 
-       :logger
-       stdout-log}
+         :n-compile-threads (.. Runtime getRuntime availableProcessors)
 
-      (add-closure-configurator closure/closure-register-cljs-protocol-properties)
-      (add-closure-configurator closure/closure-add-replace-constants-pass)
-      (add-closure-configurator closure/closure-add-variable-maps)
-      ))
+         :source-paths {}
+
+         :logger
+         stdout-log}
+
+        (add-closure-configurator closure/closure-register-cljs-protocol-properties)
+        (add-closure-configurator closure/closure-add-replace-constants-pass)
+        (add-closure-configurator closure/closure-add-variable-maps)
+        )))
 
 (defn watch-and-repeat! [state callback]
   (loop [state (callback state [])]
