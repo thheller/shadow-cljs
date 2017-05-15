@@ -115,7 +115,7 @@
 (defn flush
   [{::comp/keys [build-info] :as state} mode
    {:keys [module-root module-name]
-    :or {module-name "shadow-npm"
+    :or {module-name "shadow-cljs"
          module-root "./"}
     :as config}]
 
