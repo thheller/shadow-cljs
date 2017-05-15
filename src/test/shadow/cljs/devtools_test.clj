@@ -289,6 +289,37 @@
     (catch Exception e
       (repl/pst e))))
 
+
+(deftest test-rename-global-scope
+  (try
+    (let [{:keys [compiler-env closure-compiler] :as state}
+          (-> (cljs/init-state)
+              (cljs/merge-build-options
+                {:public-dir (io/file "target" "rename-global")
+                 :public-path "rename-global"})
+              (cljs/merge-compiler-options
+                {:optimizations :advanced
+                 :pretty-print false
+                 :pseudo-names false})
+
+              ;; doesn't work, maybe on second pass just after optimize?
+              (cljs/add-closure-configurator
+                (fn [cc co state]
+                  (.setRenamePrefixNamespace co "CLJS")))
+
+              (cljs/find-resources-in-classpath)
+
+              (cljs/configure-module :main '[demo.browser] #{} {})
+              (cljs/compile-modules)
+              ;; (cljs/flush-unoptimized) ;; doesn't work
+              ;; (cljs/flush-unoptimized-compact)
+              (cljs/closure-optimize)
+              (cljs/flush-modules-to-disk))]
+
+      :done)
+    (catch Exception e
+      (repl/pst e))))
+
 (comment
   (em/start! {:verbose true})
   (em/start-worker :browser)

@@ -10,4 +10,4 @@
 (defmacro require-file
   "requires a file relative to the current working directory"
   [name]
-  `(js/require ~(.getAbsolutePath (io/file name))))
+  `(js/require ~(str "../../" name)))
