@@ -21,6 +21,7 @@
    [nil "--once" "compile once and exit"]
    [nil "--release" "compile in release mode and exit"]
    [nil "--debug" "debug mode, useful in combo with --release (pseudo-names, source-map)"]
+   [nil "--check" "run sources through closure compiler type checks"]
    [nil "--npm" "run in npm compatibility mode"]
    [nil "--runtime TARGET" "(npm-only) node or browser"
     :parse-fn keyword
@@ -48,13 +49,16 @@
 
       ;; specific build
       (:build options)
-      (let [{:keys [build dev once release]} options]
+      (let [{:keys [check build dev once release]} options]
         (cond
           release
           (api/release build options)
 
           once
           (api/once build options)
+
+          check
+          (api/check build)
 
           :else
           (api/dev build (merge default-opts options))
