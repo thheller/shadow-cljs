@@ -29,7 +29,7 @@
 (defn setup [state]
   {:pre [(util/compiler-state? state)]}
   (let [cljs-user-requires
-        '[cljs.core shadow.runtime-setup cljs.repl]
+        '[cljs.core cljs.repl]
 
         ;; FIXME: less hardcoded cljs.user
         cljs-user-src

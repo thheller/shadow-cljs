@@ -400,12 +400,11 @@
           ns-info
           (-> ns-info
               (update :requires merge
-                '{cljs.core cljs.core
-                  shadow.runtime-setup shadow.runtime-setup})
+                '{cljs.core cljs.core})
               (update :require-order
                 (fn [ro]
                   (->> ro
-                       (concat '[cljs.core shadow.runtime-setup])
+                       (concat '[cljs.core])
                        (distinct)
                        (into []))))))]
 

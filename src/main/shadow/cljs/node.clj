@@ -228,7 +228,7 @@
 
 (defn setup-test-runner [state test-namespaces]
   (let [require-order
-        (into ['cljs.core 'shadow.runtime-setup 'cljs.test] test-namespaces)
+        (into ['cljs.core 'cljs.test] test-namespaces)
 
         test-runner-ns
         'shadow.test-runner

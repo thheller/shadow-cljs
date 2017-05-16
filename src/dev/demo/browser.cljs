@@ -3,6 +3,8 @@
 (js/console.log "foo")
 (js/console.log "demo.browser")
 
+(prn :foo)
+
 (defn ^:export start []
   (prn "foo")
   (js/console.log "browser-start"))

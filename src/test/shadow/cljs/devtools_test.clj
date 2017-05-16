@@ -76,7 +76,7 @@
             (cljs/enable-source-maps)
             (cljs/find-resources-in-classpath)
 
-            (cljs/configure-module :base '[cljs.core shadow.runtime-setup] #{})
+            (cljs/configure-module :base '[cljs.core] #{})
             (cljs/configure-module :test '[test.snippet] #{:base})
             (cljs/compile-modules)
             ;; (cljs/flush-unoptimized) ;; doesn't work

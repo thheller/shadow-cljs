@@ -871,6 +871,15 @@ normalize-resource-name
 (defn source-mapping-url-for-rc [state {:keys [js-name] :as rc}]
   (str (util/file-basename js-name) ".map\n"))
 
+(defn make-runtime-setup
+  [{:keys [runtime] :as state}]
+  (->> [(case (:print-fn runtime)
+          :console
+          "cljs.core.enable_console_print_BANG_();"
+          :none
+          "")]
+       (str/join "\n")))
+
 (defn do-compile-cljs-resource
   "given the compiler state and a cljs resource, compile it and return the updated resource
    should not touch global state"
@@ -911,6 +920,11 @@ normalize-resource-name
                   (compile-cljs-seq state compile-init source name)
                   :else
                   (throw (ex-info "invalid cljs source type" {:name name :source source})))
+
+                js
+                (if (= name "cljs/core.cljs")
+                  (str js "\n" (make-runtime-setup state))
+                  js)
 
                 js
                 (if (and source-map-comment source-map (:source-map state))
@@ -958,7 +972,6 @@ normalize-resource-name
     (fn [age-map source-name]
       (let [last-modified (get-max-last-modified-for-source state source-name)]
         ;; zero? is a pretty ugly indicator for deps that should not affect cache
-        ;; eg. shadow.runtime-setup
         (if (pos? last-modified)
           (assoc age-map source-name last-modified)
           age-map)))
@@ -1078,7 +1091,7 @@ normalize-resource-name
   [{:keys [cache-dir cache-level] :as state} {:keys [from-jar file] :as src}]
   (let [cache? (and cache-dir
                     ;; even with :all only cache resources that are in jars or have a file
-                    ;; cljs.user (from repl) or shadow.runtime-setup should never be cached
+                    ;; cljs.user (from repl) should never be cached
                     (or (and (= cache-level :all)
                              (or from-jar file))
                         (and (= cache-level :jars)
@@ -1693,27 +1706,7 @@ normalize-resource-name
      :last-modified 0
      }))
 
-(defn make-runtime-setup
-  [{:keys [runtime] :as state}]
-  (let [src (str/join "\n"
-              ["goog.provide('shadow.runtime_setup');"
-               "goog.require('cljs.core');"
-               (case (:print-fn runtime)
-                 :console
-                 "cljs.core.enable_console_print_BANG_();"
-                 :none
-                 ""
-                 )])]
-    {:type :js
-     :name "shadow/runtime_setup.js"
-     :js-name "shadow/runtime_setup.js"
-     :ns 'shadow.runtime-setup
-     :provides #{'shadow.runtime-setup}
-     :requires #{'cljs.core}
-     :require-order ['cljs.core]
-     :input (atom src)
-     :last-modified 0 ;; this file should never cause recompiles
-     }))
+
 
 (defn maybe-compile-js [state {:keys [input module-type] :as src}]
   (if module-type
@@ -1907,12 +1900,9 @@ normalize-resource-name
       (assoc :build-done (System/currentTimeMillis))))
 
 (defn prepare-compile
-  "prepares for compilation (eg. create source lookup index, shadow.runtime-setup)"
+  "prepares for compilation (eg. create source lookup index)"
   [state]
   (-> state
-      (cond->
-        (not (get-in state [:sources "shadow/runtime_setup.js"]))
-        (merge-resource (make-runtime-setup state)))
       (finalize-config)
       ))
 
