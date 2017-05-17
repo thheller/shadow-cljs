@@ -81,111 +81,112 @@
         (not public-dir)
         (assoc :public-dir (io/file work-dir "shadow-cache" (name id) (name mode))))))
 
-(defn is-npm-ns? [x]
-  (str/starts-with? (str x) "npm."))
-
-(defn has-npm-require? [{:keys [requires] :as rc}]
-  (some is-npm-ns? requires))
-
-(defn add-npm-ns-entry [all ns]
-  (if (contains? all ns)
-    all
-    (assoc all ns #{})))
-
-(defn extract-npm-namespaces* [namespaces {:keys [type ns-info requires] :as rc}]
-  (case type
-    :js
-    ;; FIXME: this will break if JS sources goog.require("npm.react.Component") where Compoent is part of npm.react
-    (reduce add-npm-ns-entry namespaces requires)
-
-    :cljs
-    (let [{:keys [imports requires]}
-          ns-info
-
-          npm-imports
-          (->> imports
-               (filter (comp is-npm-ns? second))
-               (into {})
-               (set/map-invert))
-
-          npm-requires
-          (->> requires
-               (vals)
-               (filter is-npm-ns?)
-               (remove npm-imports)
-               (into #{}))
-
-          namespaces
-          (reduce add-npm-ns-entry namespaces npm-requires)
-
-          namespaces
-          (reduce-kv
-            (fn [all fqn class]
-              ;; FIXME: feels like imports {Component npm.react.Component} should be #{npm.react/Component}?
-              ;; the map is inverted above so we have {npm.react.Component Component}
-              ;; need to extra npm.react and then add the extra import to namespaces map
-              (let [class-str
-                    (str class)
-                    fqn-str
-                    (str fqn)
-
-                    pkg
-                    (-> fqn-str
-                        (subs 0 (- (count fqn-str)
-                                   1 ;; the dot
-                                   (count class-str)))
-                        (symbol))]
-
-                (update all pkg conj fqn)))
-            namespaces
-            npm-imports)]
-      namespaces)))
-
-(defn extract-npm-namespaces [state]
-  (->> (:sources state)
-       (vals)
-       (filter has-npm-require?)
-       (reduce extract-npm-namespaces* {})))
-
+;; removed based on feedback, too much magic ... too little value.
+;; still might re-use some parts later
 (comment
-  (main "-b" "browser" "--once"))
 
-(defn npm-aliases [state require?]
-  (let [npm-namespaces
-        (extract-npm-namespaces state)]
+  (defn is-npm-ns? [x]
+    (str/starts-with? (str x) "npm."))
 
-    (reduce-kv
-      (fn [state alias provides]
-        (let [module-name
-              (-> (str alias)
-                  (subs 4)
-                  (str/replace #"\." "/"))
+  (defn has-npm-require? [{:keys [requires] :as rc}]
+    (some is-npm-ns? requires))
 
-              ;; npm.react -> react
-              ;; npm.foo.bar -> foo/bar
+  (defn add-npm-ns-entry [all ns]
+    (if (contains? all ns)
+      all
+      (assoc all ns #{})))
 
-              provide
-              (cljs-comp/munge alias)
+  (defn extract-npm-namespaces* [namespaces {:keys [type ns-info requires] :as rc}]
+    (case type
+      :js
+      ;; FIXME: this will break if JS sources goog.require("npm.react.Component") where Compoent is part of npm.react
+      (reduce add-npm-ns-entry namespaces requires)
 
-              rc
-              {:type :js
-               :name (str alias ".js")
-               :provides (conj provides alias)
-               :requires #{}
-               :require-order []
-               :js-name (str alias ".js")
-               :input (atom (str "goog.provide(\"" provide "\");\n"
-                                 (->> provides
-                                      (map (fn [provide]
-                                             (str "goog.provide(\"" provide "\");")))
-                                      (str/join "\n"))
-                                 "\n"
-                                 (if require?
-                                   (str provide " = require(\"" module-name "\");\n")
-                                   (str provide " = window[\"npm$modules\"][\"" module-name "\"];\n"))))
-               :last-modified 0}]
+      :cljs
+      (let [{:keys [imports requires]}
+            ns-info
 
-          (cljs/merge-resource state rc)
-          ))
-      state
-      npm-namespaces)))
+            npm-imports
+            (->> imports
+                 (filter (comp is-npm-ns? second))
+                 (into {})
+                 (set/map-invert))
+
+            npm-requires
+            (->> requires
+                 (vals)
+                 (filter is-npm-ns?)
+                 (remove npm-imports)
+                 (into #{}))
+
+            namespaces
+            (reduce add-npm-ns-entry namespaces npm-requires)
+
+            namespaces
+            (reduce-kv
+              (fn [all fqn class]
+                ;; FIXME: feels like imports {Component npm.react.Component} should be #{npm.react/Component}?
+                ;; the map is inverted above so we have {npm.react.Component Component}
+                ;; need to extra npm.react and then add the extra import to namespaces map
+                (let [class-str
+                      (str class)
+                      fqn-str
+                      (str fqn)
+
+                      pkg
+                      (-> fqn-str
+                          (subs 0 (- (count fqn-str)
+                                     1 ;; the dot
+                                     (count class-str)))
+                          (symbol))]
+
+                  (update all pkg conj fqn)))
+              namespaces
+              npm-imports)]
+        namespaces)))
+
+  (defn extract-npm-namespaces [state]
+    (->> (:sources state)
+         (vals)
+         (filter has-npm-require?)
+         (reduce extract-npm-namespaces* {})))
+
+  (defn npm-aliases [state require?]
+    (let [npm-namespaces
+          (extract-npm-namespaces state)]
+
+      (reduce-kv
+        (fn [state alias provides]
+          (let [module-name
+                (-> (str alias)
+                    (subs 4)
+                    (str/replace #"\." "/"))
+
+                ;; npm.react -> react
+                ;; npm.foo.bar -> foo/bar
+
+                provide
+                (cljs-comp/munge alias)
+
+                rc
+                {:type :js
+                 :name (str alias ".js")
+                 :provides (conj provides alias)
+                 :requires #{}
+                 :require-order []
+                 :js-name (str alias ".js")
+                 :input (atom (str "goog.provide(\"" provide "\");\n"
+                                   (->> provides
+                                        (map (fn [provide]
+                                               (str "goog.provide(\"" provide "\");")))
+                                        (str/join "\n"))
+                                   "\n"
+                                   (if require?
+                                     (str provide " = require(\"" module-name "\");\n")
+                                     (str provide " = window[\"npm$modules\"][\"" module-name "\"];\n"))))
+                 :last-modified 0}]
+
+            (cljs/merge-resource state rc)
+            ))
+        state
+        npm-namespaces))))

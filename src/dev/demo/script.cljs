@@ -1,5 +1,6 @@
-(ns demo.script
-  (:require [npm.http :as http]))
+(ns demo.script)
+
+(def http (js/require "http"))
 
 (defn request-handler [req res]
   (.end res "foo"))
@@ -10,7 +11,7 @@
 (defn main [& args]
   (js/console.log "starting server")
   (let [server
-        (http/createServer #(request-handler %1 %2))]
+        (.createServer http #(request-handler %1 %2))]
 
     (.listen server 3000
       (fn [err]

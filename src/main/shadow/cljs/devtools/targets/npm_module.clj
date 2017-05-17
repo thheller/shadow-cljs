@@ -220,7 +220,6 @@
         (update :compiler-options merge {:optimize-constants true
                                          :emit-constants true})
         (cljs/configure-module :default entries {})
-        (shared/npm-aliases true)
         )))
 
 (defn process

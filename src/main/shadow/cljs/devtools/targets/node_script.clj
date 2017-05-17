@@ -37,7 +37,6 @@
         (cljs/merge-compiler-options
           {:optimizations :simple}))
       (shared/set-public-dir mode config)
-      (shared/npm-aliases true)
       (node/configure config)
       (cond->
         (:worker-info state)

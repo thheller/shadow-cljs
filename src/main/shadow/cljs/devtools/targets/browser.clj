@@ -201,7 +201,6 @@
           (cljs/merge-build-options {:bundle-foreign bundle-foreign}))
 
         (configure-modules mode config modules)
-        (shared/npm-aliases false)
 
         (cond->
           (:worker-info state)

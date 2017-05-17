@@ -107,7 +107,6 @@
           {:optimizations :simple}))
 
       (shared/set-public-dir mode config)
-      (shared/npm-aliases true)
       (create-module config)
 
       (cond->
