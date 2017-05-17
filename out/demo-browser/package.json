@@ -1,0 +1,10 @@
+{
+  "name": "demo-browser",
+  "version": "1.0.0",
+  "main": "bundle.js",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^15.5.4",
+    "react-dom": "^15.5.4"
+  }
+}

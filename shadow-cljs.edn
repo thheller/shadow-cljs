@@ -1,10 +1,13 @@
 [{:id :browser
   :target :browser
 
-  :public-dir "out/demo-browser/js"
+  :public-dir "out/demo-browser/public/js"
   :public-path "/js"
 
-  :module-loader true
+  :compiler-options
+  {:externs ["demo/browser-externs.js"]}
+
+  :module-loader false
   :modules
   {:base
    {:entries

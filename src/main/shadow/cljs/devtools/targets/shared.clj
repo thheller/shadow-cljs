@@ -91,7 +91,7 @@
 
     (reduce
       (fn [state alias]
-        (let [package-name
+        (let [module-name
               (-> (subs alias 4)
                   (str/replace #"\." "/"))
 
@@ -110,8 +110,8 @@
                :js-name (str alias ".js")
                :input (atom (str "goog.provide(\"" provide "\");\n"
                                  (if require?
-                                   (str provide " = require(\"" package-name "\");\n")
-                                   (str provide " = window[\"npm-packages\"][\"" package-name "\"];\n"))))
+                                   (str provide " = require(\"" module-name "\");\n")
+                                   (str provide " = window[\"npm$modules\"][\"" module-name "\"];\n"))))
                :last-modified 0}]
 
           (cljs/merge-resource state rc)
