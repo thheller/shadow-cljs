@@ -19,12 +19,11 @@
         :corrupted (when error (println (.getMessage error)))
         nil))))
 
-(def devtools-version "1.0.20170516")
+(def devtools-version "1.0.20170517")
 
 (def default-config
   {"dependencies"
    []
-
    "source-paths"
    ["src-cljs"]})
 
@@ -50,7 +49,7 @@
                     [(symbol name) version]))
              (into [['thheller/shadow-cljs version]]))]
 
-    (println "shadow-clis - loading dependencies")
+    (println "shadow-cljs - loading dependencies")
 
     (pom/add-dependencies
       :coordinates

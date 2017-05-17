@@ -1,10 +1,12 @@
 (ns shadow.cljs.devtools.targets.shared
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]
-            [cljs.compiler :as cljs-comp]
             [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.pprint :refer (pprint)]
+            [cljs.compiler :as cljs-comp]
             [shadow.cljs.build :as cljs]
-            [clojure.set :as set]))
+            ))
 
 (defn non-empty-string? [x]
   (and (string? x)
@@ -79,20 +81,84 @@
         (not public-dir)
         (assoc :public-dir (io/file work-dir "shadow-cache" (name id) (name mode))))))
 
-(defn npm-aliases [state require?]
-  (let [npm-requires
-        (->> (:sources state)
-             (vals)
-             (map :requires)
-             (reduce set/union)
-             (map str)
-             (filter #(str/starts-with? % "npm."))
-             (into []))]
+(defn is-npm-ns? [x]
+  (str/starts-with? (str x) "npm."))
 
-    (reduce
-      (fn [state alias]
+(defn has-npm-require? [{:keys [requires] :as rc}]
+  (some is-npm-ns? requires))
+
+(defn add-npm-ns-entry [all ns]
+  (if (contains? all ns)
+    all
+    (assoc all ns #{})))
+
+(defn extract-npm-namespaces* [namespaces {:keys [type ns-info requires] :as rc}]
+  (case type
+    :js
+    ;; FIXME: this will break if JS sources goog.require("npm.react.Component") where Compoent is part of npm.react
+    (reduce add-npm-ns-entry namespaces requires)
+
+    :cljs
+    (let [{:keys [imports requires]}
+          ns-info
+
+          npm-imports
+          (->> imports
+               (filter (comp is-npm-ns? second))
+               (into {})
+               (set/map-invert))
+
+          npm-requires
+          (->> requires
+               (vals)
+               (filter is-npm-ns?)
+               (remove npm-imports)
+               (into #{}))
+
+          namespaces
+          (reduce add-npm-ns-entry namespaces npm-requires)
+
+          namespaces
+          (reduce-kv
+            (fn [all fqn class]
+              ;; FIXME: feels like imports {Component npm.react.Component} should be #{npm.react/Component}?
+              ;; the map is inverted above so we have {npm.react.Component Component}
+              ;; need to extra npm.react and then add the extra import to namespaces map
+              (let [class-str
+                    (str class)
+                    fqn-str
+                    (str fqn)
+
+                    pkg
+                    (-> fqn-str
+                        (subs 0 (- (count fqn-str)
+                                   1 ;; the dot
+                                   (count class-str)))
+                        (symbol))]
+
+                (update all pkg conj fqn)))
+            namespaces
+            npm-imports)]
+      namespaces)))
+
+(defn extract-npm-namespaces [state]
+  (->> (:sources state)
+       (vals)
+       (filter has-npm-require?)
+       (reduce extract-npm-namespaces* {})))
+
+(comment
+  (main "-b" "browser" "--once"))
+
+(defn npm-aliases [state require?]
+  (let [npm-namespaces
+        (extract-npm-namespaces state)]
+
+    (reduce-kv
+      (fn [state alias provides]
         (let [module-name
-              (-> (subs alias 4)
+              (-> (str alias)
+                  (subs 4)
                   (str/replace #"\." "/"))
 
               ;; npm.react -> react
@@ -104,11 +170,16 @@
               rc
               {:type :js
                :name (str alias ".js")
-               :provides #{(symbol alias)}
+               :provides (conj provides alias)
                :requires #{}
                :require-order []
                :js-name (str alias ".js")
                :input (atom (str "goog.provide(\"" provide "\");\n"
+                                 (->> provides
+                                      (map (fn [provide]
+                                             (str "goog.provide(\"" provide "\");")))
+                                      (str/join "\n"))
+                                 "\n"
                                  (if require?
                                    (str provide " = require(\"" module-name "\");\n")
                                    (str provide " = window[\"npm$modules\"][\"" module-name "\"];\n"))))
@@ -117,4 +188,4 @@
           (cljs/merge-resource state rc)
           ))
       state
-      npm-requires)))
+      npm-namespaces)))
