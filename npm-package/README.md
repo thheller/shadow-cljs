@@ -32,6 +32,6 @@ You may add some configuration to your `package.json` under the `shadow-cljs` ke
   }
 ```
 
-- `version` is the version of `shadow-devtools` to use (optional)
+- `version` is the version of `shadow-cljs` to use (optional)
 - `source-paths` defaults to `["src-cljs"]`
 - `dependencies` extra CLJS dependencies you want

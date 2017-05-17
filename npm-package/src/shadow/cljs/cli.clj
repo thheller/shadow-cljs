@@ -48,7 +48,7 @@
                     (when more
                       (throw (ex-info "FIXME: support more" {:more more})))
                     [(symbol name) version]))
-             (into [['thheller/shadow-devtools version]]))]
+             (into [['thheller/shadow-cljs version]]))]
 
     (println "shadow-clis - loading dependencies")
 

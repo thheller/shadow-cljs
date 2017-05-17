@@ -1,4 +1,4 @@
-# shadow-devtools (ALPHA)
+# shadow-cljs (ALPHA)
 
 This library provides a basic configuration layer for ClojureScript and attempts to provide some good defaults so you can limit the amount of config repetition for your builds. 
 
