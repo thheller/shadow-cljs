@@ -1,5 +1,4 @@
 (ns demo.defn-error)
 
-
-(defn x
+(defn x []
   :foo)

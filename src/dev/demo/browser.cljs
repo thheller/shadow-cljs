@@ -1,7 +1,8 @@
-(ns demo.browser)
+(ns demo.browser
+  (:require [npm.react :refer (createElement)]))
 
 (js/console.log "foo")
-(js/console.log "demo.browser")
+(js/console.log "demo.browser" (createElement "div" nil "hello world"))
 
 (prn :foo)
 

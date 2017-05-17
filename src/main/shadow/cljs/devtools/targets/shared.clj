@@ -2,7 +2,9 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]
             [cljs.compiler :as cljs-comp]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [shadow.cljs.build :as cljs]
+            [clojure.set :as set]))
 
 (defn non-empty-string? [x]
   (and (string? x)
@@ -77,3 +79,42 @@
         (not public-dir)
         (assoc :public-dir (io/file work-dir "shadow-cache" (name id) (name mode))))))
 
+(defn npm-aliases [state require?]
+  (let [npm-requires
+        (->> (:sources state)
+             (vals)
+             (map :requires)
+             (reduce set/union)
+             (map str)
+             (filter #(str/starts-with? % "npm."))
+             (into []))]
+
+    (reduce
+      (fn [state alias]
+        (let [package-name
+              (-> (subs alias 4)
+                  (str/replace #"\." "/"))
+
+              ;; npm.react -> react
+              ;; npm.foo.bar -> foo/bar
+
+              provide
+              (cljs-comp/munge alias)
+
+              rc
+              {:type :js
+               :name (str alias ".js")
+               :provides #{(symbol alias)}
+               :requires #{}
+               :require-order []
+               :js-name (str alias ".js")
+               :input (atom (str "goog.provide(\"" provide "\");\n"
+                                 (if require?
+                                   (str provide " = require(\"" package-name "\");\n")
+                                   (str provide " = window[\"npm-packages\"][\"" package-name "\"];\n"))))
+               :last-modified 0}]
+
+          (cljs/merge-resource state rc)
+          ))
+      state
+      npm-requires)))

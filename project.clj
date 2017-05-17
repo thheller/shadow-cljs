@@ -41,7 +41,7 @@
   :java-source-paths
   ["src/main"]
 
-  :main shadow.cli
+  :main shadow.cljs.devtools.cli
   :aot :all
 
   :profiles

@@ -6,7 +6,10 @@
             [shadow.cljs.devtools.config :as config]
             [clojure.spec.alpha :as s]
             [shadow.cljs.build :as cljs]
-            [shadow.cljs.repl :as repl]))
+            [shadow.cljs.repl :as repl]
+            [clojure.set :as set]
+            [clojure.string :as str]
+            [cljs.compiler :as cljs-comp]))
 
 (s/def ::main qualified-symbol?)
 
@@ -25,6 +28,7 @@
 (defmethod config/target-spec `process [_]
   (s/spec ::target))
 
+
 ;; FIXME: should allow using :advanced
 (defn init [state mode config]
   (-> state
@@ -33,8 +37,8 @@
         (cljs/merge-compiler-options
           {:optimizations :simple}))
       (shared/set-public-dir mode config)
+      (shared/npm-aliases true)
       (node/configure config)
-
       (cond->
         (:worker-info state)
         (-> (repl/setup)

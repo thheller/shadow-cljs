@@ -10,7 +10,8 @@
             [cljs.analyzer :as ana]
             [shadow.cljs.output :as output]
             [shadow.cljs.util :as util]
-            [clojure.data.json :as json])
+            [clojure.data.json :as json]
+            [shadow.cljs.devtools.targets.shared :as shared])
   (:import (java.io StringReader BufferedReader)
            (java.util Base64)))
 
@@ -218,7 +219,9 @@
             (->))
         (update :compiler-options merge {:optimize-constants true
                                          :emit-constants true})
-        (cljs/configure-module :default entries {}))))
+        (cljs/configure-module :default entries {})
+        (shared/npm-aliases true)
+        )))
 
 (defn process
   [{::comp/keys [mode stage config] :as state}]
