@@ -18,6 +18,7 @@
             [shadow.cljs.cljs-specs :as cljs-specs]
             [shadow.cljs.closure :as closure]
             [shadow.cljs.cache :as cache]
+            [shadow.cljs.ns-form :as ns-form]
             [clojure.spec.alpha :as s]
             [shadow.cljs.output :as output])
   (:import [java.io File FileOutputStream FileInputStream StringReader PushbackReader ByteArrayOutputStream BufferedReader ByteArrayInputStream]
@@ -203,7 +204,7 @@
         ))))
 
 (defn update-rc-from-ns
-  [state rc {:keys [name require-order] :as ast}]
+  [state rc {:keys [name require-order js-requires] :as ast}]
   {:pre [(util/compiler-state? state)]}
   (assoc rc
          :ns name
@@ -211,6 +212,7 @@
          :provides #{name}
          :macro-namespaces (macros-from-ns-ast state ast)
          :requires (into #{} require-order)
+         :js-requires js-requires
          :require-order require-order))
 
 (defn peek-into-cljs-resource
@@ -231,7 +233,7 @@
         (let [peek (reader/read opts in)]
           (if (identical? peek eof-sentinel)
             (throw (ex-info "file is empty" {:name name}))
-            (let [ast (-> (util/parse-ns peek)
+            (let [ast (-> (ns-form/parse peek)
                           (rewrite-ns-aliases state))]
               (-> state
                   (update-rc-from-ns rc ast)
@@ -656,10 +658,9 @@ normalize-resource-name
     ast))
 
 (defn hijacked-parse-ns [env form name {:keys [compiler-state] :as opts}]
-  (-> (util/parse-ns form)
+  (-> (ns-form/parse form)
       (rewrite-ns-aliases compiler-state)
       (assoc :env env :form form :op :ns)))
-
 
 ;; I don't want to use with-redefs but I also don't want to replace the default
 ;; keep a reference to the default impl and dispatch based on binding
@@ -778,8 +779,8 @@ normalize-resource-name
 
                               reader/*alias-map*
                               (merge reader/*alias-map*
-                                (:requires ns-info)
-                                (:require-macros ns-info))]
+                                     (:requires ns-info)
+                                     (:require-macros ns-info))]
                       (reader/read opts in))]
 
                 (if (identical? form eof-sentinel)
@@ -1448,12 +1449,12 @@ normalize-resource-name
 
          mod
          (merge mod-attrs
-           {:name module-name
-            :js-name (or (:js-name mod-attrs)
-                         (str (name module-name) ".js"))
-            :entries module-entries
-            :depends-on (into #{} depends-on)
-            :default is-default?})]
+                {:name module-name
+                 :js-name (or (:js-name mod-attrs)
+                              (str (name module-name) ".js"))
+                 :entries module-entries
+                 :depends-on (into #{} depends-on)
+                 :default is-default?})]
 
      (when is-default?
        (when-let [default (:default-module state)]
@@ -1898,6 +1899,47 @@ normalize-resource-name
         (not (> n-compile-threads 1))
         (do-compile-sources source-names))
       (assoc :build-done (System/currentTimeMillis))))
+
+(defn generate-npm-resources [state]
+  (let [js-requires
+        (->> (:sources state)
+             (vals)
+             (map :js-requires)
+             (reduce set/union #{}))]
+
+    (reduce
+      (fn [state js-require]
+        (let [ns
+              (ns-form/make-npm-alias js-require)
+
+              require?
+              false
+
+              provide
+              (comp/munge ns)
+
+              rc
+              {:type :js
+               :name (str provide ".js")
+               :provides #{ns}
+               :requires #{}
+               :require-order []
+               :js-name (str provide ".js")
+               :input (atom (str "goog.provide(\"" provide "\");\n"
+                                 #_(->> provides
+                                        (map (fn [provide]
+                                               (str "goog.provide(\"" provide "\");")))
+                                        (str/join "\n"))
+                                 "\n"
+                                 (if require?
+                                   (str provide " = require(\"" js-require "\");\n")
+                                   (str provide " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
+               :last-modified 0}]
+
+          (merge-resource state rc)
+          ))
+      state
+      js-requires)))
 
 (defn prepare-compile
   "prepares for compilation (eg. create source lookup index)"

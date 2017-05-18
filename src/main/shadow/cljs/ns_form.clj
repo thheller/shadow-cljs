@@ -54,9 +54,9 @@
     :key #{:rename}
     :value (s/map-of simple-symbol? simple-symbol?)))
 
-(defn check [spec form]
-  (s/explain spec form)
-  (pprint (s/conform spec form)))
+#_(defn check [spec form]
+    (s/explain spec form)
+    (pprint (s/conform spec form)))
 
 ;; (check ::as '[:as foo])
 
@@ -221,7 +221,16 @@
   (when (str/starts-with? lib ".")
     (throw (ex-info "relative npm imports not supported yet" {:lib lib})))
 
-  (symbol (str "npm$import." (cljs-comp/munge lib))))
+  ;; relative requires need info about the current file
+
+  ;; these should have the same alias
+  ;; (ns some.x.foo (:require ["../bla" :as x]))
+  ;; (ns some.x (:require ["./bla" :as x]))
+
+  ;; this is outside the cljs source path
+  ;; (ns some.x (:require ["../../../bla" :as x]))
+
+  (symbol (str "shadow.npm." (cljs-comp/munge lib))))
 
 (defn maybe-npm [lib]
   (if (string? lib)
@@ -238,10 +247,18 @@
     {}
     opts))
 
+(defn merge-require [ns-info merge-key sym ns]
+  (when-let [conflict (get-in ns-info [merge-key sym])]
+    (throw
+      (ex-info (format "conflict on \"%s\" by \"%s\" used by \"%s\"" sym ns conflict)
+        {:ns-info ns-info
+         :merge-key merge-key
+         :sym sym
+         :ns ns})))
+  (update ns-info merge-key assoc sym ns))
+
 (defn merge-require-fn [merge-key ns]
-  ;; FIXME: ensure unique
-  (fn [ns-info sym]
-    (update ns-info merge-key assoc sym ns)))
+  #(merge-require %1 merge-key %2 ns))
 
 (defn merge-rename-fn [merge-key ns]
   (fn [ns-info rename-to rename-from]
@@ -251,7 +268,7 @@
   (case key
     :sym
     (-> ns-info
-        (update :requires assoc require require)
+        (merge-require :requires require require)
         (update :deps conj require))
     :seq
     (let [{:keys [lib opts]}
@@ -270,19 +287,19 @@
 
       (-> ns-info
           (update :deps conj ns)
-          (update :requires assoc ns ns)
+          (merge-require :requires ns ns)
           (cond->
             as
-            (update :requires assoc as ns)
+            (merge-require :requires as ns)
 
             js?
             (update :js-requires conj lib)
 
             (or include-macros (seq refer-macros))
-            (-> (update :require-macros assoc ns ns)
+            (-> (merge-require :require-macros ns ns)
                 (cond->
                   as
-                  (update :require-macros assoc as ns))))
+                  (merge-require :require-macros as ns))))
           (reduce->
             (merge-require-fn :uses ns)
             refer)
@@ -298,7 +315,7 @@
   (case key
     :sym
     (-> ns-info
-        (update :require-macros assoc require require))
+        (merge-require :require-macros require require))
 
     :seq
     (let [{ns :lib opts :opts}
@@ -316,10 +333,10 @@
         (throw (ex-info "require-macros only works with symbols not strings" {:require require :ns-info ns-info})))
 
       (-> ns-info
-          (update :require-macros assoc ns ns)
+          (merge-require :require-macros ns ns)
           (cond->
             as
-            (update :require-macros assoc as ns))
+            (merge-require :require-macros as ns))
           (reduce->
             (merge-require-fn :use-macros ns)
             refer)
@@ -344,8 +361,8 @@
     :sym ;; a.fully-qualified.Name, never a string
     (let [class (-> import str (str/split #"\.") last symbol)]
       (-> ns-info
-          (update :requires assoc class import)
-          (update :imports assoc class import)
+          (merge-require :requires class import)
+          (merge-require :imports class import)
           (update :deps conj import)))
 
     :seq
@@ -355,6 +372,7 @@
 
       (if-not (seq names)
         ns-info
+
         (let [[ns js?] (maybe-npm lib)]
           (-> ns-info
               (cond->
@@ -365,8 +383,8 @@
                 (fn [ns-info sym]
                   (let [fqn (symbol (str ns "." sym))]
                     (-> ns-info
-                        (update :imports assoc sym fqn)
-                        (update :requires assoc sym fqn)
+                        (merge-require :imports sym fqn)
+                        (merge-require :requires sym fqn)
                         (update :deps conj fqn))))
                 names)
               ))))))
@@ -404,7 +422,7 @@
               (cond->
                 js?
                 (update :js-requires conj lib))
-              (update :requires assoc ns ns)
+              (merge-require :requires ns ns)
               (update :deps conj ns)
               (reduce->
                 (merge-require-fn :uses ns)
@@ -450,20 +468,27 @@
           ns-info
           {:excludes #{}
            :seen #{}
-           :name (with-meta name meta)
+           :name (vary-meta name merge meta)
            :meta meta
            :js-requires #{}
            :imports nil ;; {Class ns}
-           :requires '{cljs.core cljs.core}
-           :require-macros '{cljs.core cljs.core}
+           :requires nil
+           :require-macros nil
            :deps []
            :uses nil
            :use-macros nil
-           :renames nil
+           :renames {} ;; seems to be only one that is never nil in cljs.core
            :rename-macros nil}
 
-          {:keys [deps] :as ns-info}
+          ns-info
           (reduce reduce-ns-clause ns-info clauses)
+
+          {:keys [deps] :as ns-info}
+          (if (= 'cljs.core name)
+            ns-info
+            (-> ns-info
+                (update :requires assoc 'cljs.core 'cljs.core)
+                (update :deps #(into '[cljs.core] %))))
 
           deps
           (->> deps
@@ -471,7 +496,7 @@
                (into []))]
 
       ;; FIXME: shadow.cljs uses :require-order since that was there before :deps
-      ;; should probably rename all references of :deps to :deps to match cljs
+      ;; should probably rename all references of :require-order to :deps to match cljs
       ;; for now just copy
       (assoc ns-info :deps deps :require-order deps)
       )))

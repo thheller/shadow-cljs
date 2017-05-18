@@ -1,16 +1,13 @@
 (ns demo.browser
-  #_(:js/require
-      ["react" :as react :refer (Component)]
-      ["react-dom" :as rdom :refer (render)]))
-
-
+  (:require ["react" :as react]
+            ["react-dom" :as rdom]))
 
 (defn foo []
-  #_ (react/createElement "h1" nil "hello from react"))
+  (react/createElement "h1" nil "hello from react"))
 
-#_ (rdom/render (foo) (js/document.getElementById "app"))
+(rdom/render (foo) (js/document.getElementById "app"))
 
-(js/console.log "demo.browser" Component)
+(js/console.log "demo.browser")
 
 (prn :foo)
 

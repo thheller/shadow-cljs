@@ -14,7 +14,8 @@
             [clojure.set :as set]
             [cljs.closure :as closure]
             [cljs.analyzer.api :as ana-api]
-            [shadow.cljs.output :as output])
+            [shadow.cljs.output :as output]
+            [shadow.cljs.ns-form :as ns-form])
   (:import (java.util.regex Pattern)
            (java.io File ByteArrayInputStream)
            (java.net URL)
@@ -422,7 +423,7 @@
 
 (deftest test-require-order
   (let [{:keys [require-order] :as ns-ast}
-        (util/parse-ns
+        (ns-form/parse
           '(ns something
              (:use [test.c :only [that]])
              (:import [goog.net XhrIo])

@@ -207,6 +207,9 @@
 (deftest test-warnings
   (api/once :warnings))
 
+(deftest test-browser
+  (api/once :browser))
+
 (deftest test-foreign
   (api/release :foreign {:source-maps true}))
 

@@ -196,7 +196,8 @@
            (cljs/merge-build-options build-options))
 
          (cljs/find-resources-in-classpath)
-         (process-stage :init false)))))
+         (process-stage :init false)
+         (cljs/generate-npm-resources)))))
 
 
 (defn compile

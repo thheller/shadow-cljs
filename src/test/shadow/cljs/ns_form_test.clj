@@ -3,7 +3,8 @@
             [clojure.pprint :refer (pprint)]
             [shadow.cljs.ns-form :as ns-form]
             [cljs.analyzer :as a]
-            [clojure.repl :as repl]))
+            [clojure.repl :as repl])
+  (:import (clojure.lang ExceptionInfo)))
 
 (def ns-env
   (assoc-in (a/empty-env) [:ns :name] 'cljs.user))
@@ -34,18 +35,27 @@
                [goog.ui SomeElement OtherElement]
                a.fully-qualified.Name))
 
+          test
+          '(ns cljs.core
+             (:require goog.math.Long
+                       goog.math.Integer
+                       [goog.string :as gstring]
+                       [goog.object :as gobject]
+                       [goog.array :as garray])
+             (:import [goog.string StringBuffer]))
+
           a (ns-form/parse test)
           b (-> (cljs-parse-ns ns-env test)
                 (dissoc :env :form))
 
           check
           (fn [x]
-            (-> x (select-keys [:deps]) pprint))]
+            (-> x (select-keys [:imports :renames]) pprint))]
 
       ;; (pprint test)
-      ;; (check a)
-      ;; (check b)
-      (pprint a)
+      (check a)
+      (check b)
+      ;; (pprint a)
 
       (is (= (:name a) (:name b)))
       ;; cljs doesn't add cljs.core here but some time later
@@ -53,7 +63,7 @@
              (:requires b)))
       (is (= (dissoc (:require-macros a) 'cljs.core)
              (:require-macros b)))
-      (is (= (:uses a) (:uses b))) ;; CLJS has a bug that leaves :uses as nil if the only refered var was renamed
+      (is (= (:uses a) (:uses b)))
       (is (= (:use-macros a) (:use-macros b)))
       (is (= (:imports a) (:imports b)))
       (is (= (:renames a) (:renames b)))
@@ -68,6 +78,15 @@
     ;; meh, clojure.test doesn't show ex-data still ...
     (catch Exception e
       (repl/pst e))))
+
+(deftest test-ns-alias-conflict
+  (let [test
+        '(ns something
+           (:require
+             [some.a :as a]
+             [some.b :as a]))]
+
+    (is (thrown? ExceptionInfo (ns-form/parse test)))))
 
 (deftest test-parse-ns-npm
   (let [test

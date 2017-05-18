@@ -14,7 +14,8 @@
             [shadow.cljs.log :as log]
             [shadow.cljs.util :as util]
             [shadow.cljs.build :as cljs]
-            [shadow.cljs.output :as output])
+            [shadow.cljs.output :as output]
+            [shadow.cljs.ns-form :as ns-form])
   (:import (java.io StringReader BufferedReader)))
 
 (comment
@@ -48,7 +49,7 @@
          :last-modified (System/currentTimeMillis)}
 
         ns-info
-        (util/parse-ns cljs-user-src)
+        (ns-form/parse cljs-user-src)
 
         {:keys [ns-info] :as cljs-user}
         (cljs/update-rc-from-ns state cljs-user ns-info)
