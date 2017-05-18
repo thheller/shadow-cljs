@@ -1,16 +1,16 @@
 {
   "name": "shadow-cljs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "ClojureScript for JS tools",
   "author": "Thomas Heller",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/thheller/shadow-devtools/issues"
+    "url": "https://github.com/thheller/shadow-cljs/issues"
   },
-  "homepage": "https://github.com/thheller/shadow-devtools#readme",
+  "homepage": "https://github.com/thheller/shadow-cljs#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/thheller/shadow-devtools.git"
+    "url": "git+https://github.com/thheller/shadow-cljs.git"
   },
   "keywords": [
     "clojurescript",

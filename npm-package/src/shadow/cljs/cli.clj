@@ -19,7 +19,7 @@
         :corrupted (when error (println (.getMessage error)))
         nil))))
 
-(def devtools-version "1.0.20170517")
+(def devtools-version "1.0.20170518")
 
 (def default-config
   {"dependencies"
