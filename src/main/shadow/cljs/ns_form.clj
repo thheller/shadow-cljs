@@ -1,19 +1,21 @@
 (ns shadow.cljs.ns-form
   "ns parser based on spec"
   (:require [clojure.spec.alpha :as s]
-            [clojure.core.specs.alpha :as cs]
             [clojure.pprint :refer (pprint)]
             [cljs.compiler :as cljs-comp]
             [clojure.set :as set]
             [clojure.string :as str]))
+
+;; [clojure.core.specs.alpha :as cs]
+;; too many differences in CLJS ns to make use of those
+
+(s/def ::local-name (s/and simple-symbol? #(not= '& %)))
 
 (defn reduce-> [init reduce-fn coll]
   (reduce reduce-fn init coll))
 
 (defn reduce-kv-> [init reduce-fn coll]
   (reduce-kv reduce-fn init coll))
-
-;; didnt use most of ::cs since the CLJS ns form is quite different
 
 ;; some.ns or "npm" package
 (s/def ::lib
@@ -32,7 +34,7 @@
 (s/def ::as
   (s/cat
     :key #{:as}
-    :value ::cs/local-name))
+    :value ::local-name))
 
 (s/def ::refer
   (s/cat

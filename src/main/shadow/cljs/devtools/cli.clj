@@ -1,4 +1,5 @@
 (ns shadow.cljs.devtools.cli
+  (:gen-class)
   (:require [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.node :as node]
