@@ -210,6 +210,9 @@
 (deftest test-browser
   (api/once :browser))
 
+(deftest test-npm-module
+  (api/once :npm-module))
+
 (deftest test-foreign
   (api/release :foreign {:source-maps true}))
 

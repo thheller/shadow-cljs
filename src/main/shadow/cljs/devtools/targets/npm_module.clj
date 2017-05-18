@@ -120,76 +120,70 @@
          module-root "./"}
     :as config}]
 
+  ;; otherwise re-emit everything until there is a stable strategy for caching
+  ;; need to work out some details of :emit-constants since we usually use closure for that
+  (let [root
+        (-> (io/file module-root)
+            (.getCanonicalFile))
 
-  (if-not (seq (:compiled build-info))
-    ;; FIXME: is it safe to skip emitting if nothing was compiled?
-    ;; config may have changed? does that always trigger a compile?
-    state
+        output-dir
+        (io/file root "node_modules" module-name)
 
-    ;; otherwise re-emit everything until there is a stable strategy for caching
-    ;; need to work out some details of :emit-constants since we usually use closure for that
-    (let [root
-          (-> (io/file module-root)
-              (.getCanonicalFile))
+        env-file
+        (io/file output-dir "cljs_env.js")]
 
-          output-dir
-          (io/file root "node_modules" module-name)
+    (util/with-logged-time [state {:type :npm-flush :output-path (.getAbsolutePath output-dir)}]
+      (io/make-parents env-file)
 
-          env-file
-          (io/file output-dir "cljs_env.js")]
+      (spit env-file (cljs-env state config))
 
-      (util/with-logged-time [state {:type :npm-flush :output-path (.getAbsolutePath output-dir)}]
-        (io/make-parents env-file)
+      (doseq [src-name (:build-sources state)]
+        (let [{:keys [name js-name input output requires source-map last-modified] :as src}
+              (get-in state [:sources src-name])
 
-        (spit env-file (cljs-env state config))
+              flat-name
+              (flat-js-name js-name)
 
-        (doseq [src-name (:build-sources state)]
-          (let [{:keys [name js-name input output requires source-map last-modified] :as src}
-                (get-in state [:sources src-name])
+              target
+              (io/file output-dir flat-name)]
 
-                flat-name
-                (flat-js-name js-name)
+          ;; eventually should skip emitting some files since source-map generation is kinda expensive
+          #_(when (or (not (.exists target))
+                      (>= last-modified (.lastModified target))))
 
-                target
-                (io/file output-dir flat-name)]
+          (let [prefix
+                (src-prefix state src)
 
-            ;; eventually should skip emitting some files since source-map generation is kinda expensive
-            #_(when (or (not (.exists target))
-                        (>= last-modified (.lastModified target))))
+                suffix
+                (src-suffix state src)
 
-            (let [prefix
-                  (src-prefix state src)
+                sm-text
+                (when source-map
+                  (let [sm-opts
+                        {:lines (output/line-count output)
+                         :file flat-name
+                         :preamble-line-count (output/line-count prefix)
+                         :sources-content [@input]}
 
-                  suffix
-                  (src-suffix state src)
+                        source-map-v3
+                        (-> {flat-name source-map}
+                            (sm/encode* sm-opts)
+                            (assoc "sources" [name]))
 
-                  sm-text
-                  (when source-map
-                    (let [sm-opts
-                          {:lines (output/line-count output)
-                           :file flat-name
-                           :preamble-line-count (output/line-count prefix)
-                           :sources-content [@input]}
+                        source-map-json
+                        (json/write-str source-map-v3)
 
-                          source-map-v3
-                          (-> {flat-name source-map}
-                              (sm/encode* sm-opts)
-                              (assoc "sources" [name]))
+                        b64
+                        (-> (Base64/getEncoder)
+                            (.encodeToString (.getBytes source-map-json)))]
 
-                          source-map-json
-                          (json/write-str source-map-v3)
+                    (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n")
+                    ))
 
-                          b64
-                          (-> (Base64/getEncoder)
-                              (.encodeToString (.getBytes source-map-json)))]
+                output
+                (str prefix output suffix sm-text)]
 
-                      (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n")
-                      ))
-
-                  output
-                  (str prefix output suffix sm-text)]
-
-              (spit target output)))))))
+            (spit target output))))))
 
   state)
 

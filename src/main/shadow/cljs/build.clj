@@ -1900,7 +1900,7 @@ normalize-resource-name
         (do-compile-sources source-names))
       (assoc :build-done (System/currentTimeMillis))))
 
-(defn generate-npm-resources [state]
+(defn generate-npm-resources [{:keys [npm-require] :as state}]
   (let [js-requires
         (->> (:sources state)
              (vals)
@@ -1913,7 +1913,7 @@ normalize-resource-name
               (ns-form/make-npm-alias js-require)
 
               require?
-              false
+              (= :require npm-require)
 
               provide
               (comp/munge ns)
@@ -2384,6 +2384,9 @@ enable-emit-constants [state]
 
          :runtime
          {:print-fn :none}
+
+         :npm-require
+         :require ;; or :bundle
 
          :use-file-min true
 

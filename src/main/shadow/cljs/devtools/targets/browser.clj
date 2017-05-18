@@ -200,6 +200,8 @@
           bundle-foreign
           (cljs/merge-build-options {:bundle-foreign bundle-foreign}))
 
+        (assoc :npm-require :bundle)
+
         (configure-modules mode config modules)
 
         (cond->
