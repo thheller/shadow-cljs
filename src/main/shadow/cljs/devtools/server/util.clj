@@ -1,6 +1,6 @@
 (ns shadow.cljs.devtools.server.util
-  (:require [shadow.cljs.log :as shadow-log]
-            [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
+  (:require [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
+            [shadow.cljs.log :as shadow-log]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.errors :as errors])
   (:import (java.io Writer InputStreamReader BufferedReader IOException)))

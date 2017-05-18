@@ -1,13 +1,11 @@
 (ns shadow.cljs.devtools.cli
   (:gen-class)
-  (:require [shadow.cljs.build :as cljs]
-            [shadow.cljs.devtools.api :as api]
-            [shadow.cljs.node :as node]
-            [shadow.runtime.services :as rt]
-            [shadow.cljs.devtools.errors :as e]
-            [shadow.cljs.devtools.server.worker :as worker]
+  (:require [shadow.runtime.services :as rt]
             [clojure.tools.cli :as cli]
             [clojure.string :as str]
+            [shadow.cljs.devtools.api :as api]
+            [shadow.cljs.devtools.errors :as e]
+            [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.compiler :as comp]))
 
