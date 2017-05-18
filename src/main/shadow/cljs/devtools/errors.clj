@@ -5,6 +5,7 @@
             [clojure.pprint :refer (pprint)]
             [shadow.cljs.closure :as closure]
             [shadow.cljs.build :as build]
+            [shadow.cljs.ns-form :as ns-form]
             [shadow.cljs.devtools.compiler :as comp])
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
@@ -59,10 +60,18 @@
   (write-msg w e)
   (ex-format w (.getCause e)))
 
+(defn spec-explain [data]
+  (with-out-str (s/explain-out data)))
+
+(defmethod ex-data-format ::ns-form/invalid-ns
+  [w e {:keys [config] :as data}]
+  (.write w "Invalid namespace declaration\n")
+  (.write w (spec-explain data)))
+
 (defmethod ex-data-format ::comp/config
   [w e {:keys [config] :as data}]
   (.write w "Invalid configuration\n")
-  (.write w (with-out-str (s/explain-out data))))
+  (.write w (spec-explain data)))
 
 (defmethod ex-data-format ::build/missing-ns
   [w e data]
@@ -71,14 +80,7 @@
 (defmethod ex-data-format ::s/problems
   [w e {::s/keys [problems value] :as data}]
   (.write w (.getMessage e))
-  (.write w "== Spec\n")
-  (.write w
-    (with-out-str
-      (-> data
-          (dissoc ::s/args)
-          (s/explain-out)
-          )))
-  (.write w "==\n"))
+  (.write w (spec-explain data)))
 
 (defmethod ex-data-format ::closure/errors
   [w e {:keys [errors] :as data}]

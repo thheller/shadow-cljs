@@ -384,8 +384,10 @@
                   (let [fqn (symbol (str ns "." sym))]
                     (-> ns-info
                         (merge-require :imports sym fqn)
-                        (merge-require :requires sym fqn)
-                        (update :deps conj fqn))))
+                        (cond->
+                          (not js?)
+                          (-> (merge-require :requires sym fqn)
+                              (update :deps conj fqn))))))
                 names)
               ))))))
 
@@ -451,10 +453,9 @@
         (s/conform ::ns-form form)]
 
     (when (= conformed ::s/invalid)
-      (s/explain ::ns-form form)
       (throw (ex-info "failed to parse ns form"
                (assoc (s/explain-data ::ns-form form)
-                      :tag ::error
+                      :tag ::invalid-ns
                       :input form))))
 
     (let [{:keys [name docstring meta clauses] :or {meta {}}}

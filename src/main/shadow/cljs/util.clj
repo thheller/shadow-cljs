@@ -547,7 +547,8 @@
       (error env :undeclared-ns-form {:type "macro" :lib lib :sym sym})))
 
   (doseq [[sym lib] uses]
-    (when (and (not (ana-is-cljs-def? lib sym))
+    (when (and (not (str/starts-with? (str lib) "shadow.npm."))
+               (not (ana-is-cljs-def? lib sym))
                (not (contains? (get-in @env/*compiler* [::ana/namespaces lib :macros]) sym)))
       (error env :undeclared-ns-form {:type "var" :lib lib :sym sym}))))
 

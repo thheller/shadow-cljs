@@ -1,15 +1,17 @@
 (ns demo.browser
-  (:require ["react" :as react]
-            ["react-dom" :as rdom]))
+  (:require ["react" :as react :refer (createElement)]
+            ["react-dom" :as rdom :refer (render)])
+  (:import ["react" Component]))
 
 (defn foo []
-  (react/createElement "h1" nil "hello from react"))
+  (createElement "h1" nil "hello from react"))
 
-(rdom/render (foo) (js/document.getElementById "app"))
+(render (foo) (js/document.getElementById "app"))
 
-(js/console.log "demo.browser")
+(js/console.log "demo.browser" Component)
 
 (prn :foo)
+
 
 (defn ^:export start []
   (prn "foo")
@@ -17,4 +19,3 @@
 
 (defn stop []
   (js/console.log "browser-stop"))
-
