@@ -226,7 +226,14 @@
                            :entries entries
                            :depends-on depends-on
                            :default default
-                           :sources sources}
+                           :sources sources
+                           :npm-modules
+                           (->> sources
+                                (map #(get-in state [:sources %]))
+                                (map :npm-module)
+                                (remove nil?)
+                                (into []))}
+
                           (cond->
                             (and include-foreign? (seq foreign-files))
                             (assoc :foreign (mapv #(select-keys % [:js-name :provides]) foreign-files))))

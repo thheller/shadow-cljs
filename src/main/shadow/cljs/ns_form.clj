@@ -1,7 +1,6 @@
 (ns shadow.cljs.ns-form
   "ns parser based on spec"
   (:require [clojure.spec.alpha :as s]
-            [clojure.pprint :refer (pprint)]
             [cljs.compiler :as cljs-comp]
             [clojure.set :as set]
             [clojure.string :as str]))

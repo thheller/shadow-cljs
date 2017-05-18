@@ -5,7 +5,6 @@
             [shadow.cljs.devtools.server.system-bus :as system-bus]
             [shadow.cljs.devtools.server.system-msg :as system-msg]
             [clojure.java.io :as io]
-            [clojure.pprint :refer (pprint)]
             [clojure.string :as str])
   (:import (shadow.util FileWatcher)))
 

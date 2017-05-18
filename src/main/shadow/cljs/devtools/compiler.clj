@@ -2,7 +2,6 @@
   (:refer-clojure :exclude (compile flush))
   (:require [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [clojure.pprint :refer (pprint)]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.cljs-specs]))

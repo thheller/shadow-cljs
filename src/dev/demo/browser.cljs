@@ -12,7 +12,6 @@
 
 (prn :foo)
 
-
 (defn ^:export start []
   (prn "foo")
   (js/console.log "browser-start"))

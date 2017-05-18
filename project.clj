@@ -7,6 +7,10 @@
 
   :dependencies
   [[org.clojure/clojure "1.9.0-alpha16"]
+
+   [org.clojure/spec.alpha "0.1.108"]
+   [org.clojure/core.specs.alpha "0.1.10"]
+
    [org.clojure/java.classpath "0.2.3"]
    [org.clojure/data.json "0.2.6"]
    [org.clojure/tools.cli "0.3.5"]
@@ -30,7 +34,7 @@
 
    [aleph "0.4.3"]
    [hiccup "1.0.5"]
-   [org.clojure/tools.nrepl "0.2.12"]]
+   [org.clojure/tools.nrepl "0.2.13"]]
 
   :source-paths
   ["src/main"]

@@ -3,7 +3,6 @@
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.pprint :refer (pprint)]
             [cljs.compiler :as cljs-comp]
             [shadow.cljs.build :as cljs]
             ))

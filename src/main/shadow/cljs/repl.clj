@@ -1,6 +1,5 @@
 (ns shadow.cljs.repl
-  (:require [clojure.pprint :refer (pprint)]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [clojure.walk :as walk]
             [clojure.repl :as repl]
             [clojure.java.io :as io]
@@ -289,7 +288,7 @@
 
    'repl-state
    (fn [state read-result]
-     (pprint (:repl-state state))
+     (prn (:repl-state state))
      state)
 
    'ns

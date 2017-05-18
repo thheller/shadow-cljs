@@ -1,6 +1,5 @@
 (ns shadow.cljs.build
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
             [clojure.edn :as edn]
@@ -1896,7 +1895,7 @@ normalize-resource-name
   (-> state
       (assoc :build-start (System/currentTimeMillis))
       (cond->
-        (> n-compile-threads 1)
+        (or (:executor state) (> n-compile-threads 1))
         (par-compile-sources source-names)
 
         (not (> n-compile-threads 1))
@@ -1924,6 +1923,7 @@ normalize-resource-name
               rc
               {:type :js
                :name (str provide ".js")
+               :npm-module js-require
                :provides #{ns}
                :requires #{}
                :require-order []

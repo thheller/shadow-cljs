@@ -1,7 +1,6 @@
 (ns shadow.cljs.devtools.api
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [clojure.java.io :as io]
-            [clojure.pprint :refer (pprint)]
             [shadow.runtime.services :as rt]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as e]
@@ -12,8 +11,7 @@
             [shadow.cljs.build :as cljs]
             [shadow.cljs.node :as node]
             [shadow.cljs.repl :as repl]
-            [shadow.repl :as r]
-            )
+            [shadow.repl :as r])
   (:import (java.io PushbackReader StringReader)))
 
 (defn start [opts]
