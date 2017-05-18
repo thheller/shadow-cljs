@@ -1,4 +1,0 @@
-(require '[shadow.cljs.devtools.api :as cljs])
-(cljs/dev :browser)
-(require '[shadow.cljs.devtools.api :as cljs])
-(cljs/dev :browser)

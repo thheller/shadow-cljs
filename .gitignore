@@ -17,7 +17,7 @@ pom.xml.asc
 /.cljs_node_repl
 /.idea
 /.lein-*
-/.nrepl-port
+/.nrepl-*
 /doc/codox
 /tmp
 .DS_Store
