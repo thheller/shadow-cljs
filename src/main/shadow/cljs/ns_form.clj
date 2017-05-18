@@ -217,8 +217,11 @@
 
 (defmulti reduce-ns-clause (fn [ns-info [key clause]] key))
 
-(defn make-npm-alias [str]
-  (symbol "npm$alias." (cljs-comp/munge str)))
+(defn make-npm-alias [lib]
+  (when (str/starts-with? lib ".")
+    (throw (ex-info "relative npm imports not supported yet" {:lib lib})))
+
+  (symbol (str "npm$import." (cljs-comp/munge lib))))
 
 (defn maybe-npm [lib]
   (if (string? lib)
@@ -451,9 +454,9 @@
            :meta meta
            :js-requires #{}
            :imports nil ;; {Class ns}
-           :requires nil ;; {alias ns} + {ns ns}
+           :requires '{cljs.core cljs.core}
+           :require-macros '{cljs.core cljs.core}
            :deps []
-           :require-macros nil
            :uses nil
            :use-macros nil
            :renames nil
