@@ -1,13 +1,52 @@
 #!/usr/bin/env node
 
 const path = require("path");
+const fs = require("fs");
 const spawn = require('child_process').spawnSync;
 
-var java_args = [
-  "-jar",
-  path.resolve(__dirname, "shadow-cljs.jar"),
-  "--npm"
-];
+var lein = true;
+
+function fileOlderThan(a, b) {
+  var statA = fs.statSync(a);
+  var statB = fs.statSync(b);
+
+  return statA.mtime > statB.mtime;
+}
+
+var java_args = [];
+
+if (fs.existsSync("project.clj")) {
+  const classpathCacheFile = path.resolve("node_modules", "shadow-cljs", "lein-classpath.txt");
+
+  var classpath = [];
+  if (!fs.existsSync(classpathCacheFile) || fileOlderThan("project.clj", classpathCacheFile)) {
+    var result = spawn("lein", ["classpath", classpathCacheFile], { stdio: "inherit" });
+
+    if (result.error) {
+      console.log("lein failed", result.error);
+      lein = false;
+    } else {
+      console.log("lein classpath generated successfully");
+    }
+  }
+
+  if (lein) {
+    const cp = fs.readFileSync(classpathCacheFile).toString();
+    java_args = java_args.concat(["-cp", cp, "clojure.main", "-m", "shadow.cljs.devtools.cli", "--npm"]);
+
+    console.log("shadow-cljs - using lein classpath");
+  }
+}
+
+if (java_args.length == 0) {
+  console.log("shadow-cljs - using package.json");
+
+  java_args = [
+    "-jar",
+    path.resolve(__dirname, "shadow-cljs.jar"),
+    "--npm"
+  ];
+}
 
 java_args = java_args.concat(process.argv.slice(2));
 

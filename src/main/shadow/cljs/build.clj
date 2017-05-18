@@ -1581,10 +1581,13 @@ normalize-resource-name
                     (if (= 1 (count deps))
                       (first deps)
                       (let [target-mod (find-closest-common-dependency src deps)]
-                        (util/log state {:type :module-move
-                                         :src src
-                                         :deps deps
-                                         :moved-to target-mod})
+
+                        ;; only warn when a file is moved to a module it wouldn't be in naturally
+                        (when-not (contains? deps target-mod)
+                          (util/log state {:type :module-move
+                                           :src src
+                                           :deps deps
+                                           :moved-to target-mod}))
                         target-mod))]
 
                 (update final target-mod vec-conj src)))
