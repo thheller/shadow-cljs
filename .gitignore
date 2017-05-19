@@ -22,3 +22,5 @@ pom.xml.asc
 /tmp
 .DS_Store
 
+yarn.lock
+package.json
