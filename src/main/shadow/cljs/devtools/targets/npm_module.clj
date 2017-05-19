@@ -11,7 +11,9 @@
             [shadow.cljs.output :as output]
             [shadow.cljs.util :as util]
             [clojure.data.json :as json]
-            [shadow.cljs.devtools.targets.shared :as shared])
+            [shadow.cljs.devtools.targets.shared :as shared]
+            [shadow.cljs.repl :as repl]
+            [shadow.cljs.devtools.targets.browser :as browser])
   (:import (java.io StringReader BufferedReader)
            (java.util Base64)))
 
@@ -102,14 +104,11 @@
   (str "var CLJS_ENV = {};\n"
        "var CLJS_GLOBAL = process.browser ? window : global;\n"
        ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
-       "CLJS_GLOBAL.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
+       "CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
        "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
        "var goog = CLJS_ENV.goog = {};\n"
        @(get-in state [:sources "goog/base.js" :input])
-       ;; override goog.global = this;
-       "goog.global = CLJS_GLOBAL;\n"
-       "goog.provide = function(name) { return goog.exportPath_(name, undefined, CLJS_ENV); };\n"
-       "goog.require = function(name) { return true; };\n"
+       (slurp (io/resource "shadow/cljs/devtools/targets/npm_module_goog_overrides.js"))
        "module.exports = CLJS_ENV;\n"
        ))
 
@@ -187,7 +186,7 @@
 
   state)
 
-(defn init [state mode {:keys [entries] :as config}]
+(defn init [state mode {:keys [runtime entries] :as config}]
   (let [entries
         (or entries
             (->> (:sources state)
@@ -196,9 +195,8 @@
                  (map :provides)
                  (reduce set/union #{})))
 
-        ;; FIXME: not sure it should always compiled console helper?
         entries
-        (conj entries 'cljs.core 'shadow.cljs.devtools.client.console)]
+        (conj entries 'cljs.core)]
 
     (-> state
         (assoc :source-map-comment false
@@ -211,10 +209,22 @@
         #_(cond->
             (= :release mode)
             (->))
+
         (update :compiler-options merge {:optimize-constants true
                                          :emit-constants true})
+
         (cljs/configure-module :default entries {})
-        )))
+
+        (cond->
+          (= :dev mode)
+          (repl/setup))
+
+        (cond->
+          (and (:worker-info state) (= :dev mode) (= :node runtime))
+          (shared/inject-node-repl config)
+          (and (:worker-info state) (= :dev mode) (= :browser runtime))
+          (browser/inject-devtools config)
+          ))))
 
 (defn process
   [{::comp/keys [mode stage config] :as state}]

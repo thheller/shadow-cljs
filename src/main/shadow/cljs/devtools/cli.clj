@@ -3,32 +3,46 @@
   (:require [shadow.runtime.services :as rt]
             [clojure.tools.cli :as cli]
             [clojure.string :as str]
+            [clojure.data.json :as json]
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.devtools.errors :as e]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
-            [shadow.cljs.devtools.compiler :as comp]))
+            [shadow.cljs.devtools.compiler :as comp]
+            [clojure.java.io :as io]))
+
+;; use namespaced keywords for every CLI specific option
+;; since all options are passed to the api/* and should not conflict there
+
+(defn mode-cli-opt [opt description]
+  [nil opt description
+   :assoc-fn
+   (fn [m k v]
+     (when-let [mode (get m ::mode)]
+       (println (format "overwriting mode %s -> %s, please only use one mode" mode k)))
+     (assoc m ::mode k))])
+
+(def cli-spec
+  [(mode-cli-opt "--dev" "mode: dev (will watch files and recompile, REPL, ...)")
+   (mode-cli-opt "--once" "mode: compile once and exit")
+   (mode-cli-opt "--release" "mode: compile release version and exit")
+   (mode-cli-opt "--check" "mode: closure compiler type check and exit")
+
+   ;; exlusive
+   ["-b" "--build BUILD-ID" "use build defined in shadow-cljs.edn"
+    :id ::build
+    :parse-fn keyword]
+   [nil "--npm" "run in npm compatibility mode"
+    :id ::npm]
+
+   ;; generic
+   [nil "--debug" "enable debug options, useful in combo with --release (pseudo-names, source-map)"]
+   ["-v" "--verbose"]
+   ["-h" "--help"
+    :id ::help]])
 
 (def default-opts
   {:autobuild true})
-
-(def cli-spec
-  [["-b" "--build BUILD-ID" "use build defined in shadow-cljs.edn"
-    :parse-fn keyword]
-   [nil "--dev" "compile once and watch"
-    :default true]
-   [nil "--once" "compile once and exit"]
-   [nil "--release" "compile in release mode and exit"]
-   [nil "--debug" "debug mode, useful in combo with --release (pseudo-names, source-map)"]
-   [nil "--check" "run sources through closure compiler type checks"]
-   [nil "--npm" "run in npm compatibility mode"]
-   [nil "--runtime TARGET" "(npm-only) node or browser"
-    :parse-fn keyword
-    :default :node]
-   ["-e" "--entries NAMESPACES" "(npm-only) comma seperated list of CLJS entry namespaces"
-    :parse-fn #(->> (str/split % #",") (map symbol) (into []))]
-   ["-v" "--verbose"]
-   ["-h" "--help"]])
 
 (defn help [{:keys [errors summary] :as opts}]
   (do (doseq [err errors]
@@ -38,25 +52,51 @@
       (println summary)
       (println "-----")))
 
+(defn load-npm-config []
+  (let [pkg-file
+        (io/file "package.json")
+
+        config
+        {:id :npm
+         :target :npm-module
+         :runtime :node}]
+
+    (if-not (.exists pkg-file)
+      config
+      ;; FIXME: should validate structure of json-config, might throw bad errors
+      (let [{:strs [entries runtime] :as json-config}
+            (-> pkg-file
+                (slurp)
+                (json/read-str)
+                (get "shadow-cljs"))]
+        (-> config
+            (cond->
+              entries
+              (assoc :entries (into [] (map symbol) entries))
+
+              (seq runtime)
+              (assoc :runtime (keyword runtime))
+              ))))))
+
 (defn main [& args]
   (let [{:keys [options summary errors] :as opts}
-        (cli/parse-opts args cli-spec)]
+        (cli/parse-opts args cli-spec)
 
+        options
+        (merge default-opts options)]
 
-    (if (or (:help options) (seq errors))
+    (if (or (::help options) (seq errors))
       (help opts)
 
-      (let [{:keys [build npm]} options
+      (let [{::keys [build npm]} options
 
             build-config
             (cond
               (keyword? build)
               (api/get-build-config build)
 
-              npm ;; ad-hoc npm config
-              (let [{:keys [entries once]} options]
-                (merge (select-keys options [:entries :verbose :runtime])
-                       {:id :npm-module :target :npm-module}))
+              npm
+              (load-npm-config)
 
               :else
               nil)]
@@ -65,20 +105,19 @@
           (do (println "Please use specify a build or use --npm")
               (help opts))
 
-          (let [{:keys [check dev once release]} options]
-            (cond
-              release
-              (api/release* build-config options)
+          (case (::mode options)
+            :release
+            (api/release* build-config options)
 
-              once
-              (api/once* build-config options)
+            :check
+            (api/check* build-config options)
 
-              check
-              (api/check* build-config options)
+            :dev
+            (api/dev* build-config options)
 
-              :else
-              (api/dev* build-config (merge default-opts options))
-              )))))))
+            ;; make :once the default
+            (api/once* build-config options)
+            ))))))
 
 (defn -main [& args]
   (apply main args))
