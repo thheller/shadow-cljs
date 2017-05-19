@@ -88,4 +88,9 @@
  {:id :npm-module
   :target :npm-module
   :entries [demo.npm]}
+
+ {:id :chokidar
+  :target :node-script
+  :main shadow.chokidar/main
+  :output-to "tmp/chokidar.js"}
  ]
