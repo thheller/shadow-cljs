@@ -3,7 +3,8 @@
             [clojure.pprint :refer (pprint)]
             [shadow.cljs.ns-form :as ns-form]
             [cljs.analyzer :as a]
-            [clojure.repl :as repl])
+            [clojure.repl :as repl]
+            [clojure.spec.alpha :as s])
   (:import (clojure.lang ExceptionInfo)))
 
 (def ns-env
@@ -106,3 +107,41 @@
     (pprint ast))
 
   )
+
+(defn check [spec form]
+  (s/explain spec form)
+  (pprint (s/conform spec form)))
+
+;; (check ::as '[:as foo])
+
+(comment
+  (check ::ns-form/ns-require
+    '(:require
+       just.a.sym
+       [goog.string :as gstr]
+       [some.foo :as foo :refer (x y z) :refer-macros (foo bar) :rename {x c}]
+       ["react" :as react]
+       :reload)))
+
+(comment
+  (check ::ns-form/ns-import
+    '(:import
+       that.Class
+       [another Foo Bar]
+       [just.Single]
+       )))
+
+(comment
+  (check ::ns-form/ns-refer-clojure
+    '(:refer-clojure
+       :exclude (assoc)
+       :rename {conj jnoc})))
+
+(comment
+  (check ::ns-form/ns-use-macros
+    '(:use-macros [macro-use :only (that-one)])))
+
+(comment
+  (check ::ns-form/ns-use
+    '(:use [something.fancy :only [everything] :rename {everything nothing}])))
+

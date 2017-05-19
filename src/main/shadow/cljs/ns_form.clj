@@ -7,14 +7,13 @@
 
 ;; [clojure.core.specs.alpha :as cs]
 ;; too many differences in CLJS ns to make use of those
-
-(s/def ::local-name (s/and simple-symbol? #(not= '& %)))
-
 (defn reduce-> [init reduce-fn coll]
   (reduce reduce-fn init coll))
 
 (defn reduce-kv-> [init reduce-fn coll]
   (reduce-kv reduce-fn init coll))
+
+(s/def ::local-name (s/and simple-symbol? #(not= '& %)))
 
 ;; some.ns or "npm" package
 (s/def ::lib
@@ -55,12 +54,6 @@
     :key #{:rename}
     :value (s/map-of simple-symbol? simple-symbol?)))
 
-#_(defn check [spec form]
-    (s/explain spec form)
-    (pprint (s/conform spec form)))
-
-;; (check ::as '[:as foo])
-
 ;; :require
 
 (s/def ::require-opt
@@ -91,16 +84,6 @@
       :flags
       (s/* #{:reload :reload-all})
       )))
-
-(comment
-  (check ::ns-require
-    '(:require
-       just.a.sym
-       [goog.string :as gstr]
-       [some.foo :as foo :refer (x y z) :refer-macros (foo bar) :rename {x c}]
-       ["react" :as react]
-       :reload)))
-
 ;; :import
 
 (s/def ::import
@@ -120,14 +103,6 @@
       :imports
       (s/+ ::import))))
 
-(comment
-  (check ::ns-import
-    '(:import
-       that.Class
-       [another Foo Bar]
-       [just.Single]
-       )))
-
 ;; :refer-clojure
 (s/def ::refer-clojure-opt
   (s/alt
@@ -142,12 +117,6 @@
       #{:refer-clojure}
       :opts
       (s/+ ::refer-clojure-opt))))
-
-(comment
-  (check ::ns-refer-clojure
-    '(:refer-clojure
-       :exclude (assoc)
-       :rename {conj jnoc})))
 
 (s/def ::use-macro
   (s/spec
@@ -166,10 +135,6 @@
       #{:use-macros}
       :uses
       (s/+ ::use-macro))))
-
-(comment
-  (check ::ns-use-macros
-    '(:use-macros [macro-use :only (that-one)])))
 
 (s/def ::use-opt
   (s/alt
@@ -192,10 +157,6 @@
       #{:use}
       :uses
       (s/+ ::use))))
-
-(comment
-  (check ::ns-use
-    '(:use [something.fancy :only [everything] :rename {everything nothing}])))
 
 ;; :ns
 
