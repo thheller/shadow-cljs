@@ -56,6 +56,7 @@
         module-opts
         (-> opts
             (select-keys [:prepend :append :prepend-js :append-js])
+            (update :prepend #(str "#!/usr/bin/env node\n" %))
             (update :append-js str "\n" main-call))]
 
     (-> state

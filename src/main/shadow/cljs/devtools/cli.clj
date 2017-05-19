@@ -32,7 +32,7 @@
    ["-b" "--build BUILD-ID" "use build defined in shadow-cljs.edn"
     :id ::build
     :parse-fn keyword]
-   [nil "--npm" "run in npm compatibility mode"
+   [nil "--npm" "internal, used by the shadow-cljs npm package"
     :id ::npm]
 
    ;; generic
