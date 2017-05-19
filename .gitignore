@@ -13,6 +13,7 @@ pom.xml.asc
 *.jar
 *.class
 /.cljs-cache
+/.shadow-cljs
 /.cljs-repl
 /.cljs_node_repl
 /.idea

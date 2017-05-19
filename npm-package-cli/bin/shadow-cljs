@@ -15,8 +15,12 @@ function fileOlderThan(a, b) {
 
 var java_args = [];
 
+if (!fs.existsSync(".shadow-cljs")) {
+  fs.mkdirSync(".shadow-cljs");
+}
+
 if (fs.existsSync("project.clj")) {
-  const classpathCacheFile = path.resolve("node_modules", "shadow-cljs", "lein-classpath.txt");
+  const classpathCacheFile = path.resolve(".shadow-cljs", "lein-classpath.txt");
 
   var classpath = [];
   if (!fs.existsSync(classpathCacheFile) || fileOlderThan("project.clj", classpathCacheFile)) {
