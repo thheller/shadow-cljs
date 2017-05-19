@@ -39,11 +39,13 @@ if (fs.existsSync("project.clj")) {
 }
 
 if (java_args.length == 0) {
-  console.log("shadow-cljs - using package.json");
+  const version = require("./version.json");
+  console.log("shadow-cljs - using package.json", version);
 
   java_args = [
     "-jar",
-    path.resolve(__dirname, "shadow-cljs.jar"),
+    require("shadow-cljs-jar/path"), // this just exports the path to the actual launcher jar
+    version,
     "--npm"
   ];
 }

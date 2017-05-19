@@ -229,35 +229,41 @@
        (finally
          (rt/stop-all app))))))
 
+(defn get-build-config [id]
+  {:pre [(keyword? id)]}
+  (config/get-build! id))
+
+(defn dev*
+  [build-config {:keys [autobuild] :as opts}]
+  (let [{:keys [worker out] :as app}
+        (start opts)]
+
+    (try
+      (-> worker
+          (worker/watch out)
+          (worker/configure build-config)
+          (cond->
+            autobuild
+            (worker/start-autobuild)
+
+            (not autobuild)
+            (worker/compile))
+          (worker/sync!)
+          (stdin-takeover!))
+
+      :done
+      (catch Exception e
+        (e/user-friendly-error e))
+
+      (finally
+        (rt/stop-all app)))))
+
 (defn dev
   ([build]
    (dev build {:autobuild true}))
   ([build {:keys [autobuild] :as opts}]
-   (let [build-config
-         (config/get-build! build)
-
-         {:keys [worker out] :as app}
-         (start opts)]
-
-     (try
-       (-> worker
-           (worker/watch out)
-           (worker/configure build-config)
-           (cond->
-             autobuild
-             (worker/start-autobuild)
-
-             (not autobuild)
-             (worker/compile))
-           (worker/sync!)
-           (stdin-takeover!))
-
-       :done
-       (catch Exception e
-         (e/user-friendly-error e))
-
-       (finally
-         (rt/stop-all app))))))
+   (let [build-config (config/get-build! build)]
+     (dev* build-config opts))))
 
 ;; FIXME: need to enable REPL to use dev and stdin-takeover
 (defn dev-watch* [{:keys [verbose] :as build-config}]
@@ -284,7 +290,7 @@
   (util/print-build-complete build-info config)
   state)
 
-(defn once* [build-config]
+(defn once* [build-config opts]
   (try
     (util/print-build-start build-config)
     (-> (comp/init :dev build-config)
@@ -300,81 +306,88 @@
   ([build]
    (once build {}))
   ([build opts]
-   (let [build-config
-         (config/get-build! build)]
-
-     (once* build-config)
+   (let [build-config (config/get-build! build)]
+     (once* build-config opts)
      )))
+
+(defn release*
+  [build-config {:keys [debug source-maps pseudo-names] :as opts}]
+  (try
+    (util/print-build-start build-config)
+    (-> (comp/init :release build-config)
+        (cond->
+          (or debug source-maps)
+          (cljs/enable-source-maps)
+
+          (or debug pseudo-names)
+          (cljs/merge-compiler-options
+            {:pretty-print true
+             :pseudo-names true}))
+        (comp/compile)
+        (comp/optimize)
+        (comp/flush)
+        (build-finish build-config))
+    :done
+    (catch Exception e
+      (e/user-friendly-error e))))
 
 (defn release
   ([build]
    (release build {}))
-  ([build {:keys [debug source-maps pseudo-names] :as opts}]
-   (let [build-config
-         (config/get-build! build)]
+  ([build opts]
+   (let [build-config (config/get-build! build)]
+     (release* build-config opts))))
 
-     (try
-       (util/print-build-start build-config)
-       (-> (comp/init :release build-config)
-           (cond->
-             (or debug source-maps)
-             (cljs/enable-source-maps)
+(defn check* [{:keys [id] :as build-config} opts]
+  (try
+    ;; FIXME: pretend release mode so targets don't need to account for extra mode
+    ;; in most cases we want exactly :release but not sure that is true for everything?
+    (-> (comp/init :release build-config)
+        ;; using another dir because of source maps
+        ;; not sure :release builds want to enable source maps by default
+        ;; so running check on the release dir would cause a recompile which is annoying
+        ;; but check errors are really useless without source maps
+        (as-> X
+          (assoc X :cache-dir (io/file (:work-dir X) "shadow-cache" (name id) "check")))
+        (cljs/enable-source-maps)
+        ;; need CLJS-2019 to be useful
+        (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
+        (comp/compile)
+        (comp/check))
+    :done
+    (catch Exception e
+      (e/user-friendly-error e))))
 
-             (or debug pseudo-names)
-             (cljs/merge-compiler-options
-               {:pretty-print true
-                :pseudo-names true}))
-           (comp/compile)
-           (comp/optimize)
-           (comp/flush)
-           (build-finish build-config))
-       :done
-       (catch Exception e
-         (e/user-friendly-error e))))))
+(defn check
+  ([build]
+    (check build {}))
+  ([build opts]
+   (let [build-config (config/get-build! build)]
+     (check* build-config opts)
+     )))
 
-(defn check [build]
-  (let [build-config
-        (config/get-build! build)]
+(comment
 
-    (try
-      ;; FIXME: pretend release mode so targets don't need to account for extra mode
-      ;; in most cases we want exactly :release but not sure that is true for everything?
-      (-> (comp/init :release build-config)
-          ;; using another dir because of source maps
-          ;; not sure :release builds want to enable source maps by default
-          ;; so running check on the release dir would cause a recompile which is annoying
-          ;; but check errors are really useless without source maps
-          (as-> X
-            (assoc X :cache-dir (io/file (:work-dir X) "shadow-cache" (name build) "check")))
-          (cljs/enable-source-maps)
-          ;; need CLJS-2019 to be useful
-          (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
-          (comp/compile)
-          (comp/check))
-      :done
-      (catch Exception e
-        (e/user-friendly-error e)))))
+  (defn test-setup []
+    (-> (cljs/init-state)
+        (cljs/enable-source-maps)
+        (as-> X
+          (cljs/merge-build-options X
+            {:public-dir (io/file (:work-dir X) "shadow-test")
+             :public-path "target/shadow-test"}))
+        (cljs/find-resources-in-classpath)
+        ))
 
-(defn test-setup []
-  (-> (cljs/init-state)
-      (cljs/enable-source-maps)
-      (as-> X
-        (cljs/merge-build-options X
-          {:public-dir (io/file (:work-dir X) "shadow-test")
-           :public-path "target/shadow-test"}))
-      (cljs/find-resources-in-classpath)
-      ))
+  (defn test-all []
+    (-> (test-setup)
+        (node/execute-all-tests!))
+    ::test-all)
 
-(defn test-all []
-  (-> (test-setup)
-      (node/execute-all-tests!))
-  ::test-all)
-
-(defn test-affected
-  [source-names]
-  {:pre [(seq source-names)
-         (not (string? source-names))
-         (every? string? source-names)]}
-  (-> (test-setup)
-      (node/execute-affected-tests! source-names))
-  ::test-affected)
+  (defn test-affected
+    [source-names]
+    {:pre [(seq source-names)
+           (not (string? source-names))
+           (every? string? source-names)]}
+    (-> (test-setup)
+        (node/execute-affected-tests! source-names))
+    ::test-affected))

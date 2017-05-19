@@ -1,5 +1,5 @@
 {
-  "name": "shadow-cljs",
+  "name": "shadow-cljs-jar",
   "version": "0.3.0",
   "description": "ClojureScript for JS tools",
   "author": "Thomas Heller",
@@ -16,7 +16,7 @@
     "clojurescript",
     "cljs"
   ],
-  "bin": {
-    "shadow-cljs": "./bin/shadow-cljs"
+  "scripts":{
+    "prepublish":"lein uberjar && cp target/shadow-cljs-jar-0.1.0-standalone.jar bin/shadow-cljs.jar"
   }
 }

@@ -42,44 +42,43 @@
   (let [{:keys [options summary errors] :as opts}
         (cli/parse-opts args cli-spec)]
 
-    (cond
-      (or (:help options) (seq errors))
+
+    (if (or (:help options) (seq errors))
       (help opts)
 
-      ;; specific build
-      (:build options)
-      (let [{:keys [check build dev once release]} options]
-        (cond
-          release
-          (api/release build options)
-
-          once
-          (api/once build options)
-
-          check
-          (api/check build)
-
-          :else
-          (api/dev build (merge default-opts options))
-          ))
-
-      ;; npm mode
-      (:npm options)
-      (let [{:keys [entries once]}
-            options
+      (let [{:keys [build npm]} options
 
             build-config
-            (merge (select-keys options [:entries :verbose :runtime])
-                   {:id :npm-module :target :npm-module})]
+            (cond
+              (keyword? build)
+              (api/get-build-config build)
 
-        (if once
-          (api/once* build-config)
-          (api/dev-watch* build-config)
-          ))
+              npm ;; ad-hoc npm config
+              (let [{:keys [entries once]} options]
+                (merge (select-keys options [:entries :verbose :runtime])
+                       {:id :npm-module :target :npm-module}))
 
-      :else
-      (do (println "Please use specify a build or use --npm")
-          (help opts)))))
+              :else
+              nil)]
+
+        (if-not (some? build-config)
+          (do (println "Please use specify a build or use --npm")
+              (help opts))
+
+          (let [{:keys [check dev once release]} options]
+            (cond
+              release
+              (api/release* build-config options)
+
+              once
+              (api/once* build-config options)
+
+              check
+              (api/check* build-config options)
+
+              :else
+              (api/dev* build-config (merge default-opts options))
+              )))))))
 
 (defn -main [& args]
   (apply main args))

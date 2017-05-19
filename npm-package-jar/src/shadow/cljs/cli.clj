@@ -19,21 +19,24 @@
         :corrupted (when error (println (.getMessage error)))
         nil))))
 
-(def devtools-version "1.0.20170518")
-
 (def default-config
   {"dependencies"
    []
    "source-paths"
    ["src-cljs"]})
 
-(defn -main [& args]
+
+;; the shadow-cljs clojars version must be the first argument to this
+;; this allows the shadow-cljs npm packages to be updated frequently without
+;; requiring a new version of this launcher, since this is an addition 8MB
+;; that will only require changes very infrequently
+
+(defn -main [version & args]
   ;; this is purely configured through package.json, shouldn't look at args
   (let [package-json
         (io/file "package.json")
 
-        {:strs [repositories dependencies version source-paths]
-         :or {version devtools-version}
+        {:strs [repositories dependencies source-paths]
          :as config}
         (or (when (.exists package-json)
               (-> (slurp package-json)
@@ -51,6 +54,9 @@
 
     (println "shadow-cljs - loading dependencies")
 
+    ;; FIXME: resolve conflicts?
+    ;; the uberjar contains the dependencies listed in project.clj
+    ;; those should be excluded from everything
     (pom/add-dependencies
       :coordinates
       coords
