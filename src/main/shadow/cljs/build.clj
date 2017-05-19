@@ -27,7 +27,8 @@
            [java.util.concurrent Executors Future ExecutorService]
            (java.security MessageDigest)
            (javax.xml.bind DatatypeConverter)
-           (cljs.tagged_literals JSValue)))
+           (cljs.tagged_literals JSValue)
+           (java.util.zip ZipException)))
 
 (defn compiler-state? [x]
   (util/compiler-state? x))
@@ -289,31 +290,41 @@ normalize-resource-name
   [state path]
   {:pre [(util/compiler-state? state)]}
   (let [file (io/file path)
-        abs-path (.getCanonicalPath file)
-        jar-file (JarFile. file)
-        last-modified (.lastModified file)
-        entries (.entries jar-file)
-        slurp-entry (fn [entry]
-                      (with-open [in (.getInputStream jar-file entry)]
-                        (slurp in)))]
-    (loop [result (transient {})]
-      (if (not (.hasMoreElements entries))
-        (persistent! result)
-        (let [^JarEntry jar-entry (.nextElement entries)
-              name (.getName jar-entry)]
-          (if (or (not (is-cljs-resource? name))
-                  (should-ignore-resource? state name))
-            (recur result)
-            (let [url (URL. (str "jar:file:" abs-path "!/" name))
-                  rc (inspect-resource state
-                       {:name (normalize-resource-name name)
-                        :from-jar true
-                        :source-path path
-                        :last-modified last-modified
-                        :url url
-                        :input (atom (slurp-entry jar-entry))})]
-              (recur (assoc! result name rc))
-              )))))))
+        abs-path (.getCanonicalPath file)]
+
+    (try
+      (let [
+            jar-file (JarFile. file)
+            last-modified (.lastModified file)
+            entries (.entries jar-file)
+            slurp-entry (fn [entry]
+                          (with-open [in (.getInputStream jar-file entry)]
+                            (slurp in)))]
+        (loop [result (transient {})]
+          (if (not (.hasMoreElements entries))
+            (persistent! result)
+            (let [^JarEntry jar-entry (.nextElement entries)
+                  name (.getName jar-entry)]
+              (if (or (not (is-cljs-resource? name))
+                      (should-ignore-resource? state name))
+                (recur result)
+                (let [url (URL. (str "jar:file:" abs-path "!/" name))
+                      rc (inspect-resource state
+                           {:name (normalize-resource-name name)
+                            :from-jar true
+                            :source-path path
+                            :last-modified last-modified
+                            :url url
+                            :input (atom (slurp-entry jar-entry))})]
+                  (recur (assoc! result name rc))
+                  ))))))
+      (catch ZipException e
+        (util/log state {:type :bad-jar :path abs-path})
+        ;; just pretend its empty
+        {})
+      (catch Exception e
+        (throw (ex-info (str "failed to generate jar manifest for file: " abs-path) {:abs-path abs-path} e)))
+      )))
 
 (defn write-jar-manifest [file manifest]
   (let [data (->> (vals manifest)
