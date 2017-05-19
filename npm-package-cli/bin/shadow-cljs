@@ -63,13 +63,12 @@ function run(java_cmd) {
 var result = run("java");
 
 // assume java didn't exist, try node-jre
-if (result.error) {
+if (result.error && result.error.errno == "ENOENT") {
   console.log("shadow-cljs - java not found, trying node-jre");
   try {
     var jre = require('node-jre');
     run(jre.driver());
   } catch (err) {
-    console.log(err);
     console.log("please install a java sdk or 'npm install node-jre'");
   }
 }
