@@ -172,8 +172,6 @@
         (js/console.log "REPL client error" err)))
     ))
 
-(prn [:node-repl env/enabled])
-
 (when env/enabled
   (ws-close) ;; if this is reloaded, reconnect the socket
   (ws-connect))

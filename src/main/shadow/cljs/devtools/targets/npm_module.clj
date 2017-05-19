@@ -82,7 +82,7 @@
          (into {}))
     ))
 
-(defn src-suffix [{:keys [build-sources] :as state} {:keys [ns provides] :as src}]
+(defn src-suffix [{:keys [build-sources] :as state} mode {:keys [ns provides] :as src}]
   ;; export the shortest name always, some goog files have multiple provides
   (let [export
         (->> provides
@@ -93,7 +93,7 @@
 
     ;; emit all constants into ./cljs.core.js
     ;; FIXME: lazy, create the proper cljs.core.constants.js
-    (str (when (= ns 'cljs.core)
+    (str (when (and (= :release mode) (= ns 'cljs.core))
            (let [table (make-constant-table state)]
              (with-out-str
                (cljs-comp/emit-constants-table table))))
@@ -104,13 +104,14 @@
   (str "var CLJS_ENV = {};\n"
        "var CLJS_GLOBAL = process.browser ? window : global;\n"
        ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
-       "CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
+       "var CLOSURE_DEFINES = CLJS_ENV.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
        "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
        "var goog = CLJS_ENV.goog = {};\n"
        @(get-in state [:sources "goog/base.js" :input])
        (slurp (io/resource "shadow/cljs/devtools/targets/npm_module_goog_overrides.js"))
-       "module.exports = CLJS_ENV;\n"
+       "\nmodule.exports = CLJS_ENV;\n"
        ))
+
 
 (defn flush
   [{::comp/keys [build-info] :as state} mode
@@ -146,45 +147,51 @@
               target
               (io/file output-dir flat-name)]
 
-          ;; eventually should skip emitting some files since source-map generation is kinda expensive
-          #_(when (or (not (.exists target))
-                      (>= last-modified (.lastModified target))))
+          (when (or (:release mode)
+                    (contains? (:compiled build-info) name)
+                    (not (.exists target))
+                    (>= last-modified (.lastModified target)))
 
-          (let [prefix
-                (src-prefix state src)
+            (let [prefix
+                  (src-prefix state src)
 
-                suffix
-                (src-suffix state src)
+                  suffix
+                  (src-suffix state mode src)
 
-                sm-text
-                (when source-map
-                  (let [sm-opts
-                        {:lines (output/line-count output)
-                         :file flat-name
-                         :preamble-line-count (output/line-count prefix)
-                         :sources-content [@input]}
+                  sm-text
+                  (when source-map
+                    (let [sm-opts
+                          {:lines (output/line-count output)
+                           :file flat-name
+                           :preamble-line-count (output/line-count prefix)
+                           :sources-content [@input]}
 
-                        source-map-v3
-                        (-> {flat-name source-map}
-                            (sm/encode* sm-opts)
-                            (assoc "sources" [name]))
+                          source-map-v3
+                          (-> {flat-name source-map}
+                              (sm/encode* sm-opts)
+                              (assoc "sources" [name]))
 
-                        source-map-json
-                        (json/write-str source-map-v3)
+                          source-map-json
+                          (json/write-str source-map-v3)
 
-                        b64
-                        (-> (Base64/getEncoder)
-                            (.encodeToString (.getBytes source-map-json)))]
+                          b64
+                          (-> (Base64/getEncoder)
+                              (.encodeToString (.getBytes source-map-json)))]
 
-                    (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n")
-                    ))
+                      (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n")
+                      ))
 
-                output
-                (str prefix output suffix sm-text)]
+                  output
+                  (str prefix output suffix sm-text)]
 
-            (spit target output))))))
+              (spit target output)))))))
 
   state)
+
+(defn release-mode [state config]
+  (prn [:release-mode])
+  (update state :compiler-options merge {:optimize-constants true
+                                         :emit-constants true}))
 
 (defn init [state mode {:keys [runtime entries] :as config}]
   (let [entries
@@ -201,23 +208,17 @@
     (-> state
         (assoc :source-map-comment false
                ::comp/skip-optimize true)
-        ;; always emit constants as an experiment for now
-        ;; see if we can get way with not having a :release mode at all
-        ;; since that usually involved closure
-        ;; don't care about the goog.require('cljs.core.constants');
-        ;; since goog.require is a noop anyways
-        #_(cond->
-            (= :release mode)
-            (->))
-
-        (update :compiler-options merge {:optimize-constants true
-                                         :emit-constants true})
 
         (cljs/configure-module :default entries {})
 
         (cond->
           (= :dev mode)
-          (repl/setup))
+          (repl/setup)
+
+          ;; since we don't use closure set any
+          ;; cljs options that could benefit us
+          (= :release mode)
+          (release-mode config))
 
         (cond->
           (and (:worker-info state) (= :dev mode) (= :node runtime))

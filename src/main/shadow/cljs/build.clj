@@ -992,6 +992,8 @@ normalize-resource-name
 (def cache-affecting-options
   [:static-fns
    :elide-asserts
+   :optimize-constants
+   :emit-constants
    :source-map])
 
 (defn load-cached-cljs-resource
