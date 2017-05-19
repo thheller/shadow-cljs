@@ -23,10 +23,9 @@
     (let [cache-path (path/resolve ".shadow-cljs" "lein-classpath.txt")
 
           lein-available?
-          (if (and (fs/existsSync cache-path)
+          (or (and (fs/existsSync cache-path)
                    (not (file-older-than "project.clj" cache-path)))
-            true
-            (lein-classpath-gen cache-path))]
+              (lein-classpath-gen cache-path))]
 
       (when lein-available?
         (let [cp (-> (fs/readFileSync cache-path)

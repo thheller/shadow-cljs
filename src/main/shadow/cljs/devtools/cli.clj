@@ -59,7 +59,8 @@
         config
         {:id :npm
          :target :npm-module
-         :runtime :node}]
+         :runtime :node
+         :launched-by-cli true}]
 
     (if-not (.exists pkg-file)
       config

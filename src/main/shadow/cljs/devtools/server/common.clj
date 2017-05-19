@@ -1,5 +1,6 @@
 (ns shadow.cljs.devtools.server.common
   (:require [shadow.cljs.devtools.server.fs-watch :as fs-watch]
+            [shadow.cljs.devtools.server.js-watch :as js-watch]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.cljs.devtools.server.sass-worker :as sass-worker]
@@ -30,84 +31,93 @@
 
 (defn app
   [{:keys [css-packages] :as config}]
-  (-> {:edn-reader
-       {:depends-on []
-        :start
-        (fn []
-          (fn [input]
-            (cond
-              (instance? String input)
-              (edn/read-string input)
-              (instance? InputStream input)
-              (edn/read input)
-              :else
-              (throw (ex-info "dunno how to read" {:input input})))))
-        :stop (fn [reader])}
+  (let [watch-mode
+        :clj #_ (get config :watch true)]
 
-       :transit-str
-       {:depends-on []
-        :start
-        (fn []
-          (fn [data]
-            (let [out (ByteArrayOutputStream. 4096)
-                  w (transit/writer out :json)]
-              (transit/write w data)
-              (.toString out)
-              )))
+    (-> {:edn-reader
+         {:depends-on []
+          :start
+          (fn []
+            (fn [input]
+              (cond
+                (instance? String input)
+                (edn/read-string input)
+                (instance? InputStream input)
+                (edn/read input)
+                :else
+                (throw (ex-info "dunno how to read" {:input input})))))
+          :stop (fn [reader])}
 
-        :stop (fn [x])}
+         :transit-str
+         {:depends-on []
+          :start
+          (fn []
+            (fn [data]
+              (let [out (ByteArrayOutputStream. 4096)
+                    w (transit/writer out :json)]
+                (transit/write w data)
+                (.toString out)
+                )))
 
-       :executor
-       {:depends-on []
-        :start
-        (fn []
-          (let [n-threads (.. Runtime getRuntime availableProcessors)]
-            (Executors/newFixedThreadPool n-threads)))
-        :stop
-        (fn [ex]
-          (.shutdown ex))}
+          :stop (fn [x])}
 
-       :system-bus
-       {:depends-on []
-        :start sys-bus/start
-        :stop sys-bus/stop}
+         :executor
+         {:depends-on []
+          :start
+          (fn []
+            (let [n-threads (.. Runtime getRuntime availableProcessors)]
+              (Executors/newFixedThreadPool n-threads)))
+          :stop
+          (fn [ex]
+            (.shutdown ex))}
 
-       :config-watch
-       {:depends-on [:system-bus]
-        :start config-watch/start
-        :stop config-watch/stop}
-       }
+         :system-bus
+         {:depends-on []
+          :start sys-bus/start
+          :stop sys-bus/stop}
 
-      (cond->
-        (get config :watch true)
-        (merge {:cljs-watch
-                {:depends-on [:system-bus]
-                 :start (fn [system-bus]
-                          (fs-watch/start system-bus ::sys-msg/cljs-watch
-                            (get-classpath-directories)
-                            ["cljs" "cljc" "clj" "js"]))
-                 :stop fs-watch/stop}})
+         :config-watch
+         {:depends-on [:system-bus]
+          :start config-watch/start
+          :stop config-watch/stop}
+         }
 
-        css-packages
-        (merge {:sass-watch
-                {:depends-on [:system-bus]
-                 :start
-                 (fn [system-bus]
-                   (let [dirs (->> (mapcat :modules css-packages)
-                                   (map #(-> % (io/file) (.getParentFile) (.getCanonicalFile)))
-                                   (distinct)
-                                   (into []))]
-                     (fs-watch/start system-bus
-                       ::sys-msg/sass-watch
-                       dirs
-                       ["scss" "sass"])))
-                 :stop fs-watch/stop}
+        (cond->
+          (= :js watch-mode)
+          (merge {:js-watch
+                  {:depends-on [:system-bus]
+                   :start js-watch/start
+                   :stop js-watch/stop}})
 
-                :sass-worker
-                {:depends-on [:system-bus]
-                 ;; FIXME: should maybe be using :config instead?
-                 :start #(sass-worker/start %1 css-packages)
-                 :stop sass-worker/stop}
-                })
+          (= :clj watch-mode)
+          (merge {:cljs-watch
+                  {:depends-on [:system-bus]
+                   :start (fn [system-bus]
+                            (fs-watch/start system-bus ::sys-msg/cljs-watch
+                              (get-classpath-directories)
+                              ["cljs" "cljc" "clj" "js"]))
+                   :stop fs-watch/stop}})
 
-        )))
+          css-packages
+          (merge {:sass-watch
+                  {:depends-on [:system-bus]
+                   :start
+                   (fn [system-bus]
+                     (let [dirs (->> (mapcat :modules css-packages)
+                                     (map #(-> % (io/file) (.getParentFile) (.getCanonicalFile)))
+                                     (distinct)
+                                     (into []))]
+                       (fs-watch/start system-bus
+                         ::sys-msg/sass-watch
+                         dirs
+                         ["scss" "sass"])))
+                   :stop fs-watch/stop}
+
+                  :sass-worker
+                  {:depends-on [:system-bus]
+                   ;; FIXME: should maybe be using :config instead?
+                   :start #(sass-worker/start %1 css-packages)
+                   :stop sass-worker/stop}
+                  })
+
+          ))))

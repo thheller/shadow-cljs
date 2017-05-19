@@ -14,11 +14,8 @@
             [shadow.repl :as r])
   (:import (java.io PushbackReader StringReader)))
 
-(defn start [opts]
-  (let [config
-        {}
-
-        cli-app
+(defn start [config]
+  (let [cli-app
         (merge
           (common/app config)
           {:worker
@@ -339,7 +336,7 @@
 
 (defn check
   ([build]
-    (check build {}))
+   (check build {}))
   ([build opts]
    (let [build-config (config/get-build! build)]
      (check* build-config opts)
