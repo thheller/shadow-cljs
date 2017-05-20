@@ -157,7 +157,7 @@
                                                      :config config))))
 
      (-> init-state
-         (assoc :cache-dir (io/file work-dir "shadow-cache" (name id) (name mode))
+         (assoc :cache-dir (io/file work-dir "shadow-cljs" (name id) (name mode))
                 ::stage :init
                 ::config config
                 ::target-fn target-fn

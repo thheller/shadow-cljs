@@ -78,7 +78,7 @@
         (assoc :public-dir (io/file public-dir))
 
         (not public-dir)
-        (assoc :public-dir (io/file work-dir "shadow-cache" (name id) (name mode))))))
+        (assoc :public-dir (io/file work-dir "shadow-cljs" (name id) (name mode))))))
 
 ;; removed based on feedback, too much magic ... too little value.
 ;; still might re-use some parts later
