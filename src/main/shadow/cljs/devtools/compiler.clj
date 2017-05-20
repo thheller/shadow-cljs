@@ -4,7 +4,8 @@
             [clojure.spec.alpha :as s]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.cljs-specs]))
+            [shadow.cljs.devtools.cljs-specs]
+            [shadow.cljs.closure :as closure]))
 
 (defn extract-build-info [state]
   (let [source->module
@@ -231,6 +232,7 @@
    :post [(cljs/compiler-state? %)]}
   (-> state
       (process-stage :check-prepare true)
+      (cljs/add-closure-configurator closure/closure-register-cljs-protocol-properties)
       (cljs/closure-check)
       (process-stage :check-finish true)))
 

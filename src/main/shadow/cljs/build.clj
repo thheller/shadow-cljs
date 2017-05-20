@@ -2447,7 +2447,6 @@ enable-emit-constants [state]
          :logger
          stdout-log}
 
-        (add-closure-configurator closure/closure-register-cljs-protocol-properties)
         (add-closure-configurator closure/closure-add-replace-constants-pass)
         (add-closure-configurator closure/closure-add-variable-maps)
         )))
