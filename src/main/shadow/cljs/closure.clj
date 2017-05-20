@@ -162,7 +162,7 @@
   (when-some [data (read-variable-map state "closure.variable.map")]
     (.setInputVariableMap co data)))
 
-(defn js-error-xf [state ^com.google.javascript.jscomp.Compiler cc]
+(defn js-error-xf [{:keys [public-dir] :as state} ^com.google.javascript.jscomp.Compiler cc]
   (comp
     ;; remove some annoying UNDECLARED_VARIABLES in cljs/core.cljs
     ;; these are only used in self-hosted but I don't want to provide externs for them in browser builds
@@ -187,17 +187,38 @@
               (.getCharno err)
 
               mapping
-              (.getSourceMapping cc source-name line column)]
+              (.getSourceMapping cc source-name line column)
+
+              src
+              (when mapping
+                (let [src-name (.getOriginalFile mapping)]
+                  (get-in state [:sources src-name])))]
+
+          (doto sb
+            (.append (.-description err))
+            (.append "\n"))
+
+          (.append sb "Original: ")
 
           (when mapping
-            (doto sb
-              (.append (.getOriginalFile mapping))
-              (.append "[")
-              (.append (.getLineNumber mapping))
-              (.append ":")
-              (.append (.getColumnPosition mapping))
-              (.append "]")
-              (.append " (compiled to ")))
+            (let [{:keys [file url]} src
+
+                  src-loc
+                  (or (when file (.getAbsolutePath file))
+                      (let [x (str url)]
+                        (if-let [idx (str/index-of x ".m2")]
+                          (str "~/" (subs x idx))
+                          x))
+                      (.getOriginalFile mapping))]
+
+              (doto sb
+                (.append src-loc)
+                (.append " [")
+                (.append (.getLineNumber mapping))
+                (.append ":")
+                (.append (.getColumnPosition mapping))
+                (.append "]\n")
+                (.append "Compiled to: "))))
 
           (doto sb
             (.append source-name)
@@ -205,14 +226,7 @@
             (.append line)
             (.append ":")
             (.append column)
-            (.append "]"))
-
-          (when mapping
-            (.append sb ")"))
-
-          (doto sb
-            (.append "\n\t")
-            (.append (.-description err)))
+            (.append "]\n"))
 
           (-> {:line line
                :column column
