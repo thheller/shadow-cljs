@@ -2430,11 +2430,11 @@ enable-emit-constants [state]
          :work-dir work-dir
 
          :manifest-cache-dir
-         (let [dir (io/file work-dir "shadow-build" "jar-manifest")]
+         (let [dir (io/file work-dir "shadow-cljs" "jar-manifest")]
            (io/make-parents dir)
            dir)
 
-         :cache-dir (io/file work-dir "shadow-build" "cljs-cache")
+         :cache-dir (io/file work-dir "shadow-cljs" "cljs-cache")
          :cache-level :all
 
          :public-dir (io/file "public" "js")

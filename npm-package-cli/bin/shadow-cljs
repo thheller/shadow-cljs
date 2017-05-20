@@ -15,12 +15,20 @@ function fileOlderThan(a, b) {
 
 var java_args = [];
 
-if (!fs.existsSync(".shadow-cljs")) {
-  fs.mkdirSync(".shadow-cljs");
-}
-
 if (fs.existsSync("project.clj")) {
-  const classpathCacheFile = path.resolve(".shadow-cljs", "lein-classpath.txt");
+  const cacheDir = path.resolve("target", "shadow-cljs");
+
+  // lein doesn't mkdir on lein classpath target/shadow-cljs/lein-classpath.txt
+  const targetDir = path.resolve("target");
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir);
+  }
+
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir);
+  }
+
+  const classpathCacheFile = path.resolve(cacheDir, "lein-classpath.txt");
 
   var classpath = [];
   if (!fs.existsSync(classpathCacheFile) || fileOlderThan("project.clj", classpathCacheFile)) {
