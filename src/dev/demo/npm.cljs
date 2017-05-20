@@ -1,4 +1,4 @@
-(ns demo.npm)
+(ns demo.npm
+  (:require [demo.ns]))
 
-(js/console.log "demo.npm" {:hello "world"})
 

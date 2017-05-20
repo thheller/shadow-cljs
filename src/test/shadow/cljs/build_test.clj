@@ -12,10 +12,14 @@
             [clojure.repl :refer (pst)]
             [cljs.analyzer :as a]
             [clojure.set :as set]
-            [cljs.closure :as closure]
+            [cljs.closure :as cljs-closure]
             [cljs.analyzer.api :as ana-api]
             [shadow.cljs.output :as output]
-            [shadow.cljs.ns-form :as ns-form])
+            [shadow.cljs.ns-form :as ns-form]
+            [shadow.cljs.devtools.compiler :as comp]
+            [shadow.cljs.devtools.api :as api]
+            [shadow.cljs.devtools.targets.browser :as browser]
+            [shadow.cljs.closure :as closure])
   (:import (java.util.regex Pattern)
            (java.io File ByteArrayInputStream)
            (java.net URL)
@@ -921,3 +925,43 @@
 
     (pprint externs)
     ))
+
+
+
+(defn optimize-and-rescope-process
+  [{::comp/keys [stage] :as state}]
+  (-> state
+      (browser/process)
+      (cond->
+        (= :init stage)
+        (cljs/add-closure-configurator
+          (fn [cc co state]
+            (.setRenamePrefixNamespace co "$CLJS")
+            )))))
+
+(deftest test-optimize-and-rescope
+  (api/release*
+    '{:id :optimize-and-rescope
+      :target shadow.cljs.build-test/optimize-and-rescope-process
+      :public-dir "target/optimize-and-rescope"
+      :public-path "./"
+      :modules
+      {:core
+       {:entries [cljs.core]}
+       :a
+       {:entries [code-split.a]
+        :depends-on #{:core}
+        :append-js "$CLJS.set_exports(\"a\", {\"foo\":code_split.a.foo});"}
+       :b
+       {:entries [code-split.b]
+        :depends-on #{:a}
+        :append-js "$CLJS.set_exports(\"b\", {\"x\":code_split.b.x});"
+        :append "module.exports = $CLJS.exports[\"b\"];"}}
+      :compiler-options
+      {:externs ["code_split/externs.js"]}}
+    {})
+
+  (println (slurp "target/optimize-and-rescope/a.js"))
+  (println (slurp "target/optimize-and-rescope/b.js"))
+  :done
+  )
