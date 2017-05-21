@@ -2438,7 +2438,7 @@ enable-emit-constants [state]
          :cache-level :all
 
          :output-dir (io/file "public" "js")
-         :public-path "js"
+         :asset-path "js"
 
          :n-compile-threads (.. Runtime getRuntime availableProcessors)
 

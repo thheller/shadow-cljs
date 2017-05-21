@@ -14,7 +14,14 @@
 (s/def ::entries
   (s/coll-of simple-symbol? :kind vector?))
 
+(s/def ::output-dir shared/non-empty-string?)
+(s/def ::asset-path shared/non-empty-string?)
+
+;; OLD, only allowed in config so they don't break.
+;; rewritten to :output-dir and :asset-path
+(s/def ::public-dir shared/non-empty-string?)
 (s/def ::public-path shared/non-empty-string?)
+;; ---
 
 ;; will just be added as is (useful for comments, license, ...)
 (s/def ::prepend string?)
@@ -52,6 +59,8 @@
     :opt-un
     [::module-loader
      ::output-dir
+     ::asset-path
+     ::public-dir
      ::public-path]
     ))
 
@@ -63,7 +72,7 @@
 
 (def default-browser-config
   {:output-dir "public/js"
-   :public-path "/js"})
+   :asset-path "/js"})
 
 (defn- configure-modules
   [state mode config modules]
@@ -103,7 +112,7 @@
   (json/write-str obj :escape-slash false))
 
 ;; FIXME: assumes default module is the loader
-(defn inject-loader-callbacks [{:keys [public-path modules] :as state}]
+(defn inject-loader-callbacks [{:keys [asset-path modules] :as state}]
   (when (<= (count modules) 1)
     (throw (ex-info "cannot use module-loader with just one module" {})))
 
@@ -130,7 +139,7 @@
     ))
 
 (defn inject-loader-setup
-  [{:keys [public-path cljs-runtime-path build-modules] :as state} release?]
+  [{:keys [asset-path cljs-runtime-path build-modules] :as state} release?]
   (let [[loader-module & modules]
         build-modules
 
@@ -148,10 +157,10 @@
                     (let [foreign-uris
                           (->> foreign-files
                                (map (fn [{:keys [js-name]}]
-                                      (str public-path "/" js-name)))
+                                      (str asset-path "/" js-name)))
                                (into []))
                           mod-uri
-                          (str public-path "/" (:js-name module))]
+                          (str asset-path "/" (:js-name module))]
                       (conj foreign-uris mod-uri))
 
                     ;; :dev, never bundles foreign
@@ -159,7 +168,7 @@
                          (remove loader-sources)
                          (map (fn [src-name]
                                 (let [js-name (get-in state [:sources src-name :js-name])]
-                                  (str public-path "/" cljs-runtime-path "/" js-name))))
+                                  (str asset-path "/" cljs-runtime-path "/" js-name))))
                          (into [])))]
               (assoc m name uris)))
           {}
@@ -187,13 +196,13 @@
 
 (defn init
   [state mode {:keys [modules module-loader] :as config}]
-  (let [{:keys [output-dir public-dir public-path bundle-foreign]}
+  (let [{:keys [output-dir asset-path bundle-foreign public-dir public-path]}
         (merge default-browser-config config)]
 
     (-> state
         (cond->
-          public-path
-          (cljs/merge-build-options {:public-path public-path})
+          asset-path
+          (cljs/merge-build-options {:asset-path asset-path})
 
           output-dir
           (cljs/merge-build-options {:output-dir (io/file output-dir)})
@@ -201,6 +210,9 @@
           ;; backwards compatibility so it doesn't break existing configs
           public-dir
           (cljs/merge-build-options {:output-dir (io/file public-dir)})
+          public-path
+          (cljs/merge-build-options {:asset-path public-path})
+
 
           bundle-foreign
           (cljs/merge-build-options {:bundle-foreign bundle-foreign}))

@@ -18,16 +18,16 @@
 
     (json/write-str closure-defines :escape-slashes false)))
 
-(defn closure-defines [{:keys [public-path cljs-runtime-path] :as state}]
+(defn closure-defines [{:keys [asset-path cljs-runtime-path] :as state}]
   (str "var CLOSURE_NO_DEPS = true;\n"
        ;; goog.findBasePath_() requires a base.js which we dont have
        ;; this is usually only needed for unoptimized builds anyways
-       "var CLOSURE_BASE_PATH = '" public-path "/" cljs-runtime-path "/';\n"
+       "var CLOSURE_BASE_PATH = '" asset-path "/" cljs-runtime-path "/';\n"
        "var CLOSURE_DEFINES = " (closure-defines-json state) ";\n"))
 
 (def goog-base-name "goog/base.js")
 
-(defn closure-defines-and-base [{:keys [public-path cljs-runtime-path] :as state}]
+(defn closure-defines-and-base [{:keys [asset-path cljs-runtime-path] :as state}]
   (let [goog-rc (get-in state [:sources goog-base-name])
         goog-base @(:input goog-rc)]
 
@@ -195,7 +195,7 @@
     ))
 
 (defn flush-unoptimized-module!
-  [{:keys [dev-inline-js output-dir public-path unoptimizable] :as state}
+  [{:keys [dev-inline-js output-dir asset-path unoptimizable] :as state}
    {:keys [default js-name prepend append sources web-worker] :as mod}]
 
   (let [inlineable-sources
@@ -232,7 +232,7 @@
                     ;; not entirely sure why we are setting the full path and just the name
                     ;; goog seems to do that
                     (str "goog.dependencies_.written[\"" js "\"] = true;\n"
-                         "goog.dependencies_.written[\"" public-path "/" js "\"] = true;")
+                         "goog.dependencies_.written[\"" asset-path "/" js "\"] = true;")
                     ))
              (str/join "\n"))
 

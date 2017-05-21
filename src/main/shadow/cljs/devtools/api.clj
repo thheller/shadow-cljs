@@ -350,7 +350,7 @@
         (as-> X
           (cljs/merge-build-options X
             {:output-dir (io/file (:work-dir X) "shadow-test")
-             :public-path "target/shadow-test"}))
+             :asset-path "target/shadow-test"}))
         (cljs/find-resources-in-classpath)
         ))
 

@@ -14,7 +14,7 @@
         se
         (.getEngineByName sem "nashorn")
 
-        public-path
+        asset-path
         "/js"
 
         output-dir
@@ -24,7 +24,7 @@
         {:keys [repl-state] :as state}
         (-> (cljs/init-state)
             (assoc :output-dir output-dir
-                   :public-path public-path)
+                   :asset-path asset-path)
             (cljs/find-resources-in-classpath)
             (repl/prepare))
 

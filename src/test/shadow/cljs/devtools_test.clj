@@ -33,7 +33,7 @@
         '{:id :loader
           :target :browser
           :public-dir "target/module-loader"
-          :public-path "/module-loader"
+          :asset-path "/module-loader"
           :module-loader true
           :modules
           {:core
@@ -62,7 +62,7 @@
         (-> (cljs/init-state)
             (cljs/merge-build-options
               {:public-dir (io/file "target" "test-snippet")
-               :public-path "/"
+               :asset-path "/"
                ;; :infer-externs true
                ;; :externs-sources [(SourceFile/fromFile (io/file "src/test/test.externs.js"))]
                })
@@ -96,7 +96,7 @@
         (-> (cljs/init-state)
             (cljs/merge-build-options
               {:public-dir (io/file "target" "test-ext")
-               :public-path "/"
+               :asset-path "/"
                :infer-externs true
                ;; :externs ["test.externs.js"]
                ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
@@ -261,7 +261,7 @@
           (-> (cljs/init-state)
               (cljs/merge-build-options
                 {:public-dir (io/file "out" "demo-foreign" "js")
-                 :public-path "js"
+                 :asset-path "js"
                  :cache-level :off
 
                  ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
@@ -302,7 +302,7 @@
           (-> (cljs/init-state)
               (cljs/merge-build-options
                 {:public-dir (io/file "target" "rename-global")
-                 :public-path "rename-global"})
+                 :asset-path "rename-global"})
               (cljs/merge-compiler-options
                 {:optimizations :advanced
                  :pretty-print false

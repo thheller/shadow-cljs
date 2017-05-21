@@ -113,11 +113,11 @@
           (do-js-reload js-to-load))
         ))))
 
-(defn handle-css-changes [{:keys [public-path name manifest] :as pkg}]
+(defn handle-css-changes [{:keys [asset-path name manifest] :as pkg}]
   (doseq [[css-name css-file-name] manifest]
     (when-let [node (js/document.querySelector (str "link[data-css-package=\"" name "\"][data-css-module=\"" css-name "\"]"))]
       (let [full-path
-            (str public-path "/" css-file-name)
+            (str asset-path "/" css-file-name)
 
             new-link
             (doto (js/document.createElement "link")
