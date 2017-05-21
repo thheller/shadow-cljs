@@ -80,11 +80,9 @@
        (every? #(str/starts-with? (str %) "goog") provides)
        ))
 
-(defn line-count [s]
-  (-> (StringReader. s)
-      (BufferedReader.)
-      (line-seq)
-      (count)))
+(defn line-count [text]
+  (with-open [rdr (io/reader (StringReader. text))]
+    (count (line-seq rdr))))
 
 (defn flush-sources-by-name
   ([state]
@@ -299,9 +297,7 @@
   (flush-unoptimized! state)
   state)
 
-(defn line-count [text]
-  (with-open [rdr (io/reader (StringReader. text))]
-    (count (line-seq rdr))))
+
 
 (defn create-index-map
   [{:keys [output-dir cljs-runtime-path] :as state}
