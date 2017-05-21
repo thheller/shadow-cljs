@@ -60,12 +60,12 @@
         {:id :npm
          :target :npm-module
          :runtime :node
-         :launched-by-cli true}]
+         :output-dir "node_modules/shadow-cljs"}]
 
     (if-not (.exists pkg-file)
       config
       ;; FIXME: should validate structure of json-config, might throw bad errors
-      (let [{:strs [entries runtime] :as json-config}
+      (let [{:strs [entries runtime output-dir] :as json-config}
             (-> pkg-file
                 (slurp)
                 (json/read-str)
@@ -77,6 +77,9 @@
 
               (seq runtime)
               (assoc :runtime (keyword runtime))
+
+              (seq output-dir)
+              (assoc :output-dir output-dir)
               ))))))
 
 (defn main [& args]

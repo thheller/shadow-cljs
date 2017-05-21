@@ -11,7 +11,7 @@
   (and (string? x)
        (not (str/blank? x))))
 
-(s/def ::public-dir non-empty-string?)
+(s/def ::output-dir non-empty-string?)
 
 (s/def ::output-to non-empty-string?)
 
@@ -70,15 +70,15 @@
         (update-in [:modules (:default-module state) :entries] prepend '[cljs.user shadow.cljs.devtools.client.node])
         )))
 
-(defn set-public-dir [{:keys [work-dir] :as state} mode {:keys [id public-dir] :as config}]
+(defn set-output-dir [{:keys [work-dir] :as state} mode {:keys [id output-dir] :as config}]
   (-> state
       (cond->
-        ;; FIXME: doesn't make sense to name this public-dir for node
-        (seq public-dir)
-        (assoc :public-dir (io/file public-dir))
+        ;; FIXME: doesn't make sense to name this output-dir for node
+        (seq output-dir)
+        (assoc :output-dir (io/file output-dir))
 
-        (not public-dir)
-        (assoc :public-dir (io/file work-dir "shadow-cljs" (name id) (name mode))))))
+        (not output-dir)
+        (assoc :output-dir (io/file work-dir "shadow-cljs" (name id) (name mode))))))
 
 ;; removed based on feedback, too much magic ... too little value.
 ;; still might re-use some parts later

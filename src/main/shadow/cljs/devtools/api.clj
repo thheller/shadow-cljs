@@ -349,7 +349,7 @@
         (cljs/enable-source-maps)
         (as-> X
           (cljs/merge-build-options X
-            {:public-dir (io/file (:work-dir X) "shadow-test")
+            {:output-dir (io/file (:work-dir X) "shadow-test")
              :public-path "target/shadow-test"}))
         (cljs/find-resources-in-classpath)
         ))

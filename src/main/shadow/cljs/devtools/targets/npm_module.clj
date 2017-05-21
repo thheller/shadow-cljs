@@ -120,8 +120,6 @@
          module-root "./"}
     :as config}]
 
-  ;; otherwise re-emit everything until there is a stable strategy for caching
-  ;; need to work out some details of :emit-constants since we usually use closure for that
   (let [root
         (-> (io/file module-root)
             (.getCanonicalFile))
@@ -135,6 +133,7 @@
     (util/with-logged-time [state {:type :npm-flush :output-path (.getAbsolutePath output-dir)}]
       (io/make-parents env-file)
 
+      ;; FIXME: only flush if modified
       (spit env-file (cljs-env state config))
 
       (doseq [src-name (:build-sources state)]
@@ -193,7 +192,7 @@
   (update state :compiler-options merge {:optimize-constants true
                                          :emit-constants true}))
 
-(defn init [state mode {:keys [runtime entries] :as config}]
+(defn init [state mode {:keys [runtime entries output-dir] :as config}]
   (let [entries
         (or entries
             (->> (:sources state)
@@ -208,6 +207,10 @@
     (-> state
         (assoc :source-map-comment false
                ::comp/skip-optimize true)
+
+        (cond->
+          output-dir
+          (cljs/merge-build-options {:output-dir (io/file output-dir)}))
 
         (cljs/configure-module :default entries {})
 

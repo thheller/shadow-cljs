@@ -28,7 +28,7 @@
     [::exports
      ::shared/output-to]
     :opt-un
-    [::shared/public-dir]
+    [::shared/output-dir]
     ))
 
 (defmethod config/target-spec :node-library [_]
@@ -106,7 +106,7 @@
         (cljs/merge-compiler-options
           {:optimizations :simple}))
 
-      (shared/set-public-dir mode config)
+      (shared/set-output-dir mode config)
       (create-module config)
 
       (cond->

@@ -3,12 +3,13 @@
   (:require [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.data.json :as json]
+            [clojure.string :as str]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.repl :as repl]
-            [clojure.string :as str]))
+            [shadow.cljs.output :as output]))
 
 (s/def ::entries
   (s/coll-of simple-symbol? :kind vector?))
@@ -50,7 +51,7 @@
     [::modules]
     :opt-un
     [::module-loader
-     ::public-dir
+     ::output-dir
      ::public-path]
     ))
 
@@ -61,7 +62,7 @@
   (s/spec ::target))
 
 (def default-browser-config
-  {:public-dir "public/js"
+  {:output-dir "public/js"
    :public-path "/js"})
 
 (defn- configure-modules
@@ -186,7 +187,7 @@
 
 (defn init
   [state mode {:keys [modules module-loader] :as config}]
-  (let [{:keys [public-dir public-path bundle-foreign]}
+  (let [{:keys [output-dir public-dir public-path bundle-foreign]}
         (merge default-browser-config config)]
 
     (-> state
@@ -194,8 +195,12 @@
           public-path
           (cljs/merge-build-options {:public-path public-path})
 
+          output-dir
+          (cljs/merge-build-options {:output-dir (io/file output-dir)})
+
+          ;; backwards compatibility so it doesn't break existing configs
           public-dir
-          (cljs/merge-build-options {:public-dir (io/file public-dir)})
+          (cljs/merge-build-options {:output-dir (io/file public-dir)})
 
           bundle-foreign
           (cljs/merge-build-options {:bundle-foreign bundle-foreign}))
@@ -214,9 +219,9 @@
 
 
 (defn flush-manifest
-  [{:keys [public-dir] :as state} include-foreign?]
+  [{:keys [output-dir] :as state} include-foreign?]
   (spit
-    (io/file public-dir "manifest.json")
+    (io/file output-dir "manifest.json")
     (let [data
           (->> (or (:optimized state) ;; must use :optimized for :release builds because of :module-hash-names
                    (:build-modules state))
@@ -258,7 +263,7 @@
   (case mode
     :dev
     (-> state
-        (cljs/flush-unoptimized)
+        (output/flush-unoptimized)
         (flush-manifest false))
     :release
     (do (when (and (true? module-loader)
@@ -269,7 +274,7 @@
             (cond->
               module-hash-names
               (hash-optimized-modules))
-            (cljs/flush-modules-to-disk)
+            (output/flush-modules-to-disk)
             (flush-manifest true)))))
 
 (defn process

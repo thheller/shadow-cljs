@@ -2422,9 +2422,9 @@ enable-emit-constants [state]
 
          :closure-configurators []
 
-         ;; :none supprt files are placed into <public-dir>/<cljs-runtime-path>/cljs/core.js
+         ;; :none supprt files are placed into <output-dir>/<cljs-runtime-path>/cljs/core.js
          ;; this used to be just "src" but that is too generic and easily breaks something
-         ;; if public-dir is equal to the current working directory
+         ;; if output-dir is equal to the current working directory
          :cljs-runtime-path "cljs-runtime"
 
          :work-dir work-dir
@@ -2437,7 +2437,7 @@ enable-emit-constants [state]
          :cache-dir (io/file work-dir "shadow-cljs" "cljs-cache")
          :cache-level :all
 
-         :public-dir (io/file "public" "js")
+         :output-dir (io/file "public" "js")
          :public-path "js"
 
          :n-compile-threads (.. Runtime getRuntime availableProcessors)

@@ -77,8 +77,8 @@
        "\nSHADOW_ENV.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"))
 
 (defn flush-unoptimized
-  [{:keys [build-modules cljs-runtime-path source-map public-dir node-config] :as state}]
-  {:pre [(output/directory? public-dir)]}
+  [{:keys [build-modules cljs-runtime-path source-map output-dir node-config] :as state}]
+  {:pre [(output/directory? output-dir)]}
   (when (not= 1 (count build-modules))
     (throw (ex-info "node builds can only have one module!" {:tag ::output :build-modules build-modules})))
 
@@ -109,7 +109,7 @@
 
                ;; this is here and not in boostrap since defines already accesses them
                (str "var SHADOW_IMPORT_PATH = \""
-                    (-> (io/file public-dir cljs-runtime-path)
+                    (-> (io/file output-dir cljs-runtime-path)
                         (.getAbsolutePath))
                     "\";")
                (str "var SHADOW_ENV = {};")
@@ -205,7 +205,6 @@
         pb
         (doto (ProcessBuilder. script-args)
           (.directory nil)
-          ;; (.directory public-dir)
           (.redirectOutput ProcessBuilder$Redirect/INHERIT)
           (.redirectError ProcessBuilder$Redirect/INHERIT))]
 

@@ -19,7 +19,7 @@
     [::main
      ::shared/output-to]
     :opt-un
-    [::shared/public-dir]
+    [::shared/output-dir]
     ))
 
 (defmethod config/target-spec :node-script [_]
@@ -36,7 +36,7 @@
         (= :release mode)
         (cljs/merge-compiler-options
           {:optimizations optimizations}))
-      (shared/set-public-dir mode config)
+      (shared/set-output-dir mode config)
       (node/configure config)
       (cond->
         (:worker-info state)

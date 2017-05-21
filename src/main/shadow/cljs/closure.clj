@@ -162,7 +162,7 @@
   (when-some [data (read-variable-map state "closure.variable.map")]
     (.setInputVariableMap co data)))
 
-(defn js-error-xf [{:keys [public-dir] :as state} ^com.google.javascript.jscomp.Compiler cc]
+(defn js-error-xf [{:keys [output-dir] :as state} ^com.google.javascript.jscomp.Compiler cc]
   (comp
     ;; remove some annoying UNDECLARED_VARIABLES in cljs/core.cljs
     ;; these are only used in self-hosted but I don't want to provide externs for them in browser builds
@@ -244,13 +244,13 @@
 ;; would also need to convert to closure sm format which is then done again on flush
 ;; I think I can live with flush before optimize for now
 (defn add-input-source-maps [state cc]
-  (let [{:keys [build-sources public-dir cljs-runtime-path]} state]
+  (let [{:keys [build-sources output-dir cljs-runtime-path]} state]
     (doseq [src build-sources]
       (let [{:keys [js-name name] :as rc}
             (get-in state [:sources src])
 
             sm-file
-            (io/file public-dir cljs-runtime-path (str js-name ".map"))]
+            (io/file output-dir cljs-runtime-path (str js-name ".map"))]
 
         (when (.exists sm-file)
           ;; not using SourceFile/fromFile as the name that gets displayed in warnings sucks

@@ -89,7 +89,7 @@
 (defn flush-sources-by-name
   ([state]
    (flush-sources-by-name state (mapcat :sources (:build-modules state))))
-  ([{:keys [public-dir cljs-runtime-path] :as state} source-names]
+  ([{:keys [output-dir cljs-runtime-path] :as state} source-names]
    (util/with-logged-time
      [state {:type :flush-sources
              :source-names source-names}]
@@ -98,16 +98,16 @@
                    (get-in state [:sources src-name])
 
                    js-file
-                   (io/file public-dir cljs-runtime-path js-name)
+                   (io/file output-dir cljs-runtime-path js-name)
 
                    src-file
-                   (io/file public-dir cljs-runtime-path name)
+                   (io/file output-dir cljs-runtime-path name)
 
                    src-map?
                    (and (:source-map state) (or source-map source-map-json))
 
                    src-map-file
-                   (io/file public-dir cljs-runtime-path (str js-name ".map"))]
+                   (io/file output-dir cljs-runtime-path (str js-name ".map"))]
 
              ;; skip files we already have
              :when (or (not (.exists js-file))
@@ -141,10 +141,10 @@
      state)))
 
 (defn flush-foreign-bundles
-  [{:keys [public-dir build-modules] :as state}]
+  [{:keys [output-dir build-modules] :as state}]
   (doseq [{:keys [foreign-files] :as mod} build-modules
           {:keys [js-name provides output]} foreign-files]
-    (let [target (io/file public-dir js-name)]
+    (let [target (io/file output-dir js-name)]
       (when-not (.exists target)
 
         (io/make-parents target)
@@ -159,7 +159,7 @@
 
 (defn flush-modules-to-disk
   [{modules :optimized
-    :keys [^File public-dir cljs-runtime-path]
+    :keys [^File output-dir cljs-runtime-path]
     :as state}]
 
   (flush-foreign-bundles state)
@@ -170,11 +170,11 @@
     (when-not (seq modules)
       (throw (ex-info "flush before optimize?" {})))
 
-    (when-not public-dir
-      (throw (ex-info "missing :public-dir" {})))
+    (when-not output-dir
+      (throw (ex-info "missing :output-dir" {})))
 
     (doseq [{:keys [output source-map-name source-map-json name js-name] :as mod} modules]
-      (let [target (io/file public-dir js-name)]
+      (let [target (io/file output-dir js-name)]
 
         (io/make-parents target)
 
@@ -186,7 +186,7 @@
                          :js-size (count output)})
 
         (when source-map-name
-          (let [target (io/file public-dir cljs-runtime-path source-map-name)]
+          (let [target (io/file output-dir cljs-runtime-path source-map-name)]
             (io/make-parents target)
             (spit target source-map-json)))))
 
@@ -195,7 +195,7 @@
     ))
 
 (defn flush-unoptimized-module!
-  [{:keys [dev-inline-js public-dir public-path unoptimizable] :as state}
+  [{:keys [dev-inline-js output-dir public-path unoptimizable] :as state}
    {:keys [default js-name prepend append sources web-worker] :as mod}]
 
   (let [inlineable-sources
@@ -210,7 +210,7 @@
         (into #{} (map :name) inlineable-sources)
 
         target
-        (io/file public-dir js-name)
+        (io/file output-dir js-name)
 
         inlined-js
         (->> inlineable-sources
@@ -270,8 +270,8 @@
     (spit target out)))
 
 (defn flush-unoptimized!
-  [{:keys [build-modules public-dir] :as state}]
-  {:pre [(directory? public-dir)]}
+  [{:keys [build-modules output-dir] :as state}]
+  {:pre [(directory? output-dir)]}
 
   ;; FIXME: this always flushes
   ;; it could do partial flushes when nothing was actually compiled
@@ -304,7 +304,7 @@
     (count (line-seq rdr))))
 
 (defn create-index-map
-  [{:keys [public-dir cljs-runtime-path] :as state}
+  [{:keys [output-dir cljs-runtime-path] :as state}
    out-file
    init-offset
    {:keys [sources js-name] :as mod}]
@@ -312,7 +312,7 @@
         (reduce
           (fn [src-map src-name]
             (let [{:keys [type output js-name] :as rc} (get-in state [:sources src-name])
-                  source-map-file (io/file public-dir cljs-runtime-path (str js-name ".map"))
+                  source-map-file (io/file output-dir cljs-runtime-path (str js-name ".map"))
                   lc (line-count output)
                   start-line (:current-offset src-map)
 
@@ -354,8 +354,8 @@
     ))
 
 (defn flush-unoptimized-compact
-  [{:keys [build-modules public-dir unoptimizable cljs-runtime-path] :as state}]
-  {:pre [(directory? public-dir)]}
+  [{:keys [build-modules output-dir unoptimizable cljs-runtime-path] :as state}]
+  {:pre [(directory? output-dir)]}
 
   (when-not (seq build-modules)
     (throw (ex-info "flush before compile?" {})))
@@ -368,7 +368,7 @@
 
     ;; flush fake modules
     (doseq [{:keys [default js-name name prepend append sources web-worker] :as mod} build-modules]
-      (let [target (io/file public-dir js-name)
+      (let [target (io/file output-dir js-name)
             append-to-target
             (fn [text]
               (spit target text :append true))]
@@ -391,7 +391,7 @@
         ;; since it is the initial offset before we actually have a source map
         (create-index-map
           state
-          (io/file public-dir cljs-runtime-path (str (clojure.core/name name) "-index.js.map"))
+          (io/file output-dir cljs-runtime-path (str (clojure.core/name name) "-index.js.map"))
           (line-count (slurp target))
           mod)
 

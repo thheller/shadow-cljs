@@ -53,7 +53,7 @@
                          :work-dir (io/file "target/cljs-work")
                          :cache-dir (io/file "target/cljs-cache")
                          :cache-level :jars
-                         :public-dir (io/file "target/cljs")
+                         :output-dir (io/file "target/cljs")
                          :pseudo-names true
                          :pretty-print true
                          :public-path "target/cljs")
@@ -94,7 +94,7 @@
                     (assoc :optimizations :whitespace
                            :pretty-print true
                            :work-dir (io/file "target/cljs-work")
-                           :public-dir (io/file "target/cljs")
+                           :output-dir (io/file "target/cljs")
                            :public-path "target/cljs")
                     (cljs/finalize-config)
                     (cljs/configure-module :test
@@ -165,7 +165,7 @@
                      :pretty-print false
                      :work-dir (io/file "target/cljs-work")
                      :cache-dir (io/file "target/cljs-cache")
-                     :public-dir (io/file "target/cljs")
+                     :output-dir (io/file "target/cljs")
                      :public-path "target/cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
@@ -200,7 +200,7 @@
                      :pretty-print false
                      :work-dir (io/file "target/cljs-work")
                      :cache-dir (io/file "target/cljs-cache")
-                     :public-dir (io/file "target/cljs")
+                     :output-dir (io/file "target/cljs")
                      :public-path "target/cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
@@ -231,7 +231,7 @@
              :pretty-print false
              :work-dir (io/file "target/cljs-work")
              :cache-dir (io/file "cljs-data/foreign/out/cljs-cache")
-             :public-dir (io/file "cljs-data/foreign/out")
+             :output-dir (io/file "cljs-data/foreign/out")
              :public-path "out")
       (cljs/find-resources-in-classpath)
       (cljs/find-resources "cljs-data/foreign/src")
@@ -254,7 +254,7 @@
                      :pretty-print true
                      :cache-level :jars
                      :work-dir (io/file "target/test-cljs-work")
-                     :public-dir (io/file "target/test-cljs")
+                     :output-dir (io/file "target/test-cljs")
                      :public-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
@@ -273,7 +273,7 @@
               (assoc :optimizations :none
                      :pretty-print true
                      :work-dir (io/file "target/test-cljs-work")
-                     :public-dir (io/file "target/test-cljs")
+                     :output-dir (io/file "target/test-cljs")
                      :public-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
@@ -304,7 +304,7 @@
                      :pretty-print true
                      :cache-level :jars
                      :work-dir (io/file "target/test-cljs-work")
-                     :public-dir (io/file "target/test-cljs")
+                     :output-dir (io/file "target/test-cljs")
                      :public-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
@@ -326,7 +326,7 @@
             (assoc :optimizations :none
                    :pretty-print true
                    :work-dir (io/file "target/test-cljs-work")
-                   :public-dir (io/file "target/test-cljs")
+                   :output-dir (io/file "target/test-cljs")
                    :public-path "target/test-cljs")
             (cljs/find-resources-in-classpath)
             (cljs/find-resources "cljs-data/dummy/src")
@@ -357,7 +357,7 @@
               (assoc :optimizations :none
                      :pretty-print true
                      :work-dir (io/file "target/test-cljs-work")
-                     :public-dir (io/file "target/test-cljs")
+                     :output-dir (io/file "target/test-cljs")
                      :public-path "target/test-cljs")
               (cljs/find-resources "/Users/zilence/.m2/repository/org/omcljs/om/1.0.0-alpha12/om-1.0.0-alpha12.jar")
               (cljs/find-resources "cljs-data/dummy/src")
@@ -370,7 +370,7 @@
               (assoc :optimizations :none
                      :pretty-print true
                      :work-dir (io/file "target/test-cljs-work")
-                     :public-dir (io/file "target/test-cljs")
+                     :output-dir (io/file "target/test-cljs")
                      :public-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
@@ -388,7 +388,7 @@
 (deftest test-find-dependents
   (let [s (-> (cljs/init-state)
               (assoc :optimizations :none
-                     :public-dir (io/file "target/test-cljs")
+                     :output-dir (io/file "target/test-cljs")
                      :public-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
@@ -448,7 +448,7 @@
              :work-dir (io/file "target/test-cljs-work")
              :cache-dir (io/file "target/test-cljs-cache")
              :cache-level :jars
-             :public-dir (io/file "target/test-cljs")
+             :output-dir (io/file "target/test-cljs")
              :public-path "target/test-cljs")
       (cljs/find-resources-in-classpath)
       (cljs/find-resources "cljs-data/dummy/src")
@@ -574,7 +574,7 @@
       (assoc :optimizations :none
              :pretty-print true
              :cache-level :jars
-             :public-dir (io/file "cljs-data/dummy/out")
+             :output-dir (io/file "cljs-data/dummy/out")
              :public-path "out")
       (cljs/find-resources-in-classpath)
       (cljs/find-resources "cljs-data/dummy/src")
@@ -686,7 +686,7 @@
               {:optimizations :advanced
                :pretty-print true})
             (cljs/merge-build-options
-              {:public-dir (io/file "cljs-data/dummy/out")
+              {:output-dir (io/file "cljs-data/dummy/out")
                :public-path "out"})
             ;; (cljs/enable-emit-constants)
             (cljs/find-resources-in-classpath)
@@ -713,7 +713,7 @@
             (cljs/prepare-compile)
             (cljs/merge-build-options
               {:public-path "target/assert-out"
-               :public-dir (io/file "target/assert-out")})
+               :output-dir (io/file "target/assert-out")})
             (cljs/merge-compiler-options
               {:pretty-print true
                :pseudo-names true
@@ -797,7 +797,7 @@
             (cljs/prepare-compile)
             (cljs/merge-build-options
               {:public-path "target/auto-alias-out"
-               :public-dir (io/file "target/auto-alias-out")})
+               :output-dir (io/file "target/auto-alias-out")})
             (cljs/configure-module :test '[test.alias] #{})
             (cljs/compile-modules))
 
@@ -828,7 +828,7 @@
             (assoc :cache-level :jars)
 
             (cljs/merge-build-options
-              {:public-dir (io/file "cljs-data" "closure-source-maps" "out")
+              {:output-dir (io/file "cljs-data" "closure-source-maps" "out")
                :public-path "out"})
             (cljs/merge-compiler-options
               {:optimizations :advanced})
@@ -847,7 +847,7 @@
         (-> (cljs/init-state)
             (assoc :cache-level :jars)
             (cljs/merge-build-options
-              {:public-dir (io/file "cljs-data" "es6" "out")
+              {:output-dir (io/file "cljs-data" "es6" "out")
                :public-path "out"})
             (cljs/merge-compiler-options
               {:pretty-print false})
@@ -943,7 +943,7 @@
   (api/release*
     '{:id :optimize-and-rescope
       :target shadow.cljs.build-test/optimize-and-rescope-process
-      :public-dir "target/optimize-and-rescope"
+      :output-dir "target/optimize-and-rescope"
       :public-path "./"
       :modules
       {:core

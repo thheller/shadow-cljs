@@ -17,13 +17,13 @@
         public-path
         "/js"
 
-        public-dir
+        output-dir
         (doto (io/file "target/nashorn-cljs/js")
           (io/make-parents))
 
         {:keys [repl-state] :as state}
         (-> (cljs/init-state)
-            (assoc :public-dir public-dir
+            (assoc :output-dir output-dir
                    :public-path public-path)
             (cljs/find-resources-in-classpath)
             (repl/prepare))
