@@ -282,6 +282,15 @@
        (map :output)
        (str/join "\n")))
 
+;; CLOSURE-WARNING: Property nodeGlobalRequire never defined on goog
+;; Original: ~/.m2/repository/org/clojure/clojurescript/1.9.542/clojurescript-1.9.542.jar!/cljs/core.cljs [293:4]
+;; cljs/core.cljs contains a call to goog.nodeGlobalRequire(...) which is only used in self-host mode
+;; but causes the closure compiler --check to complain
+;; since we are never going to use it just emit a noop to get rid of the warning
+
+(def goog-nodeGlobalRequire-fix
+  "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
+
 (defn make-closure-modules
   "make a list of modules (already in dependency order) and create the closure JSModules"
   [state modules]
@@ -291,7 +300,9 @@
           (fn [js-mods {:keys [js-name name depends-on sources] :as mod}]
             (let [js-mod (JSModule. js-name)]
               (when (:default mod)
-                (.add js-mod (SourceFile/fromCode "closure_setup.js" (output/closure-defines-and-base state))))
+                (.add js-mod (SourceFile/fromCode "closure_setup.js"
+                               (str (output/closure-defines-and-base state)
+                                    goog-nodeGlobalRequire-fix))))
 
               (doseq [{:keys [name type js-name output] :as src}
                       (map #(get-in state [:sources %]) sources)]
