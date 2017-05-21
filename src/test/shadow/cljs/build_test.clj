@@ -965,3 +965,123 @@
   (println (slurp "target/optimize-and-rescope/b.js"))
   :done
   )
+
+(comment
+  (reduce
+    (fn [js-mods {:keys [js-name name depends-on sources] :as mod}]
+      (let [js-mod (JSModule. js-name)]
+        (when (:default mod)
+          (.add js-mod (SourceFile/fromCode "closure_setup.js"
+                         (str (output/closure-defines-and-base state)
+                              goog-nodeGlobalRequire-fix))))
+
+        (doseq [{:keys [name type js-name output] :as src}
+                (map #(get-in state [:sources %]) sources)]
+          ;; throws hard to track NPE otherwise
+          (when-not (and js-name output (seq output))
+            (throw (ex-info "missing output for source" {:js-name js-name :name (:name src)})))
+
+          (case type
+            ;; foreign files only include the goog.require/goog.provide statements
+            ;; not the actual foreign code, that will be prepended after optimizations
+            :foreign
+            (let [content (make-foreign-js-header src)]
+              (.add js-mod (SourceFile/fromCode js-name content)))
+
+            :js
+            (.add js-mod (SourceFile/fromCode js-name output))
+
+            :cljs
+            (.add js-mod (SourceFile/fromCode js-name output))
+
+            (throw (ex-info "unsupported type for closure" src))))
+
+        (doseq [other-mod-name depends-on
+                :let [other-mod (get js-mods other-mod-name)]]
+          (when-not other-mod
+            (throw (ex-info "module depends on undefined module" {:mod name :other other-mod-name})))
+          (.addDependency js-mod other-mod))
+
+        (assoc js-mods name js-mod)))
+    {}
+    modules))
+
+(defn module-per-file
+  [{:keys [build-sources] :as state}]
+
+  (let [base
+        (doto (JSModule. "goog/base.js")
+          (.add (SourceFile/fromCode "closure_setup.js"
+                  (str (output/closure-defines-and-base state)
+                       closure/goog-nodeGlobalRequire-fix))))
+
+        js-mods
+        (reduce
+          (fn [js-mods src-name]
+            (let [{:keys [requires provides output js-name] :as src}
+                  (get-in state [:sources src-name])
+
+                  requires
+                  (->> requires
+                       (remove '#{goog})
+                       (map #(get-in state [:provide->source %]))
+                       (distinct)
+                       (into []))
+
+                  js-mod
+                  (doto (JSModule. js-name)
+                    (.add (SourceFile/fromCode js-name output)))]
+
+              (when (empty? requires)
+                (prn [:base-mod src-name requires])
+                (.addDependency js-mod base))
+
+              (doseq [require requires]
+                (.addDependency js-mod (get js-mods require)))
+
+              (assoc js-mods src-name js-mod)))
+          {}
+          build-sources)
+
+        modules
+        (->> build-sources
+             (map (fn [src-name]
+                    (let [{:keys [name js-name] :as src}
+                          (get-in state [:sources src-name])]
+
+                      {:name name
+                       :js-name js-name
+                       :js-module (get js-mods src-name)})))
+             (into [{:name "goog/base.js"
+                     :js-name "goog/base.js"
+                     :js-module base}]))]
+
+    (assoc-in state [:closure :modules] modules)))
+
+(deftest test-closure-module-per-file
+  (try
+    (let [state
+          (-> (comp/init :release
+                '{:id :test
+                  :target :browser
+                  :output-dir "target/closure-module-per-file"
+                  :modules
+                  {:main
+                   {:entries
+                    [code-split.a
+                     code-split.b]}}})
+              (comp/compile)
+              (module-per-file)
+              (closure/closure-setup)
+              (closure/closure-compile)
+              (closure/closure-warnings)
+              (closure/closure-errors!)
+              (closure/closure-output)
+              (output/flush-modules-to-disk))]
+
+      :done)
+    (catch Exception e
+      (let [{:keys [errors]} (ex-data e)]
+        (doseq [err errors]
+          (prn err)))))
+  )

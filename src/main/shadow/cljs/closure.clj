@@ -198,35 +198,36 @@
             (.append (.-description err))
             (.append "\n"))
 
-          (.append sb "Original: ")
+          (when source-name
+            (.append sb "Original: ")
 
-          (when mapping
-            (let [{:keys [file url]} src
+            (when mapping
+              (let [{:keys [file url]} src
 
-                  src-loc
-                  (or (when file (.getAbsolutePath file))
-                      (let [x (str url)]
-                        (if-let [idx (str/index-of x ".m2")]
-                          (str "~/" (subs x idx))
-                          x))
-                      (.getOriginalFile mapping))]
+                    src-loc
+                    (or (when file (.getAbsolutePath file))
+                        (let [x (str url)]
+                          (if-let [idx (str/index-of x ".m2")]
+                            (str "~/" (subs x idx))
+                            x))
+                        (.getOriginalFile mapping))]
 
-              (doto sb
-                (.append src-loc)
-                (.append " [")
-                (.append (.getLineNumber mapping))
-                (.append ":")
-                (.append (.getColumnPosition mapping))
-                (.append "]\n")
-                (.append "Compiled to: "))))
+                (doto sb
+                  (.append src-loc)
+                  (.append " [")
+                  (.append (.getLineNumber mapping))
+                  (.append ":")
+                  (.append (.getColumnPosition mapping))
+                  (.append "]\n")
+                  (.append "Compiled to: "))))
 
-          (doto sb
-            (.append source-name)
-            (.append "[")
-            (.append line)
-            (.append ":")
-            (.append column)
-            (.append "]\n"))
+            (doto sb
+              (.append source-name)
+              (.append "[")
+              (.append line)
+              (.append ":")
+              (.append column)
+              (.append "]\n")))
 
           (-> {:line line
                :column column
@@ -291,9 +292,8 @@
 (def goog-nodeGlobalRequire-fix
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
-(defn make-closure-modules
-  "make a list of modules (already in dependency order) and create the closure JSModules"
-  [state modules]
+(defn closure-make-modules
+  [{:keys [build-modules closure-configurators compiler-options] :as state}]
 
   (let [js-mods
         (reduce
@@ -333,15 +333,20 @@
 
               (assoc js-mods name js-mod)))
           {}
-          modules)]
-    (for [{:keys [name] :as mod} modules]
-      (assoc mod :js-module (get js-mods name))
-      )))
+          build-modules)
+
+
+        modules
+        (->> (for [{:keys [name] :as mod} build-modules]
+               (assoc mod :js-module (get js-mods name)))
+             (into []))]
+
+    (update state :closure assoc :modules modules)))
 
 (defn closure-setup
-  [{:keys [build-modules closure-configurators compiler-options] :as state}]
-  (let [modules
-        (make-closure-modules state build-modules)
+  [{:keys [closure closure-configurators compiler-options] :as state}]
+  (let [{:keys [modules]}
+        closure
 
         source-map?
         (boolean (:source-map state))
@@ -386,20 +391,22 @@
     (when source-map?
       (add-input-source-maps state cc))
 
-    (assoc state :closure {:externs (load-externs state)
-                           :modules modules
-                           :compiler cc
-                           :compiler-options closure-opts})))
+    (update state :closure merge {:externs (load-externs state)
+                                  :compiler cc
+                                  :compiler-options closure-opts})))
 
 (defn closure-compile [{:keys [closure] :as state}]
   (let [{:keys [externs modules compiler compiler-options]}
         closure
 
+        js-mods
+        (into [] (map :js-module) modules)
+
         result
         (.compileModules
           compiler
           externs
-          (into [] (map :js-module) modules)
+          js-mods
           compiler-options)]
 
     (update state :closure assoc :result result)))
@@ -433,11 +440,94 @@
   (util/with-logged-time
     [state {:type :closure-check}]
     (-> state
+        (closure-make-modules)
         (closure-setup)
         (set-check-only)
         (closure-compile)
         (closure-warnings)
         (closure-errors!))))
+
+
+(defn closure-output [{:keys [bundle-foreign cljs-runtime-path closure] :as state}]
+  (util/with-logged-time
+    [state {:type :closure-output}]
+
+    (let [source-map?
+          (boolean (:source-map state))
+
+          {:keys [result compiler modules]}
+          closure]
+
+      (let [source-map
+            (when source-map? (.getSourceMap compiler))
+
+            optimized-modules
+            (->> modules
+                 (mapv
+                   (fn [{:keys [js-name js-module prepend append default] :as mod}]
+                     (when source-map
+                       (.reset source-map))
+                     (let [output
+                           (.toSource compiler js-module)
+
+                           module-prefix
+                           (cond
+                             default
+                             (:unoptimizable state)
+
+                             (:web-worker mod)
+                             (let [deps (:depends-on mod)]
+                               (str (str/join "\n" (for [other modules
+                                                         :when (contains? deps (:name other))]
+                                                     (str "importScripts('" (:js-name other) "');")))
+                                    "\n\n"))
+
+                             :else
+                             "")
+
+                           module-prefix
+                           (if (= :inline bundle-foreign)
+                             (str prepend (foreign-js-source-for-mod state mod) module-prefix)
+                             (str prepend "\n" module-prefix))
+
+                           module-prefix
+                           (if (seq module-prefix)
+                             (str module-prefix "\n")
+                             "")
+
+                           source-map-name
+                           (str js-name ".map")
+
+                           final-output
+                           (str module-prefix
+                                output
+                                append
+                                (when source-map
+                                  (str "\n//# sourceMappingURL=" cljs-runtime-path "/" source-map-name "\n")))]
+
+                       (-> mod
+                           (dissoc :js-module)
+                           (assoc :output final-output)
+                           (cond->
+                             source-map
+                             (merge (let [sw
+                                          (StringWriter.)
+
+                                          _ (.setWrapperPrefix source-map module-prefix)
+                                          _ (.appendTo source-map sw js-name)
+
+                                          closure-json
+                                          (.toString sw)]
+
+                                      {:source-map-json closure-json
+                                       :source-map-name source-map-name}))))))))]
+
+        ;; see closure-add-variable-maps configurator which loads these before compiling
+        (write-variable-map state "closure.variable.map" (.-variableMap result))
+        (write-variable-map state "closure.property.map" (.-propertyMap result))
+
+        (assoc state :optimized optimized-modules))
+      )))
 
 (defn closure-optimize
   "takes the current defined modules and runs it through the closure optimizer
@@ -451,93 +541,13 @@
    (when-not (seq build-modules)
      (throw (ex-info "optimize before compile?" {})))
 
-   (util/with-logged-time
-     [state {:type :closure-optimize}]
-
-     (let [source-map?
-           (boolean (:source-map state))
-
-           {:keys [closure] :as state}
-           (-> state
-               (closure-setup)
-               (closure-compile)
-               (closure-warnings)
-               (closure-errors!))
-
-           {:keys [result compiler modules]}
-           closure]
-
-       (let [source-map
-             (when source-map? (.getSourceMap compiler))
-
-             optimized-modules
-             (->> modules
-                  (mapv
-                    (fn [{:keys [js-name js-module prepend append default] :as mod}]
-                      (when source-map
-                        (.reset source-map))
-                      (let [output
-                            (.toSource compiler js-module)
-
-                            module-prefix
-                            (cond
-                              default
-                              (:unoptimizable state)
-
-                              (:web-worker mod)
-                              (let [deps (:depends-on mod)]
-                                (str (str/join "\n" (for [other modules
-                                                          :when (contains? deps (:name other))]
-                                                      (str "importScripts('" (:js-name other) "');")))
-                                     "\n\n"))
-
-                              :else
-                              "")
-
-                            module-prefix
-                            (if (= :inline bundle-foreign)
-                              (str prepend (foreign-js-source-for-mod state mod) module-prefix)
-                              (str prepend "\n" module-prefix))
-
-                            module-prefix
-                            (if (seq module-prefix)
-                              (str module-prefix "\n")
-                              "")
-
-                            source-map-name
-                            (str js-name ".map")
-
-                            final-output
-                            (str module-prefix
-                                 output
-                                 append
-                                 (when source-map
-                                   (str "\n//# sourceMappingURL=" cljs-runtime-path "/" source-map-name "\n")))]
-
-                        (-> mod
-                            (dissoc :js-module)
-                            (assoc :output final-output)
-                            (cond->
-                              source-map
-                              (merge (let [sw
-                                           (StringWriter.)
-
-                                           _ (.setWrapperPrefix source-map module-prefix)
-                                           _ (.appendTo source-map sw js-name)
-
-                                           closure-json
-                                           (.toString sw)]
-
-                                       {:source-map-json closure-json
-                                        :source-map-name source-map-name}))))))))]
-
-         ;; see closure-add-variable-maps configurator which loads these before compiling
-         (write-variable-map state "closure.variable.map" (.-variableMap result))
-         (write-variable-map state "closure.property.map" (.-propertyMap result))
-
-         (assoc state :optimized optimized-modules))
-
-       ))))
+   (-> state
+       (closure-make-modules)
+       (closure-setup)
+       (closure-compile)
+       (closure-warnings)
+       (closure-errors!)
+       (closure-output))))
 
 ;; FIXME: about 100ms for even simple files, might be too slow to process each file indiviually
 (defn compile-es6 [state {:keys [module-alias name js-name input] :as src}]
