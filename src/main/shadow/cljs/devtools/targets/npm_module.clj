@@ -114,20 +114,9 @@
 
 
 (defn flush
-  [{::comp/keys [build-info] :as state} mode
-   {:keys [module-root module-name]
-    :or {module-name "shadow-cljs"
-         module-root "./"}
-    :as config}]
+  [{::comp/keys [build-info] :keys [output-dir] :as state} mode config]
 
-  (let [root
-        (-> (io/file module-root)
-            (.getCanonicalFile))
-
-        output-dir
-        (io/file root "node_modules" module-name)
-
-        env-file
+  (let [env-file
         (io/file output-dir "cljs_env.js")]
 
     (util/with-logged-time [state {:type :npm-flush :output-path (.getAbsolutePath output-dir)}]
