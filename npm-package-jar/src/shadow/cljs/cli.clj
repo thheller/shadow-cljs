@@ -37,6 +37,8 @@
         (io/file "package.json")
 
         {:strs [repositories dependencies source-paths]
+         :or {dependencies []
+              source-paths ["src-cljs"]}
          :as config}
         (or (when (.exists package-json)
               (-> (slurp package-json)
