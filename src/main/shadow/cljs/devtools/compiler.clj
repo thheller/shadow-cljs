@@ -232,7 +232,6 @@
    :post [(cljs/compiler-state? %)]}
   (-> state
       (process-stage :check-prepare true)
-      (cljs/add-closure-configurator closure/closure-register-cljs-protocol-properties)
       (cljs/closure-check)
       (process-stage :check-finish true)))
 

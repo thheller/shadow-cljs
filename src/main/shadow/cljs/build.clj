@@ -2095,13 +2095,13 @@ normalize-resource-name
   (update state :closure-configurators conj callback))
 
 (defn closure-check [state]
-  (closure/closure-check state))
+  (closure/check state))
 
 (defn closure-optimize
   ([state]
-   (closure/closure-optimize state))
+   (closure/optimize state))
   ([state optimizations]
-   (closure/closure-optimize state optimizations)))
+   (closure/optimize state optimizations)))
 
 (defn get-reloadable-source-paths [state]
   (->> state
@@ -2360,95 +2360,92 @@ enable-emit-constants [state]
 
 (defn init-state []
   (let [work-dir (io/file "target")]
+    {::util/is-compiler-state true
 
-    (-> {::util/is-compiler-state true
+     :ignore-patterns
+     #{#"^node_modules/"
+       #"^goog/demos/"
+       #".aot.js$"
+       #"^goog/(.+)_test.js$"
+       #"^public/"}
 
-         :ignore-patterns
-         #{#"^node_modules/"
-           #"^goog/demos/"
-           #".aot.js$"
-           #"^goog/(.+)_test.js$"
-           #"^public/"}
+     :classpath-excludes
+     [#"resources(/?)$"
+      #"classes(/?)$"
+      #"java(/?)$"]
 
-         :classpath-excludes
-         [#"resources(/?)$"
-          #"classes(/?)$"
-          #"java(/?)$"]
+     ::cc (closure/make-closure-compiler)
 
-         ::cc (closure/make-closure-compiler)
+     ;; map of {source-path [global-extern-names ...]}
+     ;; provided by the deps.cljs of all source-paths
+     :deps-externs
+     {}
 
-         ;; map of {source-path [global-extern-names ...]}
-         ;; provided by the deps.cljs of all source-paths
-         :deps-externs
-         {}
+     :analyzer-passes
+     [ana/infer-type]
 
-         :analyzer-passes
-         [ana/infer-type]
+     :compiler-options
+     {:optimizations :none
+      :static-fns true
+      :elide-asserts false
 
-         :compiler-options
-         {:optimizations :none
-          :static-fns true
-          :elide-asserts false
+      :closure-warnings
+      {:check-types :off}}
 
-          :closure-warnings
-          {:check-types :off}}
+     :closure-defines
+     {"goog.DEBUG" false
+      "goog.LOCALE" "en"
+      "goog.TRANSPILE" "never"}
 
-         :closure-defines
-         {"goog.DEBUG" false
-          "goog.LOCALE" "en"
-          "goog.TRANSPILE" "never"}
+     :runtime
+     {:print-fn :none}
 
-         :runtime
-         {:print-fn :none}
+     :npm-require
+     :require ;; or :bundle
 
-         :npm-require
-         :require ;; or :bundle
+     :use-file-min true
 
-         :use-file-min true
+     :bundle-foreign :inline
+     :dev-inline-js true
 
-         :bundle-foreign :inline
-         :dev-inline-js true
+     :ns-aliases
+     '{clojure.pprint cljs.pprint
+       clojure.spec.alpha cljs.spec.alpha}
 
-         :ns-aliases
-         '{clojure.pprint cljs.pprint
-           clojure.spec.alpha cljs.spec.alpha}
+     ;; (fn [compiler-state ns] alias-ns|nil)
+     ;; CLJS by default aliases ALL clojure.* namespaces to cljs.* if the cljs.* version exist
+     ;; I prefer a static map since it may be extended by the user and avoids touching the filesystem
+     :ns-alias-fn
+     (fn [{:keys [ns-aliases] :as state} ns]
+       (get ns-aliases ns))
 
-         ;; (fn [compiler-state ns] alias-ns|nil)
-         ;; CLJS by default aliases ALL clojure.* namespaces to cljs.* if the cljs.* version exist
-         ;; I prefer a static map since it may be extended by the user and avoids touching the filesystem
-         :ns-alias-fn
-         (fn [{:keys [ns-aliases] :as state} ns]
-           (get ns-aliases ns))
+     :closure-configurators []
 
-         :closure-configurators []
+     ;; :none supprt files are placed into <output-dir>/<cljs-runtime-path>/cljs/core.js
+     ;; this used to be just "src" but that is too generic and easily breaks something
+     ;; if output-dir is equal to the current working directory
+     :cljs-runtime-path "cljs-runtime"
 
-         ;; :none supprt files are placed into <output-dir>/<cljs-runtime-path>/cljs/core.js
-         ;; this used to be just "src" but that is too generic and easily breaks something
-         ;; if output-dir is equal to the current working directory
-         :cljs-runtime-path "cljs-runtime"
+     :work-dir work-dir
 
-         :work-dir work-dir
+     :manifest-cache-dir
+     (let [dir (io/file work-dir "shadow-cljs" "jar-manifest")]
+       (io/make-parents dir)
+       dir)
 
-         :manifest-cache-dir
-         (let [dir (io/file work-dir "shadow-cljs" "jar-manifest")]
-           (io/make-parents dir)
-           dir)
+     :cache-dir (io/file work-dir "shadow-cljs" "cljs-cache")
+     :cache-level :all
 
-         :cache-dir (io/file work-dir "shadow-cljs" "cljs-cache")
-         :cache-level :all
+     :output-dir (io/file "public" "js")
+     :asset-path "js"
 
-         :output-dir (io/file "public" "js")
-         :asset-path "js"
+     :n-compile-threads (.. Runtime getRuntime availableProcessors)
 
-         :n-compile-threads (.. Runtime getRuntime availableProcessors)
+     :source-paths {}
 
-         :source-paths {}
-
-         :logger
-         stdout-log}
-
-        (add-closure-configurator closure/closure-add-replace-constants-pass)
-        )))
+     :logger
+     stdout-log}
+    ))
 
 (defn watch-and-repeat! [state callback]
   (loop [state (callback state [])]

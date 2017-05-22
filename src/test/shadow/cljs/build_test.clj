@@ -1058,7 +1058,32 @@
   "$.module=null;")
 
 (defn strip-empty-modules [{:keys [closure] :as state}]
-  state)
+  (let [{:keys [modules]}
+        closure
+
+        ;; all code of a module may have been DCE or moved
+        dead
+        (->> modules
+             (remove #(seq (:output %)))
+             (map :name)
+             (into #{}))
+
+        ;; a module may have contained multiple sources which were all removed
+        dead-sources
+        (->> modules
+             (remove #(contains? dead (:name %)))
+             (mapcat :sources)
+             (into #{}))
+
+        ;; only keep modules that contain actual code
+        modules
+        (->> modules
+             (remove #(contains? dead (:name %)))
+             (into []))]
+
+    (update state :closure merge {:modules modules
+                                  :dead dead
+                                  :dead-sources dead-sources})))
 
 (deftest test-closure-module-per-file
   (try
@@ -1077,19 +1102,23 @@
                    ["code_split/externs.js"]}})
               (cljs/add-closure-configurator
                 (fn [cc co state]
+                  ;; cut the goog.exportSymbol call CLJS may have generated
+                  ;; since they will still export to window which is not what we want
                   (set! (.-stripTypePrefixes co) #{"goog.exportSymbol"})
+                  ;; can be anything but will be repeated a lot and each extra byte counts
+                  ;; maybe should chose different symbol since $ is jQuery but who uses that still? :P
                   (.setRenamePrefixNamespace co "$")))
               #_(update :compiler-options merge {:pretty-print true
                                                  :pseudo-names true})
               (comp/compile)
               (module-per-file)
-              (closure/closure-setup)
-              (closure/closure-compile)
+              (closure/setup)
+              (closure/compile-js-modules)
               (strip-empty-modules)
-              (closure/closure-warnings)
-              (closure/closure-errors!)
-              (closure/closure-module-wrap)
-              (closure/closure-finish)
+              (closure/log-warnings)
+              (closure/throw-errors!)
+              (closure/wrap-module-output)
+              (closure/finish)
               (output/flush-modules-to-disk))]
 
       :done)
