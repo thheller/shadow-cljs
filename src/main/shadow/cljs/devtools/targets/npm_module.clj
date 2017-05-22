@@ -173,11 +173,6 @@
 
   state)
 
-(defn release-mode [state config]
-  (prn [:release-mode])
-  (update state :compiler-options merge {:optimize-constants true
-                                         :emit-constants true}))
-
 (defn init [state mode {:keys [runtime entries output-dir] :as config}]
   (let [entries
         (or entries
@@ -192,7 +187,8 @@
 
     (-> state
         (assoc :source-map-comment false
-               ::comp/skip-optimize true)
+               :output-format :npm
+               :npm-require :require)
 
         (cond->
           output-dir
@@ -202,12 +198,7 @@
 
         (cond->
           (= :dev mode)
-          (repl/setup)
-
-          ;; since we don't use closure set any
-          ;; cljs options that could benefit us
-          (= :release mode)
-          (release-mode config))
+          (repl/setup))
 
         (cond->
           (and (:worker-info state) (= :dev mode) (= :node runtime))
@@ -223,7 +214,11 @@
     (init state mode config)
 
     :flush
-    (flush state mode config)
+    (case mode
+      :dev
+      (flush state mode config)
+      :release
+      (output/flush-modules-to-disk state))
 
     state
     ))

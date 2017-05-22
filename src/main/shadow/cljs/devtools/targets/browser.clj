@@ -11,7 +11,7 @@
             [shadow.cljs.repl :as repl]
             [shadow.cljs.output :as output]
             [shadow.cljs.closure :as closure]
-            ))
+            [shadow.cljs.util :as util]))
 
 (s/def ::entries
   (s/coll-of simple-symbol? :kind vector?))
@@ -194,8 +194,6 @@
       #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
     ))
 
-
-
 (defn init
   [state mode {:keys [modules module-loader] :as config}]
   (let [{:keys [output-dir asset-path bundle-foreign public-dir public-path]}
@@ -215,11 +213,11 @@
           public-path
           (cljs/merge-build-options {:asset-path public-path})
 
-
           bundle-foreign
           (cljs/merge-build-options {:bundle-foreign bundle-foreign}))
 
-        (assoc :npm-require :bundle)
+        ;; FIXME: add config option
+        ;; (assoc :npm-require :bundle)
 
         (configure-modules mode config modules)
 
@@ -267,7 +265,7 @@
     (assoc mod :js-name (str/replace js-name #".js$" (str "." signature ".js")))))
 
 (defn hash-optimized-modules [state]
-  (update state :optimized
+  (update state ::closure/modules
     (fn [optimized]
       (->> optimized
            (map hash-optimized-module)
@@ -291,6 +289,51 @@
             (output/flush-modules-to-disk)
             (flush-manifest true)))))
 
+(defn foreign-js-source-for-mod [state {:keys [sources] :as mod}]
+  (->> sources
+       (map #(get-in state [:sources %]))
+       (filter util/foreign?)
+       (map :output)
+       (str/join "\n")))
+
+(defn module-wrap
+  "add web specific prepends to each module"
+  ;; FIXME: node environments should not require the Math.imul fix right?
+  [{:keys [bundle-foreign] :as state}]
+  (update state :build-modules
+    (fn [modules]
+      (->> modules
+           (map (fn [{:keys [name prepend append default] :as mod}]
+                  (let [module-prefix
+                        (cond
+                          default
+                          (:unoptimizable state)
+
+                          (:web-worker mod)
+                          (let [deps (:depends-on mod)]
+                            (str (str/join "\n" (for [other modules
+                                                      :when (contains? deps (:name other))]
+                                                  (str "importScripts('" (:js-name other) "');")))
+                                 "\n\n"))
+
+                          :else
+                          "")
+
+                        module-prefix
+                        (if (= :inline bundle-foreign)
+                          (str prepend (foreign-js-source-for-mod state mod) module-prefix)
+                          (str prepend "\n" module-prefix))
+
+                        module-prefix
+                        (if (seq module-prefix)
+                          (str module-prefix "\n")
+                          "")]
+
+                    (assoc mod :prepend module-prefix)
+                    )))
+           (into [])
+           ))))
+
 (defn process
   [{::comp/keys [stage mode config] :as state}]
   (case stage
@@ -298,9 +341,12 @@
     (init state mode config)
 
     :compile-finish
-    (if (:module-loader config)
-      (inject-loader-setup state (= :release mode))
-      state)
+    (-> state
+        (module-wrap)
+        (cond->
+          (:module-loader config)
+          (inject-loader-setup (= :release mode))
+          ))
 
     :flush
     (flush state mode config)

@@ -32,12 +32,14 @@
 (def default-externs
   (into [] (CommandLineRunner/getDefaultExterns)))
 
-(defn load-externs [{:keys [externs deps-externs build-modules] :as state}]
+(defn load-externs [{:keys [output-format deps-externs build-modules] :as state}]
   (let [externs
         (distinct
           (concat
             (:externs state)
-            (get-in state [:compiler-options :externs])))
+            (get-in state [:compiler-options :externs])
+            (when (= :npm output-format)
+              ["shadow/cljs/npm_externs.js"])))
 
         manual-externs
         (when (seq externs)
@@ -281,13 +283,6 @@
     (.toString sb)
     ))
 
-(defn foreign-js-source-for-mod [state {:keys [sources] :as mod}]
-  (->> sources
-       (map #(get-in state [:sources %]))
-       (filter util/foreign?)
-       (map :output)
-       (str/join "\n")))
-
 ;; CLOSURE-WARNING: Property nodeGlobalRequire never defined on goog
 ;; Original: ~/.m2/repository/org/clojure/clojurescript/1.9.542/clojurescript-1.9.542.jar!/cljs/core.cljs [293:4]
 ;; cljs/core.cljs contains a call to goog.nodeGlobalRequire(...) which is only used in self-host mode
@@ -348,9 +343,81 @@
 
     (assoc state ::modules modules)))
 
+(defn make-js-module-per-source
+  [{:keys [compiler-env build-sources] :as state}]
+
+  (let [base
+        (doto (JSModule. "goog.base.js")
+          (.add (SourceFile/fromCode "goog.base.js"
+                  (str (output/closure-defines-and-base state)
+                       goog-nodeGlobalRequire-fix))))
+
+        js-mods
+        (reduce
+          (fn [js-mods src-name]
+            (let [{:keys [ns require-order provides output js-name] :as src}
+                  (get-in state [:sources src-name])
+
+                  require-order
+                  (->> require-order
+                       (remove '#{goog})
+                       (map #(get-in state [:provide->source %]))
+                       (distinct)
+                       (into []))
+
+                  defs
+                  (when ns
+                    (->> (get-in compiler-env [::ana/namespaces ns :defs])
+                         (vals)
+                         (filter #(get-in % [:meta :export]))
+                         (map :name)
+                         (map (fn [def]
+                                (let [export-name
+                                      (-> def name str comp/munge pr-str)]
+                                  (str export-name ":" (comp/munge def)))))
+                         (str/join ",")))
+
+                  code
+                  (str output
+                       ;; can't use module.exports cause that will become window.module.exports
+                       (when (seq defs)
+                         (str "\n$.module.exports={" defs "};")))
+
+                  js-mod
+                  (doto (JSModule. (output/flat-js-name js-name))
+                    (.add (SourceFile/fromCode js-name code)))]
+
+              ;; some goog files don't depend on anything
+              (when (empty? require-order)
+                (.addDependency js-mod base))
+
+              (doseq [require require-order]
+                (.addDependency js-mod (get js-mods require)))
+
+              (assoc js-mods src-name js-mod)))
+          {}
+          build-sources)
+
+        modules
+        (->> build-sources
+             (map (fn [src-name]
+                    (let [{:keys [name js-name require-order] :as src}
+                          (get-in state [:sources src-name])]
+
+                      {:name name
+                       :js-name (output/flat-js-name js-name)
+                       :js-module (get js-mods src-name)
+                       :sources [name]})))
+             (into [{:name "goog/base.js"
+                     :js-name "goog.base.js"
+                     :js-module base
+                     :sources ["goog/base.js"]}]))]
+
+    (assoc state ::modules modules)))
+
 (defn setup
   [{::keys [modules]
-    :keys [closure-configurators compiler-options] :as state}]
+    :keys [output-format closure-configurators compiler-options] :as state}]
   (let [source-map?
         (boolean (:source-map state))
 
@@ -395,6 +462,15 @@
     (doseq [cfg closure-configurators]
       (cfg cc closure-opts state))
 
+    (when (= :npm output-format)
+
+      ;; cut the goog.exportSymbol call CLJS may have generated
+      ;; since they will still export to window which is not what we want
+      (set! (.-stripTypePrefixes closure-opts) #{"goog.exportSymbol"})
+      ;; can be anything but will be repeated a lot and each extra byte counts
+      ;; maybe should chose different symbol since $ is jQuery but who uses that still? :P
+      (.setRenamePrefixNamespace closure-opts "$"))
+
     (when source-map?
       (add-input-source-maps state cc))
 
@@ -404,27 +480,96 @@
            ::compiler-options closure-opts)))
 
 (defn compile-js-modules
-  [{::keys [externs modules compiler compiler-options] :as state}]
-  (let [js-mods
-        (into [] (map :js-module) modules)
+  [{::keys [externs modules compiler compiler-options] :keys [output-format] :as state}]
+  (util/with-logged-time
+    [state {:type :closure-compile}]
+    (let [js-mods
+          (into [] (map :js-module) modules)
 
-        ^Result result
-        (.compileModules
-          compiler
-          externs
-          js-mods
-          compiler-options)]
+          ^Result result
+          (.compileModules
+            compiler
+            externs
+            js-mods
+            compiler-options)
 
-    (-> state
-        (assoc ::result result)
-        (cond->
+          success?
           (.success result)
-          (update ::modules
-            (fn [modules]
-              (->> modules
-                   (map (fn [{:keys [js-module] :as x}]
-                          (assoc x :output (.toSource compiler js-module))))
-                   (into []))))))))
+
+          source-map
+          (when (and success? (:source-map state))
+            (.getSourceMap compiler))]
+
+      (-> state
+          (assoc ::result result)
+          (cond->
+            success?
+            (update ::modules
+              (fn [modules]
+                (->> modules
+                     (map (fn [{:keys [prepend js-name js-module] :as x}]
+                            ;; must reset source map before calling .toSource
+                            (when source-map
+                              (.reset source-map))
+
+                            (let [js (.toSource compiler js-module)]
+                              (if-not (seq js)
+                                (assoc x :dead true :output "")
+                                (-> x
+                                    (assoc :output js)
+                                    (cond->
+                                      source-map
+                                      (merge (let [sw (StringWriter.)]
+
+                                               ;; must call .appendTo after calling toSource
+                                               (let [lines
+                                                     (-> (if (seq prepend)
+                                                           (output/line-count prepend)
+                                                           0)
+                                                         (cond->
+                                                           ;; the npm mode will add one additional line
+                                                           ;; for the env setup, requires
+                                                           (= :npm output-format)
+                                                           (inc)))]
+
+                                                 (.setStartingPosition source-map lines 0))
+
+                                               (.appendTo source-map sw js-name)
+
+                                               {:source-map-json (.toString sw)}))
+                                      ))))))
+                     (into [])))))))))
+
+(defn strip-dead-modules
+  "remove any modules that were completely eliminated or moved by closure
+
+   must be called after compile-js-modules
+   this would leave empty files otherwise that nobody needs"
+  [{::keys [modules] :as state}]
+  ;; all code of a module may have been DCE or moved
+  (let [dead-modules
+        (->> modules
+             (filter :dead)
+             (map :js-name)
+             (into #{}))
+
+        ;; a module may have contained multiple sources which were all removed
+        dead-sources
+        (->> modules
+             (remove #(contains? dead-modules (:js-name %)))
+             (mapcat :sources)
+             (into #{}))
+
+        ;; only keep modules that contain actual code
+        modules
+        (->> modules
+             (remove :dead)
+             (into []))]
+
+    (assoc state
+           ::modules modules
+           ::dead-modules dead-modules
+           ::dead-sources dead-sources)))
 
 (defn log-warnings [{::keys [compiler result] :as state}]
   (let [warnings (into [] (js-error-xf state compiler) (.warnings result))]
@@ -441,6 +586,35 @@
       (throw (ex-info "closure errors" {:tag ::errors :errors errors}))))
 
   state)
+
+(defn module-wrap-npm
+  "adds npm specific prepend/append but does not modify output
+
+   must be called after strip-dead-modules
+   can't do this before compiling since we need to know which modules where removed"
+  ;; FIXME: could do this in compile-modules
+  [{::keys [modules dead-modules dead-sources] :as state}]
+  (let [env-prepend
+        "var window=global;var $=require(\"./cljs_env\");"]
+
+    (update state ::modules
+      (fn [modules]
+        (->> modules
+             (map (fn [{:keys [name js-module] :as mod}]
+                    (let [requires
+                          (->> (.getDependencies js-module)
+                               (map #(.getName %))
+                               (remove dead-modules)
+                               (map #(str "require(\"./" % "\");"))
+                               (str/join ""))]
+
+                      (-> mod
+                          ;; the npm prepend must be one line, will mess up source lines otherwise
+                          (update :prepend #(str env-prepend requires "$.module=module;\n" %))
+                          ;; the set this to null so it doesn't leak to other modules
+                          (update :append str "$.module=null;")
+                          ))))
+             (into []))))))
 
 (defn- set-check-only
   [{::keys [compiler-options] :as state}]
@@ -460,109 +634,44 @@
         (log-warnings)
         (throw-errors!))))
 
-(defn wrap-module-output*
-  [{::keys [modules] :keys [bundle-foreign] :as state}
-   {:keys [js-name js-module prepend append default output] :as mod}]
-  (let [module-prefix
-        (cond
-          default
-          (:unoptimizable state)
-
-          (:web-worker mod)
-          (let [deps (:depends-on mod)]
-            (str (str/join "\n" (for [other modules
-                                      :when (contains? deps (:name other))]
-                                  (str "importScripts('" (:js-name other) "');")))
-                 "\n\n"))
-
-          :else
-          "")
-
-        module-prefix
-        (if (= :inline bundle-foreign)
-          (str prepend (foreign-js-source-for-mod state mod) module-prefix)
-          (str prepend "\n" module-prefix))
-
-        module-prefix
-        (if (seq module-prefix)
-          (str module-prefix "\n")
-          "")
-
-        final-output
-        (str module-prefix
-             output
-             append)]
-
-    (-> mod
-        (assoc :prefix module-prefix)
-        (assoc :output final-output))))
-
-(defn wrap-module-output
-  "adds prepend/append to the compiled output"
-  [state]
-  (update state ::modules
-    (fn [modules]
-      (->> modules
-           (map #(wrap-module-output* state %))
-           (into [])))))
-
-(defn make-source-maps
-  [{::keys [compiler] :as state}]
-  (util/with-logged-time
-    [state {:type :closure-source-maps}]
-
-    (let [source-map (.getSourceMap compiler)]
-
-      (update state ::modules
-        (fn [modules]
-          (->> modules
-               (map (fn [{:keys [js-name module-prefix output] :as mod}]
-                      ;; must reset, will contain content from previous map otherwise
-                      ;; yay mutable state
-                      (.reset source-map)
-
-                      (let [source-map-name
-                            (str js-name ".map")
-
-                            final-output
-                            (str output
-                                 "\n//# sourceMappingURL=" source-map-name "\n")
-
-                            sw
-                            (StringWriter.)]
-
-                        (.setWrapperPrefix source-map module-prefix)
-                        (.appendTo source-map sw js-name)
-
-                        (assoc mod
-                               :output final-output
-                               :source-map-json (.toString sw)
-                               :source-map-name source-map-name))))
-               (into [])
-               ))))))
-
-(defn optimize
+(defn optimize-modules
   "takes the current defined modules and runs it through the closure compiler"
-  ([state optimizations]
-   (-> state
-       (update :compiler-options assoc :optimizations optimizations)
-       (optimize)))
-  ([{:keys [build-modules closure-configurators bundle-foreign cljs-runtime-path] :as state}]
-   (when-not (seq build-modules)
-     (throw (ex-info "optimize before compile?" {})))
+  [{:keys [build-modules] :as state}]
+  (when-not (seq build-modules)
+    (throw (ex-info "optimize before compile?" {})))
 
-   (-> state
-       (make-js-modules)
-       (setup)
-       (read-variable-maps)
-       (compile-js-modules)
-       (log-warnings)
-       (throw-errors!)
-       (wrap-module-output)
-       (cond->
-         (boolean (:source-map state))
-         (make-source-maps))
-       (write-variable-maps))))
+
+  (-> state
+      (make-js-modules)
+      (setup)
+      (read-variable-maps)
+      (compile-js-modules)
+      (log-warnings)
+      (throw-errors!)
+      (write-variable-maps)))
+
+(defn optimize-npm
+  [{:keys [build-modules] :as state}]
+  (when-not (seq build-modules)
+    (throw (ex-info "optimize before compile?" {})))
+
+  (-> state
+      (make-js-module-per-source)
+      (setup)
+      (read-variable-maps)
+      (compile-js-modules)
+      (log-warnings)
+      (throw-errors!)
+      (strip-dead-modules)
+      (module-wrap-npm)
+      (write-variable-maps)))
+
+(defn optimize [{:keys [output-format] :as state}]
+  (case output-format
+    :goog
+    (optimize-modules state)
+    :npm
+    (optimize-npm state)))
 
 ;; FIXME: about 100ms for even simple files, might be too slow to process each file indiviually
 (defn compile-es6 [state {:keys [module-alias name js-name input] :as src}]

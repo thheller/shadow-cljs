@@ -2101,7 +2101,9 @@ normalize-resource-name
   ([state]
    (closure/optimize state))
   ([state optimizations]
-   (closure/optimize state optimizations)))
+   (-> state
+       (update :compiler-options assoc :optimizations optimizations)
+       (closure/optimize))))
 
 (defn get-reloadable-source-paths [state]
   (->> state
@@ -2400,8 +2402,8 @@ enable-emit-constants [state]
      :runtime
      {:print-fn :none}
 
-     :npm-require
-     :require ;; or :bundle
+     :output-format :goog
+     :npm-require :require ;; or :bundle
 
      :use-file-min true
 

@@ -967,179 +967,39 @@
   :done
   )
 
-(defn module-per-file
-  [{:keys [compiler-env build-sources] :as state}]
-
-  (let [base
-        (doto (JSModule. "goog.base.js")
-          (.add (SourceFile/fromCode "goog.base.js"
-                  (str (output/closure-defines-and-base state)
-                       closure/goog-nodeGlobalRequire-fix))))
-
-        js-mods
-        (reduce
-          (fn [js-mods src-name]
-            (let [{:keys [ns require-order provides output js-name] :as src}
-                  (get-in state [:sources src-name])
-
-                  require-order
-                  (->> require-order
-                       (remove '#{goog})
-                       (map #(get-in state [:provide->source %]))
-                       (distinct)
-                       (into []))
-
-                  defs
-                  (when ns
-                    (->> (get-in compiler-env [::ana/namespaces ns :defs])
-                         (vals)
-                         (filter #(get-in % [:meta :export]))
-                         (map :name)
-                         (map (fn [def]
-                                (let [export-name
-                                      (-> def name str cljs-comp/munge pr-str)]
-                                  (str export-name ":" (cljs-comp/munge def)))))
-                         (str/join ",")))
-
-                  code
-                  (str output
-                       ;; can't use module.exports cause that will become window.module.exports
-                       (when (seq defs)
-                         (str "\n$.module.exports={" defs "};")))
-
-                  js-mod
-                  (doto (JSModule. (output/flat-js-name js-name))
-                    (.add (SourceFile/fromCode js-name code)))]
-
-              ;; some goog files don't depend on anything
-              (when (empty? require-order)
-                (.addDependency js-mod base))
-
-              (doseq [require require-order]
-                (.addDependency js-mod (get js-mods require)))
-
-              (assoc js-mods src-name js-mod)))
-          {}
-          build-sources)
-
-        modules
-        (->> build-sources
-             (map (fn [src-name]
-                    (let [{:keys [name js-name require-order] :as src}
-                          (get-in state [:sources src-name])]
-
-                      {:name name
-                       :js-name (output/flat-js-name js-name)
-                       :js-module (get js-mods src-name)
-                       :sources [name]})))
-             (into [{:name "goog/base.js"
-                     :js-name "goog.base.js"
-                     :js-module base
-                     :sources ["goog/base.js"]}]))]
-
-    (assoc state ::closure/modules modules)))
-
-
-
-(defn strip-empty-modules [{::closure/keys [modules] :as state}]
-  ;; all code of a module may have been DCE or moved
-  (let [dead-modules
-        (->> modules
-             (remove #(seq (:output %)))
-             (map :name)
-             (into #{}))
-
-        ;; a module may have contained multiple sources which were all removed
-        dead-sources
-        (->> modules
-             (remove #(contains? dead-modules (:name %)))
-             (mapcat :sources)
-             (into #{}))
-
-        ;; only keep modules that contain actual code
-        modules
-        (->> modules
-             (remove #(contains? dead-modules (:name %)))
-             (into []))]
-
-    (assoc state
-           ::closure/modules modules
-           ::closure/dead-modules dead-modules
-           ::closure/dead-sources dead-sources)))
-
-(defn wrap-module-output-npm
-  [{::closure/keys [modules dead-modules dead-sources] :as state}]
-  (let [env-prepend
-        "var window=global;var $=require(\"./cljs_env\");"]
-
-    (update state ::closure/modules
-      (fn [modules]
-        (->> modules
-             (map (fn [{:keys [name js-module] :as mod}]
-                    (let [requires
-                          (->> (.getDependencies js-module)
-                               (map #(.getName %))
-                               (remove dead-modules)
-                               (map #(str "require(\"./" % "\");"))
-                               (str/join ""))]
-
-                      (update mod :output
-                        #(str env-prepend
-                              requires
-                              "$.module=module;"
-                              %
-                              "$.module=null;")))))
-             (into []))))))
-
 (deftest test-closure-module-per-file
   (try
     (let [state
           (-> (comp/init :release
                 '{:id :test
-                  :target :browser
+                  :target :npm-module
+                  :entries [code-split.b]
+
+                  ;;:target :browser
                   :output-dir "target/closure-module-per-file"
-                  :modules
-                  {:core
-                   {:entries
-                    [cljs.core]}
-                   :a
-                   {:entries
-                    [code-split.a]
-                    :depends-on #{:core}}
-                   :b
-                   {:entries
-                    [code-split.b]
-                    :depends-on #{:a}}
-                   }
-                  :compiler-options
-                  {:externs
-                   ["code_split/externs.js"]}})
-              (cljs/add-closure-configurator
-                (fn [cc co state]
-                  ;; cut the goog.exportSymbol call CLJS may have generated
-                  ;; since they will still export to window which is not what we want
-                  (set! (.-stripTypePrefixes co) #{"goog.exportSymbol"})
-                  ;; can be anything but will be repeated a lot and each extra byte counts
-                  ;; maybe should chose different symbol since $ is jQuery but who uses that still? :P
-                  (.setRenamePrefixNamespace co "$")))
-              #_(update :compiler-options merge {:pretty-print true
-                                                 :pseudo-names true})
+
+                  #_ :modules
+                  #_ {:core
+                     {:entries
+                      [cljs.core]}
+                     :a
+                     {:entries
+                      [code-split.a]
+                      :depends-on #{:core}}
+                     :b
+                     {:entries
+                      [code-split.b]
+                      :depends-on #{:a}}
+                     }
+                  })
+              ;; (cljs/enable-source-maps)
               (comp/compile)
-              (module-per-file)
-              (closure/make-js-modules)
-              (closure/setup)
-              (closure/compile-js-modules)
-              (strip-empty-modules)
-              (closure/log-warnings)
-              (closure/throw-errors!)
-              (closure/wrap-module-output)
-              (wrap-module-output-npm)
-              (output/flush-modules-to-disk))]
+              (comp/optimize)
+              (comp/flush))]
 
       :done)
     (catch Exception e
       (prn e)
       (let [{:keys [errors]} (ex-data e)]
         (doseq [err errors]
-          (prn err)))))
-  )
+          (prn err))))))

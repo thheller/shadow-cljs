@@ -160,11 +160,19 @@
 
 (defn flush-modules-to-disk
   ;; FIXME: can't alias this due to cyclic dependency
-  [{modules ::shadow.cljs.closure/modules
-    :keys [^File output-dir cljs-runtime-path]
+  [{modules :shadow.cljs.closure/modules
+    :keys [^File output-dir output-format]
     :as state}]
 
-  (flush-foreign-bundles state)
+  (case output-format
+    :goog
+    (flush-foreign-bundles state)
+
+    :npm
+    (let [env-file (io/file output-dir "cljs_env.js")]
+      (io/make-parents env-file)
+      (spit env-file "module.exports = {};")
+      ))
 
   (util/with-logged-time
     [state {:type :flush-optimized}]
@@ -175,20 +183,34 @@
     (when-not output-dir
       (throw (ex-info "missing :output-dir" {})))
 
-    (doseq [{:keys [output source-map-name source-map-json name js-name] :as mod} modules]
-      (let [target (io/file output-dir js-name)]
+    (doseq [{:keys [prepend output append source-map-name source-map-json name js-name] :as mod} modules]
+      (let [target
+            (io/file output-dir js-name)
+
+            source-map-name
+            (str js-name ".map")
+
+            ;; must not prepend anything else before output
+            ;; will mess up source maps otherwise
+            ;; append is fine
+            final-output
+            (str prepend
+                 output
+                 append
+                 (when source-map-json
+                   (str "\n//# sourceMappingURL=" source-map-name "\n")))]
 
         (io/make-parents target)
 
-        (spit target output)
+        (spit target final-output)
 
         (util/log state {:type :flush-module
                          :name name
                          :js-name js-name
-                         :js-size (count output)})
+                         :js-size (count final-output)})
 
-        (when source-map-name
-          (let [target (io/file output-dir cljs-runtime-path source-map-name)]
+        (when source-map-json
+          (let [target (io/file output-dir source-map-name)]
             (io/make-parents target)
             (spit target source-map-json)))))
 

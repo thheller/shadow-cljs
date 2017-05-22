@@ -1,4 +1,5 @@
-(ns demo.npm
-  (:require [demo.ns]))
+(ns demo.npm)
 
+(defn ^:export foo []
+  "hello from cljs!")
 

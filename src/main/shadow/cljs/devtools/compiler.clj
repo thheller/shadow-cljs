@@ -223,7 +223,7 @@
       (cond->
         (and (= :release mode) (not skip-optimize))
         (-> (process-stage :optimize-prepare true)
-            (cljs/closure-optimize)
+            (closure/optimize)
             (process-stage :optimize-finish true)))))
 
 (defn check
@@ -232,7 +232,7 @@
    :post [(cljs/compiler-state? %)]}
   (-> state
       (process-stage :check-prepare true)
-      (cljs/closure-check)
+      (closure/check)
       (process-stage :check-finish true)))
 
 (defn flush
