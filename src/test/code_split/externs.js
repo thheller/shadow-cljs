@@ -2,7 +2,10 @@
 /**
  * @const
  */
-var $CLJS;
+var $;
 
-$CLJS.exports = {};
-$CLJS.set_exports = function(name, obj) {};
+$.module = {};
+$.module.exports;
+
+/** @const */
+var process;

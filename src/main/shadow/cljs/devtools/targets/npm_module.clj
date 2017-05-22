@@ -17,9 +17,6 @@
   (:import (java.io StringReader BufferedReader)
            (java.util Base64)))
 
-(defn flat-js-name [js-name]
-  (str/replace js-name #"/" "."))
-
 (defn get-root [sym]
   (let [s (cljs-comp/munge (str sym))]
     (if-let [idx (str/index-of s ".")]
@@ -45,7 +42,7 @@
               (map (fn [src-name]
                      (let [{:keys [js-name]}
                            (get-in state [:sources src-name])]
-                       (str "require(\"./" (flat-js-name js-name) "\");"))))
+                       (str "require(\"./" (output/flat-js-name js-name) "\");"))))
               (str/join "\n"))
          "\n"
          ;; require roots will exist
@@ -130,7 +127,7 @@
               (get-in state [:sources src-name])
 
               flat-name
-              (flat-js-name js-name)
+              (output/flat-js-name js-name)
 
               target
               (io/file output-dir flat-name)]

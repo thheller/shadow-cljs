@@ -19,7 +19,8 @@
             [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.devtools.targets.browser :as browser]
-            [shadow.cljs.closure :as closure])
+            [shadow.cljs.closure :as closure]
+            [cljs.compiler :as cljs-comp])
   (:import (java.util.regex Pattern)
            (java.io File ByteArrayInputStream)
            (java.net URL)
@@ -966,77 +967,57 @@
   :done
   )
 
-(comment
-  (reduce
-    (fn [js-mods {:keys [js-name name depends-on sources] :as mod}]
-      (let [js-mod (JSModule. js-name)]
-        (when (:default mod)
-          (.add js-mod (SourceFile/fromCode "closure_setup.js"
-                         (str (output/closure-defines-and-base state)
-                              goog-nodeGlobalRequire-fix))))
-
-        (doseq [{:keys [name type js-name output] :as src}
-                (map #(get-in state [:sources %]) sources)]
-          ;; throws hard to track NPE otherwise
-          (when-not (and js-name output (seq output))
-            (throw (ex-info "missing output for source" {:js-name js-name :name (:name src)})))
-
-          (case type
-            ;; foreign files only include the goog.require/goog.provide statements
-            ;; not the actual foreign code, that will be prepended after optimizations
-            :foreign
-            (let [content (make-foreign-js-header src)]
-              (.add js-mod (SourceFile/fromCode js-name content)))
-
-            :js
-            (.add js-mod (SourceFile/fromCode js-name output))
-
-            :cljs
-            (.add js-mod (SourceFile/fromCode js-name output))
-
-            (throw (ex-info "unsupported type for closure" src))))
-
-        (doseq [other-mod-name depends-on
-                :let [other-mod (get js-mods other-mod-name)]]
-          (when-not other-mod
-            (throw (ex-info "module depends on undefined module" {:mod name :other other-mod-name})))
-          (.addDependency js-mod other-mod))
-
-        (assoc js-mods name js-mod)))
-    {}
-    modules))
-
 (defn module-per-file
-  [{:keys [build-sources] :as state}]
+  [{:keys [compiler-env build-sources] :as state}]
 
-  (let [base
-        (doto (JSModule. "goog/base.js")
-          (.add (SourceFile/fromCode "closure_setup.js"
+  (let [env-prepend
+        "var window=global;var $=require(\"./cljs_env\");$.module=module;"
+
+        base
+        (doto (JSModule. "goog.base.js")
+          (.add (SourceFile/fromCode "goog.base.js"
                   (str (output/closure-defines-and-base state)
                        closure/goog-nodeGlobalRequire-fix))))
 
         js-mods
         (reduce
           (fn [js-mods src-name]
-            (let [{:keys [requires provides output js-name] :as src}
+            (let [{:keys [ns require-order provides output js-name] :as src}
                   (get-in state [:sources src-name])
 
-                  requires
-                  (->> requires
+                  require-order
+                  (->> require-order
                        (remove '#{goog})
                        (map #(get-in state [:provide->source %]))
                        (distinct)
                        (into []))
 
-                  js-mod
-                  (doto (JSModule. js-name)
-                    (.add (SourceFile/fromCode js-name output)))]
+                  defs
+                  (when ns
+                    (->> (get-in compiler-env [::ana/namespaces ns :defs])
+                         (vals)
+                         (filter #(get-in % [:meta :export]))
+                         (map :name)
+                         (map (fn [def]
+                                (let [export-name
+                                      (-> def name str cljs-comp/munge pr-str) ]
+                                  (str export-name ":" (cljs-comp/munge def)))))
+                         (str/join ",")))
 
-              (when (empty? requires)
-                (prn [:base-mod src-name requires])
+                  code
+                  (str output
+                       ;; can't use module.exports cause that will become window.module.exports
+                       "\n$.module.exports={" defs "};")
+
+                  js-mod
+                  (doto (JSModule. (output/flat-js-name js-name))
+                    (.add (SourceFile/fromCode js-name code)))]
+
+              ;; some goog files don't depend on anything
+              (when (empty? require-order)
                 (.addDependency js-mod base))
 
-              (doseq [require requires]
+              (doseq [require require-order]
                 (.addDependency js-mod (get js-mods require)))
 
               (assoc js-mods src-name js-mod)))
@@ -1046,15 +1027,26 @@
         modules
         (->> build-sources
              (map (fn [src-name]
-                    (let [{:keys [name js-name] :as src}
+                    (let [{:keys [name js-name require-order] :as src}
                           (get-in state [:sources src-name])]
 
                       {:name name
-                       :js-name js-name
-                       :js-module (get js-mods src-name)})))
+                       :js-name (output/flat-js-name js-name)
+                       :js-module (get js-mods src-name)
+                       :prepend (str env-prepend
+                                     (->> require-order
+                                          (remove '#{goog})
+                                          (map #(get-in state [:provide->source %]))
+                                          (distinct)
+                                          (map #(get-in state [:sources % :js-name]))
+                                          (map #(str "require(\"./" (output/flat-js-name %) "\");"))
+                                          (str/join "")))
+                       :sources [name]})))
              (into [{:name "goog/base.js"
-                     :js-name "goog/base.js"
-                     :js-module base}]))]
+                     :js-name "goog.base.js"
+                     :js-module base
+                     :prepend env-prepend
+                     :sources ["goog/base.js"]}]))]
 
     (assoc-in state [:closure :modules] modules)))
 
@@ -1069,7 +1061,16 @@
                   {:main
                    {:entries
                     [code-split.a
-                     code-split.b]}}})
+                     code-split.b]}}
+                  :compiler-options
+                  {:externs
+                   ["code_split/externs.js"]}})
+              (cljs/add-closure-configurator
+                (fn [cc co state]
+                  (set! (.-stripTypePrefixes co) #{"goog.exportSymbol"})
+                  (.setRenamePrefixNamespace co "$")))
+              #_(update :compiler-options merge {:pretty-print true
+                                                 :pseudo-names true})
               (comp/compile)
               (module-per-file)
               (closure/closure-setup)
@@ -1081,6 +1082,7 @@
 
       :done)
     (catch Exception e
+      (prn e)
       (let [{:keys [errors]} (ex-data e)]
         (doseq [err errors]
           (prn err)))))

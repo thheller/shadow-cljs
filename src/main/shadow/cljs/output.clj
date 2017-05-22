@@ -7,6 +7,9 @@
             [clojure.data.json :as json])
   (:import (java.io StringReader BufferedReader File)))
 
+(defn flat-js-name [js-name]
+  (str/replace js-name #"/" "."))
+
 (defn closure-defines-json [{:keys [closure-defines] :as state}]
   (let [closure-defines
         (reduce-kv
