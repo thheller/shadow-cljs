@@ -7,6 +7,7 @@
             [shadow.cljs.log :as log]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.output :as output]
+            [shadow.cljs.closure :as closure]
             [shadow.cljs.util :as util])
   (:import (java.lang ProcessBuilder$Redirect)))
 
@@ -168,7 +169,7 @@
 
 
 (defn flush-optimized
-  [{modules :optimized :keys [node-config] :as state}]
+  [{::closure/keys [modules] :keys [node-config] :as state}]
   (let [{:keys [output-to]} node-config]
     (util/with-logged-time
       [state {:type ::flush-optimized

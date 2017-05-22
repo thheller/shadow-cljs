@@ -159,7 +159,8 @@
   state)
 
 (defn flush-modules-to-disk
-  [{modules :optimized
+  ;; FIXME: can't alias this due to cyclic dependency
+  [{modules ::shadow.cljs.closure/modules
     :keys [^File output-dir cljs-runtime-path]
     :as state}]
 

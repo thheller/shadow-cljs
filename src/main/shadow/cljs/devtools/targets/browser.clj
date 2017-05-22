@@ -9,7 +9,9 @@
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.repl :as repl]
-            [shadow.cljs.output :as output]))
+            [shadow.cljs.output :as output]
+            [shadow.cljs.closure :as closure]
+            ))
 
 (s/def ::entries
   (s/coll-of simple-symbol? :kind vector?))
@@ -235,7 +237,7 @@
   (spit
     (io/file output-dir "manifest.json")
     (let [data
-          (->> (or (:optimized state) ;; must use :optimized for :release builds because of :module-hash-names
+          (->> (or (::closure/modules state) ;; must use :optimized for :release builds because of :module-hash-names
                    (:build-modules state))
                (map (fn [{:keys [name js-name entries depends-on default sources foreign-files] :as mod}]
                       (-> {:name name

@@ -5,7 +5,7 @@
             [shadow.cljs.output :as output]
             [cljs.analyzer :as ana]
             [cljs.compiler :as comp]
-            [cljs.closure :as closure]
+            [cljs.closure :as cljs-closure]
             [clojure.data.json :as json]
             [cljs.env :as env])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream)
@@ -83,52 +83,52 @@
    It registers all known CLJS protocols with the Closure TypeRegistry
    each method is as a property on Object since most of the time Closure doesn't know the proper type
    and annotating everything seems unlikely."
-  [{:keys [compiler-env build-sources closure] :as state}]
-  (let [{:keys [compiler compiler-options]} closure]
+  [{::keys [compiler compiler-options]
+    :keys [compiler-env build-sources]
+    :as state}]
+  (when (contains? #{:warning :error} (get-in state [:compiler-options :closure-warnings :check-types]))
+    (let [type-reg
+          (.getTypeRegistry compiler)
 
-    (when (contains? #{:warning :error} (get-in state [:compiler-options :closure-warnings :check-types]))
-      (let [type-reg
-            (.getTypeRegistry compiler)
+          obj-type
+          (.getType type-reg "Object")]
 
-            obj-type
-            (.getType type-reg "Object")]
+      ;; some general properties
+      (doseq [prop
+              ["cljs$lang$protocol_mask$partition$"
+               "cljs$lang$macro"
+               "cljs$lang$test"]]
+        (.registerPropertyOnType type-reg prop obj-type))
 
-        ;; some general properties
-        (doseq [prop
-                ["cljs$lang$protocol_mask$partition$"
-                 "cljs$lang$macro"
-                 "cljs$lang$test"]]
-          (.registerPropertyOnType type-reg prop obj-type))
+      ;; find all protocols and register the protocol method properties
+      (doseq [ana-ns (vals (::ana/namespaces compiler-env))
+              :let [{:keys [defs]} ana-ns]
+              def (vals defs)
+              :when (-> def :meta :protocol-symbol)]
 
-        ;; find all protocols and register the protocol method properties
-        (doseq [ana-ns (vals (::ana/namespaces compiler-env))
-                :let [{:keys [defs]} ana-ns]
-                def (vals defs)
-                :when (-> def :meta :protocol-symbol)]
+        (let [{:keys [name meta]} def
+              {:keys [protocol-info]} meta
 
-          (let [{:keys [name meta]} def
-                {:keys [protocol-info]} meta
+              prefix
+              (str (comp/protocol-prefix name))]
 
-                prefix
-                (str (comp/protocol-prefix name))]
+          ;; the marker prop
+          ;; some.prototype.cljs$core$ISeq$ = cljs.core.PROTOCOL_SENTINEL;
+          (.registerPropertyOnType type-reg prefix obj-type)
 
-            ;; the marker prop
-            ;; some.prototype.cljs$core$ISeq$ = cljs.core.PROTOCOL_SENTINEL;
-            (.registerPropertyOnType type-reg prefix obj-type)
+          (doseq [[meth-name meth-sigs] (:methods protocol-info)
+                  :let [munged-name (comp/munge meth-name)]
+                  meth-sig meth-sigs]
 
-            (doseq [[meth-name meth-sigs] (:methods protocol-info)
-                    :let [munged-name (comp/munge meth-name)]
-                    meth-sig meth-sigs]
+            (let [arity
+                  (count meth-sig)
 
-              (let [arity
-                    (count meth-sig)
+                  prop
+                  (str prefix munged-name "$arity$" arity)]
 
-                    prop
-                    (str prefix munged-name "$arity$" arity)]
-
-                ;; register each arity some.prototype.cljs$core$ISeq$_seq$arity$1
-                (.registerPropertyOnType type-reg prop obj-type)
-                ))))))))
+              ;; register each arity some.prototype.cljs$core$ISeq$_seq$arity$1
+              (.registerPropertyOnType type-reg prop obj-type)
+              )))))))
 
 (defn read-variable-map [{:keys [cache-dir] :as state} name]
   (let [map-file (io/file cache-dir name)]
@@ -139,14 +139,14 @@
           (prn [:variable-map-load map-file e])
           nil)))))
 
-(defn read-variable-maps [{:keys [closure cache-dir] :as state}]
-  (let [{:keys [compiler compiler-options]} closure]
+(defn read-variable-maps
+  [{::keys [compiler compiler-options]
+    :keys [cache-dir] :as state}]
+  (when-some [data (read-variable-map state "closure.property.map")]
+    (.setInputPropertyMap compiler-options data))
 
-    (when-some [data (read-variable-map state "closure.property.map")]
-      (.setInputPropertyMap compiler-options data))
-
-    (when-some [data (read-variable-map state "closure.variable.map")]
-      (.setInputVariableMap compiler-options data)))
+  (when-some [data (read-variable-map state "closure.variable.map")]
+    (.setInputVariableMap compiler-options data))
 
   state)
 
@@ -162,11 +162,9 @@
       (with-open [out (FileOutputStream. map-file)]
         (io/copy bytes out)))))
 
-(defn write-variable-maps [state]
-  (let [result (get-in state [:closure :result])]
-    ;; see closure-add-variable-maps configurator which loads these before compiling
-    (write-variable-map state "closure.variable.map" (.-variableMap result))
-    (write-variable-map state "closure.property.map" (.-propertyMap result)))
+(defn write-variable-maps [{::keys [result] :as state}]
+  (write-variable-map state "closure.variable.map" (.-variableMap result))
+  (write-variable-map state "closure.property.map" (.-propertyMap result))
   state)
 
 (defn js-error-xf [{:keys [output-dir] :as state} ^com.google.javascript.jscomp.Compiler cc]
@@ -348,21 +346,19 @@
                (assoc mod :js-module (get js-mods name)))
              (into []))]
 
-    (update state :closure assoc :modules modules)))
+    (assoc state ::modules modules)))
 
 (defn setup
-  [{:keys [closure closure-configurators compiler-options] :as state}]
-  (let [{:keys [modules]}
-        closure
-
-        source-map?
+  [{::keys [modules]
+    :keys [closure-configurators compiler-options] :as state}]
+  (let [source-map?
         (boolean (:source-map state))
 
         cc
         (make-closure-compiler (noop-error-manager))
 
         closure-opts
-        (doto (closure/make-options compiler-options)
+        (doto (cljs-closure/make-options compiler-options)
           (.resetWarningsGuard)
           (.setWarningLevel DiagnosticGroups/CHECK_TYPES CheckLevel/OFF)
           ;; really only want the undefined variables warnings
@@ -375,7 +371,7 @@
     ;; FIXME: make-options already called set-options
     ;; but I want to reset warnings and enable UNDEFINED_VARIABLES
     ;; calling set-options again so user :closure-warnings works
-    (closure/set-options compiler-options closure-opts)
+    (cljs-closure/set-options compiler-options closure-opts)
 
 
 
@@ -402,15 +398,14 @@
     (when source-map?
       (add-input-source-maps state cc))
 
-    (update state :closure merge {:externs (load-externs state)
-                                  :compiler cc
-                                  :compiler-options closure-opts})))
+    (assoc state
+           ::externs (load-externs state)
+           ::compiler cc
+           ::compiler-options closure-opts)))
 
-(defn compile-js-modules [{:keys [closure] :as state}]
-  (let [{:keys [externs modules compiler compiler-options]}
-        closure
-
-        js-mods
+(defn compile-js-modules
+  [{::keys [externs modules compiler compiler-options] :as state}]
+  (let [js-mods
         (into [] (map :js-module) modules)
 
         ^Result result
@@ -421,38 +416,35 @@
           compiler-options)]
 
     (-> state
-        (assoc-in [:closure :result] result)
+        (assoc ::result result)
         (cond->
           (.success result)
-          (update-in [:closure :modules]
+          (update ::modules
             (fn [modules]
               (->> modules
                    (map (fn [{:keys [js-module] :as x}]
                           (assoc x :output (.toSource compiler js-module))))
                    (into []))))))))
 
-(defn log-warnings [{:keys [closure] :as state}]
-  (let [{:keys [compiler result]} closure]
-    (let [warnings (into [] (js-error-xf state compiler) (.warnings result))]
-      (when (seq warnings)
-        (util/log state {:type ::warnings
-                         :warnings warnings}))))
+(defn log-warnings [{::keys [compiler result] :as state}]
+  (let [warnings (into [] (js-error-xf state compiler) (.warnings result))]
+    (when (seq warnings)
+      (util/log state {:type ::warnings
+                       :warnings warnings})))
 
   state)
 
-(defn throw-errors! [{:keys [closure] :as state}]
-  (let [{:keys [compiler result]} closure]
-    (when-not (.success result)
-      (let [errors (into [] (js-error-xf state compiler) (.errors result))]
-        (throw (ex-info "closure errors" {:tag ::errors :errors errors})))))
+(defn throw-errors!
+  [{::keys [compiler result] :as state}]
+  (when-not (.success result)
+    (let [errors (into [] (js-error-xf state compiler) (.errors result))]
+      (throw (ex-info "closure errors" {:tag ::errors :errors errors}))))
 
   state)
 
 (defn- set-check-only
-  [{:keys [closure] :as state}]
-  (let [{:keys [compiler-options]} closure]
-    (.setChecksOnly compiler-options true))
-
+  [{::keys [compiler-options] :as state}]
+  (.setChecksOnly compiler-options true)
   state)
 
 (defn check
@@ -469,7 +461,7 @@
         (throw-errors!))))
 
 (defn wrap-module-output*
-  [{:keys [bundle-foreign] :as state}
+  [{::keys [modules] :keys [bundle-foreign] :as state}
    {:keys [js-name js-module prepend append default output] :as mod}]
   (let [module-prefix
         (cond
@@ -478,7 +470,7 @@
 
           (:web-worker mod)
           (let [deps (:depends-on mod)]
-            (str (str/join "\n" (for [other (get-in state [:closure :modules])
+            (str (str/join "\n" (for [other modules
                                       :when (contains? deps (:name other))]
                                   (str "importScripts('" (:js-name other) "');")))
                  "\n\n"))
@@ -502,66 +494,55 @@
              append)]
 
     (-> mod
-        (dissoc :js-module)
         (assoc :prefix module-prefix)
         (assoc :output final-output))))
 
 (defn wrap-module-output
   "adds prepend/append to the compiled output"
   [state]
-  (update-in state [:closure :modules]
+  (update state ::modules
     (fn [modules]
       (->> modules
            (map #(wrap-module-output* state %))
            (into [])))))
 
 (defn make-source-maps
-  [{:keys [closure] :as state}]
+  [{::keys [compiler] :as state}]
   (util/with-logged-time
     [state {:type :closure-source-maps}]
 
-    (let [{:keys [result compiler modules]}
-          closure
+    (let [source-map (.getSourceMap compiler)]
 
-          source-map
-          (.getSourceMap compiler)
-
-          optimized-modules
+      (update state ::modules
+        (fn [modules]
           (->> modules
-               (mapv
-                 (fn [{:keys [js-name module-prefix output] :as mod}]
-                   (.reset source-map)
+               (map (fn [{:keys [js-name module-prefix output] :as mod}]
+                      ;; must reset, will contain content from previous map otherwise
+                      ;; yay mutable state
+                      (.reset source-map)
 
-                   (let [source-map-name
-                         (str js-name ".map")
+                      (let [source-map-name
+                            (str js-name ".map")
 
-                         final-output
-                         (str output
-                              "\n//# sourceMappingURL=" source-map-name "\n")
+                            final-output
+                            (str output
+                                 "\n//# sourceMappingURL=" source-map-name "\n")
 
-                         sw
-                         (StringWriter.)]
+                            sw
+                            (StringWriter.)]
 
-                     (.setWrapperPrefix source-map module-prefix)
-                     (.appendTo source-map sw js-name)
+                        (.setWrapperPrefix source-map module-prefix)
+                        (.appendTo source-map sw js-name)
 
-                     (assoc mod
-                            :output final-output
-                            :source-map-json (.toString sw)
-                            :source-map-name source-map-name)))))]
-
-      (assoc-in state [:closure :modules] optimized-modules)
-      )))
-
-
-
-(defn finish [state]
-  (assoc state :optimized (get-in state [:closure :modules])))
+                        (assoc mod
+                               :output final-output
+                               :source-map-json (.toString sw)
+                               :source-map-name source-map-name))))
+               (into [])
+               ))))))
 
 (defn optimize
-  "takes the current defined modules and runs it through the closure optimizer
-
-   will return the state with :optimized a list of module which now have a js-source and optionally source maps"
+  "takes the current defined modules and runs it through the closure compiler"
   ([state optimizations]
    (-> state
        (update :compiler-options assoc :optimizations optimizations)
@@ -581,19 +562,18 @@
        (cond->
          (boolean (:source-map state))
          (make-source-maps))
-       (write-variable-maps)
-       (finish))))
+       (write-variable-maps))))
 
 ;; FIXME: about 100ms for even simple files, might be too slow to process each file indiviually
 (defn compile-es6 [state {:keys [module-alias name js-name input] :as src}]
   (util/with-logged-time
     [state {:type :compile-es6 :name name}]
     (let [co
-          (doto (closure/make-convert-js-module-options (:compiler-options state))
+          (doto (cljs-closure/make-convert-js-module-options (:compiler-options state))
             (.setSourceMapOutputPath "/dev/null")
             (.setPrettyPrint true) ;; FIXME: only useful for debugging really
             (.setLanguageIn CompilerOptions$LanguageMode/ECMASCRIPT6)
-            (.setLanguageOut (closure/lang-key->lang-mode (get-in state [:compiler-options :language-out] :ecmascript3))))
+            (.setLanguageOut (cljs-closure/lang-key->lang-mode (get-in state [:compiler-options :language-out] :ecmascript3))))
 
           ;; FIXME: should really work out how to just convert the single file
           ;; noop since it will warn about missing module files

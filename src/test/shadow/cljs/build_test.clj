@@ -701,7 +701,7 @@
             ;; (cljs/flush-unoptimized)
             )]
 
-    (println (-> state :optimized (nth 2) :output))
+    (println (-> state ::closure/modules (nth 2) :output))
     (prn [:done])
     ))
 
@@ -724,7 +724,7 @@
             (cljs/compile-modules)
             (cljs/closure-optimize :advanced)
             (cljs/flush-modules-to-disk))]
-    (println (-> state :optimized second :output))
+    (println (-> state ::closure/modules second :output))
 
     ))
 
@@ -1037,32 +1037,13 @@
                      :js-module base
                      :sources ["goog/base.js"]}]))]
 
-    (assoc-in state [:closure :modules] modules)))
+    (assoc state ::closure/modules modules)))
 
-(comment
-  env-prepend
-  "var window=global;var $=require(\"./cljs_env\");"
 
-  :prepend
-  (str env-prepend
-       (->> require-order
-            (remove '#{goog})
-            (map #(get-in state [:provide->source %]))
-            (distinct)
-            (map #(get-in state [:sources % :js-name]))
-            (map #(str "require(\"./" (output/flat-js-name %) "\");"))
-            (str/join ""))
-       "$.module=module;")
 
-  :append
-  "$.module=null;")
-
-(defn strip-empty-modules [{:keys [closure] :as state}]
-  (let [{:keys [modules]}
-        closure
-
-        ;; all code of a module may have been DCE or moved
-        dead
+(defn strip-empty-modules [{::closure/keys [modules] :as state}]
+  ;; all code of a module may have been DCE or moved
+  (let [dead-modules
         (->> modules
              (remove #(seq (:output %)))
              (map :name)
@@ -1071,19 +1052,44 @@
         ;; a module may have contained multiple sources which were all removed
         dead-sources
         (->> modules
-             (remove #(contains? dead (:name %)))
+             (remove #(contains? dead-modules (:name %)))
              (mapcat :sources)
              (into #{}))
 
         ;; only keep modules that contain actual code
         modules
         (->> modules
-             (remove #(contains? dead (:name %)))
+             (remove #(contains? dead-modules (:name %)))
              (into []))]
 
-    (update state :closure merge {:modules modules
-                                  :dead dead
-                                  :dead-sources dead-sources})))
+    (assoc state
+           ::closure/modules modules
+           ::closure/dead-modules dead-modules
+           ::closure/dead-sources dead-sources)))
+
+(defn wrap-module-output-npm
+  [{::closure/keys [modules dead-modules dead-sources] :as state}]
+  (let [env-prepend
+        "var window=global;var $=require(\"./cljs_env\");"]
+
+    (update state ::closure/modules
+      (fn [modules]
+        (->> modules
+             (map (fn [{:keys [name js-module] :as mod}]
+                    (let [requires
+                          (->> (.getDependencies js-module)
+                               (map #(.getName %))
+                               (remove dead-modules)
+                               (map #(str "require(\"./" % "\");"))
+                               (str/join ""))]
+
+                      (update mod :output
+                        #(str env-prepend
+                              requires
+                              "$.module=module;"
+                              %
+                              "$.module=null;")))))
+             (into []))))))
 
 (deftest test-closure-module-per-file
   (try
@@ -1093,10 +1099,18 @@
                   :target :browser
                   :output-dir "target/closure-module-per-file"
                   :modules
-                  {:main
+                  {:core
                    {:entries
-                    [code-split.a
-                     code-split.b]}}
+                    [cljs.core]}
+                   :a
+                   {:entries
+                    [code-split.a]
+                    :depends-on #{:core}}
+                   :b
+                   {:entries
+                    [code-split.b]
+                    :depends-on #{:a}}
+                   }
                   :compiler-options
                   {:externs
                    ["code_split/externs.js"]}})
@@ -1112,13 +1126,14 @@
                                                  :pseudo-names true})
               (comp/compile)
               (module-per-file)
+              (closure/make-js-modules)
               (closure/setup)
               (closure/compile-js-modules)
               (strip-empty-modules)
               (closure/log-warnings)
               (closure/throw-errors!)
               (closure/wrap-module-output)
-              (closure/finish)
+              (wrap-module-output-npm)
               (output/flush-modules-to-disk))]
 
       :done)

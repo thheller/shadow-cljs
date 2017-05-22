@@ -87,7 +87,7 @@
 
     (binding [*print-meta* true]
       (println (get-in state [:sources "test/snippet.cljs" :output]))
-      (println (get-in state [:optimized 1 :output]))
+      (println (get-in state [::closure/modules 1 :output]))
       ))
   :done)
 
