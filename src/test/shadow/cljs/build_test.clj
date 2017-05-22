@@ -970,10 +970,7 @@
 (defn module-per-file
   [{:keys [compiler-env build-sources] :as state}]
 
-  (let [env-prepend
-        "var window=global;var $=require(\"./cljs_env\");$.module=module;"
-
-        base
+  (let [base
         (doto (JSModule. "goog.base.js")
           (.add (SourceFile/fromCode "goog.base.js"
                   (str (output/closure-defines-and-base state)
@@ -1000,14 +997,15 @@
                          (map :name)
                          (map (fn [def]
                                 (let [export-name
-                                      (-> def name str cljs-comp/munge pr-str) ]
+                                      (-> def name str cljs-comp/munge pr-str)]
                                   (str export-name ":" (cljs-comp/munge def)))))
                          (str/join ",")))
 
                   code
                   (str output
                        ;; can't use module.exports cause that will become window.module.exports
-                       "\n$.module.exports={" defs "};")
+                       (when (seq defs)
+                         (str "\n$.module.exports={" defs "};")))
 
                   js-mod
                   (doto (JSModule. (output/flat-js-name js-name))
@@ -1033,22 +1031,34 @@
                       {:name name
                        :js-name (output/flat-js-name js-name)
                        :js-module (get js-mods src-name)
-                       :prepend (str env-prepend
-                                     (->> require-order
-                                          (remove '#{goog})
-                                          (map #(get-in state [:provide->source %]))
-                                          (distinct)
-                                          (map #(get-in state [:sources % :js-name]))
-                                          (map #(str "require(\"./" (output/flat-js-name %) "\");"))
-                                          (str/join "")))
                        :sources [name]})))
              (into [{:name "goog/base.js"
                      :js-name "goog.base.js"
                      :js-module base
-                     :prepend env-prepend
                      :sources ["goog/base.js"]}]))]
 
     (assoc-in state [:closure :modules] modules)))
+
+(comment
+  env-prepend
+  "var window=global;var $=require(\"./cljs_env\");"
+
+  :prepend
+  (str env-prepend
+       (->> require-order
+            (remove '#{goog})
+            (map #(get-in state [:provide->source %]))
+            (distinct)
+            (map #(get-in state [:sources % :js-name]))
+            (map #(str "require(\"./" (output/flat-js-name %) "\");"))
+            (str/join ""))
+       "$.module=module;")
+
+  :append
+  "$.module=null;")
+
+(defn strip-empty-modules [{:keys [closure] :as state}]
+  state)
 
 (deftest test-closure-module-per-file
   (try
@@ -1075,9 +1085,11 @@
               (module-per-file)
               (closure/closure-setup)
               (closure/closure-compile)
+              (strip-empty-modules)
               (closure/closure-warnings)
               (closure/closure-errors!)
-              (closure/closure-output)
+              (closure/closure-module-wrap)
+              (closure/closure-finish)
               (output/flush-modules-to-disk))]
 
       :done)

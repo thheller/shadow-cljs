@@ -2448,7 +2448,6 @@ enable-emit-constants [state]
          stdout-log}
 
         (add-closure-configurator closure/closure-add-replace-constants-pass)
-        (add-closure-configurator closure/closure-add-variable-maps)
         )))
 
 (defn watch-and-repeat! [state callback]
