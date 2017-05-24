@@ -3,5 +3,8 @@
  */
 var $;
 
-$.module = {};
-$.module.exports;
+/**
+ * @const
+ */
+var module = {};
+module.exports;

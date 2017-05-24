@@ -56,8 +56,8 @@
   "Flushing unoptimized modules")
 
 (defmethod event->str :flush-optimized
-  [{:keys [path] :as event}]
-  (format "Flushing optimized modules" path))
+  [{:keys [output-dir] :as event}]
+  (format "Flushing optimized modules: %s" output-dir))
 
 (defmethod event->str :flush-module
   [{:keys [name js-name js-size] :as event}]

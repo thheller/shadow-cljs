@@ -104,7 +104,12 @@
        "var CLOSURE_DEFINES = CLJS_ENV.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
        "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
        "var goog = CLJS_ENV.goog = {};\n"
-       @(get-in state [:sources "goog/base.js" :input])
+       ;; the global must be overriden in goog/base.js since it contains some
+       ;; goog.define(...) which would otherwise be exported to "this"
+       ;; but we need it on CLJS_ENV
+       (-> @(get-in state [:sources "goog/base.js" :input])
+           (str/replace "goog.global = this;" "goog.global = CLJS_ENV;"))
+
        (slurp (io/resource "shadow/cljs/devtools/targets/npm_module_goog_overrides.js"))
        "\nmodule.exports = CLJS_ENV;\n"
        ))
@@ -113,14 +118,21 @@
 (defn flush
   [{::comp/keys [build-info] :keys [output-dir] :as state} mode config]
 
-  (let [env-file
-        (io/file output-dir "cljs_env.js")]
+  (util/with-logged-time [state {:type :npm-flush :output-path (.getAbsolutePath output-dir)}]
 
-    (util/with-logged-time [state {:type :npm-flush :output-path (.getAbsolutePath output-dir)}]
-      (io/make-parents env-file)
+    (let [env-file
+          (io/file output-dir "cljs_env.js")
 
-      ;; FIXME: only flush if modified
-      (spit env-file (cljs-env state config))
+          env-content
+          (cljs-env state config)
+
+          env-modified?
+          (or (not (.exists env-file))
+              (not= env-content (slurp env-file)))]
+
+      (when env-modified?
+        (io/make-parents env-file)
+        (spit env-file env-content))
 
       (doseq [src-name (:build-sources state)]
         (let [{:keys [name js-name input output requires source-map last-modified] :as src}
@@ -132,7 +144,8 @@
               target
               (io/file output-dir flat-name)]
 
-          (when (or (:release mode)
+          ;; flush everything is env was modified, otherwise only flush modified
+          (when (or env-modified?
                     (contains? (:compiled build-info) name)
                     (not (.exists target))
                     (>= last-modified (.lastModified target)))
@@ -198,7 +211,10 @@
 
         (cond->
           (= :dev mode)
-          (repl/setup))
+          (repl/setup)
+
+          (= :release mode)
+          (assoc-in [:compiler-options :optimizations] :simple))
 
         (cond->
           (and (:worker-info state) (= :dev mode) (= :node runtime))

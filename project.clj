@@ -21,14 +21,15 @@
 
    [org.clojure/core.async "0.3.442"]
    [org.clojure/tools.reader "1.0.0-beta4"]
-   [org.clojure/clojurescript "1.9.542"]
+   #_ [org.clojure/clojurescript "1.9.542"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   #_[[org.clojure/clojurescript "1.9.521"
-       :exclusions
-       [com.google.javascript/closure-compiler-unshaded
-        org.clojure/tools.reader]]
-      [com.google.javascript/closure-compiler-unshaded "v20170423"]]
+   [org.clojure/clojurescript "1.9.542"
+    :exclusions
+    [com.google.javascript/closure-compiler-unshaded
+     org.clojure/tools.reader]]
+
+   [com.google.javascript/closure-compiler-unshaded "v20170521"]
 
    [thheller/shadow-util "0.5.1"]
 
@@ -54,6 +55,7 @@
     ["src/dev"]
 
     :dependencies
-    [#_ [org.clojure/clojure "1.9.0-master-SNAPSHOT"]
+    [#_[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
+     [thheller/shadow-client "1.0.20170518"]
      [org.clojure/tools.namespace "0.2.11"]]
     }})

@@ -1,4 +1,4 @@
-(ns repl
+(ns ^:skip-aot repl
   (:require [clojure.pprint :refer (pprint)]
             [shadow.cljs.devtools.embedded :as cljs]
             ))

@@ -164,55 +164,76 @@
     :keys [^File output-dir output-format]
     :as state}]
 
+  (when-not (seq modules)
+    (throw (ex-info "flush before optimize?" {})))
+
+  (when-not output-dir
+    (throw (ex-info "missing :output-dir" {})))
+
   (case output-format
     :goog
     (flush-foreign-bundles state)
 
     :npm
-    (let [env-file (io/file output-dir "cljs_env.js")]
+    (let [env-file
+          (io/file output-dir "cljs_env.js")
+
+          base
+          (->> modules
+               (filter #(= "goog/base.js" (:name %)))
+               (first))]
+
+      (when-not base
+        (throw (ex-info "no base?" {})))
+
       (io/make-parents env-file)
-      (spit env-file "module.exports = {};")
-      ))
+      (spit env-file
+        (str "var $ = {};\n"
+             ;; FIXME: prepend/append on base?
+             (:output base)
+             "\nmodule.exports = $;\n"))))
 
   (util/with-logged-time
-    [state {:type :flush-optimized}]
+    [state {:type :flush-optimized
+            :output-dir (.getAbsolutePath output-dir)}]
 
-    (when-not (seq modules)
-      (throw (ex-info "flush before optimize?" {})))
-
-    (when-not output-dir
-      (throw (ex-info "missing :output-dir" {})))
-
-    (doseq [{:keys [prepend output append source-map-name source-map-json name js-name] :as mod} modules]
-      (let [target
-            (io/file output-dir js-name)
-
-            source-map-name
-            (str js-name ".map")
-
-            ;; must not prepend anything else before output
-            ;; will mess up source maps otherwise
-            ;; append is fine
-            final-output
-            (str prepend
-                 output
-                 append
-                 (when source-map-json
-                   (str "\n//# sourceMappingURL=" source-map-name "\n")))]
-
-        (io/make-parents target)
-
-        (spit target final-output)
-
-        (util/log state {:type :flush-module
+    (doseq [{:keys [dead prepend output append source-map-name source-map-json name js-name] :as mod} modules
+            ;; FIXME: this is only for :npm format
+            :when (not= "goog/base.js" name)]
+      (if dead
+        (util/log state {:type :dead-module
                          :name name
-                         :js-name js-name
-                         :js-size (count final-output)})
+                         :js-name js-name})
 
-        (when source-map-json
-          (let [target (io/file output-dir source-map-name)]
-            (io/make-parents target)
-            (spit target source-map-json)))))
+        (let [target
+              (io/file output-dir js-name)
+
+              source-map-name
+              (str js-name ".map")
+
+              ;; must not prepend anything else before output
+              ;; will mess up source maps otherwise
+              ;; append is fine
+              final-output
+              (str prepend
+                   output
+                   append
+                   (when source-map-json
+                     (str "\n//# sourceMappingURL=" source-map-name "\n")))]
+
+          (io/make-parents target)
+
+          (spit target final-output)
+
+          (util/log state {:type :flush-module
+                           :name name
+                           :js-name js-name
+                           :js-size (count final-output)})
+
+          (when source-map-json
+            (let [target (io/file output-dir source-map-name)]
+              (io/make-parents target)
+              (spit target source-map-json))))))
 
     ;; with-logged-time expects that we return the compiler-state
     state

@@ -130,7 +130,8 @@
 
               ;; register each arity some.prototype.cljs$core$ISeq$_seq$arity$1
               (.registerPropertyOnType type-reg prop obj-type)
-              )))))))
+              ))))))
+  state)
 
 (defn read-variable-map [{:keys [cache-dir] :as state} name]
   (let [map-file (io/file cache-dir name)]
@@ -141,14 +142,21 @@
           (prn [:variable-map-load map-file e])
           nil)))))
 
+(defn use-variable-maps? [state]
+  (and (not (true? (get-in state [:compiler-options :pseudo-names])))
+       (= :advanced (get-in state [:compiler-options :optimizations]))))
+
 (defn read-variable-maps
   [{::keys [compiler compiler-options]
     :keys [cache-dir] :as state}]
-  (when-some [data (read-variable-map state "closure.property.map")]
-    (.setInputPropertyMap compiler-options data))
 
-  (when-some [data (read-variable-map state "closure.variable.map")]
-    (.setInputVariableMap compiler-options data))
+  (when (use-variable-maps? state)
+
+    (when-some [data (read-variable-map state "closure.property.map")]
+      (.setInputPropertyMap compiler-options data))
+
+    (when-some [data (read-variable-map state "closure.variable.map")]
+      (.setInputVariableMap compiler-options data)))
 
   state)
 
@@ -165,8 +173,9 @@
         (io/copy bytes out)))))
 
 (defn write-variable-maps [{::keys [result] :as state}]
-  (write-variable-map state "closure.variable.map" (.-variableMap result))
-  (write-variable-map state "closure.property.map" (.-propertyMap result))
+  (when (use-variable-maps? state)
+    (write-variable-map state "closure.variable.map" (.-variableMap result))
+    (write-variable-map state "closure.property.map" (.-propertyMap result)))
   state)
 
 (defn js-error-xf [{:keys [output-dir] :as state} ^com.google.javascript.jscomp.Compiler cc]
@@ -381,7 +390,7 @@
                   (str output
                        ;; can't use module.exports cause that will become window.module.exports
                        (when (seq defs)
-                         (str "\n$.module.exports={" defs "};")))
+                         (str "\nmodule.exports={" defs "};")))
 
                   js-mod
                   (doto (JSModule. (output/flat-js-name js-name))
@@ -440,8 +449,6 @@
     ;; calling set-options again so user :closure-warnings works
     (cljs-closure/set-options compiler-options closure-opts)
 
-
-
     (when source-map?
       ;; FIXME: required for input source maps
       ;; I do not like flushing here since you do not need the intermediate sources
@@ -478,6 +485,22 @@
            ::externs (load-externs state)
            ::compiler cc
            ::compiler-options closure-opts)))
+
+(defn rewrite-node-global-access [state js]
+  (-> js
+      ;; RescopeGlobalSymbols rewrites
+      ;; require("react")
+      ;; to
+      ;; (0,window.require)("react") // FIXME: why the 0,?
+      ;; webpack & co no not recognize this
+      ;; so we must turn it back into
+      ;; /*********/require("react")
+      ;; with the padding to not mess up source maps
+      (str/replace "(0,window.require)(" "/*********/require(")
+      ;; window.module.exports
+      ;; /*****/module.exports
+      (str/replace "window.module.exports", "/*****/module.exports")
+      ))
 
 (defn compile-js-modules
   [{::keys [externs modules compiler compiler-options] :keys [output-format] :as state}]
@@ -516,7 +539,7 @@
                               (if-not (seq js)
                                 (assoc x :dead true :output "")
                                 (-> x
-                                    (assoc :output js)
+                                    (assoc :output (rewrite-node-global-access state js))
                                     (cond->
                                       source-map
                                       (merge (let [sw (StringWriter.)]
@@ -558,16 +581,9 @@
         (->> modules
              (remove #(contains? dead-modules (:js-name %)))
              (mapcat :sources)
-             (into #{}))
-
-        ;; only keep modules that contain actual code
-        modules
-        (->> modules
-             (remove :dead)
-             (into []))]
+             (into #{}))]
 
     (assoc state
-           ::modules modules
            ::dead-modules dead-modules
            ::dead-sources dead-sources)))
 
@@ -587,6 +603,18 @@
 
   state)
 
+(defn get-js-module-requires [{::keys [dead-modules] :as state} js-module]
+  ;; can't use .getAllDependencies since that is a set and unsorted
+  (->> (.getDependencies js-module)
+       (mapcat (fn [dep-mod]
+                 ;; if a module is dead we still need the dependencies it would have brought in
+                 ;; all code may have been moved out of one file
+                 (if-not (contains? dead-modules (.getName dep-mod))
+                   [dep-mod]
+                   (get-js-module-requires state dep-mod)
+                   )))
+       (into [])))
+
 (defn module-wrap-npm
   "adds npm specific prepend/append but does not modify output
 
@@ -602,17 +630,18 @@
         (->> modules
              (map (fn [{:keys [name js-module] :as mod}]
                     (let [requires
-                          (->> (.getDependencies js-module)
+                          (->> (get-js-module-requires state js-module)
                                (map #(.getName %))
-                               (remove dead-modules)
+                               (remove #{"goog.base.js"})
+                               (distinct)
                                (map #(str "require(\"./" % "\");"))
                                (str/join ""))]
 
                       (-> mod
                           ;; the npm prepend must be one line, will mess up source lines otherwise
-                          (update :prepend #(str env-prepend requires "$.module=module;\n" %))
+                          (update :prepend #(str env-prepend requires #_"$.module=module;\n" "\n" %))
                           ;; the set this to null so it doesn't leak to other modules
-                          (update :append str "$.module=null;")
+                          ;; (update :append str "$.module=null;")
                           ))))
              (into []))))))
 
@@ -640,7 +669,6 @@
   (when-not (seq build-modules)
     (throw (ex-info "optimize before compile?" {})))
 
-
   (-> state
       (make-js-modules)
       (setup)
@@ -654,7 +682,6 @@
   [{:keys [build-modules] :as state}]
   (when-not (seq build-modules)
     (throw (ex-info "optimize before compile?" {})))
-
   (-> state
       (make-js-module-per-source)
       (setup)
@@ -664,7 +691,8 @@
       (throw-errors!)
       (strip-dead-modules)
       (module-wrap-npm)
-      (write-variable-maps)))
+      (write-variable-maps))
+  )
 
 (defn optimize [{:keys [output-format] :as state}]
   (case output-format

@@ -89,6 +89,11 @@
   :target :npm-module
   :entries [demo.npm]}
 
+ {:id :npm-web
+  :target :npm-module
+  :entries [demo.browser]
+  :output-dir "out/npm-web/src/cljs"}
+
  {:id :chokidar
   :target :node-script
   :main shadow.chokidar/main

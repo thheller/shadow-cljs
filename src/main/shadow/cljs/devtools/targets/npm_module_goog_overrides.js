@@ -1,6 +1,4 @@
 
-goog.global = CLJS_GLOBAL;
-
 goog.provide = function(name) {
   return goog.exportPath_(name, undefined, CLJS_ENV);
 };
@@ -9,6 +7,8 @@ goog.require = function(name) {
   return true;
 };
 
+// goog.define exports to global by default
+// we need it on CLJS_ENV
 goog.define = function(name, defaultValue) {
   var value = defaultValue;
 

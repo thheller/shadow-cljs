@@ -1,4 +1,4 @@
-(ns build
+(ns ^:skip-aot build
   (:require [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.targets.browser :as browser]
             [shadow.cljs.build :as cljs]))
