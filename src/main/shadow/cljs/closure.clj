@@ -677,25 +677,28 @@
   (when-not (seq build-modules)
     (throw (ex-info "optimize before compile?" {})))
 
-  (let [expand-modules?
-        (should-expand-modules? state)]
+  (util/with-logged-time
+    [state {:type :closure-optimize}]
 
-    (-> state
-        (cond->
-          (not expand-modules?)
-          (make-js-modules)
-          expand-modules?
-          (make-js-module-per-source))
-        (setup)
-        (read-variable-maps)
-        (compile-js-modules)
-        (log-warnings)
-        (throw-errors!)
-        (cond->
-          (= :js module-format)
-          (-> (strip-dead-modules)
-              (module-wrap-npm)))
-        (write-variable-maps))))
+    (let [expand-modules?
+          (should-expand-modules? state)]
+
+      (-> state
+          (cond->
+            (not expand-modules?)
+            (make-js-modules)
+            expand-modules?
+            (make-js-module-per-source))
+          (setup)
+          (read-variable-maps)
+          (compile-js-modules)
+          (log-warnings)
+          (throw-errors!)
+          (cond->
+            (= :js module-format)
+            (-> (strip-dead-modules)
+                (module-wrap-npm)))
+          (write-variable-maps)))))
 
 ;; FIXME: about 100ms for even simple files, might be too slow to process each file indiviually
 (defn compile-es6 [state {:keys [module-alias name js-name input] :as src}]

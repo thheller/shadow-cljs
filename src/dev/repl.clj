@@ -5,7 +5,7 @@
 
 (defn start []
   (cljs/start! {:verbose true})
-  ;; (cljs/start-worker :script)
+  (cljs/start-worker :npm-web)
   ::started)
 
 (defn stop []

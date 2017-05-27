@@ -61,25 +61,6 @@
               (str/join "\n"))
          "\n")))
 
-(defn make-constant-table [{:keys [build-sources] :as state}]
-  ;; cannot use this cause it doesn't work with incremental compiles
-  ;; (get-in state [:compiler-env ::ana/constant-table])
-  ;; instead must rebuild it from all compiled files since the info about constants
-  ;; is contained in each individual ns cache
-
-  (let [constants
-        (->> build-sources
-             (map #(get-in state [:sources %]))
-             (filter #(= :cljs (:type %)))
-             (map :ns)
-             (map #(get-in state [:compiler-env ::ana/namespaces % ::ana/constants :seen]))
-             (reduce set/union #{}))]
-
-    (->> constants
-         (map (fn [x] {x (ana/gen-constant-id x)}))
-         (into {}))
-    ))
-
 (defn src-suffix [{:keys [build-sources] :as state} mode {:keys [ns provides] :as src}]
   ;; export the shortest name always, some goog files have multiple provides
   (let [export
@@ -89,13 +70,7 @@
              (map cljs-comp/munge)
              (first))]
 
-    ;; emit all constants into ./cljs.core.js
-    ;; FIXME: lazy, create the proper cljs.core.constants.js
-    (str (when (and (= :release mode) (= ns 'cljs.core))
-           (let [table (make-constant-table state)]
-             (with-out-str
-               (cljs-comp/emit-constants-table table))))
-         "\nmodule.exports = " export ";\n")))
+    (str "\nmodule.exports = " export ";\n")))
 
 (defn cljs-env
   [state {:keys [runtime] :or {runtime :node} :as config}]
