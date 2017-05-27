@@ -9,7 +9,9 @@
             [manifold.stream :as ms]
             [clojure.edn :as edn]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg])
+            [shadow.cljs.devtools.server.system-msg :as sys-msg]
+            [clojure.java.io :as io]
+            [shadow.cljs.output :as output])
   (:import (java.util UUID)))
 
 (defn ws-loop!
@@ -48,14 +50,8 @@
 
     (async/close! result-chan)))
 
-(defn process
+(defn ws-connect
   [{:keys [output] :as worker-proc} {:keys [uri] :as req}]
-
-  ;; "/ws/client/<proc-id>/<client-id>/<client-type>"
-  ;; if proc-id does not match there is old js connecting to a new process
-  ;; should probably not allow that
-  ;; unlikely due to random port but still shouldn't allow it
-
   (let [[_ _ _ proc-id client-id client-type :as parts]
         (str/split uri #"/")
 
@@ -133,4 +129,34 @@
                 (thread (ws-loop! (assoc client-state :socket socket)))
                 ))
             (md/catch common/unacceptable))))))
+
+(defn file-req [{:keys [state-ref] :as worker-proc} {:keys [uri] :as req}]
+  (let [{:keys [output-dir module-format] :as compiler-state}
+        (:compiler-state @state-ref)
+
+        filename
+        (-> (subs uri 6)
+            (cond->
+              (= :js module-format)
+              (output/flat-js-name)))]
+
+    {:status 200
+     :headers {"cache-control" "no-store, must-revalidate, max-age=0"
+               "content-type" "text/javascript"}
+     :body (slurp (io/file output-dir filename))}))
+
+(defn process
+  [{:keys [output] :as worker-proc} {:keys [uri] :as req}]
+
+  ;; "/ws/client/<proc-id>/<client-id>/<client-type>"
+  ;; if proc-id does not match there is old js connecting to a new process
+  ;; should probably not allow that
+  ;; unlikely due to random port but still shouldn't allow it
+
+  (cond
+    (str/starts-with? uri "/file/")
+    (file-req worker-proc req)
+
+    (str/starts-with? uri "/ws/client/")
+    (ws-connect worker-proc req)))
 

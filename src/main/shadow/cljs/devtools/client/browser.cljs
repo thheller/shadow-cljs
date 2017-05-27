@@ -9,6 +9,7 @@
             [goog.userAgent.product :as product]
             [goog.Uri]
             [shadow.cljs.devtools.client.env :as env]
+            [shadow.cljs.devtools.client.console]
             ))
 
 (defonce active-modules-ref
@@ -49,7 +50,7 @@
                                          ;; we need to keep this a vector
                                          (into [] (rest remaining))))
                 (devtools-msg "LOAD JS:" next)
-                (-> (loader/load (str js/CLOSURE_BASE_PATH next "?r=" (rand)))
+                (-> (loader/load (str "http://" env/repl-host ":" env/repl-port "/file/" next))
                     (.addBoth (fn []
                                 (gobj/set js/goog.dependencies_.written next true)
                                 (load-next)))))

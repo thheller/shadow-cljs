@@ -23,7 +23,7 @@
             :start worker/start
             :stop worker/stop}})]
 
-    (-> {:config {}
+    (-> {:config config
          :out (util/stdout-dump true)}
         (rt/init cli-app)
         (rt/start-all))))

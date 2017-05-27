@@ -23,7 +23,7 @@
       (subs s 0 idx)
       s)))
 
-(defn src-prefix [state {:keys [type ns name provides requires] :as src}]
+(defn src-prefix [state {:keys [type ns name js-name provides requires] :as src}]
   (let [roots
         (->> requires
              (map get-root)
@@ -59,6 +59,7 @@
               (map (fn [root]
                      (str "var " root "=$CLJS." root " || ($CLJS." root " = {});")))
               (str/join "\n"))
+         "\ngoog.dependencies_.written[" (pr-str js-name) "] = true;\n"
          "\n")))
 
 (defn src-suffix [{:keys [build-sources] :as state} mode {:keys [ns provides] :as src}]
@@ -85,6 +86,9 @@
        ;; but we need it on $CLJS
        (-> @(get-in state [:sources "goog/base.js" :input])
            (str/replace "goog.global = this;" "goog.global = $CLJS;"))
+
+       ;; set global back to actual global so things like setTimeout work
+       "\ngoog.global = CLJS_GLOBAL;"
 
        (slurp (io/resource "shadow/cljs/devtools/targets/npm_module_goog_overrides.js"))
        "\nmodule.exports = $CLJS;\n"
@@ -120,7 +124,7 @@
               target
               (io/file output-dir flat-name)]
 
-          ;; flush everything is env was modified, otherwise only flush modified
+          ;; flush everything if env was modified, otherwise only flush modified
           (when (or env-modified?
                     (contains? (:compiled build-info) name)
                     (not (.exists target))
@@ -187,15 +191,13 @@
 
         (cond->
           (= :dev mode)
-          (repl/setup)
-
-          (= :release mode)
-          (assoc-in [:compiler-options :optimizations] :advanced))
+          (repl/setup))
 
         (cond->
           (and (:worker-info state) (= :dev mode) (= :node runtime))
           (shared/inject-node-repl config)
-          (and (:worker-info state) (= :dev mode) (= :browser runtime))
+          (and (:worker-info state) (= :dev mode) (or (= :browser runtime)
+                                                      (nil? runtime)))
           (browser/inject-devtools config)
           ))))
 

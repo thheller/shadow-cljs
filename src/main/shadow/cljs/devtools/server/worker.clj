@@ -194,6 +194,10 @@
         (async/close! cljs-watch))
 
     (let [http-config
+          ;; FIXME: this should be configurable (or stay the same for each build)
+          ;; problem is that build isn't known yet, will be configured later
+          ;; might move starting the http server into the target as some builds
+          ;; may not actually need it?
           {:port 0
            :host "localhost"}
 

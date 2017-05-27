@@ -91,6 +91,7 @@
 
  {:id :npm-web
   :target :npm-module
+  :runtime :browser
   :entries [demo.browser]
   :output-dir "out/npm-web/src/cljs"
   :compiler-options
