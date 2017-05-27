@@ -200,21 +200,21 @@
 
     (-> state
         (assoc :source-map-comment false
-               :output-format :npm
-               :npm-require :require)
+               :module-format :js
+               :emit-js-require true)
 
         (cond->
           output-dir
           (cljs/merge-build-options {:output-dir (io/file output-dir)}))
 
-        (cljs/configure-module :default entries {})
+        (cljs/configure-module :default entries #{} {:expand true})
 
         (cond->
           (= :dev mode)
           (repl/setup)
 
           (= :release mode)
-          (assoc-in [:compiler-options :optimizations] :simple))
+          (assoc-in [:compiler-options :optimizations] :advanced))
 
         (cond->
           (and (:worker-info state) (= :dev mode) (= :node runtime))
@@ -234,7 +234,7 @@
       :dev
       (flush state mode config)
       :release
-      (output/flush-modules-to-disk state))
+      (output/flush-optimized state))
 
     state
     ))

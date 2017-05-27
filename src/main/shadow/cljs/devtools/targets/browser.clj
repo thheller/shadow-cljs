@@ -217,7 +217,7 @@
           (cljs/merge-build-options {:bundle-foreign bundle-foreign}))
 
         ;; FIXME: add config option
-        ;; (assoc :npm-require :bundle)
+        ;; (assoc :emit-js-require false)
 
         (configure-modules mode config modules)
 
@@ -286,7 +286,7 @@
             (cond->
               module-hash-names
               (hash-optimized-modules))
-            (output/flush-modules-to-disk)
+            (output/flush-optimized)
             (flush-manifest true)))))
 
 (defn foreign-js-source-for-mod [state {:keys [sources] :as mod}]

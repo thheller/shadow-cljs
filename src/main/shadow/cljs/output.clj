@@ -158,10 +158,10 @@
         (spit target output))))
   state)
 
-(defn flush-modules-to-disk
+(defn flush-optimized
   ;; FIXME: can't alias this due to cyclic dependency
   [{modules :shadow.cljs.closure/modules
-    :keys [^File output-dir output-format]
+    :keys [^File output-dir module-format]
     :as state}]
 
   (when-not (seq modules)
@@ -170,36 +170,23 @@
   (when-not output-dir
     (throw (ex-info "missing :output-dir" {})))
 
-  (case output-format
+  (case module-format
     :goog
     (flush-foreign-bundles state)
 
-    :npm
+    :js
     (let [env-file
-          (io/file output-dir "cljs_env.js")
-
-          base
-          (->> modules
-               (filter #(= "goog/base.js" (:name %)))
-               (first))]
-
-      (when-not base
-        (throw (ex-info "no base?" {})))
+          (io/file output-dir "cljs_env.js")]
 
       (io/make-parents env-file)
       (spit env-file
-        (str "var $ = {};\n"
-             ;; FIXME: prepend/append on base?
-             (:output base)
-             "\nmodule.exports = $;\n"))))
+        (str "module.exports = {};\n"))))
 
   (util/with-logged-time
     [state {:type :flush-optimized
             :output-dir (.getAbsolutePath output-dir)}]
 
-    (doseq [{:keys [dead prepend output append source-map-name source-map-json name js-name] :as mod} modules
-            ;; FIXME: this is only for :npm format
-            :when (not= "goog/base.js" name)]
+    (doseq [{:keys [dead prepend output append source-map-name source-map-json name js-name] :as mod} modules]
       (if dead
         (util/log state {:type :dead-module
                          :name name
@@ -343,8 +330,6 @@
   "util for ->"
   (flush-unoptimized! state)
   state)
-
-
 
 (defn create-index-map
   [{:keys [output-dir cljs-runtime-path] :as state}

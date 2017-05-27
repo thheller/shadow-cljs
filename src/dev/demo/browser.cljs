@@ -18,3 +18,7 @@
 
 (defn stop []
   (js/console.log "browser-stop"))
+
+(defrecord Foo [a b])
+
+(js/console.log (pr-str Foo) (pr-str (Foo. 1 2)))

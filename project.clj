@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "1.0.20170520"
+(defproject thheller/shadow-cljs "1.0.20170527"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -6,10 +6,10 @@
 
 
   :dependencies
-  [[org.clojure/clojure "1.9.0-alpha16"]
+  [[org.clojure/clojure "1.9.0-alpha17"]
 
-   [org.clojure/spec.alpha "0.1.108"]
-   [org.clojure/core.specs.alpha "0.1.10"]
+   ;; [org.clojure/spec.alpha "0.1.108"]
+   ;; [org.clojure/core.specs.alpha "0.1.10"]
 
    [org.clojure/java.classpath "0.2.3"]
    [org.clojure/data.json "0.2.6"]
@@ -19,17 +19,17 @@
     :exclusions
     [org.msgpack/msgpack]]
 
-   [org.clojure/core.async "0.3.442"]
-   [org.clojure/tools.reader "1.0.0-beta4"]
-   #_ [org.clojure/clojurescript "1.9.542"]
+   [org.clojure/core.async "0.3.443"]
+   [org.clojure/tools.reader "1.0.0-RC1"]
+   [org.clojure/clojurescript "1.9.562"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.9.542"
-    :exclusions
-    [com.google.javascript/closure-compiler-unshaded
-     org.clojure/tools.reader]]
+   #_[[org.clojure/clojurescript "1.9.542"
+       :exclusions
+       [com.google.javascript/closure-compiler-unshaded
+        org.clojure/tools.reader]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20170521"]
+      [com.google.javascript/closure-compiler-unshaded "v20170521"]]
 
    [thheller/shadow-util "0.5.1"]
 
@@ -46,8 +46,11 @@
   :java-source-paths
   ["src/main"]
 
-  :main shadow.cljs.devtools.cli
-  :aot :all
+  ;; FIXME: AOT should not be the default
+  ;; creates a 9MB jar in clojars since it includes AOT compiled code for everything
+  ;; without AOT it is ~164KB but starts way slower
+  ;; should probably create a separate AOT release for the npm CLI
+  :aot [shadow.cljs.devtools.cli]
 
   :profiles
   {:dev

@@ -324,9 +324,12 @@
         ;; so running check on the release dir would cause a recompile which is annoying
         ;; but check errors are really useless without source maps
         (as-> X
-          (assoc X :cache-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check")))
+          (-> X
+              (assoc :cache-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check"))
+              ;; always override :output-dir since check output should never be used
+              ;; only generates output for source maps anyways
+              (assoc :output-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check" "output"))))
         (cljs/enable-source-maps)
-        ;; need CLJS-2019 to be useful
         (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
         (comp/compile)
         (comp/check))

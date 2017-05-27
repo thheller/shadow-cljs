@@ -1,7 +1,4 @@
-(ns demo.npm
-  (:require ["react" :as react]))
-
-(js/console.log (react/createElement "div" nil "foo"))
+(ns demo.npm)
 
 (defn ^:export foo []
   "hello from cljs!")

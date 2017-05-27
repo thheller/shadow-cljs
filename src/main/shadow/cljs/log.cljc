@@ -63,6 +63,10 @@
   [{:keys [name js-name js-size] :as event}]
   (format "Flushing: %s (%d bytes)" js-name js-size))
 
+(defmethod event->str :dead-module
+  [{:keys [name] :as event}]
+  (format "dead/moved: %s" name))
+
 (defmethod event->str :flush-foreign
   [{:keys [name js-name js-size] :as event}]
   (format "Flushing: %s (%d bytes)" js-name js-size))

@@ -7,12 +7,6 @@
 var X = function() {};
 
 
-var require;
-var global;
-var process;
-
-Error.prototype.number;
-Error.prototype.columnNumber;
 
 X.prototype.hrtime;
 X.prototype.spawnSync;

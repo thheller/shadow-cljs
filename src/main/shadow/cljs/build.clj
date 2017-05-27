@@ -1915,7 +1915,7 @@ normalize-resource-name
         (do-compile-sources source-names))
       (assoc :build-done (System/currentTimeMillis))))
 
-(defn generate-npm-resources [{:keys [npm-require] :as state}]
+(defn generate-npm-resources [{:keys [npm-require emit-js-require] :as state}]
   (let [js-requires
         (->> (:sources state)
              (vals)
@@ -1926,9 +1926,6 @@ normalize-resource-name
       (fn [state js-require]
         (let [ns
               (ns-form/make-npm-alias js-require)
-
-              require?
-              (= :require npm-require)
 
               provide
               (comp/munge ns)
@@ -1947,7 +1944,7 @@ normalize-resource-name
                                                (str "goog.provide(\"" provide "\");")))
                                         (str/join "\n"))
                                  "\n"
-                                 (if require?
+                                 (if emit-js-require
                                    (str provide " = require(\"" js-require "\");\n")
                                    (str provide " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
                :last-modified 0}]
@@ -2402,8 +2399,8 @@ enable-emit-constants [state]
      :runtime
      {:print-fn :none}
 
-     :output-format :goog
-     :npm-require :require ;; or :bundle
+     :module-format :goog
+     :emit-js-require true
 
      :use-file-min true
 
@@ -2469,7 +2466,7 @@ enable-emit-constants [state]
   (output/flush-unoptimized state))
 
 (defn flush-modules-to-disk [state]
-  (output/flush-modules-to-disk state))
+  (output/flush-optimized state))
 
 (defn flush-sources-by-name [state]
   (output/flush-sources-by-name state))

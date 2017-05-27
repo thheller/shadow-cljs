@@ -85,14 +85,17 @@
   :modules
   {:main {:entries [demo.foreign]}}}
 
- {:id :npm-module
+ {:id :npm
   :target :npm-module
   :entries [demo.npm]}
 
  {:id :npm-web
   :target :npm-module
   :entries [demo.browser]
-  :output-dir "out/npm-web/src/cljs"}
+  :output-dir "out/npm-web/src/cljs"
+  :compiler-options
+  {:externs ["shadow/cljs/npm/externs.js"
+             "demo/browser-externs.js"]}}
 
  {:id :chokidar
   :target :node-script

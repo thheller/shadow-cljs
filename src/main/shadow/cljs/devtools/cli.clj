@@ -9,7 +9,8 @@
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.compiler :as comp]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [shadow.cljs.devtools.config :as config]))
 
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
@@ -52,25 +53,37 @@
       (println summary)
       (println "-----")))
 
+(def default-npm-config
+  {:id :npm
+   :target :npm-module
+   :runtime :node
+   :output-dir "node_modules/shadow-cljs"})
+
 (defn load-npm-config []
   (let [pkg-file
         (io/file "package.json")
 
-        config
-        {:id :npm
-         :target :npm-module
-         :runtime :node
-         :output-dir "node_modules/shadow-cljs"}]
+        config-edn
+        (config/get-build :npm)]
 
-    (if-not (.exists pkg-file)
-      config
-      ;; FIXME: should validate structure of json-config, might throw bad errors
+    (cond
+      ;; FIXME: should warn if package.json contains config as well
+      config-edn
+      (merge default-npm-config config-edn)
+
+      (not (.exists pkg-file))
+      default-npm-config
+
+      ;; FIXME: should warn that this is deprecated
+      ;; only dependencies and source-paths should be allowed in package.json
+      ;; everything build related should be done in shadow-cljs.edn
+      :else
       (let [{:strs [entries runtime output-dir] :as json-config}
             (-> pkg-file
                 (slurp)
                 (json/read-str)
                 (get "shadow-cljs"))]
-        (-> config
+        (-> default-npm-config
             (cond->
               entries
               (assoc :entries (into [] (map symbol) entries))
