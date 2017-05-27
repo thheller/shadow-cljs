@@ -8,7 +8,7 @@
 
 ### Features
 
-- add support for `:advanced` in `:npm-module` target builds
+- [experimental] add support for `:advanced` in `:npm-module` target builds
 - add support for `"output-dir"` in `package.json`, defaults to `node_modules/shadow-cljs`
 - :output-dir and :asset-path (to match CLJS, same as :public-dir and :public-path)
 
