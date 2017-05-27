@@ -1,7 +1,7 @@
 /**
  * @const
  */
-var $;
+var $CLJS;
 
 /**
  * @const

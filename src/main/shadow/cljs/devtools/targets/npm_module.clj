@@ -30,10 +30,11 @@
              (concat ["goog"])
              (into #{}))]
 
-    (str "var CLJS_ENV = require(\"./cljs_env\");\n"
+    (str "var $CLJS = require(\"./cljs_env\");\n"
          ;; the only actually global var goog sometimes uses that is not on goog.global
          ;; actually only: goog/promise/thenable.js goog/proto2/util.js?
-         "var COMPILED = false;\n"
+         (when (str/starts-with? name "goog")
+           "var COMPILED = false;\n")
          (->> requires
               (remove #{'goog})
               (map (fn [sym]
@@ -48,7 +49,7 @@
          ;; require roots will exist
          (->> roots
               (map (fn [root]
-                     (str "var " root "=CLJS_ENV." root ";")))
+                     (str "var " root "=$CLJS." root ";")))
               (str/join "\n"))
          "\n"
          ;; provides may create new roots
@@ -56,7 +57,7 @@
               (map get-root)
               (remove roots)
               (map (fn [root]
-                     (str "var " root "=CLJS_ENV." root " || (CLJS_ENV." root " = {});")))
+                     (str "var " root "=$CLJS." root " || ($CLJS." root " = {});")))
               (str/join "\n"))
          "\n")))
 
@@ -98,20 +99,20 @@
 
 (defn cljs-env
   [state {:keys [runtime] :or {runtime :node} :as config}]
-  (str "var CLJS_ENV = {};\n"
+  (str "var $CLJS = {};\n"
        "var CLJS_GLOBAL = process.browser ? window : global;\n"
        ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
-       "var CLOSURE_DEFINES = CLJS_ENV.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
+       "var CLOSURE_DEFINES = $CLJS.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
        "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
-       "var goog = CLJS_ENV.goog = {};\n"
+       "var goog = $CLJS.goog = {};\n"
        ;; the global must be overriden in goog/base.js since it contains some
        ;; goog.define(...) which would otherwise be exported to "this"
-       ;; but we need it on CLJS_ENV
+       ;; but we need it on $CLJS
        (-> @(get-in state [:sources "goog/base.js" :input])
-           (str/replace "goog.global = this;" "goog.global = CLJS_ENV;"))
+           (str/replace "goog.global = this;" "goog.global = $CLJS;"))
 
        (slurp (io/resource "shadow/cljs/devtools/targets/npm_module_goog_overrides.js"))
-       "\nmodule.exports = CLJS_ENV;\n"
+       "\nmodule.exports = $CLJS;\n"
        ))
 
 

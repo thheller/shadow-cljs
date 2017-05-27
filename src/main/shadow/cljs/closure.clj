@@ -474,9 +474,11 @@
       ;; cut the goog.exportSymbol call CLJS may have generated
       ;; since they will still export to window which is not what we want
       (set! (.-stripTypePrefixes closure-opts) #{"goog.exportSymbol"})
-      ;; can be anything but will be repeated a lot and each extra byte counts
-      ;; maybe should chose different symbol since $ is jQuery but who uses that still? :P
-      (.setRenamePrefixNamespace closure-opts "$"))
+      ;; can be anything but will be repeated a lot
+      ;; $ vs $CLJS adds about 4kb to cljs.core alone but that is only 250 bytes after gzip
+      ;; choosing $CLJS so the alias is the same in dev mode and avoiding potential conflicts
+      ;; with jQuery or so when using only $
+      (.setRenamePrefixNamespace closure-opts "$CLJS"))
 
     (when source-map?
       (add-input-source-maps state cc))
@@ -626,7 +628,7 @@
   ;; FIXME: could do this in compile-modules
   [{::keys [modules dead-modules dead-sources] :as state}]
   (let [env-prepend
-        "var window=global;var $=require(\"./cljs_env\");"]
+        "var window=global;var $CLJS=require(\"./cljs_env\");"]
 
     (update state ::modules
       (fn [modules]

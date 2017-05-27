@@ -1,6 +1,6 @@
 
 goog.provide = function(name) {
-  return goog.exportPath_(name, undefined, CLJS_ENV);
+  return goog.exportPath_(name, undefined, $CLJS);
 };
 
 goog.require = function(name) {
@@ -16,5 +16,5 @@ goog.define = function(name, defaultValue) {
     value = CLOSURE_DEFINES[name];
   }
 
-  goog.exportPath_(name, value, CLJS_ENV);
+  goog.exportPath_(name, value, $CLJS);
 };
