@@ -38,6 +38,8 @@
           (concat
             (:externs state)
             (get-in state [:compiler-options :externs])
+            ;; needed to get rid of process/global errors in cljs/core.cljs
+            ["shadow/cljs/externs.js"]
             (when (= :js module-format)
               ["shadow/cljs/npm_externs.js"])))
 
