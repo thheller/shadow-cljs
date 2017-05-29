@@ -1459,8 +1459,8 @@ normalize-resource-name
 
           (-> state
               (assoc-in [:sources name] rc)
-              ;; no idea why :js-module-index is {Str Str} and not {Str Sym}
-              (update-in [:compiler-env :js-module-index] assoc js-require (str ns))
+              ;; FIXME: properly identify what :js-module-index is supposed to be
+              (update-in [:compiler-env :js-module-index] assoc (str ns) ns)
               )))
       state
       js-requires)))
