@@ -138,12 +138,17 @@
         (-> (subs uri 6)
             (cond->
               (= :js module-format)
-              (output/flat-js-name)))]
+              (output/flat-js-name)))
+
+        file
+        (if (= :js module-format)
+          (io/file output-dir filename)
+          (io/file output-dir "cljs-runtime" filename))]
 
     {:status 200
      :headers {"cache-control" "no-store, must-revalidate, max-age=0"
                "content-type" "text/javascript"}
-     :body (slurp (io/file output-dir filename))}))
+     :body (slurp file)}))
 
 (defn process
   [{:keys [output] :as worker-proc} {:keys [uri] :as req}]
