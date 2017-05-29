@@ -687,14 +687,13 @@
               {:optimizations :advanced
                :pretty-print true})
             (cljs/merge-build-options
-              {:output-dir (io/file "cljs-data/dummy/out")
+              {:output-dir (io/file "target/test-alias-constants")
                :asset-path "out"})
-            ;; (cljs/enable-emit-constants)
             (cljs/find-resources-in-classpath)
-            (cljs/find-resources "cljs-data/dummy/src")
             (cljs/configure-module :cljs '[cljs.core] #{})
-            (cljs/configure-module :basic ['basic] #{:cljs})
-            (cljs/configure-module :other ['other] #{:cljs})
+            (cljs/configure-module :a ['code-split.a] #{:cljs})
+            (cljs/configure-module :b ['code-split.b] #{:a})
+            (cljs/configure-module :c ['code-split.c] #{:cljs})
             (cljs/compile-modules)
             (cljs/closure-optimize)
             (cljs/flush-modules-to-disk)

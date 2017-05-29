@@ -366,15 +366,8 @@
         js-mods
         (reduce
           (fn [js-mods src-name]
-            (let [{:keys [ns require-order provides output js-name] :as src}
+            (let [{:keys [ns require-order output js-name] :as src}
                   (get-in state [:sources src-name])
-
-                  require-order
-                  (->> require-order
-                       (remove '#{goog})
-                       (map #(get-in state [:provide->source %]))
-                       (distinct)
-                       (into []))
 
                   defs
                   (when ns
@@ -389,7 +382,9 @@
                          (str/join ",")))
 
                   code
-                  (str output
+                  (str (if (util/foreign? src)
+                         (make-foreign-js-header src)
+                         output)
                        ;; module.exports will become window.module.exports, rewritten later
                        (when (seq defs)
                          (str "\nmodule.exports={" defs "};")))
@@ -398,12 +393,21 @@
                   (doto (JSModule. (output/flat-js-name js-name))
                     (.add (SourceFile/fromCode js-name code)))]
 
-              ;; some goog files don't depend on anything
-              (when (empty? require-order)
-                (.addDependency js-mod base))
+              #_(let [file (io/file "target" "npm-bug" js-name)]
+                  (io/make-parents file)
+                  (spit file code))
 
-              (doseq [require require-order]
-                (.addDependency js-mod (get js-mods require)))
+              ;; everything depends on goog/base.js
+              (.addDependency js-mod base)
+
+              (doseq [dep
+                      (->> require-order
+                           (remove '#{goog})
+                           (map #(get-in state [:provide->source %]))
+                           (distinct)
+                           (into []))]
+                (let [other-mod (get js-mods dep)]
+                  (.addDependency js-mod other-mod)))
 
               (assoc js-mods src-name js-mod)))
           {}
@@ -412,7 +416,7 @@
         modules
         (->> build-sources
              (map (fn [src-name]
-                    (let [{:keys [name js-name require-order] :as src}
+                    (let [{:keys [name js-name] :as src}
                           (get-in state [:sources src-name])]
 
                       {:name name

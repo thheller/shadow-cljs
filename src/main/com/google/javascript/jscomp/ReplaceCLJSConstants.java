@@ -4,8 +4,7 @@ package com.google.javascript.jscomp;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 
 /**
@@ -34,33 +33,40 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
             }
         }
 
-        // FIXME: should probably group by module
-        // finding the input is plenty of work that should probably only be done once
         for (ConstantRef ref : constants.values()) {
-            JSModule targetModule = ref.module;
+            JSModule targetModule;
+            if (ref.usedIn.size() == 1) {
+                targetModule = ref.usedIn.iterator().next();
+            } else {
+                targetModule = compiler.getModuleGraph().getSmallestCoveringDependency(ref.usedIn);
+            }
 
-            boolean cljsCoreMod = false;
-            CompilerInput targetInput = null;
+            // System.out.format("Moving %s to %s (used in %d)\n", ref.fqn, targetModule.getName(), ref.usedIn.size());
+
+            CompilerInput cljsCore = null;
 
             for (CompilerInput input : targetModule.getInputs()) {
                 if (input.getProvides().contains("cljs.core")) {
-                    cljsCoreMod = true;
-                    targetInput = input;
+                    cljsCore = input;
                     break;
                 }
             }
 
             Node varNode = IR.var(IR.name(ref.name), ref.node);
-            if (!cljsCoreMod) {
-                Node target = targetModule.getInputs().get(0).getAstRoot(compiler);
+            Node target;
+
+            // if the module provides cljs.core we must append to that input
+            // otherwise prepend to first input of the module
+            if (cljsCore == null) {
+                target = targetModule.getInputs().get(0).getAstRoot(compiler);
                 target.addChildToFront(varNode);
             } else {
-                Node target = targetInput.getAstRoot(compiler);
+                target = cljsCore.getAstRoot(compiler);
                 target.addChildToBack(varNode);
             }
-        }
 
-        compiler.reportCodeChange();
+            compiler.reportChangeToEnclosingScope(target);
+        }
     }
 
 
@@ -107,9 +113,10 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                             ref = new ConstantRef(constantName, fqn, n);
                             constants.put(constantName, ref);
                         }
-                        ref.setModule(t.getModule());
+                        ref.usedIn.add(t.getModule());
 
                         parent.replaceChild(n, IR.name(constantName));
+                        compiler.reportChangeToEnclosingScope(parent);
                     }
                 }
             }
@@ -120,28 +127,13 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
         final String name;
         final String fqn;
         final Node node;
-        JSModule module;
+        Set<JSModule> usedIn;
 
         public ConstantRef(String name, String fqn, Node node) {
             this.name = name;
             this.fqn = fqn;
             this.node = node;
-            this.module = null;
-        }
-
-        public void setModule(JSModule module) {
-            if (this.module == null) {
-                this.module = module;
-            } else if (this.module.equals(module)) {
-                // same module
-            } else if (compiler.getModuleGraph().dependsOn(module, this.module)) {
-                // will already be declared in dependency
-            } else {
-                this.module = compiler.getModuleGraph().getDeepestCommonDependency(this.module, module);
-                if (this.module == null) {
-                    throw new IllegalStateException("failed to find common module");
-                }
-            }
+            this.usedIn = new HashSet<>();
         }
     }
 }

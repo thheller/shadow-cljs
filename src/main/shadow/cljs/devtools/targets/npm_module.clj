@@ -14,8 +14,7 @@
             [shadow.cljs.devtools.targets.shared :as shared]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.targets.browser :as browser])
-  (:import (java.io StringReader BufferedReader)
-           (java.util Base64)))
+  (:import (java.util Base64)))
 
 (defn get-root [sym]
   (let [s (cljs-comp/munge (str sym))]
@@ -40,10 +39,10 @@
               (map (fn [sym]
                      (get-in state [:provide->source sym])))
               (distinct)
-              (map (fn [src-name]
-                     (let [{:keys [js-name]}
-                           (get-in state [:sources src-name])]
-                       (str "require(\"./" (output/flat-js-name js-name) "\");"))))
+              (map #(get-in state [:sources %]))
+              (remove util/foreign?)
+              (map (fn [{:keys [js-name]}]
+                     (str "require(\"./" (output/flat-js-name js-name) "\");")))
               (str/join "\n"))
          "\n"
          ;; require roots will exist
@@ -62,7 +61,7 @@
          "\ngoog.dependencies_.written[" (pr-str js-name) "] = true;\n"
          "\n")))
 
-(defn src-suffix [{:keys [build-sources] :as state} mode {:keys [ns provides] :as src}]
+(defn src-suffix [state mode {:keys [ns provides] :as src}]
   ;; export the shortest name always, some goog files have multiple provides
   (let [export
         (->> provides
@@ -114,9 +113,12 @@
         (io/make-parents env-file)
         (spit env-file env-content))
 
-      (doseq [src-name (:build-sources state)]
-        (let [{:keys [name js-name input output requires source-map last-modified] :as src}
-              (get-in state [:sources src-name])
+      (doseq [src-name (:build-sources state)
+              :let [src (get-in state [:sources src-name])]
+              :when (not (util/foreign? src))]
+
+        (let [{:keys [name js-name input output requires source-map last-modified]}
+              src
 
               flat-name
               (output/flat-js-name js-name)
