@@ -23,7 +23,7 @@
       (subs s 0 idx)
       s)))
 
-(defn src-prefix [state {:keys [type ns name js-name provides requires] :as src}]
+(defn src-prefix [state {:keys [type ns name js-name provides requires require-order] :as src}]
   (let [roots
         (->> requires
              (map get-root)
@@ -35,7 +35,7 @@
          ;; actually only: goog/promise/thenable.js goog/proto2/util.js?
          (when (str/starts-with? name "goog")
            "var COMPILED = false;\n")
-         (->> requires
+         (->> require-order
               (remove #{'goog})
               (map (fn [sym]
                      (get-in state [:provide->source sym])))
