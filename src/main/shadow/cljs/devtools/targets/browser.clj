@@ -244,10 +244,10 @@
                            :depends-on depends-on
                            :default default
                            :sources sources
-                           :npm-modules
+                           :js-modules
                            (->> sources
                                 (map #(get-in state [:sources %]))
-                                (map :npm-module)
+                                (map :js-module)
                                 (remove nil?)
                                 (into []))}
 

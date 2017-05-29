@@ -8,7 +8,7 @@
 
 (render (foo) (js/document.getElementById "app"))
 
-(js/console.log "demo.browser" Component)
+(js/console.log "demo.browser" react rdom)
 
 (prn :foo)
 

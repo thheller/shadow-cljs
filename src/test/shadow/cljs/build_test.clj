@@ -927,46 +927,6 @@
     (pprint externs)
     ))
 
-
-
-(defn optimize-and-rescope-process
-  [{::comp/keys [stage] :as state}]
-  (-> state
-      (browser/process)
-      (cond->
-        (= :init stage)
-        (cljs/add-closure-configurator
-          (fn [cc co state]
-            (.setRenamePrefixNamespace co "$CLJS")
-            )))))
-
-(deftest test-optimize-and-rescope
-  (api/release*
-    '{:id :optimize-and-rescope
-      :target shadow.cljs.build-test/optimize-and-rescope-process
-      :output-dir "target/optimize-and-rescope"
-      :asset-path "./"
-      :modules
-      {:core
-       {:entries [cljs.core]}
-       :a
-       {:entries [code-split.a]
-        :depends-on #{:core}
-        :append-js "$CLJS.set_exports(\"a\", {\"foo\":code_split.a.foo});"}
-       :b
-       {:entries [code-split.b]
-        :depends-on #{:a}
-        :append-js "$CLJS.set_exports(\"b\", {\"x\":code_split.b.x});"
-        :append "module.exports = $CLJS.exports[\"b\"];"}}
-      :compiler-options
-      {:externs ["code_split/externs.js"]}}
-    {})
-
-  (println (slurp "target/optimize-and-rescope/a.js"))
-  (println (slurp "target/optimize-and-rescope/b.js"))
-  :done
-  )
-
 (deftest test-closure-module-per-file
   (try
     (let [state
@@ -1003,3 +963,18 @@
       (let [{:keys [errors]} (ex-data e)]
         (doseq [err errors]
           (prn err))))))
+
+
+(deftest test-js-require
+  (let [{:keys [compiler-env] :as state}
+        (-> (comp/init :release
+              '{:id :test
+                :target :npm-module
+                :entries [demo.browser]})
+            (comp/compile)
+            )]
+
+    (cljs/print-warnings! state)
+
+    (pprint (:js-module-index compiler-env))
+    ))

@@ -94,7 +94,7 @@
         '(ns something
            (:require
              [some.ns :as a :refer (x)]
-             ["react" :as react :refer (createElement)]
+             ["react" :as r :refer (createElement)]
              ["react-dom/server" :as rdom]
              ;; ["../../relative/is-ugly" :as y]
              )

@@ -1420,26 +1420,68 @@ normalize-resource-name
     (nil? (:compiler-env state))
     (assoc :compiler-env @(env/default-compiler-env (:compiler-options state)))))
 
+(defn generate-npm-resources [{:keys [npm-require emit-js-require] :as state}]
+  (let [js-requires
+        (->> (:sources state)
+             (vals)
+             (map :js-requires)
+             (reduce set/union #{}))]
+
+    (reduce
+      (fn [state js-require]
+        (let [ns
+              (ns-form/make-npm-alias js-require)
+
+              provide
+              (comp/munge ns)
+
+              name
+              (str provide ".js")
+
+              rc
+              {:type :js
+               :name name
+               :js-name name
+               :js-module js-require
+               :provides #{ns}
+               :requires #{}
+               :require-order []
+               :input (atom (str "goog.provide(\"" provide "\");\n"
+                                 #_(->> provides
+                                        (map (fn [provide]
+                                               (str "goog.provide(\"" provide "\");")))
+                                        (str/join "\n"))
+                                 "\n"
+                                 (if emit-js-require
+                                   (str provide " = require(\"" js-require "\");\n")
+                                   (str provide " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
+               :last-modified 0}]
+
+          (-> state
+              (assoc-in [:sources name] rc)
+              ;; no idea why :js-module-index is {Str Str} and not {Str Sym}
+              (update-in [:compiler-env :js-module-index] assoc js-require (str ns))
+              )))
+      state
+      js-requires)))
+
+(defn make-provide-index [state]
+  (let [idx
+        (into {} (for [{:keys [name provides]} (vals (:sources state))
+                       provide provides]
+                   [provide name]
+                   ))]
+
+    (assoc state :provide->source idx)))
+
 (defn finalize-config
   "should be called AFTER all resources have been discovered (ie. after find-resources...)"
   [state]
   (-> state
       (discover-macros)
       (set-default-compiler-env)
-      (assoc
-        :configured
-        true
-
-        :unoptimizable
-        (when-let [imul (io/resource "cljs/imul.js")]
-          (slurp imul))
-
-        ;; populate index with known sources
-        :provide->source
-        (into {} (for [{:keys [name provides]} (vals (:sources state))
-                       provide provides]
-                   [provide name]
-                   )))))
+      (generate-npm-resources)
+      (make-provide-index)))
 
 (defn reset-modules [state]
   (-> state
@@ -1915,51 +1957,12 @@ normalize-resource-name
         (do-compile-sources source-names))
       (assoc :build-done (System/currentTimeMillis))))
 
-(defn generate-npm-resources [{:keys [npm-require emit-js-require] :as state}]
-  (let [js-requires
-        (->> (:sources state)
-             (vals)
-             (map :js-requires)
-             (reduce set/union #{}))]
 
-    (reduce
-      (fn [state js-require]
-        (let [ns
-              (ns-form/make-npm-alias js-require)
-
-              provide
-              (comp/munge ns)
-
-              rc
-              {:type :js
-               :name (str provide ".js")
-               :npm-module js-require
-               :provides #{ns}
-               :requires #{}
-               :require-order []
-               :js-name (str provide ".js")
-               :input (atom (str "goog.provide(\"" provide "\");\n"
-                                 #_(->> provides
-                                        (map (fn [provide]
-                                               (str "goog.provide(\"" provide "\");")))
-                                        (str/join "\n"))
-                                 "\n"
-                                 (if emit-js-require
-                                   (str provide " = require(\"" js-require "\");\n")
-                                   (str provide " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
-               :last-modified 0}]
-
-          (merge-resource state rc)
-          ))
-      state
-      js-requires)))
 
 (defn prepare-compile
   "prepares for compilation (eg. create source lookup index)"
   [state]
-  (-> state
-      (finalize-config)
-      ))
+  (finalize-config state))
 
 (defn md5hex [^String text]
   (let [bytes
@@ -2443,8 +2446,11 @@ enable-emit-constants [state]
      :source-paths {}
 
      :logger
-     stdout-log}
-    ))
+     stdout-log
+
+     :unoptimizable
+     (when-let [imul (io/resource "cljs/imul.js")]
+       (slurp imul))}))
 
 (defn watch-and-repeat! [state callback]
   (loop [state (callback state [])]

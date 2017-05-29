@@ -195,7 +195,7 @@
 
          (cljs/find-resources-in-classpath)
          (process-stage :init false)
-         (cljs/generate-npm-resources)))))
+         ))))
 
 
 (defn compile
