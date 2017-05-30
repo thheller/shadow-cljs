@@ -102,7 +102,9 @@
                     source-map-cljs
                     (-> {js-name source-map}
                         (sm/encode* sm-opts)
-                        (assoc "sources" [name]))]
+                        (assoc "sources" [name])
+                        ;; its nil which closure doesn't like
+                        (dissoc "lineCount"))]
 
                 (json/write-str source-map-cljs)))
 
@@ -137,6 +139,7 @@
                     source-map-v3
                     (-> {(util/flat-filename name) source-map}
                         (sm/encode* sm-opts)
+                        (dissoc "lineCount") ;; its nil which closure doesn't like
                         ;; (assoc "sources" [name])
                         )]
 

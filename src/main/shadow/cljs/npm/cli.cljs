@@ -8,23 +8,30 @@
         xb (fs/statSync b)]
     (> (.-mtime xa) (.-mtime xb))))
 
+(defn ensure-dir [dir]
+  (when-not (fs/existsSync dir)
+    (fs/mkdirSync dir)))
+
 (defn lein-classpath-gen
   "returns true if generation was successful"
   [write-to]
   (let [result (cp/spawnSync "lein" #js ["classpath" write-to] #js {:stdio "inherit"})]
     (if (.-error result)
-      (do (js/console.log "lein failed", (.-error result))
+      (do (js/console.log "shadow-cljs - lein failed", (.-error result))
           false)
-      (do (js/console.log "lein classpath generated successfully")
+      (do (js/console.log "shadow-cljs - lein classpath generated successfully")
           true))))
 
 (defn java-args-lein []
   (when (fs/existsSync "project.clj")
-    (let [cache-path (path/resolve ".shadow-cljs" "lein-classpath.txt")
+    (let [cache-path (path/resolve "target" "shadow-cljs" "lein-classpath.txt")
 
           lein-available?
           (or (and (fs/existsSync cache-path)
                    (not (file-older-than "project.clj" cache-path)))
+
+              (ensure-dir (path/resolve "target"))
+              (ensure-dir (path/resolve "target" "shadow-cljs"))
               (lein-classpath-gen cache-path))]
 
       (when lein-available?
@@ -50,9 +57,6 @@
   (cp/spawnSync java-cmd (into-array java-args) #js {:stdio "inherit"}))
 
 (defn main [& args]
-  (when-not (fs/existsSync ".shadow-cljs")
-    (fs/mkdirSync ".shadow-cljs"))
-
   (let [java-args
         (or (java-args-lein)
             (java-args-standalone))
