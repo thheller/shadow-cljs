@@ -106,7 +106,7 @@
  {:id :cli
   :target :node-script
   :main shadow.cljs.npm.cli/main
-  :output-to "npm-package-cli/bin/shadow-cljs.next"
+  :output-to "npm-package-cli/bin/shadow-cljs.js"
   :optimizations :advanced
   :compiler-options
   {:externs ["shadow/cljs/npm/externs.js"]}

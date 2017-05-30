@@ -134,7 +134,7 @@
                ;; manually import goog/base.js so we can patch it before others get imported
                ;; cannot inline the goog/base.js as the goog.global = this; should match
                ;; the this of every other imported file (which is SHADOW_ENV)
-               "SHADOW_IMPORT(\"goog/base.js\");"
+               "SHADOW_IMPORT(\"goog.base.js\");"
                "goog.provide = SHADOW_PROVIDE;"
                "goog.require = SHADOW_REQUIRE;"
 
