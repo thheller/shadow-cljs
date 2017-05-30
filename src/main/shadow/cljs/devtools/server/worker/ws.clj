@@ -11,7 +11,8 @@
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [clojure.java.io :as io]
-            [shadow.cljs.output :as output])
+            [shadow.cljs.output :as output]
+            [shadow.cljs.util :as util])
   (:import (java.util UUID)))
 
 (defn ws-loop!
@@ -130,25 +131,67 @@
                 ))
             (md/catch common/unacceptable))))))
 
-(defn file-req [{:keys [state-ref] :as worker-proc} {:keys [uri] :as req}]
-  (let [{:keys [output-dir module-format] :as compiler-state}
-        (:compiler-state @state-ref)
+(defn files-req
+  "a POST request from the REPL client asking for the compile JS for sources by name
+   sends a {:sources [...]} structure with a vector of source names
+   the response will include [{:js code :name ...} ...] with :js ready to eval"
+  [{:keys [state-ref] :as worker-proc}
+   {:keys [request-method body] :as req}]
+  (let [headers
+        {"Access-Control-Allow-Origin" "*"
+         "Access-Control-Allow-Headers"
+         (or (get-in req [:headers "access-control-request-headers"])
+             "content-type")
+         "content-type" "application/edn; charset=utf-8"}]
 
-        filename
-        (-> (subs uri 6)
-            (cond->
-              (= :js module-format)
-              (output/flat-js-name)))
+    ;; CORS sends OPTIONS first
+    (case request-method
+      :options
+      {:status 200
+       :headers headers
+       :body ""}
 
-        file
-        (if (= :js module-format)
-          (io/file output-dir filename)
-          (io/file output-dir "cljs-runtime" filename))]
+      :post
+      (let [text
+            (slurp body)
 
-    {:status 200
-     :headers {"cache-control" "no-store, must-revalidate, max-age=0"
-               "content-type" "text/javascript"}
-     :body (slurp file)}))
+            {:keys [sources] :as req}
+            (edn/read-string text)
+
+            {:keys [module-format] :as compiler-state}
+            (:compiler-state @state-ref)]
+
+        {:status 200
+         :headers headers
+         :body
+         (->> sources
+              (map (fn [src-name]
+                     (let [{:keys [name js-name output] :as src}
+                           (get-in compiler-state [:sources src-name])]
+                       {:name name
+                        :js-name js-name
+
+                        ;; FIXME: make this pretty ...
+                        :js
+                        (case module-format
+                          :goog
+                          (let [sm-text (output/generate-source-map-inline compiler-state src "")]
+                            (str output sm-text))
+                          :js
+                          (let [prepend
+                                (output/js-module-src-prepend compiler-state src false)
+
+                                append
+                                (output/js-module-src-append compiler-state src)
+
+                                sm-text
+                                (output/generate-source-map-inline compiler-state src prepend)]
+
+                            (str prepend output append sm-text)))
+                        })))
+              (into [])
+              (pr-str))})
+      )))
 
 (defn process
   [{:keys [output] :as worker-proc} {:keys [uri] :as req}]
@@ -159,9 +202,14 @@
   ;; unlikely due to random port but still shouldn't allow it
 
   (cond
-    (str/starts-with? uri "/file/")
-    (file-req worker-proc req)
+    (str/starts-with? uri "/files")
+    (files-req worker-proc req)
 
     (str/starts-with? uri "/ws/client/")
-    (ws-connect worker-proc req)))
+    (ws-connect worker-proc req)
+
+    :else
+    {:status 404
+     :headers {"content-type" "text/plain"}
+     :body "Not found."}))
 

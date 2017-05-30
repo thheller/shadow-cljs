@@ -20,6 +20,9 @@
     (.substring path (inc idx))
     ))
 
+(defn flat-filename [filename]
+  (str/replace filename #"/" "."))
+
 (defn log [state log-event]
   {:pre [(compiler-state? state)]}
   (log/log* (:logger state) state log-event)

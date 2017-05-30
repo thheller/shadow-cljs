@@ -320,27 +320,6 @@
     (println (get-in s [:sources "with_rename.cljs" :output]))
     ))
 
-(deftest test-flush-compact
-  (let [state
-        (-> (cljs/init-state)
-            (cljs/enable-source-maps)
-            (assoc :optimizations :none
-                   :pretty-print true
-                   :work-dir (io/file "target/test-cljs-work")
-                   :output-dir (io/file "target/test-cljs")
-                   :asset-path "target/test-cljs")
-            (cljs/find-resources-in-classpath)
-            (cljs/find-resources "cljs-data/dummy/src")
-            (cljs/finalize-config)
-            (cljs/configure-module :test ['basic] #{})
-            (cljs/compile-modules)
-            ;; (cljs/closure-optimize)
-            ;; (cljs/flush-modules-to-disk)
-            ;;(cljs/flush-unoptimized)
-            (output/flush-unoptimized-compact))]
-    (prn :yo)
-    ))
-
 (deftest test-bad-files
   (let [state
         (-> (cljs/init-state)

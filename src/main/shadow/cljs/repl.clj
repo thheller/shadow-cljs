@@ -26,6 +26,13 @@
 (defn repl-state? [x]
   (and (map? x) (::repl-state x)))
 
+(defn as-client-resources [state source-names]
+  (->> source-names
+       (map (fn [src-name]
+              (let [src (get-in state [:sources src-name])]
+                (select-keys src [:type :name :js-name]))))
+       (into [])))
+
 (defn setup [state]
   {:pre [(util/compiler-state? state)]}
   (let [cljs-user-requires
@@ -40,7 +47,7 @@
         {:type :cljs
          :ns 'cljs.user
          :name "cljs/user.cljs"
-         :js-name "cljs/user.js"
+         :js-name "cljs.user.js"
          :input (atom [cljs-user-src])
          :provides #{'cljs.user}
          :require-order cljs-user-requires
@@ -68,14 +75,10 @@
          :current {:ns 'cljs.user
                    :name "cljs/user.cljs"
                    :ns-info ns-info}
+
          ;; the sources required to get the repl started
          :repl-sources
-         repl-sources
-
-         :repl-js-sources
-         (->> repl-sources
-              (map #(get-in state [:sources % :js-name]))
-              (into []))
+         (as-client-resources state repl-sources)
 
          ;; each input and the action it should execute
          ;; keeps the entire history of the repl
@@ -100,8 +103,7 @@
     (-> state
         (cljs/prepare-compile)
         (cljs/do-compile-sources repl-sources)
-        (output/flush-sources-by-name repl-sources))
-    ))
+        )))
 
 (defn remove-quotes [quoted-form]
   (walk/prewalk
@@ -112,12 +114,6 @@
         form
         ))
     quoted-form))
-
-(defn- remove-already-required-repl-deps
-  ;; FIXME: currently only removes deps required on repl init not those required by individual actions
-  [{:keys [repl-state] :as state} deps]
-  (let [old-deps (into #{} (:repl-sources repl-state))]
-    (->> deps (remove old-deps) (into []))))
 
 (defn repl-require
   ([state read-result quoted-require]
@@ -147,11 +143,6 @@
          deps
          (cljs/get-deps-for-entries state new-requires)
 
-         new-deps
-         (if (= :reload-all reload-flag)
-           deps
-           (remove-already-required-repl-deps state deps))
-
          load-macros-and-set-ns-info
          (fn [state]
            (cljs/with-compiler-env state
@@ -171,19 +162,12 @@
          state
          (-> state
              (cljs/do-compile-sources deps)
-             (output/flush-sources-by-name deps)
              (load-macros-and-set-ns-info))
 
          action
          {:type :repl/require
-          :sources new-deps
-          :reload reload-flag
-          :js-sources
-          (->> new-deps
-               (map #(get-in state [:sources % :js-name]))
-               (into []))
-          :warnings
-          (cljs/extract-warnings state deps)}]
+          :sources (as-client-resources state deps)
+          :reload reload-flag}]
 
      (update-in state [:repl-state :repl-actions] conj action)
      )))
@@ -225,26 +209,13 @@
             deps
             (cljs/get-deps-for-src state rc-name)
 
-            repl-deps
-            (remove-already-required-repl-deps state deps)
-
             state
-            (-> state
-                (cljs/do-compile-sources deps)
-                (output/flush-sources-by-name deps))
+            (cljs/do-compile-sources state deps)
 
             action
             {:type :repl/require
-             :source repl-deps
-             :js-sources
-             (->> repl-deps
-                  (map #(get-in state [:sources % :js-name]))
-                  (into []))
-             :warnings
-             (cljs/extract-warnings state deps)
-             :reload :reload}
-
-            ]
+             :sources (as-client-resources state deps)
+             :reload :reload}]
         (update-in state [:repl-state :repl-actions] conj action)
         ))))
 

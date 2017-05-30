@@ -5,10 +5,8 @@
             [clojure.string :as str]
             [cljs.compiler :as comp]
             [clojure.data.json :as json])
-  (:import (java.io StringReader BufferedReader File)))
-
-(defn flat-js-name [js-name]
-  (str/replace js-name #"/" "."))
+  (:import (java.io StringReader BufferedReader File)
+           (java.util Base64)))
 
 (defn closure-defines-json [{:keys [closure-defines] :as state}]
   (let [closure-defines
@@ -72,7 +70,6 @@
 ;; FIXME: this could inline everything from a jar since they will never be live-reloaded
 ;; but it would need to create a proper source-map for the module file
 ;; since we need that for CLJS files
-;; compact-mode has a bunch of work for index source-maps, should be an easy port
 (defn inlineable? [{:keys [type from-jar provides requires] :as src}]
   ;; only inline things from jars
   (and from-jar
@@ -87,57 +84,94 @@
   (with-open [rdr (io/reader (StringReader. text))]
     (count (line-seq rdr))))
 
+
+(defn generate-source-map-inline
+  [state
+   {:keys [name js-name input source-map source-map-json] :as src}
+   prepend]
+  (when (or source-map source-map-json)
+
+    (let [source-map-json
+          (or source-map-json
+              (let [sm-opts
+                    {;; :lines (line-count output)
+                     :file js-name
+                     :preamble-line-count (line-count prepend)
+                     :sources-content [@input]}
+
+                    source-map-cljs
+                    (-> {js-name source-map}
+                        (sm/encode* sm-opts)
+                        (assoc "sources" [name]))]
+
+                (json/write-str source-map-cljs)))
+
+          b64
+          (-> (Base64/getEncoder)
+              (.encodeToString (.getBytes source-map-json)))]
+
+      (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n"))))
+
+(defn generate-source-map
+  [state
+   {:keys [name js-name input source-map source-map-json] :as src}
+   js-file
+   prepend]
+  (when (or source-map source-map-json)
+    (let [sm-text
+          (str "\n//# sourceMappingURL=" js-name ".map\n")
+
+          src-map-file
+          (io/file (str (.getAbsolutePath js-file) ".map"))
+
+          source-map-json
+          (or source-map-json
+              (let [sm-opts
+                    { ;; :lines (line-count output)
+                     :file js-name
+                     :preamble-line-count (line-count prepend)
+                     :sources-content [@input]}
+
+                    ;; yay or nay on using flat filenames for source maps?
+                    ;; personally I don't like seeing only the filename without the path
+                    source-map-v3
+                    (-> {(util/flat-filename name) source-map}
+                        (sm/encode* sm-opts)
+                        ;; (assoc "sources" [name])
+                        )]
+
+                (json/write-str source-map-v3 :escape-slash false)
+                ))]
+      (spit src-map-file source-map-json)
+
+      sm-text)))
+
 (defn flush-sources-by-name
-  ([state]
-   (flush-sources-by-name state (mapcat :sources (:build-modules state))))
+  ([{:keys [build-sources] :as state}]
+   (flush-sources-by-name state build-sources))
   ([{:keys [output-dir cljs-runtime-path] :as state} source-names]
    (util/with-logged-time
      [state {:type :flush-sources
              :source-names source-names}]
      (doseq [src-name source-names
-             :let [{:keys [js-name name input output last-modified source-map source-map-json] :as src}
+             :let [{:keys [js-name output last-modified] :as src}
                    (get-in state [:sources src-name])
 
                    js-file
-                   (io/file output-dir cljs-runtime-path js-name)
-
-                   src-file
-                   (io/file output-dir cljs-runtime-path name)
-
-                   src-map?
-                   (and (:source-map state) (or source-map source-map-json))
-
-                   src-map-file
-                   (io/file output-dir cljs-runtime-path (str js-name ".map"))]
+                   (io/file output-dir cljs-runtime-path js-name)]
 
              ;; skip files we already have
              :when (or (not (.exists js-file))
                        (zero? last-modified)
                        ;; js is not compiled but maybe modified
                        (> (or (:compiled-at src) last-modified)
-                          (.lastModified js-file))
-                       (and src-map? (or (not (.exists src-file))
-                                         (not (.exists src-map-file)))))]
+                          (.lastModified js-file)))]
 
        (io/make-parents js-file)
 
-       ;; must not modify output in any way, will mess up source maps otherwise
-       (spit js-file output)
-
-       (when src-map?
-         ;; spit original source, needed for source maps
-         (spit src-file @input)
-
-         (let [source-map-json
-               (or source-map-json
-                   (sm/encode
-                     {name source-map}
-                     ;; very important that :lines is accurate for closure source maps, otherwise unused
-                     {:lines (line-count output)
-                      :file js-name
-                      :preamble-line-count 0}))]
-
-           (spit src-map-file source-map-json))))
+       (let [output
+             (str output (generate-source-map state src js-file ""))]
+         (spit js-file output)))
 
      state)))
 
@@ -227,7 +261,7 @@
     ))
 
 (defn flush-unoptimized-module!
-  [{:keys [dev-inline-js output-dir asset-path unoptimizable] :as state}
+  [{:keys [dev-inline-js output-dir cljs-runtime-path asset-path unoptimizable] :as state}
    {:keys [default js-name prepend append sources web-worker] :as mod}]
 
   (let [inlineable-sources
@@ -264,7 +298,7 @@
                     ;; not entirely sure why we are setting the full path and just the name
                     ;; goog seems to do that
                     (str "goog.dependencies_.written[\"" js "\"] = true;\n"
-                         "goog.dependencies_.written[\"" asset-path "/" js "\"] = true;")
+                         "goog.dependencies_.written[\"" asset-path "/" cljs-runtime-path "/" js "\"] = true;")
                     ))
              (str/join "\n"))
 
@@ -331,107 +365,129 @@
   (flush-unoptimized! state)
   state)
 
-(defn create-index-map
-  [{:keys [output-dir cljs-runtime-path] :as state}
-   out-file
-   init-offset
-   {:keys [sources js-name] :as mod}]
-  (let [index-map
-        (reduce
-          (fn [src-map src-name]
-            (let [{:keys [type output js-name] :as rc} (get-in state [:sources src-name])
-                  source-map-file (io/file output-dir cljs-runtime-path (str js-name ".map"))
-                  lc (line-count output)
-                  start-line (:current-offset src-map)
+(defn js-module-root [sym]
+  (let [s (comp/munge (str sym))]
+    (if-let [idx (str/index-of s ".")]
+      (subs s 0 idx)
+      s)))
 
-                  ;; extra 2 lines per file
-                  ;; // SOURCE comment
-                  ;; goog.dependencies_.written[src] = true;
-                  src-map (update src-map :current-offset + lc 2)]
+(defn js-module-src-prepend [state {:keys [name js-name provides requires require-order] :as src} require?]
+  (let [roots (into #{"goog"} (map js-module-root) requires)]
 
-              (if (and (= :cljs type)
-                       (.exists source-map-file))
-                (update src-map :sections conj {:offset {:line (+ start-line 3) :column 0}
-                                                ;; :url (str js-name ".map")
-                                                ;; chrome doesn't support :url
-                                                ;; see https://code.google.com/p/chromium/issues/detail?id=552455
-                                                ;; FIXME: inlining the source-map is expensive due to excessive parsing
-                                                ;; could try to insert MARKER instead and str/replace
-                                                ;; 300ms is acceptable for now, but might not be on bigger projects
-                                                ;; flushing the unoptmized version should not exceed 100ms
-                                                :map (let [sm (json/read-str (slurp source-map-file))]
-                                                       ;; must set sources and file to complete relative paths
-                                                       ;; as the source map only contains local references without path
-                                                       (assoc sm
-                                                              "sources" [src-name]
-                                                              "file" js-name))
-                                                })
-                ;; only have source-maps for cljs
-                src-map)
-              ))
-          {:current-offset init-offset
-           :version 3
-           :file (str "../" js-name)
-           :sections []}
-          sources)
+    (str (when require?
+           "var $CLJS = require(\"./cljs_env\");\n")
+         ;; the only actually global var goog sometimes uses that is not on goog.global
+         ;; actually only: goog/promise/thenable.js goog/proto2/util.js?
+         (when (str/starts-with? name "goog")
+           "var COMPILED = false;\n")
 
-        index-map (dissoc index-map :current-offset)]
+         (when require?
+           (->> require-order
+                (remove #{'goog})
+                (map (fn [sym]
+                       (get-in state [:provide->source sym])))
+                (distinct)
+                (map #(get-in state [:sources %]))
+                (remove util/foreign?)
+                (map (fn [{:keys [js-name]}]
+                       (str "require(\"./" (util/flat-filename js-name) "\");")))
+                (str/join "\n")))
+         "\n"
+         ;; require roots will exist
+         (->> roots
+              (map (fn [root]
+                     (str "var " root "=$CLJS." root ";")))
+              (str/join "\n"))
+         "\n"
+         ;; provides may create new roots
+         (->> provides
+              (map js-module-root)
+              (remove roots)
+              (map (fn [root]
+                     (str "var " root "=$CLJS." root " || ($CLJS." root " = {});")))
+              (str/join "\n"))
+         "\ngoog.dependencies_.written[" (pr-str js-name) "] = true;\n"
+         "\n")))
 
-    ;; (pprint index-map)
-    (spit out-file (json/write-str index-map))
-    ))
+(defn js-module-src-append [state {:keys [ns provides] :as src}]
+  ;; export the shortest name always, some goog files have multiple provides
+  (let [export
+        (->> provides
+             (map str)
+             (sort)
+             (map comp/munge)
+             (first))]
 
-(defn flush-unoptimized-compact
-  [{:keys [build-modules output-dir unoptimizable cljs-runtime-path] :as state}]
-  {:pre [(directory? output-dir)]}
+    (str "\nmodule.exports = " export ";\n")))
 
-  (when-not (seq build-modules)
-    (throw (ex-info "flush before compile?" {})))
+(defn js-module-env
+  [state {:keys [runtime] :or {runtime :node} :as config}]
+  (str "var $CLJS = {};\n"
+       "var CLJS_GLOBAL = process.browser ? window : global;\n"
+       ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
+       "var CLOSURE_DEFINES = $CLJS.CLOSURE_DEFINES = " (closure-defines-json state) ";\n"
+       "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
+       ;; so devtools can access it
+       "CLJS_GLOBAL.$CLJS = $CLJS;\n"
+       "var goog = $CLJS.goog = {};\n"
+       ;; the global must be overriden in goog/base.js since it contains some
+       ;; goog.define(...) which would otherwise be exported to "this"
+       ;; but we need it on $CLJS
+       (-> @(get-in state [:sources "goog/base.js" :input])
+           (str/replace "goog.global = this;" "goog.global = $CLJS;"))
 
-  (flush-sources-by-name state)
+       ;; set global back to actual global so things like setTimeout work
+       "\ngoog.global = CLJS_GLOBAL;"
 
-  (util/with-logged-time
-    [state {:type :flush-unoptimized
-            :compact true}]
+       (slurp (io/resource "shadow/cljs/devtools/targets/npm_module_goog_overrides.js"))
+       "\nmodule.exports = $CLJS;\n"
+       ))
 
-    ;; flush fake modules
-    (doseq [{:keys [default js-name name prepend append sources web-worker] :as mod} build-modules]
-      (let [target (io/file output-dir js-name)
-            append-to-target
-            (fn [text]
-              (spit target text :append true))]
+(defn flush-dev-js-modules
+  [{::comp/keys [build-info] :keys [output-dir] :as state} mode config]
 
-        (spit target prepend)
-        (when (or default web-worker)
-          (append-to-target
-            (str unoptimizable
-                 (if web-worker
-                   "\nvar SHADOW_IMPORT = function(src) { importScripts(src); };\n"
-                   ;; FIXME: should probably throw an error because we NEVER want to import anything this way
-                   "\nvar SHADOW_IMPORT = function(src, opt_sourceText) { console.log(\"BROKEN IMPORT\", src); };\n"
-                   )
-                 (closure-defines-and-base state)
-                 (closure-goog-deps state (:build-sources state))
-                 "\n\n"
-                 )))
+  (util/with-logged-time [state {:type :npm-flush :output-path (.getAbsolutePath output-dir)}]
 
-        ;; at least line-count must be captured here
-        ;; since it is the initial offset before we actually have a source map
-        (create-index-map
-          state
-          (io/file output-dir cljs-runtime-path (str (clojure.core/name name) "-index.js.map"))
-          (line-count (slurp target))
-          mod)
+    (let [env-file
+          (io/file output-dir "cljs_env.js")
 
-        (doseq [src-name sources
-                :let [{:keys [output name js-name] :as rc} (get-in state [:sources src-name])]]
-          (append-to-target (str "// SOURCE=" name "\n"))
-          ;; pretend we actually loaded a separate file, live-reload needs this
-          (append-to-target (str "goog.dependencies_.written[" (pr-str js-name) "] = true;\n"))
-          (append-to-target (str (str/trim (str/replace output "//# sourceMappingURL=" "// ")) "\n")))
+          env-content
+          (js-module-env state config)
 
-        (append-to-target (str "//# sourceMappingURL=" cljs-runtime-path "/" (clojure.core/name name) "-index.js.map\n"))
-        )))
+          env-modified?
+          (or (not (.exists env-file))
+              (not= env-content (slurp env-file)))]
 
-  ;; return unmodified state
+      (when env-modified?
+        (io/make-parents env-file)
+        (spit env-file env-content))
+
+      (doseq [src-name (:build-sources state)
+              :let [src (get-in state [:sources src-name])]
+              :when (not (util/foreign? src))]
+
+        (let [{:keys [name js-name last-modified output]}
+              src
+
+              target
+              (io/file output-dir js-name)]
+
+          ;; flush everything if env was modified, otherwise only flush modified
+          (when (or env-modified?
+                    (contains? (:compiled build-info) name)
+                    (not (.exists target))
+                    (>= last-modified (.lastModified target)))
+
+            (let [prepend
+                  (js-module-src-prepend state src true)
+
+                  content
+                  (str prepend
+                       output
+                       (js-module-src-append state src)
+                       (generate-source-map state src target prepend))]
+
+              (spit target content)
+              ))))))
   state)
+

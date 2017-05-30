@@ -156,7 +156,7 @@
                     :module-alias (first provides)
                     ;; :ns ns
                     :provides provides ;; (conj provides ns)
-                    :js-name (str/replace name #".js$" ".gen.js")}))
+                    :js-name (util/flat-filename name)}))
           ))))
 
 (defn macros-from-ns-ast [state {:keys [require-macros use-macros]}]
@@ -256,11 +256,11 @@
   {:pre [(util/compiler-state? state)]}
   (cond
     (is-js-file? name)
-    (->> (assoc rc :type :js :js-name name)
+    (->> (assoc rc :type :js :js-name (util/flat-filename name))
          (inspect-js-resource state))
 
     (is-cljs-file? name)
-    (let [rc (assoc rc :type :cljs :js-name (str/replace name #"\.clj(s|c)$" ".js"))]
+    (let [rc (assoc rc :type :cljs :js-name (util/flat-filename (str/replace name #"\.clj(s|c)$" ".js")))]
       (if (= name "deps.cljs")
         rc
         (peek-into-cljs-resource state rc)))
@@ -879,9 +879,6 @@ normalize-resource-name
       compile-state
       cljs-forms)))
 
-(defn source-mapping-url-for-rc [state {:keys [js-name] :as rc}]
-  (str (util/file-basename js-name) ".map\n"))
-
 (defn make-runtime-setup
   [{:keys [runtime] :as state}]
   (->> [(case (:print-fn runtime)
@@ -935,11 +932,6 @@ normalize-resource-name
                 js
                 (if (= name "cljs/core.cljs")
                   (str js "\n" (make-runtime-setup state))
-                  js)
-
-                js
-                (if (and source-map-comment source-map (:source-map state))
-                  (str js "\n//# sourceMappingURL=" (source-mapping-url-for-rc state rc))
                   js)]
 
             (when-not ns
@@ -1706,7 +1698,7 @@ normalize-resource-name
         (fn [name provide js]
           {:type :js
            :name name
-           :js-name name
+           :js-name (util/flat-filename name)
            :provides #{provide}
            :requires #{}
            :require-order []
@@ -1754,7 +1746,7 @@ normalize-resource-name
   (merge-resource state
     {:type :foreign
      :name name
-     :js-name name
+     :js-name (util/flat-filename name)
      :provides provides
      :requires requires
      ;; FIXME: should allow getting a vector as provides instead

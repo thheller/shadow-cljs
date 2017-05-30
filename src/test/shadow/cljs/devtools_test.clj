@@ -13,6 +13,7 @@
             [cljs.closure :as cljs-closure]
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.devtools.embedded :as em]
+            [shadow.cljs.closure :as closure]
             [clojure.repl :as repl]
             [cljs.analyzer.api :as ana-api]
             [clojure.walk :as walk])
@@ -80,7 +81,6 @@
             (cljs/configure-module :test '[test.snippet] #{:base})
             (cljs/compile-modules)
             ;; (cljs/flush-unoptimized) ;; doesn't work
-            ;; (cljs/flush-unoptimized-compact)
             (cljs/closure-optimize)
             ;; (cljs/flush-modules-to-disk)
             )]
@@ -126,7 +126,6 @@
             (cljs/configure-module :test '[test.snippet] #{})
             (cljs/compile-modules)
             ;; (cljs/flush-unoptimized) ;; doesn't work
-            ;; (cljs/flush-unoptimized-compact)
             ;; (cljs/closure-optimize)
             ;; (cljs/flush-modules-to-disk)
             )]
@@ -286,7 +285,6 @@
               ;; (load-from-disk)
               (cljs/compile-modules)
               ;; (cljs/flush-unoptimized) ;; doesn't work
-              ;; (cljs/flush-unoptimized-compact)
               (cljs/closure-check)
               ;; (cljs/flush-modules-to-disk)
               )]
@@ -318,7 +316,6 @@
               (cljs/configure-module :main '[demo.browser] #{} {})
               (cljs/compile-modules)
               ;; (cljs/flush-unoptimized) ;; doesn't work
-              ;; (cljs/flush-unoptimized-compact)
               (cljs/closure-optimize)
               (cljs/flush-modules-to-disk))]
 

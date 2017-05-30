@@ -25,21 +25,17 @@
         build-sources
         (->> (:build-sources state)
              (map (fn [name]
-                    (let [{:keys [js-name warnings] :as rc}
+                    (let [{:keys [type js-name warnings] :as rc}
                           (get-in state [:sources name])]
                       {:name name
                        :js-name js-name
+                       :type type
+                       :warnings warnings
                        :module (get source->module name)})))
              (into []))]
 
-    {:sources
-     build-sources
-     :compiled
-     compiled-sources
-     :warnings
-     (cljs/extract-warnings state (:build-sources state))
-
-     }))
+    {:sources build-sources
+     :compiled compiled-sources}))
 
 (defn- update-build-info-from-modules
   [{:keys [build-modules] :as state}]

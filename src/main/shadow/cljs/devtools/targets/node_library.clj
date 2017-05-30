@@ -64,7 +64,7 @@
 
         umd-helper
         {:name "shadow/umd_helper.cljs"
-         :js-name "shadow/umd_helper.js"
+         :js-name "shadow.umd_helper.js"
          :type :cljs
          :provides #{'shadow.umd-helper}
          :requires requires

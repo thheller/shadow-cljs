@@ -390,7 +390,7 @@
                          (str "\nmodule.exports={" defs "};")))
 
                   js-mod
-                  (doto (JSModule. (output/flat-js-name js-name))
+                  (doto (JSModule. (util/flat-filename js-name))
                     (.add (SourceFile/fromCode js-name code)))]
 
               #_(let [file (io/file "target" "npm-bug" js-name)]
@@ -420,7 +420,7 @@
                           (get-in state [:sources src-name])]
 
                       {:name name
-                       :js-name (output/flat-js-name js-name)
+                       :js-name (util/flat-filename js-name)
                        :js-module (get js-mods src-name)
                        :sources [name]})))
              (into [{:name "goog/base.js"

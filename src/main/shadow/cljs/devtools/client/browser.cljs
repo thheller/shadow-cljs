@@ -8,6 +8,7 @@
             [goog.net.jsloader :as loader]
             [goog.userAgent.product :as product]
             [goog.Uri]
+            [goog.net.XhrIo :as xhr]
             [shadow.cljs.devtools.client.env :as env]
             [shadow.cljs.devtools.client.console]
             ))
@@ -38,56 +39,58 @@
 (defn src-is-loaded? [{:keys [js-name] :as src}]
   (goog-is-loaded? js-name))
 
-(defn load-scripts
-  [filenames after-load-fn]
-  (swap! scripts-to-load into filenames)
-
-  (let [load-next
-        (fn load-next []
-          (if-let [next (first @scripts-to-load)]
-            (do (swap! scripts-to-load (fn [remaining]
-                                         ;; rest will result in () if nothing is left
-                                         ;; we need to keep this a vector
-                                         (into [] (rest remaining))))
-                (devtools-msg "LOAD JS:" next)
-                (-> (loader/load (str "http://" env/repl-host ":" env/repl-port "/file/" next))
-                    (.addBoth (fn []
-                                (gobj/set js/goog.dependencies_.written next true)
-                                (load-next)))))
-            (after-load-fn)))]
-    (load-next)))
-
 (defn module-is-active? [module]
   (contains? @active-modules-ref module))
 
-(defn do-js-reload [js-to-load]
-  ;; reload is a set of js-names that should be reloaded
+(defn do-js-load [sources]
+  (doseq [{:keys [name js] :as src} sources]
+    (devtools-msg "LOAD:" name)
+    (js/eval (str js "\n// @sourceURL=" name))))
+
+(defn do-js-reload [sources]
   (let [reload-state
-        (atom nil)]
+        (when env/before-load
+          (let [fn (js/goog.getObjectByName env/before-load)]
+            (devtools-msg "Executing :before-load" env/before-load)
+            (fn)))]
 
-    (when (seq js-to-load)
-      (when env/before-load
-        (let [fn (js/goog.getObjectByName env/before-load)]
-          (devtools-msg "Executing :before-load" env/before-load)
-          (let [state (fn)]
-            (reset! reload-state state))))
+    (do-js-load sources)
 
-      (let [after-load-fn
-            (fn []
-              (when env/after-load
-                (let [fn (js/goog.getObjectByName env/after-load)]
-                  (devtools-msg "Executing :after-load " env/after-load)
-                  (if-not env/reload-with-state
-                    (fn)
-                    (fn @reload-state)))))]
+    (when env/after-load
+      (let [fn (js/goog.getObjectByName env/after-load)]
+        (devtools-msg "Executing :after-load " env/after-load)
+        (if-not env/reload-with-state
+          (fn)
+          (fn reload-state)))
+      )))
 
-        (load-scripts
-          js-to-load
-          after-load-fn)))))
+(defn load-sources [sources callback]
+  (if (empty? sources)
+    (callback [])
+    (xhr/send
+      (str "http://" env/repl-host ":" env/repl-port "/files")
+      (fn [res]
+        (this-as req
+          (let [content
+                (-> req
+                    (.getResponseText)
+                    (reader/read-string))]
+            (callback content)
+            )))
+      "POST"
+      (pr-str {:client :browser
+               :sources (into [] (map :name) sources)})
+      #js {"content-type" "application/edn; charset=utf-8"})))
 
 (defn handle-build-complete [{:keys [info] :as msg}]
-  (let [{:keys [warnings sources compiled]}
-        info]
+  (let [{:keys [sources compiled]}
+        info
+
+        warnings
+        (->> (for [{:keys [name warnings] :as src} sources
+                   warning warnings]
+               {:name name :warning warning})
+             (into []))]
 
     (doseq [warning warnings]
       (js/console.warn "BUILD-WARNING" warning))
@@ -97,7 +100,7 @@
       ;; of modules that are active
       ;; and are either not loaded yet
       ;; or specifically marked for reload
-      (let [js-to-load
+      (let [sources-to-get
             (->> sources
                  (filter
                    (fn [{:keys [module]}]
@@ -106,13 +109,11 @@
                    (fn [{:keys [js-name name]}]
                      (or (not (goog-is-loaded? js-name))
                          (contains? compiled name))))
-                 (map :js-name)
                  (into []))]
 
-        ;; FIXME: reload despite warnings?
         (when (empty? warnings)
-          (do-js-reload js-to-load))
-        ))))
+          (load-sources sources-to-get do-js-reload)
+          )))))
 
 (defn handle-css-changes [{:keys [asset-path name manifest] :as pkg}]
   (doseq [[css-name css-file-name] manifest]
@@ -166,29 +167,36 @@
         (assoc :id id)
         (ws-msg))))
 
-(defn repl-require [{:keys [js-sources reload] :as msg}]
-  (load-scripts
-    (cond
-      (= :reload reload)
-      (let [all (butlast js-sources)
-            self (last js-sources)]
-        (-> (into [] (remove goog-is-loaded? all))
-            (conj self)))
+(defn repl-require [{:keys [id sources reload] :as msg}]
+  (let [sources-to-load
+        (cond
+          (= :reload reload)
+          (let [all (butlast sources)
+                self (last sources)]
+            (-> (into [] (remove src-is-loaded?) all)
+                (conj self)))
 
-      (= :reload-all reload)
-      js-sources
+          (= :reload-all reload)
+          sources
 
-      :else
-      (remove goog-is-loaded? js-sources))
-    (fn []
-      (js/console.log "repl-require finished"))))
+          :else
+          (remove src-is-loaded? sources))]
+
+    (load-sources
+      sources-to-load
+      (fn [sources]
+        (do-js-load sources)
+        (ws-msg {:type :repl/require-complete :id id})
+        ))))
 
 (defn repl-init [{:keys [repl-state]}]
-  (load-scripts
-    ;; don't load if already loaded
-    (->> (:repl-js-sources repl-state)
-         (remove goog-is-loaded?))
-    (fn []
+  (load-sources
+    ;; maybe need to load some missing files to init REPL
+    (->> (:repl-sources repl-state)
+         (remove src-is-loaded?)
+         (into []))
+    (fn [sources]
+      (do-js-load sources)
       (ws-msg {:type :repl/init-complete})
       (devtools-msg "DEVTOOLS: repl init successful"))))
 
@@ -198,7 +206,7 @@
 
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]
-  (js/console.log "ws-msg" msg)
+  ;; (js/console.log "ws-msg" msg)
   (case type
     ;; FIXME: doesn't work anymore
     :css/reload
@@ -238,7 +246,7 @@
       (fn [e]
         (set-print-fn! (fn [& args]
                          (ws-msg {:type :repl/out
-                                      :out (into [] args)})
+                                  :out (into [] args)})
                          (apply print-fn args)))
 
         (let [text
@@ -256,8 +264,10 @@
 
     (set! (.-onopen socket)
       (fn [e]
-        ;; patch away the already declared exception
-        (set! (.-provide js/goog) js/goog.constructNamespace_)
+        ;; :module-format :js already patches provide
+        (when-not (gobj/get js/window "$CLJS")
+          ;; patch away the already declared exception
+          (set! (.-provide js/goog) js/goog.constructNamespace_))
         (devtools-msg "DEVTOOLS: connected!")
         ))
 

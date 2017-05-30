@@ -236,7 +236,7 @@
 
         test-runner-src
         {:name "shadow/test_runner.cljs"
-         :js-name "shadow/test_runner.js"
+         :js-name "shadow.test_runner.js"
          :type :cljs
          :ns test-runner-ns
          :provides #{test-runner-ns}
