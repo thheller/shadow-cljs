@@ -20,6 +20,7 @@
     "shadow-cljs": "./bin/shadow-cljs"
   },
   "dependencies": {
-    "shadow-cljs-jar":"^0.4.0"
+    "bencode": "^0.12.0",
+    "shadow-cljs-jar": "^0.4.0"
   }
 }

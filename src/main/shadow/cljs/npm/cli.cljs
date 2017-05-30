@@ -1,7 +1,8 @@
 (ns shadow.cljs.npm.cli
   (:require ["path" :as path]
             ["fs" :as fs]
-            ["child_process" :as cp]))
+            ["child_process" :as cp]
+            [shadow.cljs.npm.nrepl :as nrepl]))
 
 (defn file-older-than [a b]
   (let [xa (fs/statSync a)
@@ -56,21 +57,41 @@
 (defn run [java-cmd java-args]
   (cp/spawnSync java-cmd (into-array java-args) #js {:stdio "inherit"}))
 
-(defn main [& args]
+(defn try-nrepl [args]
+  (when (fs/existsSync ".nrepl-port")
+
+    (let [port
+          (-> (fs/readFileSync ".nrepl-port")
+              (.toString)
+              (js/parseInt 10))]
+
+      (nrepl/client port args)
+      )))
+
+(defn try-java [args]
   (let [java-args
         (or (java-args-lein)
             (java-args-standalone))
 
+        all-args
+        (into java-args args)
+
         result
-        (run "java" java-args)]
+        (run "java" all-args)]
 
-    (when (and (.-error result)
-               (= "ENOENT" (.. result -error -errno)))
+    (if (zero? (.-status result))
+      true
+      (when (and (.-error result)
+                 (= "ENOENT" (.. result -error -errno)))
 
-      (js/console.log "shadow-cljs - java not found, trying node-jre")
+        (js/console.log "shadow-cljs - java not found, trying node-jre")
 
-      (let [jre (js/require "node-jre")
+        (let [jre (js/require "node-jre")
 
-            result
-            (run (.driver jre) java-args)]
-        ))))
+              result
+              (run (.driver jre) all-args)]
+          )))))
+
+(defn main [& args]
+  (or (try-nrepl args)
+      (try-java args)))
