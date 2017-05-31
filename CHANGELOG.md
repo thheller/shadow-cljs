@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.20170531](https://github.com/thheller/shadow-cljs/compare/1.0.20170530...1.0.20170531)
+
+### Fixes
+- fix broken :node-script/:node-library :dev builds
+- fix source maps containing ``"lineCount":null` so closure doesn't blow up
+
 ## [1.0.20170530](https://github.com/thheller/shadow-cljs/compare/1.0.20170527...1.0.20170530)
 
 ### Features
