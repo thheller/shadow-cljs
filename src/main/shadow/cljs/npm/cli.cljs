@@ -44,15 +44,16 @@
           )))))
 
 (defn java-args-standalone []
-  (let [version
-        (js/require "./version.json")]
+  (when (fs/existsSync "package.json")
+    (let [version
+          (js/require "./version.json")]
 
-    (js/console.log "shadow-cljs - using package.json" version)
+      (js/console.log "shadow-cljs - using package.json" version)
 
-    ["-jar"
-     (js/require "shadow-cljs-jar/path") ;; just exports the launcher jar path
-     version
-     "--npm"]))
+      ["-jar"
+       (js/require "shadow-cljs-jar/path") ;; just exports the launcher jar path
+       version
+       "--npm"])))
 
 (defn run [java-cmd java-args]
   (cp/spawnSync java-cmd (into-array java-args) #js {:stdio "inherit"}))
@@ -69,29 +70,33 @@
       )))
 
 (defn try-java [args]
-  (let [java-args
-        (or (java-args-lein)
-            (java-args-standalone))
+  (when-let [java-args
+             (or (java-args-lein)
+                 (java-args-standalone))]
 
-        all-args
-        (into java-args args)
+    (let [all-args
+          (into java-args args)
 
-        result
-        (run "java" all-args)]
+          result
+          (run "java" all-args)]
 
-    (if (zero? (.-status result))
-      true
-      (when (and (.-error result)
-                 (= "ENOENT" (.. result -error -errno)))
+      (if (zero? (.-status result))
+        true
+        (when (and (.-error result)
+                   (= "ENOENT" (.. result -error -errno)))
 
-        (js/console.log "shadow-cljs - java not found, trying node-jre")
+          (js/console.log "shadow-cljs - java not found, trying node-jre")
 
-        (let [jre (js/require "node-jre")
+          (let [jre (js/require "node-jre")
 
-              result
-              (run (.driver jre) all-args)]
-          )))))
+                result
+                (run (.driver jre) all-args)]
+            ))))))
+
+(defn meh []
+  (js/console.log "shadow-cljs failed to start, missing package.json or project.clj?"))
 
 (defn main [& args]
   (or (try-nrepl args)
-      (try-java args)))
+      (try-java args)
+      (meh)))

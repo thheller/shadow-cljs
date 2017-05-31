@@ -89,11 +89,12 @@
         warnings
         (->> (for [{:keys [name warnings] :as src} sources
                    warning warnings]
-               {:name name :warning warning})
+               (assoc warning :source-name name))
+             (distinct)
              (into []))]
 
-    (doseq [warning warnings]
-      (js/console.warn "BUILD-WARNING" warning))
+    (doseq [{:keys [msg line column source-name] :as w} warnings]
+      (js/console.warn (str "BUILD-WARNING in " source-name " at [" line ":" column "]\n\t" msg)))
 
     (when env/autoload
       ;; load all files for current build:
@@ -111,6 +112,7 @@
                          (contains? compiled name))))
                  (into []))]
 
+        ;; FIXME: should allow reload with warnings
         (when (empty? warnings)
           (load-sources sources-to-get do-js-reload)
           )))))
@@ -244,10 +246,10 @@
 
     (set! (.-onmessage socket)
       (fn [e]
-        (set-print-fn! (fn [& args]
-                         (ws-msg {:type :repl/out
-                                  :out (into [] args)})
-                         (apply print-fn args)))
+        #_(set-print-fn! (fn [& args]
+                           (ws-msg {:type :repl/out
+                                    :out (into [] args)})
+                           (apply print-fn args)))
 
         (let [text
               (.-data e)

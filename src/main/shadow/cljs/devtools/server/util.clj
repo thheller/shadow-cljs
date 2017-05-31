@@ -26,8 +26,14 @@
   (println (format "[%s] Compiling ..." (:id build-config))))
 
 (defn print-build-complete [build-info build-config]
-  (let [{:keys [sources compiled warnings]}
-        build-info]
+  (let [{:keys [sources compiled]}
+        build-info
+
+        warnings
+        (->> (for [{:keys [warnings name]} sources
+                   warning warnings]
+               (assoc warning :source-name name))
+             (into []))]
 
     (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings, %.2fs)"
                (:id build-config)

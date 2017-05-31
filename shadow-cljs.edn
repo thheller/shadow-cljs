@@ -33,6 +33,9 @@
     :depends-on #{:base}
     :web-worker true}}
 
+  :build-options
+  {:emit-js-require false}
+
   :devtools
   {:before-load demo.browser/stop
    :after-load demo.browser/start}}
