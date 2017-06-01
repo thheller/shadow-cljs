@@ -330,6 +330,9 @@
                (when web-worker
                  "\nvar CLOSURE_IMPORT_SCRIPT = function(src) { importScripts(src); };\n")
                (closure-defines-and-base state)
+               ;; create the $CLJS var so devtools can always use it
+               ;; always exists for :module-format :js
+               "window[\"$CLJS\"] = window;\n"
                (closure-goog-deps state (:build-sources state))
                "\n\n"
                out)

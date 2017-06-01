@@ -4,13 +4,14 @@
             [clojure.tools.cli :as cli]
             [clojure.string :as str]
             [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.devtools.errors :as e]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.compiler :as comp]
-            [clojure.java.io :as io]
-            [shadow.cljs.devtools.config :as config]))
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.standalone :as standalone]))
 
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
@@ -28,6 +29,7 @@
    (mode-cli-opt "--once" "mode: compile once and exit")
    (mode-cli-opt "--release" "mode: compile release version and exit")
    (mode-cli-opt "--check" "mode: closure compiler type check and exit")
+   (mode-cli-opt "--server" "mode: run in server mode with REPL interface")
 
    ;; exlusive
    ["-b" "--build BUILD-ID" "use build defined in shadow-cljs.edn"
@@ -102,9 +104,15 @@
         options
         (merge default-opts options)]
 
-    (if (or (::help options) (seq errors))
+    (cond
+      (or (::help options) (seq errors))
       (help opts)
 
+
+      (= :server (::mode options))
+      (standalone/-main)
+
+      :else
       (let [{::keys [build npm]} options
 
             build-config

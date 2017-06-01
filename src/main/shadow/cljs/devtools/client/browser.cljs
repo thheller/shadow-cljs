@@ -50,14 +50,14 @@
 (defn do-js-reload [sources]
   (let [reload-state
         (when env/before-load
-          (let [fn (js/goog.getObjectByName env/before-load)]
+          (let [fn (js/goog.getObjectByName env/before-load js/$CLJS)]
             (devtools-msg "Executing :before-load" env/before-load)
             (fn)))]
 
     (do-js-load sources)
 
     (when env/after-load
-      (let [fn (js/goog.getObjectByName env/after-load)]
+      (let [fn (js/goog.getObjectByName env/after-load js/$CLJS)]
         (devtools-msg "Executing :after-load " env/after-load)
         (if-not env/reload-with-state
           (fn)
@@ -105,7 +105,8 @@
             (->> sources
                  (filter
                    (fn [{:keys [module]}]
-                     (module-is-active? module)))
+                     (or (= "js" env/module-format)
+                         (module-is-active? module))))
                  (filter
                    (fn [{:keys [js-name name]}]
                      (or (not (goog-is-loaded? js-name))

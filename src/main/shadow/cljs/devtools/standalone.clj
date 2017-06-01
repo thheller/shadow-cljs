@@ -19,13 +19,8 @@
 (defn app [config]
   (merge
     (common/app config)
-    {:build-config
-     {:depends-on []
-      :start config/start
-      :stop config/stop}
-
-     :supervisor
-     {:depends-on [:system-bus]
+    {:supervisor
+     {:depends-on [:system-bus :executor]
       :start super/start
       :stop super/stop}
 
@@ -87,20 +82,26 @@
      )))
 
 (defn start! []
-  (let [runtime-ref (start-system default-config)]
-    (println "ready ...")
+  (let [runtime-ref
+        (start-system default-config)
+
+        {:keys [host port]}
+        (get-in @runtime-ref [:app :config :http])]
+
+    (println (str "shadow-cljs - server running at http://" host ":" port))
     (alter-var-root #'runtime (fn [_] runtime-ref))
     ::started
     ))
 
 (defn stop! []
-  (shutdown-system @runtime)
+  (when runtime
+    (shutdown-system @runtime))
   ::stopped)
 
 (defn -main [& args]
   (start!)
-  (netty/wait-for-close (:http @runtime)))
-
+  (netty/wait-for-close (:http @runtime))
+  (shutdown-agents))
 
 (comment
   (start!)

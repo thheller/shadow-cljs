@@ -32,6 +32,7 @@
       [com.google.javascript/closure-compiler-unshaded "v20170521"]]
 
    [thheller/shadow-util "0.5.1"]
+   [thheller/shadow-client "1.0.20170518"]
 
    [aleph "0.4.3"]
    [hiccup "1.0.5"]
@@ -59,6 +60,5 @@
 
     :dependencies
     [#_[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
-     [thheller/shadow-client "1.0.20170518"]
      [org.clojure/tools.namespace "0.2.11"]]
     }})

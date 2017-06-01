@@ -1,6 +1,7 @@
 (ns shadow.cljs.devtools.server.web.common
   (:require [shadow.server.assets :as assets]
             [hiccup.page :refer (html5)]
+            [hiccup.core :refer (html)]
             [clojure.java.io :as io]))
 
 (def not-found
@@ -21,11 +22,16 @@
    (html5
      {:lang "en"}
      [:head
-      [:title "hello world"]
+      [:title "shadow-cljs"]
       [:style "body { font-size: 12px; font-family: Menlo, monospace; padding: 20px;}"]]
      [:body
       content
       ])})
+
+(defn nav []
+  (html
+    [:div
+     [:a {:href "/"} "home"]]))
 
 (defn transit [{:keys [transit-str] :as req} obj]
   {:status 200

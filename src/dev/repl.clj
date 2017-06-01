@@ -1,16 +1,17 @@
 (ns ^:skip-aot repl
   (:require [clojure.pprint :refer (pprint)]
             [shadow.cljs.devtools.embedded :as cljs]
-            ))
+            [shadow.cljs.devtools.standalone :as standalone]))
 
 (defn start []
-  (cljs/start! {:verbose true})
-
-  (cljs/start-worker :cli)
+  ;; (cljs/start! {:verbose true})
+  ;; (cljs/start-worker :cli)
+  (standalone/start!)
   ::started)
 
 (defn stop []
-  (cljs/stop!)
+  ;; (cljs/stop!)
+  (standalone/stop!)
   ::stopped)
 
 (defn repl []

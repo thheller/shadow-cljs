@@ -36,6 +36,9 @@
      "shadow.cljs.devtools.client.env.autoload"
      (or autoload (some? before-load) (some? after-load))
 
+     "shadow.cljs.devtools.client.env.module_format"
+     (name (:module-format state))
+
      "shadow.cljs.devtools.client.env.repl_host"
      host
 

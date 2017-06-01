@@ -1,11 +1,12 @@
+#!/usr/bin/env node
 
-var SHADOW_IMPORT_PATH = "/Users/zilence/code/shadow-devtools/target/shadow-cache/script/dev/cljs-runtime";
+var SHADOW_IMPORT_PATH = "/Users/zilence/code/shadow-cljs/target/shadow-cljs/script/dev/cljs-runtime";
 var SHADOW_ENV = {};
 try {require('source-map-support').install();} catch (e) {console.warn('no "source-map-support" (run "npm install source-map-support --save-dev" to get it)');}
 
 SHADOW_ENV.CLOSURE_NO_DEPS = true;
 
-SHADOW_ENV.CLOSURE_DEFINES = {"shadow.cljs.devtools.client.env.autoload":true,"shadow.cljs.devtools.client.env.proc_id":"839c067c-3988-4e09-bab7-74bc4eced5f3","goog.LOCALE":"en","shadow.cljs.devtools.client.env.repl_host":"localhost","shadow.cljs.devtools.client.env.build_id":"script","goog.DEBUG":true,"shadow.cljs.devtools.client.env.reload_with_state":false,"shadow.cljs.devtools.client.env.after_load":"demo.script.start","shadow.cljs.devtools.client.env.before_load":"demo.script.stop","shadow.cljs.devtools.client.env.repl_port":51126,"shadow.cljs.devtools.client.env.enabled":true,"goog.TRANSPILE":"never"};
+SHADOW_ENV.CLOSURE_DEFINES = {"shadow.cljs.devtools.client.env.autoload":true,"shadow.cljs.devtools.client.env.proc_id":"cd67e569-fac1-4cdf-8929-a3e5c24f6a12","shadow.cljs.devtools.client.env.module_format":"goog","goog.LOCALE":"en","shadow.cljs.devtools.client.env.repl_host":"localhost","shadow.cljs.devtools.client.env.build_id":"script","goog.DEBUG":true,"shadow.cljs.devtools.client.env.reload_with_state":false,"shadow.cljs.devtools.client.env.after_load":"demo.script.start","shadow.cljs.devtools.client.env.before_load":"demo.script.stop","shadow.cljs.devtools.client.env.repl_port":56809,"shadow.cljs.devtools.client.env.enabled":true,"goog.TRANSPILE":"never"};
 
 var SHADOW_ROOTS = ["goog"];
 
@@ -127,32 +128,31 @@ SHADOW_ENV.NODE_EVAL = function(js, smJson) {
   return fn.call(SHADOW_ENV, require, module, __filename, __dirname, SHADOW_ENV);
 };
 
-SHADOW_IMPORT("goog/base.js");
+SHADOW_IMPORT("goog.base.js");
 goog.provide = SHADOW_PROVIDE;
 goog.require = SHADOW_REQUIRE;
-SHADOW_IMPORT("goog/reflect/reflect.js");
-SHADOW_IMPORT("goog/math/long.js");
-SHADOW_IMPORT("goog/math/integer.js");
-SHADOW_IMPORT("goog/string/string.js");
-SHADOW_IMPORT("goog/object/object.js");
-SHADOW_IMPORT("goog/debug/error.js");
-SHADOW_IMPORT("goog/dom/nodetype.js");
-SHADOW_IMPORT("goog/asserts/asserts.js");
-SHADOW_IMPORT("goog/array/array.js");
-SHADOW_IMPORT("goog/string/stringbuffer.js");
-SHADOW_IMPORT("cljs/core.js");
-SHADOW_IMPORT("clojure/walk.js");
-SHADOW_IMPORT("cljs/spec/gen/alpha.js");
-SHADOW_IMPORT("clojure/string.js");
-SHADOW_IMPORT("cljs/spec/alpha.js");
-SHADOW_IMPORT("cljs/repl.js");
-SHADOW_IMPORT("cljs/user.js");
-SHADOW_IMPORT("shadow/cljs/devtools/client/env.js");
-SHADOW_IMPORT("cljs/reader.js");
-SHADOW_IMPORT("shadow/cljs/devtools/client/node.js");
-SHADOW_IMPORT("npm.http.js");
-SHADOW_IMPORT("demo/script.js");
-SHADOW_IMPORT("shadow/module/append/script.js");
+SHADOW_IMPORT("goog.debug.error.js");
+SHADOW_IMPORT("goog.dom.nodetype.js");
+SHADOW_IMPORT("goog.string.string.js");
+SHADOW_IMPORT("goog.asserts.asserts.js");
+SHADOW_IMPORT("goog.reflect.reflect.js");
+SHADOW_IMPORT("goog.math.long.js");
+SHADOW_IMPORT("goog.math.integer.js");
+SHADOW_IMPORT("goog.object.object.js");
+SHADOW_IMPORT("goog.array.array.js");
+SHADOW_IMPORT("goog.string.stringbuffer.js");
+SHADOW_IMPORT("cljs.core.js");
+SHADOW_IMPORT("clojure.walk.js");
+SHADOW_IMPORT("cljs.spec.gen.alpha.js");
+SHADOW_IMPORT("clojure.string.js");
+SHADOW_IMPORT("cljs.spec.alpha.js");
+SHADOW_IMPORT("cljs.repl.js");
+SHADOW_IMPORT("cljs.user.js");
+SHADOW_IMPORT("shadow.cljs.devtools.client.env.js");
+SHADOW_IMPORT("cljs.reader.js");
+SHADOW_IMPORT("shadow.cljs.devtools.client.node.js");
+SHADOW_IMPORT("demo.script.js");
+SHADOW_IMPORT("shadow.module.append.script.js");
 var shadow = SHADOW_ENV.shadow || {};
 var cljs = SHADOW_ENV.cljs || {};
 var demo = SHADOW_ENV.demo;

@@ -9,6 +9,8 @@
 
 (goog-define autoload true)
 
+(goog-define module-format "goog")
+
 (goog-define before-load "")
 
 (goog-define after-load "")

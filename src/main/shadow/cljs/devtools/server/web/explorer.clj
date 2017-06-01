@@ -10,6 +10,7 @@
   (common/page-boilerplate
     req
     (html
+      (common/nav)
       [:h1 "CLJS Sources"]
       [:ul
        (for [src
@@ -30,6 +31,8 @@
     (common/page-boilerplate
       req
       (html
+        (common/nav)
+
         [:h1 (str "Source: " src)]
         (when ns
           [:h2 (str "Namespace: " ns)])
