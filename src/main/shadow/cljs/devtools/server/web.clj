@@ -4,13 +4,14 @@
     [clojure.string :as str]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.explorer :as web-explorer]
-    [shadow.cljs.devtools.server.web.api :as web-api]))
+    [shadow.cljs.devtools.server.web.api :as web-api]
+    [shadow.server.assets :as assets]))
 
 (defn index-page [req]
   (common/page-boilerplate req
     (html
-      [:h1 "Welcome."]
-      [:a {:href "/explorer/"} "Explore CLJS"]
+      [:div#root]
+      (assets/js-queue :previous-sibling 'shadow.cljs.ui.app/init)
       )))
 
 (defn root [{:keys [build] :as req}]

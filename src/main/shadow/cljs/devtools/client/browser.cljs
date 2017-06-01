@@ -268,7 +268,7 @@
     (set! (.-onopen socket)
       (fn [e]
         ;; :module-format :js already patches provide
-        (when-not (gobj/get js/window "$CLJS")
+        (when (= "goog" env/module-format)
           ;; patch away the already declared exception
           (set! (.-provide js/goog) js/goog.constructNamespace_))
         (devtools-msg "DEVTOOLS: connected!")

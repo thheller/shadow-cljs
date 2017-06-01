@@ -1,4 +1,24 @@
-[{:id :browser
+[{:id :ui
+  :target :browser
+
+  :public-dir "target/shadow-cljs/self/ui/js"
+  :public-path "/js"
+
+  :compiler-options
+  {:externs []}
+
+  :modules
+  {:ui
+   {:entries
+    [shadow.cljs.ui.app]
+    :depends-on
+    #{}}}
+
+  :devtools
+  {:before-load shadow.cljs.ui.app/stop
+   :after-load shadow.cljs.ui.app/start}}
+
+ {:id :browser
   :target :browser
 
   :public-dir "out/demo-browser/public/js"

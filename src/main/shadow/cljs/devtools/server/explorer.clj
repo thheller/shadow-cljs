@@ -134,13 +134,14 @@
           (-> (cljs/init-state)
               (as-> X
                 (assoc X
-                       ;; :logger util/null-log
+                       ;; FIXME: log somewhere
+                       :logger util/null-log
                        ;; race condition accessing the cache file when this starts up in parallel to something else
                        :manifest-cache-dir
-                       (doto (io/file (:work-dir X) "shadow-explorer" "manifest-cache")
+                       (doto (io/file (:work-dir X) "shadow-cljs" "explorer" "manifest-cache")
                          (io/make-parents))
                        :cache-dir
-                       (doto (io/file (:work-dir X) "shadow-explorer" "cache")
+                       (doto (io/file (:work-dir X) "shadow-cljs" "explorer" "cache")
                          (io/make-parents))))
               (cljs/find-resources-in-classpath)
               (cljs/finalize-config))

@@ -1,18 +1,27 @@
 (ns shadow.cljs.devtools.standalone
   (:require [aleph.http :as aleph]
+            [clojure.core.async :as async :refer (thread)]
+            [clojure.java.io :as io]
+            [aleph.netty :as netty]
+            [ring.middleware.file :as ring-file]
             [shadow.runtime.services :as rt]
             [shadow.cljs.devtools.server.web :as web]
             [shadow.cljs.devtools.server.explorer :as explorer]
             [shadow.cljs.devtools.server.config-watch :as config]
-            [clojure.core.async :as async :refer (thread)]
+            [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.common :as common]
-            [aleph.netty :as netty]
-            [shadow.cljs.devtools.server.supervisor :as super]))
+            ))
 
 (defonce runtime nil)
 
 (def default-config
   {:http
+   {:port 8200
+    :host "localhost"}})
+
+(def dev-config
+  {:dev-mode true
+   :http
    {:port 8200
     :host "localhost"}})
 
@@ -31,13 +40,15 @@
      }))
 
 (defn get-ring-handler
-  [config system-ref]
+  [{:keys [dev-mode] :as config} system-ref]
   (-> (fn [ring-map]
         (let [app
               (-> (:app @system-ref)
                   (assoc :ring-request ring-map))]
           (web/root app)))
-      ;; (file/wrap-file (io/file "public"))
+      (cond->
+        dev-mode
+        (ring-file/wrap-file (io/file "target/shadow-cljs/self/ui")))
       ;; (reload/wrap-reload {:dirs ["src/main"]})
       ))
 
@@ -65,8 +76,7 @@
          (-> {::started (System/currentTimeMillis)
               :config config}
              (rt/init (app config))
-             (rt/start-all))
-         ]
+             (rt/start-all))]
 
      (vreset! runtime-ref {:app app})
 
@@ -81,17 +91,22 @@
      runtime-ref
      )))
 
-(defn start! []
-  (let [runtime-ref
-        (start-system default-config)
+(defn start!
+  ([] (start! default-config))
+  ([config]
+   (let [runtime-ref
+         (start-system config)
 
-        {:keys [host port]}
-        (get-in @runtime-ref [:app :config :http])]
+         {:keys [host port]}
+         (get-in @runtime-ref [:app :config :http])]
 
-    (println (str "shadow-cljs - server running at http://" host ":" port))
-    (alter-var-root #'runtime (fn [_] runtime-ref))
-    ::started
-    ))
+     (println (str "shadow-cljs - server running at http://" host ":" port))
+     (alter-var-root #'runtime (fn [_] runtime-ref))
+     ::started
+     )))
+
+(defn start-dev! []
+  (start! dev-config))
 
 (defn stop! []
   (when runtime

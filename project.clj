@@ -36,6 +36,7 @@
 
    [aleph "0.4.3"]
    [hiccup "1.0.5"]
+   [ring/ring-core "1.6.1"]
    [org.clojure/tools.nrepl "0.2.13"]]
 
   :source-paths
