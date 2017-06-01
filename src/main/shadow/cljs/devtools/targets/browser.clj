@@ -194,12 +194,13 @@
       #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
     ))
 
-(defn init
-  [state mode {:keys [modules module-loader] :as config}]
-  (let [{:keys [output-dir asset-path bundle-foreign public-dir public-path]}
+(defn configure
+  [state mode {:keys [modules] :as config}]
+  (let [{:keys [output-dir asset-path bundle-foreign public-dir public-path] :as config}
         (merge default-browser-config config)]
 
     (-> state
+        (assoc ::comp/config config)
         (cond->
           asset-path
           (cljs/merge-build-options {:asset-path asset-path})
@@ -220,15 +221,18 @@
         ;; (assoc :emit-js-require false)
 
         (configure-modules mode config modules)
+        )))
 
-        (cond->
-          (:worker-info state)
-          (-> (repl/setup)
-              (inject-devtools config))
+(defn init [state mode {:keys [module-loader] :as config}]
+  (-> state
+      (cond->
+        (:worker-info state)
+        (-> (repl/setup)
+            (inject-devtools config))
 
-          module-loader
-          (inject-loader-callbacks)))))
-
+        module-loader
+        (inject-loader-callbacks)
+        )))
 
 (defn flush-manifest
   [{:keys [output-dir] :as state} include-foreign?]
@@ -337,6 +341,9 @@
 (defn process
   [{::comp/keys [stage mode config] :as state}]
   (case stage
+    :configure
+    (configure state mode config)
+
     :init
     (init state mode config)
 

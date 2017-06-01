@@ -1,10 +1,14 @@
 (ns shadow.cljs.ns-form-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :as test :refer (deftest is)]
             [clojure.pprint :refer (pprint)]
             [shadow.cljs.ns-form :as ns-form]
             [cljs.analyzer :as a]
             [clojure.repl :as repl]
-            [clojure.spec.alpha :as s])
+            [clojure.spec.alpha :as s]
+            [shadow.cljs.build :as cljs]
+            [clojure.java.io :as io]
+            [cljs.compiler :as cljs-comp]
+            [shadow.cljs.util :as util])
   (:import (clojure.lang ExceptionInfo)))
 
 (def ns-env
@@ -96,17 +100,33 @@
              [some.ns :as a :refer (x)]
              ["react" :as r :refer (createElement)]
              ["react-dom/server" :as rdom]
-             ;; ["../../relative/is-ugly" :as y]
-             )
-           (:import ["react" Component]))
+             ["./foo.js" :as foo])
+           (:import ["react" Component]
+                    [some.ns Class]))
+
+        state
+        {:output-dir (io/file "node_modules" "shadow-cljs")}
+
+        rc
+        {:name "something.cljs"
+         :file (io/file "src" "main" "something.cljs")}
 
         ast
-        (ns-form/parse test)
-        ]
+        (-> (ns-form/parse test)
+            (ns-form/rewrite-js-requires state rc))]
 
-    (pprint ast))
+    (pprint ast)))
 
-  )
+
+
+(deftest test-file-relativize
+  (let [rel
+        (ns-form/relative-path-from-output-dir
+          (io/file "node_modules/shadow-cljs")
+          (io/file "src/main/demo/foo.cljs")
+          "./bar")]
+
+    (is (= "../../src/main/demo/bar" rel))))
 
 (defn check [spec form]
   (s/explain spec form)

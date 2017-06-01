@@ -48,7 +48,7 @@
           (web/root app)))
       (cond->
         dev-mode
-        (ring-file/wrap-file (io/file "target/shadow-cljs/self/ui")))
+        (ring-file/wrap-file (io/file "target/shadow-cljs/ui/output")))
       ;; (reload/wrap-reload {:dirs ["src/main"]})
       ))
 

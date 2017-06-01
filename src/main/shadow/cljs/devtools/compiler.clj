@@ -189,8 +189,12 @@
            build-options
            (cljs/merge-build-options build-options))
 
+         ;; should do all configuration necessary
+         (process-stage :configure false)
          (cljs/find-resources-in-classpath)
-         (process-stage :init false)
+
+         ;; can do things that require knowledge of the classpath
+         (process-stage :init true)
          ))))
 
 

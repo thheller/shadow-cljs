@@ -234,6 +234,7 @@
           (if (identical? peek eof-sentinel)
             (throw (ex-info "file is empty" {:name name}))
             (let [ast (-> (ns-form/parse peek)
+                          (ns-form/rewrite-js-requires state rc)
                           (rewrite-ns-aliases state))]
               (-> state
                   (update-rc-from-ns rc ast)
@@ -667,8 +668,9 @@ normalize-resource-name
     (throw (ex-info "ns* not supported (require, require-macros, import, import-macros, ... must be part of your ns form)" ast))
     ast))
 
-(defn hijacked-parse-ns [env form name {:keys [compiler-state] :as opts}]
+(defn hijacked-parse-ns [env form name {::keys [compiler-state] :as opts}]
   (-> (ns-form/parse form)
+      (ns-form/rewrite-js-requires-for-name compiler-state name)
       (rewrite-ns-aliases compiler-state)
       (assoc :env env :form form :op :ns)))
 
@@ -750,12 +752,12 @@ normalize-resource-name
 
      (-> (ana/empty-env) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
          (assoc :context context)
-         (ana/analyze form ns
+         (ana/analyze form name
            ;; doing this since I no longer want :compiler-options at the root
            ;; of the compiler state, instead they are in :compiler-options
            ;; still want the compiler-state accessible though
            (assoc (:compiler-options state)
-                  :compiler-state state))
+                  ::compiler-state state))
          (post-analyze state)))))
 
 (defn do-compile-cljs-string
@@ -1424,11 +1426,8 @@ normalize-resource-name
         (let [ns
               (ns-form/make-npm-alias js-require)
 
-              provide
-              (comp/munge ns)
-
               name
-              (str provide ".js")
+              (str ns ".js")
 
               rc
               {:type :js
@@ -1438,15 +1437,15 @@ normalize-resource-name
                :provides #{ns}
                :requires #{}
                :require-order []
-               :input (atom (str "goog.provide(\"" provide "\");\n"
+               :input (atom (str "goog.provide(\"" ns "\");\n"
                                  #_(->> provides
                                         (map (fn [provide]
                                                (str "goog.provide(\"" provide "\");")))
                                         (str/join "\n"))
                                  "\n"
                                  (if emit-js-require
-                                   (str provide " = require(\"" js-require "\");\n")
-                                   (str provide " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
+                                   (str ns " = require(\"" js-require "\");\n")
+                                   (str ns " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
                :last-modified 0}]
 
           (-> state

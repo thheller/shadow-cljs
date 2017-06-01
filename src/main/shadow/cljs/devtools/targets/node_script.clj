@@ -30,19 +30,21 @@
 
 
 ;; FIXME: should allow using :advanced
-(defn init [state mode {:keys [optimizations] :or {optimizations :simple} :as config}]
+(defn configure [state mode {:keys [optimizations] :or {optimizations :simple} :as config}]
   (-> state
       (cond->
         (= :release mode)
         (cljs/merge-compiler-options
           {:optimizations optimizations}))
       (shared/set-output-dir mode config)
-      (node/configure config)
+      (node/configure config)))
+
+(defn init [state mode {:keys [optimizations] :or {optimizations :simple} :as config}]
+  (-> state
       (cond->
         (:worker-info state)
         (-> (repl/setup)
-            (shared/inject-node-repl config)))
-      ))
+            (shared/inject-node-repl config)))))
 
 (defn flush [state mode config]
   (case mode
@@ -54,6 +56,9 @@
 (defn process
   [{::comp/keys [mode stage config] :as state}]
   (case stage
+    :configure
+    (configure state mode config)
+
     :init
     (init state mode config)
 

@@ -9,12 +9,24 @@
             [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.targets.browser :as browser]))
 
+(defn configure [state mode {:keys [runtime entries output-dir] :as config}]
+  (-> state
+      (assoc :source-map-comment false
+             :module-format :js
+             :emit-js-require true)
+
+      (cond->
+        output-dir
+        (cljs/merge-build-options {:output-dir (io/file output-dir)})
+        )))
+
 (defn init [state mode {:keys [runtime entries output-dir] :as config}]
   (let [entries
         (or entries
             (->> (:sources state)
                  (vals)
                  (remove :from-jar)
+                 (filter #(= :cljs (:type %)))
                  (map :provides)
                  (reduce set/union #{})))
 
@@ -22,14 +34,6 @@
         (conj entries 'cljs.core)]
 
     (-> state
-        (assoc :source-map-comment false
-               :module-format :js
-               :emit-js-require true)
-
-        (cond->
-          output-dir
-          (cljs/merge-build-options {:output-dir (io/file output-dir)}))
-
         (cljs/configure-module :default entries #{} {:expand true})
 
         (cond->
@@ -47,6 +51,9 @@
 (defn process
   [{::comp/keys [mode stage config] :as state}]
   (case stage
+    :configure
+    (configure state mode config)
+
     :init
     (init state mode config)
 

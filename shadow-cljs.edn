@@ -1,8 +1,8 @@
 [{:id :ui
   :target :browser
 
-  :public-dir "target/shadow-cljs/self/ui/js"
-  :public-path "/js"
+  :output-dir "target/shadow-cljs/ui/output/js"
+  :asset-path "/js"
 
   :compiler-options
   {:externs []}
@@ -21,8 +21,8 @@
  {:id :browser
   :target :browser
 
-  :public-dir "out/demo-browser/public/js"
-  :public-path "/js"
+  :output-dir "out/demo-browser/public/js"
+  :asset-path "/js"
 
   :compiler-options
   {:externs ["demo/browser-externs.js"]}
@@ -78,8 +78,8 @@
  {:id :custom
   :target build/custom
 
-  :public-dir "out/demo-browser/js"
-  :public-path "/js"
+  :output-dir "out/demo-browser/js"
+  :asset-path "/js"
 
   :modules
   {:demo {:entries [demo.browser]}}
@@ -100,8 +100,8 @@
 
  {:id :foreign
   :target :browser
-  :public-dir "out/demo-foreign/js"
-  :public-path "/js"
+  :output-dir "out/demo-foreign/js"
+  :asset-path "/js"
   :compiler-options
   {:externs
    ["src/dev/demo/foreign-ext.js"]}

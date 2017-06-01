@@ -6,7 +6,8 @@
             [cljs.env :as env]
             [cljs.compiler :as comp]
             [cljs.core]
-            [shadow.cljs.log :as log]) ;; not really, just to ensure it is loaded so we can query it form macros?
+            [shadow.cljs.log :as log]
+            [clojure.java.io :as io]) ;; not really, just to ensure it is loaded so we can query it form macros?
   (:import (clojure.lang Namespace)))
 
 (defn compiler-state? [state]
@@ -607,4 +608,5 @@
        (mapcat namespace-name->js-obj)
        (distinct)
        (into [])))
+
 

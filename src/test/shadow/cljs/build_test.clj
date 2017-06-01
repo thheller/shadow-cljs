@@ -1,26 +1,27 @@
 (ns shadow.cljs.build-test
-  (:use clojure.test)
-  (:require [shadow.cljs.build :as cljs]
-            [shadow.cljs.repl :as repl]
-            [shadow.cljs.node :as node]
-            [shadow.cljs.util :as util]
-            [shadow.cljs.cache :as cache]
-            [cljs.analyzer :as ana]
-            [clojure.pprint :refer (pprint)]
-            [clojure.string :as str]
-            [clojure.java.io :as io]
-            [clojure.repl :refer (pst)]
-            [cljs.analyzer :as a]
-            [clojure.set :as set]
-            [cljs.closure :as cljs-closure]
-            [cljs.analyzer.api :as ana-api]
-            [shadow.cljs.output :as output]
-            [shadow.cljs.ns-form :as ns-form]
-            [shadow.cljs.devtools.compiler :as comp]
-            [shadow.cljs.devtools.api :as api]
-            [shadow.cljs.devtools.targets.browser :as browser]
-            [shadow.cljs.closure :as closure]
-            [cljs.compiler :as cljs-comp])
+  (:require
+    [clojure.test :as test :refer (is deftest)]
+    [shadow.cljs.build :as cljs]
+    [shadow.cljs.repl :as repl]
+    [shadow.cljs.node :as node]
+    [shadow.cljs.util :as util]
+    [shadow.cljs.cache :as cache]
+    [cljs.analyzer :as ana]
+    [clojure.pprint :refer (pprint)]
+    [clojure.string :as str]
+    [clojure.java.io :as io]
+    [clojure.repl :refer (pst)]
+    [cljs.analyzer :as a]
+    [clojure.set :as set]
+    [cljs.closure :as cljs-closure]
+    [cljs.analyzer.api :as ana-api]
+    [shadow.cljs.output :as output]
+    [shadow.cljs.ns-form :as ns-form]
+    [shadow.cljs.devtools.compiler :as comp]
+    [shadow.cljs.devtools.api :as api]
+    [shadow.cljs.devtools.targets.browser :as browser]
+    [shadow.cljs.closure :as closure]
+    [cljs.compiler :as cljs-comp])
   (:import (java.util.regex Pattern)
            (java.io File ByteArrayInputStream)
            (java.net URL)
@@ -417,7 +418,7 @@
                        test.e)))]
 
     (pprint ns-ast)
-    (is (= require-order '[test.c goog.net.XhrIo test.b test.a test.d test.e]))
+    (is (= require-order '[cljs.core test.c goog.net.XhrIo test.b test.a test.d test.e]))
     ))
 
 
@@ -916,8 +917,8 @@
                   ;;:target :browser
                   :output-dir "target/closure-module-per-file"
 
-                  #_ :modules
-                  #_ {:core
+                  #_:modules
+                  #_{:core
                      {:entries
                       [cljs.core]}
                      :a

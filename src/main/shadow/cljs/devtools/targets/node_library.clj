@@ -99,7 +99,7 @@
           {:prepend prepend
            :append append}))))
 
-(defn init [state mode {:keys [id] :as config}]
+(defn configure [state mode {:keys [id] :as config}]
   (-> state
       (cond->
         (= :release mode)
@@ -107,13 +107,14 @@
           {:optimizations :simple}))
 
       (shared/set-output-dir mode config)
-      (create-module config)
+      (create-module config)))
 
+(defn init [state mode {:keys [id] :as config}]
+  (-> state
       (cond->
         (:worker-info state)
         (-> (repl/setup)
-            (shared/inject-node-repl config)))
-      ))
+            (shared/inject-node-repl config)))))
 
 (defn flush [state mode config]
   (node/flush-unoptimized state))
@@ -121,6 +122,9 @@
 (defn process
   [{::comp/keys [mode stage config] :as state}]
   (case stage
+    :configure
+    (configure state mode config)
+
     :init
     (init state mode config)
 

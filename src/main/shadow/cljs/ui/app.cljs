@@ -2,8 +2,9 @@
   (:require [shadow.markup.react :as html :refer (defstyled)]
             [shadow.dom :as dom]
             [shadow.api :refer (ns-ready)]
-            ["react-dom" :as rdom :refer (render)]
-            [shadow.cljs.ui.build-list :as build-list]))
+            [shadow.cljs.ui.build-list :as build-list]
+            [shadow.vault.dom :as vdom]
+            [shadow.vault.store :as store]))
 
 (def root (dom/by-id "root"))
 
@@ -36,13 +37,14 @@
         (build-list/container {}))
       (main-content "bar"))))
 
+(def data-ref (store/empty))
+
 (defn start []
-  (js/console.log "start ...")
-  (render (app) root))
+  (vdom/mount root (app) (store/context {} data-ref [])))
 
 (defn stop []
-  (rdom/unmountComponentAtNode root)
-  (js/console.log "stop"))
+  (js/console.log "stop")
+  (vdom/unmount root))
 
 (defn init []
   (js/console.log "init")

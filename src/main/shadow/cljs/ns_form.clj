@@ -1,9 +1,11 @@
 (ns shadow.cljs.ns-form
   "ns parser based on spec"
   (:require [clojure.spec.alpha :as s]
-            [cljs.compiler :as cljs-comp]
             [clojure.set :as set]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [clojure.java.io :as io]
+            [cljs.compiler :as cljs-comp]
+            [shadow.cljs.util :as util]))
 
 ;; [clojure.core.specs.alpha :as cs]
 ;; too many differences in CLJS ns to make use of those
@@ -179,26 +181,6 @@
 
 (defmulti reduce-ns-clause (fn [ns-info [key clause]] key))
 
-(defn make-npm-alias [lib]
-  (when (str/starts-with? lib ".")
-    (throw (ex-info "relative npm imports not supported yet" {:lib lib})))
-
-  ;; relative requires need info about the current file
-
-  ;; these should have the same alias
-  ;; (ns some.x.foo (:require ["../bla" :as x]))
-  ;; (ns some.x (:require ["./bla" :as x]))
-
-  ;; this is outside the cljs source path
-  ;; (ns some.x (:require ["../../../bla" :as x]))
-
-  (symbol (str "shadow.npm." (cljs-comp/munge lib))))
-
-(defn maybe-npm [lib]
-  (if (string? lib)
-    [(make-npm-alias lib) true]
-    [lib false]))
-
 (defn opts->map [opts]
   (reduce
     (fn [m [key opt :as x]]
@@ -239,39 +221,50 @@
           {:keys [as refer refer-macros include-macros rename] :as opts-m}
           (opts->map opts)
 
-          [ns js?]
-          (maybe-npm lib)
-
           refer
           (if (seq rename)
             (remove rename refer)
             refer)]
 
-      (-> ns-info
-          (update :deps conj ns)
-          (merge-require :requires ns ns)
-          (cond->
-            as
-            (merge-require :requires as ns)
-
-            js?
+      (if (string? lib)
+        ;; string require ;; FIXME: should warn on refer-macros or include-macros
+        (-> ns-info
+            (update :deps conj lib)
             (update :js-requires conj lib)
+            (cond->
+              as
+              (merge-require :js-aliases as lib))
+            (reduce->
+              (merge-require-fn :js-refers lib)
+              refer)
+            (reduce-kv->
+              (fn [ns-info rename-to rename-from]
+                (update ns-info :js-renames assoc rename-from (symbol (str lib) (str rename-to))))
+              rename))
 
-            (or include-macros (seq refer-macros))
-            (-> (merge-require :require-macros ns ns)
-                (cond->
-                  as
-                  (merge-require :require-macros as ns))))
-          (reduce->
-            (merge-require-fn :uses ns)
-            refer)
-          (reduce->
-            (merge-require-fn :use-macros ns)
-            refer-macros)
-          (reduce-kv->
-            (fn [ns-info rename-to rename-from]
-              (update ns-info :renames assoc rename-from (symbol (str ns) (str rename-to))))
-            rename)))))
+        ;; symbol require
+        (-> ns-info
+            (update :deps conj lib)
+            (merge-require :requires lib lib)
+            (cond->
+              as
+              (merge-require :requires as lib)
+
+              (or include-macros (seq refer-macros))
+              (-> (merge-require :require-macros lib lib)
+                  (cond->
+                    as
+                    (merge-require :require-macros as lib))))
+            (reduce->
+              (merge-require-fn :uses lib)
+              refer)
+            (reduce->
+              (merge-require-fn :use-macros lib)
+              refer-macros)
+            (reduce-kv->
+              (fn [ns-info rename-to rename-from]
+                (update ns-info :renames assoc rename-from (symbol (str lib) (str rename-to))))
+              rename))))))
 
 (defn reduce-require-macros [ns-info [key require]]
   (case key
@@ -329,29 +322,31 @@
 
     :seq
     (let [{:keys [lib names]} import]
-      ;; (:import [goog.foo.Class]) is a no-op since no names are mentioned
-      ;; FIXME: worthy of a warning?
 
-      (if-not (seq names)
+      (cond
+        ;; (:import [goog.foo.Class]) is a no-op since no names are mentioned
+        ;; FIXME: worthy of a warning?
+        (not (seq names))
         ns-info
 
-        (let [[ns js?] (maybe-npm lib)]
-          (-> ns-info
-              (cond->
-                js?
-                (update :js-requires conj lib))
+        (string? lib)
+        (-> ns-info
+            (update :js-requires conj lib)
+            (update :deps conj lib)
+            (reduce->
+              (merge-require-fn :js-imports lib)
+              names))
 
-              (reduce->
-                (fn [ns-info sym]
-                  (let [fqn (symbol (str ns "." sym))]
-                    (-> ns-info
-                        (merge-require :imports sym fqn)
-                        (cond->
-                          (not js?)
-                          (-> (merge-require :requires sym fqn)
-                              (update :deps conj fqn))))))
-                names)
-              ))))))
+        (symbol? lib)
+        (-> ns-info
+            (reduce->
+              (fn [ns-info sym]
+                (let [fqn (symbol (str lib "." sym))]
+                  (-> ns-info
+                      (merge-require :imports sym fqn)
+                      (merge-require :requires sym fqn)
+                      (update :deps conj fqn))))
+              names))))))
 
 (defmethod reduce-ns-clause :import [ns-info [_ clause]]
   (let [{:keys [imports]} clause]
@@ -377,24 +372,31 @@
               only
               (if (seq rename)
                 (remove rename only)
-                only)
+                only)]
 
-              [ns js?]
-              (maybe-npm lib)]
+          (if (string? lib)
+            ;; string (:use ["some" :only (foo)])
+            (-> ns-info
+                (update :js-requires conj lib)
+                (reduce->
+                  (merge-require-fn :js-refers lib)
+                  only)
+                (reduce-kv->
+                  (merge-rename-fn :js-renames lib)
+                  rename
+                  ))
 
-          (-> ns-info
-              (cond->
-                js?
-                (update :js-requires conj lib))
-              (merge-require :requires ns ns)
-              (update :deps conj ns)
-              (reduce->
-                (merge-require-fn :uses ns)
-                only)
-              (reduce-kv->
-                (merge-rename-fn :renames ns)
-                rename
-                ))))
+            ;; symbol (:use [some :only (foo)])
+            (-> ns-info
+                (merge-require :requires lib lib)
+                (update :deps conj lib)
+                (reduce->
+                  (merge-require-fn :uses lib)
+                  only)
+                (reduce-kv->
+                  (merge-rename-fn :renames lib)
+                  rename
+                  )))))
       ns-info
       uses)))
 
@@ -433,7 +435,6 @@
            :seen #{}
            :name (vary-meta name merge meta)
            :meta meta
-           :js-requires #{}
            :imports nil ;; {Class ns}
            :requires nil
            :require-macros nil
@@ -441,7 +442,15 @@
            :uses nil
            :use-macros nil
            :renames {} ;; seems to be only one that is never nil in cljs.core
-           :rename-macros nil}
+           :rename-macros nil
+           ;; these must be rewritten later
+           ;; not doing it here because of relative requires
+           ;; "../bar" needs to know which file we are compiling
+           ;; felt shitty using a binding to shim in a resolve-fn
+           :js-requires #{}
+           :js-refers {}
+           :js-aliases {}
+           :js-renames {}}
 
           ns-info
           (reduce reduce-ns-clause ns-info clauses)
@@ -463,3 +472,147 @@
       ;; for now just copy
       (assoc ns-info :deps deps :require-order deps)
       )))
+
+(defn make-npm-alias [lib]
+  ;; must escape . and /
+  ;; react-dom/server
+  ;; would end up as shadow.npm.react_dom.server
+  ;; which may mess up if shadow.npm.react_dom has a .server
+  ;; generates kinda absurd names for relative things
+  ;; ../../src/main/foo.js
+  ;; shadow.npm._DOT__DOT__SLASH__DOT__DOT__SLASH_src_SLASH_main_SLASH_foo_DOT_js
+  ;; rewriting to make it shorter
+  ;; ../../../../src/main/shadow/cljs/ui/Foo
+  ;; shadow.npm._UPPPP_src_SLASH_main_SLASH_shadow_SLASH_cljs_SLASH_ui_SLASH_Foo
+  ;; doesn't really matter since :advanced will collapse it anyways
+  ;; but during dev the names get absurd
+  (-> lib
+      (str/replace "../" "_UP_")
+      (str/replace "/" "_SLASH_")
+      (cljs-comp/munge)
+      ;; munge doesn't munge extensions like .js
+      (str/replace "." "_DOT_")
+      (str/replace "__UP" "P")
+      (->> (str "shadow.npm."))
+      (symbol)))
+
+(defn relative-path-from-output-dir [output-dir src-file rel-path]
+  (let [output-dir
+        (-> output-dir
+            (.getCanonicalFile)
+            (.toPath))
+
+        src-file
+        (-> src-file
+            (.getParentFile))
+
+        rel-file
+        (-> (io/file src-file rel-path)
+            (.getCanonicalFile)
+            (.toPath))]
+
+    (-> (.relativize output-dir rel-file)
+        (.toString))))
+
+(defn resolve-js-require
+  [{:keys [output-dir] :as state}
+   {:keys [name file url] :as rc}
+   js-require]
+
+  (cond
+    (not (str/starts-with? js-require "."))
+    js-require
+
+    (nil? file)
+    ;; this is because webpack and others can't see files in jars
+    ;; FIXME: think about copying the files out of the jar?
+    ;; would need to copy everything since we can't tell what the other file might need
+    (throw (ex-info "relative requires are not supported without file" {:js-require js-require :rc rc}))
+
+    :else
+    (let [rel (relative-path-from-output-dir output-dir file js-require)]
+      ;; resolving is relative to output-dir
+      ;; that is not very obvious in some cases
+      ;; not sure if worth logging though
+      #_(util/log state {:type :js-resolve
+                         :output-dir output-dir
+                         :file file
+                         :js-require js-require
+                         :rel rel})
+      rel)
+    ))
+
+(defn rewrite-js-requires
+  [{:keys [js-requires js-refers js-aliases js-imports js-renames deps] :as ns-info} state rc]
+  {:pre [(map? state)
+         (map? rc)]}
+  (if (empty? js-requires)
+    ns-info
+    (let [resolved
+          (reduce
+            (fn [resolved lib]
+              (let [rel (resolve-js-require state rc lib)]
+                (assoc resolved lib rel)))
+            {}
+            js-requires)
+
+          aliases
+          (reduce-kv
+            (fn [aliases _ resolved]
+              (assoc aliases resolved (make-npm-alias resolved)))
+            {}
+            resolved)
+
+          ns-for-lib
+          (fn [lib]
+            (cond
+              (symbol? lib)
+              lib
+              (string? lib)
+              (->> (get resolved lib)
+                   (get aliases))))]
+
+      (-> ns-info
+          (assoc :js-resolved resolved
+                 :js-ns-aliases aliases
+                 :js-requires (into #{} (map resolved) js-requires))
+
+          (reduce->
+            (fn [ns-info lib]
+              (let [ns (ns-for-lib lib)]
+                (merge-require ns-info :requires ns ns)))
+            js-requires)
+
+          ;; :js-imports {Component "react"}
+          (reduce-kv->
+            (fn [ns-info class lib]
+              (let [ns (ns-for-lib lib)
+                    fqn (symbol (str ns "." class))]
+                (-> ns-info
+                    (merge-require :imports class ns)
+                    (merge-require :requires class fqn)
+                    )))
+            js-imports)
+
+          ;; :js-aliases {r "react", rdom "react-dom/server", foo "./foo.js"}
+          (reduce-kv->
+            (fn [ns-info alias lib]
+              (let [ns (ns-for-lib lib)]
+                (-> ns-info
+                    (merge-require :requires alias ns))))
+            js-aliases)
+
+          ;; :js-refers {createElement "react"}
+          (reduce-kv->
+            (fn [ns-info refer lib]
+              (let [ns (ns-for-lib lib)]
+                (merge-require ns-info :uses refer ns)))
+            js-refers)
+
+          (update :deps #(into [] (map ns-for-lib) %))
+          (update :require-order #(into [] (map ns-for-lib) %))
+          ))))
+
+(defn rewrite-js-requires-for-name
+  [ns-info state src-name]
+  (rewrite-js-requires ns-info state (get-in state [:sources src-name])))

@@ -29,7 +29,7 @@
    (mode-cli-opt "--once" "mode: compile once and exit")
    (mode-cli-opt "--release" "mode: compile release version and exit")
    (mode-cli-opt "--check" "mode: closure compiler type check and exit")
-   (mode-cli-opt "--server" "mode: run in server mode with REPL interface")
+   (mode-cli-opt "--server" "[WIP] server mode, doesn't do much yet")
 
    ;; exlusive
    ["-b" "--build BUILD-ID" "use build defined in shadow-cljs.edn"

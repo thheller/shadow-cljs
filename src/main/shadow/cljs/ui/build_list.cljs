@@ -1,6 +1,9 @@
 (ns shadow.cljs.ui.build-list
   (:require [shadow.markup.react :as html :refer (defstyled)]
-            [shadow.react.component :as comp :refer (deffactory)]))
+            [shadow.react.component :as comp :refer (deffactory)]
+            [shadow.vault.store :as store]
+            [shadow.cljs.ui.common :as common]
+            ))
 
 (defstyled title :div
   [env]
@@ -16,14 +19,21 @@
   {})
 
 (deffactory container
-  {::comp/constructor
-   (fn [this]
-     this)
+  (-> {::store/read
+       (fn [this vault props]
+         {:foo "bar"})
 
-   ::comp/render
-   (fn [this]
-     (list-container
-       (title "builds")
-       (list-item "foo")
-       (list-item "bar"))
-     )})
+       ::store/render
+       (fn [this vault props {:keys [builds] :as data}]
+         (js/console.log ::render props data)
+
+         (if (nil? builds)
+           (common/loading)
+           (list-container
+             (title "builds")
+
+             (html/for [build builds]
+               (list-item build)
+               )))
+         )}
+      (store/component)))
