@@ -27,7 +27,7 @@
       [:link {:as "script" :href "/js/bundle.js" :rel "preload"}]
       [:link {:as "script" :href "/js/ui.js" :rel "preload"}]
       [:title "shadow-cljs"]
-      [:style "body { font-size: 12px; font-family: Menlo, monospace; padding: 20px;}"]]
+      [:style "body { font-size: 12px; font-family: Menlo, monospace; padding: 0; margin: 0;"]]
      [:body
       content
       [:script {:src "/js/bundle.js"}]

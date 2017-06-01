@@ -11,7 +11,7 @@
   (common/page-boilerplate req
     (html
       [:div#root]
-      (assets/js-queue :previous-sibling 'shadow.cljs.ui.app/init)
+      (assets/js-queue :none 'shadow.cljs.ui.app/init)
       )))
 
 (defn root [{:keys [build] :as req}]
