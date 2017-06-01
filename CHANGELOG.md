@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.20170601](https://github.com/thheller/shadow-cljs/compare/1.0.20170531...1.0.20170601)
+
+### Features
+- add support for "./foo" relative requires in the ns form. they are resolved relative to the source file, not the generated output file since that should be more obvious.
+
+### Fixes
+- properly output build warnings to the console, instead of just dumping the raw data.
+
 ## [1.0.20170531](https://github.com/thheller/shadow-cljs/compare/1.0.20170530...1.0.20170531)
 
 ### Fixes
