@@ -181,9 +181,9 @@
       (when-not (seq modules)
         (throw (ex-info "flush before optimize?" {})))
 
-      (let [{:keys [output js-name]} (first modules)]
+      (let [{:keys [prepend output append js-name]} (first modules)]
         (io/make-parents output-to)
-        (spit output-to output)
+        (spit output-to (str prepend output append))
         )))
 
 
