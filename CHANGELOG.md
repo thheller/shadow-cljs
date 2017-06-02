@@ -1,11 +1,26 @@
 # Changelog
 
+## [1.0.20170602](https://github.com/thheller/shadow-cljs/compare/1.0.20170601...1.0.20170602)
+
+### Features
+
+- [BREAKING] a shadow-cljs.edn config file is now mandatory, the script can create on for you. It is now also expected to contain a map and supports `:builds`, `:dependencies`, `:source-paths` and probaly more in the future. If you had a vector before just wrap it in `{:builds the-vector}`.
+- [BREAKING] the package.json `"shadow-cljs"` entry is no longer used
+- the CLI script will now AOT-compile the CLJ sources to optimize startup speed. This only needs to be done once for each shadow-cljs version but reduces startup time from ~12s to ~3s.
+
+### Changes
+
+- refactored most the the CLI script. It is now written in [CLJS](https://github.com/thheller/shadow-cljs/blob/master/src/main/shadow/cljs/npm/cli.cljs).
+- refactored the dependency resolver/downloader to only do that and no longer launch the main process. It now only creates the classpath which is then used by another process. If the classpath is not modified this step is skipped.
+
 ## [1.0.20170601](https://github.com/thheller/shadow-cljs/compare/1.0.20170531...1.0.20170601)
 
 ### Features
+
 - add support for "./foo" relative requires in the ns form. they are resolved relative to the source file, not the generated output file since that should be more obvious.
 
 ### Fixes
+
 - properly output build warnings to the console, instead of just dumping the raw data.
 
 ## [1.0.20170531](https://github.com/thheller/shadow-cljs/compare/1.0.20170530...1.0.20170531)
