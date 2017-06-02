@@ -2,7 +2,16 @@
   (:require ["path" :as path]
             ["fs" :as fs]
             ["child_process" :as cp]
-            [shadow.cljs.npm.nrepl :as nrepl]))
+            ["readline-sync" :as rl]
+            ["mkdirp" :as mkdirp]
+            [cljs.reader :as reader]
+            [clojure.string :as str]))
+
+(def version (js/require "./version.json"))
+
+(defn slurp [file]
+  (-> (fs/readFileSync file)
+      (.toString)))
 
 (defn file-older-than [a b]
   (let [xa (fs/statSync a)
@@ -13,90 +22,147 @@
   (when-not (fs/existsSync dir)
     (fs/mkdirSync dir)))
 
-(defn lein-classpath-gen
-  "returns true if generation was successful"
-  [write-to]
-  (let [result (cp/spawnSync "lein" #js ["classpath" write-to] #js {:stdio "inherit"})]
-    (if (.-error result)
-      (do (js/console.log "shadow-cljs - lein failed", (.-error result))
-          false)
-      (do (js/console.log "shadow-cljs - lein classpath generated successfully")
-          true))))
-
-(defn java-args-lein []
-  (when (fs/existsSync "project.clj")
-    (let [cache-path (path/resolve "target" "shadow-cljs" "lein-classpath.txt")
-
-          lein-available?
-          (or (and (fs/existsSync cache-path)
-                   (not (file-older-than "project.clj" cache-path)))
-
-              (ensure-dir (path/resolve "target"))
-              (ensure-dir (path/resolve "target" "shadow-cljs"))
-              (lein-classpath-gen cache-path))]
-
-      (when lein-available?
-        (let [cp (-> (fs/readFileSync cache-path)
-                     (.toString))]
-          (js/console.log "shadow-cljs - using lein classpath")
-
-          ["-cp" cp "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm"]
-          )))))
-
-(defn java-args-standalone []
-  (when (fs/existsSync "package.json")
-    (let [version
-          (js/require "./version.json")]
-
-      (js/console.log "shadow-cljs - using package.json" version)
-
-      ["-jar"
-       (js/require "shadow-cljs-jar/path") ;; just exports the launcher jar path
-       version
-       "--npm"])))
-
 (defn run [java-cmd java-args]
   (cp/spawnSync java-cmd (into-array java-args) #js {:stdio "inherit"}))
 
-(defn try-nrepl [args]
-  (when (fs/existsSync ".nrepl-port")
+(defn run-java [args]
+  (let [result (run "java" args)]
 
-    (let [port
-          (-> (fs/readFileSync ".nrepl-port")
-              (.toString)
-              (js/parseInt 10))]
+    (if (zero? (.-status result))
+      true
+      (when (and (.-error result) (= "ENOENT" (.. result -error -errno)))
 
-      (nrepl/client port args)
-      )))
+        (js/console.log "shadow-cljs - java not found, trying node-jre")
 
-(defn try-java [args]
-  (when-let [java-args
-             (or (java-args-lein)
-                 (java-args-standalone))]
+        (let [jre
+              (js/require "node-jre")
 
-    (let [all-args
-          (into java-args args)
+              result
+              (run (.driver jre) args)]
 
-          result
-          (run "java" all-args)]
-
-      (if (zero? (.-status result))
-        true
-        (when (and (.-error result)
-                   (= "ENOENT" (.. result -error -errno)))
-
-          (js/console.log "shadow-cljs - java not found, trying node-jre")
-
-          (let [jre (js/require "node-jre")
-
-                result
-                (run (.driver jre) all-args)]
+          (when-not (zero? (.-status result))
+            (js/console.log "failed to run java", result)
+            (js/process.exit 1)
             ))))))
 
-(defn meh []
-  (js/console.log "shadow-cljs failed to start, missing package.json or project.clj?"))
+(def default-config-str
+  (str "{:source-paths [\"src\"]\n"
+       " :dependencies []\n"
+       " :builds\n"
+       " {}}\n"))
+
+(def default-config
+  {:source-paths []
+   :dependencies []
+   :version version
+   :cache-dir "target/shadow-cljs"
+   :builds
+   {}})
+
+(defn ensure-config []
+  (let [config (path/resolve "shadow-cljs.edn")]
+    (if (fs/existsSync config)
+      config
+      (do (println "shadow-cljs - missing configuration file")
+          (println (str "- " config))
+
+          (when (rl/keyInYN "Create one?")
+            ;; FIXME: ask for default source path, don't just use one
+            (fs/writeFileSync config default-config-str)
+            (println "shadow-cljs - created default configuration")
+            config
+            )))))
+
+(defn modified-dependencies? [cp-file config]
+  (let [cp (-> (slurp cp-file)
+               (reader/read-string))]
+
+    (or (not= (:version cp) (:version config))
+        (not= (:dependencies cp) (:dependencies config))
+        )))
+
+(defn get-classpath [config-path {:keys [cache-dir] :as config}]
+  (let [cp-file (path/resolve cache-dir "classpath.edn")]
+
+    ;; only need to rebuild the classpath if :dependencies
+    ;; or the version changed
+    (when (or (not (fs/existsSync cp-file))
+              (modified-dependencies? cp-file config))
+
+      ;; re-create classpath by running the java helper
+      (let [jar (js/require "shadow-cljs-jar/path")]
+        (run-java ["-jar" jar version config-path])))
+
+    ;; only return :files since the rest is just cache info
+    (-> (slurp cp-file)
+        (reader/read-string)
+        (:files)
+        )))
+
+;; FIXME: windows uses ;
+(def cp-seperator ":")
+
+(defn aot-compile [aot-path jars]
+  (let [version-file (path/resolve aot-path "version")]
+
+    ;; FIXME: is it enough to AOT only when versions change?
+    (when (or (not (fs/existsSync version-file))
+              (not= version (slurp version-file)))
+
+      (let [compile-cp
+            (->> jars
+                 (concat [aot-path])
+                 (str/join cp-seperator))]
+
+        (mkdirp/sync aot-path)
+
+        (print "shadow-cljs - optimizing startup")
+
+        (run-java
+          ["-cp" compile-cp
+           ;; FIXME: maybe try direct linking?
+           (str "-Dclojure.compile.path=" aot-path)
+           "clojure.main"
+           "-e" "(compile 'shadow.cljs.devtools.cli)"])
+
+        (fs/writeFileSync version-file version)
+        ))))
 
 (defn main [& args]
-  (or (try-nrepl args)
-      (try-java args)
-      (meh)))
+  (when-let [config-path (ensure-config)]
+    (println "shadow-cljs -" version "using" config-path)
+
+    (let [config
+          (-> (slurp config-path)
+              (reader/read-string))]
+
+      (if-not (map? config)
+        (do (println "shadow-cljs - old config format no longer supported")
+            (println "  previously a vector was used to define builds")
+            (println "  now {:builds the-old-vector} is expected"))
+
+        ;; config file found
+        ;; check if classpath is up to date
+        (let [{:keys [cache-dir source-paths dependencies] :as config}
+              (merge default-config config)
+
+              aot-path
+              (path/resolve cache-dir "aot-classes")
+
+              jars
+              (get-classpath config-path config)
+
+              classpath
+              (->> jars
+                   (concat [aot-path])
+                   (concat source-paths)
+                   (str/join cp-seperator))
+
+              cli-args
+              (into ["-cp" classpath "shadow.cljs.devtools.cli" "--npm"] args)]
+
+          (aot-compile aot-path jars)
+
+          (println "shadow-cljs - starting ...")
+          (run-java cli-args)
+          )))))

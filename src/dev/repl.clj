@@ -4,13 +4,14 @@
 
 (defn start []
   (cljs/start! {:verbose true})
-  (cljs/start-worker :ui)
-  (standalone/start-dev!)
+  ;; (cljs/start-worker :ui)
+  ;; (standalone/start-dev!)
+  ;; (cljs/start-worker :cli)
   ::started)
 
 (defn stop []
   (cljs/stop!)
-  (standalone/stop!)
+  ;; (standalone/stop!)
   ::stopped)
 
 (defn repl []

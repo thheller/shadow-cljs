@@ -28,18 +28,9 @@
         (if (= ts-test ts)
           (do (Thread/sleep 1000)
               (recur ts config))
-          (let [new-config
-                (config/load-cljs-edn)
-
-                old
-                (reduce
-                  (fn [m {:keys [id] :as build}]
-                    (assoc m id build))
-                  {}
-                  config)]
-
-            (doseq [{:keys [id] :as new} new-config
-                    :when (not= new (get old id))]
+          (let [new-config (config/load-cljs-edn)]
+            (doseq [{:keys [id] :as new} (-> new-config :builds (vals))
+                    :when (not= new (get-in config [:builds id]))]
               (sys-bus/publish! system-bus [::sys-msg/config-watch id] {:config new}))
 
             (recur ts-test new-config)

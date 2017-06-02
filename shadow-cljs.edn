@@ -1,138 +1,146 @@
-[{:id :ui
-  :target :browser
+{:dependencies
+ [[thheller/shadow-client "1.0.186"]]
 
-  :output-dir "target/shadow-cljs/ui/output/js"
-  :asset-path "/js"
+ :source-paths
+ ["src/dev"
+  "src/main"]
 
-  :compiler-options
-  {:externs []}
+ :builds
+ [{:id :ui
+   :target :browser
 
-  :modules
-  {:ui
-   {:entries
-    [shadow.cljs.ui.app]
-    :depends-on
-    #{}}}
+   :output-dir "target/shadow-cljs/ui/output/js"
+   :asset-path "/js"
 
-  :devtools
-  {:before-load shadow.cljs.ui.app/stop
-   :after-load shadow.cljs.ui.app/start}}
+   :compiler-options
+   {:externs []}
 
- {:id :browser
-  :target :browser
+   :modules
+   {:ui
+    {:entries
+     [shadow.cljs.ui.app]
+     :depends-on
+     #{}}}
 
-  :output-dir "out/demo-browser/public/js"
-  :asset-path "/js"
+   :devtools
+   {:before-load shadow.cljs.ui.app/stop
+    :after-load shadow.cljs.ui.app/start}}
 
-  :compiler-options
-  {:externs ["demo/browser-externs.js"]}
+  {:id :browser
+   :target :browser
 
-  :module-loader false
-  :modules
-  {:base
-   {:entries
-    [cljs.core]
-    :depends-on
-    #{}}
+   :output-dir "out/demo-browser/public/js"
+   :asset-path "/js"
 
-   :demo
-   {:entries
-    [demo.browser]
-    :depends-on
-    #{:base}}
+   :compiler-options
+   {:externs ["demo/browser-externs.js"]}
 
-   :extra
-   {:entries
-    [demo.browser-extra]
-    :depends-on
-    #{:demo}}
+   :module-loader false
+   :modules
+   {:base
+    {:entries
+     [cljs.core]
+     :depends-on
+     #{}}
 
-   :worker
-   {:entries
-    [demo.worker]
-    :depends-on #{:base}
-    :web-worker true}}
+    :demo
+    {:entries
+     [demo.browser]
+     :depends-on
+     #{:base}}
 
-  :build-options
-  {:emit-js-require false}
+    :extra
+    {:entries
+     [demo.browser-extra]
+     :depends-on
+     #{:demo}}
 
-  :devtools
-  {:before-load demo.browser/stop
-   :after-load demo.browser/start}}
+    :worker
+    {:entries
+     [demo.worker]
+     :depends-on #{:base}
+     :web-worker true}}
 
- {:id :script
-  :target :node-script
-  :main demo.script/main
-  :output-to "out/demo-script/script.js"
+   :build-options
+   {:emit-js-require false}
 
-  :devtools
-  {:before-load demo.script/stop
-   :after-load demo.script/start}}
+   :devtools
+   {:before-load demo.browser/stop
+    :after-load demo.browser/start}}
 
- {:id :library
-  :target :node-library
-  :output-to "out/demo-library/lib.js"
-  :exports
-  {:hello demo.lib/hello}}
+  {:id :script
+   :target :node-script
+   :main demo.script/main
+   :output-to "out/demo-script/script.js"
 
- {:id :custom
-  :target build/custom
+   :devtools
+   {:before-load demo.script/stop
+    :after-load demo.script/start}}
 
-  :output-dir "out/demo-browser/js"
-  :asset-path "/js"
+  {:id :library
+   :target :node-library
+   :output-to "out/demo-library/lib.js"
+   :exports
+   {:hello demo.lib/hello}}
 
-  :modules
-  {:demo {:entries [demo.browser]}}
+  {:id :custom
+   :target build/custom
 
-  :devtools
-  {:before-load demo.browser/stop
-   :after-load demo.browser/start}}
+   :output-dir "out/demo-browser/js"
+   :asset-path "/js"
 
- {:id :warnings
-  :target :node-script
-  :main demo.warnings/main
-  :output-to "out/demo-warnings/script.js"}
+   :modules
+   {:demo {:entries [demo.browser]}}
 
- {:id :errors
-  :target :node-script
-  :main demo.errors/main
-  :output-to "out/demo-errors/script.js"}
+   :devtools
+   {:before-load demo.browser/stop
+    :after-load demo.browser/start}}
 
- {:id :foreign
-  :target :browser
-  :output-dir "out/demo-foreign/js"
-  :asset-path "/js"
-  :compiler-options
-  {:externs
-   ["src/dev/demo/foreign-ext.js"]}
-  :modules
-  {:main {:entries [demo.foreign]}}}
+  {:id :warnings
+   :target :node-script
+   :main demo.warnings/main
+   :output-to "out/demo-warnings/script.js"}
 
- {:id :npm
-  :target :npm-module
-  :entries [demo.npm]}
+  {:id :errors
+   :target :node-script
+   :main demo.errors/main
+   :output-to "out/demo-errors/script.js"}
 
- {:id :npm-web
-  :target :npm-module
-  :runtime :browser
-  :entries [demo.browser]
-  :output-dir "out/npm-web/src/cljs"
-  :compiler-options
-  {:externs ["shadow/cljs/npm/externs.js"
-             "demo/browser-externs.js"]}}
+  {:id :foreign
+   :target :browser
+   :output-dir "out/demo-foreign/js"
+   :asset-path "/js"
+   :compiler-options
+   {:externs
+    ["src/dev/demo/foreign-ext.js"]}
+   :modules
+   {:main {:entries [demo.foreign]}}}
 
- {:id :chokidar
-  :target :node-script
-  :main shadow.chokidar/main
-  :output-to "tmp/chokidar.js"}
+  {:id :npm
+   :target :npm-module
+   :entries [demo.npm]}
 
- {:id :cli
-  :target :node-script
-  :main shadow.cljs.npm.cli/main
-  :output-to "npm-package-cli/bin/shadow-cljs.js"
-  :optimizations :advanced
-  :compiler-options
-  {:externs ["shadow/cljs/npm/externs.js"]}
-  :devtools
-  {:enabled false}}
- ]
+  {:id :npm-web
+   :target :npm-module
+   :runtime :browser
+   :entries [demo.browser]
+   :output-dir "out/npm-web/src/cljs"
+   :compiler-options
+   {:externs ["shadow/cljs/npm/externs.js"
+              "demo/browser-externs.js"]}}
+
+  {:id :chokidar
+   :target :node-script
+   :main shadow.chokidar/main
+   :output-to "tmp/chokidar.js"}
+
+  {:id :cli
+   :target :node-script
+   :main shadow.cljs.npm.cli/main
+   :output-to "npm-package-cli/bin/shadow-cljs.js"
+   :optimizations :advanced
+   :compiler-options
+   {:externs ["shadow/cljs/npm/externs.js"]}
+   :devtools
+   {:enabled false}}
+  ]}

@@ -25,14 +25,78 @@
     ::build
     (s/multi-spec target-spec :target)))
 
+(s/def ::builds (s/map-of keyword? ::build))
+
+(s/def ::source-paths
+  (s/coll-of string? :kind vector?))
+
+(s/def ::dependency
+  (s/cat
+    :artifact
+    symbol?
+    :version
+    string?
+
+    ;; FIXME: properly do :exclusions and other things that may be allowed?
+    :rest
+    (s/* any?)))
+
+(s/def ::dependencies
+  (s/coll-of ::dependency :kind vector?))
+
 (s/def ::config
-  (s/coll-of ::build :kind vector?))
+  (s/keys
+    :req-un
+    [::builds]
+    :opt-un
+    [::source-paths
+     ::dependencies]
+    ))
+
+(defn builds->map [builds]
+  (cond
+    (empty? builds)
+    {}
+
+    (vector? builds)
+    (reduce
+      (fn [builds {:keys [id] :as build}]
+        (assoc builds id build))
+      {}
+      builds)
+
+    ;; ensure that each build has an :id so user isn't forced to repeat it
+    (map? builds)
+    (reduce-kv
+      (fn [builds id build]
+        (assoc builds id (assoc build :id id)))
+      {}
+      builds)
+
+    :else
+    (throw (ex-info "invalid builds entry" {:builds builds}))
+    ))
+
+(defn normalize [cfg]
+  (cond
+    (vector? cfg)
+    (recur {:builds cfg})
+
+    (map? cfg)
+    (update cfg :builds builds->map)
+
+    :else
+    (throw (ex-info "invalid config" {:cfg cfg}))
+    ))
 
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
     (if-not (.exists file)
       [] ;; FIXME: throw instead? we can't do anything without configured builds
-      (-> file (slurp) (edn/read-string)))))
+      (-> file
+          (slurp)
+          (edn/read-string)
+          (normalize)))))
 
 (defn load-cljs-edn! []
   (let [config (load-cljs-edn)]
@@ -46,9 +110,7 @@
   ([id]
    (get-build (load-cljs-edn!) id))
   ([config id]
-   (->> config
-        (filter #(= id (:id %)))
-        (first))))
+   (get-in config [:builds id])))
 
 (defn get-build! [id]
   (or (get-build id)

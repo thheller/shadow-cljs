@@ -1,6 +1,6 @@
 {
   "name": "shadow-cljs",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "ClojureScript for JS tools",
   "author": "Thomas Heller",
   "license": "ISC",
@@ -17,10 +17,11 @@
     "cljs"
   ],
   "bin": {
-    "shadow-cljs": "./bin/shadow-cljs"
+    "shadow-cljs": "./bin/shadow-cljs.js"
   },
   "dependencies": {
-    "bencode": "^0.12.0",
-    "shadow-cljs-jar": "^0.4.0"
+    "mkdirp": "^0.5.1",
+    "readline-sync": "^1.4.7",
+    "shadow-cljs-jar": "^0.7.0"
   }
 }

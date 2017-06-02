@@ -61,42 +61,6 @@
    :runtime :node
    :output-dir "node_modules/shadow-cljs"})
 
-(defn load-npm-config []
-  (let [pkg-file
-        (io/file "package.json")
-
-        config-edn
-        (config/get-build :npm)]
-
-    (cond
-      ;; FIXME: should warn if package.json contains config as well
-      config-edn
-      (merge default-npm-config config-edn)
-
-      (not (.exists pkg-file))
-      default-npm-config
-
-      ;; FIXME: should warn that this is deprecated
-      ;; only dependencies and source-paths should be allowed in package.json
-      ;; everything build related should be done in shadow-cljs.edn
-      :else
-      (let [{:strs [entries runtime output-dir] :as json-config}
-            (-> pkg-file
-                (slurp)
-                (json/read-str)
-                (get "shadow-cljs"))]
-        (-> default-npm-config
-            (cond->
-              entries
-              (assoc :entries (into [] (map symbol) entries))
-
-              (seq runtime)
-              (assoc :runtime (keyword runtime))
-
-              (seq output-dir)
-              (assoc :output-dir output-dir)
-              ))))))
-
 (defn main [& args]
   (let [{:keys [options summary errors] :as opts}
         (cli/parse-opts args cli-spec)
@@ -121,7 +85,8 @@
               (api/get-build-config build)
 
               npm
-              (load-npm-config)
+              (or (api/get-build-config :npm)
+                  default-npm-config)
 
               :else
               nil)]

@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "1.0.20170601"
+(defproject thheller/shadow-cljs "1.0.20170602"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -13,6 +13,8 @@
 
    [org.clojure/java.classpath "0.2.3"]
    [org.clojure/data.json "0.2.6"]
+
+   [org.clojure/tools.logging "0.3.1"]
    [org.clojure/tools.cli "0.3.5"]
 
    [com.cognitect/transit-clj "0.8.300"
@@ -36,8 +38,7 @@
 
    [aleph "0.4.3"]
    [hiccup "1.0.5"]
-   [ring/ring-core "1.6.1"]
-   [org.clojure/tools.nrepl "0.2.13"]]
+   [ring/ring-core "1.6.1"]]
 
   :source-paths
   ["src/main"]
@@ -48,11 +49,8 @@
   :java-source-paths
   ["src/main"]
 
-  ;; FIXME: AOT should not be the default
-  ;; creates a 9MB jar in clojars since it includes AOT compiled code for everything
-  ;; without AOT it is ~164KB but starts way slower
-  ;; should probably create a separate AOT release for the npm CLI
-  :aot [shadow.cljs.devtools.cli]
+  ;; don't AOT the library, AOT in the app
+  ;; :aot [shadow.cljs.devtools.cli]
 
   :profiles
   {:dev
