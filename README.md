@@ -1,6 +1,6 @@
 # shadow-cljs
 
-`shadow-cljs` aims to provide everything you need to compile your ClojureScript code with a focus on simplicity and ease of use. 
+`shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
 
 ### Status: Alpha
 
@@ -41,11 +41,12 @@ You may also install globally which makes things a bit easer to work with.
 
 `shadow-cljs` is configured by a `shadow-cljs.edn` file in your project root directory.
 
-It should contain a map with some global configuration and a `:builds` key for all your builds.
+It should contain a map with some global configuration and a `:builds` entry for all your builds.
 
 ```clojure
 {:dependencies
  []
+
  :source-paths
  ["src"]
 
@@ -88,8 +89,6 @@ shadow-cljs --build build-id --dev
 # release
 shadow-cljs --build build-id --release
 ```
-
-
 
 ## License
 

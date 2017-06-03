@@ -59,6 +59,7 @@
      [org.clojure/tools.namespace "0.2.11"]]}
 
    :cljs
-   {:aot [shadow.cljs.devtools.cli]
+   {:aot [shadow.cljs.devtools.api
+          shadow.cljs.devtools.cli]
     :dependencies
     [[thheller/shadow-client "1.0.20170518"]]}})

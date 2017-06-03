@@ -140,15 +140,13 @@
          ;; FIXME: maybe try direct linking?
          (str "-Dclojure.compile.path=" aot-path)
          "clojure.main"
-         "-e" "(compile 'shadow.cljs.devtools.cli)"])
+         "-e" "(run! compile '[shadow.cljs.devtools.api shadow.cljs.devtools.standalone shadow.cljs.devtools.cli])"])
 
       (fs/writeFileSync version-file version)
       )))
 
 (def defaults
-  {:source-paths []
-   :dependencies []
-   :cache-root "target/shadow-cljs"})
+  {:cache-root "target/shadow-cljs"})
 
 (defn main [& args]
   (when-let [config-path (ensure-config)]
@@ -159,7 +157,9 @@
 
           config
           (-> (slurp config-path)
-              (reader/read-string))]
+              (reader/read-string)
+              (->> (merge {:version version
+                           :dependencies []})))]
 
       (cond
         (not (map? config))

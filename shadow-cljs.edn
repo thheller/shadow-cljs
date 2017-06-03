@@ -1,5 +1,11 @@
-{:lein
+{:xlein
  {:profile "cljs"}
+
+ ;; actually unused when using :lein
+ :source-paths
+ ["src/dev"
+  "src/main"
+  "src/test"]
 
  :builds
  [{:id :ui

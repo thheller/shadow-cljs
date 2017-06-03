@@ -3,16 +3,9 @@
   (:require [shadow.runtime.services :as rt]
             [clojure.tools.cli :as cli]
             [clojure.string :as str]
-            [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [shadow.cljs.devtools.api :as api]
-            [shadow.cljs.devtools.errors :as e]
-            [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.devtools.server.util :as util]
-            [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.standalone :as standalone]
-            [shadow.cljs.devtools.errors :as errors]))
+            [clojure.repl :as repl]))
 
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
@@ -62,6 +55,18 @@
    :runtime :node
    :output-dir "node_modules/shadow-cljs"})
 
+(defn invoke
+  "invokes a fn by requiring the namespace and looking up the var"
+  [sym & args]
+  ;; doing the delayed (require ...) so things are only loaded
+  ;; when a path is reached as they load a bunch of code other paths
+  ;; do not use, greatly improves startup time
+  (let [require-ns (symbol (namespace sym))]
+    (require require-ns)
+    (let [fn-var (find-var sym)]
+      (apply fn-var args)
+      )))
+
 (defn main [& args]
   (try
     (let [{:keys [options summary errors] :as opts}
@@ -75,7 +80,7 @@
         (help opts)
 
         (= :server (::mode options))
-        (standalone/-main)
+        (invoke 'shadow.cljs.devtools.standalone/-main)
 
         :else
         (let [{::keys [build npm]} options
@@ -97,21 +102,29 @@
 
             (case (::mode options)
               :release
-              (api/release* build-config options)
+              (invoke 'shadow.cljs.devtools.api/release* build-config options)
 
               :check
-              (api/check* build-config options)
+              (invoke 'shadow.cljs.devtools.api/check* build-config options)
 
               :dev
-              (api/dev* build-config options)
+              (invoke 'shadow.cljs.devtools.api/dev* build-config options)
 
               ;; make :once the default
-              (api/once* build-config options)
+              (invoke 'shadow.cljs.devtools.api/once* build-config options)
               )))))
 
     (catch Exception e
-      (errors/user-friendly-error e)
-      )))
+      (try
+        (invoke 'shadow.cljs.devtools.errors/user-friendly-error e)
+        (catch Exception e2
+          (println "failed to format error because of:")
+          (repl/pst e2)
+          (flush)
+          (println "actual error:")
+          (repl/pst e)
+          (flush)
+          )))))
 
 (defn -main [& args]
   (apply main args))
