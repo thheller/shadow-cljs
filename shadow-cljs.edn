@@ -119,6 +119,7 @@
 
   {:id :npm
    :target :npm-module
+   :output-dir "node_modules/shadow-cljs"
    :entries [demo.npm]}
 
   {:id :npm-web

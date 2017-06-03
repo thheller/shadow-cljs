@@ -87,8 +87,7 @@
                 (config/get-build! build)
 
                 npm
-                (or (config/get-build :npm)
-                    default-npm-config)
+                (merge default-npm-config (config/get-build :npm))
 
                 :else
                 nil)]

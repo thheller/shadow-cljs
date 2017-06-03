@@ -1,3 +1,3 @@
-This is a utility package used by `shadow-cljs`.
+This is a utility used by `shadow-cljs` to resolve/download dependencies.
 
-It only contains the launcher jar file which I want to update independently from the `shadow-cljs`package.
+https://github.com/thheller/shadow-cljs

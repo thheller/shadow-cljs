@@ -22,11 +22,11 @@
   (when-not (fs/existsSync dir)
     (fs/mkdirSync dir)))
 
-(defn run [java-cmd java-args]
-  (cp/spawnSync java-cmd (into-array java-args) #js {:stdio "inherit"}))
+(defn run [project-root java-cmd java-args]
+  (cp/spawnSync java-cmd (into-array java-args) #js {:stdio "inherit" :cwd project-root}))
 
-(defn run-java [args]
-  (let [result (run "java" args)]
+(defn run-java [project-root args]
+  (let [result (run project-root "java" args)]
 
     (if (zero? (.-status result))
       true
@@ -38,7 +38,7 @@
               (js/require "node-jre")
 
               result
-              (run (.driver jre) args)]
+              (run project-root (.driver jre) args)]
 
           (when-not (zero? (.-status result))
             (js/console.log "failed to run java", result)
@@ -46,24 +46,26 @@
             ))))))
 
 (def default-config-str
-  (str "{:source-paths [\"src\"]\n"
-       " :dependencies []\n"
-       " :builds\n"
-       " {}}\n"))
+  (slurp (path/resolve js/__dirname "default-config.edn")))
 
 (def default-config
-  {:source-paths []
-   :dependencies []
-   :version version
-   :cache-dir "target/shadow-cljs"
-   :builds
-   {}})
+  (reader/read-string default-config-str))
 
 (defn ensure-config []
-  (let [config (path/resolve "shadow-cljs.edn")]
-    (if (fs/existsSync config)
-      config
-      (do (println "shadow-cljs - missing configuration file")
+  (loop [root (path/resolve)]
+    (let [config (path/resolve root "shadow-cljs.edn")]
+      (cond
+        (fs/existsSync config)
+        config
+
+        ;; check parent directory
+        ;; might be in $PROJECT/src/demo it should find $PROJECT/shadow-cljs.edn
+        (not= root (path/resolve root ".."))
+        (recur (path/resolve root ".."))
+
+        :else ;; ask to create default config in current dir
+        (let [config (path/resolve "shadow-cljs.edn")]
+          (println "shadow-cljs - missing configuration file")
           (println (str "- " config))
 
           (when (rl/keyInYN "Create one?")
@@ -71,7 +73,7 @@
             (fs/writeFileSync config default-config-str)
             (println "shadow-cljs - created default configuration")
             config
-            )))))
+            ))))))
 
 (defn modified-dependencies? [cp-file config]
   (let [cp (-> (slurp cp-file)
@@ -81,8 +83,8 @@
         (not= (:dependencies cp) (:dependencies config))
         )))
 
-(defn get-classpath [config-path {:keys [cache-dir] :as config}]
-  (let [cp-file (path/resolve cache-dir "classpath.edn")]
+(defn get-classpath [project-root config-path {:keys [cache-root] :as config}]
+  (let [cp-file (path/resolve project-root cache-root "classpath.edn")]
 
     ;; only need to rebuild the classpath if :dependencies
     ;; or the version changed
@@ -91,7 +93,7 @@
 
       ;; re-create classpath by running the java helper
       (let [jar (js/require "shadow-cljs-jar/path")]
-        (run-java ["-jar" jar version config-path])))
+        (run-java project-root ["-jar" jar version config-path])))
 
     ;; only return :files since the rest is just cache info
     (-> (slurp cp-file)
@@ -102,7 +104,7 @@
 ;; FIXME: windows uses ;
 (def cp-seperator ":")
 
-(defn aot-compile [aot-path classpath]
+(defn aot-compile [project-root aot-path classpath]
   (let [version-file (path/resolve aot-path "version")]
 
     ;; FIXME: is it enough to AOT only when versions change?
@@ -114,6 +116,7 @@
       (print "shadow-cljs - optimizing startup")
 
       (run-java
+        project-root
         ["-cp" classpath
          ;; FIXME: maybe try direct linking?
          (str "-Dclojure.compile.path=" aot-path)
@@ -123,11 +126,19 @@
       (fs/writeFileSync version-file version)
       )))
 
+(def defaults
+  {:source-paths []
+   :dependencies []
+   :cache-root "target/shadow-cljs"})
+
 (defn main [& args]
   (when-let [config-path (ensure-config)]
     (println "shadow-cljs -" version "using" config-path)
 
-    (let [config
+    (let [project-root
+          (path/dirname config-path)
+          
+          config
           (-> (slurp config-path)
               (reader/read-string))]
 
@@ -138,14 +149,14 @@
 
         ;; config file found
         ;; check if classpath is up to date
-        (let [{:keys [cache-dir source-paths dependencies] :as config}
-              (merge default-config config)
+        (let [{:keys [cache-root source-paths dependencies] :as config}
+              (merge defaults config)
 
               aot-path
-              (path/resolve cache-dir "aot-classes")
+              (path/resolve project-root cache-root "aot-classes")
 
               classpath
-              (->> (get-classpath config-path config)
+              (->> (get-classpath project-root config-path config)
                    (concat [aot-path])
                    (concat source-paths)
                    (str/join cp-seperator))
@@ -153,8 +164,8 @@
               cli-args
               (into ["-cp" classpath "shadow.cljs.devtools.cli" "--npm"] args)]
 
-          (aot-compile aot-path classpath)
+          (aot-compile project-root aot-path classpath)
 
           (println "shadow-cljs - starting ...")
-          (run-java cli-args)
+          (run-java project-root cli-args)
           )))))
