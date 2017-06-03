@@ -83,6 +83,8 @@
         notify-chan
         (async/chan 100)]
 
+    (>!! notify-chan {"foo" "bar"})
+
     (loop [client-state
            (p/client-reset
              {:system system

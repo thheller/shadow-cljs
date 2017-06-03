@@ -5,7 +5,8 @@
             ["readline-sync" :as rl]
             ["mkdirp" :as mkdirp]
             [cljs.reader :as reader]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [shadow.cljs.npm.jsonrpc :as jsonrpc]))
 
 (def version (js/require "./version.json"))
 
@@ -102,7 +103,7 @@
         (not= (:dependencies cp) (:dependencies config))
         )))
 
-(defn get-classpath [project-root config-path {:keys [cache-root] :as config}]
+(defn get-classpath [project-root {:keys [cache-root] :as config}]
   (let [cp-file (path/resolve project-root cache-root "classpath.edn")]
 
     ;; only need to rebuild the classpath if :dependencies
@@ -112,7 +113,7 @@
 
       ;; re-create classpath by running the java helper
       (let [jar (js/require "shadow-cljs-jar/path")]
-        (run-java project-root ["-jar" jar version config-path])))
+        (run-java project-root ["-jar" jar version (path/resolve project-root "shadow-cljs.edn")])))
 
     ;; only return :files since the rest is just cache info
     (-> (slurp cp-file)
@@ -140,13 +141,47 @@
          ;; FIXME: maybe try direct linking?
          (str "-Dclojure.compile.path=" aot-path)
          "clojure.main"
-         "-e" "(run! compile '[shadow.cljs.devtools.api shadow.cljs.devtools.standalone shadow.cljs.devtools.cli])"])
+         "-e" "(run! compile '[shadow.cljs.devtools.api shadow.cljs.devtools.server shadow.cljs.devtools.cli])"])
 
       (fs/writeFileSync version-file version)
       )))
 
+(defn run-standalone
+  [project-root {:keys [cache-root source-paths] :as config} args]
+  (let [aot-path
+        (path/resolve project-root cache-root "aot-classes")
+
+        classpath
+        (->> (get-classpath project-root config)
+             (concat [aot-path])
+             (concat source-paths)
+             (str/join cp-seperator))
+
+        cli-args
+        (into ["-cp" classpath "shadow.cljs.devtools.cli" "--npm"] args)]
+
+    (aot-compile project-root aot-path classpath)
+
+    (println "shadow-cljs - starting ...")
+    (run-java project-root cli-args)
+    ))
+
 (def defaults
-  {:cache-root "target/shadow-cljs"})
+  {:cache-root "target/shadow-cljs"
+   :version version
+   :dependencies []})
+
+(defn remote-active? [{:keys [cache-root] :as config}]
+  (let [pid-file (path/resolve cache-root "remote.pid")]
+    (fs/existsSync pid-file)))
+
+(defn run-remote [project-root config args]
+  (println "shadow-cljs - remote mode")
+
+  (let [client (jsonrpc/connect "localhost" 8201)]
+
+    (prn client)
+    ))
 
 (defn main [& args]
   (when-let [config-path (ensure-config)]
@@ -157,37 +192,21 @@
 
           config
           (-> (slurp config-path)
-              (reader/read-string)
-              (->> (merge {:version version
-                           :dependencies []})))]
+              (reader/read-string))]
 
-      (cond
-        (not (map? config))
+      (if (not (map? config))
         (do (println "shadow-cljs - old config format no longer supported")
             (println "  previously a vector was used to define builds")
             (println "  now {:builds the-old-vector} is expected"))
 
-        (:lein config)
-        (run-lein project-root config args)
+        (let [config (merge defaults config)]
+          (cond
+            (remote-active? config)
+            (run-remote project-root config args)
 
-        :else
-        (let [{:keys [cache-root source-paths dependencies] :as config}
-              (merge defaults config)
+            (:lein config)
+            (run-lein project-root config args)
 
-              aot-path
-              (path/resolve project-root cache-root "aot-classes")
-
-              classpath
-              (->> (get-classpath project-root config-path config)
-                   (concat [aot-path])
-                   (concat source-paths)
-                   (str/join cp-seperator))
-
-              cli-args
-              (into ["-cp" classpath "shadow.cljs.devtools.cli" "--npm"] args)]
-
-          (aot-compile project-root aot-path classpath)
-
-          (println "shadow-cljs - starting ...")
-          (run-java project-root cli-args)
-          )))))
+            :else
+            (run-standalone project-root config args)
+            ))))))

@@ -62,7 +62,9 @@
                (rt/start-all))
 
            lang-server
-           (lang-server/start system)]
+           (lang-server/start system)
+
+           ]
 
        (vreset! system-ref (assoc system ::lang-server lang-server))
        ::started))))

@@ -89,14 +89,30 @@
     (throw (ex-info "invalid config" {:cfg cfg}))
     ))
 
+(def default-config
+  {:http
+   {:port 8200
+    :host "localhost"}
+
+   :remote
+   {:port 8201
+    :host "localhost"}
+
+   :cache-root
+   "target/shadow-cljs"
+
+   :builds {}})
+
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
     (if-not (.exists file)
-      [] ;; FIXME: throw instead? we can't do anything without configured builds
+      default-config ;; FIXME: default config?
       (-> file
           (slurp)
           (edn/read-string)
-          (normalize)))))
+          (normalize)
+          (->> (merge default-config))
+          ))))
 
 (defn load-cljs-edn! []
   (let [config (load-cljs-edn)]

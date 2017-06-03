@@ -80,7 +80,7 @@
         (help opts)
 
         (= :server (::mode options))
-        (invoke 'shadow.cljs.devtools.standalone/-main)
+        (invoke 'shadow.cljs.devtools.server/-main)
 
         :else
         (let [{::keys [build npm]} options

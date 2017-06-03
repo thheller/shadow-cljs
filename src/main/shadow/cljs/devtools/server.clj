@@ -1,4 +1,4 @@
-(ns shadow.cljs.devtools.standalone
+(ns shadow.cljs.devtools.server
   (:require [aleph.http :as aleph]
             [clojure.core.async :as async :refer (thread)]
             [clojure.java.io :as io]
@@ -7,23 +7,14 @@
             [shadow.runtime.services :as rt]
             [shadow.cljs.devtools.server.web :as web]
             [shadow.cljs.devtools.server.explorer :as explorer]
-            [shadow.cljs.devtools.server.config-watch :as config]
+            [shadow.cljs.devtools.server.config-watch :as config-watch]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.common :as common]
-            ))
+            [shadow.cljs.devtools.config :as config]
+            [shadow.lang.json-rpc.socket-server :as lang-server]
+            [shadow.cljs.devtools.server.remote-api]))
 
 (defonce runtime nil)
-
-(def default-config
-  {:http
-   {:port 8200
-    :host "localhost"}})
-
-(def dev-config
-  {:dev-mode true
-   :http
-   {:port 8200
-    :host "localhost"}})
 
 (defn app [config]
   (merge
@@ -58,43 +49,60 @@
      (catch Throwable t#
        (println t# ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [app http] :as system}]
-  (do-shutdown (.close http))
-  (do-shutdown (rt/stop-all app)))
+(defn shutdown-system [{:keys [app http lang-server pid-file] :as system}]
+  (println "shutting down ...")
+  (do-shutdown (lang-server/stop lang-server))
+  (do-shutdown (rt/stop-all app))
+  (do-shutdown
+    (.close http)
+    (netty/wait-for-close http))
+
+  (do-shutdown (.delete pid-file))
+  (println "shutdown complete."))
 
 (defn start-http [ring config]
   (aleph/start-server ring config))
 
-(defn start-system
-  ([]
-   (start-system default-config))
-  ([config]
-   (let [runtime-ref
-         (volatile! {})
+(defn start-system [{:keys [cache-root] :as config}]
+  (let [runtime-ref
+        (volatile! {})
 
-         app
-         (-> {::started (System/currentTimeMillis)
-              :config config}
-             (rt/init (app config))
-             (rt/start-all))]
+        app
+        (-> {::started (System/currentTimeMillis)
+             :config config}
+            (rt/init (app config))
+            (rt/start-all))]
 
-     (vreset! runtime-ref {:app app})
+    (vreset! runtime-ref {:app app})
 
-     (let [ring
-           (get-ring-handler config runtime-ref)
+    (let [ring
+          (get-ring-handler config runtime-ref)
 
-           hk
-           (start-http ring (:http config))]
+          http
+          (start-http ring (:http config))
 
-       (vswap! runtime-ref assoc :http hk))
+          lang-server
+          (lang-server/start app)
 
-     runtime-ref
-     )))
+          pid-file
+          (io/file cache-root "remote.pid")]
+
+      (spit pid-file (str (netty/port http)))
+
+      (.deleteOnExit pid-file)
+
+      (vswap! runtime-ref assoc :http http :lang-server lang-server :pid-file pid-file))
+
+    runtime-ref
+    ))
 
 (defn start!
-  ([] (start! default-config))
+  ([] (start! (config/load-cljs-edn)))
   ([config]
-   (let [runtime-ref
+   (let [{:keys [cache-root] :as config} ;; builds are accessed elsewhere, this is only system config
+         (dissoc config :builds)
+
+         runtime-ref
          (start-system config)
 
          {:keys [host port]}
@@ -104,9 +112,6 @@
      (alter-var-root #'runtime (fn [_] runtime-ref))
      ::started
      )))
-
-(defn start-dev! []
-  (start! dev-config))
 
 (defn stop! []
   (when runtime

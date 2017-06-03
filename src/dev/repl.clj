@@ -1,17 +1,17 @@
 (ns repl
   (:require [shadow.cljs.devtools.embedded :as cljs]
-            [shadow.cljs.devtools.standalone :as standalone]))
+            [shadow.cljs.devtools.server :as server]))
 
 (defn start []
-  (cljs/start! {:verbose true})
+  ;; (cljs/start! {:verbose true})
   ;; (cljs/start-worker :ui)
-  ;; (standalone/start-dev!)
+  (server/start!)
   ;; (cljs/start-worker :cli)
   ::started)
 
 (defn stop []
-  (cljs/stop!)
-  ;; (standalone/stop!)
+  ;; (cljs/stop!)
+  (server/stop!)
   ::stopped)
 
 (defn repl []

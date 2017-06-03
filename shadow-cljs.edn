@@ -1,5 +1,7 @@
-{:xlein
+{:lein
  {:profile "cljs"}
+
+ :dev-mode true
 
  ;; actually unused when using :lein
  :source-paths

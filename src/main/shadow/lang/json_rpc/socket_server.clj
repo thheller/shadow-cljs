@@ -23,9 +23,12 @@
         (.start))
       (recur))))
 
-(defn start [system]
-  (let [ss
-        (ServerSocket. 8201)
+(defn start [{:keys [config] :as system}]
+  (let [{:keys [host port]}
+        (:remote config)
+
+        ss
+        (ServerSocket. port)
 
         server-stop
         (async/chan)
