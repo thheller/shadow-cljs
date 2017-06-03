@@ -102,31 +102,26 @@
 ;; FIXME: windows uses ;
 (def cp-seperator ":")
 
-(defn aot-compile [aot-path jars]
+(defn aot-compile [aot-path classpath]
   (let [version-file (path/resolve aot-path "version")]
 
     ;; FIXME: is it enough to AOT only when versions change?
     (when (or (not (fs/existsSync version-file))
               (not= version (slurp version-file)))
 
-      (let [compile-cp
-            (->> jars
-                 (concat [aot-path])
-                 (str/join cp-seperator))]
+      (mkdirp/sync aot-path)
 
-        (mkdirp/sync aot-path)
+      (print "shadow-cljs - optimizing startup")
 
-        (print "shadow-cljs - optimizing startup")
+      (run-java
+        ["-cp" classpath
+         ;; FIXME: maybe try direct linking?
+         (str "-Dclojure.compile.path=" aot-path)
+         "clojure.main"
+         "-e" "(compile 'shadow.cljs.devtools.cli)"])
 
-        (run-java
-          ["-cp" compile-cp
-           ;; FIXME: maybe try direct linking?
-           (str "-Dclojure.compile.path=" aot-path)
-           "clojure.main"
-           "-e" "(compile 'shadow.cljs.devtools.cli)"])
-
-        (fs/writeFileSync version-file version)
-        ))))
+      (fs/writeFileSync version-file version)
+      )))
 
 (defn main [& args]
   (when-let [config-path (ensure-config)]
@@ -149,11 +144,8 @@
               aot-path
               (path/resolve cache-dir "aot-classes")
 
-              jars
-              (get-classpath config-path config)
-
               classpath
-              (->> jars
+              (->> (get-classpath config-path config)
                    (concat [aot-path])
                    (concat source-paths)
                    (str/join cp-seperator))
@@ -161,7 +153,7 @@
               cli-args
               (into ["-cp" classpath "shadow.cljs.devtools.cli" "--npm"] args)]
 
-          (aot-compile aot-path jars)
+          (aot-compile aot-path classpath)
 
           (println "shadow-cljs - starting ...")
           (run-java cli-args)

@@ -11,7 +11,8 @@
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.compiler :as comp]
             [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.standalone :as standalone]))
+            [shadow.cljs.devtools.standalone :as standalone]
+            [shadow.cljs.devtools.errors :as errors]))
 
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
@@ -62,52 +63,57 @@
    :output-dir "node_modules/shadow-cljs"})
 
 (defn main [& args]
-  (let [{:keys [options summary errors] :as opts}
-        (cli/parse-opts args cli-spec)
+  (try
+    (let [{:keys [options summary errors] :as opts}
+          (cli/parse-opts args cli-spec)
 
-        options
-        (merge default-opts options)]
+          options
+          (merge default-opts options)]
 
-    (cond
-      (or (::help options) (seq errors))
-      (help opts)
+      (cond
+        (or (::help options) (seq errors))
+        (help opts)
 
 
-      (= :server (::mode options))
-      (standalone/-main)
+        (= :server (::mode options))
+        (standalone/-main)
 
-      :else
-      (let [{::keys [build npm]} options
+        :else
+        (let [{::keys [build npm]} options
 
-            build-config
-            (cond
-              (keyword? build)
-              (api/get-build-config build)
+              build-config
+              (cond
+                (keyword? build)
+                (config/get-build! build)
 
-              npm
-              (or (api/get-build-config :npm)
-                  default-npm-config)
+                npm
+                (or (config/get-build :npm)
+                    default-npm-config)
 
-              :else
-              nil)]
+                :else
+                nil)]
 
-        (if-not (some? build-config)
-          (do (println "Please use specify a build or use --npm")
-              (help opts))
+          (if-not (some? build-config)
+            (do (println "Please use specify a build or use --npm")
+                (help opts))
 
-          (case (::mode options)
-            :release
-            (api/release* build-config options)
+            (case (::mode options)
+              :release
+              (api/release* build-config options)
 
-            :check
-            (api/check* build-config options)
+              :check
+              (api/check* build-config options)
 
-            :dev
-            (api/dev* build-config options)
+              :dev
+              (api/dev* build-config options)
 
-            ;; make :once the default
-            (api/once* build-config options)
-            ))))))
+              ;; make :once the default
+              (api/once* build-config options)
+              )))))
+
+    (catch Exception e
+      (errors/user-friendly-error e)
+      )))
 
 (defn -main [& args]
   (apply main args))

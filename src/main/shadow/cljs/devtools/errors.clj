@@ -5,7 +5,8 @@
             [shadow.cljs.closure :as closure]
             [shadow.cljs.build :as build]
             [shadow.cljs.ns-form :as ns-form]
-            [shadow.cljs.devtools.compiler :as comp])
+            [shadow.cljs.devtools.compiler :as comp]
+            [shadow.cljs.devtools.config :as config])
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
 
@@ -88,6 +89,11 @@
     (doto w
       (.write "---\n")
       (.write msg))))
+
+(defmethod ex-data-format ::config/no-build
+  [w e {:keys [id] :as data}]
+  ;; FIXME: show list of all build ids?
+  (.write w (format "No configuration for build \"%s\" found." id)))
 
 (defmethod ex-data-format :cljs/analysis-error
   [w e {:keys [file line column error-type] :as data}]

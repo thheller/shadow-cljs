@@ -114,5 +114,5 @@
 
 (defn get-build! [id]
   (or (get-build id)
-      (throw (ex-info (str "no build with id: " id) {:id id}))))
+      (throw (ex-info (str "no build with id: " id) {:tag ::no-build :id id}))))
 

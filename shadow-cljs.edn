@@ -1,9 +1,10 @@
 {:dependencies
- [[thheller/shadow-client "1.0.186"]]
+ [[thheller/shadow-client "1.0.20170518"]]
 
  :source-paths
- ["src/dev"
-  "src/main"]
+ ["src/main"
+  "src/dev"
+  "src/test"]
 
  :builds
  [{:id :ui
