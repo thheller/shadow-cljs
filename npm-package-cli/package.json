@@ -1,6 +1,6 @@
 {
   "name": "shadow-cljs",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "ClojureScript for JS tools",
   "author": "Thomas Heller",
   "license": "ISC",

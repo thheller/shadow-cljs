@@ -45,6 +45,25 @@
             (js/process.exit 1)
             ))))))
 
+(defn run-lein [project-root {:keys [lein] :as config} args]
+  (let [{:keys [profile] :as lein-config}
+        (cond
+          (map? lein)
+          lein
+          (true? lein)
+          {})
+
+        lein-args
+        (->> (concat
+               (when profile
+                 ["with-profile" profile])
+               ["run" "-m" "shadow.cljs.devtools.cli" "--npm"]
+               args)
+             (into []))]
+
+    (println "shadow-cljs - running: lein" (str/join " " lein-args))
+    (run project-root "lein" lein-args)))
+
 (def default-config-str
   (slurp (path/resolve js/__dirname "default-config.edn")))
 
@@ -137,18 +156,21 @@
 
     (let [project-root
           (path/dirname config-path)
-          
+
           config
           (-> (slurp config-path)
               (reader/read-string))]
 
-      (if-not (map? config)
+      (cond
+        (not (map? config))
         (do (println "shadow-cljs - old config format no longer supported")
             (println "  previously a vector was used to define builds")
             (println "  now {:builds the-old-vector} is expected"))
 
-        ;; config file found
-        ;; check if classpath is up to date
+        (:lein config)
+        (run-lein project-root config args)
+
+        :else
         (let [{:keys [cache-root source-paths dependencies] :as config}
               (merge defaults config)
 

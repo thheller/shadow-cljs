@@ -49,9 +49,6 @@
   :java-source-paths
   ["src/main"]
 
-  ;; don't AOT the library, AOT in the app
-  ;; :aot [shadow.cljs.devtools.cli]
-
   :profiles
   {:dev
    {:source-paths
@@ -59,5 +56,9 @@
 
     :dependencies
     [#_[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
-     [org.clojure/tools.namespace "0.2.11"]]
-    }})
+     [org.clojure/tools.namespace "0.2.11"]]}
+
+   :cljs
+   {:aot [shadow.cljs.devtools.cli]
+    :dependencies
+    [[thheller/shadow-client "1.0.20170518"]]}})

@@ -74,7 +74,6 @@
         (or (::help options) (seq errors))
         (help opts)
 
-
         (= :server (::mode options))
         (standalone/-main)
 
