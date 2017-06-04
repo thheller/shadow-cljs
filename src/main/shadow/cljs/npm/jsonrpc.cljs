@@ -2,8 +2,10 @@
   (:require-macros [cljs.core.async.macros :refer (go)])
   ;; cursive is driving me crazy when I try to use net alias
   (:require ["net" :as node-net]
+            [goog.object :as gobj]
             [cljs.core.async :as async]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [shadow.json :as json]))
 
 ;; couldn't find a single json-rpc client for node that works
 ;; all the clients I looked at only support method calls
@@ -18,16 +20,16 @@
 
 (defn client-process
   [state]
-  (loop [{:keys [buffer size body?] :as state} state]
+  (loop [{:keys [buffer size body? msg-in] :as state} state]
     ;; (prn [:loop-state state])
     (cond
       ;; check if buffer contains enough data to finish message
       (and body? (>= (count buffer) size))
       (let [msg (subs buffer 0 size)]
-        (prn [:msg (js/JSON.parse msg)])
+        (async/offer! msg-in (json/read-str msg {}))
         (-> state
             (update :buffer subs size)
-            (assoc :body? false :size 0)) )
+            (assoc :body? false :size 0)))
 
       ;; in body but not enough data available yet
       body?
@@ -64,9 +66,10 @@
               (throw (ex-info (str "client-error, did not expect: " line) state))
               )))))))
 
-(defn client-loop [input output]
+(defn read-loop [input msg-in]
   (go (loop [state
-             {:buffer ""
+             {:msg-in msg-in
+              :buffer ""
               :headers {}
               :size 0
               :body? false}]
@@ -78,45 +81,53 @@
               )))
       (prn "client loop end")))
 
-(defn connect-fn []
-  (this-as client
-    (let [input
-          (async/chan 10)
+(defn connect [{:keys [host port in out] :as config}]
+  (let [tcp-in
+        (async/chan 10)
 
-          output
-          (async/chan 10)]
+        client
+        (node-net/connect port host)
 
-      (.on client "close"
-        (fn [had-error]
-          (async/close! input)
-          (println "tcp client close" had-error)))
+        connect
+        (async/chan)]
 
-      (.on client "data"
-        (fn [data]
-          (async/offer! input data)))
+    (.on client "connect"
+      (fn [err]
+        (if err
+          (do (async/close! in)
+              (async/close! out)
+              (async/close! tcp-in))
 
-      (.on client "end"
-        (fn []
-          (println "tcp client end")
-          (async/close! input)
-          ))
+          (do (async/put! connect true)
+              (go (loop []
+                    (when-some [out (<! out)]
+                      (let [body
+                            (json/write-str out)
 
-      (.on client "error"
-        (fn [err]
-          (println "tcp client error" err)))
+                            len
+                            (count body)
 
-      (go (loop []
-            (when-some [out (<! output)]
-              (.write client out)
-              (recur))))
+                            msg
+                            (str "Content-Length: " len line-sep
+                                 line-sep
+                                 body)]
 
-      (client-loop input output)
-      )))
+                        ;; (prn [:jsonrpc/out len msg])
+                        (.write client msg)
+                        (recur))))
 
-(defn connect [host port]
-  (let [client (node-net/connect port host connect-fn)]
+                  (.close client))
 
-    client
+              (read-loop tcp-in in)
+              ))
+
+        (async/close! connect)
+        ))
+
+    (.on client "data" #(async/offer! tcp-in %1))
+    (.on client "end" #(async/close! tcp-in))
+
+    connect
     ))
 
 

@@ -45,6 +45,8 @@
                     msg
                     (json/read-str msg-str :key-fn keyword)]
 
+                (prn [:jsonrpc/in msg])
+
                 (if-not (async/offer! input-chan msg)
                   (throw (ex-info "input offer failed!" {:msg msg}))
                   (recur)))))))

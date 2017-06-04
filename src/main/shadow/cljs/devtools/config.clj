@@ -106,7 +106,7 @@
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
     (if-not (.exists file)
-      default-config ;; FIXME: default config?
+      default-config
       (-> file
           (slurp)
           (edn/read-string)

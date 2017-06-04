@@ -1,10 +1,12 @@
 (ns shadow.cljs.npm.cli
+  (:require-macros [cljs.core.async.macros :refer (go go-loop)])
   (:require ["path" :as path]
             ["fs" :as fs]
             ["child_process" :as cp]
             ["readline-sync" :as rl]
             ["mkdirp" :as mkdirp]
             [cljs.reader :as reader]
+            [cljs.core.async :as async]
             [clojure.string :as str]
             [shadow.cljs.npm.jsonrpc :as jsonrpc]))
 
@@ -175,13 +177,76 @@
   (let [pid-file (path/resolve cache-root "remote.pid")]
     (fs/existsSync pid-file)))
 
+
+(defn process-hello [state result]
+  (prn [:hello-result result])
+  state)
+
+(defn remote-process-in [state {:keys [id] :as in}]
+  (prn [:in in])
+  (if (nil? id)
+    (do (prn [:notify (:method in) (:params in)])
+        state)
+    (let [handler (get-in state [:pending id])]
+      (if (nil? handler)
+        (prn [:no-handler-for-result id state])
+
+        (-> state
+            (update :pending dissoc id)
+            (handler (:result in)))
+        ))))
+
+(defn remote-call [{:keys [client] :as state} method params response-handler]
+  (let [{:keys [id-seq]} state]
+
+    (if-not (async/offer! (:out client) {:method method :params params :id id-seq})
+      (prn [:failed-to-remote-call method params (:out client)])
+      (-> state
+          (update :id-seq inc)
+          (update :pending assoc id-seq response-handler))
+      )))
+
+(defn remote-loop [{:keys [client] :as state}]
+  (let [{:keys [in]} client
+
+        state
+        (remote-call state "cljs/hello" [] process-hello)]
+
+    (go-loop [state state]
+      (when-some [msg (<! in)]
+        (when-let [next-state (remote-process-in state msg)]
+          (recur next-state))
+        ))))
+
 (defn run-remote [project-root config args]
   (println "shadow-cljs - remote mode")
 
-  (let [client (jsonrpc/connect "localhost" 8201)]
+  (let [client-in
+        (async/chan 10)
 
-    (prn client)
-    ))
+        client-out
+        (async/chan 10)
+
+        connect
+        (jsonrpc/connect
+          {:host "localhost"
+           :port 8201
+           :in client-in
+           :out client-out})
+
+        init-state
+        {:client
+         {:in client-in
+          :out client-out}
+         :id-seq 0
+         :pending {}}]
+
+    (go (if-not (<! connect)
+          (println "shadow-cljs - remote connect failed")
+
+          (do (<! (remote-loop init-state))
+              (println "shadow-cljs - remote loop end"))
+          ))))
 
 (defn main [& args]
   (when-let [config-path (ensure-config)]
