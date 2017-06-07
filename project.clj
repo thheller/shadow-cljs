@@ -34,7 +34,7 @@
       [com.google.javascript/closure-compiler-unshaded "v20170521"]]
 
    [thheller/shadow-util "0.5.1"]
-   [thheller/shadow-client "1.0.20170518"]
+   [thheller/shadow-client "1.0.20170607"]
 
    [aleph "0.4.3"]
    [hiccup "1.0.5"]

@@ -19,21 +19,23 @@
   {})
 
 (deffactory container
-  (-> {::store/read
-       (fn [this vault props]
-         {:foo "bar"})
+  ::comp/mixins
+  [store/mixin]
 
-       ::store/render
-       (fn [this vault props {:keys [builds] :as data}]
-         (js/console.log ::render props data)
+  ::store/read
+  (fn [this vault props]
+    {:foo "bar"})
 
-         (if (nil? builds)
-           (common/loading)
-           (list-container
-             (title "builds")
+  ::store/render
+  (fn [this vault props {:keys [builds] :as data}]
+    (js/console.log ::render props data)
 
-             (html/for [build builds]
-               (list-item build)
-               )))
-         )}
-      (store/component)))
+    (if (nil? builds)
+      (common/loading)
+      (list-container
+        (title "builds")
+
+        (html/for [build builds]
+          (list-item build)
+          )))
+    ))

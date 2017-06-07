@@ -8,7 +8,7 @@
             [cljs.reader :as reader]
             [cljs.core.async :as async]
             [clojure.string :as str]
-            [shadow.cljs.npm.jsonrpc :as jsonrpc]))
+            [shadow.cljs.devtools.remote.client :as client]))
 
 (def version (js/require "./version.json"))
 
@@ -182,24 +182,36 @@
   (prn [:hello-result result])
   state)
 
-(defn remote-process-in [state {:keys [id] :as in}]
-  (prn [:in in])
-  (if (nil? id)
-    (do (prn [:notify (:method in) (:params in)])
-        state)
-    (let [handler (get-in state [:pending id])]
-      (if (nil? handler)
-        (prn [:no-handler-for-result id state])
+(defn remote-process-in
+  [{:keys [encoding] :as state}
+   {:keys [headers body] :as in}]
+  ;; (prn [:in in])
+  (let [content-type
+        (get headers "content-type")
 
-        (-> state
-            (update :pending dissoc id)
-            (handler (:result in)))
-        ))))
+        {:keys [id] :as msg}
+        (reader/read-string body)]
+
+    (if (nil? id)
+      (do (prn [:notify (:method msg) (:params msg)])
+          state)
+      (let [handler (get-in state [:pending id])]
+        (if (nil? handler)
+          (prn [:no-handler-for-result id state])
+
+          (-> state
+              (update :pending dissoc id)
+              (handler (:result msg)))
+          )))))
 
 (defn remote-call [{:keys [client] :as state} method params response-handler]
-  (let [{:keys [id-seq]} state]
+  (let [{:keys [id-seq]} state
 
-    (if-not (async/offer! (:out client) {:method method :params params :id id-seq})
+        msg
+        {:headers {"content-type" "application/edn"}
+         :body (pr-str {:method method :params params :id id-seq})}]
+
+    (if-not (async/offer! (:out client) msg)
       (prn [:failed-to-remote-call method params (:out client)])
       (-> state
           (update :id-seq inc)
@@ -207,13 +219,15 @@
       )))
 
 (defn remote-loop [{:keys [client] :as state}]
-  (let [{:keys [in]} client
+  (let [{:keys [in]}
+        client
 
         state
         (remote-call state "cljs/hello" [] process-hello)]
 
     (go-loop [state state]
       (when-some [msg (<! in)]
+        (prn [:remote-in msg])
         (when-let [next-state (remote-process-in state msg)]
           (recur next-state))
         ))))
@@ -228,7 +242,7 @@
         (async/chan 10)
 
         connect
-        (jsonrpc/connect
+        (client/connect
           {:host "localhost"
            :port 8201
            :in client-in

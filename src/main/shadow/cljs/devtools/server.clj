@@ -11,8 +11,9 @@
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.common :as common]
             [shadow.cljs.devtools.config :as config]
-            [shadow.lang.json-rpc.socket-server :as lang-server]
-            [shadow.cljs.devtools.server.remote-api]))
+            [shadow.cljs.devtools.remote.tcp-server :as remote-server]
+            [shadow.cljs.devtools.remote.api :as remote-api]
+            ))
 
 (defonce runtime nil)
 
@@ -23,6 +24,17 @@
      {:depends-on [:system-bus :executor]
       :start super/start
       :stop super/stop}
+
+     :remote-api
+     {:depends-on []
+      :start remote-api/start
+      :stop remote-api/stop}
+
+     :remote-server
+     {:depends-on [:config :remote-api]
+      :start (fn [{:keys [remote]} remote-api]
+               (remote-server/start remote remote-api))
+      :stop remote-server/stop}
 
      :explorer
      {:depends-on [:system-bus]
@@ -51,7 +63,6 @@
 
 (defn shutdown-system [{:keys [app http lang-server pid-file] :as system}]
   (println "shutting down ...")
-  (do-shutdown (lang-server/stop lang-server))
   (do-shutdown (rt/stop-all app))
   (do-shutdown
     (.close http)
@@ -81,9 +92,6 @@
           http
           (start-http ring (:http config))
 
-          lang-server
-          (lang-server/start app)
-
           pid-file
           (io/file cache-root "remote.pid")]
 
@@ -91,7 +99,7 @@
 
       (.deleteOnExit pid-file)
 
-      (vswap! runtime-ref assoc :http http :lang-server lang-server :pid-file pid-file))
+      (vswap! runtime-ref assoc :http http :pid-file pid-file))
 
     runtime-ref
     ))
