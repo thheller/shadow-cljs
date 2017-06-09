@@ -51,14 +51,14 @@
                   ;; (cljs/step-find-resources "/Users/zilence/code/oss/closure-library/closure")
                   ;; (cljs/step-find-resources "/Users/zilence/code/oss/closure-library/third_party")
                   (assoc :optimizations :advanced
-                         :pretty-print false
-                         :work-dir (io/file "target/cljs-work")
-                         :cache-dir (io/file "target/cljs-cache")
-                         :cache-level :jars
-                         :output-dir (io/file "target/cljs")
-                         :pseudo-names true
-                         :pretty-print true
-                         :asset-path "target/cljs")
+                    :pretty-print false
+                    :work-dir (io/file "target/cljs-work")
+                    :cache-dir (io/file "target/cljs-cache")
+                    :cache-level :jars
+                    :output-dir (io/file "target/cljs")
+                    :pseudo-names true
+                    :pretty-print true
+                    :asset-path "target/cljs")
                   (cljs/finalize-config)
                   (cljs/configure-module :loader ['goog.module.ModuleManager] #{})
                   ;; (cljs/step-configure-module :cljs ['cljs.core] #{:loader})
@@ -94,10 +94,10 @@
                     (cljs/find-resources-in-classpath)
                     (cljs/find-resources "target/reload-test")
                     (assoc :optimizations :whitespace
-                           :pretty-print true
-                           :work-dir (io/file "target/cljs-work")
-                           :output-dir (io/file "target/cljs")
-                           :asset-path "target/cljs")
+                      :pretty-print true
+                      :work-dir (io/file "target/cljs-work")
+                      :output-dir (io/file "target/cljs")
+                      :asset-path "target/cljs")
                     (cljs/finalize-config)
                     (cljs/configure-module :test
                       ['test-a
@@ -164,11 +164,11 @@
           (-> (cljs/init-state)
               (cljs/enable-source-maps)
               (assoc :optimizations :none
-                     :pretty-print false
-                     :work-dir (io/file "target/cljs-work")
-                     :cache-dir (io/file "target/cljs-cache")
-                     :output-dir (io/file "target/cljs")
-                     :asset-path "target/cljs")
+                :pretty-print false
+                :work-dir (io/file "target/cljs-work")
+                :cache-dir (io/file "target/cljs-cache")
+                :output-dir (io/file "target/cljs")
+                :asset-path "target/cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
               (cljs/finalize-config)
@@ -199,11 +199,11 @@
           (-> (cljs/init-state)
               (cljs/enable-source-maps)
               (assoc :optimizations :none
-                     :pretty-print false
-                     :work-dir (io/file "target/cljs-work")
-                     :cache-dir (io/file "target/cljs-cache")
-                     :output-dir (io/file "target/cljs")
-                     :asset-path "target/cljs")
+                :pretty-print false
+                :work-dir (io/file "target/cljs-work")
+                :cache-dir (io/file "target/cljs-cache")
+                :output-dir (io/file "target/cljs")
+                :asset-path "target/cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
               (cljs/find-resources jar-path)
@@ -230,11 +230,11 @@
   (-> (cljs/init-state)
       (cljs/enable-source-maps)
       (assoc :optimizations :advanced
-             :pretty-print false
-             :work-dir (io/file "target/cljs-work")
-             :cache-dir (io/file "cljs-data/foreign/out/cljs-cache")
-             :output-dir (io/file "cljs-data/foreign/out")
-             :asset-path "out")
+        :pretty-print false
+        :work-dir (io/file "target/cljs-work")
+        :cache-dir (io/file "cljs-data/foreign/out/cljs-cache")
+        :output-dir (io/file "cljs-data/foreign/out")
+        :asset-path "out")
       (cljs/find-resources-in-classpath)
       (cljs/find-resources "cljs-data/foreign/src")
       (cljs/add-foreign "jquery.js"
@@ -253,11 +253,11 @@
 (deftest test-dummy
   (let [s (-> (cljs/init-state)
               (assoc :optimizations :none
-                     :pretty-print true
-                     :cache-level :jars
-                     :work-dir (io/file "target/test-cljs-work")
-                     :output-dir (io/file "target/test-cljs")
-                     :asset-path "target/test-cljs")
+                :pretty-print true
+                :cache-level :jars
+                :work-dir (io/file "target/test-cljs-work")
+                :output-dir (io/file "target/test-cljs")
+                :asset-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
               (cljs/finalize-config)
@@ -273,10 +273,10 @@
 (deftest test-ns-with-use
   (let [s (-> (cljs/init-state)
               (assoc :optimizations :none
-                     :pretty-print true
-                     :work-dir (io/file "target/test-cljs-work")
-                     :output-dir (io/file "target/test-cljs")
-                     :asset-path "target/test-cljs")
+                :pretty-print true
+                :work-dir (io/file "target/test-cljs-work")
+                :output-dir (io/file "target/test-cljs")
+                :asset-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
               (cljs/configure-module :test ['with-use] #{})
@@ -303,11 +303,11 @@
 (deftest test-ns-with-rename
   (let [s (-> (cljs/init-state)
               (assoc :optimizations :advanced
-                     :pretty-print true
-                     :cache-level :jars
-                     :work-dir (io/file "target/test-cljs-work")
-                     :output-dir (io/file "target/test-cljs")
-                     :asset-path "target/test-cljs")
+                :pretty-print true
+                :cache-level :jars
+                :work-dir (io/file "target/test-cljs-work")
+                :output-dir (io/file "target/test-cljs")
+                :asset-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
               (cljs/configure-module :test ['with-rename] #{})
@@ -336,10 +336,10 @@
 (deftest test-bad-jar
   (let [s (-> (cljs/init-state)
               (assoc :optimizations :none
-                     :pretty-print true
-                     :work-dir (io/file "target/test-cljs-work")
-                     :output-dir (io/file "target/test-cljs")
-                     :asset-path "target/test-cljs")
+                :pretty-print true
+                :work-dir (io/file "target/test-cljs-work")
+                :output-dir (io/file "target/test-cljs")
+                :asset-path "target/test-cljs")
               (cljs/find-resources "/Users/zilence/.m2/repository/org/omcljs/om/1.0.0-alpha12/om-1.0.0-alpha12.jar")
               (cljs/find-resources "cljs-data/dummy/src")
               (cljs/finalize-config)
@@ -349,10 +349,10 @@
 (deftest test-macro-reloading
   (let [s (-> (cljs/init-state)
               (assoc :optimizations :none
-                     :pretty-print true
-                     :work-dir (io/file "target/test-cljs-work")
-                     :output-dir (io/file "target/test-cljs")
-                     :asset-path "target/test-cljs")
+                :pretty-print true
+                :work-dir (io/file "target/test-cljs-work")
+                :output-dir (io/file "target/test-cljs")
+                :asset-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
               (cljs/finalize-config)
@@ -369,8 +369,8 @@
 (deftest test-find-dependents
   (let [s (-> (cljs/init-state)
               (assoc :optimizations :none
-                     :output-dir (io/file "target/test-cljs")
-                     :asset-path "target/test-cljs")
+                :output-dir (io/file "target/test-cljs")
+                :asset-path "target/test-cljs")
               (cljs/find-resources-in-classpath)
               (cljs/find-resources "cljs-data/dummy/src")
               (cljs/finalize-config)
@@ -425,12 +425,12 @@
 (deftest test-excute-affected-tests
   (-> (cljs/init-state)
       (assoc :optimizations :none
-             :pretty-print true
-             :work-dir (io/file "target/test-cljs-work")
-             :cache-dir (io/file "target/test-cljs-cache")
-             :cache-level :jars
-             :output-dir (io/file "target/test-cljs")
-             :asset-path "target/test-cljs")
+        :pretty-print true
+        :work-dir (io/file "target/test-cljs-work")
+        :cache-dir (io/file "target/test-cljs-cache")
+        :cache-level :jars
+        :output-dir (io/file "target/test-cljs")
+        :asset-path "target/test-cljs")
       (cljs/find-resources-in-classpath)
       (cljs/find-resources "cljs-data/dummy/src")
       (cljs/find-resources "cljs-data/dummy/test")
@@ -553,10 +553,10 @@
   (-> (cljs/init-state)
       (cljs/enable-source-maps)
       (assoc :optimizations :none
-             :pretty-print true
-             :cache-level :jars
-             :output-dir (io/file "cljs-data/dummy/out")
-             :asset-path "out")
+        :pretty-print true
+        :cache-level :jars
+        :output-dir (io/file "cljs-data/dummy/out")
+        :asset-path "out")
       (cljs/find-resources-in-classpath)
       (cljs/find-resources "cljs-data/dummy/src")
       (cljs/find-resources "cljs-data/dummy/test")
@@ -905,6 +905,55 @@
 
     (pprint externs)
     ))
+
+(deftest test-cross-module-reference
+  (try
+    (let [state
+          (-> (comp/init :release
+                '{:id :cross-module-reference
+                  :target :browser
+
+                  ;;:target :browser
+                  :output-dir "target/cross-module-reference/js"
+                  :asset-path "/js"
+
+                  :module-loader true
+                  :modules
+                  {:loader
+                   {:entries
+                    [shadow.loader]}
+                   :core
+                   {:entries
+                    [cljs.core]
+                    :depends-on #{:loader}}
+                   :a
+                   {:entries
+                    [code-split.a]
+                    :depends-on #{:core}}
+                   :b
+                   {:entries
+                    [code-split.b]
+                    :depends-on #{:a}}
+                   :c
+                   {:entries
+                    [code-split.c]
+                    :depends-on #{:a}}
+                   :d
+                   {:entries
+                    [test.bar]
+                    :depends-on #{:core}}}
+                  })
+              ;; (cljs/enable-source-maps)
+              (comp/compile)
+              (comp/optimize)
+              (comp/flush))]
+
+      :done)
+    (catch Exception e
+      (prn e)
+      (let [{:keys [errors]} (ex-data e)]
+        (doseq [err errors]
+          (prn err))))))
 
 (deftest test-closure-module-per-file
   (try
