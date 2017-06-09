@@ -9,130 +9,132 @@
             [clojure.core.async :as async :refer (go <!)]
             [shadow.cljs.devtools.api :as api]))
 
-(def default-config
-  {:verbose false})
+(comment
 
-(defonce system-ref
-  (volatile! nil))
+  (def default-config
+    {:verbose false})
 
-(defn system []
-  (let [x @system-ref]
-    (when-not x
-      (throw (ex-info "devtools not started" {})))
-    x))
+  (defonce system-ref
+    (volatile! nil))
 
-(defn app [config]
-  (merge
-    (common/app config)
-    {:supervisor
-     {:depends-on [:system-bus :executor]
-      :start super/start
-      :stop super/stop}
+  (defn system []
+    (let [x @system-ref]
+      (when-not x
+        (throw (ex-info "devtools not started" {})))
+      x))
 
-     :out
-     {:depends-on [:config]
-      :start (fn [{:keys [verbose]}]
-               (util/stdout-dump verbose))
-      :stop async/close!}
-     }))
+  (defn app [config]
+    (merge
+      (common/app config)
+      {:supervisor
+       {:depends-on [:system-bus :executor :http]
+        :start super/start
+        :stop super/stop}
 
-(defn start!
-  ([]
-   (start! default-config))
-  ([config]
-   (if @system-ref
-     ::running
-     (let [system
-           (-> {::started (System/currentTimeMillis)
-                :config config}
-               (rt/init (app config))
-               (rt/start-all))]
+       :out
+       {:depends-on [:config]
+        :start (fn [{:keys [verbose]}]
+                 (util/stdout-dump verbose))
+        :stop async/close!}
+       }))
 
-       (vreset! system-ref system)
-       ::started))))
+  (defn start!
+    ([]
+     (start! default-config))
+    ([config]
+     (if @system-ref
+       ::running
+       (let [system
+             (-> {::started (System/currentTimeMillis)
+                  :config config}
+                 (rt/init (app config))
+                 (rt/start-all))]
 
-(defn stop! []
-  (when-some [system @system-ref]
-    (rt/stop-all system)
-    (vreset! system-ref nil))
-  ::stopped)
+         (vreset! system-ref system)
+         ::started))))
 
-(defn start-worker
-  ([build-id]
-   (start-worker build-id {:autobuild true}))
-  ([build-id {:keys [autobuild] :as opts}]
-   (start!)
-   (let [build-config
-         (if (map? build-id)
-           build-id
-           (config/get-build! build-id))
+  (defn stop! []
+    (when-some [system @system-ref]
+      (rt/stop-all system)
+      (vreset! system-ref nil))
+    ::stopped)
 
-         {:keys [supervisor out] :as app}
-         (system)]
+  (defn start-worker
+    ([build-id]
+     (start-worker build-id {:autobuild true}))
+    ([build-id {:keys [autobuild] :as opts}]
+     (start!)
+     (let [build-config
+           (if (map? build-id)
+             build-id
+             (config/get-build! build-id))
 
-     (if-let [worker (super/get-worker supervisor build-id)]
-       (when autobuild
-         (worker/start-autobuild worker))
+           {:keys [supervisor out] :as app}
+           (system)]
 
-       (-> (super/start-worker supervisor build-id)
-           (worker/watch out false)
-           (worker/configure build-config)
-           (cond->
-             autobuild
-             (worker/start-autobuild))
-           ;; FIXME: sync to ensure the build finished before start-worker returns?
-           ;; (worker/sync!)
-           )))
-   ::started))
+       (if-let [worker (super/get-worker supervisor build-id)]
+         (when autobuild
+           (worker/start-autobuild worker))
 
-(defn sync [build-id]
-  (let [{:keys [supervisor] :as sys} (system)]
-    (let [worker (super/get-worker supervisor build-id)]
-      (if-not worker
-        ::worker-not-started
-        (do (worker/sync! worker)
-            ::sync)))))
+         (-> (super/start-worker supervisor build-id)
+             (worker/watch out false)
+             (worker/configure build-config)
+             (cond->
+               autobuild
+               (worker/start-autobuild))
+             ;; FIXME: sync to ensure the build finished before start-worker returns?
+             ;; (worker/sync!)
+             )))
+     ::started))
 
-(defn repl [build-id]
-  (let [{:keys [supervisor] :as sys} (system)]
-    (let [worker (super/get-worker supervisor build-id)]
-      (if-not worker
-        ::worker-not-started
-        (-> worker
-            ;; sync to ensure the worker isn't still compiling
-            ;; calling (start-worker :foo) (repl :foo) too quickly may not work otherwise
-            (worker/sync!)
-            (api/stdin-takeover!))
-        ))))
-
-(defn stop-worker [build-id]
-  (when-let [{:keys [supervisor] :as sys} @system-ref]
-    (super/stop-worker supervisor build-id))
-  ::stopped)
-
-(defn stop-autobuild [build-id]
-  (let [{:keys [supervisor] :as sys} @system-ref]
-    (if-not sys
-      ::not-running
+  (defn sync [build-id]
+    (let [{:keys [supervisor] :as sys} (system)]
       (let [worker (super/get-worker supervisor build-id)]
         (if-not worker
-          ::no-worker
-          (do (worker/stop-autobuild worker)
-              ::stopped))))))
+          ::worker-not-started
+          (do (worker/sync! worker)
+              ::sync)))))
 
-;; FIXME: re-use running app instead of it starting a new one
-(defn node-repl
-  ([]
-    (api/node-repl))
-  ([opts]
-    (api/node-repl opts)))
+  (defn repl [build-id]
+    (let [{:keys [supervisor] :as sys} (system)]
+      (let [worker (super/get-worker supervisor build-id)]
+        (if-not worker
+          ::worker-not-started
+          (-> worker
+              ;; sync to ensure the worker isn't still compiling
+              ;; calling (start-worker :foo) (repl :foo) too quickly may not work otherwise
+              (worker/sync!)
+              (api/stdin-takeover!))
+          ))))
+
+  (defn stop-worker [build-id]
+    (when-let [{:keys [supervisor] :as sys} @system-ref]
+      (super/stop-worker supervisor build-id))
+    ::stopped)
+
+  (defn stop-autobuild [build-id]
+    (let [{:keys [supervisor] :as sys} @system-ref]
+      (if-not sys
+        ::not-running
+        (let [worker (super/get-worker supervisor build-id)]
+          (if-not worker
+            ::no-worker
+            (do (worker/stop-autobuild worker)
+                ::stopped))))))
+
+  ;; FIXME: re-use running app instead of it starting a new one
+  (defn node-repl
+    ([]
+     (api/node-repl))
+    ([opts]
+     (api/node-repl opts)))
 
 
-(comment
-  (start!)
+  (comment
+    (start!)
 
-  (start-worker :website)
+    (start-worker :website)
 
-  (stop-worker :website)
+    (stop-worker :website)
 
-  (stop!))
+    (stop!)))

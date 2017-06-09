@@ -7,15 +7,13 @@
   ;; (cljs/start-worker :ui)
   (server/start!)
   (server/start-worker :cli)
+  (server/start-worker :browser)
   ::started)
 
 (defn stop []
   ;; (cljs/stop!)
   (server/stop!)
   ::stopped)
-
-(defn repl []
-  (cljs/repl :script))
 
 ;; (ns-tools/set-refresh-dirs "src/main")
 

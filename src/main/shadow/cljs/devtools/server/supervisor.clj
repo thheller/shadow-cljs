@@ -1,24 +1,32 @@
 (ns shadow.cljs.devtools.server.supervisor
   (:require [shadow.cljs.devtools.server.worker :as worker]
-            [clojure.core.async :as async :refer (go <!)]
+            [clojure.core.async :as async :refer (go <! alt!)]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]))
 
 (defn get-worker
   [{:keys [workers-ref] :as svc} id]
   (get @workers-ref id))
 
+(defn get-status [{:keys [workers-ref] :as svc}]
+  (reduce-kv
+    (fn [status worker-id worker-proc]
+      (assoc status worker-id (worker/get-status worker-proc)))
+    {}
+    @workers-ref))
+
 (defn start-worker
-  [{:keys [system-bus workers-ref executor] :as svc} id]
+  [{:keys [system-bus state-ref workers-ref executor http] :as svc} {:keys [id] :as build-config}]
   (when (get @workers-ref id)
     (throw (ex-info "already started" {:id id})))
 
   (let [{:keys [proc-stop] :as proc}
-        (worker/start system-bus executor)]
+        (worker/start system-bus executor http build-config)]
+
+    (vswap! workers-ref assoc id proc)
 
     (go (<! proc-stop)
         (vswap! workers-ref dissoc id))
 
-    (vswap! workers-ref assoc id proc)
     proc
     ))
 
@@ -27,9 +35,10 @@
   (when-some [proc (get @workers-ref id)]
     (worker/stop proc)))
 
-(defn start [system-bus executor]
+(defn start [system-bus executor http]
   {:system-bus system-bus
    :executor executor
+   :http http
    :workers-ref (volatile! {})})
 
 (defn stop [{:keys [workers-ref] :as svc}]

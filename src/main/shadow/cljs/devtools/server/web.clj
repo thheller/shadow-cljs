@@ -5,7 +5,8 @@
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.explorer :as web-explorer]
     [shadow.cljs.devtools.server.web.api :as web-api]
-    [shadow.server.assets :as assets]))
+    [shadow.server.assets :as assets]
+    [shadow.cljs.devtools.server.worker.ws :as ws]))
 
 (defn index-page [req]
   (common/page-boilerplate req
@@ -27,6 +28,9 @@
 
       (str/starts-with? uri "/explorer")
       (web-explorer/root req)
+
+      (str/starts-with? uri "/worker")
+      (ws/process req)
 
       :else
       common/not-found

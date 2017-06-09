@@ -1,25 +1,26 @@
 (ns shadow.cljs.devtools.server.worker.ws
   "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
-  (:require [shadow.cljs.devtools.server.worker.impl :as impl]
-            [shadow.cljs.devtools.server.web.common :as common]
-            [clojure.core.async :as async :refer (thread alt!! >!!)]
+  (:require [clojure.core.async :as async :refer (thread alt!! >!!)]
             [clojure.string :as str]
+            [clojure.java.io :as io]
             [aleph.http :as http]
             [manifold.deferred :as md]
             [manifold.stream :as ms]
             [clojure.edn :as edn]
+            [shadow.cljs.output :as output]
+            [shadow.cljs.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [clojure.java.io :as io]
-            [shadow.cljs.output :as output]
-            [shadow.cljs.util :as util])
+            [shadow.cljs.devtools.server.supervisor :as super]
+            [shadow.cljs.devtools.server.worker :as worker]
+            [shadow.cljs.devtools.server.web.common :as common])
   (:import (java.util UUID)))
 
 (defn ws-loop!
   [{:keys [worker-proc watch-chan eval-out in out result-chan] :as client-state}]
   (let [{:keys [system-bus]} worker-proc]
 
-    (impl/watch worker-proc watch-chan true)
+    (worker/watch worker-proc watch-chan true)
 
     ;; FIXME: the client should probably trigger this
     ;; a node-repl isn't interested in this at all
@@ -52,95 +53,86 @@
     (async/close! result-chan)))
 
 (defn ws-connect
-  [{:keys [output] :as worker-proc} {:keys [uri] :as req}]
-  (let [[_ _ _ proc-id client-id client-type :as parts]
-        (str/split uri #"/")
+  [{:keys [ring-request] :as ctx}
+   {:keys [output] :as worker-proc} client-id client-type]
 
-        proc-id
-        (UUID/fromString proc-id)]
+  (let [client-in
+        (async/chan
+          1
+          (map edn/read-string))
 
-    (if (not= proc-id (:proc-id worker-proc))
-      (do (>!! output {:type :rejected-client
-                       :proc-id proc-id
-                       :client-id client-id})
-          (common/unacceptable req))
+        ;; FIXME: n=10 is rather arbitrary
+        client-out
+        (async/chan
+          (async/sliding-buffer 10)
+          (map pr-str))
 
-      (let [client-in
+        eval-out
+        (-> (async/sliding-buffer 10)
+            (async/chan))
+
+        result-chan
+        (worker/repl-eval-connect worker-proc client-id eval-out)
+
+        ;; no need to forward :build-log messages to the client
+        watch-ignore
+        #{:build-log
+          :repl/result
+          :repl/error ;; server-side error
+          :repl/action
+          :repl/eval-start
+          :repl/eval-stop
+          :repl/client-start
+          :repl/client-stop}
+
+        watch-chan
+        (-> (async/sliding-buffer 10)
             (async/chan
-              1
-              (map edn/read-string))
+              (remove #(contains? watch-ignore (:type %)))))
 
-            ;; FIXME: n=10 is rather arbitrary
-            client-out
-            (async/chan
-              (async/sliding-buffer 10)
-              (map pr-str))
+        client-state
+        {:worker-proc worker-proc
+         :client-id client-id
+         :client-type client-type
+         :in client-in
+         :out client-out
+         :eval-out eval-out
+         :result-chan result-chan
+         :watch-chan watch-chan}]
 
-            client-type
-            (keyword client-type)
+    (-> (http/websocket-connection ring-request
+          {:headers
+           (let [proto (get-in ring-request [:headers "sec-websocket-protocol"])]
+             (if (seq proto)
+               {"sec-websocket-protocol" proto}
+               {}))})
+        (md/chain
+          (fn [socket]
+            (ms/connect socket client-in)
+            (ms/connect client-out socket)
+            socket))
 
-            eval-out
-            (-> (async/sliding-buffer 10)
-                (async/chan))
-
-            result-chan
-            (impl/repl-eval-connect worker-proc client-id eval-out)
-
-            ;; no need to forward :build-log messages to the client
-            watch-ignore
-            #{:build-log
-              :repl/result
-              :repl/error ;; server-side error
-              :repl/action
-              :repl/eval-start
-              :repl/eval-stop
-              :repl/client-start
-              :repl/client-stop}
-
-            watch-chan
-            (-> (async/sliding-buffer 10)
-                (async/chan
-                  (remove #(contains? watch-ignore (:type %)))))
-
-            client-state
-            {:worker-proc worker-proc
-             :client-id client-id
-             :client-type client-type
-             :in client-in
-             :out client-out
-             :eval-out eval-out
-             :result-chan result-chan
-             :watch-chan watch-chan}]
-
-        (-> (http/websocket-connection req
-              {:headers
-               (let [proto (get-in req [:headers "sec-websocket-protocol"])]
-                 (if (seq proto)
-                   {"sec-websocket-protocol" proto}
-                   {}))})
-            (md/chain
-              (fn [socket]
-                (ms/connect socket client-in)
-                (ms/connect client-out socket)
-                socket))
-
-            ;; FIXME: why the second chain?
-            (md/chain
-              (fn [socket]
-                (thread (ws-loop! (assoc client-state :socket socket)))
-                ))
-            (md/catch common/unacceptable))))))
+        ;; FIXME: why the second chain?
+        (md/chain
+          (fn [socket]
+            (thread (ws-loop! (assoc client-state :socket socket)))
+            ))
+        (md/catch common/unacceptable))))
 
 (defn files-req
   "a POST request from the REPL client asking for the compile JS for sources by name
    sends a {:sources [...]} structure with a vector of source names
    the response will include [{:js code :name ...} ...] with :js ready to eval"
-  [{:keys [state-ref] :as worker-proc}
-   {:keys [request-method body] :as req}]
-  (let [headers
+  [{:keys [ring-request] :as ctx}
+   {:keys [state-ref] :as worker-proc}]
+
+  (let [{:keys [request-method body]}
+        ring-request
+
+        headers
         {"Access-Control-Allow-Origin" "*"
          "Access-Control-Allow-Headers"
-         (or (get-in req [:headers "access-control-request-headers"])
+         (or (get-in ring-request [:headers "access-control-request-headers"])
              "content-type")
          "content-type" "application/edn; charset=utf-8"}]
 
@@ -194,22 +186,42 @@
       )))
 
 (defn process
-  [{:keys [output] :as worker-proc} {:keys [uri] :as req}]
+  [{:keys [supervisor] :as ctx}]
 
-  ;; "/ws/client/<proc-id>/<client-id>/<client-type>"
-  ;; if proc-id does not match there is old js connecting to a new process
-  ;; should probably not allow that
-  ;; unlikely due to random port but still shouldn't allow it
+  ;; "/worker/browser/430da920-ffe8-4021-be47-c9ca77c6defd/305de5d9-0272-408f-841e-479937512782/browser"
+  ;; _ _ to drop / and worker
+  (let [[_ _ action build-id proc-id client-id client-type :as x]
+        (-> (get-in ctx [:ring-request :uri])
+            (str/split #"/"))
 
-  (cond
-    (str/starts-with? uri "/files")
-    (files-req worker-proc req)
+        build-id
+        (keyword build-id)
 
-    (str/starts-with? uri "/ws/client/")
-    (ws-connect worker-proc req)
+        proc-id
+        (UUID/fromString proc-id)
 
-    :else
-    {:status 404
-     :headers {"content-type" "text/plain"}
-     :body "Not found."}))
+        worker-proc
+        (super/get-worker supervisor build-id)]
+
+    (cond
+      (nil? worker-proc)
+      {:status 404
+       :body "No worker for build."}
+
+      (not= proc-id (:proc-id worker-proc))
+      {:status 403
+       :body "stale client, please reload"}
+
+      :else
+      (case action
+        "files"
+        (files-req ctx worker-proc)
+
+        "ws"
+        (ws-connect ctx worker-proc client-id client-type)
+
+        :else
+        {:status 404
+         :headers {"content-type" "text/plain"}
+         :body "Not found."}))))
 

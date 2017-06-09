@@ -68,7 +68,7 @@
   (if (empty? sources)
     (callback [])
     (xhr/send
-      (str "http://" env/repl-host ":" env/repl-port "/files")
+      (env/files-url)
       (fn [res]
         (this-as req
           (let [content

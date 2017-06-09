@@ -201,15 +201,11 @@
   (prn [:unhandled-call-result call call-args result])
   state)
 
-(defmethod process-notify "cljs/worker-output"
-  [state {:keys [params]}]
-  (let [{:keys [proc-id build-id msg]} params]
-    (prn [:worker-output proc-id build-id (:type msg) raw])
-    state))
-
 (defmethod process-call-result "cljs/hello"
-  [state call call-args {:keys [builds] :as result}]
-  (assoc state :builds builds))
+  [state call call-args {:keys [builds supervisor] :as result}]
+  (doseq [[k v] supervisor]
+    (prn [:super k v]))
+  (assoc state :builds builds :workers workers))
 
 (defn remote-process-in
   [{:keys [encoding] :as state}
@@ -224,7 +220,6 @@
     (if (nil? id)
       (process-notify state msg)
       (let [[call-method call-args :as x] (get-in state [:remote :pending id])]
-
         (prn [:handle id call-method call-args])
         (if (nil? x)
           (prn [:no-handler-for-result id state])

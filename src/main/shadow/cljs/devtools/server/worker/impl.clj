@@ -22,14 +22,15 @@
   {:pre [(map? msg)
          (:type msg)]}
 
-  (sys-bus/publish! system-bus :worker-output
-    {:proc-id (:proc-id worker-state)
-     :build-id (get-in worker-state [:build-config :id])
-     :msg msg})
-
   (let [output (get-in worker-state [:channels :output])]
     (>!! output msg)
     worker-state))
+
+(defn update-status!
+  [{:keys [status-ref] :as worker-state} status-id status-info]
+  (vreset! status-ref {:status status-id
+                       :info status-info})
+  worker-state)
 
 (defn build-msg
   [worker-state msg]
@@ -50,6 +51,8 @@
 
 (defn build-failure
   [{:keys [build-config] :as worker-state} e]
+  (update-status! worker-state :error {:error e})
+
   (>!!output worker-state
     {:type :build-failure
      :build-config build-config
@@ -57,16 +60,20 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config proc-id http-config-ref executor] :as worker-state}]
+  [{:keys [build-config proc-id http executor] :as worker-state}]
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
+
+  (update-status! worker-state :configure {})
+
   (try
     ;; FIXME: allow the target-fn read-only access to worker-state? not just worker-info?
     ;; it may want to put things on the websocket?
     (let [worker-info
-          (-> @http-config-ref ;; :host+:port
-              (assoc :proc-id proc-id))
+          {:proc-id proc-id
+           :host (:host http)
+           :port (:port http)}
 
           compiler-state
           (-> (cljs/init-state)
@@ -75,6 +82,8 @@
                 :logger (util/async-logger (-> worker-state :channels :output))
                 :worker-info worker-info)
               (comp/init :dev build-config))]
+
+      (update-status! worker-state :configured {})
 
       ;; FIXME: should maybe cleanup old :compiler-state if there is one (re-configure)
       (assoc worker-state :compiler-state compiler-state))
@@ -92,7 +101,9 @@
   (if (nil? compiler-state)
     worker-state
     (try
-      (let [compiler-state
+      (update-status! worker-state :started {})
+
+      (let [{::comp/keys [build-info] :as compiler-state}
             (-> compiler-state
                 (comp/compile)
                 (comp/flush))]
@@ -103,7 +114,9 @@
            :build-config
            build-config
            :info
-           (::comp/build-info compiler-state)})
+           build-info})
+
+        (update-status! worker-state :complete {:build-info build-info})
 
         (assoc worker-state :compiler-state compiler-state))
       (catch Exception e
@@ -147,50 +160,31 @@
 (defmethod do-proc-control :start-autobuild
   [{:keys [build-config autobuild] :as worker-state} msg]
   (if autobuild
-    worker-state ;; do nothing if already in auto mode
-    (cond
-      (nil? build-config)
-      (build-msg worker-state "No build configured.")
-
-      :else
-      (-> worker-state
-          (build-configure)
-          (build-compile)
-          (assoc :autobuild true)
-          ))))
+    ;; do nothing if already in auto mode
+    worker-state
+    ;; compile immediately, autobuild is then checked later
+    (-> worker-state
+        (build-configure)
+        (build-compile)
+        (assoc :autobuild true)
+        )))
 
 (defmethod do-proc-control :stop-autobuild
   [worker-state msg]
   (assoc worker-state :autobuild false))
 
 (defmethod do-proc-control :compile
-  [{:keys [build-config] :as worker-state} {:keys [reply-to] :as msg}]
+  [worker-state {:keys [reply-to] :as msg}]
   (let [result
-        (if (nil? build-config)
-          (build-msg worker-state "No build configured.")
-          (-> worker-state
-              (build-configure)
-              (build-compile)))]
+        (-> worker-state
+            (build-configure)
+            (build-compile))]
 
     (when reply-to
       (>!! reply-to :done))
 
     result
     ))
-
-(defmethod do-proc-control :configure
-  [{:keys [system-bus channels build-config] :as worker-state} {:keys [config] :as msg}]
-
-  ;; subscribe config-watch for the build
-  (let [{:keys [config-watch]} channels]
-    (when build-config
-      (sys-bus/unsub system-bus [::sys-msg/config-watch (:id build-config)] config-watch))
-    (sys-bus/sub system-bus [::sys-msg/config-watch (:id config)] config-watch))
-
-  (assoc worker-state
-    :build-config config
-    ;; FIXME: should this reset autobuild?
-    :autobuild false))
 
 (defmethod do-proc-control :stop-autobuild
   [worker-state msg]
@@ -411,16 +405,12 @@
 
     result-chan))
 
+;; FIXME: remove these ... just make worker do the stuff directly, this is nonsense
+
 (defn watch
   [{:keys [output-mult] :as proc} log-chan close?]
   {:pre [(proc? proc)]}
   (async/tap output-mult log-chan close?)
-  proc)
-
-(defn configure
-  [{:keys [proc-control] :as proc} config]
-  {:pre [(proc? proc)]}
-  (>!! proc-control {:type :configure :config config})
   proc)
 
 (defn compile

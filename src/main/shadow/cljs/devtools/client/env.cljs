@@ -27,7 +27,10 @@
 
 (defn ws-url [client-type]
   {:pre [(keyword? client-type)]}
-  (str "ws://" repl-host ":" repl-port "/ws/client/" proc-id "/" client-id "/" (name client-type)))
+  (str "ws://" repl-host ":" repl-port "/worker/ws/" build-id "/" proc-id "/" client-id "/" (name client-type)))
+
+(defn files-url []
+  (str "//" repl-host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id))
 
 (defn repl-call [repl-expr repl-print repl-error]
   (let [result {:type :repl/result}]

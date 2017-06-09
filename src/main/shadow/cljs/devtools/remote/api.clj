@@ -2,16 +2,17 @@
   (:require [clojure.core.async :as async :refer (go <! <!! >!! >! alt!)]
             [clojure.edn :as edn]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.config :as config]))
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.server.supervisor :as super]))
 
 ;; API
 
-(defn send-msg [{:keys [msg-out encoding] :as state} response]
+(defn send-msg [{:keys [client-out encoding] :as state} response]
   (let [msg
         {:headers {"content-type" encoding}
          :body (pr-str response)}]
 
-    (when-not (async/offer! msg-out msg)
+    (when-not (async/offer! client-out msg)
       (prn [:dropped-reply response]))
 
     state
@@ -74,45 +75,45 @@
       (do (prn [:dropped-msg in])
           state))))
 
-(defn client [{:keys [system-bus control] :as service} msg-in msg-out]
+(defn client [{:keys [system-bus control] :as service} client-in client-out]
   (let [init-state
         (assoc service
-          :msg-in msg-in
-          :msg-out msg-out)
+          :client-in client-in
+          :client-out client-out)
 
-        worker-output
-        (-> (async/sliding-buffer 10)
+        super-updates
+        (-> (async/sliding-buffer 1)
             (async/chan))]
 
-    ;; FIXME: broadcasting this to every client is overkill
-    (sys-bus/sub system-bus :worker-output worker-output)
+    (sys-bus/sub system-bus ::super/update super-updates)
 
     (go (loop [state init-state]
           (alt!
             control
             ([_] :server-stop)
 
-            msg-in
+            super-updates
+            ([update]
+              (when (some? update)
+                (-> state
+                    (notify "supervisor/update" update)
+                    (recur))))
+
+            client-in
             ([msg]
               (when (some? msg)
                 (-> state
                     (process msg)
                     (recur))))
-
-            worker-output
-            ([msg]
-              (when (some? msg)
-                (-> state
-                    (notify "cljs/worker-output" msg)
-                    (recur))))
             ))
         )))
 
-(defn start [system-bus]
+(defn start [system-bus supervisor]
   (let [control
         (async/chan)]
 
     {:system-bus system-bus
+     :supervisor supervisor
      :control control}))
 
 (defn stop [{:keys [control]}]
@@ -121,5 +122,10 @@
 ;; IMPL
 
 (defmethod process-rpc "cljs/hello"
-  [state {:keys [params] :as msg}]
-  (reply-ok state msg (config/load-cljs-edn)))
+  [{:keys [state-ref supervisor] :as state} {:keys [params] :as msg}]
+  (reply-ok state msg
+    {:config
+     (config/load-cljs-edn)
+
+     :supervisor
+     (super/get-status supervisor)}))

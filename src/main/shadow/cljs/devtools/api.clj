@@ -16,12 +16,7 @@
 
 (defn start [config]
   (let [cli-app
-        (merge
-          (common/app config)
-          {:worker
-           {:depends-on [:system-bus :executor]
-            :start worker/start
-            :stop worker/stop}})]
+        (common/app config)]
 
     (-> {:config config
          :out (util/stdout-dump true)}
@@ -111,8 +106,11 @@
             (when (not= :repl/interrupt (:type result))
               (recur))))))))
 
+(defn start-worker* [{:keys [system-bus executor http] :as app} build-config]
+  (worker/start system-bus executor http build-config))
+
 (defn node-repl*
-  [{:keys [worker] :as app}
+  [app
    {:keys [verbose
            node-args
            node-command
@@ -142,10 +140,12 @@
                 (recur)
                 )))
 
+        worker
+        (start-worker* app build-config)
+
         result
         (-> worker
             (worker/watch out-chan)
-            (worker/configure build-config)
             (worker/compile!))]
 
     ;; FIXME: validate that compilation succeeded
@@ -232,13 +232,12 @@
 
 (defn dev*
   [build-config {:keys [autobuild] :as opts}]
-  (let [{:keys [worker out] :as app}
+  (let [{:keys [out] :as app}
         (start opts)]
 
     (try
-      (-> worker
+      (-> (start-worker* app build-config)
           (worker/watch out)
-          (worker/configure build-config)
           (cond->
             autobuild
             (worker/start-autobuild)

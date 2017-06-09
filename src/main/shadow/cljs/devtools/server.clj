@@ -13,20 +13,21 @@
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.remote.tcp-server :as remote-server]
             [shadow.cljs.devtools.remote.api :as remote-api]
-            [shadow.cljs.devtools.server.worker :as worker]))
+            [shadow.cljs.devtools.server.worker :as worker]
+            [shadow.cljs.devtools.server.util :as util]))
 
-(defonce runtime nil)
+(defonce app-instance nil)
 
 (defn app [config]
   (merge
     (common/app config)
     {:supervisor
-     {:depends-on [:system-bus :executor]
+     {:depends-on [:system-bus :executor :http]
       :start super/start
       :stop super/stop}
 
      :remote-api
-     {:depends-on [:system-bus]
+     {:depends-on [:system-bus :supervisor]
       :start remote-api/start
       :stop remote-api/stop}
 
@@ -36,6 +37,11 @@
                (remote-server/start remote remote-api))
       :stop remote-server/stop}
 
+     :out
+     {:depends-on []
+      :start #(util/stdout-dump true)
+      :stop async/close!}
+
      :explorer
      {:depends-on [:system-bus]
       :start explorer/start
@@ -43,12 +49,15 @@
      }))
 
 (defn get-ring-handler
-  [{:keys [dev-mode] :as config} system-ref]
+  [{:keys [dev-mode] :as config} app-promise]
   (-> (fn [ring-map]
-        (let [app
-              (-> (:app @system-ref)
-                  (assoc :ring-request ring-map))]
-          (web/root app)))
+        (let [app (deref app-promise 1000 ::timeout)]
+          (if (= app ::timeout)
+            {:status 501
+             :body "App not ready!"}
+            (-> app
+                (assoc :ring-request ring-map)
+                (web/root)))))
       (cond->
         dev-mode
         (ring-file/wrap-file (io/file "target/shadow-cljs/ui/output")))
@@ -61,47 +70,51 @@
      (catch Throwable t#
        (println t# ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [app http lang-server pid-file] :as system}]
+(defn shutdown-system [{:keys [http pid-file] :as app}]
   (println "shutting down ...")
-  (do-shutdown (rt/stop-all app))
-  (do-shutdown
-    (.close http)
-    (netty/wait-for-close http))
-
   (do-shutdown (.delete pid-file))
+  (do-shutdown (rt/stop-all app))
+  (let [netty (:server http)]
+    (do-shutdown
+      (.close netty)
+      (netty/wait-for-close netty)))
   (println "shutdown complete."))
-
-(defn start-http [ring config]
-  (aleph/start-server ring config))
 
 (defn start-system [{:keys [cache-root] :as config}]
   (let [runtime-ref
-        (volatile! {})
+        (volatile! nil)
+
+        app-promise
+        (promise)
+
+        ring
+        (get-ring-handler config app-promise)
+
+        http
+        (aleph/start-server ring (:http config))
+
+        http-port
+        (netty/port http)
+
+        pid-file
+        (doto (io/file cache-root "remote.pid")
+          (.deleteOnExit))
 
         app
         (-> {::started (System/currentTimeMillis)
-             :config config}
+             :config config
+             :pid-file pid-file
+             :http {:port (netty/port http)
+                    :host "localhost" ;; FIXME: take from config or netty instance
+                    :server http}}
             (rt/init (app config))
             (rt/start-all))]
 
-    (vreset! runtime-ref {:app app})
+    (deliver app-promise app)
 
-    (let [ring
-          (get-ring-handler config runtime-ref)
+    (spit pid-file (str (netty/port http)))
 
-          http
-          (start-http ring (:http config))
-
-          pid-file
-          (io/file cache-root "remote.pid")]
-
-      (spit pid-file (str (netty/port http)))
-
-      (.deleteOnExit pid-file)
-
-      (vswap! runtime-ref assoc :http http :pid-file pid-file))
-
-    runtime-ref
+    app
     ))
 
 (defn start!
@@ -110,25 +123,25 @@
    (let [{:keys [cache-root] :as config} ;; builds are accessed elsewhere, this is only system config
          (dissoc config :builds)
 
-         runtime-ref
+         {:keys [http] :as app}
          (start-system config)
 
          {:keys [host port]}
-         (get-in @runtime-ref [:app :config :http])]
+         http]
 
      (println (str "shadow-cljs - server running at http://" host ":" port))
-     (alter-var-root #'runtime (fn [_] runtime-ref))
+     (alter-var-root #'app-instance (fn [_] app))
      ::started
      )))
 
 (defn stop! []
-  (when runtime
-    (shutdown-system @runtime))
+  (when app-instance
+    (shutdown-system app-instance))
   ::stopped)
 
 (defn -main [& args]
   (start!)
-  (netty/wait-for-close (:http @runtime))
+  (netty/wait-for-close (get-in app-instance [:http :server]))
   (shutdown-agents))
 
 ;; temp
@@ -141,15 +154,15 @@
            build-id
            (config/get-build! build-id))
 
-         {:keys [supervisor] :as app}
-         (:app @runtime)]
+         {:keys [out supervisor] :as app}
+         app-instance]
 
      (if-let [worker (super/get-worker supervisor build-id)]
        (when autobuild
          (worker/start-autobuild worker))
 
-       (-> (super/start-worker supervisor build-id)
-           (worker/configure build-config)
+       (-> (super/start-worker supervisor build-config)
+           (worker/watch out false)
            (cond->
              autobuild
              (worker/start-autobuild))

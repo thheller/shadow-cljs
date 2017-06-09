@@ -4,18 +4,13 @@
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.cljs.devtools.server.worker.impl :as impl]
-            [shadow.cljs.devtools.server.worker.ws :as ws]
             [shadow.cljs.devtools.server.util :as util]
             [aleph.netty :as netty]
             [aleph.http :as aleph])
   (:import (java.util UUID)))
 
-(defn configure
-  "re-configure the build"
-  [proc {:keys [id] :as config}]
-  {:pre [(map? config)
-         (keyword? id)]}
-  (impl/configure proc config))
+(defn get-status [{:keys [status-ref] :as proc}]
+  @status-ref)
 
 (defn compile
   "triggers an async compilation, use watch to receive notification about worker state"
@@ -84,7 +79,12 @@
 
 ;; SERVICE API
 
-(defn start [system-bus executor]
+(defn start
+  [system-bus executor http build-config]
+  {:pre [(map? http)
+         (map? build-config)
+         (keyword? (:id build-config))]}
+
   (let [proc-id
         (UUID/randomUUID) ;; FIXME: not really unique but unique enough
 
@@ -121,9 +121,6 @@
         config-watch
         (async/chan (async/sliding-buffer 100))
 
-        http-config-ref
-        (volatile! nil) ;; {:port 123 :localhost foo}
-
         channels
         {:proc-stop proc-stop
          :proc-control proc-control
@@ -131,10 +128,16 @@
          :cljs-watch cljs-watch
          :config-watch config-watch}
 
+        status-ref
+        (volatile! {:status :started})
+
         thread-state
         {::impl/worker-state true
-         :http-config-ref http-config-ref
+         :http http
          :proc-id proc-id
+         :build-config build-config
+         :status-ref status-ref
+         :autobuild false
          :eval-clients {}
          :repl-clients {}
          :pending-results {}
@@ -181,9 +184,11 @@
          :output output
          :output-mult output-mult
          :thread-ref thread-ref
-         :state-ref state-ref}]
+         :state-ref state-ref
+         :status-ref status-ref}]
 
     (sys-bus/sub system-bus ::sys-msg/cljs-watch cljs-watch)
+    (sys-bus/sub system-bus [::sys-msg/config-watch (:id build-config)] config-watch)
 
     ;; ensure all channels are cleaned up properly
     (go (<! thread-ref)
@@ -193,36 +198,9 @@
         (async/close! proc-stop)
         (async/close! cljs-watch))
 
-    (let [http-config
-          ;; FIXME: this should be configurable (or stay the same for each build)
-          ;; problem is that build isn't known yet, will be configured later
-          ;; might move starting the http server into the target as some builds
-          ;; may not actually need it?
-          {:port 0
-           :host "localhost"}
+    worker-proc))
 
-          http-handler
-          (fn [ring]
-            (ws/process (assoc worker-proc :http-config @http-config-ref) ring))
-
-          http
-          (aleph/start-server
-            http-handler
-            (assoc http-config
-                   :executor executor
-                   :shutdown-executor? false))
-
-          http-config
-          (assoc http-config
-            :port (netty/port http))]
-
-      (vreset! http-config-ref http-config)
-      (assoc worker-proc
-        :http-config http-config
-        :http http))))
-
-(defn stop [{:keys [http] :as proc}]
+(defn stop [proc]
   {:pre [(impl/proc? proc)]}
-  (.close http)
   (async/close! (:proc-stop proc))
   (<!! (:thread-ref proc)))
