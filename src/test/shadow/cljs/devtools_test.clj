@@ -25,8 +25,8 @@
   ;; see StripCode in closure
   (cljs/add-closure-configurator
     (fn [cc co state]
-      (set! (.-stripTypePrefixes co) #{"goog.log"})
-      (set! (.-stripNameSuffixes co) #{"logger" "logger_"})
+      (set! (.-stripTypePrefixes co) #{"console.log"})
+      ;; (set! (.-stripNameSuffixes co) #{"logger" "logger_"})
       )))
 
 (defn test-loader []

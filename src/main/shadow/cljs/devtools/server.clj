@@ -13,7 +13,7 @@
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.remote.tcp-server :as remote-server]
             [shadow.cljs.devtools.remote.api :as remote-api]
-            ))
+            [shadow.cljs.devtools.server.worker :as worker]))
 
 (defonce runtime nil)
 
@@ -26,7 +26,7 @@
       :stop super/stop}
 
      :remote-api
-     {:depends-on []
+     {:depends-on [:system-bus]
       :start remote-api/start
       :stop remote-api/stop}
 
@@ -130,6 +130,33 @@
   (start!)
   (netty/wait-for-close (:http @runtime))
   (shutdown-agents))
+
+;; temp
+(defn start-worker
+  ([build-id]
+   (start-worker build-id {:autobuild true}))
+  ([build-id {:keys [autobuild] :as opts}]
+   (let [build-config
+         (if (map? build-id)
+           build-id
+           (config/get-build! build-id))
+
+         {:keys [supervisor] :as app}
+         (:app @runtime)]
+
+     (if-let [worker (super/get-worker supervisor build-id)]
+       (when autobuild
+         (worker/start-autobuild worker))
+
+       (-> (super/start-worker supervisor build-id)
+           (worker/configure build-config)
+           (cond->
+             autobuild
+             (worker/start-autobuild))
+           ;; FIXME: sync to ensure the build finished before start-worker returns?
+           ;; (worker/sync!)
+           )))
+   ::started))
 
 (comment
   (start!)

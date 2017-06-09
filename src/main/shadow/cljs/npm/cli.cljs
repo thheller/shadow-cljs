@@ -8,7 +8,8 @@
             [cljs.reader :as reader]
             [cljs.core.async :as async]
             [clojure.string :as str]
-            [shadow.cljs.devtools.remote.client :as client]))
+            [shadow.cljs.devtools.remote.client :as client]
+            [shadow.cljs.npm.terminal :as terminal]))
 
 (def version (js/require "./version.json"))
 
@@ -178,9 +179,37 @@
     (fs/existsSync pid-file)))
 
 
-(defn process-hello [state result]
-  (prn [:hello-result result])
+(defmulti process-call-result
+  (fn [state call call-args result]
+    call)
+  :default
+  ::unknown)
+
+(defmulti process-notify
+  (fn [state msg]
+    (:method msg))
+  :default
+  ::unknown)
+
+(defmethod process-notify ::unknown
+  [state msg]
+  (prn [:unhandled-notify msg])
   state)
+
+(defmethod process-call-result ::unknown
+  [state call call-args result]
+  (prn [:unhandled-call-result call call-args result])
+  state)
+
+(defmethod process-notify "cljs/worker-output"
+  [state {:keys [params]}]
+  (let [{:keys [proc-id build-id msg]} params]
+    (prn [:worker-output proc-id build-id (:type msg) raw])
+    state))
+
+(defmethod process-call-result "cljs/hello"
+  [state call call-args {:keys [builds] :as result}]
+  (assoc state :builds builds))
 
 (defn remote-process-in
   [{:keys [encoding] :as state}
@@ -193,67 +222,78 @@
         (reader/read-string body)]
 
     (if (nil? id)
-      (do (prn [:notify (:method msg) (:params msg)])
-          state)
-      (let [handler (get-in state [:pending id])]
-        (if (nil? handler)
+      (process-notify state msg)
+      (let [[call-method call-args :as x] (get-in state [:remote :pending id])]
+
+        (prn [:handle id call-method call-args])
+        (if (nil? x)
           (prn [:no-handler-for-result id state])
 
           (-> state
-              (update :pending dissoc id)
-              (handler (:result msg)))
+              (update-in [:remote :pending] dissoc id)
+              (process-call-result call-method call-args (:result msg)))
           )))))
 
-(defn remote-call [{:keys [client] :as state} method params response-handler]
-  (let [{:keys [id-seq]} state
+(defn remote-call [{:keys [remote] :as state} method & params]
+  (let [{:keys [id-seq]} remote
 
-        msg
+        params
+        (into [] params)
+
+        msg ;; FIXME: actual content-type from client state
         {:headers {"content-type" "application/edn"}
          :body (pr-str {:method method :params params :id id-seq})}]
 
-    (if-not (async/offer! (:out client) msg)
-      (prn [:failed-to-remote-call method params (:out client)])
+    (if-not (async/offer! (:output remote) msg)
+      (prn [:failed-to-remote-call method params (:output remote)])
       (-> state
-          (update :id-seq inc)
-          (update :pending assoc id-seq response-handler))
+          (update-in [:remote :id-seq] inc)
+          (update-in [:remote :pending] assoc id-seq [method params]))
       )))
 
-(defn remote-loop [{:keys [client] :as state}]
-  (let [{:keys [in]}
-        client
+(defn remote-loop [{:keys [remote] :as state}]
+  (let [{remote-input :input}
+        remote
 
         state
-        (remote-call state "cljs/hello" [] process-hello)]
+        (remote-call state "cljs/hello")]
+
+    ;; FIXME: should the client ask for things are just assume the server sends it?
 
     (go-loop [state state]
-      (when-some [msg (<! in)]
-        (prn [:remote-in msg])
+      (terminal/render state)
+
+      (when-some [msg (<! remote-input)]
         (when-let [next-state (remote-process-in state msg)]
           (recur next-state))
         ))))
 
+
 (defn run-remote [project-root config args]
   (println "shadow-cljs - remote mode")
 
-  (let [client-in
+  (let [remote-in
         (async/chan 10)
 
-        client-out
+        remote-out
         (async/chan 10)
 
         connect
         (client/connect
           {:host "localhost"
            :port 8201
-           :in client-in
-           :out client-out})
+           :in remote-in
+           :out remote-out})
 
         init-state
-        {:client
-         {:in client-in
-          :out client-out}
-         :id-seq 0
-         :pending {}}]
+        (-> {:remote
+             {:input remote-in
+              :output remote-out
+              :id-seq 0
+              :pending {}}
+             :builds {}
+             :warnings {}}
+            (terminal/setup))]
 
     (go (if-not (<! connect)
           (println "shadow-cljs - remote connect failed")
@@ -261,6 +301,7 @@
           (do (<! (remote-loop init-state))
               (println "shadow-cljs - remote loop end"))
           ))))
+
 
 (defn main [& args]
   (when-let [config-path (ensure-config)]

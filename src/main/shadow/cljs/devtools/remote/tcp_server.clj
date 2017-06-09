@@ -46,7 +46,6 @@
 
         tcp-write
         (fn [chunk]
-          (prn [:write-chunk chunk])
           (doto tcp-out
             (.write chunk)
             (.flush )))]

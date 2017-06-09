@@ -1,6 +1,7 @@
 (ns shadow.cljs.devtools.server.supervisor
   (:require [shadow.cljs.devtools.server.worker :as worker]
-            [clojure.core.async :as async :refer (go <!)]))
+            [clojure.core.async :as async :refer (go <!)]
+            [shadow.cljs.devtools.server.system-bus :as sys-bus]))
 
 (defn get-worker
   [{:keys [workers-ref] :as svc} id]

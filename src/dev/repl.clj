@@ -6,7 +6,7 @@
   ;; (cljs/start! {:verbose true})
   ;; (cljs/start-worker :ui)
   (server/start!)
-  ;; (cljs/start-worker :cli)
+  (server/start-worker :cli)
   ::started)
 
 (defn stop []

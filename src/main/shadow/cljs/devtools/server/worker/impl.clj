@@ -18,9 +18,14 @@
 (defn worker-state? [x]
   (and (map? x) (::worker-state x)))
 
-(defn >!!output [worker-state msg]
+(defn >!!output [{:keys [system-bus] :as worker-state} msg]
   {:pre [(map? msg)
          (:type msg)]}
+
+  (sys-bus/publish! system-bus :worker-output
+    {:proc-id (:proc-id worker-state)
+     :build-id (get-in worker-state [:build-config :id])
+     :msg msg})
 
   (let [output (get-in worker-state [:channels :output])]
     (>!! output msg)
@@ -53,6 +58,7 @@
 (defn build-configure
   "configure the build according to build-config in state"
   [{:keys [build-config proc-id http-config-ref executor] :as worker-state}]
+
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
   (try
@@ -182,9 +188,9 @@
     (sys-bus/sub system-bus [::sys-msg/config-watch (:id config)] config-watch))
 
   (assoc worker-state
-         :build-config config
-         ;; FIXME: should this reset autobuild?
-         :autobuild false))
+    :build-config config
+    ;; FIXME: should this reset autobuild?
+    :autobuild false))
 
 (defmethod do-proc-control :stop-autobuild
   [worker-state msg]
@@ -240,8 +246,8 @@
             (>!! eval-out action))
 
           (assoc worker-state
-                 :compiler-state compiler-state
-                 :pending-results pending-results))
+            :compiler-state compiler-state
+            :pending-results pending-results))
 
         (catch Exception e
           (let [msg (repl-error e)]
