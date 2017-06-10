@@ -11,8 +11,9 @@
 (defn index-page [req]
   (common/page-boilerplate req
     (html
-      [:div#root]
-      (assets/js-queue :none 'shadow.cljs.ui.app/init)
+      [:h1 "shadow-cljs"]
+      [:div#root "nothing useful to do here yet ... run \"shadow-cljs --interactive\""]
+      ;; (assets/js-queue :none 'shadow.cljs.ui.app/init)
       )))
 
 (defn root [{:keys [build] :as req}]

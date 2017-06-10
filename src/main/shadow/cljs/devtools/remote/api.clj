@@ -131,3 +131,32 @@
 
      :supervisor
      (super/get-status supervisor)}))
+
+(defmethod process-rpc "cljs/start-worker"
+  [{:keys [state-ref supervisor] :as state} {:keys [params] :as msg}]
+  (let [{:keys [build-id]}
+        params
+
+        build-config
+        (config/get-build build-id)]
+
+    (if-not build-config
+      (reply-error state msg :build-not-found "build not found" build-id)
+
+      (let [worker
+            (-> (or (super/get-worker supervisor build-id)
+                    (super/start-worker supervisor build-config))
+                (worker/start-autobuild)
+                (worker/sync!))]
+
+        (reply-ok state msg (super/get-status supervisor))
+        ))))
+
+(defmethod process-rpc "cljs/stop-worker"
+  [{:keys [state-ref supervisor] :as state} {:keys [params] :as msg}]
+  (let [{:keys [build-id]}
+        params]
+
+    (super/stop-worker supervisor build-id)
+    (reply-ok state msg (super/get-status supervisor))
+    ))

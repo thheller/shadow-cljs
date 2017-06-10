@@ -1,15 +1,18 @@
 (ns shadow.cljs.npm.cli
-  (:require-macros [cljs.core.async.macros :refer (go go-loop)])
+  (:require-macros [cljs.core.async.macros :refer (go go-loop alt!)])
   (:require ["path" :as path]
             ["fs" :as fs]
             ["child_process" :as cp]
-            ["readline-sync" :as rl]
+            ["readline" :as rl]
+            ["readline-sync" :as rl-sync] ;; FIXME: drop this?
             ["mkdirp" :as mkdirp]
             [cljs.reader :as reader]
             [cljs.core.async :as async]
             [clojure.string :as str]
+            [shadow.json :as json]
             [shadow.cljs.devtools.remote.client :as client]
-            [shadow.cljs.npm.terminal :as terminal]))
+            [shadow.cljs.npm.terminal :as terminal]
+            [shadow.cljs.npm.keys :as keys]))
 
 (def version (js/require "./version.json"))
 
@@ -91,7 +94,7 @@
           (println "shadow-cljs - missing configuration file")
           (println (str "- " config))
 
-          (when (rl/keyInYN "Create one?")
+          (when (rl-sync/keyInYN "Create one?")
             ;; FIXME: ask for default source path, don't just use one
             (fs/writeFileSync config default-config-str)
             (println "shadow-cljs - created default configuration")
@@ -178,7 +181,6 @@
   (let [pid-file (path/resolve cache-root "remote.pid")]
     (fs/existsSync pid-file)))
 
-
 (defmulti process-call-result
   (fn [state call call-args result]
     call)
@@ -205,39 +207,56 @@
   [state call call-args {:keys [config supervisor] :as result}]
   (assoc state :config config :supervisor supervisor))
 
+(defmethod process-call-result "cljs/start-worker"
+  [state call call-args result]
+  (assoc state :supervisor result))
+
+(defmethod process-call-result "cljs/stop-worker"
+  [state call call-args result]
+  (assoc state :supervisor result))
+
 (defmethod process-notify "cljs/worker-update"
   [state msg]
   (let [{:keys [id] :as new-status} (:params msg)]
     (update state :supervisor assoc id new-status)
     ))
 
-(defn remote-process-in
+(defn process-error [state msg]
+  (assoc state :input-error msg))
+
+(defn process-remote-input
   [{:keys [encoding] :as state}
    {:keys [headers body] :as in}]
-  ;; (prn [:in in])
+
   (let [content-type
         (get headers "content-type")
 
-        {:keys [id] :as msg}
+        {:keys [id code message result] :as msg}
         (reader/read-string body)]
 
-    (if (nil? id)
+    (cond
+      (nil? id)
       (process-notify state msg)
+
+      (and code message)
+      (process-error state msg)
+
+      (and id result)
       (let [[call-method call-args :as x] (get-in state [:remote :pending id])]
-        (prn [:handle id call-method call-args])
         (if (nil? x)
           (prn [:no-handler-for-result id state])
 
           (-> state
               (update-in [:remote :pending] dissoc id)
-              (process-call-result call-method call-args (:result msg)))
-          )))))
+              (process-call-result call-method call-args result))
 
-(defn remote-call [{:keys [remote] :as state} method & params]
+          ))
+      :else
+      (prn [:invalid-remote msg])
+      )))
+
+(defn remote-call [{:keys [remote] :as state} method params]
   (let [{:keys [id-seq]} remote
-
-        params
-        (into [] params)
 
         msg ;; FIXME: actual content-type from client state
         {:headers {"content-type" "application/edn"}
@@ -250,20 +269,69 @@
           (update-in [:remote :pending] assoc id-seq [method params]))
       )))
 
-(defn remote-loop [{:keys [remote] :as state}]
+(defn as-keyword [s]
+  (-> (if (str/starts-with? s ":")
+        (subs s 1)
+        s)
+      (keyword)))
+
+(defn clear-input-error [state]
+  (dissoc state :input-error))
+
+(defn reduce-> [init reduce-fn coll]
+  (reduce reduce-fn init coll))
+
+(defn process-start [state [_ & builds]]
+  (-> state
+      (clear-input-error)
+      (reduce->
+        (fn [state build-id]
+          (remote-call state "cljs/start-worker" {:build-id (as-keyword build-id)}))
+        builds)))
+
+(defn process-stop [state [_ & builds]]
+  (-> state
+      (clear-input-error)
+      (reduce->
+        (fn [state build-id]
+          (remote-call state "cljs/stop-worker" {:build-id (as-keyword build-id)}))
+        builds)))
+
+(defn process-stdin [state command]
+  (let [[action :as tokens] (str/split command #" ")]
+    (case action
+      "start"
+      (process-start state tokens)
+
+      "stop"
+      (process-stop state tokens)
+
+      (assoc state :input-error (str "invalid command: " command)))))
+
+(defn remote-loop [{:keys [stdin remote] :as state}]
   (let [{remote-input :input}
         remote
 
         state
-        (remote-call state "cljs/hello")]
+        (remote-call state "cljs/hello" {})]
 
     ;; FIXME: should the client ask for things are just assume the server sends it?
 
     (go-loop [state state]
       (terminal/render state)
 
-      (when-some [msg (<! remote-input)]
-        (when-let [next-state (remote-process-in state msg)]
+      (let [next-state
+            (alt!
+              remote-input
+              ([msg]
+                (when (some? msg)
+                  (process-remote-input state msg)))
+              stdin
+              ([char]
+                (when (some? char)
+                  (process-stdin state char))))]
+
+        (when next-state
           (recur next-state))
         ))))
 
@@ -284,6 +352,15 @@
            :in remote-in
            :out remote-out})
 
+        stdin
+        (async/chan 100)
+
+        rl-interface
+        (rl/createInterface
+          #js {:input js/process.stdin
+               :output js/process.stdout
+               :prompt "#> "})
+
         init-state
         (-> {:project-root project-root
              :config-path config-path
@@ -291,21 +368,60 @@
              ;; config is normalized by the server (not .cljc yet)
              ;; also config updates will come from the server so this doesn't have to watch it
              :version version
+             :view-state :dashboard
+             :stdin stdin
+             :rl-interface rl-interface
+             :buffer []
              :remote
              {:input remote-in
               :output remote-out
               :id-seq 0
               :pending {}}}
-            (terminal/setup))]
+            (terminal/setup))
+
+        stop!
+        (fn []
+          (async/close! stdin)
+          (async/close! remote-in)
+          (async/close! remote-out)
+          (.close rl-interface)
+          (js/process.stdin.end)
+          ;; nuclear option? seems to mess up the terminal somehow
+          ;; (js/process.exit 0)
+          )]
+
+    ;; manually implementing readline is no fun
+    (comment
+      (js/process.stdin.on "data"
+        (fn [key]
+          (let [key-code (js/parseInt key 16)]
+            (prn [:input-key key key-code (contains? keys/ABORT-KEYS key-code)])
+            (if (contains? keys/ABORT-KEYS key-code)
+              (stop!)
+              (async/offer! stdin key-code)))))
+
+      (js/process.stdin.setRawMode true)
+      (js/process.stdin.setEncoding "hex")
+      (js/process.stdin.resume))
+
+    ;; line based interface sucks but less than the manual readline
+    (.on rl-interface "line"
+      (fn [line]
+        ;; process these early so they never fail
+        (case line
+          "quit"
+          (stop!)
+          "exit"
+          (stop!)
+          (async/offer! stdin line)
+          )))
 
     (go (if-not (<! connect)
           (println "shadow-cljs - remote connect failed")
 
           (do (<! (remote-loop init-state))
-              (println "shadow-cljs - remote loop end"))
-          ))))
-
-
+              (stop!)
+              )))))
 
 (defn main [& args]
   (when-let [config-path (ensure-config)]

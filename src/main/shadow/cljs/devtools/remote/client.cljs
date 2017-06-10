@@ -25,7 +25,17 @@
 
     ;; just moves data onto tcp-in
     (.on client "data" #(async/offer! tcp-in (.toString %1)))
-    (.on client "end" #(async/close! tcp-in))
+
+
+    ;; FIXME: what is it? end or close?
+    (.on client "end"
+      (fn []
+        (async/close! tcp-in)))
+
+    (.on client "close"
+      (fn []
+        (async/close! tcp-in)
+        ))
 
     ;; read-loop transfers tcp-in -> in
     ;; write-loop transfers out -> write-fn
@@ -37,9 +47,10 @@
               (async/close! tcp-in))
 
           (do (async/put! connect true)
-              (protocol/read-loop tcp-in in)
+              (go (<! (protocol/read-loop tcp-in in))
+                  (.end client))
               (go (<! (protocol/write-loop out write-fn))
-                  (.close client))))
+                  (.end client))))
 
         (async/close! connect)
         ))

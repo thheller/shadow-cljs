@@ -32,84 +32,110 @@
        (str/join "\n")
        (println)))
 
-(defn render [{:keys [remote config supervisor version config-path] :as state}]
-  ;; (clear)
+(defn render-warnings [{:keys [remote config supervisor version config-path] :as state}]
+  (let [warnings
+        (->> (for [[id worker-state] supervisor
+                   :when (= :complete (:status worker-state))
+                   {:keys [name warnings] :as src} (-> worker-state :info :build-info :sources)
+                   warning warnings]
+               warning)
+             (distinct)
+             (sort-by :source-name)
+             (into []))]
 
+    (when (seq warnings)
+      (println "build warnings:")
+
+      (doseq [warning warnings]
+        (let [{:keys [source-name file line column source-excerpt msg]} warning]
+          (when source-excerpt
+            (println "-----  WARNING --------------------------------------------")
+            (println)
+            (-> (str " " msg)
+                (chalk/yellow)
+                (println))
+            (println)
+            (println (str " File: " (if file
+                                      (str file ":" line)
+                                      source-name)))
+            (println)
+            (let [{:keys [start-idx before line after]} source-excerpt]
+              (print-source-lines start-idx before chalk/dim)
+              (print-source-lines (+ start-idx (count before)) [line] chalk/bold)
+              (let [col (+ 7 (or column 0))
+                    len (count line)
+
+                    prefix
+                    (->> (repeat (- col 3) " ")
+                         (str/join ""))]
+
+                (-> (str prefix "--^--")
+                    (chalk/bold)
+                    (println))
+                (-> (str "       " msg)
+                    (chalk/yellow)
+                    (println)))
+
+              (print-source-lines (+ start-idx (count before) 1) after chalk/dim))
+            (println)
+            (println "-----------------------------------------------------------")))
+        ))))
+
+(defn render-build-state [{:keys [remote config supervisor version config-path] :as state}]
+  (when config
+    (println "build status:")
+    (doseq [{:keys [id target]}
+            (->> (:builds config)
+                 (vals)
+                 (sort-by :id))
+
+            :let [{:keys [status] :as worker-state} (get supervisor id)]
+            :when worker-state]
+
+      (let [status-line
+            (-> (str "    " (get status-symbols status) " " id)
+                (cond->
+                  (= :complete status)
+                  (chalk/green)
+                  (= :error status)
+                  (chalk/red)
+                  ))]
+        (println status-line)
+        ))
+    (println)))
+
+(defn render-header [{:keys [remote config supervisor version config-path] :as state}]
   (let [{:keys [pending]} remote]
     (println (str "shadow-cljs - interactive mode [version: \"" version "\" pending: " (count pending) "]"))
     (println "   - config: " config-path)
+    (println)))
+
+(defn render [{:keys [rl-interface remote config supervisor version config-path input-error] :as state}]
+  ;; FIXME: not sure this is needed?
+  (.pause rl-interface)
+
+  ;; clear makes debugging a nightmare
+  (clear)
+
+  (comment
     (println)
+    (println)
+    (println "==========================================")
+    (println)
+    (println))
 
-    (when config
-      (println "build status:")
-      (doseq [{:keys [id target]}
-              (->> (:builds config)
-                   (vals)
-                   (sort-by :id))
+  (render-header state)
+  (render-build-state state)
+  (render-warnings state)
 
-              :let [{:keys [status] :as worker-state} (get supervisor id)]
-              :when worker-state]
+  (when input-error
+    (println)
+    (println input-error)
+    (println))
 
-        (let [status-line
-              (-> (str " " (get status-symbols status) " - " id)
-                  (cond->
-                    (= :complete status)
-                    (chalk/green)
-                    (= :error status)
-                    (chalk/red)
-                    ))]
-
-          (println status-line)
-          ))
-
-      (println))
-
-    (let [warnings
-          (->> (for [[id worker-state] supervisor
-                     :when (= :complete (:status worker-state))
-                     {:keys [name warnings] :as src} (-> worker-state :info :build-info :sources)
-                     warning warnings]
-                 warning)
-               (distinct)
-               (sort-by :source-name)
-               (into []))]
-
-      (when (seq warnings)
-        (println "build warnings:")
-
-        (doseq [warning warnings]
-          (let [{:keys [source-name file line column source-excerpt msg]} warning]
-            (when source-excerpt
-              (println "-----  WARNING --------------------------------------------")
-              (println)
-              (-> (str " " msg)
-                  (chalk/yellow)
-                  (println))
-              (println)
-              (println " File:" file)
-              (println)
-              (let [{:keys [start-idx before line after]} source-excerpt]
-                (print-source-lines start-idx before chalk/dim)
-                (print-source-lines (+ start-idx (count before)) [line] chalk/bold)
-                (let [col (+ 7 (or column 0))
-                      len (count line)
-
-                      prefix
-                      (->> (repeat (- col 3) " ")
-                           (str/join ""))]
-
-                  (-> (str prefix "--^--")
-                      (chalk/bold)
-                      (println))
-                  (-> (str "      " msg)
-                      (chalk/yellow)
-                      (println)))
-
-                (print-source-lines (+ start-idx (count before) 1) after chalk/dim))
-              (println)
-              (println "-----------------------------------------------------------")))
-          )))))
+  (println "type quit to exit")
+  (.prompt rl-interface true)
+  (.resume rl-interface))
 
 (defn setup [state]
-  xxx
   state)
