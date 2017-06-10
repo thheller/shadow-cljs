@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.20170610](https://github.com/thheller/shadow-cljs/compare/1.0.20170603...1.0.20170610)
+
+### Changes
+- improved warning output, they now include a little source excerpt ala figwheel
+- no longer `:verbose` by default, now configured via `:verbose true` in `shadow-cljs.edn`
+- CLI script now scans parent directories when looking for config
+- reworked CLI script to AOT compile some code to improve startup time (done once per version)
+
 ## [1.0.20170603](https://github.com/thheller/shadow-cljs/compare/1.0.20170602...1.0.20170603)
 
 ### Fixes
