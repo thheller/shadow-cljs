@@ -58,7 +58,7 @@ It should contain a map with some global configuration and a `:builds` entry for
    :modules {:main [my.app]}}}}
 ```
 
-- `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot` 
+- `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot`
 - `:source-paths` define where the compiler will look for `.cljs` and `.cljc` files
 - `:builds` can either be a vector or maps or nested maps where the key is used as the `:id` of your build
 
@@ -67,9 +67,9 @@ It should contain a map with some global configuration and a `:builds` entry for
 Each build in `shadow-cljs`must define a `:target` which defines where you intent your code to be executed. There are default built-ins for the Browser and `node.js`. They all share the basic concept of having `:dev` and `:release` modes. `:dev` mode provides all the usual development goodies like fast compilation, live code reloading and a REPL. `:release` mode will produce optimized output intended for production.
 
 - TBD: `:npm-module` docs
-- [Compiling for the browser](ClojureScript-for-the-browser) for the `:browser` target.
-- [Compiling node.js scripts](ClojureScript-for-node.js-scripts) for the `:node-script` target.
-- [Compiling node.js libraries](ClojureScript-for-node.js-libraries) for the `:node-library` target.
+- [Compiling for the browser](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-the-browser) for the `:browser` target.
+- [Compiling node.js scripts](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-scripts) for the `:node-script` target.
+- [Compiling node.js libraries](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-libraries) for the `:node-library` target.
 
 ## Build Compilation
 
