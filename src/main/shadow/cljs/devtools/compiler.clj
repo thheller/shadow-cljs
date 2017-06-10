@@ -5,7 +5,55 @@
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.cljs-specs]
-            [shadow.cljs.closure :as closure]))
+            [shadow.cljs.closure :as closure]
+            [clojure.string :as str])
+  (:import (java.io StringReader BufferedReader)))
+
+
+(defn enhance-warnings
+  "adds source excerpts to warnings if line information is available"
+  [state {:keys [input file name warnings] :as rc}]
+  (if-not (seq warnings)
+    []
+    (let [source-lines
+          (into [] (-> @input
+                       (StringReader.)
+                       (BufferedReader.)
+                       (line-seq)))
+
+          excerpt-offset
+          5
+
+          max-lines
+          (count source-lines)
+
+          make-source-excerpt
+          (fn [line col]
+            (let [before
+                  (Math/max 0 (- line excerpt-offset))
+
+                  idx
+                  (Math/max 0 (dec line))
+
+                  after
+                  (Math/min max-lines (+ line excerpt-offset))]
+
+              {:start-idx before
+               :before (subvec source-lines before idx)
+               :line (nth source-lines idx)
+               :after (subvec source-lines line after)}
+
+              ))]
+
+      (->> (for [{:keys [line column] :as warning} (distinct warnings)]
+             (-> warning
+                 (assoc :source-name name)
+                 (cond->
+                   file
+                   (assoc :file (.getAbsolutePath file))
+                   line
+                   (assoc :source-excerpt (make-source-excerpt line column)))))
+           (into [])))))
 
 (defn extract-build-info [state]
   (let [source->module
@@ -25,13 +73,14 @@
         build-sources
         (->> (:build-sources state)
              (map (fn [name]
-                    (let [{:keys [type js-name warnings] :as rc}
+                    (let [{:keys [type js-name] :as rc}
                           (get-in state [:sources name])]
                       {:name name
                        :js-name js-name
                        :type type
-                       :warnings warnings
-                       :module (get source->module name)})))
+                       :module (get source->module name)
+                       :warnings (enhance-warnings state rc)}
+                      )))
              (into []))]
 
     {:sources build-sources
@@ -149,15 +198,15 @@
      ;; the namespace that is in may have added to the multi-spec
      (when-not (s/valid? ::config/build+target config)
        (throw (ex-info "invalid build config" (assoc (s/explain-data ::config/build+target config)
-                                                     :tag ::config
-                                                     :config config))))
+                                                :tag ::config
+                                                :config config))))
 
      (-> init-state
          (assoc :cache-dir (io/file work-dir "shadow-cljs" (name id) (name mode))
-                ::stage :init
-                ::config config
-                ::target-fn target-fn
-                ::mode mode)
+           ::stage :init
+           ::config config
+           ::target-fn target-fn
+           ::mode mode)
          ;; FIXME: not setting this for :release builds may cause errors
          ;; http://dev.clojure.org/jira/browse/CLJS-2002
          (update :runtime assoc :print-fn :console)

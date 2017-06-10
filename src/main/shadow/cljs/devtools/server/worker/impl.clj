@@ -27,9 +27,15 @@
     worker-state))
 
 (defn update-status!
-  [{:keys [status-ref] :as worker-state} status-id status-info]
-  (vreset! status-ref {:status status-id
-                       :info status-info})
+  [{:keys [system-bus status-ref build-config] :as worker-state} status-id status-info]
+  (let [status
+        {:id (:id build-config)
+         :status status-id
+         :info status-info}]
+    (vreset! status-ref status)
+    ;; yuck, can't properly alias
+    (sys-bus/publish! system-bus :shadow.cljs.devtools.server.worker/update status))
+
   worker-state)
 
 (defn build-msg

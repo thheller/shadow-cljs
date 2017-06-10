@@ -203,7 +203,7 @@
 (deftest test-error-msg
   (api/release :custom {:debug true}))
 
-(deftest test-warnings
+(deftest test-build-warnings
   (api/once :warnings))
 
 (deftest test-browser

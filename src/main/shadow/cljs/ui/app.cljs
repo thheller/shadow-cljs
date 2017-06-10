@@ -6,6 +6,7 @@
             [shadow.vault.dom :as vdom]
             [shadow.vault.store :as store]))
 
+
 (def root (dom/by-id "root"))
 
 (defstyled app-container :div

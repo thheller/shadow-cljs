@@ -202,10 +202,14 @@
   state)
 
 (defmethod process-call-result "cljs/hello"
-  [state call call-args {:keys [builds supervisor] :as result}]
-  (doseq [[k v] supervisor]
-    (prn [:super k v]))
-  (assoc state :builds builds :workers workers))
+  [state call call-args {:keys [config supervisor] :as result}]
+  (assoc state :config config :supervisor supervisor))
+
+(defmethod process-notify "cljs/worker-update"
+  [state msg]
+  (let [{:keys [id] :as new-status} (:params msg)]
+    (update state :supervisor assoc id new-status)
+    ))
 
 (defn remote-process-in
   [{:keys [encoding] :as state}
@@ -264,7 +268,7 @@
         ))))
 
 
-(defn run-remote [project-root config args]
+(defn run-remote [project-root config-path config args]
   (println "shadow-cljs - remote mode")
 
   (let [remote-in
@@ -281,13 +285,17 @@
            :out remote-out})
 
         init-state
-        (-> {:remote
+        (-> {:project-root project-root
+             :config-path config-path
+             ;; dont use :config config, will use the config requested by cljs/hello
+             ;; config is normalized by the server (not .cljc yet)
+             ;; also config updates will come from the server so this doesn't have to watch it
+             :version version
+             :remote
              {:input remote-in
               :output remote-out
               :id-seq 0
-              :pending {}}
-             :builds {}
-             :warnings {}}
+              :pending {}}}
             (terminal/setup))]
 
     (go (if-not (<! connect)
@@ -296,6 +304,7 @@
           (do (<! (remote-loop init-state))
               (println "shadow-cljs - remote loop end"))
           ))))
+
 
 
 (defn main [& args]
@@ -317,7 +326,7 @@
         (let [config (merge defaults config)]
           (cond
             (remote-active? config)
-            (run-remote project-root config args)
+            (run-remote project-root config-path config args)
 
             (:lein config)
             (run-lein project-root config args)

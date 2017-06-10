@@ -1,15 +1,24 @@
+#!/usr/bin/env node
 
-var SHADOW_IMPORT_PATH = "/Users/zilence/code/shadow-devtools/target/shadow-node/demo.warnings/cljs-runtime";
+var SHADOW_IMPORT_PATH = "/Users/zilence/code/shadow-cljs/target/shadow-cljs/warnings/dev/cljs-runtime";
 var SHADOW_ENV = {};
 try {require('source-map-support').install();} catch (e) {console.warn('no "source-map-support" (run "npm install source-map-support --save-dev" to get it)');}
 
 SHADOW_ENV.CLOSURE_NO_DEPS = true;
 
-SHADOW_ENV.CLOSURE_DEFINES = {"goog.DEBUG":true,"goog.LOCALE":"en"};
+SHADOW_ENV.CLOSURE_DEFINES = {"goog.DEBUG":true,"goog.LOCALE":"en","goog.TRANSPILE":"never"};
 
 var SHADOW_ROOTS = ["goog"];
 
 var goog = SHADOW_ENV.goog = {};
+
+// SHADOW_ENV becomes goog.global which may access some of these
+SHADOW_ENV.setTimeout = global.setTimeout;
+SHADOW_ENV.clearTimeout = global.clearTimeout;
+SHADOW_ENV.setInterval = global.setInterval;
+SHADOW_ENV.clearInterval = global.clearInterval;
+SHADOW_ENV.setImmediate = global.setImmediate;
+SHADOW_ENV.clearImmediate = global.clearImmediate;
 
 SHADOW_ENV.SHADOW_IMPORTED = {};
 
@@ -119,23 +128,22 @@ SHADOW_ENV.NODE_EVAL = function(js, smJson) {
   return fn.call(SHADOW_ENV, require, module, __filename, __dirname, SHADOW_ENV);
 };
 
-SHADOW_IMPORT("goog/base.js");
+SHADOW_IMPORT("goog.base.js");
 goog.provide = SHADOW_PROVIDE;
 goog.require = SHADOW_REQUIRE;
-SHADOW_IMPORT("goog/reflect/reflect.js");
-SHADOW_IMPORT("goog/math/long.js");
-SHADOW_IMPORT("goog/math/integer.js");
-SHADOW_IMPORT("goog/string/string.js");
-SHADOW_IMPORT("goog/object/object.js");
-SHADOW_IMPORT("goog/debug/error.js");
-SHADOW_IMPORT("goog/dom/nodetype.js");
-SHADOW_IMPORT("goog/asserts/asserts.js");
-SHADOW_IMPORT("goog/array/array.js");
-SHADOW_IMPORT("goog/string/stringbuffer.js");
-SHADOW_IMPORT("cljs/core.js");
-SHADOW_IMPORT("shadow/runtime_setup.js");
-SHADOW_IMPORT("demo/warnings.js");
-SHADOW_IMPORT("shadow/module/append/script.js");
+SHADOW_IMPORT("goog.debug.error.js");
+SHADOW_IMPORT("goog.dom.nodetype.js");
+SHADOW_IMPORT("goog.string.string.js");
+SHADOW_IMPORT("goog.asserts.asserts.js");
+SHADOW_IMPORT("goog.reflect.reflect.js");
+SHADOW_IMPORT("goog.math.long.js");
+SHADOW_IMPORT("goog.math.integer.js");
+SHADOW_IMPORT("goog.object.object.js");
+SHADOW_IMPORT("goog.array.array.js");
+SHADOW_IMPORT("goog.string.stringbuffer.js");
+SHADOW_IMPORT("cljs.core.js");
+SHADOW_IMPORT("demo.warnings.js");
+SHADOW_IMPORT("shadow.module.append.script.js");
 var shadow = SHADOW_ENV.shadow || {};
 var cljs = SHADOW_ENV.cljs || {};
 var demo = SHADOW_ENV.demo;

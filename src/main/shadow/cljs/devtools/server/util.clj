@@ -2,7 +2,8 @@
   (:require [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
             [shadow.cljs.log :as shadow-log]
             [shadow.cljs.build :as cljs]
-            [shadow.cljs.devtools.errors :as errors])
+            [shadow.cljs.devtools.errors :as errors]
+            [clojure.string :as str])
   (:import (java.io Writer InputStreamReader BufferedReader IOException)))
 
 (defn async-logger [ch]
@@ -24,6 +25,39 @@
 
 (defn print-build-start [build-config]
   (println (format "[%s] Compiling ..." (:id build-config))))
+
+(defn print-source-lines
+  [start-idx lines]
+  (->> (for [[idx text] (map-indexed vector lines)]
+         (format "%4d | %s" (+ 1 idx start-idx) text))
+       (str/join "\n")
+       (println)))
+
+(defn print-warning
+  [{:keys [source-name file line column source-excerpt msg] :as warning}]
+  (when source-excerpt
+    (println "-----  WARNING --------------------------------------------")
+    (println)
+    (println (str " " msg))
+    (println)
+    (println " File:" file)
+    (println)
+    (let [{:keys [start-idx before line after]} source-excerpt]
+      (print-source-lines start-idx before)
+      (print-source-lines (+ start-idx (count before)) [line])
+      (let [col (+ 7 (or column 0))
+            len (count line)
+
+            prefix
+            (->> (repeat (- col 3) " ")
+                 (str/join ""))]
+
+        (println (str prefix "--^--"))
+        (println "      " msg))
+
+      (print-source-lines (+ start-idx (count before) 1) after))
+    (println)
+    (println "-----------------------------------------------------------")))
 
 (defn print-build-complete [build-info build-config]
   (let [{:keys [sources compiled]}
@@ -47,8 +81,8 @@
 
     (when (seq warnings)
       (println (format "====== %d Warnings" (count warnings)))
-      (doseq [{:keys [msg line column source-name] :as w} warnings]
-        (println (str "WARNING: " msg " (" source-name " at " line ":" column ") ")))
+      (doseq [w warnings]
+        (print-warning w))
       (println "======"))))
 
 (defn print-build-failure [{:keys [build-config e] :as x}]

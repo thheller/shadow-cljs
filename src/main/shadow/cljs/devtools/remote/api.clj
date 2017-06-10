@@ -3,7 +3,9 @@
             [clojure.edn :as edn]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.server.supervisor :as super]))
+            [shadow.cljs.devtools.server.supervisor :as super]
+            [shadow.cljs.devtools.server.worker :as worker]
+            ))
 
 ;; API
 
@@ -81,22 +83,22 @@
           :client-in client-in
           :client-out client-out)
 
-        super-updates
+        worker-updates
         (-> (async/sliding-buffer 1)
             (async/chan))]
 
-    (sys-bus/sub system-bus ::super/update super-updates)
+    (sys-bus/sub system-bus ::worker/update worker-updates)
 
     (go (loop [state init-state]
           (alt!
             control
             ([_] :server-stop)
 
-            super-updates
+            worker-updates
             ([update]
               (when (some? update)
                 (-> state
-                    (notify "supervisor/update" update)
+                    (notify "cljs/worker-update" update)
                     (recur))))
 
             client-in
