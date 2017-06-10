@@ -2,6 +2,7 @@
  {:profile "cljs"}
 
  :dev-mode true
+ :verbose true
 
  ;; actually unused when using :lein
  :source-paths

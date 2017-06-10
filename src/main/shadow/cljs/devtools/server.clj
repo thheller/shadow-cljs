@@ -11,8 +11,6 @@
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.common :as common]
             [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.remote.tcp-server :as remote-server]
-            [shadow.cljs.devtools.remote.api :as remote-api]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]))
 
@@ -21,25 +19,11 @@
 (defn app [config]
   (merge
     (common/app config)
-    {:supervisor
-     {:depends-on [:system-bus :executor :http]
-      :start super/start
-      :stop super/stop}
-
-     :remote-api
-     {:depends-on [:system-bus :supervisor]
-      :start remote-api/start
-      :stop remote-api/stop}
-
-     :remote-server
-     {:depends-on [:config :remote-api]
-      :start (fn [{:keys [remote]} remote-api]
-               (remote-server/start remote remote-api))
-      :stop remote-server/stop}
+    {
 
      :out
      {:depends-on []
-      :start #(util/stdout-dump true)
+      :start #(util/stdout-dump (:verbose config))
       :stop async/close!}
 
      :explorer

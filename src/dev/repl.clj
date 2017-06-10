@@ -7,7 +7,7 @@
   ;; (cljs/start-worker :ui)
   (server/start!)
   (server/start-worker :cli)
-  (server/start-worker :browser)
+  ;; (server/start-worker :browser)
   ::started)
 
 (defn stop []

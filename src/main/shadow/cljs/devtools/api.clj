@@ -8,20 +8,80 @@
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.common :as common]
+            [shadow.cljs.devtools.server.web.common :as web-common]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.node :as node]
             [shadow.cljs.repl :as repl]
-            [shadow.repl :as r])
+            [shadow.repl :as r]
+            [aleph.netty :as netty]
+            [aleph.http :as aleph]
+            [shadow.cljs.devtools.server.worker.ws :as ws]
+            [clojure.string :as str]
+            [shadow.cljs.devtools.server.supervisor :as super])
   (:import (java.io PushbackReader StringReader)))
 
-(defn start [config]
-  (let [cli-app
-        (common/app config)]
+(defn web-root
+  "only does /worker requests"
+  [{:keys [ring-request] :as req}]
+  (let [{:keys [uri]} ring-request]
 
-    (-> {:config config
-         :out (util/stdout-dump true)}
-        (rt/init cli-app)
-        (rt/start-all))))
+    (cond
+      (str/starts-with? uri "/worker")
+      (ws/process req)
+
+      :else
+      web-common/not-found
+      )))
+
+(defn get-ring-handler [config app-promise]
+  (fn [ring-map]
+    (let [app (deref app-promise 1000 ::timeout)]
+      (if (= app ::timeout)
+        {:status 501
+         :body "App not ready!"}
+        (-> app
+            (assoc :ring-request ring-map)
+            (web-root))))))
+
+(defn start [{:keys [cache-root] :as config}]
+  (let [app-promise
+        (promise)
+
+        ring
+        (get-ring-handler config app-promise)
+
+        host
+        (get-in config [:http :host] "localhost")
+
+        ;; this uses a random port so we can start multiple instances
+        ;; eventually this will all be done in :server mode
+        http
+        (aleph/start-server ring {:host host
+                                  :port 0})
+
+        http-port
+        (netty/port http)
+
+        app
+        (-> {::started (System/currentTimeMillis)
+             :config config
+             :out (util/stdout-dump (:verbose config))
+             :http {:port (netty/port http)
+                    :host host
+                    :server http}}
+            (rt/init (common/app config))
+            (rt/start-all))]
+
+    (deliver app-promise app)
+
+    app
+    ))
+
+(defn stop [{:keys [http] :as app}]
+  (rt/stop-all app)
+  (let [netty (:server http)]
+    (.close netty)
+    (netty/wait-for-close netty)))
 
 (defn print-result [result]
   (locking cljs/stdout-lock
@@ -106,8 +166,8 @@
             (when (not= :repl/interrupt (:type result))
               (recur))))))))
 
-(defn start-worker* [{:keys [system-bus executor http] :as app} build-config]
-  (worker/start system-bus executor http build-config))
+(defn start-worker* [{:keys [supervisor ] :as app} build-config]
+  (super/start-worker supervisor build-config))
 
 (defn node-repl*
   [app
@@ -224,7 +284,7 @@
      (try
        (node-repl* app opts)
        (finally
-         (rt/stop-all app))))))
+         (stop app))))))
 
 (defn get-build-config [id]
   {:pre [(keyword? id)]}
@@ -232,8 +292,11 @@
 
 (defn dev*
   [build-config {:keys [autobuild] :as opts}]
-  (let [{:keys [out] :as app}
-        (start opts)]
+  (let [config
+        (config/load-cljs-edn)
+
+        {:keys [out] :as app}
+        (start config)]
 
     (try
       (-> (start-worker* app build-config)
@@ -252,7 +315,7 @@
         (e/user-friendly-error e))
 
       (finally
-        (rt/stop-all app)))))
+        (stop app)))))
 
 (defn dev
   ([build]

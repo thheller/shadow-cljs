@@ -10,7 +10,8 @@
             [shadow.cljs.build :as cljs]
             [clojure.java.io :as io]
             [clojure.java.classpath :as cp]
-            [shadow.cljs.devtools.server.config-watch :as config-watch])
+            [shadow.cljs.devtools.server.config-watch :as config-watch]
+            [shadow.cljs.devtools.server.supervisor :as super])
   (:import (java.io ByteArrayOutputStream InputStream)
            (java.util.concurrent Executors)))
 
@@ -32,7 +33,7 @@
 (defn app
   [{:keys [css-packages] :as config}]
   (let [watch-mode
-        :clj #_ (get config :watch true)]
+        :clj #_(get config :watch true)]
 
     (-> {:edn-reader
          {:depends-on []
@@ -80,6 +81,11 @@
          {:depends-on [:system-bus]
           :start config-watch/start
           :stop config-watch/stop}
+
+         :supervisor
+         {:depends-on [:system-bus :executor :http]
+          :start super/start
+          :stop super/stop}
          }
 
         (cond->

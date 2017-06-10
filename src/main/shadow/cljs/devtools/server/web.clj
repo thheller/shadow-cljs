@@ -12,7 +12,7 @@
   (common/page-boilerplate req
     (html
       [:h1 "shadow-cljs"]
-      [:div#root "nothing useful to do here yet ... run \"shadow-cljs --interactive\""]
+      [:div#root "coming soon ..."]
       ;; (assets/js-queue :none 'shadow.cljs.ui.app/init)
       )))
 

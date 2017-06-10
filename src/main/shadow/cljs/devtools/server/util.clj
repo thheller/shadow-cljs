@@ -40,7 +40,9 @@
     (println)
     (println (str " " msg))
     (println)
-    (println " File:" file)
+    (println " File:" (if file
+                        (str file ":" line ":" column)
+                        source-name))
     (println)
     (let [{:keys [start-idx before line after]} source-excerpt]
       (print-source-lines start-idx before)
