@@ -26,40 +26,80 @@
 (defn print-build-start [build-config]
   (println (format "[%s] Compiling ..." (:id build-config))))
 
+
+(def separator "------------------------------------------------------------------------")
+
+;; https://en.wikipedia.org/wiki/ANSI_escape_code
+;; https://github.com/chalk/ansi-styles/blob/master/index.js
+
+(def sgr-pairs
+  {:reset [0, 0]
+   :bold [1 22]
+   :dim [2 22] ;; cursive doesn't support this
+   :yellow [33 39] ;; cursive doesn't seem to support 39
+   })
+
+(defn ansi-seq [codes]
+  (str \u001b \[ (str/join ";" codes) \m))
+
+(defn coded-str [codes s]
+  (let [open
+        (->> (map sgr-pairs codes)
+             (map first))
+        close
+        (->> (map sgr-pairs codes)
+             (map second))]
+
+    ;; FIXME: cursive doesn't support some ANSI codes
+    ;; always reset to 0 sucks if there are nested styles
+    (str (ansi-seq open) s (ansi-seq [0]))))
+
+(defn sep-line [override offset]
+  (let [prefix (subs separator 0 offset)
+        len (count override)
+        suffix (subs separator (+ offset len))]
+    (str prefix override suffix)))
+
 (defn print-source-lines
-  [start-idx lines]
+  [start-idx lines transform]
   (->> (for [[idx text] (map-indexed vector lines)]
          (format "%4d | %s" (+ 1 idx start-idx) text))
+       (map transform)
        (str/join "\n")
        (println)))
+
+(defn dim [s]
+  (coded-str [:dim] s))
 
 (defn print-warning
   [{:keys [source-name file line column source-excerpt msg] :as warning}]
   (when source-excerpt
-    (println "-----  WARNING --------------------------------------------")
+    (println (coded-str [:bold] (sep-line (str " WARNING #" (::idx warning) " ") 6)))
     (println)
-    (println (str " " msg))
+    (println (str " " (coded-str [:yellow :bold] msg)))
     (println)
     (println " File:" (if file
                         (str file ":" line ":" column)
                         source-name))
-    (println)
+    (println separator)
     (let [{:keys [start-idx before line after]} source-excerpt]
-      (print-source-lines start-idx before)
-      (print-source-lines (+ start-idx (count before)) [line])
-      (let [col (+ 7 (or column 0))
+      (print-source-lines start-idx before dim )
+      (print-source-lines (+ start-idx (count before)) [line] #(coded-str [:bold] %))
+      (let [col (+ 7 (or column 1))
             len (count line)
 
             prefix
             (->> (repeat (- col 3) " ")
                  (str/join ""))]
 
-        (println (str prefix "--^--"))
-        (println "      " msg))
+        (println (sep-line "^" (dec col)))
+        (println (str " " (coded-str [:yellow :bold] msg)))
+        (println separator))
 
-      (print-source-lines (+ start-idx (count before) 1) after))
-    (println)
-    (println "-----------------------------------------------------------")))
+      (when (seq after)
+        (print-source-lines (+ start-idx (count before) 1) after dim)
+        (println separator))
+      (println))))
 
 (defn print-build-complete [build-info build-config]
   (let [{:keys [sources compiled]}
@@ -83,8 +123,8 @@
 
     (when (seq warnings)
       (println (format "====== %d Warnings" (count warnings)))
-      (doseq [w warnings]
-        (print-warning w))
+      (doseq [[idx w] (map-indexed vector warnings)]
+        (print-warning (assoc w ::idx idx)))
       (println "======"))))
 
 (defn print-build-failure [{:keys [build-config e] :as x}]

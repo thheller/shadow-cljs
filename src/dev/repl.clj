@@ -5,8 +5,8 @@
 (defn start []
   ;; (cljs/start! {:verbose true})
   ;; (cljs/start-worker :ui)
-  (server/start!)
-  (server/start-worker :cli)
+  ;; (server/start!)
+  ;; (server/start-worker :cli)
   ;; (server/start-worker :browser)
   ::started)
 
