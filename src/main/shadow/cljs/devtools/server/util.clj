@@ -78,9 +78,8 @@
   (println " File:" (if file
                       (str file ":" line ":" column)
                       source-name))
-  (println)
   (if-not source-excerpt
-    (do
+    (do (println)
         (println (str " " (coded-str [:yellow :bold] msg)))
         (println separator))
 
