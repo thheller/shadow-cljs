@@ -122,10 +122,10 @@
                    (/ 1000))))
 
     (when (seq warnings)
-      (println (format "====== %d Warnings" (count warnings)))
+      (println)
       (doseq [[idx w] (map-indexed vector warnings)]
-        (print-warning (assoc w ::idx idx)))
-      (println "======"))))
+        (print-warning (assoc w ::idx (inc idx))))
+      )))
 
 (defn print-build-failure [{:keys [build-config e] :as x}]
   (println (format "[%s] Build failure:" (:id build-config)))
