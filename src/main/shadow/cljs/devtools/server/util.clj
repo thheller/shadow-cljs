@@ -73,17 +73,20 @@
 
 (defn print-warning
   [{:keys [source-name file line column source-excerpt msg] :as warning}]
-  (when source-excerpt
-    (println (coded-str [:bold] (sep-line (str " WARNING #" (::idx warning) " ") 6)))
-    (println)
-    (println (str " " (coded-str [:yellow :bold] msg)))
-    (println)
-    (println " File:" (if file
-                        (str file ":" line ":" column)
-                        source-name))
-    (println separator)
+  (println (coded-str [:bold] (sep-line (str " WARNING #" (::idx warning) " ") 6)))
+  (println)
+  (println " File:" (if file
+                      (str file ":" line ":" column)
+                      source-name))
+  (println)
+  (if-not source-excerpt
+    (do
+        (println (str " " (coded-str [:yellow :bold] msg)))
+        (println separator))
+
     (let [{:keys [start-idx before line after]} source-excerpt]
-      (print-source-lines start-idx before dim )
+      (println separator)
+      (print-source-lines start-idx before dim)
       (print-source-lines (+ start-idx (count before)) [line] #(coded-str [:bold] %))
       (let [col (+ 7 (or column 1))
             len (count line)
@@ -99,7 +102,8 @@
       (when (seq after)
         (print-source-lines (+ start-idx (count before) 1) after dim)
         (println separator))
-      (println))))
+      ))
+  (println))
 
 (defn print-build-complete [build-info build-config]
   (let [{:keys [sources compiled]}
