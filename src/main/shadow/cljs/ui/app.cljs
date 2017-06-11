@@ -3,9 +3,9 @@
             [shadow.dom :as dom]
             [shadow.api :refer (ns-ready)]
             [shadow.cljs.ui.build-list :as build-list]
-            [shadow.vault.dom :as vdom]
-            [shadow.vault.store :as store]))
-
+            ["react" :as react]
+            ["react-dom" :as rdom]
+            ))
 
 (def root (dom/by-id "root"))
 
@@ -38,14 +38,13 @@
         (build-list/container {}))
       (main-content "bar"))))
 
-(def data-ref (store/empty))
-
 (defn start []
-  (vdom/mount root (app) (store/context {} data-ref [])))
+  (js/console.log "start")
+  (rdom/render (app) root))
 
 (defn stop []
   (js/console.log "stop")
-  (vdom/unmount root))
+  (rdom/unmountComponentAtNode root))
 
 (defn init []
   (js/console.log "init")

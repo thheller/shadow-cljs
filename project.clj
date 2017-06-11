@@ -65,4 +65,4 @@
     :aot [shadow.cljs.devtools.api
           shadow.cljs.devtools.cli]
     :dependencies
-    [[thheller/shadow-client "1.0.20170518"]]}})
+    [[thheller/shadow-client "1.0.20170607"]]}})
