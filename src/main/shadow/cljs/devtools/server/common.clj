@@ -3,7 +3,6 @@
             [shadow.cljs.devtools.server.js-watch :as js-watch]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [shadow.cljs.devtools.server.sass-worker :as sass-worker]
             [cognitect.transit :as transit]
             [clojure.edn :as edn]
             [shadow.cljs.devtools.compiler]
@@ -30,8 +29,7 @@
        (into [])))
 
 
-(defn app
-  [{:keys [css-packages] :as config}]
+(defn app [config]
   (let [watch-mode
         :clj #_(get config :watch true)]
 
@@ -103,27 +101,4 @@
                               (get-classpath-directories)
                               ["cljs" "cljc" "clj" "js"]))
                    :stop fs-watch/stop}})
-
-          css-packages
-          (merge {:sass-watch
-                  {:depends-on [:system-bus]
-                   :start
-                   (fn [system-bus]
-                     (let [dirs (->> (mapcat :modules css-packages)
-                                     (map #(-> % (io/file) (.getParentFile) (.getCanonicalFile)))
-                                     (distinct)
-                                     (into []))]
-                       (fs-watch/start system-bus
-                         ::sys-msg/sass-watch
-                         dirs
-                         ["scss" "sass"])))
-                   :stop fs-watch/stop}
-
-                  :sass-worker
-                  {:depends-on [:system-bus]
-                   ;; FIXME: should maybe be using :config instead?
-                   :start #(sass-worker/start %1 css-packages)
-                   :stop sass-worker/stop}
-                  })
-
           ))))

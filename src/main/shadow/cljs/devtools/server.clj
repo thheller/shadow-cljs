@@ -19,9 +19,7 @@
 (defn app [config]
   (merge
     (common/app config)
-    {
-
-     :out
+    {:out
      {:depends-on []
       :start #(util/stdout-dump (:verbose config))
       :stop async/close!}
@@ -64,11 +62,9 @@
       (netty/wait-for-close netty)))
   (println "shutdown complete."))
 
-(defn start-system [{:keys [cache-root] :as config}]
-  (let [runtime-ref
-        (volatile! nil)
-
-        app-promise
+(defn start-system
+  [app {:keys [cache-root] :as config}]
+  (let [app-promise
         (promise)
 
         ring
@@ -88,27 +84,34 @@
         (-> {::started (System/currentTimeMillis)
              :config config
              :pid-file pid-file
-             :http {:port (netty/port http)
+             :http {:port http-port
                     :host "localhost" ;; FIXME: take from config or netty instance
                     :server http}}
-            (rt/init (app config))
+            (rt/init app)
             (rt/start-all))]
 
     (deliver app-promise app)
 
-    (spit pid-file (str (netty/port http)))
+    ;; FIXME: refuse to start if a pid already exists
+    (spit pid-file (str http-port))
 
     app
     ))
 
-(defn start!
-  ([] (start! (config/load-cljs-edn)))
-  ([config]
-   (let [{:keys [cache-root] :as config} ;; builds are accessed elsewhere, this is only system config
-         (dissoc config :builds)
+(defn load-config []
+  (-> (config/load-cljs-edn)
+      ;; system config doesn't need build infos
+      (dissoc :builds)))
 
-         {:keys [http] :as app}
-         (start-system config)
+(defn start!
+  ([]
+    (let [config (load-config)]
+      (start! config (app config))))
+  ([sys-config]
+    (start! sys-config (app sys-config)))
+  ([sys-config app]
+   (let [{:keys [http] :as app}
+         (start-system app sys-config)
 
          {:keys [host port]}
          http]
@@ -118,17 +121,21 @@
      ::started
      )))
 
-(defn stop! []
-  (when app-instance
-    (shutdown-system app-instance))
-  ::stopped)
+(defn stop!
+  ([]
+    (when app-instance
+      (shutdown-system app-instance)))
+  ([instance]
+   (shutdown-system instance)
+   ::stopped))
 
 (defn -main [& args]
   (start!)
   (netty/wait-for-close (get-in app-instance [:http :server]))
   (shutdown-agents))
 
-;; temp
+;; server API
+
 (defn start-worker
   ([build-id]
    (start-worker build-id {:autobuild true}))
