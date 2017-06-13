@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.20170613](https://github.com/thheller/shadow-cljs/compare/1.0.20170610...1.0.20170613)
+
+### Features
+- `--server` mode for the CLI, starts a shared JVM process that can be used to run multiple builds in parallel.
+- Clojure Socket REPL started by `--server` (default at localhost:8201). `rlwrap nc localhost 8201` is the simplest possible client.
+
+### Changes
+
 ## [1.0.20170610](https://github.com/thheller/shadow-cljs/compare/1.0.20170603...1.0.20170610)
 
 ### Changes

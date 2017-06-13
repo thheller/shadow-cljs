@@ -1,11 +1,11 @@
 {:lein
- {:profile "cljs"}
+ {:profile "+cljs"}
 
  :dev-mode true
  :verbose true
 
  :server
- {:autostart #{:cli}}
+ {:autostart #{}}
 
  ;; actually unused when using :lein
  :source-paths

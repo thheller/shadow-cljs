@@ -80,7 +80,7 @@
         (netty/port http)
 
         socket-repl
-        (socket-repl/start config app-promise)
+        (socket-repl/start (:repl config) app-promise)
 
         pid-file
         (doto (io/file cache-root "remote.pid")
@@ -102,12 +102,16 @@
     ;; FIXME: refuse to start if a pid already exists
     (spit pid-file (str http-port))
 
-    (when-let [{:keys [autostart] :as srv-config} (:server config)]
-      (binding [repl-api/*app* app]
+    (future
+      ;; OCD because I want to print the shadow-cljs info of start!
+      ;; before and build output
+      (Thread/sleep 100)
+      (when-let [{:keys [autostart] :as srv-config} (:server config)]
+        (binding [repl-api/*app* app]
 
-        (doseq [build-id autostart]
-          (repl-api/start-worker build-id)
-          )))
+          (doseq [build-id autostart]
+            (repl-api/start-worker build-id)
+            ))))
 
     app
     ))
@@ -129,6 +133,7 @@
 
      (println (str "shadow-cljs - server running at http://" (:host http) ":" (:port http)))
      (println (str "shadow-cljs - socket repl running at tcp://" (:host socket-repl) ":" (:port socket-repl)))
+
      (alter-var-root #'app-instance (fn [_] app))
      ::started
      )))
