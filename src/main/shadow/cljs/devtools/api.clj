@@ -146,7 +146,9 @@
            (-> worker :state-ref deref :compiler-state :compiler-env)
 
            result
-           (cljs-complete/completions compiler-env prefix {:context-ns (:ns repl-state)})]
+           (->> (cljs-complete/completions compiler-env prefix {:context-ns (:ns repl-state)})
+                (map :candidate)
+                (map str))]
        (debug app :shadow.inf-clojure/completions {:complete prefix :result result})
        (prn result)
        ))})

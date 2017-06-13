@@ -2,7 +2,9 @@
   (:require [compliment.core :as comp]))
 
 (defn completions [prefix]
-  (comp/completions prefix))
+  (->> (comp/completions prefix)
+       (map :candidate)
+       (map str)))
 
 (comment
-  (completions "conj"))
+  (completions "con"))

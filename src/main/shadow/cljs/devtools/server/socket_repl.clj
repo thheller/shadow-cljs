@@ -81,7 +81,7 @@
             ;; (println)
 
             :else
-            (clojure.core/println x)))
+            (clojure.core/prn x)))
 
         :prompt
         repl-prompt
