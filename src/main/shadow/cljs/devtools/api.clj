@@ -136,35 +136,36 @@
 
 (defn stdin-takeover!
   [worker]
-  (loop []
-    ;; unlock stdin when we can't get repl-state, just in case
-    (when-let [repl-state (worker-repl-state worker)]
+  (r/takeover (repl-level worker)
+    (loop []
+      ;; unlock stdin when we can't get repl-state, just in case
+      (when-let [repl-state (worker-repl-state worker)]
 
-      (print (format "%s=> " (-> repl-state :current :ns)))
-      (flush)
+        (print (format "[%d:%d] %s=> " r/*root-id* r/*level-id* (-> repl-state :current :ns)))
+        (flush)
 
-      ;; need the repl state to properly support reading ::alias/foo
-      (let [{:keys [eof? form] :as read-result}
-            (repl/read-one repl-state *in* {})]
+        ;; need the repl state to properly support reading ::alias/foo
+        (let [{:keys [eof? form] :as read-result}
+              (repl/read-one repl-state *in* {})]
 
-        (cond
-          eof?
-          :eof
+          (cond
+            eof?
+            :eof
 
-          (nil? form)
-          (recur)
+            (nil? form)
+            (recur)
 
-          (= :repl/quit form)
-          :quit
+            (= :repl/quit form)
+            :quit
 
-          (= :cljs/quit form)
-          :quit
+            (= :cljs/quit form)
+            :quit
 
-          :else
-          (when-some [result (worker/repl-eval worker ::stdin read-result)]
-            (print-result result)
-            (when (not= :repl/interrupt (:type result))
-              (recur))))))))
+            :else
+            (when-some [result (worker/repl-eval worker ::stdin read-result)]
+              (print-result result)
+              (when (not= :repl/interrupt (:type result))
+                (recur)))))))))
 
 (defn start-worker* [{:keys [supervisor ] :as app} build-config]
   (super/start-worker supervisor build-config))
@@ -230,45 +231,44 @@
 
       ;; FIXME: validate that proc started
 
-      (r/takeover (repl-level worker)
-        (let [stdin-fn
-              (bound-fn []
-                (stdin-takeover! worker))
+      (let [stdin-fn
+            (bound-fn []
+              (stdin-takeover! worker))
 
-              stdin-thread
-              (doto (Thread. stdin-fn)
-                (.start))]
+            stdin-thread
+            (doto (Thread. stdin-fn)
+              (.start))]
 
-          ;; async wait for the node process to exit
-          ;; in case it crashes
-          (async/thread
-            (try
-              (.waitFor node-proc)
+        ;; async wait for the node process to exit
+        ;; in case it crashes
+        (async/thread
+          (try
+            (.waitFor node-proc)
 
-              ;; process crashed, try to interrupt stdin block
-              ;; wont' work if it is reading off *in* but we can try
-              (when (.isAlive stdin-thread)
-                (.interrupt stdin-thread))
+            ;; process crashed, try to interrupt stdin block
+            ;; wont' work if it is reading off *in* but we can try
+            (when (.isAlive stdin-thread)
+              (.interrupt stdin-thread))
 
-              (catch Exception e
-                (prn [:node-wait-error e]))))
+            (catch Exception e
+              (prn [:node-wait-error e]))))
 
-          ;; piping the script into node-proc instead of using command line arg
-          ;; as node will otherwise adopt the path of the script as the require reference point
-          ;; we want to control that via pwd
-          (let [out (.getOutputStream node-proc)]
-            (io/copy (slurp node-script) out)
-            (.close out))
+        ;; piping the script into node-proc instead of using command line arg
+        ;; as node will otherwise adopt the path of the script as the require reference point
+        ;; we want to control that via pwd
+        (let [out (.getOutputStream node-proc)]
+          (io/copy (slurp node-script) out)
+          (.close out))
 
-          (.join stdin-thread)
+        (.join stdin-thread)
 
-          ;; FIXME: more graceful shutdown of the node-proc?
-          (when (.isAlive node-proc)
-            (.destroy node-proc)
-            (.waitFor node-proc))
+        ;; FIXME: more graceful shutdown of the node-proc?
+        (when (.isAlive node-proc)
+          (.destroy node-proc)
+          (.waitFor node-proc))
 
-          (when (.exists node-script)
-            (.delete node-script))))
+        (when (.exists node-script)
+          (.delete node-script)))
       ))
 
   (locking cljs/stdout-lock

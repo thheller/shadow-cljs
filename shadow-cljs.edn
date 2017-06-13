@@ -4,6 +4,9 @@
  :dev-mode true
  :verbose true
 
+ :server
+ {:autostart #{:cli}}
+
  ;; actually unused when using :lein
  :source-paths
  ["src/dev"

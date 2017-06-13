@@ -5,49 +5,14 @@
             [clojure.string :as str]
             [clojure.java.io :as io]
             [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.cli-opts :as opts]
             [clojure.repl :as repl]))
 
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
 
-(defn mode-cli-opt [opt description]
-  [nil opt description
-   :assoc-fn
-   (fn [m k v]
-     (when-let [mode (get m ::mode)]
-       (println (format "overwriting mode %s -> %s, please only use one mode" mode k)))
-     (assoc m ::mode k))])
-
-(def cli-spec
-  [(mode-cli-opt "--dev" "mode: dev (will watch files and recompile, REPL, ...)")
-   (mode-cli-opt "--once" "mode: compile once and exit")
-   (mode-cli-opt "--release" "mode: compile release version and exit")
-   (mode-cli-opt "--check" "mode: closure compiler type check and exit")
-   (mode-cli-opt "--server" "[WIP] server mode, doesn't do much yet")
-
-   ;; exlusive
-   ["-b" "--build BUILD-ID" "use build defined in shadow-cljs.edn"
-    :id ::build
-    :parse-fn keyword]
-   [nil "--npm" "internal, used by the shadow-cljs npm package"
-    :id ::npm]
-
-   ;; generic
-   [nil "--debug" "enable debug options, useful in combo with --release (pseudo-names, source-map)"]
-   ["-v" "--verbose"]
-   ["-h" "--help"
-    :id ::help]])
-
 (def default-opts
   {:autobuild true})
-
-(defn help [{:keys [errors summary] :as opts}]
-  (do (doseq [err errors]
-        (println err))
-      (println "Command line args:")
-      (println "-----")
-      (println summary)
-      (println "-----")))
 
 (def default-npm-config
   {:id :npm
@@ -70,20 +35,20 @@
 (defn main [& args]
   (try
     (let [{:keys [options summary errors] :as opts}
-          (cli/parse-opts args cli-spec)
+          (opts/parse args)
 
           options
           (merge default-opts options)]
 
       (cond
-        (or (::help options) (seq errors))
-        (help opts)
+        (or (::opts/help options) (seq errors))
+        (opts/help opts)
 
-        (= :server (::mode options))
-        (invoke 'shadow.cljs.devtools.server/-main)
+        (= :server (::opts/mode options))
+        (invoke 'shadow.cljs.devtools.server/from-cli options)
 
         :else
-        (let [{::keys [build npm]} options
+        (let [{::opts/keys [build npm]} options
 
               build-config
               (cond
@@ -98,9 +63,9 @@
 
           (if-not (some? build-config)
             (do (println "Please use specify a build or use --npm")
-                (help opts))
+                (opts/help opts))
 
-            (case (::mode options)
+            (case (::opts/mode options)
               :release
               (invoke 'shadow.cljs.devtools.api/release* build-config options)
 

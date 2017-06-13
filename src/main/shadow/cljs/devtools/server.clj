@@ -12,7 +12,9 @@
             [shadow.cljs.devtools.server.common :as common]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.devtools.server.util :as util]))
+            [shadow.cljs.devtools.server.util :as util]
+            [shadow.cljs.devtools.server.socket-repl :as socket-repl]
+            [shadow.cljs.devtools.server.repl-api :as repl-api]))
 
 (defonce app-instance nil)
 
@@ -52,10 +54,11 @@
      (catch Throwable t#
        (println t# ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [http pid-file] :as app}]
+(defn shutdown-system [{:keys [http pid-file socket-repl] :as app}]
   (println "shutting down ...")
   (do-shutdown (.delete pid-file))
   (do-shutdown (rt/stop-all app))
+  (do-shutdown (socket-repl/stop socket-repl))
   (let [netty (:server http)]
     (do-shutdown
       (.close netty)
@@ -76,6 +79,9 @@
         http-port
         (netty/port http)
 
+        socket-repl
+        (socket-repl/start config app-promise)
+
         pid-file
         (doto (io/file cache-root "remote.pid")
           (.deleteOnExit))
@@ -86,7 +92,8 @@
              :pid-file pid-file
              :http {:port http-port
                     :host "localhost" ;; FIXME: take from config or netty instance
-                    :server http}}
+                    :server http}
+             :socket-repl socket-repl}
             (rt/init app)
             (rt/start-all))]
 
@@ -94,6 +101,13 @@
 
     ;; FIXME: refuse to start if a pid already exists
     (spit pid-file (str http-port))
+
+    (when-let [{:keys [autostart] :as srv-config} (:server config)]
+      (binding [repl-api/*app* app]
+
+        (doseq [build-id autostart]
+          (repl-api/start-worker build-id)
+          )))
 
     app
     ))
@@ -110,13 +124,11 @@
   ([sys-config]
     (start! sys-config (app sys-config)))
   ([sys-config app]
-   (let [{:keys [http] :as app}
-         (start-system app sys-config)
+   (let [{:keys [http socket-repl] :as app}
+         (start-system app sys-config)]
 
-         {:keys [host port]}
-         http]
-
-     (println (str "shadow-cljs - server running at http://" host ":" port))
+     (println (str "shadow-cljs - server running at http://" (:host http) ":" (:port http)))
+     (println (str "shadow-cljs - socket repl running at tcp://" (:host socket-repl) ":" (:port socket-repl)))
      (alter-var-root #'app-instance (fn [_] app))
      ::started
      )))
@@ -134,33 +146,16 @@
   (netty/wait-for-close (get-in app-instance [:http :server]))
   (shutdown-agents))
 
+(defn from-cli [options]
+  (start!)
+  (netty/wait-for-close (get-in app-instance [:http :server]))
+  (shutdown-agents))
+
 ;; server API
 
-(defn start-worker
-  ([build-id]
-   (start-worker build-id {:autobuild true}))
-  ([build-id {:keys [autobuild] :as opts}]
-   (let [build-config
-         (if (map? build-id)
-           build-id
-           (config/get-build! build-id))
-
-         {:keys [out supervisor] :as app}
-         app-instance]
-
-     (if-let [worker (super/get-worker supervisor build-id)]
-       (when autobuild
-         (worker/start-autobuild worker))
-
-       (-> (super/start-worker supervisor build-config)
-           (worker/watch out false)
-           (cond->
-             autobuild
-             (worker/start-autobuild))
-           ;; FIXME: sync to ensure the build finished before start-worker returns?
-           ;; (worker/sync!)
-           )))
-   ::started))
+(defn start-worker [& args]
+  (binding [repl-api/*app* app-instance]
+    (apply start-worker args)))
 
 (comment
   (start!)
