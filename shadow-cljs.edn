@@ -1,7 +1,7 @@
 {:lein
  {:profile "+cljs"}
 
- :dev-mode true
+ ;;  :dev-mode true
  :verbose true
 
  :server

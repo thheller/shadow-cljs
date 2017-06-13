@@ -17,7 +17,8 @@
             [aleph.http :as aleph]
             [shadow.cljs.devtools.server.worker.ws :as ws]
             [clojure.string :as str]
-            [shadow.cljs.devtools.server.supervisor :as super])
+            [shadow.cljs.devtools.server.supervisor :as super]
+            [cljs-tooling.complete :as cljs-complete])
   (:import (java.io PushbackReader StringReader)))
 
 (defn web-root
@@ -133,20 +134,48 @@
    #(worker-read-string worker %)
    })
 
+(defn debug [app action data]
+  (when (-> app :config :debug)
+    (>!! (:out app) {:type :debug :action action :data data})))
+
+(def repl-api-fns
+  ;; return value of these is ignored, print to *out* should work?
+  {'shadow.inf-clojure/completions
+   (fn [{:keys [out] :as app} worker repl-state read-result prefix]
+     (let [compiler-env
+           (-> worker :state-ref deref :compiler-state :compiler-env)
+
+           result
+           (cljs-complete/completions compiler-env prefix {:context-ns (:ns repl-state)})]
+       (debug app :shadow.inf-clojure/completions {:complete prefix :result result})
+       (prn result)
+       ))})
+
+(defn do-repl-api-fn [app worker repl-state {:keys [form] :as read-result}]
+  (let [[special-fn & args]
+        form
+
+        handler
+        (get repl-api-fns special-fn)]
+
+    (apply handler app worker repl-state read-result args)))
 
 (defn stdin-takeover!
-  [worker]
+  [worker {:keys [out] :as app}]
   (r/takeover (repl-level worker)
     (loop []
       ;; unlock stdin when we can't get repl-state, just in case
       (when-let [repl-state (worker-repl-state worker)]
 
-        (print (format "[%d:%d] %s=> " r/*root-id* r/*level-id* (-> repl-state :current :ns)))
+        ;; FIXME: inf-clojure checks when there is a space between \n and =>
+        (print (format "[%d:%d]~%s=> " r/*root-id* r/*level-id* (-> repl-state :current :ns)))
         (flush)
 
         ;; need the repl state to properly support reading ::alias/foo
         (let [{:keys [eof? form] :as read-result}
               (repl/read-one repl-state *in* {})]
+
+          (debug app :stdin-takeover! {:read-result read-result})
 
           (cond
             eof?
@@ -160,6 +189,11 @@
 
             (= :cljs/quit form)
             :quit
+
+            (and (list? form)
+                 (contains? repl-api-fns (first form)))
+            (do (do-repl-api-fn app worker repl-state read-result)
+                (recur))
 
             :else
             (when-some [result (worker/repl-eval worker ::stdin read-result)]
@@ -185,6 +219,7 @@
         {:id :node-repl
          :target :node-script
          :main 'shadow.cljs.devtools.client.node-repl/main
+         :hashbang false
          :output-to script-name}
 
         out-chan
@@ -206,7 +241,12 @@
 
         result
         (-> worker
-            (worker/watch out-chan)
+            ;; forwards all build messages to the server output
+            ;; prevents spamming the REPL with build progress
+            (worker/watch (:out app))
+            ;; warnings currently go to the output of the server
+            ;; should probably go to the REPL as well
+            ;; (worker/watch out-chan)
             (worker/compile!))]
 
     ;; FIXME: validate that compilation succeeded
@@ -233,7 +273,7 @@
 
       (let [stdin-fn
             (bound-fn []
-              (stdin-takeover! worker))
+              (stdin-takeover! worker app))
 
             stdin-thread
             (doto (Thread. stdin-fn)
@@ -308,7 +348,7 @@
             (not autobuild)
             (worker/compile))
           (worker/sync!)
-          (stdin-takeover!))
+          (stdin-takeover! app))
 
       :done
       (catch Exception e

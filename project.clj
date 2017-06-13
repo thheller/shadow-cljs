@@ -21,7 +21,7 @@
     [org.msgpack/msgpack]]
 
    [org.clojure/core.async "0.3.443"]
-   [org.clojure/tools.reader "1.0.0-RC1"]
+   [org.clojure/tools.reader "1.0.0"]
    [org.clojure/clojurescript "1.9.562"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
@@ -37,7 +37,10 @@
 
    [aleph "0.4.3"]
    [hiccup "1.0.5"]
-   [ring/ring-core "1.6.1"]]
+   [ring/ring-core "1.6.1"]
+
+   [cljs-tooling "0.2.0"]
+   [compliment "0.3.4"]]
 
   :source-paths
   ["src/main"]

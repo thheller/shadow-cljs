@@ -8,6 +8,8 @@
 
 ### Changes
 
+- Warning output with color
+
 ## [1.0.20170610](https://github.com/thheller/shadow-cljs/compare/1.0.20170603...1.0.20170610)
 
 ### Changes

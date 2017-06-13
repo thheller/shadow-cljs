@@ -60,7 +60,10 @@
         (super/get-worker supervisor build-id)]
     (if-not worker
       :no-worker
-      (api/stdin-takeover! worker))))
+      (api/stdin-takeover! worker app))))
+
+(defn node-repl []
+  (api/node-repl* (app) {}))
 
 (defn once [build-id]
   (api/once build-id))

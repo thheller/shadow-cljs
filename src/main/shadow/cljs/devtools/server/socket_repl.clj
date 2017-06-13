@@ -12,7 +12,8 @@
            (clojure.lang LineNumberingPushbackReader)))
 
 (defn repl-prompt []
-  (printf "[%d:%d] %s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))
+  ;; FIXME: inf-clojure checks when there is a space between \n and =>
+  (printf "[%d:%d]~%s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))
 
 (def repl-requires
   '[[clojure.repl :refer (source apropos dir pst doc find-doc)]

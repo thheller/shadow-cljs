@@ -7,4 +7,6 @@ shadow-cljs - CLJ REPL
 (shadow/once :foo) - Compiles a dev build once
 (shadow/release :foo) - Create a release build for :foo
 
+(shadow/node-repl) - launches a node process and connects to a CLJS REPL
+
 More coming soon ...
