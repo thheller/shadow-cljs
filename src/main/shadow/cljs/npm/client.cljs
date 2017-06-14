@@ -36,7 +36,8 @@
               (do (println "shadow-cljs - connected to server")
 
                   ;; FIXME: this is an ugly hack that will be removed soon
-                  (.write socket (str "(shadow.cljs.devtools.cli/from-remote " (pr-str (into [] args)) ") :repl/quit\n"))
+                  (when-not (= ["--repl"] args)
+                    (.write socket (str "(shadow.cljs.devtools.cli/from-remote " (pr-str (into [] args)) ") :repl/quit\n")))
 
                   (.on rl "line"
                     (fn [line]

@@ -19,5 +19,10 @@ X.prototype.argv;
 X.prototype.driver;
 X.prototype.keyInYN;
 X.prototype.unicode;
+X.prototype.on;
+X.prototype.setPrompt;
+X.prototype.createInterface;
 
 process.exit;
+process.stdin;
+process.stdout;
