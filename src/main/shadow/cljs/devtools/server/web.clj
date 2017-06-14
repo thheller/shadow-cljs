@@ -5,6 +5,7 @@
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.explorer :as web-explorer]
     [shadow.cljs.devtools.server.web.api :as web-api]
+    [shadow.http.router :as http]
     [shadow.server.assets :as assets]
     [shadow.cljs.devtools.server.worker.ws :as ws]))
 
@@ -16,23 +17,10 @@
       ;; (assets/js-queue :none 'shadow.cljs.ui.app/init)
       )))
 
-(defn root [{:keys [build] :as req}]
-  (let [uri
-        (get-in req [:ring-request :uri])]
-
-    (cond
-      (= uri "/")
-      (index-page req)
-
-      (str/starts-with? uri "/api")
-      (web-api/root req)
-
-      (str/starts-with? uri "/explorer")
-      (web-explorer/root req)
-
-      (str/starts-with? uri "/worker")
-      (ws/process req)
-
-      :else
-      common/not-found
-      )))
+(defn root [req]
+  (http/route req
+    (:GET "" index-page)
+    (:ANY "^/api" web-api/root)
+    (:ANY "^/explorer" web-explorer/root)
+    (:ANY "^/worker" ws/process)
+    common/not-found))

@@ -15,7 +15,8 @@
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
             [shadow.cljs.devtools.server.runtime :as runtime]
-            [shadow.repl :as repl]))
+            [shadow.repl :as repl]
+            [shadow.http.router :as http]))
 
 (defn app [config]
   (merge
@@ -40,7 +41,7 @@
              :body "App not ready!"}
             (-> app
                 (assoc :ring-request ring-map)
-                (web/root)))))
+                (http/do-ring web/root)))))
       (cond->
         dev-mode
         (ring-file/wrap-file (io/file "target/shadow-cljs/ui/output")))

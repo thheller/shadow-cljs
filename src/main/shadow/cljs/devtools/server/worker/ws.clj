@@ -3,7 +3,7 @@
   (:require [clojure.core.async :as async :refer (thread alt!! >!!)]
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [aleph.http :as http]
+            [aleph.http :as aleph]
             [manifold.deferred :as md]
             [manifold.stream :as ms]
             [clojure.edn :as edn]
@@ -13,7 +13,8 @@
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.devtools.server.web.common :as common])
+            [shadow.cljs.devtools.server.web.common :as common]
+            [shadow.http.router :as http])
   (:import (java.util UUID)))
 
 (defn ws-loop!
@@ -100,7 +101,7 @@
          :result-chan result-chan
          :watch-chan watch-chan}]
 
-    (-> (http/websocket-connection ring-request
+    (-> (aleph/websocket-connection ring-request
           {:headers
            (let [proto (get-in ring-request [:headers "sec-websocket-protocol"])]
              (if (seq proto)
@@ -186,13 +187,12 @@
       )))
 
 (defn process
-  [{:keys [supervisor] :as ctx}]
+  [{::http/keys [path-tokens] :keys [supervisor] :as ctx}]
 
   ;; "/worker/browser/430da920-ffe8-4021-be47-c9ca77c6defd/305de5d9-0272-408f-841e-479937512782/browser"
   ;; _ _ to drop / and worker
-  (let [[_ _ action build-id proc-id client-id client-type :as x]
-        (-> (get-in ctx [:ring-request :uri])
-            (str/split #"/"))
+  (let [[action build-id proc-id client-id client-type :as x]
+        path-tokens
 
         build-id
         (keyword build-id)

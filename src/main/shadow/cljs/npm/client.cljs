@@ -26,7 +26,7 @@
                    :completer
                    (fn [prefix callback]
                      ;; FIXME: hook this up properly
-                     (callback nil #js [#js [] prefix]))})]
+                     (callback nil (clj->js [[] prefix])))})]
 
         (.on socket "connect"
           (fn [err]
@@ -35,6 +35,7 @@
 
               (do (println "shadow-cljs - connected to server")
 
+                  ;; FIXME: this is an ugly hack that will be removed soon
                   (.write socket (str "(shadow.cljs.devtools.cli/from-remote " (pr-str (into [] args)) ") :repl/quit\n"))
 
                   (.on rl "line"

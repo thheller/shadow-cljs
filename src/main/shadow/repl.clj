@@ -16,7 +16,7 @@
 (def ^:dynamic *level-id* 0)
 
 (defonce roots-ref
-  (volatile! {*root-id* {::levels []}}))
+  (volatile! {*root-id* {::root-id 0 ::levels []}}))
 
 (defn level-enter [level]
   ;; FIXME: not thread-safe
@@ -68,14 +68,14 @@
 
 (defmacro enter-root [root-info & body]
   {:pre [(map? root-info)]}
-  `(binding [*root-id* (next-root-id)]
-     (vswap! roots-ref assoc *root-id* (assoc ~root-info ::levels []))
-     (try
-       ~@body
+  `(let [root-id# (next-root-id)]
+     (binding [*root-id* root-id#]
+       (vswap! roots-ref assoc *root-id* (assoc ~root-info ::root-id root-id# ::levels []))
+       (try
+         ~@body
 
-       (finally
-         (vswap! roots-ref dissoc *root-id*)))))
-
+         (finally
+           (vswap! roots-ref dissoc *root-id*))))))
 
 (defn roots []
   @roots-ref)

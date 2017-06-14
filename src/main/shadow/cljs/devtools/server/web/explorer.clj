@@ -3,7 +3,8 @@
             [shadow.cljs.devtools.server.web.common :as common]
             [hiccup.core :refer (html)]
             [clojure.pprint :refer (pprint)]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [shadow.http.router :as http]))
 
 (defn index-page
   [{:keys [explorer] :as req}]
@@ -21,8 +22,11 @@
       )))
 
 (defn inspect-page
-  [{:keys [explorer] :as req} src]
-  (let [{:keys [info error] :as result}
+  [{::http/keys [path-tokens] :keys [explorer] :as req}]
+  (let [src
+        (str/join "/" path-tokens)
+
+        {:keys [info error] :as result}
         (explorer/get-source-info explorer src)
 
         {:keys [ns warnings defs deps]}
@@ -61,20 +65,7 @@
         ))))
 
 (defn root [req]
-  (let [uri
-        (-> (get-in req [:ring-request :uri])
-            (subs (count "/explorer")))]
-
-    (cond
-      (= uri "/")
-      (index-page req)
-
-      (str/starts-with? uri "/inspect/")
-      (let [src-name
-            (-> uri
-                (subs (count "/inspect/")))]
-        (inspect-page req src-name))
-
-      :else
-      common/not-found
-      )))
+  (http/route req
+    (:GET "" index-page)
+    (:GET "^/inspect" inspect-page)
+    common/not-found))

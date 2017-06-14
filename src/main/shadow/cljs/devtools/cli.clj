@@ -17,7 +17,8 @@
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.devtools.server :as server]
             [shadow.cljs.devtools.server.runtime :as runtime]
-            [shadow.cljs.devtools.errors :as errors]))
+            [shadow.cljs.devtools.errors :as errors]
+            [shadow.http.router :as http]))
 
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
@@ -31,19 +32,12 @@
    :runtime :node
    :output-dir "node_modules/shadow-cljs"})
 
-
 (defn web-root
   "only does /worker requests"
   [{:keys [ring-request] :as req}]
-  (let [{:keys [uri]} ring-request]
-
-    (cond
-      (str/starts-with? uri "/worker")
-      (ws/process req)
-
-      :else
-      web-common/not-found
-      )))
+  (http/route req
+    (:ANY "^/worker" ws/process)
+    web-common/not-found))
 
 (defn get-ring-handler [config app-promise]
   (fn [ring-map]

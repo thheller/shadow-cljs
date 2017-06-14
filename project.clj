@@ -13,7 +13,7 @@
    [org.clojure/java.classpath "0.2.3"]
    [org.clojure/data.json "0.2.6"]
 
-   [org.clojure/tools.logging "0.3.1"]
+   [org.clojure/tools.logging "0.4.0"]
    [org.clojure/tools.cli "0.3.5"]
 
    [com.cognitect/transit-clj "0.8.300"

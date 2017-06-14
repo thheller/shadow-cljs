@@ -4,7 +4,7 @@
             [hiccup.core :refer (html)]
             [clojure.java.io :as io]))
 
-(def not-found
+(defn not-found [req]
   {:status 404
    :headers {"content-type" "text/plain"}
    :body "Not found."})
@@ -13,6 +13,11 @@
   {:status 406 ;; not-acceptable
    :headers {"Content-Type" "text/plain"}
    :body "websocket required"})
+
+(defn edn [req data]
+  {:status 200
+   :header {"content-type" "application/edn"}
+   :body (pr-str data)})
 
 (defn page-boilerplate
   [req ^String content]

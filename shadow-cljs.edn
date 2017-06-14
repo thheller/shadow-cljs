@@ -3,6 +3,7 @@
 
  ;;  :dev-mode true
  :verbose true
+ :debug true
 
  :server
  {:autostart #{}}
