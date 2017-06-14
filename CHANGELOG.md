@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.20170615](https://github.com/thheller/shadow-cljs/compare/1.0.20170613...1.0.20170615)
+
+### Features
+
+- remote mode. If a `shadow-cljs --server` is running the `shadow-cljs` script will now connect to that instead of launching a new JVM. Leading to much faster response times.
+- `shadow-cljs --repl` will just connect to the server and start a CLJ REPL
+
+### Fixes
+
+- long lines could break the warning printer #49
+
 ## [1.0.20170613](https://github.com/thheller/shadow-cljs/compare/1.0.20170610...1.0.20170613)
 
 ### Features
