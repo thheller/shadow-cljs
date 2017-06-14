@@ -27,8 +27,6 @@
   (println (format "[%s] Compiling ..." (:id build-config))))
 
 
-(def separator "------------------------------------------------------------------------")
-
 ;; https://en.wikipedia.org/wiki/ANSI_escape_code
 ;; https://github.com/chalk/ansi-styles/blob/master/index.js
 
@@ -54,11 +52,22 @@
     ;; always reset to 0 sucks if there are nested styles
     (str (ansi-seq open) s (ansi-seq [0]))))
 
-(defn sep-line [override offset]
-  (let [prefix (subs separator 0 offset)
-        len (count override)
-        suffix (subs separator (+ offset len))]
-    (str prefix override suffix)))
+;; all this was pretty rushed and should be rewritten propely
+;; long lines are really ugly and should maybe do some kind of word wrap
+(def sep-length 80)
+
+(defn sep-line
+  ([]
+    (sep-line "" 0))
+  ([label offset]
+   (let [sep-len (Math/max sep-length offset)
+         len (count label)
+
+         sep
+         (fn [c]
+           (->> (repeat c "-")
+                (str/join "")))]
+     (str (sep offset) label (sep (- sep-len (+ offset len)))))))
 
 (defn print-source-lines
   [start-idx lines transform]
@@ -81,10 +90,10 @@
   (if-not source-excerpt
     (do (println)
         (println (str " " (coded-str [:yellow :bold] msg)))
-        (println separator))
+        (println (sep-line)))
 
     (let [{:keys [start-idx before line after]} source-excerpt]
-      (println separator)
+      (println (sep-line))
       (print-source-lines start-idx before dim)
       (print-source-lines (+ start-idx (count before)) [line] #(coded-str [:bold] %))
       (let [col (+ 7 (or column 1))
@@ -96,11 +105,11 @@
 
         (println (sep-line "^" (dec col)))
         (println (str " " (coded-str [:yellow :bold] msg)))
-        (println separator))
+        (println (sep-line)))
 
       (when (seq after)
         (print-source-lines (+ start-idx (count before) 1) after dim)
-        (println separator))
+        (println (sep-line)))
       ))
   (println))
 
