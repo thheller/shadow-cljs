@@ -1,6 +1,5 @@
 (ns repl
-  (:require [shadow.cljs.devtools.embedded :as cljs]
-            [shadow.cljs.devtools.server :as server]))
+  (:require [shadow.cljs.devtools.server :as server]))
 
 (defn start []
   ;; (cljs/start! {:verbose true})

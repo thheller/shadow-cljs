@@ -3,9 +3,7 @@
             [clojure.pprint :refer (pprint)]
             [clojure.main :as m]
             [clojure.string :as str]
-            [clojure.core.server :as srv]
-            [shadow.cljs.devtools.api :as api]
-            [shadow.cljs.devtools.server.repl-api :as repl-api])
+            [clojure.core.server :as srv])
   (:import java.net.ServerSocket
            (java.io StringReader PushbackReader PrintStream BufferedWriter OutputStreamWriter InputStreamReader)
            (java.net InetAddress SocketException)
@@ -15,16 +13,18 @@
   ;; FIXME: inf-clojure checks when there is a space between \n and =>
   (printf "[%d:%d]~%s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))
 
-(def repl-requires
-  '[[clojure.repl :refer (source apropos dir pst doc find-doc)]
-    [clojure.java.javadoc :refer (javadoc)]
-    [clojure.pprint :refer (pp pprint)]
-    [shadow.cljs.devtools.server.repl-api :as shadow :refer (help)]])
-
 (defn repl-init []
-  (in-ns 'shadow.user)
-  (apply require repl-requires)
-  (shadow.cljs.devtools.server.repl-api/help))
+  (ns shadow.user
+    (:require [clojure.repl :refer (source apropos dir pst doc find-doc)]
+              [clojure.java.javadoc :refer (javadoc)]
+              [clojure.pprint :refer (pp pprint)]
+              [shadow.cljs.devtools.api :as shadow :refer (help)]))
+
+  ;; (in-ns 'shadow.user)
+  ;; (apply require repl-requires)
+  ;; just doing that does refer-clojure, ns seems to work
+
+  (println "shadow-cljs - REPL - see (help), :repl/quit to exit"))
 
 (defn repl []
   (let [loop-bindings
@@ -120,8 +120,7 @@
       (try
         (binding [*in* in
                   *out* out
-                  *err* out
-                  repl-api/*app* app]
+                  *err* out]
 
           (repl/enter-root
             {::repl/type :remote

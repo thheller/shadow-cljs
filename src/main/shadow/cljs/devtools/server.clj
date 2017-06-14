@@ -14,9 +14,8 @@
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
-            [shadow.cljs.devtools.server.repl-api :as repl-api]))
-
-(defonce app-instance nil)
+            [shadow.cljs.devtools.server.runtime :as runtime]
+            [shadow.repl :as repl]))
 
 (defn app [config]
   (merge
@@ -99,19 +98,18 @@
 
     (deliver app-promise app)
 
-    ;; FIXME: refuse to start if a pid already exists
-    (spit pid-file (str http-port))
+    ;; FIXME: should refuse to start if a pid already exists
+    (spit pid-file (pr-str {:http http-port
+                            :socket-repl (:port socket-repl)}))
 
     (future
       ;; OCD because I want to print the shadow-cljs info of start!
       ;; before and build output
       (Thread/sleep 100)
       (when-let [{:keys [autostart] :as srv-config} (:server config)]
-        (binding [repl-api/*app* app]
-
-          (doseq [build-id autostart]
-            (repl-api/start-worker build-id)
-            ))))
+        (doseq [build-id autostart]
+          (super/start-worker (:supervisor app) build-id)
+          )))
 
     app
     ))
@@ -134,33 +132,33 @@
      (println (str "shadow-cljs - server running at http://" (:host http) ":" (:port http)))
      (println (str "shadow-cljs - socket repl running at tcp://" (:host socket-repl) ":" (:port socket-repl)))
 
-     (alter-var-root #'app-instance (fn [_] app))
+     (runtime/set-instance! app)
      ::started
      )))
 
 (defn stop!
   ([]
-    (when app-instance
-      (shutdown-system app-instance)))
-  ([instance]
-   (shutdown-system instance)
-   ::stopped))
+    (when @runtime/instance-ref
+      (shutdown-system @runtime/instance-ref)
+      (runtime/reset-instance!)
+      )))
 
 (defn -main [& args]
   (start!)
-  (netty/wait-for-close (get-in app-instance [:http :server]))
+  (-> @runtime/instance-ref
+      (get-in [:http :server])
+      (netty/wait-for-close))
   (shutdown-agents))
 
 (defn from-cli [options]
-  (start!)
-  (netty/wait-for-close (get-in app-instance [:http :server]))
-  (shutdown-agents))
+  (if @runtime/instance-ref
+    (println "TBD: you just connected to a running server, can't start another one")
 
-;; server API
-
-(defn start-worker [& args]
-  (binding [repl-api/*app* app-instance]
-    (apply start-worker args)))
+    (do (start!)
+        (-> @runtime/instance-ref
+            (get-in [:http :server])
+            (netty/wait-for-close))
+        (shutdown-agents))))
 
 (comment
   (start!)

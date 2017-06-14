@@ -1,12 +1,11 @@
 shadow-cljs - CLJ REPL
 
-(shadow/start-worker :foo) - Starts a dev process for build :foo
-(shadow/repl :foo) - Switches the current REPL to that of :foo
-(shadow/stop-worker :foo) - Stop the dev process
+  (shadow/start-worker :foo) - Starts a dev process for build :foo
+  (shadow/repl :foo) - Switches the current REPL to that of :foo
+  (shadow/stop-worker :foo) - Stop the dev process
 
-(shadow/once :foo) - Compiles a dev build once
-(shadow/release :foo) - Create a release build for :foo
+  (shadow/dev :foo) - start build, connects repl, stops on :repl/quit
+  (shadow/once :foo) - Compiles a dev build once
+  (shadow/release :foo) - Create a release build for :foo
 
-(shadow/node-repl) - launches a node process and connects to a CLJS REPL
-
-More coming soon ...
+  (shadow/node-repl) - launches a node process and connects to a CLJS REPL

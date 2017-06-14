@@ -3,19 +3,16 @@
   (:require ["path" :as path]
             ["fs" :as fs]
             ["child_process" :as cp]
-            ["readline" :as rl]
             ["readline-sync" :as rl-sync] ;; FIXME: drop this?
             ["mkdirp" :as mkdirp]
             [cljs.reader :as reader]
             [cljs.core.async :as async]
             [clojure.string :as str]
+            [shadow.cljs.npm.util :as util]
+            [shadow.cljs.npm.client :as client]
             ))
 
 (def version (js/require "./version.json"))
-
-(defn slurp [file]
-  (-> (fs/readFileSync file)
-      (.toString)))
 
 (defn file-older-than [a b]
   (let [xa (fs/statSync a)
@@ -68,7 +65,7 @@
     (run project-root "lein" lein-args)))
 
 (def default-config-str
-  (slurp (path/resolve js/__dirname "default-config.edn")))
+  (util/slurp (path/resolve js/__dirname "default-config.edn")))
 
 (def default-config
   (reader/read-string default-config-str))
@@ -98,7 +95,7 @@
             ))))))
 
 (defn modified-dependencies? [cp-file config]
-  (let [cp (-> (slurp cp-file)
+  (let [cp (-> (util/slurp cp-file)
                (reader/read-string))]
 
     (or (not= (:version cp) (:version config))
@@ -118,7 +115,7 @@
         (run-java project-root ["-jar" jar version (path/resolve project-root "shadow-cljs.edn")])))
 
     ;; only return :files since the rest is just cache info
-    (-> (slurp cp-file)
+    (-> (util/slurp cp-file)
         (reader/read-string)
         (:files)
         )))
@@ -131,7 +128,7 @@
 
     ;; FIXME: is it enough to AOT only when versions change?
     (when (or (not (fs/existsSync version-file))
-              (not= version (slurp version-file)))
+              (not= version (util/slurp version-file)))
 
       (mkdirp/sync aot-path)
 
@@ -181,7 +178,7 @@
           (path/dirname config-path)
 
           config
-          (-> (slurp config-path)
+          (-> (util/slurp config-path)
               (reader/read-string))]
 
       (if (not (map? config))
@@ -189,8 +186,16 @@
             (println "  previously a vector was used to define builds")
             (println "  now {:builds the-old-vector} is expected"))
 
-        (let [config (merge defaults config)]
+        (let [{:keys [cache-root] :as config}
+              (merge defaults config)
+
+              server-pid
+              (path/resolve project-root cache-root "remote.pid")]
+
           (cond
+            (fs/existsSync server-pid)
+            (client/run project-root config server-pid args)
+
             (:lein config)
             (run-lein project-root config args)
 

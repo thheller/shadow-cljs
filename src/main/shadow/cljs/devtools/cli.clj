@@ -6,7 +6,18 @@
             [clojure.java.io :as io]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.cli-opts :as opts]
-            [clojure.repl :as repl]))
+            [clojure.repl :as repl]
+            [shadow.cljs.devtools.server.worker.ws :as ws]
+            [shadow.cljs.devtools.server.web.common :as web-common]
+            [aleph.http :as aleph]
+            [aleph.netty :as netty]
+            [shadow.cljs.devtools.server.util :as util]
+            [shadow.cljs.devtools.server.common :as common]
+            [shadow.cljs.devtools.server.supervisor :as super]
+            [shadow.cljs.devtools.api :as api]
+            [shadow.cljs.devtools.server :as server]
+            [shadow.cljs.devtools.server.runtime :as runtime]
+            [shadow.cljs.devtools.errors :as errors]))
 
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
@@ -20,17 +31,83 @@
    :runtime :node
    :output-dir "node_modules/shadow-cljs"})
 
-(defn invoke
-  "invokes a fn by requiring the namespace and looking up the var"
-  [sym & args]
-  ;; doing the delayed (require ...) so things are only loaded
-  ;; when a path is reached as they load a bunch of code other paths
-  ;; do not use, greatly improves startup time
-  (let [require-ns (symbol (namespace sym))]
-    (require require-ns)
-    (let [fn-var (find-var sym)]
-      (apply fn-var args)
+
+(defn web-root
+  "only does /worker requests"
+  [{:keys [ring-request] :as req}]
+  (let [{:keys [uri]} ring-request]
+
+    (cond
+      (str/starts-with? uri "/worker")
+      (ws/process req)
+
+      :else
+      web-common/not-found
       )))
+
+(defn get-ring-handler [config app-promise]
+  (fn [ring-map]
+    (let [app (deref app-promise 1000 ::timeout)]
+      (if (= app ::timeout)
+        {:status 501
+         :body "App not ready!"}
+        (-> app
+            (assoc :ring-request ring-map)
+            (web-root))))))
+
+(defn start []
+  (let [{:keys [cache-root] :as config}
+        (config/load-cljs-edn)
+
+        app-promise
+        (promise)
+
+        ring
+        (get-ring-handler config app-promise)
+
+        host
+        (get-in config [:http :host] "localhost")
+
+        ;; this uses a random port so we can start multiple instances
+        ;; eventually this will all be done in :server mode
+        http
+        (aleph/start-server ring {:host host
+                                  :port 0})
+
+        http-port
+        (netty/port http)
+
+        app
+        (-> {::started (System/currentTimeMillis)
+             :config config
+             :out (util/stdout-dump (:verbose config))
+             :http {:port (netty/port http)
+                    :host host
+                    :server http}}
+            (rt/init (common/app config))
+            (rt/start-all))]
+
+    (deliver app-promise app)
+
+    app
+    ))
+
+(defn stop [{:keys [http] :as app}]
+  (rt/stop-all app)
+  (let [netty (:server http)]
+    (.close netty)
+    (netty/wait-for-close netty)))
+
+(defn with-app
+  [thunk]
+  (if @runtime/instance-ref
+    (thunk)
+    (let [app (start)]
+      (try
+        (thunk)
+        (finally
+          (stop app))
+        ))))
 
 (defn main [& args]
   (try
@@ -45,7 +122,7 @@
         (opts/help opts)
 
         (= :server (::opts/mode options))
-        (invoke 'shadow.cljs.devtools.server/from-cli options)
+        (server/from-cli options)
 
         :else
         (let [{::opts/keys [build npm]} options
@@ -62,26 +139,26 @@
                 nil)]
 
           (if-not (some? build-config)
-            (do (println "Please use specify a build or use --npm")
+            (do (println "Please specify a build or use --npm")
                 (opts/help opts))
 
             (case (::opts/mode options)
               :release
-              (invoke 'shadow.cljs.devtools.api/release* build-config options)
+              (api/release* build-config options)
 
               :check
-              (invoke 'shadow.cljs.devtools.api/check* build-config options)
+              (api/check* build-config options)
 
               :dev
-              (invoke 'shadow.cljs.devtools.api/dev* build-config options)
+              (with-app #(api/dev* build-config options))
 
               ;; make :once the default
-              (invoke 'shadow.cljs.devtools.api/once* build-config options)
+              (api/once* build-config options)
               )))))
 
     (catch Exception e
       (try
-        (invoke 'shadow.cljs.devtools.errors/user-friendly-error e)
+        (errors/user-friendly-error e)
         (catch Exception e2
           (println "failed to format error because of:")
           (repl/pst e2)
@@ -90,6 +167,9 @@
           (repl/pst e)
           (flush)
           )))))
+
+(defn from-remote [args]
+  (apply main args))
 
 (defn -main [& args]
   (apply main args))
