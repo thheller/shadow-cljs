@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.20170615-09](https://github.com/thheller/shadow-cljs/compare/1.0.20170615...1.0.20170615-09)
+
+### Fixes
+
+- fix broken websocket in non-server mode #50
+
 ## [1.0.20170615](https://github.com/thheller/shadow-cljs/compare/1.0.20170613...1.0.20170615)
 
 ### Features
