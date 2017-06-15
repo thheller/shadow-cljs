@@ -50,7 +50,7 @@
 
 (defn repl-invoke [{:keys [id] :as msg}]
   (let [result
-        (-> (env/repl-call #(node-eval msg) pr-str repl-error)
+        (-> (env/repl-call #(node-eval msg) repl-error)
             (assoc :id id))]
 
     (ws-msg result)))

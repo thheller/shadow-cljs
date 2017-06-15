@@ -165,7 +165,7 @@
                   "No stacktrace available.")))
 
 (defn repl-invoke [{:keys [id js]}]
-  (let [result (env/repl-call #(js/eval js) pr-str repl-error)]
+  (let [result (env/repl-call #(js/eval js) repl-error)]
     (-> result
         (assoc :id id)
         (ws-msg))))

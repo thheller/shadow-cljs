@@ -3,11 +3,13 @@
             [clojure.java.io :as io]
             [shadow.cljs.util :as util]
             [shadow.cljs.output :as output]
+            [shadow.cljs.warnings :as warnings]
             [cljs.analyzer :as ana]
             [cljs.compiler :as comp]
             [cljs.closure :as cljs-closure]
             [clojure.data.json :as json]
-            [cljs.env :as env])
+            [cljs.env :as env]
+            [shadow.cljs.log :as log])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime ReplaceCLJSConstants CommandLineRunner VariableMap SourceMapInput DiagnosticGroups CheckLevel JSModule CompilerOptions$LanguageMode SourceMap$LocationMapping BasicErrorManager Result)))
 
@@ -180,6 +182,10 @@
     (write-variable-map state "closure.property.map" (.-propertyMap result)))
   state)
 
+(defmethod log/event->str ::warnings
+  [{:keys [warnings]}]
+  (warnings/print-warnings warnings))
+
 (defn js-error-xf [{:keys [output-dir] :as state} ^com.google.javascript.jscomp.Compiler cc]
   (comp
     ;; remove some annoying UNDECLARED_VARIABLES in cljs/core.cljs
@@ -192,10 +198,7 @@
                      (= "variable global is undeclared" text))))))
     (map
       (fn [^JSError err]
-        (let [sb
-              (StringBuilder.)
-
-              source-name
+        (let [source-name
               (.-sourceName err)
 
               line
@@ -212,50 +215,41 @@
                 (let [src-name (.getOriginalFile mapping)]
                   (get-in state [:sources src-name])))]
 
-          (doto sb
-            (.append (.-description err))
-            (.append "\n"))
+          (if-not mapping
+            {:line line
+             :column column
+             :source-name source-name
+             :msg (.-description err)}
 
-          (when source-name
-            (.append sb "Original: ")
+            (let [{:keys [name file url]} src
 
-            (when mapping
-              (let [{:keys [file url]} src
+                  file
+                  (or (when file (.getAbsolutePath file))
+                      (let [x (str url)]
+                        (if-let [idx (str/index-of x ".m2")]
+                          (str "~/" (subs x idx))
+                          x))
+                      (.getOriginalFile mapping))
 
-                    src-loc
-                    (or (when file (.getAbsolutePath file))
-                        (let [x (str url)]
-                          (if-let [idx (str/index-of x ".m2")]
-                            (str "~/" (subs x idx))
-                            x))
-                        (.getOriginalFile mapping))]
+                  line
+                  (.getLineNumber mapping)
 
-                (doto sb
-                  (.append src-loc)
-                  (.append " [")
-                  (.append (.getLineNumber mapping))
-                  (.append ":")
-                  (.append (.getColumnPosition mapping))
-                  (.append "]\n")
-                  (.append "Compiled to: "))))
+                  column
+                  (.getColumnPosition mapping)
 
-            (doto sb
-              (.append source-name)
-              (.append "[")
-              (.append line)
-              (.append ":")
-              (.append column)
-              (.append "]\n")))
+                  source-excerpt
+                  (-> (warnings/get-source-excerpts state src
+                        [{:line line
+                          :column column}])
+                      (first))]
 
-          (-> {:line line
+              {:source-name name
+               :file file
+               :line line
                :column column
-               :source-name source-name
-               :msg (.toString sb)}
-              (cond->
-                mapping
-                (assoc :original-line (.getLineNumber mapping)
-                       :original-column (.getColumnPosition mapping)
-                       :original-name (.getOriginalFile mapping)))))))))
+               :msg (.-description err)
+               :source-excerpt source-excerpt})
+            ))))))
 
 ;; FIXME: this only works if flush-sources-by-name was called before optimize
 ;; as it works off the source map file that was generated
@@ -274,7 +268,9 @@
         (when (.exists sm-file)
           ;; not using SourceFile/fromFile as the name that gets displayed in warnings sucks
           ;; public/js/cljs-runtime/cljs/core.cljs vs cljs/core.cljs
-          (.addInputSourceMap cc js-name (SourceMapInput. (SourceFile/fromCode name (slurp sm-file))))
+          (->> (SourceFile/fromCode js-name (slurp sm-file))
+               (SourceMapInput.)
+               (.addInputSourceMap cc js-name))
           )))))
 
 (defn make-foreign-js-header
@@ -466,6 +462,7 @@
       ;; otherwise the applyInputSourceMaps will have no effect since it happens
       ;; inside a if (sourceMapOutputPath != null)
 
+      (.setSourceMapIncludeSourcesContent closure-opts true)
       (.setSourceMapOutputPath closure-opts "/dev/null")
       (.setApplyInputSourceMaps closure-opts true))
 
@@ -490,9 +487,9 @@
       (add-input-source-maps state cc))
 
     (assoc state
-           ::externs (load-externs state)
-           ::compiler cc
-           ::compiler-options closure-opts)))
+      ::externs (load-externs state)
+      ::compiler cc
+      ::compiler-options closure-opts)))
 
 (defn rewrite-node-global-access [state js]
   (-> js
@@ -595,8 +592,8 @@
              (into #{}))]
 
     (assoc state
-           ::dead-modules dead-modules
-           ::dead-sources dead-sources)))
+      ::dead-modules dead-modules
+      ::dead-sources dead-sources)))
 
 (defn log-warnings [{::keys [compiler result] :as state}]
   (let [warnings (into [] (js-error-xf state compiler) (.warnings result))]
@@ -755,9 +752,9 @@
             (cond->
               source-map?
               (-> (assoc :source-map-json
-                         (let [sw (StringWriter.)]
-                           (.appendTo sm sw js-name)
-                           (.toString sw)))
+                    (let [sw (StringWriter.)]
+                      (.appendTo sm sw js-name)
+                      (.toString sw)))
                   (update :output str "\n//# sourceMappingURL=" (util/file-basename js-name) ".map\n"))))))))
 
 

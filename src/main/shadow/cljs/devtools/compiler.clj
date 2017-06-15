@@ -6,8 +6,8 @@
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.cljs-specs]
             [shadow.cljs.closure :as closure]
-            [clojure.string :as str])
-  (:import (java.io StringReader BufferedReader)))
+            [clojure.string :as str]
+            [shadow.cljs.warnings :as warnings]))
 
 
 (defn enhance-warnings
@@ -15,45 +15,23 @@
   [state {:keys [input file name warnings] :as rc}]
   (if-not (seq warnings)
     []
-    (let [source-lines
-          (into [] (-> @input
-                       (StringReader.)
-                       (BufferedReader.)
-                       (line-seq)))
+    (let [warnings
+          (into [] (distinct warnings))
 
-          excerpt-offset
-          5
+          source-excerpts
+          (warnings/get-source-excerpts state rc warnings)]
 
-          max-lines
-          (count source-lines)
-
-          make-source-excerpt
-          (fn [line col]
-            (let [before
-                  (Math/max 0 (- line excerpt-offset))
-
-                  idx
-                  (Math/max 0 (dec line))
-
-                  after
-                  (Math/min max-lines (+ line excerpt-offset))]
-
-              {:start-idx before
-               :before (subvec source-lines before idx)
-               :line (nth source-lines idx)
-               :after (subvec source-lines line after)}
-
-              ))]
-
-      (->> (for [{:keys [line column] :as warning} (distinct warnings)]
-             (-> warning
-                 (assoc :source-name name)
-                 (cond->
-                   file
-                   (assoc :file (.getAbsolutePath file))
-                   line
-                   (assoc :source-excerpt (make-source-excerpt line column)))))
-           (into [])))))
+      (->> (map (fn [warning source-excerpt]
+                  (-> warning
+                      (assoc :source-name name)
+                      (cond->
+                        file
+                        (assoc :file (.getAbsolutePath file))
+                        source-excerpt
+                        (assoc :source-excerpt source-excerpt))))
+             warnings source-excerpts)
+           (into [])
+           ))))
 
 (defn extract-build-info [state]
   (let [source->module

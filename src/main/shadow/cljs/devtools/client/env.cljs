@@ -32,7 +32,10 @@
 (defn files-url []
   (str "//" repl-host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id))
 
-(defn repl-call [repl-expr repl-print repl-error]
+
+(def repl-print-fn pr-str)
+
+(defn repl-call [repl-expr repl-error]
   (let [result {:type :repl/result}]
     (try
       (let [ret (repl-expr)]
@@ -42,7 +45,7 @@
 
         (try
           (assoc result
-            :value (repl-print ret))
+            :value (repl-print-fn ret))
           (catch :default e
             (js/console.log "encoding of result failed" e ret)
             (assoc result :error "ENCODING FAILED"))))

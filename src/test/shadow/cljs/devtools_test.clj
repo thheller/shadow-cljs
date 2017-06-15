@@ -209,6 +209,9 @@
 (deftest test-browser
   (api/once :browser))
 
+(deftest test-npm-check
+  (api/check :npm))
+
 (deftest test-npm-module
   (api/once :npm-module))
 

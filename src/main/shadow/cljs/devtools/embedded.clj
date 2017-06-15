@@ -3,7 +3,7 @@
   (:require [shadow.cljs.devtools.server :as server]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.devtools.server.repl-api :as repl-api]))
+            [shadow.cljs.devtools.api :as api]))
 
 (defn start! []
   (server/start!))
@@ -12,9 +12,7 @@
   (server/stop!))
 
 (defn start-worker [& args]
-  (binding [repl-api/*app* server/app-instance]
-    (apply repl-api/start-worker args)))
+  (apply api/start-worker args))
 
 (defn stop-worker [& args]
-  (binding [repl-api/*app* server/app-instance]
-    (apply repl-api/stop-worker args)))
+  (apply api/stop-worker args))

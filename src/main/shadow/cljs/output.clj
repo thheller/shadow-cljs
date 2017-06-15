@@ -140,7 +140,7 @@
                     (-> {(util/flat-filename name) source-map}
                         (sm/encode* sm-opts)
                         (dissoc "lineCount") ;; its nil which closure doesn't like
-                        ;; (assoc "sources" [name])
+                        (assoc "sources" [name])
                         )]
 
                 (json/write-str source-map-v3 :escape-slash false)

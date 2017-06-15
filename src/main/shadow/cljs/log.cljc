@@ -134,12 +134,6 @@
          "\n\tProvided: " source-path "/" name
          )))
 
-(defmethod event->str :shadow.cljs.closure/warnings
-  [{:keys [warnings]}]
-  (->> warnings
-       (map :msg)
-       (map #(str "CLOSURE-WARNING: " %))
-       (str/join "\n\n")))
 
 (defmethod event->str :cache-error
   [{:keys [ns error]}]
