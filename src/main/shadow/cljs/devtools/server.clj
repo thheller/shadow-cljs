@@ -41,7 +41,8 @@
              :body "App not ready!"}
             (-> app
                 (assoc :ring-request ring-map)
-                (http/do-ring web/root)))))
+                (http/prepare)
+                (web/root)))))
       (cond->
         dev-mode
         (ring-file/wrap-file (io/file "target/shadow-cljs/ui/output")))

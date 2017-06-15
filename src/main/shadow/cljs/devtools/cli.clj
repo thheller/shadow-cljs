@@ -34,7 +34,8 @@
 
 (defn web-root
   "only does /worker requests"
-  [{:keys [ring-request] :as req}]
+  [req]
+  (prn [:path-tokens (::http/path-tokens req)])
   (http/route req
     (:ANY "^/worker" ws/process)
     web-common/not-found))
@@ -47,6 +48,7 @@
          :body "App not ready!"}
         (-> app
             (assoc :ring-request ring-map)
+            (http/prepare)
             (web-root))))))
 
 (defn start []
@@ -97,11 +99,13 @@
   (if @runtime/instance-ref
     (thunk)
     (let [app (start)]
+      (runtime/set-instance! app)
       (try
         (thunk)
         (finally
-          (stop app))
-        ))))
+          (runtime/reset-instance!)
+          (stop app)
+          )))))
 
 (defn main [& args]
   (try

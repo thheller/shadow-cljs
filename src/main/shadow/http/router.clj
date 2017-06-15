@@ -180,17 +180,15 @@
     `(let [~req-name ~req]
        ~route-body)))
 
-(defn do-ring
-  [{:keys [ring-request] :as ctx} handler]
+(defn prepare
+  [{:keys [ring-request] :as ctx}]
   (let [{:keys [uri]}
         ring-request
 
         path-tokens
         (parse-request-path uri)]
 
-    (-> ctx
-        (assoc
-          ::path-tokens path-tokens
-          ::path-tokens-consumed [])
-        (handler))))
+    (assoc ctx
+      ::path-tokens path-tokens
+      ::path-tokens-consumed [])))
 

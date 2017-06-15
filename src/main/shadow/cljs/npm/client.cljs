@@ -37,7 +37,9 @@
 
                   ;; FIXME: this is an ugly hack that will be removed soon
                   (when-not (= ["--repl"] args)
-                    (.write socket (str "(shadow.cljs.devtools.cli/from-remote " (pr-str (into [] args)) ") :repl/quit\n")))
+                    (.write socket (str "(shadow.cljs.devtools.cli/from-remote " (pr-str (into [] args)) ")\n"))
+                    (when-not (some #{"--dev"} args)
+                      (.write socket (str ":repl/quit\n"))))
 
                   (.on rl "line"
                     (fn [line]
