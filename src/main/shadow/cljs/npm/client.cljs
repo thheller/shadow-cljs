@@ -25,8 +25,21 @@
                    :output js/process.stdout
                    :completer
                    (fn [prefix callback]
-                     ;; FIXME: hook this up properly
-                     (callback nil (clj->js [[] prefix])))})]
+                     (let [last-prompt @last-prompt-ref]
+                       ;; without a prompt we can't autocomplete
+                       (if-not last-prompt
+                         (callback nil (clj->js [[] prefix]))
+
+                         ;; FIXME: hook this up properly
+                         (callback nil (clj->js [[] prefix])))))})
+
+            write
+            (fn [text]
+              ;; assume that everything we send is (read) which reads something
+              ;; we can never autocomplete
+              ;; and only a new prompt enables it
+              (vreset! last-prompt-ref nil)
+              (.write socket text))]
 
         (.on socket "connect"
           (fn [err]
@@ -37,13 +50,13 @@
 
                   ;; FIXME: this is an ugly hack that will be removed soon
                   (when-not (= ["--repl"] args)
-                    (.write socket (str "(shadow.cljs.devtools.cli/from-remote " (pr-str (into [] args)) ")\n"))
+                    (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str (into [] args)) ")\n"))
                     (when-not (some #{"--dev"} args)
-                      (.write socket (str ":repl/quit\n"))))
+                      (write (str ":repl/quit\n"))))
 
                   (.on rl "line"
                     (fn [line]
-                      (.write socket (str line "\n"))))
+                      (write (str line "\n"))))
 
                   ;; CTRL+D closes the rl
                   (.on rl "close"
