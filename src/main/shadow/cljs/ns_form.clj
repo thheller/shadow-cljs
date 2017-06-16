@@ -570,42 +570,41 @@
 
 (defn resolve-js-require
   [{:keys [output-dir] :as state}
-   {:keys [name file url] :as rc}
-   js-require]
+   js-require
+   src-file]
 
   (cond
     (not (str/starts-with? js-require "."))
     js-require
 
-    (nil? file)
+    (nil? src-file)
     ;; this is because webpack and others can't see files in jars
     ;; FIXME: think about copying the files out of the jar?
     ;; would need to copy everything since we can't tell what the other file might need
-    (throw (ex-info "relative requires are not supported without file" {:js-require js-require :rc rc}))
+    (throw (ex-info "relative requires are not supported without file" {:js-require js-require :output-dir output-dir}))
 
     :else
-    (let [rel (relative-path-from-output-dir output-dir file js-require)]
+    (let [rel (relative-path-from-output-dir output-dir src-file js-require)]
       ;; resolving is relative to output-dir
       ;; that is not very obvious in some cases
       ;; not sure if worth logging though
       #_(util/log state {:type :js-resolve
                          :output-dir output-dir
-                         :file file
+                         :file src-file
                          :js-require js-require
                          :rel rel})
       rel)
     ))
 
 (defn rewrite-js-requires
-  [{:keys [js-requires js-refers js-aliases js-imports js-renames deps] :as ns-info} state rc]
-  {:pre [(map? state)
-         (map? rc)]}
+  [{:keys [js-requires js-refers js-aliases js-imports js-renames deps] :as ns-info} state src-file]
+  {:pre [(map? state)]}
   (if (empty? js-requires)
     ns-info
     (let [resolved
           (reduce
             (fn [resolved lib]
-              (let [rel (resolve-js-require state rc lib)]
+              (let [rel (resolve-js-require state lib src-file)]
                 (assoc resolved lib rel)))
             {}
             js-requires)
@@ -669,4 +668,4 @@
 
 (defn rewrite-js-requires-for-name
   [ns-info state src-name]
-  (rewrite-js-requires ns-info state (get-in state [:sources src-name])))
+  (rewrite-js-requires ns-info state (get-in state [:sources src-name :file])))

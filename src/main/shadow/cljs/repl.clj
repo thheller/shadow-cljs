@@ -208,6 +208,80 @@
         (update-in state [:repl-state :repl-actions] conj action)
         ))))
 
+(defn repl-ns [state read-result form]
+  (let [{:keys [name] :as ns-info}
+        (ns-form/parse form)
+
+        src-name
+        (get-in state [:provide->source name])
+
+        src-file
+        (when src-name
+          (get-in state [:sources src-name :file]))
+
+        {:keys [deps] :as ns-info}
+        (-> ns-info
+            (ns-form/rewrite-js-requires state src-file)
+            (cljs/rewrite-ns-aliases state))
+
+        state
+        (cljs/with-compiler-env state
+          (cljs/post-analyze-ns ns-info state)
+          state)
+
+        dep-sources
+        (cljs/get-deps-for-entries state deps)
+
+        state
+        (cljs/do-compile-sources state dep-sources)
+
+        new-repl-current
+        {:ns name
+         :name (or src-name "<eval>")
+         :ns-info ns-info}
+
+        action
+        {:type :repl/require
+         :sources (as-client-resources state dep-sources)}
+
+        ns-provide
+        {:type :repl/invoke
+         :name "<eval>"
+         :js (str "goog.provide(\"" (comp/munge name) "\")")}]
+
+    (output/flush-sources-by-name state dep-sources)
+
+    (-> state
+        (assoc-in [:repl-state :current] new-repl-current)
+        (update-in [:repl-state :repl-actions] conj action)
+        (update-in [:repl-state :repl-actions] conj ns-provide))
+    ))
+
+(defn repl-in-ns
+  [state read-result [_ quoted-ns :as form]]
+  ;; form is (in-ns (quote the-ns))
+  (let [[q ns] quoted-ns]
+    (if (nil? (get-in state [:provide->source ns]))
+      ;; FIXME: create empty ns and switch to it
+      (do (prn [:did-not-find ns])
+          state)
+      (let [{:keys [name ns-info]}
+            (cljs/get-resource-for-provide state ns)
+
+            set-ns-action
+            {:type :repl/set-ns
+             :ns ns
+             :name name}]
+        (-> state
+            ;; FIXME: clojure in-ns doesn't actually do the ns setup
+            ;; so we should merge an ns-info only if ns is already loaded
+            ;; otherwise keep it empty
+            (update-in [:repl-state :current] merge {:ns ns
+                                                     :name name
+                                                     :ns-info ns-info})
+            (update-in [:repl-state :repl-actions] conj set-ns-action)
+            )))))
+
 (def repl-special-forms
   {'require
    repl-require
@@ -222,35 +296,11 @@
    repl-load-file
 
    'in-ns
-   (fn repl-in-ns
-     [state read-result [_ quoted-ns :as form]]
-     ;; form is (in-ns (quote the-ns))
-     (let [[q ns] quoted-ns]
-       (if (nil? (get-in state [:provide->source ns]))
-         ;; FIXME: create empty ns and switch to it
-         (do (prn [:did-not-find ns])
-             state)
-         (let [{:keys [name ns-info]}
-               (cljs/get-resource-for-provide state ns)
-
-               set-ns-action
-               {:type :repl/set-ns
-                :ns ns
-                :name name}]
-           (-> state
-               ;; FIXME: clojure in-ns doesn't actually do the ns setup
-               ;; so we should merge an ns-info only if ns is already loaded
-               ;; otherwise keep it empty
-               (update-in [:repl-state :current] merge {:ns ns
-                                                        :name name
-                                                        :ns-info ns-info})
-               (update-in [:repl-state :repl-actions] conj set-ns-action)
-               )))))
+   repl-in-ns
 
    'ns
-   (fn [state read-result ns-form]
-     (prn [:ns-not-yet-supported ns-form])
-     state)})
+   repl-ns
+   })
 
 (defmethod log/event->str ::special-fn-error
   [{:keys [source special-fn error]}]

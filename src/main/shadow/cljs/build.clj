@@ -1423,47 +1423,49 @@ normalize-resource-name
     (nil? (:compiler-env state))
     (assoc :compiler-env @(env/default-compiler-env (:compiler-options state)))))
 
-(defn generate-npm-resources [{:keys [npm-require emit-js-require] :as state}]
-  (let [js-requires
-        (->> (:sources state)
-             (vals)
-             (map :js-requires)
-             (reduce set/union #{}))]
+(defn generate-npm-resource [{:keys [emit-js-require] :as state} js-require]
+  (let [ns
+        (ns-form/make-npm-alias js-require)
 
-    (reduce
-      (fn [state js-require]
-        (let [ns
-              (ns-form/make-npm-alias js-require)
+        name
+        (str ns ".js")
 
-              name
-              (str ns ".js")
+        rc
+        {:type :js
+         :name name
+         :js-name name
+         :js-module js-require
+         :provides #{ns}
+         :requires #{}
+         :require-order []
+         :input (atom (str "goog.provide(\"" ns "\");\n"
+                           #_(->> provides
+                                  (map (fn [provide]
+                                         (str "goog.provide(\"" provide "\");")))
+                                  (str/join "\n"))
+                           "\n"
+                           (if emit-js-require
+                             (str ns " = require(\"" js-require "\");\n")
+                             (str ns " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
+         :last-modified 0}]
 
-              rc
-              {:type :js
-               :name name
-               :js-name name
-               :js-module js-require
-               :provides #{ns}
-               :requires #{}
-               :require-order []
-               :input (atom (str "goog.provide(\"" ns "\");\n"
-                                 #_(->> provides
-                                        (map (fn [provide]
-                                               (str "goog.provide(\"" provide "\");")))
-                                        (str/join "\n"))
-                                 "\n"
-                                 (if emit-js-require
-                                   (str ns " = require(\"" js-require "\");\n")
-                                   (str ns " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
-               :last-modified 0}]
+    (-> state
+        (assoc-in [:sources name] rc)
+        (assoc-in [:provide->source ns] name)
+        ;; FIXME: properly identify what :js-module-index is supposed to be
+        (update-in [:compiler-env :js-module-index] assoc (str ns) ns)
+        )))
 
-          (-> state
-              (assoc-in [:sources name] rc)
-              ;; FIXME: properly identify what :js-module-index is supposed to be
-              (update-in [:compiler-env :js-module-index] assoc (str ns) ns)
-              )))
-      state
-      js-requires)))
+(defn generate-npm-resources
+  ([state]
+   (let [js-requires
+         (->> (:sources state)
+              (vals)
+              (map :js-requires)
+              (reduce set/union #{}))]
+     (generate-npm-resources state js-requires)))
+  ([state js-requires]
+   (reduce generate-npm-resource state js-requires)))
 
 (defn make-provide-index [state]
   (let [idx

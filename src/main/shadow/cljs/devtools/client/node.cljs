@@ -33,6 +33,7 @@
   (true? (gobj/get js/SHADOW_ENV.SHADOW_IMPORTED src)))
 
 (defn closure-import [src]
+  {:pre [(string? src)]}
   (js/SHADOW_ENV.SHADOW_IMPORT src))
 
 (defn repl-init
@@ -60,10 +61,9 @@
 (defn repl-require
   [{:keys [id sources reload] :as msg}]
   (try
-    (doseq [{:keys [js-name] :as src} sources
-            :when (or reload
-                      (not (is-loaded? js-name)))]
-      (closure-import js-name))
+    (doseq [{:keys [js-name] :as src} sources]
+      (when (or reload (not (is-loaded? js-name)))
+        (closure-import js-name)))
     (ws-msg {:type :repl/require-complete :id id})
 
     (catch :default e

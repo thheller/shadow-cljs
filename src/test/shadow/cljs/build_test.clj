@@ -589,6 +589,26 @@
     (pprint action)
     ))
 
+(deftest test-repl-ns
+  (let [{:keys [repl-state] :as s}
+        (-> (basic-repl-setup)
+            (repl/process-input "(ns demo.foo (:require [demo.npm :as npm]))"))
+        action (get-in s [:repl-state :repl-actions 0])]
+    (pprint repl-state)
+    ;; (pprint action)
+    ))
+
+(deftest test-repl-string-ns
+  (let [{:keys [repl-state] :as s}
+        (-> (basic-repl-setup)
+            (repl/process-input "(ns demo.foo (:require [\"fs\" :as fs]))"))
+        action (get-in s [:repl-state :repl-actions 0])]
+    (pprint repl-state)
+    (is (not (nil? (get-in s [:sources "shadow.npm.fs.js"]))))
+    (is (not (nil? (get-in s [:provide->source 'shadow.npm.fs]))))
+    ;; (pprint action)
+    ))
+
 
 (deftest test-basic-def
   (let [{:keys [repl-state] :as s}
