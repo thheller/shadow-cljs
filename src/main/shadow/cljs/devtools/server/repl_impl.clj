@@ -169,7 +169,7 @@
         (-> worker
             ;; forwards all build messages to the server output
             ;; prevents spamming the REPL with build progress
-            (worker/watch (:out app))
+            (worker/watch (:out app) false)
             ;; warnings currently go to the output of the server
             ;; should probably go to the REPL as well
             ;; (worker/watch out-chan)

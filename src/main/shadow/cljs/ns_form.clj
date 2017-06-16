@@ -76,6 +76,8 @@
       :lib ::lib
       :opts (s/* ::require-opt))))
 
+(s/def ::require-flag #{:reload :reload-all})
+
 (s/def ::ns-require
   (s/spec
     (s/cat
@@ -84,8 +86,29 @@
       :requires
       (s/+ ::require)
       :flags
-      (s/* #{:reload :reload-all})
+      (s/* ::require-flag)
       )))
+
+(s/def ::quoted-require
+  (s/spec
+    (s/cat
+      :quote
+      '#{quote}
+      :require
+      ::require)))
+
+(s/def ::repl-require
+  (s/cat
+    :clause
+    '#{require}
+
+    :quoted-require
+    ::quoted-require
+
+    :flags
+    (s/* ::require-flag)
+    ))
+
 ;; :import
 
 (s/def ::import
@@ -192,13 +215,16 @@
     opts))
 
 (defn merge-require [ns-info merge-key sym ns]
-  (when-let [conflict (get-in ns-info [merge-key sym])]
-    (throw
-      (ex-info (format "conflict on \"%s\" by \"%s\" used by \"%s\"" sym ns conflict)
-        {:ns-info ns-info
-         :merge-key merge-key
-         :sym sym
-         :ns ns})))
+  (let [conflict (get-in ns-info [merge-key sym])]
+    (when (and conflict
+               (not= conflict ns))
+
+      (throw
+        (ex-info (format "conflict on \"%s\" by \"%s\" used by \"%s\"" sym ns conflict)
+          {:ns-info ns-info
+           :merge-key merge-key
+           :sym sym
+           :ns ns}))))
   (update ns-info merge-key assoc sym ns))
 
 (defn merge-require-fn [merge-key ns]
@@ -208,12 +234,19 @@
   (fn [ns-info rename-to rename-from]
     (update ns-info merge-key assoc rename-from (symbol (str ns) (str rename-to)))))
 
+(defn add-dep [ns-info sym]
+  (update ns-info :deps
+    (fn [deps]
+      (->> (conj deps sym)
+           (distinct)
+           (into [])))))
+
 (defn reduce-require [ns-info [key require]]
   (case key
     :sym
     (-> ns-info
         (merge-require :requires require require)
-        (update :deps conj require))
+        (add-dep require))
     :seq
     (let [{:keys [lib opts]}
           require
@@ -229,7 +262,7 @@
       (if (string? lib)
         ;; string require ;; FIXME: should warn on refer-macros or include-macros
         (-> ns-info
-            (update :deps conj lib)
+            (add-dep lib)
             (update :js-requires conj lib)
             (cond->
               as
@@ -244,7 +277,7 @@
 
         ;; symbol require
         (-> ns-info
-            (update :deps conj lib)
+            (add-dep lib)
             (merge-require :requires lib lib)
             (cond->
               as
@@ -318,7 +351,7 @@
       (-> ns-info
           (merge-require :requires class import)
           (merge-require :imports class import)
-          (update :deps conj import)))
+          (add-dep import)))
 
     :seq
     (let [{:keys [lib names]} import]
@@ -332,7 +365,7 @@
         (string? lib)
         (-> ns-info
             (update :js-requires conj lib)
-            (update :deps conj lib)
+            (add-dep lib)
             (reduce->
               (merge-require-fn :js-imports lib)
               names))
@@ -345,7 +378,7 @@
                   (-> ns-info
                       (merge-require :imports sym fqn)
                       (merge-require :requires sym fqn)
-                      (update :deps conj fqn))))
+                      (add-dep fqn))))
               names))))))
 
 (defmethod reduce-ns-clause :import [ns-info [_ clause]]
@@ -389,7 +422,7 @@
             ;; symbol (:use [some :only (foo)])
             (-> ns-info
                 (merge-require :requires lib lib)
-                (update :deps conj lib)
+                (add-dep lib)
                 (reduce->
                   (merge-require-fn :uses lib)
                   only)
@@ -460,17 +493,38 @@
             ns-info
             (-> ns-info
                 (update :requires assoc 'cljs.core 'cljs.core)
-                (update :deps #(into '[cljs.core] %))))
-
-          deps
-          (->> deps
-               (distinct)
-               (into []))]
+                (update :deps
+                  (fn [deps]
+                    (->> (concat '[cljs.core] deps)
+                         ;; just in case someone manually required cljs.core
+                         (distinct)
+                         (into [])
+                         )))))]
 
       ;; FIXME: shadow.cljs uses :require-order since that was there before :deps
       ;; should probably rename all references of :require-order to :deps to match cljs
       ;; for now just copy
-      (assoc ns-info :deps deps :require-order deps)
+      (assoc ns-info :require-order deps)
+      )))
+
+(defn merge-repl-require [ns-info require-args]
+  (let [conformed (s/conform ::repl-require require-args)]
+
+    (when (= conformed ::s/invalid)
+      (throw (ex-info "failed to parse ns require"
+               (assoc (s/explain-data ::repl-require require-args)
+                 :tag ::invalid-require))))
+
+    (let [require
+          (get-in conformed [:quoted-require :require])
+
+          {:keys [flags]}
+          conformed
+
+          {:keys [deps] :as ns-info}
+          (reduce-require ns-info require)]
+
+      (assoc ns-info :require-order deps :flags (into #{} flags))
       )))
 
 (defn make-npm-alias [lib]

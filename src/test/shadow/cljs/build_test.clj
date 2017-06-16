@@ -552,14 +552,12 @@
 (defn basic-repl-setup []
   (-> (cljs/init-state)
       (cljs/enable-source-maps)
-      (assoc :optimizations :none
+      (assoc
+        :optimizations :none
         :pretty-print true
         :cache-level :jars
-        :output-dir (io/file "cljs-data/dummy/out")
-        :asset-path "out")
+        :output-dir (io/file "target/repl-test"))
       (cljs/find-resources-in-classpath)
-      (cljs/find-resources "cljs-data/dummy/src")
-      (cljs/find-resources "cljs-data/dummy/test")
 
       (cljs/finalize-config)
       (cljs/configure-module :cljs ['cljs.core] #{})
@@ -585,10 +583,11 @@
 (deftest test-basic-require
   (let [{:keys [repl-state] :as s}
         (-> (basic-repl-setup)
-            (repl/process-input "(require 'basic)"))
+            (repl/process-input "(require 'demo.npm)"))
         action (get-in s [:repl-state :repl-actions 0])]
-    (pprint repl-state)
-    (pprint action)))
+    ;; (pprint repl-state)
+    (pprint action)
+    ))
 
 
 (deftest test-basic-def

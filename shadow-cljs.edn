@@ -153,4 +153,9 @@
    {:externs ["shadow/cljs/npm/externs.js"]}
    :devtools
    {:enabled false}}
+
+  {:id :node-repl-test
+   :target :node-script
+   :main shadow.cljs.devtools.client.node-repl/main
+   :output-to "out/node-repl-dev/node-repl.js"}
   ]}

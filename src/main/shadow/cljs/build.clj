@@ -12,6 +12,7 @@
             [clojure.tools.reader :as reader]
             [clojure.tools.reader.reader-types :as readers]
             [cognitect.transit :as transit]
+            [shadow.spec :as ss]
             [shadow.cljs.util :as util]
             [shadow.cljs.log :as log]
             [shadow.cljs.cljs-specs :as cljs-specs]
@@ -28,7 +29,8 @@
            (java.security MessageDigest)
            (javax.xml.bind DatatypeConverter)
            (cljs.tagged_literals JSValue)
-           (java.util.zip ZipException)))
+           (java.util.zip ZipException)
+           (clojure.lang IDeref)))
 
 (defn compiler-state? [x]
   (util/compiler-state? x))
@@ -43,20 +45,28 @@
 
 (def ^:dynamic *cljs-warnings-ref* nil)
 
-(comment
-  ;; maybe add some kind of type info later
-  (def a-resource
-    '{:input deref
-      :output string
-      :type (either :js :cljs)
-      :from-jar boolean
-      :last-modified long
-      :requires #{name}
-      :provides #{name}
-      ;; only :cljs
-      :ns name
-      :ns-info ns-info
-      }))
+(s/def ::resource
+  (ss/map-spec
+    :req
+    {:input #(instance? IDeref %)
+     :type #{:js :cljs :foreign}
+     :name string?
+     :js-name string?
+     :provides (s/coll-of simple-symbol? :kind set?)
+     :requires (s/coll-of simple-symbol? :kind set?)
+     :require-order (s/coll-of simple-symbol? :kind vector?)
+     :last-modified number?}))
+
+(defn valid-resource? [src]
+  #_(and (contains? #{:js :cljs :foreign} type)
+         (instance? clojure.lang.IDeref input)
+         (string? name)
+         (set? provides)
+         (set? requires)
+         (vector? require-order)
+         (number? last-modified))
+
+  (s/valid? ::resource src))
 
 (defn usable-resource? [{:keys [type provides requires] :as rc}]
   (or (seq provides) ;; provides something is useful
@@ -195,25 +205,25 @@
                 ns-map))]
 
         (assoc ast
-               :require-order
-               (into [] (map rewrite-ns) require-order)
-               :requires
-               (rewrite-ns-map requires true)
-               :uses
-               (rewrite-ns-map uses false))
+          :require-order
+          (into [] (map rewrite-ns) require-order)
+          :requires
+          (rewrite-ns-map requires true)
+          :uses
+          (rewrite-ns-map uses false))
         ))))
 
 (defn update-rc-from-ns
   [state rc {:keys [name require-order js-requires] :as ast}]
   {:pre [(util/compiler-state? state)]}
   (assoc rc
-         :ns name
-         :ns-info (dissoc ast :env)
-         :provides #{name}
-         :macro-namespaces (macros-from-ns-ast state ast)
-         :requires (into #{} require-order)
-         :js-requires js-requires
-         :require-order require-order))
+    :ns name
+    :ns-info (dissoc ast :env)
+    :provides #{name}
+    :macro-namespaces (macros-from-ns-ast state ast)
+    :requires (into #{} require-order)
+    :js-requires js-requires
+    :require-order require-order))
 
 (defn peek-into-cljs-resource
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
@@ -245,12 +255,12 @@
           ;; make best estimate guess what the file might provide based on name
           (let [guessed-ns (filename->ns name)]
             (assoc rc
-                   :ns guessed-ns
-                   :requires #{'cljs.core}
-                   :require-order ['cljs.core]
-                   :provides #{guessed-ns}
-                   :type :cljs
-                   )))))))
+              :ns guessed-ns
+              :requires #{'cljs.core}
+              :require-order ['cljs.core]
+              :provides #{guessed-ns}
+              :type :cljs
+              )))))))
 
 (defn inspect-resource
   [state {:keys [url name] :as rc}]
@@ -362,8 +372,8 @@ normalize-resource-name
             _ (when-not (s/valid? ::cljs-specs/deps-cljs deps-cljs)
                 (throw (ex-info "invalid deps.cljs"
                          (assoc (s/explain-data ::cljs-specs/deps-cljs deps-cljs)
-                                :tag ::deps-cljs
-                                :url url))))
+                           :tag ::deps-cljs
+                           :url url))))
             manifest
             (dissoc manifest "deps.cljs")
 
@@ -430,12 +440,12 @@ normalize-resource-name
                         ;; mark rc as foreign and merge with externs instead of leaving externs as seperate rc
                         rc
                         (assoc rc
-                               :type :foreign
-                               :requires (set require-order)
-                               :require-order require-order
-                               :provides (set (map symbol provides))
-                               :externs externs
-                               :externs-source externs-source)]
+                          :type :foreign
+                          :requires (set require-order)
+                          :require-order require-order
+                          :provides (set (map symbol provides))
+                          :externs externs
+                          :externs-source externs-source)]
 
                     (-> manifest
                         (dissoc-all externs)
@@ -578,33 +588,37 @@ normalize-resource-name
     state
 
     :else
-    (let [requires (get-in state [:sources name :require-order])]
-      (when-not (and requires (vector? requires))
-        (throw (ex-info (format "cannot find required deps for \"%s\"" name) {:name name})))
+    (let [src (get-in state [:sources name])]
+      (when-not src
+        (throw (ex-info (format "cannot find resource \"%s\"" name) {:name name})))
 
-      (let [state (-> state
-                      (conj-in [:deps-visited] name)
-                      (conj-in [:deps-stack] name))
-            state (->> requires
-                       (map (fn [require-sym]
-                              (let [src-name (get-in state [:provide->source require-sym])]
-                                (when-not src-name
-                                  (throw
-                                    (ex-info
-                                      (format "The required \"%s\" is not available, required by \"%s\"" require-sym name)
-                                      {:tag ::missing-ns
-                                       :ns require-sym
-                                       :src name})))
-                                src-name
-                                )))
-                       ;; remove base as it will always be provided
-                       (remove #{"goog/base.js"})
-                       ;; forcing for less confusing stack trace
-                       (into [] (distinct))
-                       (reduce get-deps-for-src* state))
-            state (update state :deps-stack (fn [stack] (into [] (butlast stack))))]
-        (conj-in state [:deps-ordered] name)
-        ))))
+      (let [requires (:require-order src)]
+        (when-not (and requires (vector? requires))
+          (throw (ex-info (format "cannot find required deps for \"%s\"" name) {:name name})))
+
+        (let [state (-> state
+                        (conj-in [:deps-visited] name)
+                        (conj-in [:deps-stack] name))
+              state (->> requires
+                         (map (fn [require-sym]
+                                (let [src-name (get-in state [:provide->source require-sym])]
+                                  (when-not src-name
+                                    (throw
+                                      (ex-info
+                                        (format "The required \"%s\" is not available, required by \"%s\"" require-sym name)
+                                        {:tag ::missing-ns
+                                         :ns require-sym
+                                         :src name})))
+                                  src-name
+                                  )))
+                         ;; remove base as it will always be provided
+                         (remove #{"goog/base.js"})
+                         ;; forcing for less confusing stack trace
+                         (into [] (distinct))
+                         (reduce get-deps-for-src* state))
+              state (update state :deps-stack (fn [stack] (into [] (butlast stack))))]
+          (conj-in state [:deps-ordered] name)
+          )))))
 
 (defn get-deps-for-src
   "returns names of all required sources for a given resource by name (in dependency order), does include self
@@ -614,8 +628,8 @@ normalize-resource-name
          (string? src-name)]}
   (-> state
       (assoc :deps-stack []
-             :deps-ordered []
-             :deps-visited #{})
+        :deps-ordered []
+        :deps-visited #{})
       (get-deps-for-src* src-name)
       :deps-ordered))
 
@@ -757,7 +771,7 @@ normalize-resource-name
            ;; of the compiler state, instead they are in :compiler-options
            ;; still want the compiler-state accessible though
            (assoc (:compiler-options state)
-                  ::compiler-state state))
+             ::compiler-state state))
          (post-analyze state)))))
 
 (defn do-compile-cljs-string
@@ -940,16 +954,16 @@ normalize-resource-name
               (throw (ex-info "cljs file did not provide a namespace" {:file name})))
 
             (assoc rc
-                   :output js
-                   :requires requires
-                   :require-order require-order
-                   :compiled-at (System/currentTimeMillis)
-                   :provides #{ns}
-                   :compiled true
-                   :warnings warnings
-                   :ast ast
-                   :forms forms
-                   :source-map source-map)))))))
+              :output js
+              :requires requires
+              :require-order require-order
+              :compiled-at (System/currentTimeMillis)
+              :provides #{ns}
+              :compiled true
+              :warnings warnings
+              :ast ast
+              :forms forms
+              :source-map source-map)))))))
 
 
 (defn get-cache-file-for-rc
@@ -1036,7 +1050,7 @@ normalize-resource-name
             (-> (merge rc cache-data)
                 (dissoc :analyzer :cache-options :age-of-deps)
                 (assoc :cached true
-                       :output (slurp cache-js))))))
+                  :output (slurp cache-js))))))
 
       (catch Exception e
         (util/log state {:type :cache-error
@@ -1058,7 +1072,7 @@ normalize-resource-name
               (-> rc
                   (dissoc :file :output :input :url :forms :ast)
                   (assoc :age-of-deps (make-age-map state ns)
-                         :analyzer (get-in @env/*compiler* [::ana/namespaces ns])))
+                    :analyzer (get-in @env/*compiler* [::ana/namespaces ns])))
 
               cache-options
               (reduce
@@ -1136,15 +1150,6 @@ normalize-resource-name
     ;; else: not present
     state))
 
-(defn valid-resource? [{:keys [type input name provides requires require-order last-modified] :as src}]
-  (and (contains? #{:js :cljs :foreign} type)
-       (instance? clojure.lang.IDeref input)
-       (string? name)
-       (set? provides)
-       (set? requires)
-       (vector? require-order)
-       (number? last-modified)))
-
 (defn is-same-resource? [a b]
   (and (= (:name a) (:name b))
        (= (:source-path a) (:source-path b))
@@ -1156,7 +1161,11 @@ normalize-resource-name
   [state {:keys [name provides url] :as src}]
   (cond
     (not (valid-resource? src))
-    (do (util/log state {:type :invalid-resource :name name :url url})
+    (do (util/log state (-> (s/explain-data ::resource src)
+                            (assoc
+                              :type :invalid-resource
+                              :name name
+                              :url url)))
         state)
 
     (and (= :js (:type src))
@@ -1182,9 +1191,9 @@ normalize-resource-name
         ;; remove all provides, otherwise it might end up being used despite the invalid name
         ;; enforce this behavior since the warning might get overlooked easily
         (let [invalid-src (assoc src
-                                 :provides #{}
-                                 :requires #{}
-                                 :require-order [])]
+                            :provides #{}
+                            :requires #{}
+                            :require-order [])]
           (assoc-in state [:sources name] invalid-src)))
 
     ;; do not merge files that are already present from a different source path
@@ -1713,6 +1722,7 @@ normalize-resource-name
 
                 prepend-provide
                 (symbol (str "shadow.module.prepend." mod-name))]
+
             (-> state
                 (update :sources assoc prepend-name (pseudo-rc prepend-name prepend-provide prepend-js))
                 (update-in [:modules name :sources] #(into [prepend-name] %))
@@ -1721,8 +1731,12 @@ normalize-resource-name
         state
         (if-not (seq append-js)
           state
-          (let [append-name (str "shadow/module/append/" mod-name ".js")
-                append-provide (str "shadow.module.append." mod-name)]
+          (let [append-name
+                (str "shadow/module/append/" mod-name ".js")
+
+                append-provide
+                (symbol (str "shadow.module.append." mod-name))]
+
             (-> state
                 (update :sources assoc append-name (pseudo-rc append-name append-provide append-js))
                 (update-in [:modules name :sources] conj append-name)
@@ -1755,8 +1769,6 @@ normalize-resource-name
      :last-modified 0
      }))
 
-
-
 (defn maybe-compile-js [state {:keys [input module-type] :as src}]
   (if module-type
     (closure/compile-es6 state src)
@@ -1766,10 +1778,15 @@ normalize-resource-name
   (assoc src :output @input))
 
 (defn generate-output-for-source [state {:keys [name type output warnings] :as src}]
-  {:pre [(valid-resource? src)]
-   :post [(string? (:output %))]}
+  {:post [(string? (:output %))]}
   (when (= name "goog/base.js")
     (throw (ex-info "trying to compile goog/base.js" {})))
+
+  (when-not (valid-resource? src)
+    (s/explain ::resource src)
+    (throw (ex-info "compiling invalid resource"
+             (assoc (s/explain-data ::resource src)
+               :tag :invalid-resource))))
 
   (if (and (seq output)
            ;; always recompile files with warnings
@@ -1805,6 +1822,7 @@ normalize-resource-name
 (defn do-compile-sources
   "compiles with just the main thread, can do partial compiles assuming deps are compiled"
   [state source-names]
+  {:pre [(every? string? source-names)]}
   (with-compiler-env state
     (ana/load-core)
     (shadow-redefs
@@ -1994,12 +2012,12 @@ normalize-resource-name
             (str (clojure.core/name name) "-foreign-" md5 ".js")]
 
         (assoc mod
-               :foreign-files
-               [{:js-name foreign-name
-                 :provides provides
-                 :output output
-                 :sources (into [] (map :name) foreign-srcs)
-                 }])))
+          :foreign-files
+          [{:js-name foreign-name
+            :provides provides
+            :output output
+            :sources (into [] (map :name) foreign-srcs)
+            }])))
     ))
 
 (defn make-foreign-bundles [{:keys [build-modules] :as state}]
@@ -2016,8 +2034,8 @@ normalize-resource-name
         modules
         (sort-and-compact-modules state)]
     (assoc state
-           :build-modules modules
-           :build-sources (into [] (mapcat :sources modules)))))
+      :build-modules modules
+      :build-sources (into [] (mapcat :sources modules)))))
 
 (defn compile-modules*
   "compiles source based on :build-modules (created by prepare-modules)"
@@ -2206,8 +2224,8 @@ normalize-resource-name
                      (if (<= new-mod last-modified)
                        result
                        (let [macro (assoc macro
-                                          :scan :macro
-                                          :last-modified new-mod)]
+                                     :scan :macro
+                                     :last-modified new-mod)]
 
                          (conj result macro)))))
                  []))

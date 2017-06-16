@@ -102,77 +102,64 @@
 
     (-> state
         (cljs/prepare-compile)
-        (cljs/do-compile-sources repl-sources)
+        (cljs/do-compile-sources (map :name repl-sources))
         )))
 
-(defn remove-quotes [quoted-form]
-  (walk/prewalk
-    (fn [form]
-      (if (and (list? form)
-               (= 'quote (first form)))
-        (second form)
-        form
-        ))
-    quoted-form))
-
 (defn repl-require
-  ([state read-result quoted-require]
-   (repl-require state read-result quoted-require nil))
-  ([{:keys [repl-state] :as state}
-    read-result
-    quoted-require
-    reload-flag]
-    ;; FIXME: verify quoted
-   (let [current-ns
-         (get-in repl-state [:current :ns])
+  [{:keys [repl-state] :as state} read-result require-form]
+  (let [{:keys [current]}
+        repl-state
 
-         require
-         (remove-quotes quoted-require)
+        ns-info
+        (:ns-info current)
 
-         ;; parsing this twice to easily get a diff, could probably be simpler
-         {:keys [requires]}
-         (util/parse-ns-require-parts :requires {} [require])
+        new-ns-info
+        (-> (dissoc ns-info :flags)
+            (ns-form/merge-repl-require require-form)
+            (ns-form/rewrite-js-requires state current))
 
-         new-requires
-         (into #{} (vals requires))
+        new-deps
+        (->> (:deps new-ns-info)
+             (remove (:requires ns-info))
+             (into []))
 
-         ;; returns the updated ns-info
-         ns-info
-         (util/parse-ns-require-parts :requires (get-in repl-state [:current :ns-info]) [require])
+        load-macros-and-set-ns-info
+        (fn [state]
+          (cljs/with-compiler-env state
+            (let [full-ns-info
+                  (-> new-ns-info
+                      ;; FIXME: these work with env/*compiler* but shouldn't
+                      ;; FIXME: why am I doing this again?
+                      (util/load-macros)
+                      (util/infer-macro-require)
+                      (util/infer-macro-use))]
 
-         deps
-         (cljs/get-deps-for-entries state new-requires)
+              ;; FIXME: util/check-uses!
+              (-> state
+                  (cljs/swap-compiler-env! update-in [::ana/namespaces (:ns current)] merge full-ns-info)
+                  (assoc-in [:repl-state :current :ns-info] full-ns-info))
+              )))
 
-         load-macros-and-set-ns-info
-         (fn [state]
-           (cljs/with-compiler-env state
-             (let [full-ns-info
-                   (-> ns-info
-                       ;; FIXME: these work with env/*compiler* but shouldn't
-                       (util/load-macros)
-                       (util/infer-macro-require)
-                       (util/infer-macro-use))]
+        new-sources
+        (cljs/get-deps-for-entries state new-deps)
 
-               ;; FIXME: util/check-uses!
-               (-> state
-                   (cljs/swap-compiler-env! update-in [::ana/namespaces current-ns] merge full-ns-info)
-                   (assoc-in [:repl-state :current :ns-info] full-ns-info))
-               )))
+        state
+        (-> state
+            (cljs/do-compile-sources new-sources)
+            (load-macros-and-set-ns-info))
 
-         state
-         (-> state
-             (cljs/do-compile-sources deps)
-             (load-macros-and-set-ns-info))
+        action
+        {:type :repl/require
+         :sources (as-client-resources state new-sources)
+         :flags (:flags new-ns-info)}]
 
-         action
-         {:type :repl/require
-          :sources (as-client-resources state deps)
-          :reload reload-flag}]
+    (output/flush-sources-by-name state new-sources)
 
-     (update-in state [:repl-state :repl-actions] conj action)
-     )))
+    (update-in state [:repl-state :repl-actions] conj action)
+    ))
 
-(defn repl-load-file [{:keys [source-paths] :as state} read-result file-path]
+(defn repl-load-file
+  [{:keys [source-paths] :as state} read-result [_ file-path :as form]]
   ;; FIXME: could clojure.core/load-file .clj files?
 
   (let [matched-paths
@@ -216,6 +203,8 @@
             {:type :repl/require
              :sources (as-client-resources state deps)
              :reload :reload}]
+
+        (output/flush-sources-by-name state deps)
         (update-in state [:repl-state :repl-actions] conj action)
         ))))
 
@@ -234,37 +223,33 @@
 
    'in-ns
    (fn repl-in-ns
-     [state read-result [q ns :as quoted-ns]]
-     ;; quoted-ns is (quote the-ns)
-     (if (nil? (get-in state [:provide->source ns]))
-       ;; FIXME: create empty ns and switch to it
-       (do (prn [:did-not-find ns])
-           state)
-       (let [{:keys [name ns-info]}
-             (cljs/get-resource-for-provide state ns)
+     [state read-result [_ quoted-ns :as form]]
+     ;; form is (in-ns (quote the-ns))
+     (let [[q ns] quoted-ns]
+       (if (nil? (get-in state [:provide->source ns]))
+         ;; FIXME: create empty ns and switch to it
+         (do (prn [:did-not-find ns])
+             state)
+         (let [{:keys [name ns-info]}
+               (cljs/get-resource-for-provide state ns)
 
-             set-ns-action
-             {:type :repl/set-ns
-              :ns ns
-              :name name}]
-         (-> state
-             ;; FIXME: clojure in-ns doesn't actually do the ns setup
-             ;; so we should merge an ns-info only if ns is already loaded
-             ;; otherwise keep it empty
-             (update-in [:repl-state :current] merge {:ns ns
-                                                      :name name
-                                                      :ns-info ns-info})
-             (update-in [:repl-state :repl-actions] conj set-ns-action)
-             ))))
-
-   'repl-state
-   (fn [state read-result]
-     (prn (:repl-state state))
-     state)
+               set-ns-action
+               {:type :repl/set-ns
+                :ns ns
+                :name name}]
+           (-> state
+               ;; FIXME: clojure in-ns doesn't actually do the ns setup
+               ;; so we should merge an ns-info only if ns is already loaded
+               ;; otherwise keep it empty
+               (update-in [:repl-state :current] merge {:ns ns
+                                                        :name name
+                                                        :ns-info ns-info})
+               (update-in [:repl-state :repl-actions] conj set-ns-action)
+               )))))
 
    'ns
-   (fn [state read-result & args]
-     (prn [:ns-not-yet-supported args])
+   (fn [state read-result ns-form]
+     (prn [:ns-not-yet-supported ns-form])
      state)})
 
 (defmethod log/event->str ::special-fn-error
@@ -282,8 +267,7 @@
       (throw (ex-info "missing cljs.user, repl not properly configured (must have analyzed cljs.user by now)" {}))))
 
   (cond
-    ;; ('special-fn ...)
-    ;; (require 'something)
+    ;; (special-fn ...) eg. (require 'something)
     (and (list? form)
          (contains? repl-special-forms (first form)))
     (let [[special-fn & args]
@@ -292,7 +276,7 @@
           handler
           (get repl-special-forms special-fn)]
 
-      (apply handler state read-result args))
+      (handler state read-result form))
 
     ;; compile normally
     :else
@@ -368,8 +352,8 @@
 
                   reader/*alias-map*
                   (merge reader/*alias-map*
-                    (:requires ns-info)
-                    (:require-macros ns-info))]
+                         (:requires ns-info)
+                         (:require-macros ns-info))]
 
           (reader/read opts in))
 
@@ -380,13 +364,13 @@
         (cond->
           (not eof?)
           (assoc :form form
-                 :source
-                 ;; FIXME: poking at the internals of SourceLoggingPushbackReader
-                 ;; not using (-> form meta :source) which log-source provides
-                 ;; since there are things that do not support IMeta, still want the source though
-                 (-> @(.-source-log-frames in)
-                     (:buffer)
-                     (str)))))
+            :source
+            ;; FIXME: poking at the internals of SourceLoggingPushbackReader
+            ;; not using (-> form meta :source) which log-source provides
+            ;; since there are things that do not support IMeta, still want the source though
+            (-> @(.-source-log-frames in)
+                (:buffer)
+                (str)))))
     ))
 
 (defn process-input

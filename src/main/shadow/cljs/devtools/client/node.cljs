@@ -1,9 +1,8 @@
 (ns shadow.cljs.devtools.client.node
   (:require [shadow.cljs.devtools.client.env :as env]
+            ["ws" :as ws]
             [cljs.reader :as reader]
             [goog.object :as gobj]))
-
-(def WS (js/require "ws"))
 
 (defonce client-id (random-uuid))
 
@@ -38,12 +37,11 @@
 
 (defn repl-init
   [{:keys [id repl-state] :as msg}]
-  (let [{:keys [repl-js-sources]}
-        repl-state]
+  (let [{:keys [repl-sources]} repl-state]
 
-    (doseq [js repl-js-sources
-            :when (not (is-loaded? js))]
-      (closure-import js))
+    (doseq [{:keys [js-name] :as src} repl-sources
+            :when (not (is-loaded? js-name))]
+      (closure-import js-name))
 
     (ws-msg {:type :repl/init-complete :id id})
     ))
@@ -60,12 +58,12 @@
   (ws-msg {:type :repl/set-ns-complete :id id}))
 
 (defn repl-require
-  [{:keys [id js-sources reload] :as msg}]
+  [{:keys [id sources reload] :as msg}]
   (try
-    (doseq [src js-sources
+    (doseq [{:keys [js-name] :as src} sources
             :when (or reload
-                      (not (is-loaded? src)))]
-      (closure-import src))
+                      (not (is-loaded? js-name)))]
+      (closure-import js-name))
     (ws-msg {:type :repl/require-complete :id id})
 
     (catch :default e
@@ -109,6 +107,7 @@
 
 (defn process-message
   [{:keys [type] :as msg}]
+  ;; (js/console.log "repl-msg" msg)
   ;; (prn [:repl-msg type msg])
   (case type
     :repl/init
@@ -138,7 +137,7 @@
         (env/ws-url :node)
 
         client
-        (WS. url "foo")]
+        (ws. url "foo")]
 
     (.on client "open"
       (fn []

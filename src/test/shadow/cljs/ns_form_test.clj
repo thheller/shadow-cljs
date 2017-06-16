@@ -118,6 +118,45 @@
     (pprint ast)))
 
 
+(deftest test-parse-repl-require
+  (let [test-ns
+        '(ns cljs.user)
+
+        test-require
+        '(require '[some.ns :as a :refer (x)] :reload)
+
+        ns-info
+        (ns-form/parse test-ns)
+
+        ns-required
+        (ns-form/merge-repl-require ns-info test-require)
+
+        ns-required-again
+        (ns-form/merge-repl-require ns-required test-require)]
+
+    (is (not= ns-info ns-required))
+    (is (= ns-required ns-required-again))
+    (pprint ns-required-again)
+    ))
+
+(deftest test-parse-repl-string-require
+  (let [test-ns
+        '(ns cljs.user)
+
+        test-require
+        '(require '["fs" :as fs])
+
+        ns-info
+        (ns-form/parse test-ns)
+
+        ns-required
+        (ns-form/merge-repl-require ns-info test-require)]
+
+    (is (not= ns-info ns-required))
+    (pprint ns-required)
+    ))
+
+
 
 (deftest test-file-relativize
   (let [rel
