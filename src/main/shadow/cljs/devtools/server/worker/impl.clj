@@ -328,11 +328,13 @@
                (map #(get-in compiler-state [:sources % :macro-namespaces]))
                (reduce set/union))]
 
-      (if-not (contains? macros-used-by-build macro-ns)
-        compiler-state
-        (do (require macro-ns :reload)
-            (cljs/reset-resources-using-macro compiler-state macro-ns)
-            )))))
+      ;; only reload the macro ns if the build actually uses it
+      (when (contains? macros-used-by-build macro-ns)
+        (require macro-ns :reload))
+
+      ;; always reset files so they are actually re-compiled when we start using them
+      (cljs/reset-resources-using-macro compiler-state macro-ns)
+      )))
 
 (defn merge-fs-update [compiler-state {:keys [ext] :as fs-update}]
   (-> compiler-state
@@ -342,17 +344,24 @@
         (contains? #{"clj" "cljc"} ext)
         (merge-fs-update-clj fs-update))))
 
+(defn should-recompile?
+  "only recompile when a watched file is actually used by the build"
+  [{:keys [build-sources] :as state}]
+  (some
+    (fn [src-name]
+      (nil? (get-in state [:sources src-name :output])))
+    build-sources))
+
 (defn do-cljs-watch
   [{:keys [autobuild compiler-state] :as worker-state}
    {:keys [updates] :as msg}]
   (if-not autobuild
     worker-state
     (let [next-state (reduce merge-fs-update compiler-state updates)]
-      (if (identical? next-state compiler-state)
-        worker-state
-        ;; only recompile if something actually affected us
-        (-> worker-state
-            (assoc :compiler-state next-state)
+      (-> worker-state
+          (assoc :compiler-state next-state)
+          (cond->
+            (should-recompile? next-state)
             (build-compile))))))
 
 (defn do-config-watch
