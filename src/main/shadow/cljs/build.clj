@@ -663,7 +663,7 @@ normalize-resource-name
 
     (util/check-uses! ast)
     (util/check-renames! ast)
-    (swap! env/*compiler* assoc-in [::ana/namespaces name] (dissoc ast :env :op :form))
+    (swap! env/*compiler* update-in [::ana/namespaces name] merge (dissoc ast :env :op :form))
 
     ;; FIXME: is this the correct location to do this?
     ;; FIXME: using alter instead of reset, to avoid completely removing meta

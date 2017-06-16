@@ -445,67 +445,73 @@
       ns-info
       uses)))
 
-(defn parse [form]
-  (let [conformed
-        (s/conform ::ns-form form)]
+(def empty-ns-info
+  {:excludes #{}
+   :seen #{}
+   :imports nil ;; {Class ns}
+   :requires nil
+   :require-macros nil
+   :deps []
+   :uses nil
+   :use-macros nil
+   :renames {} ;; seems to be only one that is never nil in cljs.core
+   :rename-macros nil
+   ;; these must be rewritten later
+   ;; not doing it here because of relative requires
+   ;; "../bar" needs to know which file we are compiling
+   ;; felt shitty using a binding to shim in a resolve-fn
+   :js-requires #{}
+   :js-refers {}
+   :js-aliases {}
+   :js-renames {}})
 
-    (when (= conformed ::s/invalid)
-      (throw (ex-info "failed to parse ns form"
-               (assoc (s/explain-data ::ns-form form)
-                      :tag ::invalid-ns
-                      :input form))))
+(defn parse
+  ([form]
+    (parse empty-ns-info form))
+  ([ns-info form]
+   (let [conformed
+         (s/conform ::ns-form form)]
 
-    (let [{:keys [name docstring meta clauses] :or {meta {}}}
-          conformed
+     (when (= conformed ::s/invalid)
+       (throw (ex-info "failed to parse ns form"
+                (assoc (s/explain-data ::ns-form form)
+                  :tag ::invalid-ns
+                  :input form))))
 
-          meta
-          (cond-> meta
-            docstring
-            (update :doc str docstring))
+     (let [{:keys [name docstring meta clauses] :or {meta {}}}
+           conformed
 
-          ns-info
-          {:excludes #{}
-           :seen #{}
-           :name (vary-meta name merge meta)
-           :meta meta
-           :imports nil ;; {Class ns}
-           :requires nil
-           :require-macros nil
-           :deps []
-           :uses nil
-           :use-macros nil
-           :renames {} ;; seems to be only one that is never nil in cljs.core
-           :rename-macros nil
-           ;; these must be rewritten later
-           ;; not doing it here because of relative requires
-           ;; "../bar" needs to know which file we are compiling
-           ;; felt shitty using a binding to shim in a resolve-fn
-           :js-requires #{}
-           :js-refers {}
-           :js-aliases {}
-           :js-renames {}}
+           meta
+           (cond-> meta
+             docstring
+             (update :doc str docstring))
 
-          ns-info
-          (reduce reduce-ns-clause ns-info clauses)
+           ns-info
+           (assoc ns-info
+             :meta meta
+             :name (vary-meta name merge meta))
 
-          {:keys [deps] :as ns-info}
-          (if (= 'cljs.core name)
-            ns-info
-            (-> ns-info
-                (update :requires assoc 'cljs.core 'cljs.core)
-                (update :deps
-                  (fn [deps]
-                    (->> (concat '[cljs.core] deps)
-                         ;; just in case someone manually required cljs.core
-                         (distinct)
-                         (into [])
-                         )))))]
+           ns-info
+           (reduce reduce-ns-clause ns-info clauses)
 
-      ;; FIXME: shadow.cljs uses :require-order since that was there before :deps
-      ;; should probably rename all references of :require-order to :deps to match cljs
-      ;; for now just copy
-      (assoc ns-info :require-order deps)
-      )))
+           {:keys [deps] :as ns-info}
+           (if (= 'cljs.core name)
+             ns-info
+             (-> ns-info
+                 (update :requires assoc 'cljs.core 'cljs.core)
+                 (update :deps
+                   (fn [deps]
+                     (->> (concat '[cljs.core] deps)
+                          ;; just in case someone manually required cljs.core
+                          (distinct)
+                          (into [])
+                          )))))]
+
+       ;; FIXME: shadow.cljs uses :require-order since that was there before :deps
+       ;; should probably rename all references of :require-order to :deps to match cljs
+       ;; for now just copy
+       (assoc ns-info :require-order deps)
+       ))))
 
 (defn merge-repl-require [ns-info require-args]
   (let [conformed (s/conform ::repl-require require-args)]

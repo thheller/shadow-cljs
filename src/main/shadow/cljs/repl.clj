@@ -208,9 +208,15 @@
         (update-in state [:repl-state :repl-actions] conj action)
         ))))
 
-(defn repl-ns [state read-result form]
-  (let [{:keys [name] :as ns-info}
-        (ns-form/parse form)
+(defn repl-ns [{:keys [compiler-env] :as state} read-result [_ ns :as form]]
+  (let [current-ns-info
+        (-> (get-in compiler-env [::ana/namespaces ns])
+            (dissoc :defs))
+
+        {:keys [name] :as ns-info}
+        (if current-ns-info
+          (ns-form/parse current-ns-info form)
+          (ns-form/parse form))
 
         src-name
         (get-in state [:provide->source name])

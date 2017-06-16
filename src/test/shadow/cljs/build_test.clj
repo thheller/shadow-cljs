@@ -598,6 +598,20 @@
     ;; (pprint action)
     ))
 
+(deftest test-repl-ns-additive
+  (let [{:keys [repl-state] :as s}
+        (-> (basic-repl-setup)
+            (repl/process-input "(ns demo.foo (:require [demo.npm :as npm]))")
+            (repl/process-input "(def x 1)")
+            (repl/process-input "(npm/foo)")
+            (repl/process-input "(ns demo.foo)")
+            (repl/process-input "(npm/foo)")
+            (repl/process-input "x")
+            )]
+    (pprint repl-state)
+    ;; (pprint action)
+    ))
+
 (deftest test-repl-string-ns
   (let [{:keys [repl-state] :as s}
         (-> (basic-repl-setup)
