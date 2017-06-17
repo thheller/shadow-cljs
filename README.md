@@ -4,24 +4,45 @@
 
 ### Status: Alpha
 
-This is still in an experimental stage, some things may still change. Documentation is lacking and may sometimes be a bit out of date. I'll update things once everything is sorted out.
+This is still in an alpha stage. Documentation is lacking and may sometimes be a bit out of date. I'll update things once everything is sorted out. The core parts provided by `shadow-build` were in production use for 3+ years and have now been merged into this project. `shadow-cljs` just adds a better configuration layer so you don't need to work with the low-level API.
 
 ## Features
 
 - Good configuration defaults so you don't have to sweat the details
-- Can be used as a library (within other tools like `lein` or `boot`)
 - It can run standalone (via the `shadow-cljs` CLI script)
+- Can be used as a library (directly from Clojure or via other tools like `lein` or `boot`)
 - Live code reloading
 - CLJS REPL
 
+## Rationale
+
+This project started because I wanted more control over the CLJS build process than the default build API allows. It still uses the default CLJS analzer/compiler but by replacing the build API I have full control over which code gets generated and how it is bundled together.
+
+It all started when I wanted support for code splitting via Google Closure Modules (ie. `:modules`) for my work projects. CLJS didn't support it at the time and still only has partial support at best. I also didn't like being forced to organize code into multiple source paths as my projects grew. Since then I have implemented many more things and diverged quite a bit from the default CLJS build API and other tools that are built on top of it like `lein-figwheel`, `lein-cljsbuild` or `boot-cljs`.
+
+`shadow-cljs` provides a few configuration presets that generate fine-tuned code for a given `:target` environment:
+
+- `:browser` is optimized for JS used in HTML environments
+- `:node-script` is optimized for `node.js` scripts/apps that run standalone
+- `:node-library` is optimized for `node.js` libraries that are used by other `node.js` code
+- `:npm-module` generates code that is compatible with existing JS tools (eg. `webpack`, `create-react-app`, `create-react-native-app`) to make it easier to integrate CLJS into an existing JS codebase without replacing the entire JS toolchain.
+- Custom targets can easily be added and can control each step in the build process
+
+Each build `:target` can run in `:dev` mode which focuses on the developer experience with fast incremental builds and automatically injects all the necessary code required for live-reloading and the REPL. All this is configured via the build config and not in code.
+
+To complement that each build has a `:release` mode that focuses on production quality code which is optimized by the Closure Compiler. `:dev` things will be kept out of it automatically and you don't need to manually juggle source paths to keep certain things out.
+
+Both modes use the same build config where each mode can fine-tune just the parts that actually need to change, no need to copy the entire config.
 
 ## Installation
 
-Library
+### Library
 
 [![Clojars Project](https://img.shields.io/clojars/v/thheller/shadow-cljs.svg)](https://clojars.org/thheller/shadow-cljs)
 
-Standalone via [yarn](https://yarnpkg.com/en/package/shadow-cljs) or [npm](https://www.npmjs.com/package/shadow-cljs)
+API Docs coming soon ...
+
+### Standalone via [yarn](https://yarnpkg.com/en/package/shadow-cljs) or [npm](https://www.npmjs.com/package/shadow-cljs)
 ```
 # yarn
 yarn add shadow-cljs
@@ -64,12 +85,12 @@ It should contain a map with some global configuration and a `:builds` entry for
 
 ## Build Configuration
 
-Each build in `shadow-cljs`must define a `:target` which defines where you intent your code to be executed. There are default built-ins for the Browser and `node.js`. They all share the basic concept of having `:dev` and `:release` modes. `:dev` mode provides all the usual development goodies like fast compilation, live code reloading and a REPL. `:release` mode will produce optimized output intended for production.
+Each build in `shadow-cljs` must define a `:target` which defines where you intent your code to be executed. There are default built-ins for the Browser and `node.js`. They all share the basic concept of having `:dev` and `:release` modes. `:dev` mode provides all the usual development goodies like fast compilation, live code reloading and a REPL. `:release` mode will produce optimized output intended for production.
 
-- TBD: `:npm-module` docs
 - [Compiling for the browser](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-the-browser) for the `:browser` target.
 - [Compiling node.js scripts](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-scripts) for the `:node-script` target.
 - [Compiling node.js libraries](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-libraries) for the `:node-library` target.
+- TBD: `:npm-module` docs
 
 ## Build Compilation
 
