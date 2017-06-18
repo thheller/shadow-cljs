@@ -102,7 +102,7 @@
         (not= (:dependencies cp) (:dependencies config))
         )))
 
-(defn get-classpath [project-root {:keys [cache-root] :as config}]
+(defn get-classpath [project-root {:keys [cache-root version] :as config}]
   (let [cp-file (path/resolve project-root cache-root "classpath.edn")]
 
     ;; only need to rebuild the classpath if :dependencies
@@ -112,7 +112,7 @@
 
       ;; re-create classpath by running the java helper
       (let [jar (js/require "shadow-cljs-jar/path")]
-        (run-java project-root ["-jar" jar jar-version (path/resolve project-root "shadow-cljs.edn")])))
+        (run-java project-root ["-jar" jar version (path/resolve project-root "shadow-cljs.edn")])))
 
     ;; only return :files since the rest is just cache info
     (-> (util/slurp cp-file)
@@ -123,12 +123,12 @@
 ;; FIXME: windows uses ;
 (def cp-seperator ":")
 
-(defn aot-compile [project-root aot-path classpath]
+(defn aot-compile [project-root {:keys [version] :as config} aot-path classpath]
   (let [version-file (path/resolve aot-path "version")]
 
     ;; FIXME: is it enough to AOT only when versions change?
     (when (or (not (fs/existsSync version-file))
-              (not= jar-version (util/slurp version-file)))
+              (not= version (util/slurp version-file)))
 
       (mkdirp/sync aot-path)
 
@@ -142,7 +142,7 @@
          "clojure.main"
          "-e" "(run! compile '[shadow.cljs.devtools.api shadow.cljs.devtools.server shadow.cljs.devtools.cli])"])
 
-      (fs/writeFileSync version-file jar-version)
+      (fs/writeFileSync version-file version)
       )))
 
 (defn run-standalone
@@ -159,7 +159,7 @@
         cli-args
         (into ["-cp" classpath "shadow.cljs.devtools.cli" "--npm"] args)]
 
-    (aot-compile project-root aot-path classpath)
+    (aot-compile project-root config aot-path classpath)
 
     (println "shadow-cljs - starting ...")
     (run-java project-root cli-args)
@@ -172,7 +172,7 @@
 
 (defn main [args]
   (when-let [config-path (ensure-config)]
-    (println "shadow-cljs -" jar-version "using" config-path)
+    (println "shadow-cljs - using" config-path)
 
     (let [project-root
           (path/dirname config-path)
