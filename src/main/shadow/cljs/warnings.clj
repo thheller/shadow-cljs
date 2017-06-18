@@ -39,6 +39,11 @@
            (make-source-excerpt line column))
          (into []))))
 
+(defn get-source-excerpt [state rc location]
+  ;; defaults to a seq of locations to avoid parsing a file multiple times
+  (-> (get-source-excerpts state rc [location])
+      (first)))
+
 ;; https://en.wikipedia.org/wiki/ANSI_escape_code
 ;; https://github.com/chalk/ansi-styles/blob/master/index.js
 
@@ -47,6 +52,7 @@
    :bold [1 22]
    :dim [2 22] ;; cursive doesn't support this
    :yellow [33 39] ;; cursive doesn't seem to support 39
+   :red [31 39]
    })
 
 (defn ansi-seq [codes]
@@ -92,6 +98,30 @@
 (defn dim [s]
   (coded-str [:dim] s))
 
+
+(defn print-source-excerpt-header
+  [{:keys [source-excerpt column] :as warning}]
+  (let [{:keys [start-idx before line after]} source-excerpt]
+    (println (sep-line))
+    (print-source-lines start-idx before dim)
+    (print-source-lines (+ start-idx (count before)) [line] #(coded-str [:bold] %))
+    ;; all CLJS warnings start at column 1
+    ;; closure source mapped errors always seem to have column 0
+    ;; doesn't make sense to have an arrow then
+    (if (pos-int? column)
+      (let [arrow-idx (+ 7 (or column 1) -1)]
+        (println (sep-line "^" arrow-idx)))
+      (println (sep-line)))))
+
+(defn print-source-excerpt-footer
+  [{:keys [source-excerpt] :as warning}]
+  (let [{:keys [start-idx before line after]} source-excerpt]
+
+    (when (seq after)
+      (print-source-lines (+ start-idx (count before) 1) after dim)
+      (println (sep-line)))
+    ))
+
 (defn print-warning
   [{:keys [source-name file line column source-excerpt msg] :as warning}]
   (println (coded-str [:bold] (sep-line (str " WARNING #" (::idx warning) " ") 6)))
@@ -110,25 +140,10 @@
         (println (str " " (coded-str [:yellow :bold] msg)))
         (println (sep-line)))
 
-    (let [{:keys [start-idx before line after]} source-excerpt]
-      (println (sep-line))
-      (print-source-lines start-idx before dim)
-      (print-source-lines (+ start-idx (count before)) [line] #(coded-str [:bold] %))
-      ;; all CLJS warnings start at column 1
-      ;; closure source mapped errors always seem to have column 0
-      ;; doesn't make sense to have an arrow then
-      (if (pos-int? column)
-        (let [arrow-idx (+ 7 (or column 1) -1)]
-          (println (sep-line "^" arrow-idx)))
-        (println (sep-line)))
-
-      (println (str " " (coded-str [:yellow :bold] msg)))
-      (println (sep-line))
-
-      (when (seq after)
-        (print-source-lines (+ start-idx (count before) 1) after dim)
-        (println (sep-line)))
-      ))
+    (do (print-source-excerpt-header warning)
+        (println (str " " (coded-str [:yellow :bold] msg)))
+        (println (sep-line))
+        (print-source-excerpt-footer warning)))
   (println))
 
 (defn print-warnings

@@ -1039,3 +1039,16 @@
 
     (pprint (:js-module-index compiler-env))
     ))
+
+
+(deftest test-build-errors
+  (try
+    (-> (cljs/init-state)
+        (cljs/find-resources-in-classpath)
+        (cljs/configure-module :main '[demo.errors] #{})
+        (cljs/compile-modules))
+    (catch ExceptionInfo ex
+      (let [data (ex-data ex)]
+        (is (contains? data :source-excerpt))
+        )))
+  )

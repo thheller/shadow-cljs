@@ -20,7 +20,8 @@
             [shadow.cljs.cache :as cache]
             [shadow.cljs.ns-form :as ns-form]
             [clojure.spec.alpha :as s]
-            [shadow.cljs.output :as output])
+            [shadow.cljs.output :as output]
+            [shadow.cljs.warnings :as warnings])
   (:import [java.io File FileOutputStream FileInputStream StringReader PushbackReader ByteArrayOutputStream BufferedReader ByteArrayInputStream]
            [java.net URL]
            (java.util.jar JarFile JarEntry)
@@ -30,7 +31,7 @@
            (javax.xml.bind DatatypeConverter)
            (cljs.tagged_literals JSValue)
            (java.util.zip ZipException)
-           (clojure.lang IDeref)))
+           (clojure.lang IDeref ExceptionInfo)))
 
 (defn compiler-state? [x]
   (util/compiler-state? x))
@@ -1109,7 +1110,7 @@ normalize-resource-name
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
    make sure you are in with-compiler-env"
-  [{:keys [cache-dir cache-level] :as state} {:keys [from-jar file] :as src}]
+  [{:keys [cache-dir cache-level] :as state} {:keys [name from-jar file url] :as src}]
   (let [cache? (and cache-dir
                     ;; even with :all only cache resources that are in jars or have a file
                     ;; cljs.user (from repl) should never be cached
@@ -1120,7 +1121,28 @@ normalize-resource-name
     (or (when cache?
           (load-cached-cljs-resource state src))
         (let [compiled-src
-              (do-compile-cljs-resource state src)]
+              (try
+                (do-compile-cljs-resource state src)
+                (catch Exception e
+                  (let [{:keys [tag line column] :as data}
+                        (ex-data e)
+
+                        err-data
+                        (-> {:tag ::compile-cljs
+                             :source-name name
+                             :url url
+                             :file file}
+                            (cond->
+                              line
+                              (assoc :line line)
+
+                              column
+                              (assoc :column column)
+
+                              (and data (= tag :cljs/analysis-error) line column)
+                              (assoc :source-excerpt (warnings/get-source-excerpt state src {:line line :column column} ))))]
+
+                    (throw (ex-info (format "failed to compile resource: %s" name) err-data e)))))]
 
           (when cache?
             (write-cached-cljs-resource compiled-src state))

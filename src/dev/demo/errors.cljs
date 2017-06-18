@@ -1,3 +1,6 @@
 (ns demo.errors)
 
-;; (defn x 1)
+(defn x 1)
+
+;; hello
+;; world

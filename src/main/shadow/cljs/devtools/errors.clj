@@ -6,7 +6,8 @@
             [shadow.cljs.build :as build]
             [shadow.cljs.ns-form :as ns-form]
             [shadow.cljs.devtools.compiler :as comp]
-            [shadow.cljs.devtools.config :as config])
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.warnings :as w])
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
 
@@ -97,15 +98,16 @@
 
 (defmethod ex-data-format :cljs/analysis-error
   [w e {:keys [file line column error-type] :as data}]
-  (doto w
-    (.write "CLJS error in ")
-    (.write (or file "<unknown>"))
-    (.write " ")
-    (.write "at ")
-    (.write (str (or line 0)))
-    (.write ":")
-    (.write (str (or column 0)))
-    (.write "\n"))
+  ;; FIXME: assumes this info was printed before
+  #_(doto w
+      (.write "CLJS error in ")
+      (.write (or file "<unknown>"))
+      (.write " ")
+      (.write "at ")
+      (.write (str (or line 0)))
+      (.write ":")
+      (.write (str (or column 0)))
+      (.write "\n"))
 
   (let [cause (.getCause e)]
     (cond
@@ -119,6 +121,37 @@
       :else
       (.write w (.getMessage e))
       )))
+
+(defmethod ex-data-format :shadow.cljs.build/compile-cljs
+  [w e {:keys [source-name file url line column source-excerpt] :as data}]
+
+  ;; FIXME: rewrite warnings code to use a writer instead of just print
+  ;; use custom class that handles the styling to it can be turned off easily
+  (.write w
+    (with-out-str
+      (println (w/coded-str [:bold :red] (w/sep-line " ERROR " 6)))
+      (println " File:"
+        (if-not file
+          source-name
+          (str file
+               (when (pos-int? line)
+                 (str ":" line
+                      (when (pos-int? column)
+                        (str ":" column))))
+               )))
+
+      (when source-excerpt
+        (w/print-source-excerpt-header data))))
+
+  (.write w
+    (with-out-str
+      (if source-excerpt
+        (w/print-source-excerpt-footer data)
+        (println (w/sep-line)))))
+
+  (->> e (.getCause) (error-format w))
+
+  (.write w (w/sep-line)))
 
 (defn error-format
   ([e]

@@ -206,6 +206,9 @@
 (deftest test-build-warnings
   (api/once :warnings))
 
+(deftest test-build-errors
+  (api/once :errors))
+
 (deftest test-browser
   (api/once :browser))
 

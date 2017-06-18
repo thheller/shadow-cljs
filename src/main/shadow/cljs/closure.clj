@@ -238,10 +238,7 @@
                   (.getColumnPosition mapping)
 
                   source-excerpt
-                  (-> (warnings/get-source-excerpts state src
-                        [{:line line
-                          :column column}])
-                      (first))]
+                  (warnings/get-source-excerpt state src {:line line :column column})]
 
               {:source-name name
                :file file
