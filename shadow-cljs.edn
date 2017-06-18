@@ -26,7 +26,7 @@
    :devtools
    {:enabled false}
    :closure-defines
-   {shadow.cljs.npm.cli/jar-version "1.0.20170615-09"}}
+   {shadow.cljs.npm.cli/jar-version "1.0.20170618"}}
 
   {:id :ui
    :target :browser

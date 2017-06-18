@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.20170618](https://github.com/thheller/shadow-cljs/compare/1.0.20170615-09...1.0.20170618)
+
+- fix broken node REPL `require`
+- add support for `ns` in REPL
+- add support for string requires in REPL `(require '["fs" :as fs])`
+- Closure warnings/errors are now pretty as well
+
 ## [1.0.20170615-09](https://github.com/thheller/shadow-cljs/compare/1.0.20170615...1.0.20170615-09)
 
 ### Fixes

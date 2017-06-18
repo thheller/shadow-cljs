@@ -150,8 +150,12 @@
               :dev
               (with-app #(api/dev* build-config options))
 
-              ;; make :once the default
+              :once
               (api/once* build-config options)
+
+              ;; default just displays help now
+              (do (println "Please specify which action to run (one of: --once, --dev, --check --release)")
+                  (opts/help opts))
               )))))
 
     (catch Exception e
