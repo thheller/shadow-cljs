@@ -12,7 +12,7 @@
             [shadow.cljs.npm.client :as client]
             ))
 
-(def version (js/require "./version.json"))
+(goog-define jar-version "SNAPSHOT")
 
 (defn file-older-than [a b]
   (let [xa (fs/statSync a)
@@ -112,7 +112,7 @@
 
       ;; re-create classpath by running the java helper
       (let [jar (js/require "shadow-cljs-jar/path")]
-        (run-java project-root ["-jar" jar version (path/resolve project-root "shadow-cljs.edn")])))
+        (run-java project-root ["-jar" jar jar-version (path/resolve project-root "shadow-cljs.edn")])))
 
     ;; only return :files since the rest is just cache info
     (-> (util/slurp cp-file)
@@ -128,7 +128,7 @@
 
     ;; FIXME: is it enough to AOT only when versions change?
     (when (or (not (fs/existsSync version-file))
-              (not= version (util/slurp version-file)))
+              (not= jar-version (util/slurp version-file)))
 
       (mkdirp/sync aot-path)
 
@@ -142,7 +142,7 @@
          "clojure.main"
          "-e" "(run! compile '[shadow.cljs.devtools.api shadow.cljs.devtools.server shadow.cljs.devtools.cli])"])
 
-      (fs/writeFileSync version-file version)
+      (fs/writeFileSync version-file jar-version)
       )))
 
 (defn run-standalone
@@ -167,15 +167,18 @@
 
 (def defaults
   {:cache-root "target/shadow-cljs"
-   :version version
+   :version jar-version
    :dependencies []})
 
-(defn main [& args]
+(defn main [args]
   (when-let [config-path (ensure-config)]
-    (println "shadow-cljs -" version "using" config-path)
+    (println "shadow-cljs -" jar-version "using" config-path)
 
     (let [project-root
           (path/dirname config-path)
+
+          args
+          (into [] args) ;; starts out as JS array
 
           config
           (-> (util/slurp config-path)

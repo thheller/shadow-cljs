@@ -15,7 +15,20 @@
   "src/test"]
 
  :builds
- [{:id :ui
+ [{:id :cli
+   :target :node-library
+   :exports
+   {:main shadow.cljs.npm.cli/main}
+   :output-to "packages/shadow-cljs/cli/lib.js"
+   :compiler-options
+   {:optimizations :advanced
+    :externs ["shadow/cljs/npm/externs.js"]}
+   :devtools
+   {:enabled false}
+   :closure-defines
+   {shadow.cljs.npm.cli/jar-version "1.0.20170615-09"}}
+
+  {:id :ui
    :target :browser
 
    :output-dir "target/shadow-cljs/ui/output/js"
@@ -34,6 +47,8 @@
    :devtools
    {:before-load shadow.cljs.ui.app/stop
     :after-load shadow.cljs.ui.app/start}}
+
+  ;; test builds
 
   {:id :browser
    :target :browser
@@ -144,18 +159,18 @@
    :main shadow.chokidar/main
    :output-to "tmp/chokidar.js"}
 
-  {:id :cli
-   :target :node-script
-   :main shadow.cljs.npm.cli/main
-   :output-to "packages/shadow-cljs-cli/bin/shadow-cljs.js"
-   :optimizations :advanced
-   :compiler-options
-   {:externs ["shadow/cljs/npm/externs.js"]}
-   :devtools
-   {:enabled false}}
-
   {:id :node-repl-test
    :target :node-script
    :main shadow.cljs.devtools.client.node-repl/main
    :output-to "out/node-repl-dev/node-repl.js"}
-  ]}
+
+  {:id :dce
+   :target :browser
+   :output-dir "target/dce-test"
+   :compiler-options
+   {:fn-invoke-direct true}
+   :modules
+   {:core {:entries [cljs.core]}
+    :main {:entries [demo.dce]
+           :depends-on #{:core}}}
+   }]}

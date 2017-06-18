@@ -30,12 +30,13 @@
 
 
 ;; FIXME: should allow using :advanced
-(defn configure [state mode {:keys [optimizations] :or {optimizations :simple} :as config}]
+(defn configure [state mode config]
   (-> state
       (cond->
-        (= :release mode)
-        (cljs/merge-compiler-options
-          {:optimizations optimizations}))
+        (and (= :release mode)
+             (nil? (get-in config [:compiler-options :optimizations])))
+        (cljs/merge-compiler-options {:optimizations :simple}))
+
       (shared/set-output-dir mode config)
       (node/configure config)))
 

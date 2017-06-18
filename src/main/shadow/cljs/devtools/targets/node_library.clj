@@ -102,9 +102,9 @@
 (defn configure [state mode {:keys [id] :as config}]
   (-> state
       (cond->
-        (= :release mode)
-        (cljs/merge-compiler-options
-          {:optimizations :simple}))
+        (and (= :release mode)
+             (nil? (get-in config [:compiler-options :optimizations])))
+        (cljs/merge-compiler-options {:optimizations :simple}))
 
       (shared/set-output-dir mode config)
       (create-module config)))
@@ -117,7 +117,11 @@
             (shared/inject-node-repl config)))))
 
 (defn flush [state mode config]
-  (node/flush-unoptimized state))
+  (case mode
+    :dev
+    (node/flush-unoptimized state)
+    :release
+    (node/flush-optimized state)))
 
 (defn process
   [{::comp/keys [mode stage config] :as state}]
