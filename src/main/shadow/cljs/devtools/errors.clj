@@ -2,6 +2,7 @@
   (:require [clojure.repl :as repl]
             [clojure.string :as str]
             [clojure.spec.alpha :as s]
+            [clojure.pprint :refer (pprint)]
             [shadow.cljs.closure :as closure]
             [shadow.cljs.build :as build]
             [shadow.cljs.ns-form :as ns-form]
@@ -61,27 +62,51 @@
   (write-msg w e)
   (ex-format w (.getCause e)))
 
-(defn spec-explain [data]
-  (with-out-str (s/explain-out data)))
+(defn spec-explain [w {::s/keys [problems value spec] :as data}]
+  ;; FIXME: meh, no idea how to make spec errors easier to read
+  #_(doseq [[in problems]
+            (group-by :in problems)
+
+            [val problems]
+            (group-by :val problems)]
+
+      (.write w (str "Value\n  "))
+      (.write w (str (pr-str val)))
+      (.write w "\nDid not conform to spec:\n")
+      (doseq [{:keys [via path pred reason] :as problem} problems]
+        (.write w "spec: ")
+        (.write w (pr-str (s/abbrev pred)))
+        (.write w "\n")
+        ))
+  (.write w (with-out-str (s/explain-out (select-keys data [::s/problems])))))
 
 (defmethod ex-data-format ::ns-form/invalid-ns
   [w e {:keys [config] :as data}]
   (.write w "Invalid namespace declaration\n")
-  (.write w (spec-explain data)))
+  (spec-explain w data))
 
 (defmethod ex-data-format ::comp/config
   [w e {:keys [config] :as data}]
   (.write w "Invalid configuration\n")
-  (.write w (spec-explain data)))
+  (spec-explain w data))
 
 (defmethod ex-data-format ::build/missing-ns
   [w e data]
   (write-msg w e))
 
 (defmethod ex-data-format ::s/problems
-  [w e {::s/keys [problems value] :as data}]
-  (.write w (.getMessage e))
-  (.write w (spec-explain data)))
+  [w e {::s/keys [problems value spec] :as data}]
+  (let [msg (.getMessage e)
+
+        [_ fdef :as x]
+        (re-find #"Call to ([^ ]+) did not conform to spec:" msg)]
+    ;; macroexpand errors already contain the explain message
+    (if-not x
+      (.write w (str msg "\n"))
+      (.write w (format "Call to %s did not conform to spec\n" fdef)))
+
+    (spec-explain w data)
+    ))
 
 (defmethod ex-data-format ::closure/errors
   [w e {:keys [errors] :as data}]
