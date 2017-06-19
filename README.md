@@ -45,16 +45,17 @@ API Docs coming soon ...
 ### Standalone via [yarn](https://yarnpkg.com/en/package/shadow-cljs) or [npm](https://www.npmjs.com/package/shadow-cljs)
 ```
 # yarn
-yarn add shadow-cljs
+yarn global add shadow-cljs
 
 # npm
-npm install shadow-cljs
+npm install -g shadow-cljs
 ```
 
-You may also install globally which makes things a bit easer to work with.
+Installing `shadow-cljs` globally makes it easier to use from the command line.
 
-`yarn global add shadow-cljs` or `npm install --global shadow-cljs`.
+I recommend adding it to your project as well via `yarn add --dev shadow-cljs` (or `npm install --save-dev shadow-cljs`) so you have the dependency in your project and can keep track of it there. This is optional though. If you have it installed in your project the `shadow-cljs` command will use it over the global version.
 
+You may also skip the global install entirely and just run everything via `./node_modules/.bin/shadow-cljs` or via the `"scripts"` entry in your `package.json`.
 
 ## Configuration
 
