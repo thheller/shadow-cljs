@@ -90,15 +90,7 @@
     ))
 
 (def default-config
-  {:http
-   {:port 8200
-    :host "localhost"}
-
-   :remote
-   {:port 8201
-    :host "localhost"}
-
-   :cache-root
+  {:cache-root
    "target/shadow-cljs"
 
    :builds {}})

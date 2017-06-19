@@ -145,7 +145,7 @@
   "basically less generic clojure.repl.server"
   [{:keys [host port]
     :or {host "localhost"
-         port 8201}
+         port 0}
     :as config} app-promise]
   (let [addr
         (InetAddress/getByName host) ;; nil returns loopback

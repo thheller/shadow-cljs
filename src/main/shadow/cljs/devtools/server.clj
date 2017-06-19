@@ -77,8 +77,11 @@
         ring
         (get-ring-handler config app-promise)
 
+        http-config
+        (merge {:port 0 :host "localhost"} (:http config))
+
         http
-        (aleph/start-server ring (:http config))
+        (aleph/start-server ring http-config)
 
         http-port
         (netty/port http)
@@ -110,7 +113,7 @@
              :config config
              :pid-file pid-file
              :http {:port http-port
-                    :host "localhost" ;; FIXME: take from config or netty instance
+                    :host (:host http-config)
                     :server http}
              :socket-repl socket-repl
              :cli-repl cli-repl}
