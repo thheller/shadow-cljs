@@ -1,4 +1,5 @@
 (ns shadow.cljs.devtools.api
+  (:refer-clojure :exclude (compile))
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [clojure.java.io :as io]
             [shadow.runtime.services :as rt]
@@ -32,12 +33,8 @@
 
     (if-let [worker (super/get-worker supervisor (:id build-config))]
       worker
-      (-> (super/start-worker supervisor build-config)
-          (worker/watch out false)
-          (cond->
-            autobuild
-            (worker/start-autobuild)
-            )))))
+      (super/start-worker supervisor build-config)
+      )))
 
 (defn start-worker
   "starts a dev worker process for a given :build-id
@@ -55,6 +52,9 @@
 
      (get-or-start-worker build-config opts))
    :started))
+
+(defn watch [build-id]
+  (start-worker build-id))
 
 (defn stop-worker [build-id]
   (let [{:keys [supervisor] :as app}
@@ -77,11 +77,13 @@
   (let [config
         (config/load-cljs-edn)
 
-        {:keys [supervisor] :as app}
+        {:keys [out supervisor] :as app}
         (runtime/get-instance!)]
 
     (try
       (-> (get-or-start-worker build-config opts)
+          (worker/watch out false)
+          (worker/start-autobuild)
           (worker/sync!)
           (repl-impl/stdin-takeover! app))
 
@@ -114,13 +116,19 @@
       (e/user-friendly-error e))
     ))
 
-(defn once
+(defn compile
   ([build]
-   (once build {}))
+   (compile build {}))
   ([build opts]
    (let [build-config (config/get-build! build)]
      (once* build-config opts)
      )))
+
+(defn once
+  ([build]
+   (compile build {}))
+  ([build opts]
+   (compile build opts)))
 
 (defn release*
   [build-config {:keys [debug source-maps pseudo-names] :as opts}]

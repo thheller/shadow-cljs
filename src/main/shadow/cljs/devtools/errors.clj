@@ -176,6 +176,7 @@
 
   (->> e (.getCause) (error-format w))
 
+  (.write w "\n")
   (.write w (w/sep-line)))
 
 (defn error-format

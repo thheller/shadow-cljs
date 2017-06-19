@@ -1,7 +1,8 @@
 (ns shadow.cljs.devtools.server.supervisor
   (:require [shadow.cljs.devtools.server.worker :as worker]
             [clojure.core.async :as async :refer (go <! alt!)]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]))
+            [shadow.cljs.devtools.server.system-bus :as sys-bus]
+            [clojure.tools.logging :as log]))
 
 (defn get-worker
   [{:keys [workers-ref] :as svc} id]
@@ -22,9 +23,12 @@
   (let [{:keys [proc-stop] :as proc}
         (worker/start system-bus executor http build-config)]
 
+    (log/debug "supervisor start %s" id)
+
     (vswap! workers-ref assoc id proc)
 
     (go (<! proc-stop)
+        (log/debug "supervisor stop %s" id)
         (vswap! workers-ref dissoc id))
 
     proc

@@ -147,19 +147,19 @@
          :hashbang false
          :output-to script-name}
 
-        out-chan
-        (-> (async/sliding-buffer 10)
-            (async/chan))
+        #_[out-chan
+           (-> (async/sliding-buffer 10)
+               (async/chan))
 
-        _
-        (go (loop []
-              (when-some [msg (<! out-chan)]
-                (try
-                  (util/print-worker-out msg verbose)
-                  (catch Exception e
-                    (prn [:print-worker-out-error e])))
-                (recur)
-                )))
+           _
+           (go (loop []
+                 (when-some [msg (<! out-chan)]
+                   (try
+                     (util/print-worker-out msg verbose)
+                     (catch Exception e
+                       (prn [:print-worker-out-error e])))
+                   (recur)
+                   )))]
 
         ;; FIXME: just connect if already running
         worker

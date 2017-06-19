@@ -13,7 +13,7 @@
   ;; FIXME: inf-clojure checks when there is a space between \n and =>
   (printf "[%d:%d]~%s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))
 
-(defn repl-init []
+(defn repl-init [{:keys [print] :as config}]
   (ns shadow.user
     (:require [clojure.repl :refer (source apropos dir pst doc find-doc)]
               [clojure.java.javadoc :refer (javadoc)]
@@ -24,13 +24,14 @@
   ;; (apply require repl-requires)
   ;; just doing that does refer-clojure, ns seems to work
 
-  (println "shadow-cljs - REPL - see (help), :repl/quit to exit"))
+  (when-not (false? print)
+    (println "shadow-cljs - REPL - see (help), :repl/quit to exit")))
 
-(defn repl []
+(defn repl [{:keys [print prompt] :as config}]
   (let [loop-bindings
         (volatile! {})
 
-        {::repl/keys [print] :as root}
+        root
         (repl/root)]
 
     (repl/takeover
@@ -64,7 +65,7 @@
 
       (m/repl
         :init
-        repl-init
+        #(repl-init config)
 
         ;; need :repl/quit support, so not just the default read
         :read
@@ -73,18 +74,25 @@
         :print
         (fn [x]
           (cond
-            print
-            (print x)
+            (false? print)
+            nil
 
-            ;; print nil?
-            ;; (nil? x)
-            ;; (println)
+            (fn? print)
+            (print x)
 
             :else
             (clojure.core/prn x)))
 
         :prompt
-        repl-prompt
+        (cond
+          (false? prompt)
+          (fn [])
+
+          (fn? prompt)
+          prompt
+
+          :else
+          repl-prompt)
 
         :eval
         (fn [form]
@@ -125,7 +133,7 @@
           (repl/enter-root
             {::repl/type :remote
              ::socket socket}
-            (repl)))
+            (repl config)))
 
         (catch SocketException _disconnect)
 
@@ -162,7 +170,7 @@
     {:server-thread server-thread
      :server-socket server-socket
      :host host
-     :port port}))
+     :port (.getLocalPort server-socket)}))
 
 (defn stop [{:keys [server-socket server-thread]}]
   (.close server-socket)

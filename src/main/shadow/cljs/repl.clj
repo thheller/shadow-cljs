@@ -232,7 +232,7 @@
 
         state
         (cljs/with-compiler-env state
-          (cljs/post-analyze-ns ns-info state)
+          (cljs/post-analyze-ns ns-info state true)
           state)
 
         dep-sources

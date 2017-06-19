@@ -23,9 +23,6 @@
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
 
-(def default-opts
-  {:autobuild true})
-
 (def default-npm-config
   {:id :npm
    :target :npm-module
@@ -107,56 +104,62 @@
           (stop app)
           )))))
 
+(defn do-build-command
+  [{:keys [action options] :as opts} build-id]
+  (let [{:keys [builds] :as config}
+        (config/load-cljs-edn!)
+
+        build-config
+        (get builds build-id)
+
+        ;; FIXME: what about automatic npm support mode?
+        ;; I think it is better to always force a build config
+        ;; since you are going to need one for release anyways
+        #_(cond
+            (keyword? build-id)
+            (config/get-build! build)
+
+            npm
+            (merge default-npm-config (config/get-build :npm))
+
+            :else
+            nil)]
+
+    (if-not (some? build-config)
+      (do (println (str "No config for build \"" (name build-id) "\" found."))
+          (println (str "Available builds are: " (->> builds
+                                                      (keys)
+                                                      (map name)
+                                                      (str/join ", ")))))
+
+      (case action
+        :release
+        (api/release* build-config options)
+
+        :check
+        (api/check* build-config options)
+
+        :compile
+        (api/once* build-config options)
+        ))))
+
 (defn main [& args]
   (try
-    (let [{:keys [options summary errors] :as opts}
-          (opts/parse args)
-
-          options
-          (merge default-opts options)]
+    (let [{:keys [action builds options summary errors] :as opts}
+          (opts/parse args)]
 
       (cond
-        (or (::opts/help options) (seq errors))
+        (:version options)
+        (println "TBD")
+
+        (or (:help options) (seq errors))
         (opts/help opts)
 
-        (= :server (::opts/mode options))
-        (server/from-cli options)
+        (contains? #{:compile :check :release} action)
+        (run! #(do-build-command opts %) builds)
 
-        :else
-        (let [{::opts/keys [build npm]} options
-
-              build-config
-              (cond
-                (keyword? build)
-                (config/get-build! build)
-
-                npm
-                (merge default-npm-config (config/get-build :npm))
-
-                :else
-                nil)]
-
-          (if-not (some? build-config)
-            (do (println "Please specify a build or use --npm")
-                (opts/help opts))
-
-            (case (::opts/mode options)
-              :release
-              (api/release* build-config options)
-
-              :check
-              (api/check* build-config options)
-
-              :dev
-              (with-app #(api/dev* build-config options))
-
-              :once
-              (api/once* build-config options)
-
-              ;; default just displays help now
-              (do (println "Please specify which action to run (one of: --once, --dev, --check --release)")
-                  (opts/help opts))
-              )))))
+        (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
+        (server/from-cli action builds options)))
 
     (catch Exception e
       (try
@@ -170,8 +173,13 @@
           (flush)
           )))))
 
-(defn from-remote [args]
-  (apply main args))
+(defn from-remote [complete-token args]
+  (apply main args)
+  (try
+    (println complete-token)
+    (catch Exception e
+      ;; CTRL+D closes socket so we can't write to it anymore
+      )))
 
 (defn -main [& args]
   (apply main args))

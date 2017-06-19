@@ -654,7 +654,7 @@ normalize-resource-name
     ))
 
 
-(defn post-analyze-ns [{:keys [name] :as ast} compiler-state]
+(defn post-analyze-ns [{:keys [name] :as ast} compiler-state merge?]
   (let [ast
         (-> ast
             (util/load-macros)
@@ -664,7 +664,16 @@ normalize-resource-name
 
     (util/check-uses! ast)
     (util/check-renames! ast)
-    (swap! env/*compiler* update-in [::ana/namespaces name] merge (dissoc ast :env :op :form))
+
+    (let [ana-info
+          (dissoc ast :env :op :form)]
+      ;; FIXME: nukes all defs when not merge?
+      ;; this is so ^:const doesn't fail when re-compiling
+      ;; but if a REPL is connected this may nuke a REPL def
+      ;; ns from the REPL will merge but autobuild will not, should be ok though
+      (if merge?
+        (swap! env/*compiler* update-in [::ana/namespaces name] merge ana-info)
+        (swap! env/*compiler* assoc-in [::ana/namespaces name] ana-info)))
 
     ;; FIXME: is this the correct location to do this?
     ;; FIXME: using alter instead of reset, to avoid completely removing meta
@@ -678,7 +687,7 @@ normalize-resource-name
 (defn post-analyze [{:keys [op] :as ast} compiler-state]
   (case op
     :ns
-    (post-analyze-ns ast compiler-state)
+    (post-analyze-ns ast compiler-state false)
     :ns*
     (throw (ex-info "ns* not supported (require, require-macros, import, import-macros, ... must be part of your ns form)" ast))
     ast))
