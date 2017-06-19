@@ -123,43 +123,35 @@
 ;; FIXME: windows uses ;
 (def cp-seperator ":")
 
-(defn aot-compile [project-root {:keys [version] :as config} aot-path classpath]
-  (let [version-file (path/resolve aot-path "version")]
-
-    ;; FIXME: is it enough to AOT only when versions change?
-    (when (or (not (fs/existsSync version-file))
-              (not= version (util/slurp version-file)))
-
-      (mkdirp/sync aot-path)
-
-      (print "shadow-cljs - optimizing startup")
-
-      (run-java
-        project-root
-        ["-cp" classpath
-         ;; FIXME: maybe try direct linking?
-         (str "-Dclojure.compile.path=" aot-path)
-         "clojure.main"
-         "-e" "(run! compile '[shadow.cljs.devtools.api shadow.cljs.devtools.server shadow.cljs.devtools.cli])"])
-
-      (fs/writeFileSync version-file version)
-      )))
-
 (defn run-standalone
   [project-root {:keys [cache-root source-paths] :as config} args]
   (let [aot-path
         (path/resolve project-root cache-root "aot-classes")
 
         classpath
-        (->> (get-classpath project-root config)
+        (get-classpath project-root config)
+
+        classpath-str
+        (->> classpath
              (concat [aot-path])
              (concat source-paths)
              (str/join cp-seperator))
 
         cli-args
-        (into ["-cp" classpath "shadow.cljs.devtools.cli" "--npm"] args)]
-
-    (aot-compile project-root config aot-path classpath)
+        (into ["-cp" classpath-str
+               ;; FIXME: maybe try direct linking?
+               (str "-Dclojure.compile.path=" aot-path)
+               "clojure.main"
+               ;; FIXME: this should only be done if the classpath changes
+               ;; it only adds about 500ms overhead though which isn't that bad
+               ;; and is faster than launching an extra JVM to only do AOT
+               ;; but comparing the timestamps of every jar and only
+               ;; compiling conditionally should still be fastest
+               ;; using do so it doesn't print shadow.cljs.devtools.cli
+               "-e" "(do (compile 'shadow.cljs.devtools.cli) nil)"
+               "-m" "shadow.cljs.devtools.cli"
+               "--npm"]
+          args)]
 
     (println "shadow-cljs - starting ...")
     (run-java project-root cli-args)
@@ -172,7 +164,6 @@
 
 (defn main [args]
   (when-let [config-path (ensure-config)]
-    (println "shadow-cljs - using" config-path)
 
     (let [project-root
           (path/dirname config-path)
@@ -186,14 +177,17 @@
 
       (if (not (map? config))
         (do (println "shadow-cljs - old config format no longer supported")
+            (println config-path)
             (println "  previously a vector was used to define builds")
             (println "  now {:builds the-old-vector} is expected"))
 
-        (let [{:keys [cache-root] :as config}
+        (let [{:keys [cache-root version] :as config}
               (merge defaults config)
 
               server-pid
               (path/resolve project-root cache-root "remote.pid")]
+
+          (println "shadow-cljs - config:" config-path "version:" version)
 
           (cond
             (fs/existsSync server-pid)

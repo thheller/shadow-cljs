@@ -33,10 +33,10 @@ for (;;) {
 
 var lib = null;
 if (localLib != null) {
-  console.log("shadow-cljs - using project version");
+  // console.log("shadow-cljs - using project version");
   lib = require(localLib);
 } else {
-  console.log("shadow-cljs - using global version")
+  // console.log("shadow-cljs - using global version")
 
   // this throws if not found right?
   lib = require("./lib");
