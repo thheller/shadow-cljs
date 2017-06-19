@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "devDependencies": {
+    "source-map-support": "^0.4.14",
+    "ws": "^3.0.0"
+  },
+  "dependencies": {
+    "react": "^15.6.1",
+    "react-dom": "^15.6.1",
+    "webpack": "^2.6.1"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "npm-web",
+  "version": "1.0.0",
+  "license": "MIT",
+  "devDependencies": {
+    "source-map-loader": "^0.2.1"
+  },
+  "dependencies": {
+    "react": "^15.5.4",
+    "react-dom": "^15.5.4"
+  }
+}

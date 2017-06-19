@@ -1,0 +1,22 @@
+{
+  "name": "shadow-cljs-jar",
+  "version": "0.7.0",
+  "description": "shadow-cljs dependency resolver/downloader",
+  "author": "Thomas Heller",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/thheller/shadow-cljs/issues"
+  },
+  "homepage": "https://github.com/thheller/shadow-cljs#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thheller/shadow-cljs.git"
+  },
+  "keywords": [
+    "clojurescript",
+    "cljs"
+  ],
+  "scripts":{
+    "prepublish":"lein uberjar && cp target/shadow-cljs-jar-0.1.0-standalone.jar bin/shadow-cljs.jar"
+  }
+}

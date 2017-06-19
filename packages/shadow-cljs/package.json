@@ -1,0 +1,29 @@
+{
+  "name": "shadow-cljs",
+  "version": "0.10.0",
+  "description": "ClojureScript for JS tools",
+  "author": "Thomas Heller",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/thheller/shadow-cljs/issues"
+  },
+  "homepage": "https://github.com/thheller/shadow-cljs#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thheller/shadow-cljs.git"
+  },
+  "keywords": [
+    "clojurescript",
+    "cljs"
+  ],
+  "bin": {
+    "shadow-cljs": "./cli/runner.js"
+  },
+  "dependencies": {
+    "mkdirp": "^0.5.1",
+    "readline-sync": "^1.4.7",
+    "shadow-cljs-jar": "^0.7.0",
+    "source-map-support": "^0.4.15",
+    "ws": "^3.0.0"
+  }
+}

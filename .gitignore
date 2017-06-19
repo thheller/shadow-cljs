@@ -22,6 +22,4 @@ pom.xml.asc
 /doc/codox
 /tmp
 .DS_Store
-
 yarn.lock
-package.json
