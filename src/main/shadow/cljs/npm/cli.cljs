@@ -153,6 +153,8 @@
                "--npm"]
           args)]
 
+    (mkdirp/sync aot-path)
+
     (println "shadow-cljs - starting ...")
     (run-java project-root cli-args)
     ))
