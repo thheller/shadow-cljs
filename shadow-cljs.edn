@@ -8,9 +8,6 @@
  :server
  {:autostart #{}}
 
- :nrepl
- {:port 8202}
-
  ;; actually unused when using :lein
  :source-paths
  ["src/dev"

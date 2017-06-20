@@ -128,6 +128,9 @@
     :build-complete
     (build-complete msg)
 
+    :worker-shutdown
+    (.terminate @ws-ref)
+
     ;; default
     (prn [:repl-unknown msg])
     ))

@@ -2,6 +2,7 @@
   (:refer-clojure :exclude (send select))
   (:require [clojure.pprint :refer (pprint)]
             [clojure.tools.nrepl.middleware :as middleware]
+            [clojure.tools.nrepl.middleware.session :as nrepl-session]
             [clojure.tools.nrepl.transport :as transport]
             [clojure.tools.nrepl.misc :as misc]
             [clojure.tools.nrepl.server :as server]
@@ -13,29 +14,6 @@
             [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl])
   (:import (java.io StringReader)))
-
-(defn do-eval [msg args]
-  [:foo])
-
-(defn do-list-builds [msg args]
-  [{:builds (config/load-cljs-edn)}])
-
-(defn do-start-worker
-  [msg args]
-  [(api/start-worker (:build args) args)])
-
-(defn rpc [{:keys [op transport args] :as msg} action]
-  (try
-    (let [replies (action msg (when args (edn/read-string args)))]
-      (doseq [reply replies]
-        (transport/send transport
-          (misc/response-for msg {:value (pr-str reply)}))))
-    (catch Exception e
-      (prn [:error-while-processing op e])
-      (transport/send transport
-        (misc/response-for msg {:status :error :error (.getMessage e)}))))
-  (transport/send transport
-    (misc/response-for msg {:status :done})))
 
 (def ^:dynamic *cljs-repl* nil)
 
@@ -49,71 +27,87 @@
   (transport/send (:transport req)
     (misc/response-for req res)))
 
-(defn do-cljs-eval [build-id {:keys [transport code] :as msg}]
-  (let [worker
-        (api/get-worker build-id)
+(defn cljs-eval
+  [next]
+  (fn [{:keys [session code] :as msg}]
+    (let [build-id
+          (get @session #'*cljs-repl*)
 
-        reader
-        (StringReader. code)]
+          worker
+          (api/get-worker build-id)
 
-    (loop []
-      (when-let [repl-state (repl-impl/worker-repl-state worker)]
+          reader
+          (StringReader. code)]
 
-        ;; need the repl state to properly support reading ::alias/foo
-        (let [{:keys [eof? form] :as read-result}
-              (repl/read-one repl-state reader {})]
+      (loop []
+        (when-let [repl-state (repl-impl/worker-repl-state worker)]
 
-          (cond
-            eof?
-            :eof
+          ;; need the repl state to properly support reading ::alias/foo
+          (let [{:keys [eof? form] :as read-result}
+                (repl/read-one repl-state reader {})]
 
-            (nil? form)
-            (recur)
+            (cond
+              eof?
+              :eof
 
-            ;; FIXME: should these unselect?
-            (= :repl/quit form)
-            :quit
-
-            (= :cljs/quit form)
-            :quit
-
-            :else
-            (when-some [result (worker/repl-eval worker ::stdin read-result)]
-              (prn [:result result])
-              (send msg {:value result})
+              (nil? form)
               (recur)
-              )))))
 
-    (send msg {:status :done})
+              (= :repl/quit form)
+              (do (swap! session dissoc #'*cljs-repl*)
+                  (send msg {:value :repl/quit}))
+
+              (= :cljs/quit form)
+              (do (swap! session dissoc #'*cljs-repl*)
+                  (send msg {:value :cljs/quit}))
+
+              :else
+              (when-some [result (worker/repl-eval worker ::stdin read-result)]
+                (prn [:result result])
+
+                (case (:type result)
+                  :repl/result
+                  (send msg result) ;; :value is already a edn string
+
+                  :repl/set-ns-complete
+                  (send msg {:status #{:repl/set-ns-complete} :value :repl/set-ns-complete})
+
+                  :repl/require-complete
+                  nil
+
+                  :repl/interrupt
+                  nil
+
+                  :repl/timeout
+                  (send msg {:status #{:repl/timeout}})
+
+                  :repl/no-eval-target
+                  (send msg {:status #{:repl/no-eval-target} :value :repl/no-eval-target})
+
+                  :repl/too-many-eval-clients
+                  (send msg {:status #{:repl/too-many-clients}})
+
+                  :else
+                  (send msg {:value (pr-str result)}))
+
+                (recur)
+                )))))
+
+      (send msg {:status :done})
+      )
+
     ))
 
-(defn wrap-handler
-  [next]
-  (fn [{:keys [op session] :as msg}]
-    (let [repl-var #'*cljs-repl*]
-
-      (when-not (contains? @session repl-var)
-        (swap! session assoc repl-var nil))
-
-      (let [cljs-repl (get @session repl-var)]
-        (cond
-          (and (= "eval" op) (some? cljs-repl))
-          (do-cljs-eval cljs-repl msg)
-
-          :else ;; treat as CLJ
-          (next msg)
-          )))))
-
 (middleware/set-descriptor!
-  #'wrap-handler
+  #'cljs-eval
   {:requires
    #{"clone"}
 
    :expects
-   #{"eval" "load-file"}
+   #{}
 
    :handles
-   {"cljs/eval" {}}})
+   {"eval" {}}})
 
 (defn start
   [{:keys [host port]
@@ -121,21 +115,49 @@
          port 0}
     :as config}]
 
-  (let [middlewares
-        [#'clojure.tools.nrepl.middleware/wrap-describe
-         #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
-         #'clojure.tools.nrepl.middleware.load-file/wrap-load-file
-         #'wrap-handler
-         #'clojure.tools.nrepl.middleware.session/add-stdin
-         #'clojure.tools.nrepl.middleware.session/session]
+  (let [clj-stack
+        (-> [#'clojure.tools.nrepl.middleware/wrap-describe
+             #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
+             #'clojure.tools.nrepl.middleware.load-file/wrap-load-file]
+            (middleware/linearize-middleware-stack))
 
-        stack
-        (middleware/linearize-middleware-stack middlewares)
+        clj-handler
+        ((apply comp (reverse clj-stack)) server/unknown-op)
 
-        handler
-        ((apply comp (reverse stack)) server/unknown-op)]
+        cljs-stack
+        (-> [#'cljs-eval]
+            (middleware/linearize-middleware-stack))
 
-    (server/start-server :bind host :port port :handler handler)))
+        cljs-handler
+        ((apply comp (reverse cljs-stack)) server/unknown-op)
+
+        select-handler
+        (fn [{:keys [op session] :as msg}]
+          (let [repl-var #'*cljs-repl*]
+            (when-not (contains? @session repl-var)
+              (swap! session assoc repl-var nil))
+
+            (let [select-id (get @session repl-var)]
+              (if select-id
+                (do (prn [:nrepl-op op (keys msg)])
+                    (cljs-handler msg))
+                (clj-handler msg)))))
+
+        default-stack
+        (-> [#'clojure.tools.nrepl.middleware.session/add-stdin
+             #'clojure.tools.nrepl.middleware.session/session]
+            (middleware/linearize-middleware-stack))
+
+        root-handler
+        ((apply comp (reverse default-stack)) select-handler)]
+
+    (server/start-server
+      :bind host
+      :port port
+      :handler root-handler)))
+
+(comment
+  (prn (server/default-handler)))
 
 (defn stop [server]
   (server/stop-server server))

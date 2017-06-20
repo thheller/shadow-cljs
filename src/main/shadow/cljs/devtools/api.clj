@@ -59,11 +59,22 @@
            build-id
            (config/get-build! build-id))]
 
-     (get-or-start-worker build-config opts))
+     (-> (get-or-start-worker build-config opts)
+         (cond->
+           autobuild
+           (-> (worker/start-autobuild)
+               (worker/sync!)))))
    :started))
 
-(defn watch [build-id]
-  (start-worker build-id))
+(defn watch
+  ([build-id]
+    (start-worker build-id))
+  ([build-id opts]
+    (start-worker build-id opts)))
+
+(comment
+  (start-worker :browser)
+  (stop-worker :browser))
 
 (defn stop-worker [build-id]
   (let [{:keys [supervisor] :as app}

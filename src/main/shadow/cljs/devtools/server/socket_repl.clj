@@ -135,7 +135,7 @@
              ::socket socket}
             (repl config)))
 
-        (catch SocketException _disconnect)
+        (catch SocketException ex)
 
         (finally
           (.close socket))))))
@@ -153,6 +153,9 @@
         server-socket
         (ServerSocket. port 0 addr)
 
+        sockets-ref
+        (volatile! #{})
+
         server-thread
         (thread
           (str "shadow-cljs:socket-repl") true
@@ -161,19 +164,24 @@
               (when (not (.isClosed server-socket))
                 (try
                   (let [conn (.accept server-socket)]
+                    (vswap! sockets-ref conj conn)
                     (thread
                       (str "shadow-cljs:socket-repl-client") false
-                      (connection-loop config app-promise conn)))
+                      (connection-loop config app-promise conn)
+                      (vswap! sockets-ref disj conn)))
                   (catch SocketException _disconnect))
                 (recur)))))]
 
     {:server-thread server-thread
      :server-socket server-socket
+     :sockets-ref sockets-ref
      :host host
      :port (.getLocalPort server-socket)}))
 
-(defn stop [{:keys [server-socket server-thread]}]
+(defn stop [{:keys [server-socket server-thread sockets-ref]}]
   (.close server-socket)
+  (doseq [s @sockets-ref]
+    (.close s))
   (.interrupt server-thread))
 
 (comment
