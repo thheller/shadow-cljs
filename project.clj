@@ -15,6 +15,7 @@
 
    [org.clojure/tools.logging "0.4.0"]
    [org.clojure/tools.cli "0.3.5"]
+   [org.clojure/tools.nrepl "0.2.12"]
 
    [com.cognitect/transit-clj "0.8.300"
     :exclusions
@@ -22,6 +23,7 @@
 
    [org.clojure/core.async "0.3.443"]
    [org.clojure/tools.reader "1.0.0"]
+
    [org.clojure/clojurescript "1.9.562"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it

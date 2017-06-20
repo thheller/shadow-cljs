@@ -15,6 +15,7 @@
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
             [shadow.cljs.devtools.server.runtime :as runtime]
+            [shadow.cljs.devtools.server.nrepl :as nrepl]
             [shadow.repl :as repl]
             [shadow.http.router :as http]
             [shadow.repl :as r]
@@ -58,15 +59,18 @@
      (catch Throwable t#
        (println t# ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [http pid-file socket-repl] :as app}]
+(defn shutdown-system [{:keys [http pid-file socket-repl nrepl] :as app}]
   (println "shutting down ...")
   (do-shutdown (.delete pid-file))
   (do-shutdown (rt/stop-all app))
   (do-shutdown (socket-repl/stop socket-repl))
+  (when nrepl
+    (do-shutdown (nrepl/stop nrepl)))
   (let [netty (:server http)]
     (do-shutdown
       (.close netty)
       (netty/wait-for-close netty)))
+
   (println "shutdown complete."))
 
 (defn start-system
@@ -104,6 +108,9 @@
         cli-repl
         (socket-repl/start cli-repl-config app-promise)
 
+        nrepl
+        (nrepl/start (:nrepl config))
+
         pid-file
         (doto (io/file cache-root "remote.pid")
           (.deleteOnExit))
@@ -115,6 +122,7 @@
              :http {:port http-port
                     :host (:host http-config)
                     :server http}
+             :nrepl nrepl
              :socket-repl socket-repl
              :cli-repl cli-repl}
             (rt/init app)
@@ -125,7 +133,8 @@
     ;; FIXME: should refuse to start if a pid already exists
     (spit pid-file (pr-str {:http http-port
                             :socket-repl (:port socket-repl)
-                            :cli-repl (:port cli-repl)}))
+                            :cli-repl (:port cli-repl)
+                            :nrepl (:port nrepl)}))
 
     (future
       ;; OCD because I want to print the shadow-cljs info of start!
@@ -151,11 +160,14 @@
   ([sys-config]
    (start! sys-config (app sys-config)))
   ([sys-config app]
-   (let [{:keys [http socket-repl] :as app}
+   (let [{:keys [http socket-repl nrepl] :as app}
          (start-system app sys-config)]
 
      (println (str "shadow-cljs - server running at http://" (:host http) ":" (:port http)))
-     (println (str "shadow-cljs - socket repl running at tcp://" (:host socket-repl) ":" (:port socket-repl)))
+     (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl)))
+     (println (str "shadow-cljs - nrepl running at "
+                   (-> (:server-socket nrepl) (.getInetAddress))
+                   ":" (:port nrepl)))
 
      (runtime/set-instance! app)
      ::started

@@ -24,6 +24,15 @@
             )
   (:import (java.io PushbackReader StringReader)))
 
+
+(defn get-worker
+  [id]
+  {:pre [(keyword? id)]}
+  (let [{:keys [out supervisor] :as app}
+        (runtime/get-instance!)]
+    (super/get-worker supervisor id)
+    ))
+
 (defn get-or-start-worker [build-config opts]
   (let [{:keys [autobuild]}
         opts
