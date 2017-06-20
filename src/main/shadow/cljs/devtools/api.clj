@@ -22,7 +22,8 @@
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
             [shadow.cljs.devtools.server.runtime :as runtime]
             )
-  (:import (java.io PushbackReader StringReader)))
+  (:import (java.io PushbackReader StringReader)
+           (java.lang ProcessBuilder$Redirect)))
 
 
 (defn get-worker
@@ -68,9 +69,9 @@
 
 (defn watch
   ([build-id]
-    (start-worker build-id))
+   (start-worker build-id))
   ([build-id opts]
-    (start-worker build-id opts)))
+   (start-worker build-id opts)))
 
 (comment
   (start-worker :browser)
@@ -223,28 +224,60 @@
   (-> (slurp (io/resource "shadow/txt/repl-help.txt"))
       (println)))
 
-(comment
+(defn test-setup []
+  (-> (cljs/init-state)
+      (cljs/enable-source-maps)
+      (as-> X
+        (cljs/merge-build-options X
+          {:output-dir (io/file (:work-dir X) "shadow-test")}))
+      (cljs/find-resources-in-classpath)
+      ))
 
-  (defn test-setup []
-    (-> (cljs/init-state)
-        (cljs/enable-source-maps)
-        (as-> X
-          (cljs/merge-build-options X
-            {:output-dir (io/file (:work-dir X) "shadow-test")
-             :asset-path "target/shadow-test"}))
-        (cljs/find-resources-in-classpath)
-        ))
 
-  (defn test-all []
-    (-> (test-setup)
-        (node/execute-all-tests!))
-    ::test-all)
+(defn node-execute! [node-args file]
+  (let [script-args
+        ["node"]
 
-  (defn test-affected
-    [source-names]
-    {:pre [(seq source-names)
-           (not (string? source-names))
-           (every? string? source-names)]}
-    (-> (test-setup)
-        (node/execute-affected-tests! source-names))
-    ::test-affected))
+        pb
+        (doto (ProcessBuilder. script-args)
+          (.directory nil))]
+
+
+    ;; not using this because we only get output once it is done
+    ;; I prefer to see progress
+    ;; (prn (apply shell/sh script-args))
+
+    (let [node-proc (.start pb)]
+
+      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
+      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
+
+      (let [out (.getOutputStream node-proc)]
+        (io/copy (io/file file) out)
+        (.close out))
+
+      ;; FIXME: what if this doesn't terminate?
+      (let [exit-code (.waitFor node-proc)]
+        exit-code))))
+
+(defn test-all []
+  (-> (comp/init :dev '{:id :shadow-cljs/test
+                        :target :node-script
+                        :main shadow.test-runner/main
+                        :output-to "target/shadow-test-runner.js"
+                        :hashbang false})
+      (node/make-test-runner)
+      (comp/compile)
+      (comp/flush))
+
+  (node-execute! [] "target/shadow-test-runner.js")
+  ::test-all)
+
+(defn test-affected
+  [source-names]
+  {:pre [(seq source-names)
+         (not (string? source-names))
+         (every? string? source-names)]}
+  (-> (test-setup)
+      (node/execute-affected-tests! source-names))
+  ::test-affected)

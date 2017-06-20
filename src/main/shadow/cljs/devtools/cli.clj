@@ -18,7 +18,9 @@
             [shadow.cljs.devtools.server :as server]
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.cljs.devtools.errors :as errors]
-            [shadow.http.router :as http]))
+            [shadow.http.router :as http]
+            [shadow.cljs.build :as cljs]
+            [shadow.cljs.node :as node]))
 
 ;; use namespaced keywords for every CLI specific option
 ;; since all options are passed to the api/* and should not conflict there
@@ -155,6 +157,9 @@
         (or (:help options) (seq errors))
         (opts/help opts)
 
+        (= action :test)
+        (api/test-all)
+
         (contains? #{:compile :check :release} action)
         (run! #(do-build-command opts %) builds)
 
@@ -184,26 +189,24 @@
 (defn -main [& args]
   (apply main args))
 
-(comment
-  ;; FIXME: fix these properly and create CLI args for them
-  (defn autotest
-    "no way to interrupt this, don't run this in nREPL"
-    []
-    (-> (api/test-setup)
-        (cljs/watch-and-repeat!
-          (fn [state modified]
-            (-> state
-                (cond->
-                  ;; first pass, run all tests
-                  (empty? modified)
-                  (node/execute-all-tests!)
-                  ;; only execute tests that might have been affected by the modified files
-                  (not (empty? modified))
-                  (node/execute-affected-tests! modified))
-                )))))
+(defn autotest
+  "no way to interrupt this, don't run this in nREPL"
+  []
+  (-> (api/test-setup)
+      (cljs/watch-and-repeat!
+        (fn [state modified]
+          (-> state
+              (cond->
+                ;; first pass, run all tests
+                (empty? modified)
+                (node/execute-all-tests!)
+                ;; only execute tests that might have been affected by the modified files
+                (not (empty? modified))
+                (node/execute-affected-tests! modified))
+              )))))
 
-  (defn test-all []
-    (api/test-all))
+(defn test-all []
+  (api/test-all))
 
-  (defn test-affected [test-ns]
-    (api/test-affected [(cljs/ns->cljs-file test-ns)])))
+(defn test-affected [test-ns]
+  (api/test-affected [(cljs/ns->cljs-file test-ns)]))

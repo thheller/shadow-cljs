@@ -25,6 +25,8 @@
    :cljs-repl
    :clj-repl
 
+   :test
+
    :server])
 
 (defn help [{:keys [errors summary] :as opts}]

@@ -2,7 +2,7 @@
  {:profile "+cljs"}
 
  ;;  :dev-mode true
- :verbose true
+ ;; :verbose true
  :debug true
 
  :server

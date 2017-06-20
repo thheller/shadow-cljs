@@ -264,7 +264,9 @@
     (-> state
         (cljs/merge-resource test-runner-src)
         (cljs/reset-modules)
-        (configure {:main test-runner-ns :output-to "target/shadow-test-runner.js"}))))
+        (configure {:main test-runner-ns
+                    :output-to "target/shadow-test-runner.js"
+                    :hashbang false}))))
 
 (defn find-all-test-namespaces [state]
   (->> (get-in state [:sources])
