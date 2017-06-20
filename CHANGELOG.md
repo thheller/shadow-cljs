@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.20170618](https://github.com/thheller/shadow-cljs/compare/1.0.20170618...1.0.20170620)
+
+- fix some AOT issues that caused weird errors
+- first pass making errors prettier as well
+- [BREAKING] refactor all CLI commands, see `shadow-cljs -h`
+- [BREAKING] http, socket-repl now use random ports by default, add `:http {:port 12345}` to get a fixed port.
+- experimental nREPL support, still work in progress.
+
 ## [1.0.20170618](https://github.com/thheller/shadow-cljs/compare/1.0.20170615-09...1.0.20170618)
 
 - fix broken node REPL `require`
