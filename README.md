@@ -103,13 +103,16 @@ Each build in `shadow-cljs` must define a `:target` which defines where you inte
 shadow-cljs -h
 
 # compile a build once in :dev mode
-shadow-cljs --build build-id --once
+shadow-cljs compile build-id
 
-# compile and watch + REPL
-shadow-cljs --build build-id --dev
+# compile and watch
+shadow-cljs watch build-id
+
+# REPL for the build
+shadow-cljs cljs-repl build-id
 
 # release
-shadow-cljs --build build-id --release
+shadow-cljs release build-id
 ```
 
 ## License
