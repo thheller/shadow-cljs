@@ -208,5 +208,6 @@
 (defn test-all []
   (api/test-all))
 
-(defn test-affected [test-ns]
-  (api/test-affected [(cljs/ns->cljs-file test-ns)]))
+(comment
+  (defn test-affected [test-ns]
+    (api/test-affected [(cljs/ns->cljs-file test-ns)])))
