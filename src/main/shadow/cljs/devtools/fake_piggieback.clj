@@ -11,8 +11,7 @@
   (:require [clojure.tools.nrepl.middleware :refer (set-descriptor!)]
             [shadow.cljs.devtools.api :as api]))
 
-;; tools access these directly via resolve
-(def ^:dynamic *cljs-repl-env* nil)
+;; tools access this directly via resolve
 (def ^:dynamic *cljs-compiler-env* nil)
 
 ;; vim-fireplace calls this directly with a repl-env
@@ -26,8 +25,8 @@
 
 (defn wrap-cljs-repl [next]
   (fn [{:keys [session] :as msg}]
-    (when-not (contains? @session #'*cljs-repl-env*)
-      (swap! session (partial merge {#'*cljs-repl-env* *cljs-repl-env*
-                                     #'*cljs-compiler-env* *cljs-compiler-env*})))
+    (when-not (contains? @session #'*cljs-compiler-env*)
+      (swap! session assoc
+        #'*cljs-compiler-env* *cljs-compiler-env*))
     (next msg)))
 

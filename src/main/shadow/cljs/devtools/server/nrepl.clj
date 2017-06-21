@@ -39,23 +39,32 @@
 
             (= :repl/quit form)
             (do (swap! session dissoc #'api/*nrepl-cljs*)
-                (send msg {:value ":repl/quit"}))
+                (send msg {:value ":repl/quit" :ns (-> *ns* ns-name str)}))
 
             (= :cljs/quit form)
             (do (swap! session dissoc #'api/*nrepl-cljs*)
-                (send msg {:value ":cljs/quit"}))
+                (send msg {:value ":cljs/quit" :ns (-> *ns* ns-name str)}))
 
             ;; Cursive supports
             ;; {:status :eval-error :ex <exception name/message> :root-ex <root exception name/message>}
             ;; {:err string} prints to stderr
             :else
             (when-some [result (worker/repl-eval worker ::stdin read-result)]
+              ;; (prn [:result result])
               (case (:type result)
                 :repl/result
-                (send msg result) ;; :value is already a edn string
+                (let [repl-state (repl-impl/worker-repl-state worker)
+
+                      repl-ns
+                      (-> repl-state :current :ns)]
+                  (send msg (assoc result :ns (pr-str repl-ns)))) ;; :value is already a edn string
 
                 :repl/set-ns-complete
-                nil
+                (let [repl-state (repl-impl/worker-repl-state worker)
+
+                      repl-ns
+                      (-> repl-state :current :ns)]
+                  (send msg {:value (pr-str repl-ns) :ns (pr-str repl-ns)}))
 
                 :repl/require-complete
                 nil
@@ -73,7 +82,7 @@
                 (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
 
                 :else
-                (send msg {:value (pr-str [:FIXME result])}))
+                (send msg {:err (pr-str [:FIXME result])}))
 
               (recur))
             ))))
@@ -94,15 +103,21 @@
             (when build-id
               (api/get-worker build-id))]
 
-        (prn [:cljs-select op build-id (some? worker) (keys msg)])
-        (when (= op "eval")
-          (println)
-          (println (:code msg))
-          (println)
-          (flush))
+        ;; (prn [:cljs-select op build-id (some? worker) (keys msg)])
+        #_(when (= op "eval")
+            (println)
+            (println (:code msg))
+            (println)
+            (flush))
+
+        (if worker
+          (swap! session assoc #'cemerick.piggieback/*cljs-compiler-env* (-> worker :state-ref deref :compiler-state :compiler-env))
+          (swap! session dissoc #'cemerick.piggieback/*cljs-compiler-env*))
+
         (-> msg
             (cond->
               worker
+              ;; FIXME: add :cljs.env/compiler key for easier access?
               (assoc ::worker worker ::build-id build-id))
             (next)
             )))))
@@ -110,13 +125,10 @@
 (middleware/set-descriptor!
   #'cljs-select
   {:requires
-   #{"clone"}
-
-   :expects
-   #{}
+   #{#'clojure.tools.nrepl.middleware.session/session}
 
    :handles
-   {}})
+   {"cljs/select" {}}})
 
 (defn cljs-eval [next]
   (fn [{::keys [worker] :keys [op] :as msg}]
@@ -133,45 +145,97 @@
    #{#'cljs-select}
 
    :expects
-   #{"eval"}
+   #{"eval"}})
 
-   :handles
-   {"cljs/select" {}}})
+(defn do-cljs-load-file [msg]
+  (send msg {:err "TBD"}))
 
-;; rewrite piggieback descriptor so it always runs after select
+(defn cljs-load-file [next]
+  (fn [{::keys [worker] :keys [op] :as msg}]
+    (cond
+      (and worker (= op "load-file"))
+      (do-cljs-load-file msg)
+
+      :else
+      (next msg))))
+
+(middleware/set-descriptor!
+  #'cljs-load-file
+  {:requires
+   #{#'cljs-select}
+
+   :expects
+   #{"load-file"}})
+
+;; fake piggieback descriptor
 (middleware/set-descriptor!
   #'cemerick.piggieback/wrap-cljs-repl
-  {:requires #{#'cljs-select}
-   :expects #{}
-   :handles {}})
+  {:requires
+   #{#'cljs-select}
 
-(defn make-middleware-stack []
-  (-> [#'clojure.tools.nrepl.middleware/wrap-describe
-       #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
-       #'clojure.tools.nrepl.middleware.load-file/wrap-load-file
+   ;; it doesn't do anything, it is just here for cider-nrepl
+   :expects
+   #{"eval" "load-file"}})
 
+(defn middleware-load [sym]
+  {:pre [(qualified-symbol? sym)]}
+  (let [sym-ns (-> sym (namespace) (symbol))]
+    (require sym-ns)
+    (find-var sym)
+    ))
 
-       ;; FIXME: insert any other middleware here
+(defn make-middleware-stack [extra-middleware]
+  (-> []
+      (into (map middleware-load) extra-middleware)
+      (into [#'clojure.tools.nrepl.middleware/wrap-describe
+             #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
+             #'clojure.tools.nrepl.middleware.load-file/wrap-load-file
 
-       ;; provided by fake-piggieback, only because tools expect piggieback
-       #'cemerick.piggieback/wrap-cljs-repl
+             ;; provided by fake-piggieback, only because tools expect piggieback
+             #'cemerick.piggieback/wrap-cljs-repl
 
-       ;; cljs support
-       #'cljs-eval
-       #'cljs-select
+             ;; cljs support
+             #'cljs-load-file
+             #'cljs-eval
+             #'cljs-select
 
-       #'clojure.tools.nrepl.middleware.session/add-stdin
-       #'clojure.tools.nrepl.middleware.session/session]
+             #'clojure.tools.nrepl.middleware.session/add-stdin
+             #'clojure.tools.nrepl.middleware.session/session])
       (middleware/linearize-middleware-stack)))
 
+(comment
+  (pprint
+    (make-middleware-stack
+      '[cider.nrepl.middleware.apropos/wrap-apropos
+        cider.nrepl.middleware.classpath/wrap-classpath
+        cider.nrepl.middleware.complete/wrap-complete
+        cider.nrepl.middleware.debug/wrap-debug
+        cider.nrepl.middleware.enlighten/wrap-enlighten
+        cider.nrepl.middleware.format/wrap-format
+        cider.nrepl.middleware.info/wrap-info
+        cider.nrepl.middleware.inspect/wrap-inspect
+        cider.nrepl.middleware.macroexpand/wrap-macroexpand
+        cider.nrepl.middleware.ns/wrap-ns
+        cider.nrepl.middleware.out/wrap-out
+        cider.nrepl.middleware.pprint/wrap-pprint
+        cider.nrepl.middleware.pprint/wrap-pprint-fn
+        cider.nrepl.middleware.refresh/wrap-refresh
+        cider.nrepl.middleware.resource/wrap-resource
+        cider.nrepl.middleware.stacktrace/wrap-stacktrace
+        cider.nrepl.middleware.test/wrap-test
+        cider.nrepl.middleware.trace/wrap-trace
+        cider.nrepl.middleware.track-state/wrap-tracker
+        cider.nrepl.middleware.undef/wrap-undef
+        cider.nrepl.middleware.version/wrap-version])))
+
 (defn start
-  [{:keys [host port]
+  [{:keys [host port middleware]
     :or {host "localhost"
          port 0}
     :as config}]
 
   (let [middleware-stack
-        (make-middleware-stack)
+        (make-middleware-stack middleware)
 
         handler-fn
         ((apply comp (reverse middleware-stack)) server/unknown-op)]

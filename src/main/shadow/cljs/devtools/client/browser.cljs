@@ -192,7 +192,7 @@
         (ws-msg {:type :repl/require-complete :id id})
         ))))
 
-(defn repl-init [{:keys [repl-state]}]
+(defn repl-init [{:keys [repl-state id]}]
   (load-sources
     ;; maybe need to load some missing files to init REPL
     (->> (:repl-sources repl-state)
@@ -200,12 +200,12 @@
          (into []))
     (fn [sources]
       (do-js-load sources)
-      (ws-msg {:type :repl/init-complete})
+      (ws-msg {:type :repl/init-complete :id id})
       (devtools-msg "DEVTOOLS: repl init successful"))))
 
-(defn repl-set-ns [{:keys [ns]}]
+(defn repl-set-ns [{:keys [id ns]}]
   ;; (js/console.log "repl/set-ns" (str ns))
-  (ws-msg {:type :repl/set-ns-complete}))
+  (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
 
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]

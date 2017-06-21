@@ -60,8 +60,6 @@
     :check
     :cljs-repl})
 
-
-
 (defn parse-build-arg [{:keys [action arguments] :as result}]
   (if (empty? arguments)
     (assoc result :errors [(str "Action \"" (name action) "\" requires one or more build ids")])

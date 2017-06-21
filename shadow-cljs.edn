@@ -8,8 +8,11 @@
  :server
  {:autostart #{}}
 
- :http {:port 8200}
- :nrepl {:port 8202}
+ :http
+ {:port 8200}
+
+ :nrepl
+ {:port 8202}
 
  ;; actually unused when using :lein
  :source-paths
