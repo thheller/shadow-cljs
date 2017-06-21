@@ -73,9 +73,9 @@
                 (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
 
                 :else
-                (send msg {:value (pr-str [:FIXME result])})))
+                (send msg {:value (pr-str [:FIXME result])}))
 
-            (recur)
+              (recur))
             ))))
 
     (send msg {:status :done})
@@ -149,6 +149,7 @@
   (-> [#'clojure.tools.nrepl.middleware/wrap-describe
        #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
        #'clojure.tools.nrepl.middleware.load-file/wrap-load-file
+
 
        ;; FIXME: insert any other middleware here
 
