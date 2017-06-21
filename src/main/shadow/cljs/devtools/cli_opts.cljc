@@ -1,11 +1,34 @@
 (ns shadow.cljs.devtools.cli-opts
-  (:require [clojure.tools.cli :as cli]
-            [clojure.string :as str]))
+  #?(:clj
+     (:require
+       [clojure.tools.cli :as cli]
+       [clojure.string :as str])
+     :cljs
+     (:require
+       [goog.string.format]
+       [goog.string :refer (format)]
+       [cljs.tools.cli :as cli]
+       [clojure.string :as str])))
+
+(defn parse-dep [dep-str]
+  (let [[sym ver] (str/split dep-str #":")]
+    [(symbol sym) ver]
+    ))
+
+(defn conj-vec [x y]
+  (if (nil? x)
+    [y]
+    (conj x y)))
 
 (def cli-spec
   ;; FIXME: how do I make this not show up in summary?
   [[nil "--npm" "internal, used by the shadow-cljs npm package"]
 
+   ["-d" "--dependency DEP" "adds an additional dependency (eg. -d foo/bar:1.2.3 -d another/thing:4.0.0)"
+    :parse-fn parse-dep
+    :assoc-fn
+    (fn [opts k v]
+      (update opts :dependencies conj-vec v))]
    ;; generic
    [nil "--debug"]
    ["-v" "--verbose" "verbose build log"]

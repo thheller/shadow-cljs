@@ -1,6 +1,6 @@
 {
   "name": "shadow-cljs-jar",
-  "version": "0.7.0",
+  "version": "0.9.0",
   "description": "shadow-cljs dependency resolver/downloader",
   "author": "Thomas Heller",
   "license": "ISC",
@@ -17,6 +17,6 @@
     "cljs"
   ],
   "scripts":{
-    "prepublish":"lein uberjar && cp target/shadow-cljs-jar-0.1.0-standalone.jar bin/shadow-cljs.jar"
+    "prepublish":"lein uberjar"
   }
 }

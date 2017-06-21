@@ -22,7 +22,7 @@
   "dependencies": {
     "mkdirp": "^0.5.1",
     "readline-sync": "^1.4.7",
-    "shadow-cljs-jar": "^0.7.0",
+    "shadow-cljs-jar": "^0.9.0",
     "source-map-support": "^0.4.15",
     "ws": "^3.0.0"
   }

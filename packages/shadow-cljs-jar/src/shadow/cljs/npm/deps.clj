@@ -17,51 +17,50 @@
         :corrupted (when error (println (.getMessage error)))
         nil))))
 
-(defn -main [version config-path]
-  (let [config-file
-        (io/file config-path)
+(defn -main []
+  (try
+    (let [{:keys [cache-root repositories dependencies version]
+           :or {dependencies []
+                repositories {}
+                cache-root "target/shadow-cljs"}
+           :as config}
+          (read *in*)
 
-        {:keys [cache-dir repositories dependencies]
-         :or {dependencies []
-              repositories {}
-              cache-dir "target/shadow-cljs"}
-         :as config}
-        (or (when (.exists config-file)
-              (-> (slurp config-file)
-                  (edn/read-string)))
-            {})
+          coords
+          (into [['thheller/shadow-cljs version]] dependencies)]
 
-        coords
-        (into [['thheller/shadow-cljs version]] dependencies)]
+      (println "shadow-cljs - updating dependencies")
 
-    (println "shadow-cljs - updating dependencies")
+      ;; FIXME: resolve conflicts?
+      ;; the uberjar contains the dependencies listed in project.clj
+      ;; those should be excluded from everything
+      (let [deps
+            (aether/resolve-dependencies
+              :coordinates
+              coords
+              :repositories
+              (merge aether/maven-central {"clojars" "http://clojars.org/repo"} repositories)
+              :transfer-listener
+              transfer-listener)
 
-    ;; FIXME: resolve conflicts?
-    ;; the uberjar contains the dependencies listed in project.clj
-    ;; those should be excluded from everything
-    (let [deps
-          (aether/resolve-dependencies
-            :coordinates
-            coords
-            :repositories
-            (merge aether/maven-central {"clojars" "http://clojars.org/repo"} repositories)
-            :transfer-listener
-            transfer-listener)
+            files
+            (into [] (map #(.getAbsolutePath %)) (aether/dependency-files deps))
 
-          files
-          (into [] (map #(.getAbsolutePath %)) (aether/dependency-files deps))
+            result
+            {:dependencies dependencies
+             :version version
+             :files files}
 
-          result
-          {:dependencies dependencies
-           :version version
-           :files files}
+            classpath-file
+            (io/file cache-root "classpath.edn")]
 
-          classpath-file
-          (io/file cache-dir "classpath.edn")]
+        (io/make-parents classpath-file)
 
-      (io/make-parents classpath-file)
+        (spit classpath-file (pr-str result)))
 
-      (spit classpath-file (pr-str result)))
+      (println "shadow-cljs - dependencies updated"))
 
-    (println "shadow-cljs - dependencies updated")
-    ))
+    (catch Exception e
+      (println "shadow-cljs - dependency update failed -" (.getMessage e))
+      (System/exit 1)
+      )))

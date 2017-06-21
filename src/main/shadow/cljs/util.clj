@@ -551,7 +551,9 @@
       (error env :undeclared-ns-form {:type "macro" :lib lib :sym sym})))
 
   (doseq [[sym lib] uses]
+    ;; FIXME: investigate :js-module-index, CLJS stores something somewhere
     (when (and (not (str/starts-with? (str lib) "shadow.npm."))
+               (not (str/starts-with? (str lib) "goog."))
                (not (ana-is-cljs-def? lib sym))
                (not (contains? (get-in @env/*compiler* [::ana/namespaces lib :macros]) sym)))
       (error env :undeclared-ns-form {:type "var" :lib lib :sym sym}))))
