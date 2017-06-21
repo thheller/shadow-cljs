@@ -273,11 +273,27 @@
   (node-execute! [] "target/shadow-test-runner.js")
   ::test-all)
 
-(defn test-affected
-  [source-names]
-  {:pre [(seq source-names)
-         (not (string? source-names))
-         (every? string? source-names)]}
-  (-> (test-setup)
-      (node/execute-affected-tests! source-names))
-  ::test-affected)
+;; nREPL support
+
+(def ^:dynamic *nrepl-cljs* nil)
+
+(defn nrepl-select [id]
+  (if-not (get-worker id)
+    [:no-worker id]
+    (do (set! *nrepl-cljs* id)
+        ;; required for prompt?
+        ;; don't actually need to do this
+        (set! *ns* 'cljs.user)
+        (println "To quit, type: :cljs/quit")
+        [:selected id])))
+
+(comment
+
+  (defn test-affected
+    [source-names]
+    {:pre [(seq source-names)
+           (not (string? source-names))
+           (every? string? source-names)]}
+    (-> (test-setup)
+        (node/execute-affected-tests! source-names))
+    ::test-affected))

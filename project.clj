@@ -69,4 +69,5 @@
     :aot [shadow.cljs.devtools.api
           shadow.cljs.devtools.cli]
     :dependencies
-    [[thheller/shadow-client "1.0.20170607"]]}})
+    [[cider/cider-nrepl "0.14.0"]
+     [thheller/shadow-client "1.0.20170607"]]}})
