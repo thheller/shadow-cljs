@@ -59,9 +59,11 @@
      (catch Throwable t#
        (println t# ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [http pid-file socket-repl cli-repl nrepl] :as app}]
+(defn shutdown-system [{:keys [http port-files socket-repl cli-repl nrepl] :as app}]
   (println "shutting down ...")
-  (do-shutdown (.delete pid-file))
+  (do-shutdown
+    (doseq [port-file (vals port-files)]
+      (.delete port-file)))
   (do-shutdown (rt/stop-all app))
   (do-shutdown (socket-repl/stop socket-repl))
   (do-shutdown (socket-repl/stop cli-repl))
@@ -73,6 +75,19 @@
       (netty/wait-for-close netty)))
 
   (println "shutdown complete."))
+
+(defn make-port-files [cache-root ports]
+  (reduce-kv
+    (fn [result key port]
+      (assert (keyword? key))
+      (assert (pos-int? port))
+      (let [port-file
+            (doto (io/file cache-root (str (name key) ".port"))
+              (.deleteOnExit))]
+        (spit port-file (str port))
+        (assoc result key port-file)))
+    {}
+    ports))
 
 (defn start-system
   [app {:keys [cache-root] :as config}]
@@ -115,13 +130,21 @@
         (doto (io/file cache-root "remote.pid")
           (.deleteOnExit))
 
+        ;; FIXME: should refuse to start if a pid already exists
+        port-files
+        (make-port-files cache-root
+          {:nrepl (:port nrepl)
+           :socket-repl (:port socket-repl)
+           :cli-repl (:port cli-repl)
+           :http http-port})
+
         app
         (-> {::started (System/currentTimeMillis)
              :config config
-             :pid-file pid-file
              :http {:port http-port
                     :host (:host http-config)
                     :server http}
+             :port-files port-files
              :nrepl nrepl
              :socket-repl socket-repl
              :cli-repl cli-repl}
@@ -129,12 +152,6 @@
             (rt/start-all))]
 
     (deliver app-promise app)
-
-    ;; FIXME: should refuse to start if a pid already exists
-    (spit pid-file (pr-str {:http http-port
-                            :socket-repl (:port socket-repl)
-                            :cli-repl (:port cli-repl)
-                            :nrepl (:port nrepl)}))
 
     (future
       ;; OCD because I want to print the shadow-cljs info of start!

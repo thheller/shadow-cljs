@@ -316,7 +316,7 @@
                     (merge defaults config)
 
                     server-pid
-                    (path/resolve project-root cache-root "remote.pid")]
+                    (path/resolve project-root cache-root "cli-repl.port")]
 
                 (println "shadow-cljs - config:" config-path "version:" version)
 

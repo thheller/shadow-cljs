@@ -6,12 +6,12 @@
             [clojure.string :as str]))
 
 (defn run [project-root config server-pid args]
-  (let [{:keys [cli-repl] :as ports}
+  (let [cli-repl
         (-> (util/slurp server-pid)
-            (reader/read-string))]
+            (js/parseInt 10))]
 
-    (if-not cli-repl
-      (prn [:no-socket-repl-port server-pid ports])
+    (if-not (pos-int? cli-repl)
+      (prn [:no-socket-repl-port server-pid cli-repl])
 
       (let [socket
             (node-net/connect cli-repl "localhost")
