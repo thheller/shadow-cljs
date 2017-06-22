@@ -11,7 +11,7 @@
             [clojure.java.io :as io]
             [shadow.cljs.devtools.server.web.common :as common]
             [ring.middleware.file :as ring-file]
-            [ring.middleware.resource :as ring-resource])
+            [ring.middleware.file-info :as ring-file-info])
   (:import (java.util UUID)))
 
 (defn get-status [{:keys [status-ref] :as proc}]
@@ -163,6 +163,9 @@
                   (-> common/not-found
                       (ring-file/wrap-file root-dir {:allow-symlinks? true
                                                      :index-files? true})
+                      (ring-file-info/wrap-file-info
+                        ;; source maps
+                        {"map" "application/json"})
                       (disable-all-kinds-of-caching))
 
                   instance
