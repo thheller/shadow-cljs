@@ -179,6 +179,13 @@
   (.write w "\n")
   (.write w (w/sep-line)))
 
+(defmethod ex-data-format :shadow.cljs.util/macro-load
+  [w e {:keys [macro-ns] :as data}]
+
+  (.write w (.getMessage e))
+  (.write w "\n\nCaused by:\n")
+  (->> e (.getCause) (error-format w)))
+
 (defn error-format
   ([e]
    (let [w (StringWriter.)]

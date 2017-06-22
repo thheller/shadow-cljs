@@ -1,4 +1,4 @@
-{:xlein
+{:lein
  {:profile "+cljs"}
 
  ;;  :dev-mode true

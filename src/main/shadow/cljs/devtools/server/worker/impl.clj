@@ -10,7 +10,7 @@
             [clojure.set :as set]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            ))
+            [clojure.tools.logging :as log]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -86,7 +86,8 @@
               (assoc
                 :executor executor
                 :logger (util/async-logger (-> worker-state :channels :output))
-                :worker-info worker-info)
+                :worker-info worker-info
+                ::compile-attempt 0)
               (comp/init :dev build-config))]
 
       (update-status! worker-state :configured {})
@@ -112,7 +113,8 @@
       (let [{::comp/keys [build-info] :as compiler-state}
             (-> compiler-state
                 (comp/compile)
-                (comp/flush))]
+                (comp/flush)
+                (update ::compile-attempt inc))]
 
         (>!!output worker-state
           {:type
@@ -170,9 +172,9 @@
     worker-state
     ;; compile immediately, autobuild is then checked later
     (-> worker-state
+        (assoc :autobuild true)
         (build-configure)
         (build-compile)
-        (assoc :autobuild true)
         )))
 
 (defmethod do-proc-control :stop-autobuild
@@ -313,7 +315,7 @@
       (symbol)))
 
 (defn merge-fs-update-clj
-  [{:keys [build-sources] :as compiler-state}
+  [{::keys [compile-attempt] :keys [build-sources] :as compiler-state}
    {:keys [event name] :as fs-update}]
   (if (not= :mod event)
     compiler-state
@@ -329,8 +331,15 @@
                (reduce set/union))]
 
       ;; only reload the macro ns if the build actually uses it
-      (when (contains? macros-used-by-build macro-ns)
-        (require macro-ns :reload))
+      (when (or (zero? compile-attempt)
+                (contains? macros-used-by-build macro-ns))
+        (try
+          (require macro-ns :reload)
+          (catch Exception e
+            (throw (ex-info (format "failed to reload macro ns: %s" macro-ns)
+                     {:tag ::macro-reload
+                      :macro-ns macro-ns}
+                     e)))))
 
       ;; always reset files so they are actually re-compiled when we start using them
       (cljs/reset-resources-using-macro compiler-state macro-ns)
@@ -346,23 +355,27 @@
 
 (defn should-recompile?
   "only recompile when a watched file is actually used by the build"
-  [{:keys [build-sources] :as state}]
-  (some
-    (fn [src-name]
-      (nil? (get-in state [:sources src-name :output])))
-    build-sources))
+  [{::keys [compile-attempt] :keys [build-sources] :as state}]
+  ;; always try to recompile when the first compile failed
+  (or (zero? compile-attempt)
+      ;; after that only recompile if a resource we use was reset
+      (some #(nil? (get-in state [:sources % :output])) build-sources)))
 
 (defn do-cljs-watch
   [{:keys [autobuild compiler-state] :as worker-state}
    {:keys [updates] :as msg}]
   (if-not autobuild
     worker-state
-    (let [next-state (reduce merge-fs-update compiler-state updates)]
-      (-> worker-state
-          (assoc :compiler-state next-state)
-          (cond->
-            (should-recompile? next-state)
-            (build-compile))))))
+    (try
+      (let [next-state (reduce merge-fs-update compiler-state updates)]
+        (-> worker-state
+            (assoc :compiler-state next-state)
+            (cond->
+              (should-recompile? next-state)
+              (build-compile))))
+      (catch Exception e
+        (build-failure worker-state e)
+        worker-state))))
 
 (defn do-config-watch
   [{:keys [autobuild] :as worker-state} {:keys [config] :as msg}]

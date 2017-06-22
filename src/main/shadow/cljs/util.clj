@@ -295,7 +295,7 @@
         (:name ns-info)]
     (when conflict
       (throw (ex-info
-               (format "ns: %s has a dumplicate import for class: %s%nA: %s%nB: %s" ns class conflict the-symbol)
+               (format "ns: %s has a duplicate import for class: %s%nA: %s%nB: %s" ns class conflict the-symbol)
                {:class class
                 :ns (:name ns-info)
                 :import the-symbol
@@ -469,7 +469,12 @@
             (try
               (require macro-ns)
               (catch Exception e
-                (throw (ex-info (format "failed to require macro-ns:%s, it was required by:%s" macro-ns name) {:ns-info ns-info} e)))))))
+                (throw (ex-info
+                         (format "failed to require macro-ns \"%s\", it was required by \"%s\"" macro-ns name)
+                         {:tag ::macro-load
+                          :macro-ns macro-ns
+                          :ns-info ns-info}
+                         e)))))))
 
       (if (contains? macro-namespaces name)
         (let [macros (find-macros-in-ns name)]

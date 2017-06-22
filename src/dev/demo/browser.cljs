@@ -1,4 +1,5 @@
 (ns demo.browser
+  (:require-macros [demo.browser :refer (test-macro)])
   (:require ["react" :as react :refer (createElement)]
             ["react-dom" :as rdom :refer (render)])
   (:import ["react" Component]))
@@ -25,3 +26,5 @@
 (defrecord Foo [a b])
 
 (js/console.log (pr-str Foo) (pr-str (Foo. 1 2)))
+
+(js/console.log (test-macro 1 2 3))

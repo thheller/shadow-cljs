@@ -23,12 +23,9 @@
   (let [{:keys [proc-stop] :as proc}
         (worker/start system-bus executor http build-config)]
 
-    (log/debug "supervisor start %s" id)
-
     (vswap! workers-ref assoc id proc)
 
     (go (<! proc-stop)
-        (log/debug "supervisor stop %s" id)
         (vswap! workers-ref dissoc id))
 
     proc

@@ -10,15 +10,19 @@
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.worker.impl :as worker-impl]
 
-            ))
+            [clojure.tools.logging :as log]))
 
 (defn service? [svc]
   (and (map? svc)
        (::service svc)))
 
 (defn- do-cljs-watch [state {:keys [updates] :as msg}]
-  (-> (reduce worker-impl/merge-fs-update state updates)
-      (cljs/finalize-config)))
+  (try
+    (-> (reduce worker-impl/merge-fs-update state updates)
+        (cljs/finalize-config))
+    (catch Exception e
+      (log/info ::fs-update-ex e)
+      state)))
 
 (defmulti do-control
   (fn [state {:keys [op]}]
@@ -132,6 +136,7 @@
         (util/server-thread
           state-ref
           (-> (cljs/init-state)
+              (assoc ::worker-impl/compile-attempt 0)
               (as-> X
                 (assoc X
                        ;; FIXME: log somewhere

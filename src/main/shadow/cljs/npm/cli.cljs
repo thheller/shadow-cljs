@@ -140,7 +140,7 @@
 (def cp-seperator ":")
 
 (defn run-standalone
-  [project-root {:keys [cache-root source-paths] :as config} args]
+  [project-root {:keys [cache-root source-paths jvm-opts] :as config} args]
   (let [aot-path
         (path/resolve project-root cache-root "aot-classes")
 
@@ -158,20 +158,22 @@
                  (str/join cp-seperator))
 
             cli-args
-            (into ["-cp" classpath-str
-                   ;; FIXME: maybe try direct linking?
-                   (str "-Dclojure.compile.path=" aot-path)
-                   "clojure.main"
-                   ;; FIXME: this should only be done if the classpath changes
-                   ;; it only adds about 500ms overhead though which isn't that bad
-                   ;; and is faster than launching an extra JVM to only do AOT
-                   ;; but comparing the timestamps of every jar and only
-                   ;; compiling conditionally should still be fastest
-                   ;; using do so it doesn't print shadow.cljs.devtools.cli
-                   "-e" "(do (compile 'shadow.cljs.devtools.cli) nil)"
-                   "-m" "shadow.cljs.devtools.cli"
-                   "--npm"]
-              args)]
+            (-> []
+                (into jvm-opts)
+                (into ["-cp" classpath-str
+                       ;; FIXME: maybe try direct linking?
+                       (str "-Dclojure.compile.path=" aot-path)
+                       "clojure.main"
+                       ;; FIXME: this should only be done if the classpath changes
+                       ;; it only adds about 500ms overhead though which isn't that bad
+                       ;; and is faster than launching an extra JVM to only do AOT
+                       ;; but comparing the timestamps of every jar and only
+                       ;; compiling conditionally should still be fastest
+                       ;; using do so it doesn't print shadow.cljs.devtools.cli
+                       "-e" "(do (compile 'shadow.cljs.devtools.cli) nil)"
+                       "-m" "shadow.cljs.devtools.cli"
+                       "--npm"])
+                (into args))]
 
         (mkdirp/sync aot-path)
 
@@ -192,7 +194,16 @@
           (update :dependencies into dependencies)
           ))))
 
+(defn dump-script-state []
+  (println "--- active requests")
+  (prn (js/process._getActiveRequests))
+  (println "--- active handles")
+  (prn (js/process._getActiveHandles)))
+
 (defn main [args]
+  ;; FIXME: doesn't work, don't know why
+  (js/process.on "SIGUSR2" dump-script-state)
+
   (let [{:keys [action builds options summary errors] :as opts}
         (opts/parse args)]
 

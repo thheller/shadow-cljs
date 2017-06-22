@@ -6,7 +6,8 @@
             [shadow.cljs.devtools.server.worker.impl :as impl]
             [shadow.cljs.devtools.server.util :as util]
             [aleph.netty :as netty]
-            [aleph.http :as aleph])
+            [aleph.http :as aleph]
+            [clojure.tools.logging :as log])
   (:import (java.util UUID)))
 
 (defn get-status [{:keys [status-ref] :as proc}]
@@ -87,6 +88,8 @@
 
   (let [proc-id
         (UUID/randomUUID) ;; FIXME: not really unique but unique enough
+
+        _ (log/debug ::start (:id build-config) proc-id)
 
         ;; closed when the proc-stops
         ;; nothing will ever be written here
@@ -193,6 +196,7 @@
     ;; ensure all channels are cleaned up properly
     (go (<! thread-ref)
         ;; FIXME: I think unsub happens automatically if we close the channel, need to confirm
+        (log/debug ::stop (:id build-config) proc-id)
         (sys-bus/unsub system-bus ::sys-msg/cljs-watch cljs-watch)
         (async/close! output)
         (async/close! proc-stop)
