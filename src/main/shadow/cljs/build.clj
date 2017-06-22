@@ -245,7 +245,7 @@
           (if (identical? peek eof-sentinel)
             (throw (ex-info "file is empty" {:name name}))
             (let [ast (-> (ns-form/parse peek)
-                          (ns-form/rewrite-js-requires state rc)
+                          (ns-form/rewrite-js-requires state (:file rc))
                           (rewrite-ns-aliases state))]
               (-> state
                   (update-rc-from-ns rc ast)

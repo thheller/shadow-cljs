@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.20170622-19](https://github.com/thheller/shadow-cljs/compare/1.0.20170620...1.0.20170622-19)
+
+- added basic nREPL support with piggieback emulation [WIP]
+- rewrite CLI script to parse args instead of just passing them to the JVM. This allows the script to show `-h` without launching a JVM.
+- add `--cli-info` option to print some basic info about the CLI command (paths, versions, dependencies, ...)
+- hopefully resolve all AOT issues by deleting all AOT `.class` files when `:dependencies` change (or CLI version upgrade)
+- watch mode would never attempt recompiles when the first compile failed
+- basic `shadow-cljs test` command to run all `cljs.test` tests via `node` [WIP]
+
 ## [1.0.20170618](https://github.com/thheller/shadow-cljs/compare/1.0.20170618...1.0.20170620)
 
 - fix some AOT issues that caused weird errors

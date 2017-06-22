@@ -5,10 +5,13 @@
             ["child_process" :as cp]
             ["readline-sync" :as rl-sync] ;; FIXME: drop this?
             ["mkdirp" :as mkdirp]
-            [cljs.reader :as reader]
             [cljs.core.async :as async]
+            #_ [cljs.tools.reader :as reader]
+            [cljs.reader :as reader]
             [clojure.string :as str]
             [goog.object :as gobj]
+            [goog.string.format]
+            [goog.string :refer (format)]
             [shadow.cljs.npm.util :as util]
             [shadow.cljs.npm.client :as client]
             [shadow.cljs.devtools.cli-opts :as opts]
@@ -160,45 +163,50 @@
         nil
         ))))
 
+(defn print-error [ex]
+  (let [{:keys [tag] :as data}
+        (ex-data ex)]
+
+    (println "shadow-cljs - error" (.-message ex))
+    ))
+
 (defn run-standalone
   [project-root {:keys [cache-root source-paths jvm-opts] :as config} args]
-  (try
-    (let [aot-path
-          (path/resolve project-root cache-root "aot-classes")
+  (let [aot-path
+        (path/resolve project-root cache-root "aot-classes")
 
-          classpath
-          (get-classpath project-root config)
+        classpath
+        (get-classpath project-root config)
 
-          classpath-str
-          (->> (:files classpath)
-               (concat [aot-path])
-               (concat source-paths)
-               (str/join cp-seperator))
+        classpath-str
+        (->> (:files classpath)
+             (concat [aot-path])
+             (concat source-paths)
+             (str/join cp-seperator))
 
-          cli-args
-          (-> []
-              (into jvm-opts)
-              (cond->
-                (:updated? classpath) ;; FIXME: maybe try direct linking?
-                (into [(str "-Dclojure.compile.path=" aot-path)]))
-              (into ["-cp" classpath-str "clojure.main"])
-              (cond->
-                (:updated? classpath)
-                (into ["-e" "(require 'shadow.cljs.aot-helper)"]))
-              (into ["-m" "shadow.cljs.devtools.cli"
-                     "--npm"])
-              (into args))]
+        cli-args
+        (-> []
+            (into jvm-opts)
+            (cond->
+              (:updated? classpath) ;; FIXME: maybe try direct linking?
+              (into [(str "-Dclojure.compile.path=" aot-path)]))
+            (into ["-cp" classpath-str "clojure.main"])
+            (cond->
+              (:updated? classpath)
+              (into ["-e" "(require 'shadow.cljs.aot-helper)"]))
+            (into ["-m" "shadow.cljs.devtools.cli"
+                   "--npm"])
+            (into args))]
 
-      (when (:updated? classpath)
-        (println "shadow-cljs - re-building aot cache on startup, that will take some time.")
-        (remove-class-files aot-path))
+    (when (:updated? classpath)
+      (println "shadow-cljs - re-building aot cache on startup, that will take some time.")
+      (remove-class-files aot-path))
 
-      (mkdirp/sync aot-path)
+    (mkdirp/sync aot-path)
 
-      (println "shadow-cljs - starting ...")
-      (run-java project-root cli-args {}))
-    (catch :default ex
-      (println "shadow-cljs - error" ex))))
+    (println "shadow-cljs - starting ...")
+    (run-java project-root cli-args {}))
+  )
 
 (def defaults
   {:cache-root "target/shadow-cljs"
@@ -264,55 +272,66 @@
   (println "--- active handles")
   (prn (js/process._getActiveHandles)))
 
+(defn read-config [config-path opts]
+  (try
+    (-> (util/slurp config-path)
+        (reader/read-string)
+        (merge-config-with-cli-opts opts))
+    (catch :default ex
+      ;; FIXME: missing tools.reader location information
+      ;; FIXME: show error location with excerpt like other warnings
+      (throw (ex-info (format "failed reading config file: %s" config-path) {:config-path config-path} ex)))))
+
 (defn main [args]
   ;; FIXME: doesn't work, don't know why
   (js/process.on "SIGUSR2" dump-script-state)
 
-  (let [{:keys [action builds options summary errors] :as opts}
-        (opts/parse args)]
+  (try
+    (let [{:keys [action builds options summary errors] :as opts}
+          (opts/parse args)]
 
-    (cond
-      (:help options)
-      (opts/help opts)
+      (cond
+        (:help options)
+        (opts/help opts)
 
-      :else
-      (when-let [config-path (ensure-config)]
+        :else
+        (when-let [config-path (ensure-config)]
 
-        (let [project-root
-              (path/dirname config-path)
+          (let [project-root
+                (path/dirname config-path)
 
-              args
-              (into [] args) ;; starts out as JS array
+                args
+                (into [] args) ;; starts out as JS array
 
-              config
-              (-> (util/slurp config-path)
-                  (reader/read-string)
-                  (merge-config-with-cli-opts opts))]
+                config
+                (read-config config-path opts)]
 
-          (if (not (map? config))
-            (do (println "shadow-cljs - old config format no longer supported")
-                (println config-path)
-                (println "  previously a vector was used to define builds")
-                (println "  now {:builds the-old-vector} is expected"))
+            (if (not (map? config))
+              (do (println "shadow-cljs - old config format no longer supported")
+                  (println config-path)
+                  (println "  previously a vector was used to define builds")
+                  (println "  now {:builds the-old-vector} is expected"))
 
-            (let [{:keys [cache-root version] :as config}
-                  (merge defaults config)
+              (let [{:keys [cache-root version] :as config}
+                    (merge defaults config)
 
-                  server-pid
-                  (path/resolve project-root cache-root "remote.pid")]
+                    server-pid
+                    (path/resolve project-root cache-root "remote.pid")]
 
-              (println "shadow-cljs - config:" config-path "version:" version)
+                (println "shadow-cljs - config:" config-path "version:" version)
 
-              (cond
-                (:cli-info options)
-                (print-cli-info project-root config-path config opts)
+                (cond
+                  (:cli-info options)
+                  (print-cli-info project-root config-path config opts)
 
-                (fs/existsSync server-pid)
-                (client/run project-root config server-pid args)
+                  (fs/existsSync server-pid)
+                  (client/run project-root config server-pid args)
 
-                (:lein config)
-                (run-lein project-root config args)
+                  (:lein config)
+                  (run-lein project-root config args)
 
-                :else
-                (run-standalone project-root config args)
-                ))))))))
+                  :else
+                  (run-standalone project-root config args)
+                  )))))))
+    (catch :default ex
+      (print-error ex))))

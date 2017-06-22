@@ -22,7 +22,14 @@ X.prototype.unicode;
 X.prototype.on;
 X.prototype.setPrompt;
 X.prototype.createInterface;
+X.prototype._getActiveRequests;
+X.prototype._getActiveHandles;
+X.prototype.unlinkSync;
+X.prototype.readdirSync;
+X.prototype.lstatSync;
+
 
 process.exit;
 process.stdin;
 process.stdout;
+process.stderr;
