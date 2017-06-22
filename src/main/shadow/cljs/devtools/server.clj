@@ -59,11 +59,12 @@
      (catch Throwable t#
        (println t# ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [http pid-file socket-repl nrepl] :as app}]
+(defn shutdown-system [{:keys [http pid-file socket-repl cli-repl nrepl] :as app}]
   (println "shutting down ...")
   (do-shutdown (.delete pid-file))
   (do-shutdown (rt/stop-all app))
   (do-shutdown (socket-repl/stop socket-repl))
+  (do-shutdown (socket-repl/stop cli-repl))
   (when nrepl
     (do-shutdown (nrepl/stop nrepl)))
   (let [netty (:server http)]
@@ -90,17 +91,16 @@
         http-port
         (netty/port http)
 
-        repl-config
-        (:repl config)
+        socket-repl-config
+        (:socket-repl config)
 
         socket-repl
-        (socket-repl/start repl-config app-promise)
+        (socket-repl/start socket-repl-config app-promise)
 
         cli-repl-config
-        (assoc repl-config
-          :port 0 ;; random port, not for humans
-          :prompt false
-          :print false)
+        {:port 0  ;; random port, not for humans
+         :prompt false
+         :print false}
 
         ;; remote entry point for the CLI tool that just sends one command
         ;; and waits for the socket to close, not using the normal socket REPL

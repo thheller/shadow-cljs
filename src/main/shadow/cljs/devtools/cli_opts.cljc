@@ -32,6 +32,7 @@
    ;; generic
    [nil "--debug"]
    ["-v" "--verbose" "verbose build log"]
+   [nil "--cli-info" "prints a bunch of information"]
    ["-h" "--help"]])
 
 (def action-help
@@ -110,7 +111,8 @@
 (defn parse [args]
   (let [parsed
         (cli/parse-opts args cli-spec)]
-    (if (:errors parsed)
+    (if (or (:errors parsed)
+            (get-in parsed [:options :help]))
       parsed
       (parse-arguments parsed)
       )))

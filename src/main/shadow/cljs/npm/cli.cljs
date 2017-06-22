@@ -8,6 +8,7 @@
             [cljs.reader :as reader]
             [cljs.core.async :as async]
             [clojure.string :as str]
+            [goog.object :as gobj]
             [shadow.cljs.npm.util :as util]
             [shadow.cljs.npm.client :as client]
             [shadow.cljs.devtools.cli-opts :as opts]
@@ -118,68 +119,86 @@
         )))
 
 (defn get-classpath [project-root {:keys [cache-root version] :as config}]
-  (let [cp-file (path/resolve project-root cache-root "classpath.edn")]
+  (let [cp-file
+        (path/resolve project-root cache-root "classpath.edn")
 
-    ;; only need to rebuild the classpath if :dependencies
-    ;; or the version changed
-    (when (or (not (fs/existsSync cp-file))
-              (modified-dependencies? cp-file config))
-
-      ;; re-create classpath by running the java helper
-      (let [jar (js/require "shadow-cljs-jar/path")]
-        (run-java project-root ["-jar" jar] {:input (pr-str config)
-                                             :stdio [nil js/process.stdout js/process.stderr]})))
+        ;; only need to rebuild the classpath if :dependencies
+        ;; or the version changed
+        updated?
+        (when (or (not (fs/existsSync cp-file))
+                  (modified-dependencies? cp-file config))
+          ;; re-create classpath by running the java helper
+          (let [jar (js/require "shadow-cljs-jar/path")]
+            (run-java project-root ["-jar" jar] {:input (pr-str config)
+                                                 :stdio [nil js/process.stdout js/process.stderr]})
+            true))]
 
     ;; only return :files since the rest is just cache info
     (-> (util/slurp cp-file)
         (reader/read-string)
-        (:files)
-        )))
+        (assoc :updated? updated?))))
 
 ;; FIXME: windows uses ;
 (def cp-seperator ":")
 
+(defn is-directory? [path]
+  (-> (fs/lstatSync path)
+      (.isDirectory)))
+
+(defn remove-class-files [path]
+  (when (fs/existsSync path)
+    (doseq [file (fs/readdirSync path)
+            :let [file (path/resolve path file)]]
+      (cond
+        (str/ends-with? file ".class")
+        (fs/unlinkSync file)
+
+        (is-directory? file)
+        (remove-class-files file)
+
+        :else
+        nil
+        ))))
+
 (defn run-standalone
   [project-root {:keys [cache-root source-paths jvm-opts] :as config} args]
-  (let [aot-path
-        (path/resolve project-root cache-root "aot-classes")
+  (try
+    (let [aot-path
+          (path/resolve project-root cache-root "aot-classes")
 
-        classpath
-        (try
+          classpath
           (get-classpath project-root config)
-          (catch :default ex
-            nil))]
 
-    (when classpath
-      (let [classpath-str
-            (->> classpath
-                 (concat [aot-path])
-                 (concat source-paths)
-                 (str/join cp-seperator))
+          classpath-str
+          (->> (:files classpath)
+               (concat [aot-path])
+               (concat source-paths)
+               (str/join cp-seperator))
 
-            cli-args
-            (-> []
-                (into jvm-opts)
-                (into ["-cp" classpath-str
-                       ;; FIXME: maybe try direct linking?
-                       (str "-Dclojure.compile.path=" aot-path)
-                       "clojure.main"
-                       ;; FIXME: this should only be done if the classpath changes
-                       ;; it only adds about 500ms overhead though which isn't that bad
-                       ;; and is faster than launching an extra JVM to only do AOT
-                       ;; but comparing the timestamps of every jar and only
-                       ;; compiling conditionally should still be fastest
-                       ;; using do so it doesn't print shadow.cljs.devtools.cli
-                       "-e" "(do (compile 'shadow.cljs.devtools.cli) nil)"
-                       "-m" "shadow.cljs.devtools.cli"
-                       "--npm"])
-                (into args))]
+          cli-args
+          (-> []
+              (into jvm-opts)
+              (cond->
+                (:updated? classpath) ;; FIXME: maybe try direct linking?
+                (into [(str "-Dclojure.compile.path=" aot-path)]))
+              (into ["-cp" classpath-str "clojure.main"])
+              (cond->
+                (:updated? classpath)
+                (into ["-e" "(require 'shadow.cljs.aot-helper)"]))
+              (into ["-m" "shadow.cljs.devtools.cli"
+                     "--npm"])
+              (into args))]
 
-        (mkdirp/sync aot-path)
+      (when (:updated? classpath)
+        (println "shadow-cljs - re-building aot cache on startup, that will take some time.")
+        (remove-class-files aot-path))
 
-        (println "shadow-cljs - starting ...")
-        (run-java project-root cli-args {})
-        ))))
+      (mkdirp/sync aot-path)
+
+      (println "shadow-cljs - starting ...")
+      (run-java project-root cli-args {}))
+    (catch :default ex
+      (println "shadow-cljs - error" ex))))
 
 (def defaults
   {:cache-root "target/shadow-cljs"
@@ -193,6 +212,51 @@
           (seq dependencies)
           (update :dependencies into dependencies)
           ))))
+
+(defn prettier-m2-path [path]
+  (if-let [idx (str/index-of path ".m2")]
+    ;; strip .m2/repository/
+    (str "[maven] " (subs path (+ idx 15)))
+    path
+    ))
+
+(defn print-cli-info [project-root config-path {:keys [cache-root source-paths] :as config} opts]
+  (println "=== Version")
+  (println "cli:           " (-> (js/require "../package.json")
+                                 (gobj/get "version")))
+  (println "jar-version:   " jar-version)
+  (println "config-version:" (:version config))
+  (println)
+
+  (println "=== Paths")
+  (println "cli:    " js/__filename)
+  (println "config: " config-path)
+  (println "project:" project-root)
+  (println "cache:  " cache-root)
+  (println)
+
+  (println "=== Java")
+  (run-java project-root ["-version"] {})
+  (println)
+
+  (println "=== Source Paths")
+  (doseq [source-path source-paths]
+    (println (path/resolve project-root source-path)))
+  (println)
+
+  (println "=== Dependencies")
+  (let [cp-file (path/resolve project-root cache-root "classpath.edn")]
+    (println "cache-file:" cp-file)
+    (when (fs/existsSync cp-file)
+      (let [{:keys [files] :as cp-data}
+            (-> (util/slurp cp-file)
+                (reader/read-string))]
+
+        (doseq [file files]
+          (println (prettier-m2-path file)))
+        )))
+  (println)
+  )
 
 (defn dump-script-state []
   (println "--- active requests")
@@ -240,6 +304,9 @@
               (println "shadow-cljs - config:" config-path "version:" version)
 
               (cond
+                (:cli-info options)
+                (print-cli-info project-root config-path config opts)
+
                 (fs/existsSync server-pid)
                 (client/run project-root config server-pid args)
 

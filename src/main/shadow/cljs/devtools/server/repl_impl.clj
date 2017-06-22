@@ -1,11 +1,10 @@
 (ns shadow.cljs.devtools.server.repl-impl
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
+            [clojure.java.io :as io]
             [shadow.cljs.build :as cljs]
             [shadow.cljs.repl :as repl]
             [shadow.repl :as r]
-            [cljs-tooling.complete :as cljs-complete]
             [shadow.cljs.devtools.server.worker :as worker]
-            [clojure.java.io :as io]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.supervisor :as super])
   (:import (java.io StringReader PushbackReader)))
@@ -66,18 +65,7 @@
 
 (def repl-api-fns
   ;; return value of these is ignored, print to *out* should work?
-  {'shadow.inf-clojure/completions
-   (fn [{:keys [out] :as app} worker repl-state read-result prefix]
-     (let [compiler-env
-           (-> worker :state-ref deref :compiler-state :compiler-env)
-
-           result
-           (->> (cljs-complete/completions compiler-env prefix {:context-ns (:ns repl-state)})
-                (map :candidate)
-                (map str))]
-       (debug app :shadow.inf-clojure/completions {:complete prefix :result result})
-       (prn result)
-       ))})
+  {})
 
 (defn do-repl-api-fn [app worker repl-state {:keys [form] :as read-result}]
   (let [[special-fn & args]
