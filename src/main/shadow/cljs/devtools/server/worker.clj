@@ -7,7 +7,11 @@
             [shadow.cljs.devtools.server.util :as util]
             [aleph.netty :as netty]
             [aleph.http :as aleph]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [clojure.java.io :as io]
+            [shadow.cljs.devtools.server.web.common :as common]
+            [ring.middleware.file :as ring-file]
+            [ring.middleware.resource :as ring-resource])
   (:import (java.util UUID)))
 
 (defn get-status [{:keys [status-ref] :as proc}]
@@ -80,6 +84,17 @@
 
 ;; SERVICE API
 
+(defn disable-all-kinds-of-caching [handler]
+  ;; this is strictly a dev server and caching is not wanted for anything
+  ;; basically emulates having devtools open with "Disable cache" active
+  (fn [req]
+    (-> req
+        (handler)
+        (update-in [:headers] assoc
+          "cache-control" "max-age=0, no-cache, no-store, must-revalidate"
+          "pragma" "no-cache"
+          "expires" "0"))))
+
 (defn start
   [system-bus executor http build-config]
   {:pre [(map? http)
@@ -104,7 +119,7 @@
 
         ;; we put output here
         output
-        (async/chan)
+        (async/chan 100)
 
         ;; clients tap here to receive output
         output-mult
@@ -133,6 +148,37 @@
 
         status-ref
         (volatile! {:status :started})
+
+        http-server
+        (when-let [http-root (get-in build-config [:devtools :http-root])]
+          (let [port (get-in build-config [:devtools :http-port] 0)
+
+                root-dir
+                (io/file http-root)]
+
+            (when-not (.exists root-dir)
+              (io/make-parents (io/file root-dir "index.html")))
+
+            (let [http-handler
+                  (-> common/not-found
+                      (ring-file/wrap-file root-dir {:allow-symlinks? true
+                                                     :index-files? true})
+                      (disable-all-kinds-of-caching))
+
+                  instance
+                  (aleph/start-server http-handler
+                    {:port port
+                     :executor executor
+                     :shutdown-executor? false})
+
+                  port
+                  (netty/port instance)]
+
+              ;; FIXME: this should show a proper message somewhere
+              ;; worker clients are not listening yet so cannot use output channel
+              (log/info ::http-serve {:http-port port :http-root http-root})
+
+              instance)))
 
         thread-state
         {::impl/worker-state true
@@ -182,6 +228,7 @@
          :proc-stop proc-stop
          :proc-id proc-id
          :proc-control proc-control
+         :http-server http-server
          :system-bus system-bus
          :cljs-watch cljs-watch
          :output output
@@ -198,6 +245,8 @@
         ;; FIXME: I think unsub happens automatically if we close the channel, need to confirm
         (log/debug ::stop (:id build-config) proc-id)
         (sys-bus/unsub system-bus ::sys-msg/cljs-watch cljs-watch)
+        (when http-server
+          (.close http-server))
         (async/close! output)
         (async/close! proc-stop)
         (async/close! cljs-watch))

@@ -98,6 +98,24 @@
    {:before-load demo.browser/stop
     :after-load demo.browser/start}}
 
+  {:id :webpack-bundle
+   :target :browser
+
+   :output-dir "out/webpack-bundle/public/js"
+   :assets-path "/js"
+
+   :modules
+   {:shared
+    {:entries [app.shared]}
+
+    :page
+    {:entries [app.page]
+     :depends-on #{:shared}}}
+
+   :devtools
+   {:http-root "out/webpack-bundle/public"
+    :http-port 8500}}
+
   {:id :script
    :target :node-script
    :main demo.script/main
