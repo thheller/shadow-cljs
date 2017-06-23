@@ -556,11 +556,10 @@
       (error env :undeclared-ns-form {:type "macro" :lib lib :sym sym})))
 
   (doseq [[sym lib] uses]
-    ;; FIXME: investigate :js-module-index, CLJS stores something somewhere
-    (when (and (not (str/starts-with? (str lib) "shadow.npm."))
-               (not (str/starts-with? (str lib) "goog."))
-               (not (ana-is-cljs-def? lib sym))
-               (not (contains? (get-in @env/*compiler* [::ana/namespaces lib :macros]) sym)))
+    (when-not (or (ana-is-cljs-def? lib sym)
+                  (contains? (get-in @env/*compiler* [::ana/namespaces lib :macros]) sym)
+                  ;; don't check refer when we have no analyzer data
+                  (nil? (get-in @env/*compiler* [::ana/namespaces lib])))
       (error env :undeclared-ns-form {:type "var" :lib lib :sym sym}))))
 
 (defn check-renames! [{:keys [renames rename-macros] :as ns-info}]

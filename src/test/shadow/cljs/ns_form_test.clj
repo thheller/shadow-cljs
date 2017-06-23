@@ -93,27 +93,47 @@
 
     (is (thrown? ExceptionInfo (ns-form/parse test)))))
 
-(deftest test-parse-ns-npm
+(deftest test-parse-and-resolve-relative
   (let [test
         '(ns something
            (:require
-             [some.ns :as a :refer (x)]
-             ["react" :as r :refer (createElement)]
-             ["react-dom/server" :as rdom]
-             ["./foo.js" :as foo])
-           (:import ["react" Component]
-                    [some.ns Class]))
+             ["react"]
+             ["react-dom/server"]
+             ["./foo"]))
 
-        state
-        {:output-dir (io/file "node_modules" "shadow-cljs")}
-
-        rc
-        {:name "something.cljs"
-         :file (io/file "src" "main" "something.cljs")}
+        js-resolve
+        (ns-form/resolve-relative-to-output-dir
+          (io/file "node_modules" "shadow-cljs")
+          (io/file "src" "main" "something.cljs"))
 
         ast
         (-> (ns-form/parse test)
-            (ns-form/rewrite-js-requires state rc))]
+            (ns-form/rewrite-js-requires js-resolve))]
+
+    (pprint ast)))
+
+(deftest test-parse-and-resolve-goog
+  (let [test
+        '(ns something
+           (:require
+             ["react"]
+             ["react-dom/server"]
+             ["./foo"]))
+
+        project-dir
+        (io/file "target")
+
+        src-file
+        (io/file project-dir "src" "main" "hello" "world.cljs")
+
+        js-resolve
+        (ns-form/resolve-goog
+          project-dir
+          src-file)
+
+        ast
+        (-> (ns-form/parse test)
+            (ns-form/rewrite-js-requires js-resolve))]
 
     (pprint ast)))
 

@@ -533,92 +533,27 @@
       (assoc ns-info :require-order deps :flags (into #{} flags))
       )))
 
-(defn make-npm-alias [lib]
-  ;; must escape . and /
-  ;; react-dom/server
-  ;; would end up as shadow.npm.react_dom.server
-  ;; which may mess up if shadow.npm.react_dom has a .server
-  ;; generates kinda absurd names for relative things
-  ;; ../../src/main/foo.js
-  ;; shadow.npm._DOT__DOT__SLASH__DOT__DOT__SLASH_src_SLASH_main_SLASH_foo_DOT_js
-  ;; rewriting to make it shorter
-  ;; ../../../../src/main/shadow/cljs/ui/Foo
-  ;; shadow.npm._UPPPP_src_SLASH_main_SLASH_shadow_SLASH_cljs_SLASH_ui_SLASH_Foo
-  ;; doesn't really matter since :advanced will collapse it anyways
-  ;; but during dev the names get absurd
-  (-> lib
-      (str/replace "../" "_UP_")
-      (str/replace "/" "_SLASH_")
-      (cljs-comp/munge)
-      ;; munge doesn't munge extensions like .js
-      (str/replace "." "_DOT_")
-      (str/replace "__UP" "P")
-      (->> (str "shadow.npm."))
-      (symbol)))
-
-(defn relative-path-from-output-dir [output-dir src-file rel-path]
-  (let [output-dir
-        (-> output-dir
-            (.getCanonicalFile)
-            (.toPath))
-
-        src-file
-        (-> src-file
-            (.getParentFile))
-
-        rel-file
-        (-> (io/file src-file rel-path)
-            (.getCanonicalFile)
-            (.toPath))]
-
-    (-> (.relativize output-dir rel-file)
-        (.toString))))
-
-(defn resolve-js-require
-  [{:keys [output-dir] :as state}
-   js-require
-   src-file]
-
-  (cond
-    (not (str/starts-with? js-require "."))
-    js-require
-
-    (nil? src-file)
-    ;; this is because webpack and others can't see files in jars
-    ;; FIXME: think about copying the files out of the jar?
-    ;; would need to copy everything since we can't tell what the other file might need
-    (throw (ex-info "relative requires are not supported without file" {:js-require js-require :output-dir output-dir}))
-
-    :else
-    (let [rel (relative-path-from-output-dir output-dir src-file js-require)]
-      ;; resolving is relative to output-dir
-      ;; that is not very obvious in some cases
-      ;; not sure if worth logging though
-      #_(util/log state {:type :js-resolve
-                         :output-dir output-dir
-                         :file src-file
-                         :js-require js-require
-                         :rel rel})
-      rel)
-    ))
+(defprotocol JSResolver
+  (js-resolve [this js-require])
+  (js-make-alias [this js-require js-resolved]))
 
 (defn rewrite-js-requires
-  [{:keys [js-requires js-refers js-aliases js-imports js-renames deps] :as ns-info} state src-file]
-  {:pre [(map? state)]}
+  [{:keys [js-requires js-refers js-aliases js-imports js-renames deps] :as ns-info} js-resolver]
+  {:pre [(satisfies? JSResolver js-resolver)]}
   (if (empty? js-requires)
     ns-info
     (let [resolved
           (reduce
             (fn [resolved lib]
-              (let [rel (resolve-js-require state lib src-file)]
+              (let [rel (js-resolve js-resolver lib)]
                 (assoc resolved lib rel)))
             {}
             js-requires)
 
           aliases
           (reduce-kv
-            (fn [aliases _ resolved]
-              (assoc aliases resolved (make-npm-alias resolved)))
+            (fn [aliases orig resolved]
+              (assoc aliases resolved (js-make-alias js-resolver orig resolved)))
             {}
             resolved)
 
@@ -672,6 +607,84 @@
           (update :require-order #(into [] (map ns-for-lib) %))
           ))))
 
-(defn rewrite-js-requires-for-name
-  [ns-info state src-name]
-  (rewrite-js-requires ns-info state (get-in state [:sources src-name :file])))
+
+;; RESOLVE UTILS
+
+(defn make-npm-alias [lib]
+  ;; must escape . and /
+  ;; react-dom/server
+  ;; would end up as shadow.npm.react_dom.server
+  ;; which may mess up if shadow.npm.react_dom has a .server
+  ;; generates kinda absurd names for relative things
+  ;; ../../src/main/foo.js
+  ;; shadow.npm._DOT__DOT__SLASH__DOT__DOT__SLASH_src_SLASH_main_SLASH_foo_DOT_js
+  ;; rewriting to make it shorter
+  ;; ../../../../src/main/shadow/cljs/ui/Foo
+  ;; shadow.npm._UPPPP_src_SLASH_main_SLASH_shadow_SLASH_cljs_SLASH_ui_SLASH_Foo
+  ;; doesn't really matter since :advanced will collapse it anyways
+  ;; but during dev the names get absurd
+  (-> lib
+      (str/replace "../" "_UP_")
+      (str/replace "/" "_SLASH_")
+      (cljs-comp/munge)
+      ;; munge doesn't munge extensions like .js
+      (str/replace "." "_DOT_")
+      (str/replace "__UP" "P")
+      (->> (str "shadow.npm."))
+      (symbol)))
+
+(defn relative-path-from-output-dir [output-dir src-file rel-path]
+  (let [output-dir
+        (-> output-dir
+            (.getCanonicalFile)
+            (.toPath))
+
+        src-file
+        (-> src-file
+            (.getParentFile))
+
+        rel-file
+        (-> (io/file src-file rel-path)
+            (.getCanonicalFile)
+            (.toPath))]
+
+    (-> (.relativize output-dir rel-file)
+        (.toString))))
+
+(defn resolve-relative-to-output-dir [output-dir src-file]
+  (reify JSResolver
+    (js-make-alias [_ js-require js-resolved]
+      (make-npm-alias js-resolved))
+    (js-resolve [_ js-require]
+      (cond
+        (not (str/starts-with? js-require "."))
+        js-require
+
+        (nil? src-file)
+        ;; this is because webpack and others can't see files in jars
+        ;; FIXME: think about copying the files out of the jar?
+        ;; would need to copy everything since we can't tell what the other file might need
+        (throw (ex-info "relative requires are not supported without file" {:js-require js-require :output-dir output-dir}))
+
+        :else
+        (relative-path-from-output-dir output-dir src-file js-require)))))
+
+(defn goog-module-name [js-require]
+  (symbol (str "module$" (str/replace js-require "/" "$"))))
+
+(defn resolve-goog [project-dir src-file]
+  (reify JSResolver
+    (js-make-alias [_ js-require js-resolved]
+      (goog-module-name js-resolved))
+
+    (js-resolve [_ js-require]
+      (cond
+        (not (str/starts-with? js-require "."))
+        (str "node_modules/" js-require)
+
+        (nil? src-file)
+        (throw (ex-info "relative requires are not supported without file" {:js-require js-require}))
+
+        :else
+        (relative-path-from-output-dir project-dir src-file js-require))
+      )))

@@ -100,10 +100,10 @@
    {:before-load demo.browser/stop
     :after-load demo.browser/start}}
 
-  {:id :webpacker
+  {:id :js-deps
    :target :node-script
-   :output-to "target/webpacker.js"
-   :main shadow.cljs.npm.webpack/main
+   :output-to "target/js-deps.js"
+   :main shadow.cljs.js-bundler.deps/main
    :devtools {:enabled false}}
 
   {:id :webpack-bundle

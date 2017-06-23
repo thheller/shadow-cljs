@@ -226,6 +226,17 @@
     :js-requires js-requires
     :require-order require-order))
 
+(defn js-resolver-for-file [state file]
+  (ns-form/resolve-relative-to-output-dir
+    (:output-dir state)
+    file))
+
+(defn js-resolver-for-resource [state name]
+  {:pre [(string? name)]}
+  (js-resolver-for-file
+    state
+    (get-in state [:sources name :file])))
+
 (defn peek-into-cljs-resource
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
    with ns-related infos"
@@ -244,8 +255,11 @@
         (let [peek (reader/read opts in)]
           (if (identical? peek eof-sentinel)
             (throw (ex-info "file is empty" {:name name}))
-            (let [ast (-> (ns-form/parse peek)
-                          (ns-form/rewrite-js-requires state (:file rc))
+            (let [js-resolve
+                  (js-resolver-for-file state (:file rc))
+
+                  ast (-> (ns-form/parse peek)
+                          (ns-form/rewrite-js-requires js-resolve)
                           (rewrite-ns-aliases state))]
               (-> state
                   (update-rc-from-ns rc ast)
@@ -694,7 +708,7 @@ normalize-resource-name
 
 (defn hijacked-parse-ns [env form name {::keys [compiler-state] :as opts}]
   (-> (ns-form/parse form)
-      (ns-form/rewrite-js-requires-for-name compiler-state name)
+      (ns-form/rewrite-js-requires (js-resolver-for-resource compiler-state name))
       (rewrite-ns-aliases compiler-state)
       (assoc :env env :form form :op :ns)))
 
@@ -1149,7 +1163,7 @@ normalize-resource-name
                               (assoc :column column)
 
                               (and data (= tag :cljs/analysis-error) line column)
-                              (assoc :source-excerpt (warnings/get-source-excerpt state src {:line line :column column} ))))]
+                              (assoc :source-excerpt (warnings/get-source-excerpt state src {:line line :column column}))))]
 
                     (throw (ex-info (format "failed to compile resource: %s" name) err-data e)))))]
 
@@ -1454,49 +1468,46 @@ normalize-resource-name
     (nil? (:compiler-env state))
     (assoc :compiler-env @(env/default-compiler-env (:compiler-options state)))))
 
-(defn generate-npm-resource [{:keys [emit-js-require] :as state} js-require]
-  (let [ns
-        (ns-form/make-npm-alias js-require)
-
-        name
-        (str ns ".js")
+(defn generate-npm-resource [{:keys [emit-js-require] :as state} js-require js-ns-alias]
+  (let [name
+        (str js-ns-alias ".js")
 
         rc
         {:type :js
          :name name
          :js-name name
          :js-module js-require
-         :provides #{ns}
+         :provides #{js-ns-alias}
          :requires #{}
          :require-order []
-         :input (atom (str "goog.provide(\"" ns "\");\n"
+         :input (atom (str "goog.provide(\"" js-ns-alias "\");\n"
                            #_(->> provides
                                   (map (fn [provide]
                                          (str "goog.provide(\"" provide "\");")))
                                   (str/join "\n"))
                            "\n"
                            (if emit-js-require
-                             (str ns " = require(\"" js-require "\");\n")
-                             (str ns " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
+                             (str js-ns-alias " = require(\"" js-require "\");\n")
+                             (str js-ns-alias " = window[\"npm$modules\"][" (pr-str js-require) "];\n"))))
          :last-modified 0}]
 
     (-> state
         (assoc-in [:sources name] rc)
-        (assoc-in [:provide->source ns] name)
+        (assoc-in [:provide->source js-ns-alias] name)
         ;; FIXME: properly identify what :js-module-index is supposed to be
-        (update-in [:compiler-env :js-module-index] assoc (str ns) ns)
+        (update-in [:compiler-env :js-module-index] assoc (str js-ns-alias) js-ns-alias)
         )))
 
 (defn generate-npm-resources
   ([state]
-   (let [js-requires
+   (let [js-ns-aliases
          (->> (:sources state)
               (vals)
-              (map :js-requires)
-              (reduce set/union #{}))]
-     (generate-npm-resources state js-requires)))
+              (map :js-ns-aliases)
+              (reduce merge {}))]
+     (generate-npm-resources state js-ns-aliases)))
   ([state js-requires]
-   (reduce generate-npm-resource state js-requires)))
+   (reduce-kv generate-npm-resource state js-requires)))
 
 (defn make-provide-index [state]
   (let [idx

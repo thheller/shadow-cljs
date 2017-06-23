@@ -105,6 +105,9 @@
         (cljs/do-compile-sources (map :name repl-sources))
         )))
 
+(defn repl-js-resolve [lib]
+  (throw (ex-info "FIXME: resolve js require for REPL" {:lib lib})))
+
 (defn repl-require
   [{:keys [repl-state] :as state} read-result require-form]
   (let [{:keys [current]}
@@ -116,7 +119,7 @@
         new-ns-info
         (-> (dissoc ns-info :flags)
             (ns-form/merge-repl-require require-form)
-            (ns-form/rewrite-js-requires state current))
+            (ns-form/rewrite-js-requires repl-js-resolve))
 
         new-deps
         (->> (:deps new-ns-info)
@@ -227,7 +230,7 @@
 
         {:keys [deps] :as ns-info}
         (-> ns-info
-            (ns-form/rewrite-js-requires state src-file)
+            (ns-form/rewrite-js-requires repl-js-resolve)
             (cljs/rewrite-ns-aliases state))
 
         state
