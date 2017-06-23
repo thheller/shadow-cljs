@@ -13,7 +13,8 @@
 (defn enhance-warnings
   "adds source excerpts to warnings if line information is available"
   [state {:keys [input file name warnings] :as rc}]
-  (if-not (seq warnings)
+  (if (or (not (seq warnings))
+          (not (string? @input)))
     []
     (let [warnings
           (into [] (distinct warnings))

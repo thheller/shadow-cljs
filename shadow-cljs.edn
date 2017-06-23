@@ -1,4 +1,4 @@
-{:xlein
+{:lein
  {:profile "+cljs"}
 
  ;;  :dev-mode true
@@ -15,6 +15,8 @@
  {:port 8202}
 
  ;; actually unused when using :lein
+ :dependencies []
+
  :source-paths
  ["src/dev"
   "src/main"
@@ -97,6 +99,12 @@
    :devtools
    {:before-load demo.browser/stop
     :after-load demo.browser/start}}
+
+  {:id :webpacker
+   :target :node-script
+   :output-to "target/webpacker.js"
+   :main shadow.cljs.npm.webpack/main
+   :devtools {:enabled false}}
 
   {:id :webpack-bundle
    :target :browser
