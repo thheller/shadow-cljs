@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.20170624](https://github.com/thheller/shadow-cljs/compare/1.0.20170622-19...1.0.20170624)
+
+- another AOT fix
+- server now generates one file per port, eg. `target/shadow-cljs/nrepl.port`
+- simple HTTP file server per build, configured via `:devtools {:http-root "path-to-dir" :http-port 8080}`. this is launched whenever `watch` is running for the given build.
+
 ## [1.0.20170622-19](https://github.com/thheller/shadow-cljs/compare/1.0.20170620...1.0.20170622-19)
 
 - added basic nREPL support with piggieback emulation [WIP]

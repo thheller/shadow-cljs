@@ -77,6 +77,8 @@
   (println "shutdown complete."))
 
 (defn make-port-files [cache-root ports]
+  (io/make-parents (io/file cache-root "foo.txt"))
+
   (reduce-kv
     (fn [result key port]
       (assert (keyword? key))
@@ -125,10 +127,6 @@
 
         nrepl
         (nrepl/start (:nrepl config))
-
-        pid-file
-        (doto (io/file cache-root "remote.pid")
-          (.deleteOnExit))
 
         ;; FIXME: should refuse to start if a pid already exists
         port-files
