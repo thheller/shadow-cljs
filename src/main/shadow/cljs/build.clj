@@ -215,7 +215,7 @@
         ))))
 
 (defn update-rc-from-ns
-  [state rc {:keys [name require-order js-requires] :as ast}]
+  [state rc {:keys [name require-order js-ns-aliases] :as ast}]
   {:pre [(util/compiler-state? state)]}
   (assoc rc
     :ns name
@@ -223,7 +223,7 @@
     :provides #{name}
     :macro-namespaces (macros-from-ns-ast state ast)
     :requires (into #{} require-order)
-    :js-requires js-requires
+    :js-ns-aliases js-ns-aliases
     :require-order require-order))
 
 (defn js-resolver-for-file [state file]
@@ -1506,8 +1506,8 @@ normalize-resource-name
               (map :js-ns-aliases)
               (reduce merge {}))]
      (generate-npm-resources state js-ns-aliases)))
-  ([state js-requires]
-   (reduce-kv generate-npm-resource state js-requires)))
+  ([state js-ns-requires]
+   (reduce-kv generate-npm-resource state js-ns-requires)))
 
 (defn make-provide-index [state]
   (let [idx
