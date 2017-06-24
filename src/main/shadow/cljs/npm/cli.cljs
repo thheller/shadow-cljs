@@ -150,11 +150,18 @@
 
 (defn remove-class-files [path]
   (when (fs/existsSync path)
-    (doseq [file (fs/readdirSync path)
+    ;; shadow-cljs - error ENOENT: no such file or directory, unlink '...'
+    ;; I have no idea how readdir can find a file but then not find it when
+    ;; trying to delete it?
+    (doseq [file (into [] (fs/readdirSync path))
             :let [file (path/resolve path file)]]
       (cond
         (str/ends-with? file ".class")
-        (fs/unlinkSync file)
+        (when (fs/existsSync file)
+          (try
+            (fs/unlinkSync file)
+            (catch :default e
+              (prn [:failed-to-delete file]))))
 
         (is-directory? file)
         (remove-class-files file)
