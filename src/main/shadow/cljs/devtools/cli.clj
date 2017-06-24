@@ -142,52 +142,71 @@
         (api/check* build-config options)
 
         :compile
-        (api/once* build-config options)
+        (api/compile* build-config options)
         ))))
 
 (defn main [& args]
+  (let [{:keys [action builds options summary errors] :as opts}
+        (opts/parse args)]
+
+    (cond
+      (:version options)
+      (println "TBD")
+
+      (or (:help options) (seq errors))
+      (opts/help opts)
+
+      (= action :test)
+      (api/test-all)
+
+      (contains? #{:compile :check :release} action)
+      (run! #(do-build-command opts %) builds)
+
+      (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
+      (server/from-cli action builds options))))
+
+(defn print-main-error [e]
   (try
-    (let [{:keys [action builds options summary errors] :as opts}
-          (opts/parse args)]
+    (errors/user-friendly-error e)
+    (catch Exception e2
+      (println "failed to format error because of:")
+      (repl/pst e2)
+      (flush)
+      (println "actual error:")
+      (repl/pst e)
+      (flush)
+      )))
 
-      (cond
-        (:version options)
-        (println "TBD")
-
-        (or (:help options) (seq errors))
-        (opts/help opts)
-
-        (= action :test)
-        (api/test-all)
-
-        (contains? #{:compile :check :release} action)
-        (run! #(do-build-command opts %) builds)
-
-        (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
-        (server/from-cli action builds options)))
-
-    (catch Exception e
-      (try
-        (errors/user-friendly-error e)
-        (catch Exception e2
-          (println "failed to format error because of:")
-          (repl/pst e2)
-          (flush)
-          (println "actual error:")
-          (repl/pst e)
-          (flush)
-          )))))
-
-(defn from-remote [complete-token args]
-  (apply main args)
+(defn print-token
+  "attempts to print the given token to stdout which may be a socket
+   if the client already closed the socket that would cause a SocketException
+   so we ignore any errors since the client is already gone"
+  [token]
   (try
-    (println complete-token)
+    (println token)
     (catch Exception e
       ;; CTRL+D closes socket so we can't write to it anymore
       )))
 
+(defn from-remote
+  "the CLI script calls this with 2 extra token (uuids) that will be printed to notify
+   the script whether or not to exit with an error code, it also causes the client to
+   disconnect instead of us forcibly dropping the connection"
+  [complete-token error-token args]
+  (try
+    (apply main args)
+    (print-token complete-token)
+    (catch Exception e
+      (print-main-error e)
+      (println error-token))))
+
+;; direct launches don't need to mess with tokens
 (defn -main [& args]
-  (apply main args))
+  (try
+    (apply main args)
+    (catch Exception e
+      (print-main-error e)
+      (System/exit 1))))
 
 (defn autotest
   "no way to interrupt this, don't run this in nREPL"

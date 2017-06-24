@@ -174,7 +174,8 @@
   (let [{:keys [tag] :as data}
         (ex-data ex)]
 
-    (println "shadow-cljs - error" (.-message ex))
+    (when (not= tag :java-exit)
+      (println "shadow-cljs - error" (.-message ex)))
     ))
 
 (defn run-standalone
@@ -341,4 +342,5 @@
                   (run-standalone project-root config args)
                   )))))))
     (catch :default ex
-      (print-error ex))))
+      (print-error ex)
+      (js/process.exit 1))))

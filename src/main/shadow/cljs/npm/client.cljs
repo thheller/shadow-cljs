@@ -47,6 +47,9 @@
             exit-token
             (str (random-uuid))
 
+            error-token
+            (str (random-uuid))
+
             stop!
             (fn []
               (.close rl)
@@ -64,7 +67,7 @@
 
                   ;; FIXME: this is an ugly hack that will be removed soon
                   ;; its just a quick way to interact with the server without a proper API protocol
-                  (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str (into [] args)) ")\n"))
+                  (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) ")\n"))
 
                   (.on rl "line"
                     (fn [line]
@@ -81,15 +84,27 @@
             (let [txt
                   (.toString data)
 
-                  [close? txt]
-                  (if (str/includes? txt exit-token)
-                    [true (str/replace txt (str exit-token "\n") "")]
-                    [false txt])]
+                  [action txt]
+                  (cond
+                    (str/includes? txt exit-token)
+                    [:close (str/replace txt (str exit-token "\n") "")]
+
+                    (str/includes? txt error-token)
+                    [:exit (str/replace txt (str error-token "\n") "")]
+
+                    :else
+                    [:continue txt])]
 
               (js/process.stdout.write txt)
 
-              (if close?
+              (case action
+                :close
                 (stop!)
+
+                :exit
+                (js/process.exit 1)
+
+                :continue
                 (let [prompts
                       (re-seq #"\[(\d+):(\d+)\]\~([^=> \n]+)=> " txt)]
 

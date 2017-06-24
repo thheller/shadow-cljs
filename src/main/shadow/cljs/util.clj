@@ -565,9 +565,7 @@
 (defn check-renames! [{:keys [renames rename-macros] :as ns-info}]
   (doseq [[rename-to rename-from] renames
           :let [rename-ns (symbol (namespace rename-from))
-                rename-name (symbol (name rename-from))]]
-    ))
-
+                rename-name (symbol (name rename-from))]]))
 
 (defn- namespace-name->js-obj [^String ns]
   (let [parts (str/split ns #"\.")]

@@ -20,11 +20,9 @@
             [clojure.string :as str]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-            [shadow.cljs.devtools.server.runtime :as runtime]
-            )
+            [shadow.cljs.devtools.server.runtime :as runtime])
   (:import (java.io PushbackReader StringReader)
            (java.lang ProcessBuilder$Redirect)))
-
 
 (defn get-worker
   [id]
@@ -101,51 +99,48 @@
         {:keys [out supervisor] :as app}
         (runtime/get-instance!)]
 
-    (try
-      (-> (get-or-start-worker build-config opts)
-          (worker/watch out false)
-          (worker/start-autobuild)
-          (worker/sync!)
-          (repl-impl/stdin-takeover! app))
+    (-> (get-or-start-worker build-config opts)
+        (worker/watch out false)
+        (worker/start-autobuild)
+        (worker/sync!)
+        (repl-impl/stdin-takeover! app))
 
-      (super/stop-worker supervisor (:id build-config))
-      :done
-      (catch Exception e
-        (e/user-friendly-error e)))
-    ))
+    (super/stop-worker supervisor (:id build-config))
+    :done))
 
 (defn dev
   ([build]
    (dev build {:autobuild true}))
   ([build {:keys [autobuild] :as opts}]
-   (let [build-config (config/get-build! build)]
-     (dev* build-config opts))))
+   (try
+     (let [build-config (config/get-build! build)]
+       (dev* build-config opts))
+     (catch Exception e
+       (e/user-friendly-error e)))))
 
 (defn build-finish [{::comp/keys [build-info] :as state} config]
   (util/print-build-complete build-info config)
   state)
 
-(defn once* [build-config opts]
-  (try
-    (util/print-build-start build-config)
-    (-> (comp/init :dev build-config)
-        (comp/compile)
-        (comp/flush)
-        (build-finish build-config))
-    :done
-    (catch Exception e
-      (e/user-friendly-error e))
-    ))
+(defn compile* [build-config opts]
+  (util/print-build-start build-config)
+  (-> (comp/init :dev build-config)
+      (comp/compile)
+      (comp/flush)
+      (build-finish build-config)))
 
 (defn compile
   ([build]
    (compile build {}))
   ([build opts]
-   (let [build-config (config/get-build! build)]
-     (once* build-config opts)
-     )))
+   (try
+     (let [build-config (config/get-build! build)]
+       (compile* build-config opts))
+     (catch Exception e
+       (e/user-friendly-error e)))))
 
 (defn once
+  "deprecated: use compile"
   ([build]
    (compile build {}))
   ([build opts]
@@ -153,62 +148,61 @@
 
 (defn release*
   [build-config {:keys [debug source-maps pseudo-names] :as opts}]
-  (try
-    (util/print-build-start build-config)
-    (-> (comp/init :release build-config)
-        (cond->
-          (or debug source-maps)
-          (cljs/enable-source-maps)
+  (util/print-build-start build-config)
+  (-> (comp/init :release build-config)
+      (cond->
+        (or debug source-maps)
+        (cljs/enable-source-maps)
 
-          (or debug pseudo-names)
-          (cljs/merge-compiler-options
-            {:pretty-print true
-             :pseudo-names true}))
-        (comp/compile)
-        (comp/optimize)
-        (comp/flush)
-        (build-finish build-config))
-    :done
-    (catch Exception e
-      (e/user-friendly-error e))))
+        (or debug pseudo-names)
+        (cljs/merge-compiler-options
+          {:pretty-print true
+           :pseudo-names true}))
+      (comp/compile)
+      (comp/optimize)
+      (comp/flush)
+      (build-finish build-config)))
 
 (defn release
   ([build]
    (release build {}))
   ([build opts]
-   (let [build-config (config/get-build! build)]
-     (release* build-config opts))))
+   (try
+     (let [build-config (config/get-build! build)]
+       (release* build-config opts))
+     :done
+     (catch Exception e
+       (e/user-friendly-error e)))))
 
 (defn check* [{:keys [id] :as build-config} opts]
-  (try
-    ;; FIXME: pretend release mode so targets don't need to account for extra mode
-    ;; in most cases we want exactly :release but not sure that is true for everything?
-    (-> (comp/init :release build-config)
-        ;; using another dir because of source maps
-        ;; not sure :release builds want to enable source maps by default
-        ;; so running check on the release dir would cause a recompile which is annoying
-        ;; but check errors are really useless without source maps
-        (as-> X
-          (-> X
-              (assoc :cache-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check"))
-              ;; always override :output-dir since check output should never be used
-              ;; only generates output for source maps anyways
-              (assoc :output-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check" "output"))))
-        (cljs/enable-source-maps)
-        (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
-        (comp/compile)
-        (comp/check))
-    :done
-    (catch Exception e
-      (e/user-friendly-error e))))
+  ;; FIXME: pretend release mode so targets don't need to account for extra mode
+  ;; in most cases we want exactly :release but not sure that is true for everything?
+  (-> (comp/init :release build-config)
+      ;; using another dir because of source maps
+      ;; not sure :release builds want to enable source maps by default
+      ;; so running check on the release dir would cause a recompile which is annoying
+      ;; but check errors are really useless without source maps
+      (as-> X
+        (-> X
+            (assoc :cache-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check"))
+            ;; always override :output-dir since check output should never be used
+            ;; only generates output for source maps anyways
+            (assoc :output-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check" "output"))))
+      (cljs/enable-source-maps)
+      (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
+      (comp/compile)
+      (comp/check))
+  :done)
 
 (defn check
   ([build]
    (check build {}))
   ([build opts]
-   (let [build-config (config/get-build! build)]
-     (check* build-config opts)
-     )))
+   (try
+     (let [build-config (config/get-build! build)]
+       (check* build-config opts))
+     (catch Exception e
+       (e/user-friendly-error e)))))
 
 (defn repl [build-id]
   (let [{:keys [supervisor] :as app}
@@ -232,7 +226,6 @@
           {:output-dir (io/file (:work-dir X) "shadow-test")}))
       (cljs/find-resources-in-classpath)
       ))
-
 
 (defn node-execute! [node-args file]
   (let [script-args
