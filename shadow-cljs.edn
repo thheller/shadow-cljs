@@ -26,7 +26,8 @@
  [{:id :cli
    :target :node-library
    :exports
-   {:main shadow.cljs.npm.cli/main}
+   {:main shadow.cljs.npm.cli/main
+    :index shadow.cljs.npm.js-index/index-for-file}
    :output-to "packages/shadow-cljs/cli/lib.js"
    :compiler-options
    {:optimizations :advanced

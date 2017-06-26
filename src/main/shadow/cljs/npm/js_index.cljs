@@ -1,5 +1,5 @@
-(ns shadow.cljs.js-bundler.deps
-  "deps extractor losely based on cljs/module_deps.js"
+(ns shadow.cljs.npm.js-index
+  "deps extractor loosely based on cljs/module_deps.js"
   (:require ["path" :as path]
             ["module-deps" :as mdeps]
             ["node-resolve" :as node-resolve]
@@ -8,12 +8,9 @@
             [goog.object :as gobj]
             [shadow.json :as json]))
 
-(defn as-rel-path [state path]
-  (path/relative "." path))
-
 (defn add-package [{:keys [package files] :as state} pkg]
   (let [pkg-dir
-        (as-rel-path state (gobj/get pkg "__dirname"))
+        (gobj/get pkg "__dirname")
 
         main
         (some->>
@@ -32,9 +29,12 @@
           (update :packages assoc name pkg)))))
 
 (defn add-file [state file]
-  (update state :files conj (as-rel-path state file)))
+  (update state :files conj file))
 
-(defn main [entry]
+(defn index-for-file
+  "takes a file with require calls and prints an edn index structure for all deps
+   and required packages"
+  [entry]
   (let [opts
         #js {:filter #(not (node-resolve/isCore %))}
 

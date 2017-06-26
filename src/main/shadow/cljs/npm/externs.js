@@ -27,6 +27,8 @@ X.prototype._getActiveHandles;
 X.prototype.unlinkSync;
 X.prototype.readdirSync;
 X.prototype.lstatSync;
+X.prototype.isCore;
+X.prototype.relative;
 
 
 process.exit;

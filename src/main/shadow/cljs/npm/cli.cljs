@@ -102,16 +102,20 @@
         (recur (path/resolve root ".."))
 
         :else ;; ask to create default config in current dir
-        (let [config (path/resolve "shadow-cljs.edn")]
-          (println "shadow-cljs - missing configuration file")
-          (println (str "- " config))
+        false
+        ))))
 
-          (when (rl-sync/keyInYN "Create one?")
-            ;; FIXME: ask for default source path, don't just use one
-            (fs/writeFileSync config default-config-str)
-            (println "shadow-cljs - created default configuration")
-            config
-            ))))))
+(defn run-init [opts]
+  (let [config (path/resolve "shadow-cljs.edn")]
+    (println "shadow-cljs - init")
+    (println (str "- " config))
+
+    (when (rl-sync/keyInYN "Create?")
+      ;; FIXME: ask for default source path, don't just use one
+      (fs/writeFileSync config default-config-str)
+      (println "shadow-cljs - created default configuration")
+      config
+      )))
 
 (defn modified-dependencies? [cp-file config]
   (let [cp (-> (util/slurp cp-file)
@@ -302,45 +306,52 @@
         (:help options)
         (opts/help opts)
 
+        (= action :init)
+        (run-init opts)
+
         :else
-        (when-let [config-path (ensure-config)]
+        (let [config-path (ensure-config)]
+          (if-not config-path
+            (do (println "Could not find shadow-cljs.edn config file.")
+                (println "To create one run:")
+                (println "  shadow-cljs init"))
 
-          (let [project-root
-                (path/dirname config-path)
+            (let [project-root
+                  (path/dirname config-path)
 
-                args
-                (into [] args) ;; starts out as JS array
+                  args
+                  (into [] args) ;; starts out as JS array
 
-                config
-                (read-config config-path opts)]
+                  config
+                  (read-config config-path opts)]
 
-            (if (not (map? config))
-              (do (println "shadow-cljs - old config format no longer supported")
-                  (println config-path)
-                  (println "  previously a vector was used to define builds")
-                  (println "  now {:builds the-old-vector} is expected"))
+              (if (not (map? config))
+                (do (println "shadow-cljs - old config format no longer supported")
+                    (println config-path)
+                    (println "  previously a vector was used to define builds")
+                    (println "  now {:builds the-old-vector} is expected"))
 
-              (let [{:keys [cache-root version] :as config}
-                    (merge defaults config)
+                (let [{:keys [cache-root version] :as config}
+                      (merge defaults config)
 
-                    server-pid
-                    (path/resolve project-root cache-root "cli-repl.port")]
+                      server-pid
+                      (path/resolve project-root cache-root "cli-repl.port")]
 
-                (println "shadow-cljs - config:" config-path "version:" version)
+                  (println "shadow-cljs - config:" config-path "version:" version)
 
-                (cond
-                  (:cli-info options)
-                  (print-cli-info project-root config-path config opts)
+                  (cond
+                    (:cli-info options)
+                    (print-cli-info project-root config-path config opts)
 
-                  (fs/existsSync server-pid)
-                  (client/run project-root config server-pid args)
+                    (fs/existsSync server-pid)
+                    (client/run project-root config server-pid args)
 
-                  (:lein config)
-                  (run-lein project-root config args)
+                    (:lein config)
+                    (run-lein project-root config args)
 
-                  :else
-                  (run-standalone project-root config args)
-                  )))))))
+                    :else
+                    (run-standalone project-root config args)
+                    ))))))))
     (catch :default ex
       (print-error ex)
       (js/process.exit 1))))
