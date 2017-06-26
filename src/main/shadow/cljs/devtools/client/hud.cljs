@@ -54,7 +54,7 @@
                   :font-size "1.2em"
                   :font-weight "bold"}}
     (str "WARNING in " source-name)]
-   
+
    (when source-excerpt
      (let [{:keys [start-idx before line after]} source-excerpt]
        [:div {:style {:padding "10px 0"}}

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.20170626](https://github.com/thheller/shadow-cljs/compare/1.0.20170624...1.0.20170626)
+
+- add `:preloads` in `:devtools`, same as in CLJS
+- add new "listener" Websocket that just listens to build messages
+- add very basic (ugly) HUD based on the new Websocket, not enabled by default yet.
+- `shadow-cljs help` same as `shadow-cljs -h`
+- `shadow-cljs` package now ships with a default `.babelrc` to prevent processing the generated files with crazy presets (ie. `react-native` packager). It is already ES3, it should not need processing.
+
 ## [1.0.20170624](https://github.com/thheller/shadow-cljs/compare/1.0.20170622-19...1.0.20170624)
 
 - another AOT fix
