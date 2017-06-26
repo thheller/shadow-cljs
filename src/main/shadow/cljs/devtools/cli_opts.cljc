@@ -52,6 +52,7 @@
    :test
 
    :init
+   :help
    :server])
 
 (defn help [{:keys [errors summary] :as opts}]

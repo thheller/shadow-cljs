@@ -49,6 +49,7 @@
     (doto mdeps
       (.on "package" #(vswap! state-ref add-package %))
       (.on "file" #(vswap! state-ref add-file %))
+      (.on "error" #(throw %1))
       (.on "end"
         (fn []
           ;; don't ever want the input file in there

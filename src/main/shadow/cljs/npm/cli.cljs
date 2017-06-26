@@ -303,7 +303,8 @@
           (opts/parse args)]
 
       (cond
-        (:help options)
+        (or (:help options)
+            (= action :help))
         (opts/help opts)
 
         (= action :init)
