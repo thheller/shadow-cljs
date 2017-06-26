@@ -95,20 +95,25 @@
 
 (defn inject-devtools
   [{:keys [default-module] :as state} config]
-  (let [{:keys [console-support enabled]}
-        (:devtools config)]
+  (let [{:keys [console-support enabled preloads]}
+        (:devtools config)
 
-    (if (false? enabled)
-      state
-      (-> state
-          (update :closure-defines merge (shared/repl-defines state config))
+        injected-namespaces
+        (-> []
+            (cond->
+              (not (false? console-support))
+              (into '[shadow.cljs.devtools.client.console])
 
-          ;; inject an entry for 'cljs.user to ensure that it is loaded as the repl eval will begin in that namespace
-          (update-in [:modules default-module :entries] shared/prepend '[cljs.user shadow.cljs.devtools.client.browser])
-          (cond->
-            (not (false? console-support))
-            (update-in [:modules default-module :entries] shared/prepend '[shadow.cljs.devtools.client.console]))
-          ))))
+              (not (false? enabled))
+              (into '[cljs.user shadow.cljs.devtools.client.browser]))
+            (cond->
+              (seq preloads)
+              (into preloads)))]
+
+    (-> state
+        (update :closure-defines merge (shared/repl-defines state config))
+        (update-in [:modules default-module :entries] shared/prepend injected-namespaces)
+        )))
 
 (defn json [obj]
   (json/write-str obj :escape-slash false))

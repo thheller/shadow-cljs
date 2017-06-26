@@ -1,7 +1,6 @@
 (ns shadow.cljs.devtools.client.env
-  (:require [goog.object :as gobj]))
-
-(def x 1)
+  (:require [goog.object :as gobj]
+            [cljs.tools.reader :as reader]))
 
 (defonce client-id (random-uuid))
 
@@ -29,9 +28,11 @@
   {:pre [(keyword? client-type)]}
   (str "ws://" repl-host ":" repl-port "/worker/ws/" build-id "/" proc-id "/" client-id "/" (name client-type)))
 
+(defn ws-listener-url []
+  (str "ws://" repl-host ":" repl-port "/worker/listener-ws/" build-id "/" proc-id "/" client-id))
+
 (defn files-url []
   (str "//" repl-host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id))
-
 
 (def repl-print-fn pr-str)
 
@@ -53,4 +54,20 @@
         (set! *e e)
         (repl-error result e)
         ))))
+
+(defn process-ws-msg [e handler]
+  (binding [reader/*default-data-reader-fn*
+            (fn [tag value]
+              [:tagged-literal tag value])]
+    (let [text
+          (.-data e)
+
+          msg
+          (try
+            (reader/read-string text)
+            (catch :default e
+              (js/console.warn "failed to parse websocket message" text e)))]
+      (when msg
+        (handler msg))
+      )))
 

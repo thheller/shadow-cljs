@@ -109,7 +109,7 @@
     ;; closure source mapped errors always seem to have column 0
     ;; doesn't make sense to have an arrow then
     (if (pos-int? column)
-      (let [arrow-idx (+ 7 (or column 1) -1)]
+      (let [arrow-idx (+ 6 (or column 1))]
         (println (sep-line "^" arrow-idx)))
       (println (sep-line)))))
 

@@ -1,6 +1,6 @@
 (ns shadow.cljs.devtools.server.worker.ws
   "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
-  (:require [clojure.core.async :as async :refer (thread alt!! >!!)]
+  (:require [clojure.core.async :as async :refer (go <! >! thread alt!! >!!)]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [aleph.http :as aleph]
@@ -14,6 +14,7 @@
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.web.common :as common]
+            [shadow.cljs.devtools.compiler :as comp]
             [shadow.http.router :as http])
   (:import (java.util UUID)))
 
@@ -120,6 +121,59 @@
             ))
         (md/catch common/unacceptable))))
 
+(defn ws-listener-connect
+  [{:keys [ring-request] :as ctx}
+   {:keys [output] :as worker-proc} client-id]
+
+  (let [client-out
+        (async/chan
+          (async/sliding-buffer 10)
+          (map pr-str))
+
+        ;; FIXME: let the client decide?
+        watch-ignore
+        #{:build-log
+          :repl/result
+          :repl/error ;; server-side error
+          :repl/action
+          :repl/eval-start
+          :repl/eval-stop
+          :repl/client-start
+          :repl/client-stop}
+
+        watch-chan
+        (-> (async/sliding-buffer 10)
+            (async/chan
+              (remove #(contains? watch-ignore (:type %)))))]
+
+    (-> (aleph/websocket-connection ring-request
+          {:headers
+           (let [proto (get-in ring-request [:headers "sec-websocket-protocol"])]
+             (if (seq proto)
+               {"sec-websocket-protocol" proto}
+               {}))})
+        (md/chain
+          (fn [socket]
+            ;; FIXME: listen only or accept commands?
+            ;; (ms/connect socket client-in)
+            (ms/connect client-out socket)
+            socket))
+        (md/chain
+          (fn [socket]
+            (worker/watch worker-proc watch-chan true)
+
+            (let [last-known-state
+                  (-> worker-proc :state-ref deref :compiler-state ::comp/build-info)]
+              (>!! client-out {:type :build-init
+                               :info last-known-state}))
+
+            (go (loop []
+                  (when-some [msg (<! watch-chan)]
+                    (>! client-out msg)
+                    (recur))
+                  ))))
+        (md/catch common/unacceptable))))
+
 (defn files-req
   "a POST request from the REPL client asking for the compile JS for sources by name
    sends a {:sources [...]} structure with a vector of source names
@@ -219,6 +273,9 @@
 
         "ws"
         (ws-connect ctx worker-proc client-id client-type)
+
+        "listener-ws"
+        (ws-listener-connect ctx worker-proc client-id)
 
         :else
         {:status 404

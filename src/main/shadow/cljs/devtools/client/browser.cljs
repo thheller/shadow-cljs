@@ -19,7 +19,7 @@
 (defn module-loaded [name]
   (vswap! active-modules-ref conj (keyword name)))
 
-(defonce socket-ref (atom nil))
+(defonce socket-ref (volatile! nil))
 
 (defn devtools-msg [msg & args]
   (.apply (.-log js/console) nil (into-array (into [(str "%c" msg) "color: blue;"] args))))
@@ -243,7 +243,7 @@
         socket
         (js/WebSocket. ws-url)]
 
-    (reset! socket-ref socket)
+    (vreset! socket-ref socket)
 
     (set! (.-onmessage socket)
       (fn [e]
@@ -252,17 +252,7 @@
                                     :out (into [] args)})
                            (apply print-fn args)))
 
-        (let [text
-              (.-data e)
-
-              msg
-              (try
-                (reader/read-string text)
-                (catch :default e
-                  (js/console.warn "failed to parse msg" e text)
-                  nil))]
-          (when msg
-            (handle-message msg)))
+        (env/process-ws-msg e handle-message)
         ))
 
     (set! (.-onopen socket)
@@ -279,7 +269,7 @@
         ;; not a big fan of reconnecting automatically since a disconnect
         ;; may signal a change of config, safer to just reload the page
         (devtools-msg "DEVTOOLS: disconnected!")
-        (reset! socket-ref nil)
+        (vreset! socket-ref nil)
         ))
 
     (set! (.-onerror socket)
@@ -292,5 +282,6 @@
   (when-let [s @socket-ref]
     (devtools-msg "DEVTOOLS: connection reset!")
     (set! (.-onclose s) (fn [e]))
-    (.close s))
+    (.close s)
+    (vreset! socket-ref nil))
   (ws-connect))

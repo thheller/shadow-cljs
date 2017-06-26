@@ -2,5 +2,5 @@
   (:require [demo.browser :as b]))
 
 (js/console.log "bar")
-(js/console.log "demo.browser-extra" b/a-const)
+(js/console.log "demo.browser-extra")
 
