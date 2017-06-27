@@ -30,7 +30,9 @@
     (fn [opts k v]
       (update opts :dependencies conj-vec v))]
    ;; generic
-   [nil "--debug"]
+   [nil "--source-maps" "temporarily enable source-maps for release debugging"]
+   [nil "--pseudo-names" "temporarily enable pseudo-names for release debugging. DO NOT SHIP THIS CODE!"]
+   [nil "--debug" "enable source-maps + pseudo-names. DO NOT SHIP THIS CODE!"]
    ["-v" "--verbose" "verbose build log"]
    [nil "--cli-info" "prints a bunch of information"]
    ["-h" "--help"]])
