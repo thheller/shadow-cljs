@@ -16,7 +16,8 @@
             [shadow.cljs.closure :as closure]
             [clojure.repl :as repl]
             [cljs.analyzer.api :as ana-api]
-            [clojure.walk :as walk])
+            [clojure.walk :as walk]
+            [shadow.cljs.devtools.server.util :as util])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)))
 
 
@@ -343,3 +344,14 @@
   (spit file "")
   (spit file content)
   )
+
+
+(deftest test-open-file-command
+  (let [data
+        {:file "/some/abs-file/somefile.js"
+         :line 123
+         :column 3}]
+
+    (prn (util/make-open-args data ["idea" :pwd :file "--line" :line]))
+    (prn (util/make-open-args data ["emacsclient" ["%s:%s:%s" :file :line :column]]))
+    ))

@@ -8,6 +8,8 @@
  :server
  {:autostart #{}}
 
+ :open-file-command :idea
+
  :http
  {:port 8200}
 

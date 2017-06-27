@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [aleph.netty :as netty]
             [ring.middleware.file :as ring-file]
+            [ring.middleware.params :as ring-params]
             [shadow.runtime.services :as rt]
             [shadow.cljs.devtools.server.web :as web]
             [shadow.cljs.devtools.server.explorer :as explorer]
@@ -51,6 +52,7 @@
         dev-mode
         (ring-file/wrap-file (io/file "target/shadow-cljs/ui/output")))
       ;; (reload/wrap-reload {:dirs ["src/main"]})
+      (ring-params/wrap-params)
       ))
 
 (defmacro do-shutdown [& body]

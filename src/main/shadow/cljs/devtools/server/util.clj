@@ -4,8 +4,9 @@
             [shadow.cljs.build :as cljs]
             [shadow.cljs.devtools.errors :as errors]
             [clojure.string :as str]
-            [shadow.cljs.warnings :as warnings])
-  (:import (java.io Writer InputStreamReader BufferedReader IOException)))
+            [shadow.cljs.warnings :as warnings]
+            [clojure.java.io :as io])
+  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream)))
 
 (defn async-logger [ch]
   (reify
@@ -192,3 +193,86 @@
               (.printStackTrace e *err*))))
         (recur buf)))))
 
+(defn make-open-arg
+  [{:keys [file line column] :as data} opt]
+  (cond
+    (string? opt)
+    opt
+
+    (vector? opt)
+    (let [[fmt & args]
+          opt
+
+          args
+          (into [] (map #(make-open-arg data %)) args)]
+      (apply format fmt args))
+
+    (= opt :pwd)
+    (-> (io/file "")
+        (.getAbsolutePath))
+
+    (= opt :file)
+    file
+
+    (= opt :line)
+    (str (or line 1))
+
+    (= opt :column)
+    (str (or column 1))
+
+    :else
+    (throw (ex-info "invalid literal in :open-file-command" {:opt opt}))
+    ))
+
+(defn make-open-args
+  "transforms :open-file-command template by replacing keywords with actual values"
+  [data template]
+  (let [template
+        (cond
+          (vector? template)
+          template
+
+          (keyword? template)
+          (case template
+            :idea
+            ;; /usr/local/bin/idea [-l|--line line] [project_dir|--temp-project] file[:line]
+            ;; --line doesn't seem to work properly
+            ["idea" :pwd ["%s:%s" :file :line]]
+            :emacs
+            ["emacsclient" "-n" ["+%s:%s" :line :column] :file]
+            (throw (ex-info "no :open-file-command template by that name" {:template template})))
+
+          :else
+          (throw (ex-info "invalid :open-file-command" {:template template})))]
+
+    (into [] (map #(make-open-arg data %)) template)))
+
+(defn launch
+  "clojure.java.shell/sh replacement since kw-args suck"
+  [args {:keys [pwd] :as opts}]
+  (let [proc
+        (-> (ProcessBuilder. (into-array args))
+            (.directory
+              ;; nil defaults to JVM working dir
+              (when pwd
+                (io/file pwd)))
+            (.start))
+
+        proc-out
+        (ByteArrayOutputStream.)
+
+        proc-err
+        (ByteArrayOutputStream.)]
+
+    (future (io/copy (.getOutputStream proc) proc-out))
+    (future (io/copy (.getErrorStream proc) proc-err))
+
+    (let [result (.waitFor proc)]
+
+      {:exit result
+       :err (.toString proc-err (or (:err-enc opts)
+                                    (:enc opts)
+                                    "UTF-8"))
+       :out (.toString proc-out (or (:out-enc opts)
+                                    (:enc opts)
+                                    "UTF-8"))})))

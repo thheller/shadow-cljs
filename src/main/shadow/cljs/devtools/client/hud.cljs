@@ -1,11 +1,29 @@
 (ns shadow.cljs.devtools.client.hud
+  (:require-macros [cljs.core.async.macros :refer (go)])
   (:require [shadow.dom :as dom]
+            [shadow.xhr :as xhr]
             [shadow.cljs.devtools.client.env :as env]
             [shadow.cljs.devtools.client.browser :as browser]
             [cljs.tools.reader :as reader]
             [goog.string.format]
             [goog.string :refer (format)]
             [clojure.string :as str]))
+
+(defn open-file [file line column]
+  (js/console.log "opening file" file line column)
+
+  (let [req
+        (xhr/chan :POST
+          (str "http://" env/repl-host ":" env/repl-port "/api/open-file")
+          {:file file
+           :line line
+           :column column}
+          {:with-credentials false
+           :body-only true})]
+    (go (when-some [{:keys [exit] :as result} (<! req)]
+          (when-not (zero? exit)
+            (js/console.warn "file open failed" result))
+          ))))
 
 (defonce socket-ref (volatile! nil))
 
@@ -44,6 +62,20 @@
                 (str/join "")))]
      (str (sep offset) label (sep (- sep-len (+ offset len)))))))
 
+(defn file-link [{:keys [source-name file line column] :as warning}]
+  (if-not file
+    [:span source-name]
+
+    [:span {:style {:text-decoration "underline"
+                    :color "blue"
+                    :cursor "pointer"}
+            :on {:click (fn [e]
+                          (dom/ev-stop e)
+                          (open-file file line column)
+                          )}}
+
+     source-name]))
+
 (defn html-for-warning [{:keys [source-name msg file line column source-excerpt] :as warning}]
   [:div {:style {:border "2px solid #ccc"
                  :background-color "#fadb64"
@@ -53,7 +85,8 @@
    [:div {:style {:line-height "16px"
                   :font-size "1.2em"
                   :font-weight "bold"}}
-    (str "WARNING in " source-name)]
+    [:span "WARNING in "]
+    (file-link warning)]
 
    (when source-excerpt
      (let [{:keys [start-idx before line after]} source-excerpt]
@@ -126,7 +159,7 @@
     (set! (.-onclose socket)
       (fn [e]
         ;; cleanup on close
-        (reset! socket-ref nil)
+        (vreset! socket-ref nil)
         ))
 
     (set! (.-onerror socket)
