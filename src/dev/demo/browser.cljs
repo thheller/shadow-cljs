@@ -1,17 +1,21 @@
 (ns demo.browser
   (:require-macros [demo.browser :refer (test-macro)])
   (:require ["react" :as react :refer (createElement)]
-            ["react-dom" :as rdom :refer (render)])
+            ["react-dom" :as rdom :refer (render)]
+            [cljs.spec.alpha :as s])
   (:import ["react" Component]))
 
-(defn foo []
+(s/def ::foo string?)
+
+(s/fdef foo
+  :args (s/cat :foo ::foo))
+
+(defn foo [x]
   (createElement "h1" nil "hello from react"))
 
-(render (foo) (js/document.getElementById "app"))
+(render (foo "foo") (js/document.getElementById "app"))
 
 (js/console.log "demo.browser" react rdom)
-
-bar
 
 (prn :foo)
 

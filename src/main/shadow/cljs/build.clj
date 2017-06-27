@@ -9,19 +9,21 @@
             [cljs.source-map :as sm]
             [cljs.env :as env]
             [cljs.tagged-literals :as tags]
+            [cljs.spec.alpha :as cljs-spec] ;; we can depend on this, shouldn't need the var lookup CLJS does?
             [clojure.tools.reader :as reader]
             [clojure.tools.reader.reader-types :as readers]
             [cognitect.transit :as transit]
             [shadow.spec :as ss]
             [shadow.cljs.util :as util]
-            [shadow.cljs.log :as log]
+            [shadow.cljs.log :as cljs-log]
             [shadow.cljs.cljs-specs :as cljs-specs]
             [shadow.cljs.closure :as closure]
             [shadow.cljs.cache :as cache]
             [shadow.cljs.ns-form :as ns-form]
             [clojure.spec.alpha :as s]
             [shadow.cljs.output :as output]
-            [shadow.cljs.warnings :as warnings])
+            [shadow.cljs.warnings :as warnings]
+            [clojure.tools.logging :as log])
   (:import [java.io File FileOutputStream FileInputStream StringReader PushbackReader ByteArrayOutputStream BufferedReader ByteArrayInputStream]
            [java.net URL]
            (java.util.jar JarFile JarEntry)
@@ -1025,6 +1027,7 @@ normalize-resource-name
   [:static-fns
    :elide-asserts
    :optimize-constants
+   :fn-invoke-direct
    :emit-constants
    :source-map])
 
@@ -1066,9 +1069,16 @@ normalize-resource-name
 
             ;; restore analysis data
             (let [ana-data (:analyzer cache-data)]
-
               (swap! env/*compiler* assoc-in [::ana/namespaces (:ns cache-data)] ana-data)
               (util/load-macros ana-data))
+
+            ;; restore specs
+            (let [{:keys [ns-specs ns-spec-vars]} cache-data]
+              (swap! cljs-spec/registry-ref merge ns-specs)
+
+              ;; no idea why this is named so weirdly and private
+              (let [priv-var (find-var 'cljs.spec.alpha/_speced_vars)]
+                (swap! @priv-var set/union ns-spec-vars)))
 
             ;; merge resource data & return it
             (-> (merge rc cache-data)
@@ -1078,6 +1088,7 @@ normalize-resource-name
 
       (catch Exception e
         (util/log state {:type :cache-error
+                         :action :read
                          :ns ns
                          :name name
                          :error e})
@@ -1092,21 +1103,47 @@ normalize-resource-name
           (get-cache-file-for-rc state rc)]
 
       (try
-        (let [cache-data
-              (-> rc
-                  (dissoc :file :output :input :url :forms :ast)
-                  (assoc :age-of-deps (make-age-map state ns)
-                    :analyzer (get-in @env/*compiler* [::ana/namespaces ns])))
-
-              cache-options
+        (let [cache-options
               (reduce
                 (fn [cache-options option-key]
                   (assoc cache-options option-key (get-in state [:compiler-options option-key])))
                 {}
                 cache-affecting-options)
 
+              ns-str
+              (str ns)
+
+              spec-filter-fn
+              #(= ns-str (namespace %))
+
+              ns-specs
+              (reduce-kv
+                (fn [m k v]
+                  (if-not (spec-filter-fn k)
+                    m
+                    (assoc m k v)))
+                {}
+                ;; this is {spec-kw|sym raw-spec-form}
+                @cljs-spec/registry-ref)
+
+              ;; this is a #{fqn-var-sym ...}
+              ns-speced-vars
+              (->> (cljs-spec/speced-vars)
+                   (filter spec-filter-fn)
+                   (into []))
+
+              ana-data
+              (get-in @env/*compiler* [::ana/namespaces ns])
+
               cache-data
-              (assoc cache-data :cache-options cache-options)
+              (-> rc
+                  (dissoc :file :output :input :url :forms :ast)
+                  (assoc
+                    :age-of-deps (make-age-map state ns)
+                    :analyzer ana-data
+                    :ns-specs ns-specs
+                    :ns-speced-vars ns-speced-vars
+                    :cache-options cache-options))
 
               cache-js
               (io/file cache-dir cljs-runtime-path js-name)]
@@ -1124,6 +1161,7 @@ normalize-resource-name
           true)
         (catch Exception e
           (util/log state {:type :cache-error
+                           :action :write
                            :ns ns
                            :name name
                            :error e})
@@ -2407,10 +2445,10 @@ enable-emit-constants [state]
   (::cc state))
 
 (def stdout-log
-  (reify log/BuildLog
+  (reify cljs-log/BuildLog
     (util/log* [_ state evt]
       (locking stdout-lock
-        (println (log/event-text evt))
+        (println (cljs-log/event-text evt))
         ))))
 
 (defn init-state []

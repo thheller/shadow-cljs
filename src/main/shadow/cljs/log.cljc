@@ -136,8 +136,8 @@
 
 
 (defmethod event->str :cache-error
-  [{:keys [ns error]}]
-  (format "Failed loading cache for %s: %s" ns (.getMessage error)))
+  [{:keys [action ns error]}]
+  (format "Failed %s cache for %s: %s" (case action :read "reading" :write "writing") ns (.getMessage error)))
 
 (defmethod event->str :npm-flush
   [{:keys [output-path]}]
