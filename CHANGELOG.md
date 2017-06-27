@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.20170627](https://github.com/thheller/shadow-cljs/compare/1.0.20170626...1.0.20170627)
+
+- updated ClojureScript to `1.9.160`
+- add `:open-file-command`
+- add `--debug` `--source-maps` `--pseudo-names` to CLI for `shadow-cljs release` debugging
+
 ## [1.0.20170626](https://github.com/thheller/shadow-cljs/compare/1.0.20170624...1.0.20170626)
 
 - add `:preloads` in `:devtools`, same as in CLJS
