@@ -24,7 +24,7 @@
    [org.clojure/core.async "0.3.443"]
    [org.clojure/tools.reader "1.0.0"]
 
-   [org.clojure/clojurescript "1.9.655"]
+   [org.clojure/clojurescript "1.9.660"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    #_[[org.clojure/clojurescript "1.9.542"
