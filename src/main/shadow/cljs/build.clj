@@ -934,11 +934,14 @@ normalize-resource-name
   "given the compiler state and a cljs resource, compile it and return the updated resource
    should not touch global state"
   [{:keys [compiler-options source-map-comment] :as state} {:keys [name js-name input] :as rc}]
-  (let [{:keys [static-fns elide-asserts]}
+  (let [{:keys [static-fns elide-asserts fn-invoke-direct]}
         compiler-options]
 
     (binding [ana/*cljs-static-fns*
-              static-fns
+              (true? static-fns)
+
+              ana/*fn-invoke-direct*
+              (true? fn-invoke-direct)
 
               ana/*file-defs*
               (atom #{})
@@ -953,7 +956,7 @@ normalize-resource-name
               ana/*cljs-warnings*
 
               *assert*
-              (not= elide-asserts true)]
+              (not (true? elide-asserts))]
 
       (let [source @input]
         (util/with-logged-time
