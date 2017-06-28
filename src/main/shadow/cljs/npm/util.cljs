@@ -5,3 +5,5 @@
   (-> (fs/readFileSync file)
       (.toString)))
 
+(defn reduce-> [init reduce-fn coll]
+  (reduce reduce-fn init coll))

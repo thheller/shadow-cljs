@@ -1,2 +1,2 @@
 // dummy test file
-module.exports = "foo";
+module.exports = require("./bar");

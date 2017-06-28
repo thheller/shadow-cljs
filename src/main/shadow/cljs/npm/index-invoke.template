@@ -1,5 +1,7 @@
 var x;
 try {
+    require('source-map-support').install();
+
     x = require("shadow-cljs/cli/lib");
 } catch (e) {
     process.exit(2);
@@ -7,4 +9,4 @@ try {
 }
 
 // this goes async so can't try/catch
-x.index(PWD, FILE);
+x.index(PWD, ENTRIES);

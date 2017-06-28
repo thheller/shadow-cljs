@@ -63,30 +63,24 @@
 
 (defn create-foreign-index [foreign-dir foreign-requires]
   {:pre [(every? string? foreign-requires)]}
-  (let [index-file
-        (io/file foreign-dir "index.js")
-
-        requires
-        (->> foreign-requires
-             (map #(format "require('%s');" %))
-             (str/join "\n"))
-
-        index-in
+  (let [index-in
         (-> (io/resource "shadow/cljs/npm/index-invoke.template")
             (slurp)
             (str/replace "PWD" (pr-str (.getAbsolutePath (io/file ""))))
-            (str/replace "FILE" (pr-str (.getAbsolutePath index-file))))]
-
-    (io/make-parents index-file)
-
-    (spit index-file requires)
+            (str/replace "ENTRIES" (str "["
+                                        (->> foreign-requires
+                                             (map pr-str)
+                                             (str/join ","))
+                                        "]")))]
 
     (let [{:keys [exit err out] :as result}
           (server-util/launch ["node"] {:in index-in})
 
-          _ (prn [:result result])
+          _ (println err)
+          _ (println out)
           data
-          (cond
+          :foo
+          #_ (cond
             (= 2 exit)
             (throw (ex-info "missing shadow-cljs npm package" {}))
 
@@ -94,9 +88,10 @@
             (throw (ex-info "failed to create js-index" (assoc result :tag ::js-index)))
 
             (zero? exit)
-            (edn/read-string out))]
+            :foo ;; (edn/read-string out)
+            )]
 
-      (pprint (dissoc data :files))
+      ;; (pprint (dissoc data :files))
       )))
 
 (deftest test-foreign-indexer
@@ -104,5 +99,43 @@
         (io/file "target/foreign")
 
         foreign-idx
-        (create-foreign-index foreign-dir ["react" "react-dom" "react-dom/server" "unknown" "fs" "./src/test/foo.js"])
+        (create-foreign-index foreign-dir ["react" "react-dom" "react-dom/server" "unknown" "fs" "./src/test/foo"])
         ]))
+
+(deftest closure-has-to-be-capable-of-this
+  ;; I guess not ... it really needs all the inputs but thats insanity
+  #_(let [abs-root
+          (-> (io/file "")
+              (.getAbsoluteFile))
+
+          source-files
+          [(SourceFile/fromCode
+             (-> (io/file abs-root "closure.js")
+                 (.getAbsolutePath))
+             "require(\"react\");")]
+
+          cc
+          (closure/make-closure-compiler)
+
+          co
+          (doto (cljs.closure/make-convert-js-module-options {:pretty-print true})
+            (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
+            (.setProcessCommonJSModules true)
+            (.setModuleRoots [(.getAbsolutePath abs-root)])
+            (.setModuleResolutionMode ModuleLoader$ResolutionMode/NODE)
+            (.setTransformAMDToCJSModules true))
+
+          externs
+          closure/default-externs
+
+          result
+          (.compile cc externs source-files co)
+
+          _ (assert (.success result))
+
+          sources
+          (.toSourceArray cc)]
+
+      (doseq [source sources]
+        (println source)
+        )))
