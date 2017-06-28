@@ -1,6 +1,7 @@
 {
   "private": true,
   "devDependencies": {
+    "babel-core": "^6.25.0",
     "source-map-support": "^0.4.14",
     "ws": "^3.0.0"
   },

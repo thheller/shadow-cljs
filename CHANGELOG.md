@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.20170628](https://github.com/thheller/shadow-cljs/compare/1.0.20170627...1.0.20170628)
+
+- forgot to update `thheller/shadow-client` dependency which is required by the HUD
+
 ## [1.0.20170627](https://github.com/thheller/shadow-cljs/compare/1.0.20170626...1.0.20170627)
 
 - updated ClojureScript to `1.9.160`
