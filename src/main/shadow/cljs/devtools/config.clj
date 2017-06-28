@@ -95,6 +95,11 @@
 
    :builds {}})
 
+(def default-builds
+  {:npm {:id :npm
+         :target :npm-module
+         :output-dir "node_modules/shadow-cljs"}})
+
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
     (if-not (.exists file)
@@ -104,6 +109,7 @@
           (edn/read-string)
           (normalize)
           (->> (merge default-config))
+          (update :builds #(merge default-builds %))
           ))))
 
 (defn load-cljs-edn! []
