@@ -9,9 +9,9 @@
   (get @workers-ref id))
 
 (defn active-builds [{:keys [workers-ref] :as super}]
-  (-> @workers-ref
-      (keys)
-      (into #{})))
+  (->> @workers-ref
+       (keys)
+       (into #{})))
 
 (defn get-status [{:keys [workers-ref] :as svc}]
   (reduce-kv
