@@ -6,7 +6,7 @@
             [clojure.string :as str]
             [shadow.cljs.warnings :as warnings]
             [clojure.java.io :as io])
-  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream)))
+  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream)))
 
 (defn async-logger [ch]
   (reify
@@ -249,7 +249,7 @@
 
 (defn launch
   "clojure.java.shell/sh replacement since kw-args suck"
-  [args {:keys [pwd] :as opts}]
+  [args {:keys [pwd in] :as opts}]
   (let [proc
         (-> (ProcessBuilder. (into-array args))
             (.directory
@@ -264,8 +264,13 @@
         proc-err
         (ByteArrayOutputStream.)]
 
-    (future (io/copy (.getOutputStream proc) proc-out))
+    (future (io/copy (.getInputStream proc) proc-out))
     (future (io/copy (.getErrorStream proc) proc-err))
+
+    (when (string? in)
+      (with-open [proc-in (.getOutputStream proc)
+                  bais (-> (.getBytes in) (ByteArrayInputStream.))]
+        (io/copy bais proc-in)))
 
     (let [result (.waitFor proc)]
 

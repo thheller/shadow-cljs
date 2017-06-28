@@ -4,6 +4,7 @@
             ["module-deps" :as mdeps]
             ["node-resolve" :as node-resolve]
             ["browser-resolve" :as browser-resolve]
+            ["detective" :as detective]
             [cljs.pprint :refer (pprint)]
             [goog.object :as gobj]
             [shadow.json :as json]))
@@ -34,22 +35,32 @@
 (defn index-for-file
   "takes a file with require calls and prints an edn index structure for all deps
    and required packages"
-  [entry]
-  (let [opts
-        #js {:filter #(not (node-resolve/isCore %))}
-
-        mdeps
-        (mdeps opts)
-
-        state-ref
+  [base-dir entry]
+  (let [state-ref
         (volatile!
           {:packages {}
-           :files []})]
+           :missing #{}
+           :files []
+           :core #{}})
+
+        opts
+        #js {:filter
+             (fn [name]
+               (if-not (node-resolve/isCore name)
+                 true
+                 (do (vswap! state-ref update :core conj name)
+                     false)))
+             :ignoreMissing true}
+
+        mdeps
+        (mdeps opts)]
 
     (doto mdeps
       (.on "package" #(vswap! state-ref add-package %))
       (.on "file" #(vswap! state-ref add-file %))
       (.on "error" #(throw %1))
+      (.on "missing" #(vswap! state-ref update :missing conj %))
+
       (.on "end"
         (fn []
           ;; don't ever want the input file in there
@@ -59,6 +70,7 @@
           ;; FIXME: don't actually need to pprint, just nicer too look at when debugging
           (pprint @state-ref)))
 
-      (.end #js {:file (path/resolve entry)})
+      (.end #js {:file entry
+                 :basedir base-dir})
       ;; I don't understand this part?
       (.resume))))

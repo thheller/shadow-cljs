@@ -6,6 +6,7 @@
     "ws": "^3.0.0"
   },
   "dependencies": {
+    "babel-plugin-transform-es2015-modules-commonjs": "^6.24.1",
     "browser-resolve": "^1.11.2",
     "module-deps": "^4.1.1",
     "node-resolve": "^1.3.3",
