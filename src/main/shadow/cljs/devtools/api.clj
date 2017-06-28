@@ -65,6 +65,11 @@
                (worker/sync!)))))
    :started))
 
+(defn active-builds []
+  (let [{:keys [supervisor]}
+        (runtime/get-instance!)]
+    (super/active-builds supervisor)))
+
 (defn watch
   ([build-id]
    (start-worker build-id))

@@ -258,10 +258,15 @@
 
       (case action
         :watch
-        (do (watch-builds builds options)
-            (wait-for-eof!)
-            ;; FIXME: stop builds that were started by us or keep them running?
-            )
+        (do (let [before (api/active-builds)]
+              (watch-builds builds options)
+
+              (wait-for-eof!)
+
+              ;; stop only builds that weren't running before
+              (doseq [build builds
+                      :when (not (contains? before build))]
+                (api/stop-worker build))))
 
         :clj-repl
         (r/enter-root {}

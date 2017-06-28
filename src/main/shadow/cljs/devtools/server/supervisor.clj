@@ -8,6 +8,11 @@
   [{:keys [workers-ref] :as svc} id]
   (get @workers-ref id))
 
+(defn active-builds [{:keys [workers-ref] :as super}]
+  (-> @workers-ref
+      (keys)
+      (into #{})))
+
 (defn get-status [{:keys [workers-ref] :as svc}]
   (reduce-kv
     (fn [status worker-id worker-proc]
@@ -17,6 +22,7 @@
 
 (defn start-worker
   [{:keys [system-bus state-ref workers-ref executor http] :as svc} {:keys [id] :as build-config}]
+  {:pre [(keyword? id)]}
   (when (get @workers-ref id)
     (throw (ex-info "already started" {:id id})))
 
@@ -33,6 +39,7 @@
 
 (defn stop-worker
   [{:keys [workers-ref] :as svc} id]
+  {:pre [(keyword? id)]}
   (when-some [proc (get @workers-ref id)]
     (worker/stop proc)))
 
