@@ -57,10 +57,12 @@
         module-opts
         (-> opts
             (select-keys [:prepend :append :prepend-js :append-js])
+            (update :prepend #(str "(function(){\n" %))
             (cond->
               (not (false? (:hashbang opts)))
               (update :prepend #(str "#!/usr/bin/env node\n" %)))
-            (update :append-js str "\n" main-call))]
+            (update :append-js str "\n" main-call)
+            (update :append str "\n})();\n"))]
 
     (-> state
         (assoc :node-config node-config)

@@ -106,12 +106,6 @@
     :after-load demo.browser/start
     :preloads [shadow.cljs.devtools.client.hud]}}
 
-  {:id :js-deps
-   :target :node-script
-   :output-to "target/js-deps.js"
-   :main shadow.cljs.js-bundler.deps/main
-   :devtools {:enabled false}}
-
   {:id :webpack-bundle
    :target :browser
 
