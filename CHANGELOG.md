@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.20170720](https://github.com/thheller/shadow-cljs/compare/1.0.20170628...1.0.20170720)
+
+- api/compile would dump all compiler state at the REPL. printing way too much data #71
+- added http: protocol prefix for file reloads since electron doesn't understand //
+
 ## [1.0.20170628](https://github.com/thheller/shadow-cljs/compare/1.0.20170627...1.0.20170628)
 
 - forgot to update `thheller/shadow-client` dependency which is required by the HUD

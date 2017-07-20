@@ -28,8 +28,7 @@
  [{:id :cli
    :target :node-library
    :exports
-   {:main shadow.cljs.npm.cli/main
-    :index shadow.cljs.npm.js-index/index-entries}
+   {:main shadow.cljs.npm.cli/main}
    :output-to "packages/shadow-cljs/cli/lib.js"
    :compiler-options
    {:optimizations :advanced
@@ -37,7 +36,7 @@
    :devtools
    {:enabled false}
    :closure-defines
-   {shadow.cljs.npm.cli/jar-version "1.0.20170629"}}
+   {shadow.cljs.npm.cli/jar-version "1.0.20170720"}}
 
   {:id :ui
    :target :browser

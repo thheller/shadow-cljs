@@ -1,6 +1,6 @@
 {
   "name": "shadow-cljs",
-  "version": "0.18.1",
+  "version": "0.18.3",
   "description": "ClojureScript for JS tools",
   "author": "Thomas Heller",
   "license": "ISC",
@@ -20,10 +20,7 @@
     "shadow-cljs": "./cli/runner.js"
   },
   "dependencies": {
-    "browser-resolve": "^1.11.2",
     "mkdirp": "^0.5.1",
-    "module-deps": "^4.1.1",
-    "node-resolve": "^1.3.3",
     "readline-sync": "^1.4.7",
     "shadow-cljs-jar": "^0.10.0",
     "source-map-support": "^0.4.15",
