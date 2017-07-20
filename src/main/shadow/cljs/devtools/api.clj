@@ -141,6 +141,7 @@
    (try
      (let [build-config (config/get-build! build)]
        (compile* build-config opts))
+     :done
      (catch Exception e
        (e/user-friendly-error e)))))
 
