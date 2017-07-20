@@ -32,7 +32,7 @@
   (str "ws://" repl-host ":" repl-port "/worker/listener-ws/" build-id "/" proc-id "/" client-id))
 
 (defn files-url []
-  (str "//" repl-host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id))
+  (str "http://" repl-host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id))
 
 (def repl-print-fn pr-str)
 
