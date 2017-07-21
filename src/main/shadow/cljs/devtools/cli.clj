@@ -197,6 +197,7 @@
 (defn -main [& args]
   (try
     (apply main args)
+    (shutdown-agents)
     (catch Exception e
       (print-main-error e)
       (System/exit 1))))
