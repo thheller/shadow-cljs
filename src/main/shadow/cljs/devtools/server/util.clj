@@ -28,7 +28,6 @@
 (defn print-build-start [build-config]
   (println (format "[%s] Compiling ..." (:id build-config))))
 
-
 (defn print-build-complete [build-info build-config]
   (let [{:keys [sources compiled]}
         build-info
@@ -57,8 +56,7 @@
 
 (defn print-build-failure [{:keys [build-config e] :as x}]
   (println (format "[%s] Build failure:" (:id build-config)))
-  (errors/user-friendly-error e)
-  )
+  (errors/user-friendly-error e))
 
 (defn print-worker-out [x verbose]
   (locking cljs/stdout-lock

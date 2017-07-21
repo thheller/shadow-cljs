@@ -106,44 +106,37 @@
           (stop app)
           )))))
 
-(defn do-build-command
-  [{:keys [action options] :as opts} build-id]
+(defn do-build-command [{:keys [action options] :as opts} build-config]
+  (case action
+    :release
+    (api/release* build-config options)
+
+    :check
+    (api/check* build-config options)
+
+    :compile
+    (api/compile* build-config options)))
+
+(defn do-build-commands
+  [{:keys [action options] :as opts} build-ids]
   (let [{:keys [builds] :as config}
-        (config/load-cljs-edn!)
+        (config/load-cljs-edn!)]
 
-        build-config
-        (get builds build-id)
-
-        ;; FIXME: what about automatic npm support mode?
-        ;; I think it is better to always force a build config
-        ;; since you are going to need one for release anyways
-        #_(cond
-            (keyword? build-id)
-            (config/get-build! build)
-
-            npm
-            (merge default-npm-config (config/get-build :npm))
-
-            :else
-            nil)]
-
-    (if-not (some? build-config)
-      (do (println (str "No config for build \"" (name build-id) "\" found."))
-          (println (str "Available builds are: " (->> builds
-                                                      (keys)
-                                                      (map name)
-                                                      (str/join ", ")))))
-
-      (case action
-        :release
-        (api/release* build-config options)
-
-        :check
-        (api/check* build-config options)
-
-        :compile
-        (api/compile* build-config options)
-        ))))
+    (->> build-ids
+         (map (fn [build-id]
+                (or (get builds build-id)
+                    (do (println (str "No config for build \"" (name build-id) "\" found."))
+                        ;; FIXME: don't repeat this
+                        (println (str "Available builds are: " (->> builds
+                                                                    (keys)
+                                                                    (map name)
+                                                                    (str/join ", "))))))))
+         (remove nil?)
+         (map #(future (do-build-command opts %)))
+         (into []) ;; force lazy seq
+         (map deref)
+         (into []) ;; force again
+         )))
 
 (defn main [& args]
   (let [{:keys [action builds options summary errors] :as opts}
@@ -160,7 +153,7 @@
       (api/test-all)
 
       (contains? #{:compile :check :release} action)
-      (run! #(do-build-command opts %) builds)
+      (do-build-commands opts builds)
 
       (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
       (server/from-cli action builds options))))
