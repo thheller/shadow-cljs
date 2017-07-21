@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.20170721](https://github.com/thheller/shadow-cljs/compare/1.0.20170720...1.0.20170721)
+
+- run release/check/compile tasks in parallel
+
 ## [1.0.20170720](https://github.com/thheller/shadow-cljs/compare/1.0.20170628...1.0.20170720)
 
 - api/compile would dump all compiler state at the REPL. printing way too much data #71
