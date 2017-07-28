@@ -2506,7 +2506,8 @@ enable-emit-constants [state]
 
      :ns-aliases
      '{clojure.pprint cljs.pprint
-       clojure.spec.alpha cljs.spec.alpha}
+       clojure.spec.alpha cljs.spec.alpha
+       clojure.spec.gen.alpha cljs.spec.gen.alpha}
 
      ;; (fn [compiler-state ns] alias-ns|nil)
      ;; CLJS by default aliases ALL clojure.* namespaces to cljs.* if the cljs.* version exist

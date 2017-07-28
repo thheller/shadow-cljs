@@ -2,7 +2,8 @@
   (:require-macros [demo.browser :refer (test-macro)])
   (:require ["react" :as react :refer (createElement)]
             ["react-dom" :as rdom :refer (render)]
-            [cljs.spec.alpha :as s])
+            [cljs.spec.alpha :as s]
+            [cljs.spec.gen.alpha :as gen])
   (:import ["react" Component]))
 
 (s/def ::foo string?)
