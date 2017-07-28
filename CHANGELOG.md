@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.20170728](https://github.com/thheller/shadow-cljs/compare/1.0.20170721...1.0.20170728)
+
+- fix missing cljs.spec.gen.alpha alias #74
+
 ## [1.0.20170721](https://github.com/thheller/shadow-cljs/compare/1.0.20170720...1.0.20170721)
 
 - run release/check/compile tasks in parallel
