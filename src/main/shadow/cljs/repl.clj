@@ -105,8 +105,12 @@
         (cljs/do-compile-sources (map :name repl-sources))
         )))
 
-(defn repl-js-resolve [lib]
-  (throw (ex-info "FIXME: resolve js require for REPL" {:lib lib})))
+(def repl-js-resolve
+  (reify ns-form/JSResolver
+    (js-resolve [this js-require]
+      (throw (ex-info "FIXME: string require at the REPL is currently broken" {})))
+    (js-make-alias [this js-require js-resolved]
+      (throw (ex-info "FIXME: string require at the REPL is currently broken" {})))))
 
 (defn repl-require
   [{:keys [repl-state] :as state} read-result require-form]
