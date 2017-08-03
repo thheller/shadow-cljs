@@ -70,6 +70,16 @@
         (runtime/get-instance!)]
     (super/active-builds supervisor)))
 
+(defn compiler-env [build-id]
+  (let [{:keys [supervisor]}
+        (runtime/get-instance!)]
+    (when-let [worker (super/get-worker supervisor build-id)]
+      (-> worker
+          :state-ref
+          (deref)
+          :compiler-state
+          :compiler-env))))
+
 (defn watch
   ([build-id]
    (start-worker build-id))
