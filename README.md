@@ -77,7 +77,7 @@ It should contain a map with some global configuration and a `:builds` entry for
   {:target :browser
    :output-dir "public/js"
    :asset-path "/js"
-   :modules {:main [my.app]}}}}
+   :modules {:main {:entries [my.app]}}}}}
 ```
 
 - `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot`
