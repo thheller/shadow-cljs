@@ -92,7 +92,7 @@
   (if (empty? arguments)
     (assoc result :errors [(str "Action \"" (name action) "\" requires one or more build ids")])
     ;; FIXME: validate build-ids
-    (assoc result :builds (into [] (map keyword) arguments))))
+    (assoc result :builds (into [] (map (comp keyword #(str/replace %1 ":" ""))) arguments))))
 
 (defn parse-arguments [{:keys [arguments] :as result}]
   (if (empty? arguments)
