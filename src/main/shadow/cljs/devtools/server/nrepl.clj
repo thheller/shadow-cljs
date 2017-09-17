@@ -111,7 +111,7 @@
             (flush))
 
         (if worker
-          (swap! session assoc #'cemerick.piggieback/*cljs-compiler-env* (-> worker :state-ref deref :compiler-state :compiler-env))
+          (swap! session assoc #'cemerick.piggieback/*cljs-compiler-env* (-> worker :state-ref deref :build-state :compiler-env))
           (swap! session dissoc #'cemerick.piggieback/*cljs-compiler-env*))
 
         (-> msg

@@ -22,17 +22,15 @@
     [org.msgpack/msgpack]]
 
    [org.clojure/core.async "0.3.443"]
-   [org.clojure/tools.reader "1.0.0"]
 
-   [org.clojure/clojurescript "1.9.671"]
+   #_ [org.clojure/clojurescript "1.9.854"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   #_[[org.clojure/clojurescript "1.9.542"
-       :exclusions
-       [com.google.javascript/closure-compiler-unshaded
-        org.clojure/tools.reader]]
+   [org.clojure/clojurescript "1.9.908"
+    :exclusions
+    [com.google.javascript/closure-compiler-unshaded]]
 
-      [com.google.javascript/closure-compiler-unshaded "v20170521"]]
+   [com.google.javascript/closure-compiler-unshaded "v20170910"]
 
    [thheller/shadow-util "0.5.1"]
    [thheller/shadow-client "1.0.20170628"]
@@ -69,11 +67,12 @@
      [org.clojure/tools.namespace "0.2.11"]]}
 
    :cljs
-   {:source-paths
+   {:dependencies
+    [[cljsjs/create-react-class "15.6.0-2"]
+     [reagent "0.8.0-alpha1"]]
+    :source-paths
     ["src/dev"
      "src/test"]
-    :aot [shadow.cljs.devtools.api
-          shadow.cljs.devtools.cli]
-    :dependencies
-    [[cider/cider-nrepl "0.14.0"]
-     [thheller/shadow-client "1.0.20170607"]]}})
+    #_:aot
+    #_[shadow.cljs.devtools.api
+       shadow.cljs.devtools.cli]}})

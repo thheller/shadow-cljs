@@ -2,7 +2,7 @@
  {:profile "+cljs"}
 
  ;;  :dev-mode true
- ;; :verbose true
+ :verbose true
  :debug true
 
  :server
@@ -67,7 +67,14 @@
    :asset-path "/js"
 
    :compiler-options
-   {:externs ["demo/browser-externs.js"]}
+   {:externs ["demo/browser-externs.js"
+              "react.externs.js"]
+
+    :closure-warnings
+    {:global-this :off}
+
+    :closure-defines
+    {process.env.NODE_ENV "production"}}
 
    :module-loader false
    :modules
@@ -77,11 +84,16 @@
      :depends-on
      #{}}
 
+    :react
+    {:entries ["react" "react-dom"]
+     :depends-on #{:base}}
+
     :demo
     {:entries
      [demo.browser]
      :depends-on
-     #{:base}}
+     #{:base
+       :react}}
 
     :extra
     {:entries
@@ -95,8 +107,8 @@
      :depends-on #{:base}
      :web-worker true}}
 
-   :build-options
-   {:emit-js-require false}
+   :js-options
+   {:js-provider :closure}
 
    :devtools
    {:http-root "out/demo-browser/public"

@@ -2,12 +2,15 @@
   (:require [aleph.http :as aleph]
             [clojure.core.async :as async :refer (thread go <!)]
             [clojure.java.io :as io]
+            [clojure.tools.logging :as log]
             [aleph.netty :as netty]
             [ring.middleware.file :as ring-file]
             [ring.middleware.params :as ring-params]
+            [shadow.repl :as r]
+            [shadow.http.router :as http]
             [shadow.runtime.services :as rt]
+            [shadow.cljs.devtools.api :as api]
             [shadow.cljs.devtools.server.web :as web]
-            [shadow.cljs.devtools.server.explorer :as explorer]
             [shadow.cljs.devtools.server.config-watch :as config-watch]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.common :as common]
@@ -17,24 +20,19 @@
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.cljs.devtools.server.nrepl :as nrepl]
-            [shadow.repl :as repl]
-            [shadow.http.router :as http]
-            [shadow.repl :as r]
-            [shadow.cljs.devtools.api :as api]
-            [clojure.tools.logging :as log]))
+            [shadow.cljs.devtools.server.dev-http :as dev-http]))
 
 (defn app [config]
   (merge
     (common/app config)
-    {:out
+    {:dev-http
+     {:depends-on [:executor]
+      :start dev-http/start
+      :stop dev-http/stop}
+     :out
      {:depends-on []
       :start #(util/stdout-dump (:verbose config))
       :stop async/close!}
-
-     :explorer
-     {:depends-on [:system-bus]
-      :start explorer/start
-      :stop explorer/stop}
      }))
 
 (defn get-ring-handler
@@ -117,7 +115,7 @@
         (socket-repl/start socket-repl-config app-promise)
 
         cli-repl-config
-        {:port 0  ;; random port, not for humans
+        {:port 0 ;; random port, not for humans
          :prompt false
          :print false}
 
@@ -153,14 +151,15 @@
 
     (deliver app-promise app)
 
-    (future
-      ;; OCD because I want to print the shadow-cljs info of start!
-      ;; before and build output
-      (Thread/sleep 100)
-      (when-let [{:keys [autostart] :as srv-config} (:server config)]
-        (doseq [build-id autostart]
-          (super/start-worker (:supervisor app) build-id)
-          )))
+    ;; autostart is not cool?
+    #_(future
+        ;; OCD because I want to print the shadow-cljs info of start!
+        ;; before any build output
+        (Thread/sleep 100)
+        (when-let [{:keys [autostart] :as srv-config} (:server config)]
+          (doseq [build-id autostart]
+            (super/start-worker (:supervisor app) build-id)
+            )))
 
     app
     ))
@@ -212,7 +211,7 @@
 (defn wait-for-eof! []
   (read *in* false ::eof))
 
-(defn watch-builds [build-ids {:keys [verbose] :as options}]
+(defn watch-builds [build-ids options]
   (let [{:keys [supervisor] :as app}
         @runtime/instance-ref
 
@@ -221,7 +220,11 @@
 
         out-chan
         (-> (async/sliding-buffer 100)
-            (async/chan))]
+            (async/chan))
+
+        verbose
+        (or (:verbose options)
+            (:verbose config))]
 
     (doseq [build-id build-ids]
       (let [{:keys [supervisor] :as app}
@@ -292,8 +295,9 @@
 
                   worker
                   (-> (or worker
-                          (super/start-worker supervisor build-config))
-                      (worker/compile)
+                          (-> (super/start-worker supervisor build-config)
+                              (worker/compile)))
+                      ;; need to sync in case it is still compiling
                       (worker/sync!))]
 
               (api/repl build-id)

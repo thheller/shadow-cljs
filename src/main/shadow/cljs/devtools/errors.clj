@@ -3,12 +3,12 @@
             [clojure.string :as str]
             [clojure.spec.alpha :as s]
             [clojure.pprint :refer (pprint)]
-            [shadow.cljs.closure :as closure]
-            [shadow.cljs.build :as build]
-            [shadow.cljs.ns-form :as ns-form]
-            [shadow.cljs.devtools.compiler :as comp]
+            [shadow.build.closure :as closure]
+            [shadow.build.api :as build]
+            [shadow.build.ns-form :as ns-form]
+            [shadow.build :as comp]
             [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.warnings :as w])
+            [shadow.build.warnings :as w])
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
 
@@ -24,7 +24,7 @@
   (let [stack
         (->> (.getStackTrace e)
              (remove #(contains? ignored-stack-elements (.getClassName %)))
-             (take 12)
+             ;; (take 12) don't limit, 12 is not enough in many cases, filter more intelligently
              (map repl/stack-element-str))]
 
     (doseq [x stack]
@@ -110,11 +110,28 @@
 
 (defmethod ex-data-format ::closure/errors
   [w e {:keys [errors] :as data}]
-  (.write w "Closure optimization failed:\n")
-  (doseq [{:keys [msg] :as err} errors]
-    (doto w
-      (.write "---\n")
-      (.write msg))))
+  (let [c (count errors)]
+
+    (.write w (format "Closure compilation failed with %d errors%n" c))
+
+    (doseq [{:keys [source-name msg line column] :as err}
+            (take 5 errors)]
+      (doto w
+        (.write "--- ")
+        (.write source-name)
+        (.write ":")
+        (.write (str line))
+        (.write "\n")
+        ;; trim because some msg have newline and some don't
+        (.write (str/trim msg))
+        (.write "\n")))
+
+    ;; ran into issues where closure produced 370 errors
+    ;; which were all basically the same with different source positions
+    ;; this just truncates them to remain readable
+    (when (> c 5)
+      (.write w "--- remaining errors ommitted ...\n")
+      )))
 
 (defmethod ex-data-format ::config/no-build
   [w e {:keys [id] :as data}]
@@ -147,7 +164,7 @@
       (.write w (.getMessage e))
       )))
 
-(defmethod ex-data-format :shadow.cljs.build/compile-cljs
+(defmethod ex-data-format :shadow.build/compile-cljs
   [w e {:keys [source-name file url line column source-excerpt] :as data}]
 
   ;; FIXME: rewrite warnings code to use a writer instead of just print

@@ -1,22 +1,45 @@
 (ns shadow.cljs.devtools.server.worker.impl
   (:refer-clojure :exclude (compile))
-  (:require [cljs.compiler :as cljs-comp]
-            [clojure.core.async :as async :refer (go >! <! >!! <!! alt!)]
-            [shadow.cljs.build :as cljs]
-            [shadow.cljs.repl :as repl]
-            [shadow.cljs.devtools.compiler :as comp]
-            [shadow.cljs.devtools.server.util :as util]
+  (:require [clojure.set :as set]
             [clojure.string :as str]
-            [clojure.set :as set]
+            [clojure.core.async :as async :refer (go >! <! >!! <!! alt!)]
+            [clojure.tools.logging :as log]
+            [cljs.compiler :as cljs-comp]
+            [shadow.build.api :as cljs]
+            [shadow.cljs.repl :as repl]
+            [shadow.build :as build]
+            [shadow.build.api :as build-api]
+            [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [clojure.tools.logging :as log]))
+            ))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
 
 (defn worker-state? [x]
   (and (map? x) (::worker-state x)))
+
+(defn repl-sources-as-client-resources
+  "transforms a seq of resource-ids to return more info about the resource
+   a REPL client needs to know more since resource-ids are not available at runtime"
+  [source-ids state]
+  (->> source-ids
+       (map (fn [src-id]
+              (let [src (get-in state [:sources src-id])]
+                (select-keys src [:resource-id :type :resource-name :output-name]))))
+       (into [])))
+
+(defmulti transform-repl-action
+  (fn [state action]
+    (:type action))
+  :default ::default)
+
+(defmethod transform-repl-action ::default [state action]
+  action)
+
+(defmethod transform-repl-action :repl/require [state action]
+  (update action :sources repl-sources-as-client-resources state))
 
 (defn >!!output [{:keys [system-bus] :as worker-state} msg]
   {:pre [(map? msg)
@@ -29,7 +52,7 @@
 (defn update-status!
   [{:keys [system-bus status-ref build-config] :as worker-state} status-id status-info]
   (let [status
-        {:id (:id build-config)
+        {:build-id (:build-id build-config)
          :status status-id
          :info status-info}]
     (vreset! status-ref status)
@@ -66,7 +89,7 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config proc-id http executor] :as worker-state}]
+  [{:keys [build-config proc-id http executor npm classpath] :as worker-state}]
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
@@ -81,39 +104,41 @@
            :host (:host http)
            :port (:port http)}
 
-          compiler-state
-          (-> (cljs/init-state)
+          build-state
+          (-> (build-api/init)
+              (build-api/with-classpath classpath)
+              (build-api/with-npm npm)
+              (build-api/with-executor executor)
+              (build-api/with-logger (util/async-logger (-> worker-state :channels :output)))
               (assoc
-                :executor executor
-                :logger (util/async-logger (-> worker-state :channels :output))
                 :worker-info worker-info
                 ::compile-attempt 0)
-              (comp/init :dev build-config))]
+              (build/configure :dev build-config))]
 
       (update-status! worker-state :configured {})
 
-      ;; FIXME: should maybe cleanup old :compiler-state if there is one (re-configure)
-      (assoc worker-state :compiler-state compiler-state))
+      ;; FIXME: should maybe cleanup old :build-state if there is one (re-configure)
+      (assoc worker-state :build-state build-state))
     (catch Exception e
       (-> worker-state
-          (dissoc :compiler-state) ;; just in case there is an old one
+          (dissoc :build-state) ;; just in case there is an old one
           (build-failure e)))))
 
 (defn build-compile
-  [{:keys [compiler-state build-config] :as worker-state}]
+  [{:keys [build-state build-config] :as worker-state}]
   (>!!output worker-state {:type :build-start
                            :build-config build-config})
 
   ;; this may be nil if configure failed, just silently do nothing for now
-  (if (nil? compiler-state)
+  (if (nil? build-state)
     worker-state
     (try
       (update-status! worker-state :started {})
 
-      (let [{::comp/keys [build-info] :as compiler-state}
-            (-> compiler-state
-                (comp/compile)
-                (comp/flush)
+      (let [{::build/keys [build-info] :as build-state}
+            (-> build-state
+                (build/compile)
+                (build/flush)
                 (update ::compile-attempt inc))]
 
         (>!!output worker-state
@@ -126,7 +151,7 @@
 
         (update-status! worker-state :complete {:build-info build-info})
 
-        (assoc worker-state :compiler-state compiler-state))
+        (assoc worker-state :build-state build-state))
       (catch Exception e
         (build-failure worker-state e)))))
 
@@ -140,20 +165,22 @@
   worker-state)
 
 (defmethod do-proc-control :eval-start
-  [worker-state {:keys [id eval-out client-out]}]
+  [{:keys [build-state] :as worker-state} {:keys [client-id eval-out client-out]}]
   (>!! eval-out {:type :repl/init
-                 :repl-state (-> worker-state :compiler-state :repl-state)})
+                 :repl-state
+                 (-> (:repl-state build-state)
+                     (update :repl-sources repl-sources-as-client-resources build-state))})
 
-  (>!!output worker-state {:type :repl/eval-start :id id})
-  (update worker-state :eval-clients assoc id {:id id
-                                               :eval-out eval-out
-                                               :client-out client-out}))
+  (>!!output worker-state {:type :repl/eval-start :client-id client-id})
+  (update worker-state :eval-clients assoc client-id {:client-id client-id
+                                                      :eval-out eval-out
+                                                      :client-out client-out}))
 
 
 (defmethod do-proc-control :eval-stop
-  [worker-state {:keys [id]}]
-  (>!!output worker-state {:type :repl/eval-stop :id id})
-  (update worker-state :eval-clients dissoc id))
+  [worker-state {:keys [client-id]}]
+  (>!!output worker-state {:type :repl/eval-stop :id client-id})
+  (update worker-state :eval-clients dissoc client-id))
 
 (defmethod do-proc-control :client-start
   [worker-state {:keys [id in]}]
@@ -198,13 +225,14 @@
   [worker-state msg]
   (assoc worker-state :autobuild false))
 
+
 (defmethod do-proc-control :repl-eval
-  [{:keys [compiler-state eval-clients pending-results] :as worker-state}
+  [{:keys [build-state eval-clients pending-results] :as worker-state}
    {:keys [result-chan input] :as msg}]
   (let [eval-count (count eval-clients)]
 
     (cond
-      (nil? compiler-state)
+      (nil? build-state)
       (do (>!! result-chan {:type :repl/illegal-state})
           worker-state)
 
@@ -222,12 +250,12 @@
               (first (vals eval-clients))
 
               start-idx
-              (count (get-in compiler-state [:repl-state :repl-actions]))
+              (count (get-in build-state [:repl-state :repl-actions]))
 
-              {:keys [repl-state] :as compiler-state}
+              {:keys [repl-state] :as build-state}
               (if (string? input)
-                (repl/process-input compiler-state input)
-                (repl/process-read-result compiler-state input))
+                (repl/process-input build-state input)
+                (repl/process-read-result build-state input))
 
               new-actions
               (subvec (:repl-actions repl-state) start-idx)
@@ -245,10 +273,10 @@
                         action (assoc action :id idx)]]
             (>!!output worker-state {:type :repl/action
                                      :action action})
-            (>!! eval-out action))
+            (>!! eval-out (transform-repl-action build-state action)))
 
           (assoc worker-state
-            :compiler-state compiler-state
+            :build-state build-state
             :pending-results pending-results))
 
         (catch Exception e
@@ -278,104 +306,58 @@
           (update worker-state :pending-results dissoc id))
       )))
 
-;; FIXME: this always modifies the compiler-state for any cljs/cljc file
-;; this means it always triggers a compile even if the build is not affected by it
-;; it still won't compile the files but it will trigger everything else
-;; should probably be smarter about this somehow so we can avoid some work
-;; still need to merge updates in case we use them later though
-(defn merge-fs-update-cljs [compiler-state {:keys [event name] :as fs-update}]
-  (let [rc (get-in compiler-state [:sources name])]
-
-    ;; skip the update if a name exists but points to a different file
-    (if (and rc (not= (:file rc) (:file fs-update)))
-      (do (prn [:updated-file-does-not-match fs-update])
-          compiler-state)
-      (cond
-        (= :del event)
-        (cljs/unmerge-resource compiler-state name)
-
-        (not rc) ;; :new or :mod can cause this
-        (let [new-rc (cljs/make-fs-resource compiler-state (.getCanonicalPath (:dir fs-update)) name (:file fs-update))]
-          (cljs/merge-resource compiler-state new-rc))
-
-        ;; FIXME: could get here with :new but the rc already existing
-        (= :mod event)
-        (let [dependents (cljs/find-dependent-names compiler-state (:ns rc))]
-          (reduce cljs/reset-resource-by-name compiler-state (conj dependents name)))
-
-        :else
-        compiler-state
-        ))))
-
-(defn clj-name->ns [name]
-  (-> name
-      (str/replace #"\.clj(c)?$" "")
-      (str/replace #"_" "-")
-      (str/replace #"[/\\]" ".")
-      (symbol)))
-
-(defn merge-fs-update-clj
-  [{::keys [compile-attempt] :keys [build-sources] :as compiler-state}
-   {:keys [event name] :as fs-update}]
-  (if (not= :mod event)
-    compiler-state
-    ;; only do work if macro ns is modified
-    ;; new will be required by the compile
-    ;; del doesn't matter, we don't track CLJ files
-    (let [macro-ns
-          (clj-name->ns name)
-
-          macros-used-by-build
-          (->> build-sources
-               (map #(get-in compiler-state [:sources % :macro-namespaces]))
-               (reduce set/union))]
-
-      ;; only reload the macro ns if the build actually uses it
-      (when (or (zero? compile-attempt)
-                (contains? macros-used-by-build macro-ns))
-        (try
-          (require macro-ns :reload)
-          (catch Exception e
-            (throw (ex-info (format "failed to reload macro ns: %s" macro-ns)
-                     {:tag ::macro-reload
-                      :macro-ns macro-ns}
-                     e)))))
-
-      ;; always reset files so they are actually re-compiled when we start using them
-      (cljs/reset-resources-using-macro compiler-state macro-ns)
-      )))
-
-(defn merge-fs-update [compiler-state {:keys [ext] :as fs-update}]
-  (-> compiler-state
-      (cond->
-        (contains? #{"cljs" "cljc" "js"} ext)
-        (merge-fs-update-cljs fs-update)
-        (contains? #{"clj" "cljc"} ext)
-        (merge-fs-update-clj fs-update))))
-
-(defn should-recompile?
-  "only recompile when a watched file is actually used by the build"
-  [{::keys [compile-attempt] :keys [build-sources] :as state}]
-  ;; always try to recompile when the first compile failed
-  (or (zero? compile-attempt)
-      ;; after that only recompile if a resource we use was reset
-      (some #(nil? (get-in state [:sources % :output])) build-sources)))
-
-(defn do-cljs-watch
-  [{:keys [autobuild compiler-state] :as worker-state}
-   {:keys [updates] :as msg}]
-  (if-not autobuild
+(defn do-macro-update
+  [{:keys [build-state autobuild] :as worker-state} {:keys [macro-namespaces] :as msg}]
+  (cond
+    (not build-state)
     worker-state
-    (try
-      (let [next-state (reduce merge-fs-update compiler-state updates)]
+
+    ;; the updated macro may not be used by this build
+    ;; so we can skip the rebuild
+    (build-api/build-affected-by-macros? build-state macro-namespaces)
+    (-> worker-state
+        (update :build-state build-api/reset-resources-using-macros macro-namespaces)
+        (cond->
+          autobuild
+          (build-compile)))
+
+    :do-nothing
+    worker-state))
+
+(defn do-resource-update
+  [{:keys [autobuild build-state] :as worker-state}
+   {:keys [resources] :as msg}]
+  (let [sources-in-use
+        (:sources build-state)
+
+        sources-used-by-build
+        (->> resources
+             (filter #(contains? sources-in-use %))
+             (into []))]
+
+    (cond
+      ;; configuration errors mean to build state
+      (not build-state)
+      worker-state
+
+      ;; always recompile if the first compile attempt failed
+      ;; since we don't know which files it wanted to use
+      ;; after that only recompile when files in use by the build changed
+      (and (pos? (::compile-attempt build-state))
+           (not (seq sources-used-by-build)))
+      worker-state
+
+      :else
+      (let [build-state
+            (build-api/reset-resources build-state sources-used-by-build)]
+        (log/warnf "build-update: %s" sources-used-by-build)
+
         (-> worker-state
-            (assoc :compiler-state next-state)
+            (assoc :build-state build-state)
             (cond->
-              (should-recompile? next-state)
+              autobuild
               (build-compile))))
-      (catch Exception e
-        (build-failure worker-state e)
-        worker-state))))
+      )))
 
 (defn do-config-watch
   [{:keys [autobuild] :as worker-state} {:keys [config] :as msg}]
@@ -403,7 +385,7 @@
         (async/chan)]
 
     (go (>! proc-control {:type :eval-start
-                          :id client-id
+                          :client-id client-id
                           :eval-out eval-out})
 
         (loop []
@@ -426,7 +408,7 @@
             ))
 
         (>! proc-control {:type :eval-stop
-                          :id client-id})
+                          :client-id client-id})
 
         (async/close! eval-out)
         (async/close! result-chan))

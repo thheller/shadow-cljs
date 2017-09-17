@@ -1,31 +1,10 @@
 (ns shadow.cljs.devtools.config
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.spec.alpha :as s]))
+            [clojure.spec.alpha :as s]
+            [shadow.build.config :as build-config]))
 
-(s/def ::id keyword?)
-
-(s/def ::target
-  #(or (simple-keyword? %)
-       (symbol? %)))
-
-(defmulti target-spec :target :default ::default)
-
-(defmethod target-spec ::default [_]
-  (s/spec any?))
-
-(s/def ::build
-  (s/keys
-    :req-un
-    [::id
-     ::target]))
-
-(s/def ::build+target
-  (s/and
-    ::build
-    (s/multi-spec target-spec :target)))
-
-(s/def ::builds (s/map-of keyword? ::build))
+(s/def ::builds (s/map-of keyword? ::build-config/build))
 
 (s/def ::source-paths
   (s/coll-of string? :kind vector?))
@@ -61,7 +40,7 @@
     (vector? builds)
     (reduce
       (fn [builds {:keys [id] :as build}]
-        (assoc builds id build))
+        (assoc builds id (assoc build :build-id id)))
       {}
       builds)
 
@@ -69,7 +48,7 @@
     (map? builds)
     (reduce-kv
       (fn [builds id build]
-        (assoc builds id (assoc build :id id)))
+        (assoc builds id (assoc build :id id :build-id id)))
       {}
       builds)
 
@@ -90,9 +69,7 @@
     ))
 
 (def default-config
-  {:cache-root
-   "target/shadow-cljs"
-
+  {:cache-root "target/shadow-cljs"
    :builds {}})
 
 (def default-builds
@@ -100,6 +77,7 @@
          :target :npm-module
          :output-dir "node_modules/shadow-cljs"}})
 
+;; FIXME: memoize this!!! (should only repeat this if the config changes)
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
     (if-not (.exists file)

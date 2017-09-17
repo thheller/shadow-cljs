@@ -12,8 +12,8 @@
             [goog.object :as gobj]
             [goog.string.format]
             [goog.string :refer (format)]
-            [shadow.cljs.npm.util :as util]
-            [shadow.cljs.npm.client :as client]
+            [shadow.build.npm.util :as util]
+            [shadow.build.npm.client :as client]
             [shadow.cljs.devtools.cli-opts :as opts]
             ))
 

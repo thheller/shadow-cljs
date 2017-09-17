@@ -6,3 +6,6 @@
 (s/def ::cljs-watch any?)
 (s/def ::config-watch any?)
 
+;; sent when build resources were added/removed/changed
+(s/def ::resource-update any?)
+

@@ -1,7 +1,7 @@
 (ns ^:skip-aot build
-  (:require [shadow.cljs.devtools.compiler :as comp]
-            [shadow.cljs.devtools.targets.browser :as browser]
-            [shadow.cljs.build :as cljs]))
+  (:require [shadow.build :as comp]
+            [shadow.build.targets.browser :as browser]
+            [shadow.build.api :as cljs]))
 
 (defn closure-mod [cc co state]
   ;; new favorite option to play with

@@ -7,3 +7,8 @@
 
 (defn reduce-> [init reduce-fn coll]
   (reduce reduce-fn init coll))
+
+(defn conj-set [x y]
+  (if (nil? x)
+    #{y}
+    (conj x y)))

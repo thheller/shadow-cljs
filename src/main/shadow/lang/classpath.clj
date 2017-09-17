@@ -1,6 +1,6 @@
 (ns shadow.lang.classpath
   (:require [clojure.java.io :as io]
-            [shadow.cljs.build :as cljs]
+            [shadow.build.api :as cljs]
             [clojure.string :as str]
             [clojure.java.classpath :as cp]))
 

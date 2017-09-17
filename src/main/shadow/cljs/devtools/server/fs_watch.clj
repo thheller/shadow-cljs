@@ -1,5 +1,5 @@
 (ns shadow.cljs.devtools.server.fs-watch
-  (:require [shadow.cljs.build :as cljs]
+  (:require [shadow.build.api :as cljs]
             [clojure.core.async :as async :refer (alt!! thread >!!)]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as system-bus]
@@ -29,7 +29,7 @@
                      (zero? (.length file))))
            ))))
 
-(defn watch-thread
+(defn watch-loop
   [watch-dirs control sys-bus topic]
 
   (loop []
@@ -70,7 +70,7 @@
     {::service true
      :control control
      :watch-dirs watch-dirs
-     :thread (thread (watch-thread watch-dirs control system-bus topic))}))
+     :thread (thread (watch-loop watch-dirs control system-bus topic))}))
 
 (defn stop [{:keys [control thread] :as svc}]
   {:pre [(service? svc)]}

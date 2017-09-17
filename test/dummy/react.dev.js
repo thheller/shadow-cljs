@@ -1,0 +1,1 @@
+var React = "dev.react";

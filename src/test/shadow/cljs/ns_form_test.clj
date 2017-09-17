@@ -1,15 +1,17 @@
-(ns shadow.cljs.ns-form-test
+(ns shadow.build.ns-form-test
   (:require [clojure.test :as test :refer (deftest is)]
             [clojure.pprint :refer (pprint)]
-            [shadow.cljs.ns-form :as ns-form]
+            [shadow.build.ns-form :as ns-form]
             [cljs.analyzer :as a]
             [clojure.repl :as repl]
             [clojure.spec.alpha :as s]
-            [shadow.cljs.build :as cljs]
+            [shadow.build.api :as cljs]
             [clojure.java.io :as io]
             [cljs.compiler :as cljs-comp]
-            [shadow.cljs.util :as util])
-  (:import (clojure.lang ExceptionInfo)))
+            [shadow.cljs.util :as util]
+            [shadow.build.resolve :as res])
+  (:import (clojure.lang ExceptionInfo)
+           (java.nio.file FileSystems Paths)))
 
 (def ns-env
   (assoc-in (a/empty-env) [:ns :name] 'cljs.user))
@@ -55,7 +57,7 @@
 
           check
           (fn [x]
-            (-> x (select-keys [:imports :renames]) pprint))]
+            (-> x (select-keys [:imports :renames :requires :deps]) pprint))]
 
       ;; (pprint test)
       (check a)
@@ -91,52 +93,58 @@
              [some.a :as a]
              [some.b :as a]))]
 
-    (is (thrown? ExceptionInfo (ns-form/parse test)))))
+    (is (thrown? ExceptionInfo (ns-form/parse test {})))))
 
-(deftest test-parse-and-resolve-relative
+(deftest test-parse-with-strings
   (let [test
         '(ns something
            (:require
-             ["react"]
-             ["react-dom/server"]
-             ["./foo"]))
-
-        js-resolve
-        (ns-form/resolve-relative-to-output-dir
-          (io/file "node_modules" "shadow-cljs")
-          (io/file "src" "main" "something.cljs"))
+             ["react" :as react]
+             ["react-dom/server" :refer (render)]
+             ["./foo" :as f]))
 
         ast
-        (-> (ns-form/parse test)
-            (ns-form/rewrite-js-requires js-resolve))]
+        (ns-form/parse test)]
 
     (pprint ast)))
 
-(deftest test-parse-and-resolve-goog
+(deftest test-parse-and-rewrite-string
   (let [test
         '(ns something
-           (:require
-             ["react"]
-             ["react-dom/server"]
-             ["./foo"]))
-
-        project-dir
-        (io/file "target")
-
-        src-file
-        (io/file project-dir "src" "main" "hello" "world.cljs")
-
-        js-resolve
-        (ns-form/resolve-goog
-          project-dir
-          src-file)
+           (:require ["react" :as react]))
 
         ast
-        (-> (ns-form/parse test)
-            (ns-form/rewrite-js-requires js-resolve))]
+        (ns-form/parse test)
 
-    (pprint ast)))
+        ast-resolved
+        (ns-form/rewrite-js-deps ast
+          {:string->sym
+           ;; this maps the namespace that required a string to an alias created elsewhere
+           ;; done per ns because of relative requires
+           '{[something "react"] alias$react}})]
 
+    (is (= 'alias$react (get-in ast-resolved [:requires 'react])))
+    (is (= '[cljs.core alias$react] (:deps ast-resolved)))
+    (pprint ast)
+    (pprint ast-resolved)))
+
+(deftest test-parse-and-rewrite-syms-that-should-be-strings
+  (let [test
+        '(ns something
+           (:require [react :as react]))
+
+        ast
+        (ns-form/parse test)
+
+        ast-resolved
+        (ns-form/rewrite-ns-aliases ast
+          {:ns-aliases
+           '{react alias$react}})]
+
+    (is (= 'alias$react (get-in ast-resolved [:requires 'react])))
+    (is (= '[cljs.core alias$react] (:deps ast-resolved)))
+    (pprint ast)
+    (pprint ast-resolved)))
 
 (deftest test-parse-repl-require
   (let [test-ns
@@ -180,7 +188,7 @@
 
 (deftest test-file-relativize
   (let [rel
-        (ns-form/relative-path-from-output-dir
+        (res/relative-path-from-dir
           (io/file "node_modules/shadow-cljs")
           (io/file "src/main/demo/foo.cljs")
           "./bar")]

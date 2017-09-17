@@ -40,9 +40,9 @@
   [{:keys [id repl-state] :as msg}]
   (let [{:keys [repl-sources]} repl-state]
 
-    (doseq [{:keys [js-name] :as src} repl-sources
-            :when (not (is-loaded? js-name))]
-      (closure-import js-name))
+    (doseq [{:keys [output-name] :as src} repl-sources
+            :when (not (is-loaded? output-name))]
+      (closure-import output-name))
 
     (ws-msg {:type :repl/init-complete :id id})
     ))
@@ -61,9 +61,9 @@
 (defn repl-require
   [{:keys [id sources reload] :as msg}]
   (try
-    (doseq [{:keys [js-name] :as src} sources]
-      (when (or reload (not (is-loaded? js-name)))
-        (closure-import js-name)))
+    (doseq [{:keys [output-name] :as src} sources]
+      (when (or reload (not (is-loaded? output-name)))
+        (closure-import output-name)))
     (ws-msg {:type :repl/require-complete :id id})
 
     (catch :default e
@@ -82,7 +82,7 @@
           (->> sources
                (filter (fn [{:keys [name]}]
                          (contains? compiled name)))
-               (map :js-name)
+               (map :output-name)
                (into []))]
 
       (when (seq files-to-require)

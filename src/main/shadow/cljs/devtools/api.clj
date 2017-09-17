@@ -2,25 +2,28 @@
   (:refer-clojure :exclude (compile))
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [clojure.java.io :as io]
+            [clojure.string :as str]
+            [aleph.netty :as netty]
+            [aleph.http :as aleph]
+            [shadow.repl :as r]
             [shadow.runtime.services :as rt]
-            [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.errors :as e]
-            [shadow.cljs.devtools.compiler :as comp]
+            [shadow.build :as build]
+            [shadow.build.api :as build-api]
+            [shadow.build.node :as node]
+            [shadow.cljs.util :as cljs-util]
+            [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.common :as common]
             [shadow.cljs.devtools.server.web.common :as web-common]
-            [shadow.cljs.build :as cljs]
-            [shadow.cljs.node :as node]
-            [shadow.cljs.repl :as repl]
-            [shadow.repl :as r]
-            [aleph.netty :as netty]
-            [aleph.http :as aleph]
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.errors :as e]
             [shadow.cljs.devtools.server.worker.ws :as ws]
-            [clojure.string :as str]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-            [shadow.cljs.devtools.server.runtime :as runtime])
+            [shadow.cljs.devtools.server.runtime :as runtime]
+            [shadow.build.npm :as npm]
+            [shadow.build.classpath :as cp])
   (:import (java.io PushbackReader StringReader)
            (java.lang ProcessBuilder$Redirect)))
 
@@ -32,6 +35,47 @@
     (super/get-worker supervisor id)
     ))
 
+(defn- make-cache-dir [cache-root build-id mode]
+  {:pre [(cljs-util/is-file-instance? cache-root)
+         (keyword? build-id)
+         (keyword? mode)]}
+  (io/file cache-root "builds" (name build-id) (name mode)))
+
+(defn- new-build [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
+  (let [{:keys [npm classpath cache-root executor]}
+        (or (runtime/get-instance)
+
+            ;; FIXME: this should be done by shadow.cljs.devtools.cli
+            ;; shadow-cljs release multiple builds foo bar
+            ;; otherwise each build repeats this work since this is not shared
+            (let [{:keys [cache-root] :as config}
+                  (config/load-cljs-edn!)
+
+                  cache-root
+                  (io/file cache-root)]
+
+              ;; FIXME: add executor but not sure where to call shutdown
+              {:cache-root
+               cache-root
+
+               :npm
+               (npm/start)
+
+               :classpath
+               (-> (cp/start (io/file cache-root "classpath-cache"))
+                   (cp/index-classpath))}))
+
+        cache-dir
+        (make-cache-dir cache-root build-id mode)]
+
+    (-> (build-api/init)
+        (build-api/with-npm npm)
+        (build-api/with-classpath classpath)
+        (build-api/with-cache-dir cache-dir)
+        (cond->
+          executor
+          (build-api/with-executor executor)))))
+
 (defn get-or-start-worker [build-config opts]
   (let [{:keys [autobuild]}
         opts
@@ -39,7 +83,7 @@
         {:keys [out supervisor] :as app}
         (runtime/get-instance!)]
 
-    (if-let [worker (super/get-worker supervisor (:id build-config))]
+    (if-let [worker (super/get-worker supervisor (:build-id build-config))]
       worker
       (super/start-worker supervisor build-config)
       )))
@@ -77,7 +121,7 @@
       (-> worker
           :state-ref
           (deref)
-          :compiler-state
+          :build-state
           :compiler-env))))
 
 (defn watch
@@ -120,7 +164,7 @@
         (worker/sync!)
         (repl-impl/stdin-takeover! app))
 
-    (super/stop-worker supervisor (:id build-config))
+    (super/stop-worker supervisor (:build-id build-config))
     :done))
 
 (defn dev
@@ -133,15 +177,16 @@
      (catch Exception e
        (e/user-friendly-error e)))))
 
-(defn build-finish [{::comp/keys [build-info] :as state} config]
+(defn build-finish [{::build/keys [build-info] :as state} config]
   (util/print-build-complete build-info config)
   state)
 
 (defn compile* [build-config opts]
   (util/print-build-start build-config)
-  (-> (comp/init :dev build-config)
-      (comp/compile)
-      (comp/flush)
+  (-> (new-build build-config :dev opts)
+      (build/configure :dev build-config)
+      (build/compile)
+      (build/flush)
       (build-finish build-config)))
 
 (defn compile
@@ -165,18 +210,19 @@
 (defn release*
   [build-config {:keys [debug source-maps pseudo-names] :as opts}]
   (util/print-build-start build-config)
-  (-> (comp/init :release build-config)
+  (-> (new-build build-config :release opts)
+      (build/configure :release build-config)
       (cond->
         (or debug source-maps)
-        (cljs/enable-source-maps)
+        (build-api/enable-source-maps)
 
         (or debug pseudo-names)
-        (cljs/merge-compiler-options
+        (build-api/with-compiler-options
           {:pretty-print true
            :pseudo-names true}))
-      (comp/compile)
-      (comp/optimize)
-      (comp/flush)
+      (build/compile)
+      (build/optimize)
+      (build/flush)
       (build-finish build-config)))
 
 (defn release
@@ -193,21 +239,22 @@
 (defn check* [{:keys [id] :as build-config} opts]
   ;; FIXME: pretend release mode so targets don't need to account for extra mode
   ;; in most cases we want exactly :release but not sure that is true for everything?
-  (-> (comp/init :release build-config)
+  (-> (new-build build-config :release opts)
+      (build/configure :release build-config)
       ;; using another dir because of source maps
       ;; not sure :release builds want to enable source maps by default
       ;; so running check on the release dir would cause a recompile which is annoying
       ;; but check errors are really useless without source maps
       (as-> X
         (-> X
-            (assoc :cache-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check"))
+            (assoc :cache-dir (io/file (:cache-dir X) "check"))
             ;; always override :output-dir since check output should never be used
             ;; only generates output for source maps anyways
-            (assoc :output-dir (io/file (:work-dir X) "shadow-cljs" (name id) "check" "output"))))
-      (cljs/enable-source-maps)
+            (assoc :output-dir (io/file (:cache-dir X) "check-out"))))
+      (build-api/enable-source-maps)
       (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
-      (comp/compile)
-      (comp/check))
+      (build/compile)
+      (build/check))
   :done)
 
 (defn check
@@ -234,53 +281,62 @@
   (-> (slurp (io/resource "shadow/txt/repl-help.txt"))
       (println)))
 
-(defn test-setup []
-  (-> (cljs/init-state)
-      (cljs/enable-source-maps)
-      (as-> X
-        (cljs/merge-build-options X
-          {:output-dir (io/file (:work-dir X) "shadow-test")}))
-      (cljs/find-resources-in-classpath)
-      ))
+(comment
+  (defn test-setup []
+    (-> (build-api/init)
+        (build-api/enable-source-maps)
+        (as-> X
+          (build-api/with-build-options X
+            {:output-dir (io/file (:cache-dir X) "test-out")}))
+        ))
 
-(defn node-execute! [node-args file]
-  (let [script-args
-        ["node"]
+  (defn node-execute! [node-args file]
+    (let [script-args
+          ["node"]
 
-        pb
-        (doto (ProcessBuilder. script-args)
-          (.directory nil))]
+          pb
+          (doto (ProcessBuilder. script-args)
+            (.directory nil))]
 
 
-    ;; not using this because we only get output once it is done
-    ;; I prefer to see progress
-    ;; (prn (apply shell/sh script-args))
+      ;; not using this because we only get output once it is done
+      ;; I prefer to see progress
+      ;; (prn (apply shell/sh script-args))
 
-    (let [node-proc (.start pb)]
+      (let [node-proc (.start pb)]
 
-      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
+        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
+        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
 
-      (let [out (.getOutputStream node-proc)]
-        (io/copy (io/file file) out)
-        (.close out))
+        (let [out (.getOutputStream node-proc)]
+          (io/copy (io/file file) out)
+          (.close out))
 
-      ;; FIXME: what if this doesn't terminate?
-      (let [exit-code (.waitFor node-proc)]
-        exit-code))))
+        ;; FIXME: what if this doesn't terminate?
+        (let [exit-code (.waitFor node-proc)]
+          exit-code))))
 
-(defn test-all []
-  (-> (comp/init :dev '{:id :shadow-cljs/test
-                        :target :node-script
-                        :main shadow.test-runner/main
-                        :output-to "target/shadow-test-runner.js"
-                        :hashbang false})
-      (node/make-test-runner)
-      (comp/compile)
-      (comp/flush))
+  (defn test-all []
+    (-> (build/configure :dev '{:build-id :shadow-build-api/test
+                                :target :node-script
+                                :main shadow.test-runner/main
+                                :output-to "target/shadow-test-runner.js"
+                                :hashbang false})
+        (node/make-test-runner)
+        (build/compile)
+        (build/flush))
 
-  (node-execute! [] "target/shadow-test-runner.js")
-  ::test-all)
+    (node-execute! [] "target/shadow-test-runner.js")
+    ::test-all)
+
+  (defn test-affected
+    [source-names]
+    {:pre [(seq source-names)
+           (not (string? source-names))
+           (every? string? source-names)]}
+    (-> (test-setup)
+        (node/execute-affected-tests! source-names))
+    ::test-affected))
 
 ;; nREPL support
 
@@ -293,16 +349,6 @@
         ;; required for prompt?
         ;; don't actually need to do this
         (set! *ns* 'cljs.user)
-        (println "To quit, type: :cljs/quit")
+        (println "To quit, type: :build-api/quit")
         [:selected id])))
 
-(comment
-
-  (defn test-affected
-    [source-names]
-    {:pre [(seq source-names)
-           (not (string? source-names))
-           (every? string? source-names)]}
-    (-> (test-setup)
-        (node/execute-affected-tests! source-names))
-    ::test-affected))

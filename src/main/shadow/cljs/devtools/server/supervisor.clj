@@ -21,18 +21,18 @@
     @workers-ref))
 
 (defn start-worker
-  [{:keys [system-bus state-ref workers-ref executor http] :as svc} {:keys [id] :as build-config}]
-  {:pre [(keyword? id)]}
-  (when (get @workers-ref id)
-    (throw (ex-info "already started" {:id id})))
+  [{:keys [system-bus state-ref workers-ref executor http classpath npm] :as svc} {:keys [build-id] :as build-config}]
+  {:pre [(keyword? build-id)]}
+  (when (get @workers-ref build-id)
+    (throw (ex-info "already started" {:build-id build-id})))
 
   (let [{:keys [proc-stop] :as proc}
-        (worker/start system-bus executor http build-config)]
+        (worker/start system-bus executor http classpath npm build-config)]
 
-    (vswap! workers-ref assoc id proc)
+    (vswap! workers-ref assoc build-id proc)
 
     (go (<! proc-stop)
-        (vswap! workers-ref dissoc id))
+        (vswap! workers-ref dissoc build-id))
 
     proc
     ))
@@ -43,10 +43,12 @@
   (when-some [proc (get @workers-ref id)]
     (worker/stop proc)))
 
-(defn start [system-bus executor http]
+(defn start [system-bus executor http classpath npm]
   {:system-bus system-bus
    :executor executor
    :http http
+   :classpath classpath
+   :npm npm
    :workers-ref (volatile! {})})
 
 (defn stop [{:keys [workers-ref] :as svc}]

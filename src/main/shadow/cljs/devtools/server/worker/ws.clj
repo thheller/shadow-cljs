@@ -7,15 +7,17 @@
             [manifold.deferred :as md]
             [manifold.stream :as ms]
             [clojure.edn :as edn]
-            [shadow.cljs.output :as output]
+            [shadow.build.output :as output]
             [shadow.cljs.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.web.common :as common]
-            [shadow.cljs.devtools.compiler :as comp]
-            [shadow.http.router :as http])
+            [shadow.build :as comp]
+            [shadow.http.router :as http]
+            [shadow.build.data :as data]
+            [shadow.build.resource :as rc])
   (:import (java.util UUID)))
 
 (defn ws-loop!
@@ -163,7 +165,7 @@
             (worker/watch worker-proc watch-chan true)
 
             (let [last-known-state
-                  (-> worker-proc :state-ref deref :compiler-state ::comp/build-info)]
+                  (-> worker-proc :state-ref deref :build-state ::comp/build-info)]
               (>!! client-out {:type :build-init
                                :info last-known-state}))
 
@@ -205,36 +207,45 @@
             {:keys [sources] :as req}
             (edn/read-string text)
 
-            {:keys [module-format] :as compiler-state}
-            (:compiler-state @state-ref)]
+            build-state
+            (:build-state @state-ref)
+
+            module-format
+            (get-in build-state [:build-options :module-format])]
 
         {:status 200
          :headers headers
          :body
          (->> sources
-              (map (fn [src-name]
-                     (let [{:keys [name js-name output] :as src}
-                           (get-in compiler-state [:sources src-name])]
-                       {:name name
-                        :js-name js-name
+              (map (fn [src-id]
+                     (assert (rc/valid-resource-id? src-id))
+                     (let [{:keys [resource-name output-name output] :as src}
+                           (data/get-source-by-id build-state src-id)
+
+                           {:keys [js] :as output}
+                           (data/get-output! build-state src)]
+
+                       {:resource-name resource-name
+                        :resource-id src-id
+                        :output-name output-name
 
                         ;; FIXME: make this pretty ...
                         :js
                         (case module-format
                           :goog
-                          (let [sm-text (output/generate-source-map-inline compiler-state src "")]
-                            (str output sm-text))
+                          (let [sm-text (output/generate-source-map-inline build-state src output "")]
+                            (str js sm-text))
                           :js
                           (let [prepend
-                                (output/js-module-src-prepend compiler-state src false)
+                                (output/js-module-src-prepend build-state src false)
 
                                 append
-                                (output/js-module-src-append compiler-state src)
+                                (output/js-module-src-append build-state src)
 
                                 sm-text
-                                (output/generate-source-map-inline compiler-state src prepend)]
+                                (output/generate-source-map-inline build-state src output prepend)]
 
-                            (str prepend output append sm-text)))
+                            (str prepend js append sm-text)))
                         })))
               (into [])
               (pr-str))})

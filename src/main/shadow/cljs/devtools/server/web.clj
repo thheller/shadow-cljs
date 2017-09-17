@@ -3,7 +3,6 @@
     [hiccup.core :refer (html)]
     [clojure.string :as str]
     [shadow.cljs.devtools.server.web.common :as common]
-    [shadow.cljs.devtools.server.web.explorer :as web-explorer]
     [shadow.cljs.devtools.server.web.api :as web-api]
     [shadow.http.router :as http]
     [shadow.server.assets :as assets]
@@ -21,6 +20,5 @@
   (http/route req
     (:GET "" index-page)
     (:ANY "^/api" web-api/root)
-    (:ANY "^/explorer" web-explorer/root)
     (:ANY "^/worker" ws/process)
     common/not-found))

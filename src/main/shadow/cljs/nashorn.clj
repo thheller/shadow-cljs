@@ -1,5 +1,5 @@
 (ns shadow.cljs.nashorn
-  (:require [shadow.cljs.build :as cljs]
+  (:require [shadow.build.api :as cljs]
             [shadow.cljs.repl :as repl]
             [clojure.java.io :as io])
   (:import [javax.script ScriptEngine ScriptEngineManager Invocable]))
@@ -7,6 +7,7 @@
 ;; just testing some nashorn related things
 ;; this works fine, just not that interested in nashorn
 
+#_
 (defn -main [& args]
   (let [sem
         (ScriptEngineManager.)

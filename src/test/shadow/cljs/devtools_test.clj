@@ -1,30 +1,31 @@
 (ns shadow.cljs.devtools_test
-  (:require [shadow.cljs.build :as cljs]
-            [clojure.java.io :as io]
-            [clojure.data.json :as json]
-            [clojure.pprint :refer (pprint)]
-            [clojure.test :refer :all]
-            [shadow.cljs.devtools.targets.browser :as browser]
-            [shadow.cljs.devtools.compiler :as comp]
-            [cljs.externs :as externs]
-            [cljs.analyzer :as ana]
-            [cljs.compiler :as cljs-comp]
-            [cljs.env :as cljs-env]
-            [cljs.closure :as cljs-closure]
-            [shadow.cljs.devtools.api :as api]
-            [shadow.cljs.devtools.embedded :as em]
-            [shadow.cljs.closure :as closure]
-            [clojure.repl :as repl]
-            [cljs.analyzer.api :as ana-api]
-            [clojure.walk :as walk]
-            [shadow.cljs.devtools.server.util :as util])
+  (:require
+    [clojure.java.io :as io]
+    [clojure.data.json :as json]
+    [clojure.pprint :refer (pprint)]
+    [clojure.test :refer :all]
+    [clojure.walk :as walk]
+    [clojure.repl :as repl]
+    [cljs.externs :as externs]
+    [cljs.analyzer :as ana]
+    [cljs.compiler :as cljs-comp]
+    [cljs.env :as cljs-env]
+    [cljs.analyzer.api :as ana-api]
+    [shadow.build.api :as build-api]
+    [shadow.build.targets.browser :as browser]
+    [shadow.build :as comp]
+    [shadow.build.closure :as closure]
+    [shadow.cljs.devtools.api :as api]
+    [shadow.cljs.devtools.embedded :as em]
+    [shadow.cljs.devtools.server.util :as util]
+    [shadow.cljs.devtools.errors :as errors])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)))
 
 
 (comment
   ;; this should be useful for some devtools removal in production
   ;; see StripCode in closure
-  (cljs/add-closure-configurator
+  (build-api/add-closure-configurator
     (fn [cc co state]
       (set! (.-stripTypePrefixes co) #{"console.log"})
       ;; (set! (.-stripNameSuffixes co) #{"logger" "logger_"})
@@ -49,7 +50,7 @@
            }}
 
         state
-        (-> (comp/init :release config)
+        (-> (comp/configure :release config)
             (comp/compile)
             (comp/flush))]
 
@@ -61,29 +62,31 @@
 
 (deftest test-code-snippet
   (let [{:keys [compiler-env] :as state}
-        (-> (cljs/init-state)
-            (cljs/merge-build-options
+        (-> (build-api/init)
+            (build-api/merge-build-options
               {:public-dir (io/file "target" "test-snippet")
                :asset-path "/"
                ;; :infer-externs true
                ;; :externs-sources [(SourceFile/fromFile (io/file "src/test/test.externs.js"))]
                })
-            (cljs/merge-compiler-options
+            (build-api/merge-compiler-options
               {:optimizations :advanced
                :pretty-print false
                :pseudo-names false
                :externs
                ["test.externs.js"]})
 
-            (cljs/enable-source-maps)
-            (cljs/find-resources-in-classpath)
-
-            (cljs/configure-module :base '[cljs.core] #{})
-            (cljs/configure-module :test '[test.snippet] #{:base})
-            (cljs/compile-modules)
-            ;; (cljs/flush-unoptimized) ;; doesn't work
-            (cljs/closure-optimize)
-            ;; (cljs/flush-modules-to-disk)
+            (build-api/enable-source-maps)
+            (build-api/configure-modules
+              '{:base {:entries [cljs.core]
+                       :depends-on #{}}
+                :test {:entries [test.snippet]
+                       :depends-on #{:base}}})
+            (build-api/analyze-modules)
+            (build-api/compile-sources)
+            ;; (api/flush-unoptimized) ;; doesn't work
+            (build-api/optimize)
+            ;; (api/flush-modules-to-disk)
             )]
 
     (binding [*print-meta* true]
@@ -94,15 +97,15 @@
 
 (deftest test-ext
   (let [{:keys [compiler-env closure-compiler] :as state}
-        (-> (cljs/init-state)
-            (cljs/merge-build-options
+        (-> (build-api/init)
+            (build-api/merge-build-options
               {:public-dir (io/file "target" "test-ext")
                :asset-path "/"
                :infer-externs true
                ;; :externs ["test.externs.js"]
                ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
                })
-            (cljs/merge-compiler-options
+            (build-api/merge-compiler-options
               {:optimizations :advanced
                :pretty-print true
                :pseudo-names false
@@ -114,21 +117,24 @@
                 ;; :check-variables :warning
                 ;; :undefined-variables :warning
                 }})
-            (cljs/add-closure-configurator
+            (build-api/add-closure-configurator
               (fn [cc co state]
                 (.setCheckTypes co true)
                 (.setTypeBasedOptimizationOptions CompilationLevel/ADVANCED_OPTIMIZATIONS co)
                 ;; (.setPrintSourceAfterEachPass co true)
                 ))
 
-            ;; (cljs/enable-source-maps)
-            (cljs/find-resources-in-classpath)
+            ;; (api/enable-source-maps)
 
-            (cljs/configure-module :test '[test.snippet] #{})
-            (cljs/compile-modules)
-            ;; (cljs/flush-unoptimized) ;; doesn't work
-            ;; (cljs/closure-optimize)
-            ;; (cljs/flush-modules-to-disk)
+            (build-api/configure-modules
+              '{:test {:entries [test.snippet]
+                       :depends-on #{}}})
+
+            (build-api/analyze-modules)
+            (build-api/compile-sources)
+            ;; (api/flush-unoptimized) ;; doesn't work
+            ;; (api/closure-optimize)
+            ;; (api/flush-modules-to-disk)
             )]
 
     ;; (prn (.getExternProperties closure-compiler))
@@ -141,48 +147,6 @@
       (pprint (get-in compiler-env [:cljs.analyzer/namespaces 'test.snippet :externs])))
     )
   :done)
-
-(defn remove-env [x]
-  (if (map? x)
-    (dissoc x :env)
-    x))
-
-(defn analyze-form
-  [form in-ns]
-  {:pre [(symbol? in-ns)]}
-  (let [state
-        (-> (cljs/init-state)
-            (cljs/find-resources-in-classpath)
-            (cljs/compile-all-for-ns in-ns))
-
-        {:keys [compiler-env] :as state}
-        (cljs/with-compiler-env
-          state
-
-          (binding [ana/*cljs-ns* in-ns]
-            (let [ast (ana-api/analyze (ana/empty-env) form "test.cljs" {})]
-              (assoc state ::result ast))))]
-
-    [(::result state) compiler-env]))
-
-(deftest test-analyze
-  (let [form
-        ;; bad
-        (with-meta 'js/goog.DEBUG {:tag 'boolean})
-        ;; good
-        ;; (with-meta '(.-DEBUG js/goog) {:tag 'boolean})
-
-        [ast env]
-        (analyze-form form 'test.empty)]
-
-    (binding [*print-meta* true]
-      (-> (walk/prewalk remove-env ast)
-          (pprint))
-
-      #_(-> (get-in env [::ana/namespaces 'test.empty :externs])
-            (pprint))
-      )))
-
 
 (deftest test-externs-map
   (let [x (externs/externs-map)]
@@ -205,47 +169,205 @@
   (api/release :custom {:debug true}))
 
 (deftest test-build-warnings
-  (api/once :warnings))
+  (api/compile :warnings))
 
 (deftest test-build-errors
-  (api/once :errors))
+  (api/compile :errors))
 
 (deftest test-browser
-  (api/once :browser))
+  (api/compile :browser))
+
+(deftest test-browser-check
+  (api/check :browser))
+
+(deftest test-browser-release
+  (api/release :browser {} #_ {:source-maps true}))
+
+(deftest test-browser-release-pseudo
+  (api/release :browser {:pseudo-names true}))
+
+(deftest test-script
+  (api/compile :script))
+
+(deftest test-library
+  (api/compile :library))
+
+(deftest test-build-with-reagent
+  (try
+    (api/compile*
+      '{:build-id :reagent
+        :target :browser
+
+        :output-dir "target/test-build-with-reagent/js"
+        :asset-path "/js"
+
+        :modules
+        {:base
+         {:entries [cljs.core]}
+         :react
+         {:entries ["react" "react-dom" "create-react-class"]
+          :depends-on #{:base}}
+         :reagent
+         {:entries [reagent.core]
+          :depends-on #{:base :react}}}
+
+        :js-options
+        {:js-provider :require
+         :packages
+         {"react" {}
+          "react-dom" {}
+          "create-react-class" {}}}}
+      {})
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+(deftest test-build-with-foreign
+  (try
+    (api/compile*
+      '{:build-id :browser
+        :target :browser
+
+        :output-dir "target/test-build-with-foreign/js"
+        :asset-path "/js"
+
+        :modules
+        {:base
+         {:entries [cljs.core]}
+
+         :react
+         {:entries [cljsjs.react]}
+
+         :test
+         {:entries [shadow.markup.react]
+          :depends-on #{:react :base}}}
+
+        :js-options
+        {:js-provider :closure}}
+      {})
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+(def polyfill-config
+  '{:build-id :browser
+    :target :browser
+
+    :output-dir "target/test-build-with-polyfill/js"
+    :asset-path "/js"
+
+    :compiler-options
+    {:rewrite-polyfills true
+     :language-in :ecmascript6
+     :language-out :ecmascript3}
+
+    :modules
+    {:test {:entries ["/test/es6/polyfill.js"]}}
+
+    :js-options
+    {:js-provider :closure}
+
+    :devtools
+    {:console-support false}})
+
+(deftest test-compile-with-polyfill
+  (try
+    (let [state
+          (api/compile* polyfill-config {:debug true})]
+
+      (is (seq (get-in state [:polyfill-js])))
+      #_(println "POLYFILL")
+      #_(-> (get-in state [:polyfill-js])
+            (println))
+
+      (println "CODE")
+      (-> (get-in state [:output])
+          (vals)
+          (last)
+          (:js)
+          (println)))
+
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+(deftest test-release-with-polyfill
+  (try
+    (let [state
+          (api/release* polyfill-config {})]
+
+      (-> (get-in state [::closure/modules])
+          (last)
+          (:output)
+          (println)))
+
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+(deftest test-random-node-module
+  (try
+    (api/compile*
+      '{:build-id :browser
+        :target :browser
+
+        :output-dir "target/test-node-module/js"
+        :asset-path "/js"
+        :compiler-options
+        {:language-out :ecmascript5}
+
+        ;; things that don't work
+        ;; material-ui, because of bowser, invalid CJS wrapper
+        ;; styled-components, because of stylis, invalid CJS wrapper
+        ;; @atlaskit/navigation, because of
+        ;; failed to resolve: ../build/jsVars from /Users/zilence/code/shadow-cljs/node_modules/@atlaskit/util-shared-styles/dist/es/index.js
+        ;; the file is not available in the dist
+        ;; "leaflet"
+        ;; IllegalStateException: An enclosing scope is required for change reports but node BLOCK 26
+        ;; @material/drawer
+        ;; IllegalStateException: com.google.common.base.Preconditions.checkState (Preconditions.java:429
+        :modules
+        {:test {:entries ["animated/lib/targets/react-dom" #_ "bootstrap"]}}
+
+        :js-options
+        {:js-provider :closure}}
+      {:debug true})
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+(comment
+  (api/compile :browser))
 
 (deftest test-npm-check
   (api/check :npm))
 
 (deftest test-npm-module
-  (api/once :npm-module))
+  (api/compile :npm-module))
 
 (deftest test-foreign
   (api/release :foreign {:source-maps true}))
 
-(defn load-from-disk [{:keys [public-dir build-sources] :as state}]
-  (-> state
-      (cljs/prepare-compile)
-      (cljs/prepare-modules)
-      (as-> state
-        (reduce
-          (fn [state source-name]
-            (prn [:load source-name])
-            (let [{:keys [js-name] :as rc}
-                  (get-in state [:sources source-name])
+(comment
+  (defn load-from-disk [{:keys [public-dir build-sources] :as state}]
+    (-> state
+        (build-api/prepare-compile)
+        (build-api/prepare-modules)
+        (as-> state
+          (reduce
+            (fn [state source-name]
+              (prn [:load source-name])
+              (let [{:keys [js-name] :as rc}
+                    (get-in state [:sources source-name])
 
-                  target-file
-                  (io/file public-dir "cljs-runtime" js-name)]
+                    target-file
+                    (io/file public-dir "cljs-runtime" js-name)]
 
-              (when-not (.exists target-file)
-                (throw (ex-info (format "cannot load file %s" target-file) {:src source-name :file target-file})))
+                (when-not (.exists target-file)
+                  (throw (ex-info (format "cannot load file %s" target-file) {:src source-name :file target-file})))
 
-              (let [content (slurp target-file)]
-                (when-not (seq content)
-                  (throw (ex-info (format "no content %s" target-file) {})))
-                (assoc-in state [:sources source-name :output] content))
-              ))
-          state
-          build-sources))))
+                (let [content (slurp target-file)]
+                  (when-not (seq content)
+                    (throw (ex-info (format "no content %s" target-file) {})))
+                  (assoc-in state [:sources source-name :output] content))
+                ))
+            state
+            build-sources)))))
 
 
 
@@ -264,67 +386,38 @@
 (deftest test-warnings
   (try
     (let [{:keys [compiler-env closure-compiler] :as state}
-          (-> (cljs/init-state)
-              (cljs/merge-build-options
+          (-> (build-api/init)
+              (build-api/merge-build-options
                 {:public-dir (io/file "out" "demo-foreign" "js")
                  :asset-path "js"
                  :cache-level :off
 
                  ;; :externs-sources [(SourceFile/fromFile (io/file "tmp/test.externs.js"))]
                  })
-              (cljs/merge-compiler-options
+              (build-api/merge-compiler-options
                 {:optimizations :advanced
                  :pretty-print false
                  :pseudo-names false
                  :externs
-                 ["shadow/cljs/externs.js"]
+                 ["shadow/api/externs.js"]
                  :closure-warnings
                  {:check-types :warning}
                  })
-              (cljs/enable-source-maps)
-              (cljs/find-resources-in-classpath)
+              (build-api/enable-source-maps)
 
-              (cljs/configure-module :main
-                '[demo.prototype demo.foreign]
-                #{}
-                {:prepend-js
-                 "goog.nodeGlobalRequire = function(/** String */ name) {};"})
+              (build-api/configure-modules
+                '{:main
+                  {:entries [demo.prototype demo.foreign]
+                   :depends-on #{}
+                   :prepend-js
+                   "goog.nodeGlobalRequire = function(/** String */ name) {};"}})
               ;; (load-from-disk)
-              (cljs/compile-modules)
-              ;; (cljs/flush-unoptimized) ;; doesn't work
-              (cljs/closure-check)
-              ;; (cljs/flush-modules-to-disk)
+              (build-api/analyze-modules)
+              (build-api/compile-sources)
+              ;; (api/flush-unoptimized) ;; doesn't work
+              (build-api/check)
+              ;; (api/flush-modules-to-disk)
               )]
-
-      :done)
-    (catch Exception e
-      (repl/pst e))))
-
-
-(deftest test-rename-global-scope
-  (try
-    (let [{:keys [compiler-env closure-compiler] :as state}
-          (-> (cljs/init-state)
-              (cljs/merge-build-options
-                {:public-dir (io/file "target" "rename-global")
-                 :asset-path "rename-global"})
-              (cljs/merge-compiler-options
-                {:optimizations :advanced
-                 :pretty-print false
-                 :pseudo-names false})
-
-              ;; doesn't work, maybe on second pass just after optimize?
-              (cljs/add-closure-configurator
-                (fn [cc co state]
-                  (.setRenamePrefixNamespace co "CLJS")))
-
-              (cljs/find-resources-in-classpath)
-
-              (cljs/configure-module :main '[demo.browser] #{} {})
-              (cljs/compile-modules)
-              ;; (cljs/flush-unoptimized) ;; doesn't work
-              (cljs/closure-optimize)
-              (cljs/flush-modules-to-disk))]
 
       :done)
     (catch Exception e
@@ -354,4 +447,20 @@
 
     (prn (util/make-open-args data ["idea" :pwd :file "--line" :line]))
     (prn (util/make-open-args data ["emacsclient" ["%s:%s:%s" :file :line :column]]))
+    ))
+
+(deftest test-build-info
+  (let [{info :shadow.build/build-info :as x}
+        (api/compile*
+          '{:id :test
+            :target :browser
+            :output-dir "target/test-build-info/js"
+            :asset-path "/js"
+            :modules
+            {:main {:entries [demo.browser
+                              demo.browser-extra]}}}
+          {})]
+
+    (pprint info)
+
     ))

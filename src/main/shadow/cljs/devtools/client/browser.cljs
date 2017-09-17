@@ -21,6 +21,9 @@
 
 (defonce socket-ref (volatile! nil))
 
+
+
+
 (defn devtools-msg [msg & args]
   (.apply (.-log js/console) nil (into-array (into [(str "%c" msg) "color: blue;"] args))))
 
@@ -36,16 +39,22 @@
 (defn goog-is-loaded? [name]
   (gobj/get js/goog.dependencies_.written name))
 
-(defn src-is-loaded? [{:keys [js-name] :as src}]
-  (goog-is-loaded? js-name))
+(def goog-base-rc
+  [:shadow.build.classpath/resource "goog/base.js"])
+
+(defn src-is-loaded? [{:keys [resource-id output-name] :as src}]
+  ;; FIXME: don't like this special case handling, but goog/base.js will always be loaded
+  ;; but not as a separate file
+  (or (= goog-base-rc resource-id)
+      (goog-is-loaded? output-name)))
 
 (defn module-is-active? [module]
   (contains? @active-modules-ref module))
 
 (defn do-js-load [sources]
-  (doseq [{:keys [name js] :as src} sources]
-    (devtools-msg "LOAD:" name)
-    (js/eval (str js "\n// @sourceURL=" name))))
+  (doseq [{:keys [resource-id resource-name js] :as src} sources]
+    (devtools-msg "LOAD:" resource-name)
+    (js/eval (str js "\n// @sourceURL=" resource-name))))
 
 (defn do-js-reload [sources]
   (let [reload-state
@@ -79,7 +88,7 @@
             )))
       "POST"
       (pr-str {:client :browser
-               :sources (into [] (map :name) sources)})
+               :sources (into [] (map :resource-id) sources)})
       #js {"content-type" "application/edn; charset=utf-8"})))
 
 (defn handle-build-complete [{:keys [info] :as msg}]
@@ -87,9 +96,9 @@
         info
 
         warnings
-        (->> (for [{:keys [name warnings] :as src} sources
+        (->> (for [{:keys [resource-name warnings] :as src} sources
                    warning warnings]
-               (assoc warning :source-name name))
+               (assoc warning :source-name resource-name))
              (distinct)
              (into []))]
 
@@ -108,9 +117,9 @@
                      (or (= "js" env/module-format)
                          (module-is-active? module))))
                  (filter
-                   (fn [{:keys [js-name name]}]
-                     (or (not (goog-is-loaded? js-name))
-                         (contains? compiled name))))
+                   (fn [{:keys [output-name resource-id] :as src}]
+                     (or (not (src-is-loaded? src))
+                         (contains? compiled resource-id))))
                  (into []))]
 
         ;; FIXME: should allow reload with warnings

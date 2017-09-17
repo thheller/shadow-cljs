@@ -1,16 +1,17 @@
 (ns shadow.cljs.devtools.server.util
   (:require [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
-            [shadow.cljs.log :as shadow-log]
-            [shadow.cljs.build :as cljs]
-            [shadow.cljs.devtools.errors :as errors]
             [clojure.string :as str]
-            [shadow.cljs.warnings :as warnings]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [clojure.tools.logging :as log]
+            [shadow.build.log :as build-log]
+            [shadow.build.api :as cljs]
+            [shadow.cljs.devtools.errors :as errors]
+            [shadow.build.warnings :as warnings])
   (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream)))
 
 (defn async-logger [ch]
   (reify
-    shadow-log/BuildLog
+    build-log/BuildLog
     (log*
       [_ state event]
       (async/offer! ch {:type :build-log
@@ -18,7 +19,7 @@
 
 (def null-log
   (reify
-    shadow-log/BuildLog
+    build-log/BuildLog
     (log* [_ state msg])))
 
 (defn print-warnings [warnings]
@@ -26,7 +27,7 @@
     (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
 
 (defn print-build-start [build-config]
-  (println (format "[%s] Compiling ..." (:id build-config))))
+  (println (format "[%s] Compiling ..." (:build-id build-config))))
 
 (defn print-build-complete [build-info build-config]
   (let [{:keys [sources compiled]}
@@ -39,12 +40,12 @@
              (into []))]
 
     (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings, %.2fs)"
-               (:id build-config)
+               (:build-id build-config)
                (count sources)
                (count compiled)
                (count warnings)
-               (-> (- (get-in build-info [:flush :exit])
-                      (get-in build-info [:compile-prepare :enter]))
+               (-> (- (get-in build-info [:timings :flush :exit])
+                      (get-in build-info [:timings :compile-prepare :enter]))
                    (double)
                    (/ 1000))))
 
@@ -55,20 +56,20 @@
       )))
 
 (defn print-build-failure [{:keys [build-config e] :as x}]
-  (println (format "[%s] Build failure:" (:id build-config)))
+  (println (format "[%s] Build failure:" (:build-id build-config)))
   (errors/user-friendly-error e))
 
 (defn print-worker-out [x verbose]
-  (locking cljs/stdout-lock
+  (locking build-log/stdout-lock
     (binding [*out* *err*]
       (case (:type x)
         :build-log
         (when verbose
-          (println (shadow-log/event-text (:event x))))
+          (println (build-log/event-text (:event x))))
 
         :build-configure
         (let [{:keys [build-config]} x]
-          (println (format "[%s] Configuring build." (:id build-config))))
+          (println (format "[%s] Configuring build." (:build-id build-config))))
 
         :build-start
         (print-build-start (:build-config x))
@@ -157,7 +158,7 @@
                               (try
                                 (handler state msg)
                                 (catch Throwable ex
-                                  (prn [:handler-error msg ex])
+                                  (log/warn ex "failed to handle server msg" msg)
                                   (if (ifn? on-error)
                                     (on-error state msg ex)
                                     ;; FIXME: silently dropping e if no on-error is defined is bad

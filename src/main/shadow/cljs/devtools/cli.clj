@@ -19,108 +19,39 @@
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.cljs.devtools.errors :as errors]
             [shadow.http.router :as http]
-            [shadow.cljs.build :as cljs]
-            [shadow.cljs.node :as node]))
-
-;; use namespaced keywords for every CLI specific option
-;; since all options are passed to the api/* and should not conflict there
-
-(def default-npm-config
-  {:id :npm
-   :target :npm-module
-   :runtime :node
-   :output-dir "node_modules/shadow-cljs"})
-
-(defn web-root
-  "only does /worker requests"
-  [req]
-  (prn [:path-tokens (::http/path-tokens req)])
-  (http/route req
-    (:ANY "^/worker" ws/process)
-    web-common/not-found))
-
-(defn get-ring-handler [config app-promise]
-  (fn [ring-map]
-    (let [app (deref app-promise 1000 ::timeout)]
-      (if (= app ::timeout)
-        {:status 501
-         :body "App not ready!"}
-        (-> app
-            (assoc :ring-request ring-map)
-            (http/prepare)
-            (web-root))))))
-
-(defn start []
-  (let [{:keys [cache-root] :as config}
-        (config/load-cljs-edn)
-
-        app-promise
-        (promise)
-
-        ring
-        (get-ring-handler config app-promise)
-
-        host
-        (get-in config [:http :host] "localhost")
-
-        ;; this uses a random port so we can start multiple instances
-        ;; eventually this will all be done in :server mode
-        http
-        (aleph/start-server ring {:host host
-                                  :port 0})
-
-        http-port
-        (netty/port http)
-
-        app
-        (-> {::started (System/currentTimeMillis)
-             :config config
-             :out (util/stdout-dump (:verbose config))
-             :http {:port (netty/port http)
-                    :host host
-                    :server http}}
-            (rt/init (common/app config))
-            (rt/start-all))]
-
-    (deliver app-promise app)
-
-    app
-    ))
-
-(defn stop [{:keys [http] :as app}]
-  (rt/stop-all app)
-  (let [netty (:server http)]
-    (.close netty)
-    (netty/wait-for-close netty)))
-
-(defn with-app
-  [thunk]
-  (if @runtime/instance-ref
-    (thunk)
-    (let [app (start)]
-      (runtime/set-instance! app)
-      (try
-        (thunk)
-        (finally
-          (runtime/reset-instance!)
-          (stop app)
-          )))))
+            [shadow.build.api :as cljs]
+            [shadow.build.node :as node]))
 
 (defn do-build-command [{:keys [action options] :as opts} build-config]
-  (case action
-    :release
-    (api/release* build-config options)
+  (try
+    (case action
+      :release
+      (api/release* build-config options)
 
-    :check
-    (api/check* build-config options)
+      :check
+      (api/check* build-config options)
 
-    :compile
-    (api/compile* build-config options)))
+      :compile
+      (api/compile* build-config options))
+
+    :success
+    (catch Exception e
+      e)))
+
+(defn maybe-rethrow-exceptions [ex]
+  (case (count ex)
+    0 :success
+    1 (throw (first ex))
+    (throw (ex-info "multiple builds failed" {:exceptions ex}))
+    ))
 
 (defn do-build-commands
   [{:keys [action options] :as opts} build-ids]
   (let [{:keys [builds] :as config}
         (config/load-cljs-edn!)]
+
+    ;; FIXME: this should start classpath/npm services so builds can use it
+    ;; if this is not a server instance
 
     (->> build-ids
          (map (fn [build-id]
@@ -135,8 +66,10 @@
          (map #(future (do-build-command opts %)))
          (into []) ;; force lazy seq
          (map deref)
+         (remove #{:success})
          (into []) ;; force again
-         )))
+         ;; need to throw exceptions to ensure that cli commands can exit with proper exit codes
+         (maybe-rethrow-exceptions))))
 
 (defn main [& args]
   (let [{:keys [action builds options summary errors] :as opts}
@@ -149,8 +82,8 @@
       (or (:help options) (seq errors))
       (opts/help opts)
 
-      (= action :test)
-      (api/test-all)
+      ;;(= action :test)
+      ;;(api/test-all)
 
       (contains? #{:compile :check :release} action)
       (do-build-commands opts builds)
@@ -202,25 +135,25 @@
       (print-main-error e)
       (System/exit 1))))
 
-(defn autotest
-  "no way to interrupt this, don't run this in nREPL"
-  []
-  (-> (api/test-setup)
-      (cljs/watch-and-repeat!
-        (fn [state modified]
-          (-> state
-              (cond->
-                ;; first pass, run all tests
-                (empty? modified)
-                (node/execute-all-tests!)
-                ;; only execute tests that might have been affected by the modified files
-                (not (empty? modified))
-                (node/execute-affected-tests! modified))
-              )))))
-
-(defn test-all []
-  (api/test-all))
-
 (comment
+  (defn autotest
+    "no way to interrupt this, don't run this in nREPL"
+    []
+    (-> (api/test-setup)
+        (cljs/watch-and-repeat!
+          (fn [state modified]
+            (-> state
+                (cond->
+                  ;; first pass, run all tests
+                  (empty? modified)
+                  (node/execute-all-tests!)
+                  ;; only execute tests that might have been affected by the modified files
+                  (not (empty? modified))
+                  (node/execute-affected-tests! modified))
+                )))))
+
+  (defn test-all []
+    (api/test-all))
+
   (defn test-affected [test-ns]
     (api/test-affected [(cljs/ns->cljs-file test-ns)])))

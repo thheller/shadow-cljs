@@ -1,17 +1,15 @@
 (ns shadow.cljs.devtools.server.worker
   (:refer-clojure :exclude (compile))
   (:require [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
+            [clojure.tools.logging :as log]
+            [clojure.java.io :as io]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.cljs.devtools.server.worker.impl :as impl]
             [shadow.cljs.devtools.server.util :as util]
-            [aleph.netty :as netty]
-            [aleph.http :as aleph]
-            [clojure.tools.logging :as log]
-            [clojure.java.io :as io]
             [shadow.cljs.devtools.server.web.common :as common]
-            [ring.middleware.file :as ring-file]
-            [ring.middleware.file-info :as ring-file-info])
+            [shadow.build.classpath :as cp]
+            [shadow.build.npm :as npm])
   (:import (java.util UUID)))
 
 (defn get-status [{:keys [status-ref] :as proc}]
@@ -30,7 +28,7 @@
 (defn watch
   "watch all output produced by the worker"
   ([proc chan]
-   (watch proc chan true))
+   (impl/watch proc chan true))
   ([proc chan close?]
    (impl/watch proc chan close?)))
 
@@ -84,27 +82,18 @@
 
 ;; SERVICE API
 
-(defn disable-all-kinds-of-caching [handler]
-  ;; this is strictly a dev server and caching is not wanted for anything
-  ;; basically emulates having devtools open with "Disable cache" active
-  (fn [req]
-    (-> req
-        (handler)
-        (update-in [:headers] assoc
-          "cache-control" "max-age=0, no-cache, no-store, must-revalidate"
-          "pragma" "no-cache"
-          "expires" "0"))))
-
 (defn start
-  [system-bus executor http build-config]
+  [system-bus executor http classpath npm {:keys [build-id] :as build-config}]
   {:pre [(map? http)
          (map? build-config)
-         (keyword? (:id build-config))]}
+         (cp/service? classpath)
+         (npm/service? npm)
+         (keyword? build-id)]}
 
   (let [proc-id
         (UUID/randomUUID) ;; FIXME: not really unique but unique enough
 
-        _ (log/debug ::start (:id build-config) proc-id)
+        _ (log/debug ::start build-id proc-id)
 
         ;; closed when the proc-stops
         ;; nothing will ever be written here
@@ -132,7 +121,10 @@
         ;; if the buffer is too small we may miss an update
         ;; ideally this would accumulate all updates into one but not sure how to go about that
         ;; (would need to track busy state of worker)
-        cljs-watch
+        resource-update
+        (async/chan (async/sliding-buffer 10))
+
+        macro-update
         (async/chan (async/sliding-buffer 10))
 
         ;; same deal here, 1 msg is sent per build so this may produce many messages
@@ -143,49 +135,18 @@
         {:proc-stop proc-stop
          :proc-control proc-control
          :output output
-         :cljs-watch cljs-watch
+         :resource-update resource-update
+         :macro-update macro-update
          :config-watch config-watch}
 
         status-ref
         (volatile! {:status :started})
 
-        http-server
-        (when-let [http-root (get-in build-config [:devtools :http-root])]
-          (let [port (get-in build-config [:devtools :http-port] 0)
-
-                root-dir
-                (io/file http-root)]
-
-            (when-not (.exists root-dir)
-              (io/make-parents (io/file root-dir "index.html")))
-
-            (let [http-handler
-                  (-> common/not-found
-                      (ring-file/wrap-file root-dir {:allow-symlinks? true
-                                                     :index-files? true})
-                      (ring-file-info/wrap-file-info
-                        ;; source maps
-                        {"map" "application/json"})
-                      (disable-all-kinds-of-caching))
-
-                  instance
-                  (aleph/start-server http-handler
-                    {:port port
-                     :executor executor
-                     :shutdown-executor? false})
-
-                  port
-                  (netty/port instance)]
-
-              ;; FIXME: this should show a proper message somewhere
-              ;; worker clients are not listening yet so cannot use output channel
-              (log/info ::http-serve {:http-port port :http-root http-root})
-
-              instance)))
-
         thread-state
         {::impl/worker-state true
          :http http
+         :classpath classpath
+         :npm npm
          :proc-id proc-id
          :build-config build-config
          :status-ref status-ref
@@ -196,7 +157,7 @@
          :channels channels
          :system-bus system-bus
          :executor executor
-         :compiler-state nil}
+         :build-state nil}
 
         state-ref
         (volatile! thread-state)
@@ -207,7 +168,8 @@
           thread-state
           {proc-stop nil
            proc-control impl/do-proc-control
-           cljs-watch impl/do-cljs-watch
+           resource-update impl/do-resource-update
+           macro-update impl/do-macro-update
            config-watch impl/do-config-watch}
           {:validate
            impl/worker-state?
@@ -231,28 +193,26 @@
          :proc-stop proc-stop
          :proc-id proc-id
          :proc-control proc-control
-         :http-server http-server
          :system-bus system-bus
-         :cljs-watch cljs-watch
+         :resource-update resource-update
+         :macro-update macro-update
          :output output
          :output-mult output-mult
          :thread-ref thread-ref
          :state-ref state-ref
          :status-ref status-ref}]
 
-    (sys-bus/sub system-bus ::sys-msg/cljs-watch cljs-watch)
-    (sys-bus/sub system-bus [::sys-msg/config-watch (:id build-config)] config-watch)
+    (sys-bus/sub system-bus ::sys-msg/resource-update resource-update)
+    (sys-bus/sub system-bus ::sys-msg/macro-update macro-update)
+    (sys-bus/sub system-bus [::sys-msg/config-watch build-id] config-watch)
 
     ;; ensure all channels are cleaned up properly
     (go (<! thread-ref)
-        ;; FIXME: I think unsub happens automatically if we close the channel, need to confirm
-        (log/debug ::stop (:id build-config) proc-id)
-        (sys-bus/unsub system-bus ::sys-msg/cljs-watch cljs-watch)
-        (when http-server
-          (.close http-server))
         (async/close! output)
         (async/close! proc-stop)
-        (async/close! cljs-watch))
+        (async/close! resource-update)
+        (async/close! macro-update)
+        (log/debug ::stop build-id proc-id))
 
     worker-proc))
 
