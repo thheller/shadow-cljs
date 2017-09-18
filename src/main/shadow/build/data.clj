@@ -86,14 +86,7 @@
                 :require require
                 :sym sym})))
 
-  ;; FIXME: properly identify what :js-module-index is supposed to be
-  ;; this needs to export any aliases we make so (:require ["some-package" :as x]) (x) works
-  ;; "some-package" will be aliased to something and if it just exports a function we need to be
-  ;; able to call it. CLJS does not allow calling aliases directly, so we only do this for strings
-  ;; this is independent from the :requires alias we emit in the ns form
-  (-> state
-      (update-in [:compiler-env :js-module-index] assoc (str sym) sym)
-      (update :string->sym assoc [require-from-ns require] sym)))
+  (update state :string->sym assoc [require-from-ns require] sym))
 
 (defn get-string-alias [state require-from-ns require]
   {:pre [(symbol? require-from-ns)
@@ -141,14 +134,19 @@
                (throw (ex-info (format "no source by name: %s" name) {:name name})))]
     (get-source-by-id state id)))
 
-(defn get-source-by-provide [state provide]
+(defn get-source-id-by-provide [state provide]
   {:pre [(symbol? provide)]}
-  (let [id (or (get-in state [:virtual-provides provide])
-               (get-in state [:sym->id provide])
-               (throw (ex-info (format "no source by provide: %s" provide) {:provide provide})))]
+  (or (get-in state [:virtual-provides provide])
+      (get-in state [:sym->id provide])
+      (throw (ex-info (format "no source by provide: %s" provide) {:provide provide}))))
+
+(defn get-source-by-provide [state provide]
+  (let [id (get-source-id-by-provide state provide)]
     (get-source-by-id state id)))
 
 (defn get-output! [state {:keys [resource-id] :as rc}]
+  {:pre [(map? rc)
+         (rc/valid-resource-id? resource-id)]}
   (or (get-in state [:output resource-id])
       (throw (ex-info (format "no output for id: %s" resource-id) {:resource-id resource-id}))))
 

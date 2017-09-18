@@ -69,6 +69,13 @@
 (defmethod find-resource-for-string :closure [state {:keys [file] :as require-from} require]
   (npm/find-resource (:npm state) file require))
 
+(def native-node-modules
+  #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
+    "constants" "crypto" "_debugger" "dgram" "dns" "domain" "events" "freelist"
+    "fs" "http" "https" "_linklist" "module" "net" "os" "path" "punycode"
+    "querystring" "readline" "repl" "stream" "string_decoder" "sys" "timers"
+    "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
+
 (defmethod find-resource-for-string :require
   [{:keys [project-dir] :as state} require-from require]
   (cond
@@ -90,7 +97,8 @@
       ;; I hate magic symbols buts its the way chosen by CLJS
       ;; so if the package is configured or exists in node_modules we allow it
       ;; FIXME: actually use configuration from :packages to use globals and such
-      (when (or (contains? js-packages package-name)
+      (when (or (contains? native-node-modules package-name)
+                (contains? js-packages package-name)
                 (npm/find-package (:npm state) package-name))
         (js-support/shim-require-resource require))
       )))

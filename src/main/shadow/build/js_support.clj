@@ -24,6 +24,10 @@
      :ns js-ns-alias
      :provides #{js-ns-alias}
      :requires #{}
+     :deps '[goog]
+     ;; for :npm-module support since we don't have a property to export
+     ;; but need to export the entire "ns" which is just the result of require
+     :export-self true
      ;; we emit this as a goog.provide so it the same code can be used for :advanced
      ;; as it won't touch the require call unless specifically told to
      :source (str "goog.provide(\"" js-ns-alias "\");\n"

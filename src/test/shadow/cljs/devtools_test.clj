@@ -192,6 +192,12 @@
 (deftest test-library
   (api/compile :library))
 
+(deftest test-npm
+  (api/compile :npm))
+
+(deftest test-npm-release
+  (api/release :npm))
+
 (deftest test-build-with-reagent
   (try
     (api/compile*

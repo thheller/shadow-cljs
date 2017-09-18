@@ -467,12 +467,12 @@
        (if (= 'cljs.core name)
          ns-info
          (-> ns-info
-             (update :requires assoc 'cljs.core 'cljs.core)
+             (update :requires assoc 'cljs.core 'cljs.core 'goog 'goog)
              ;; FIXME: this might blow up CLJS since it has all kinds of special cases for cljs.core
              (update :require-macros assoc 'cljs.core 'cljs.core)
              (update :deps
                (fn [deps]
-                 (->> (concat '[cljs.core] deps)
+                 (->> (concat '[goog cljs.core] deps)
                       ;; just in case someone manually required cljs.core
                       (distinct)
                       (into [])

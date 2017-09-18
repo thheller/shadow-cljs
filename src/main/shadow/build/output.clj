@@ -31,6 +31,7 @@
 
 (def goog-base-id
   ;; can't alias due to cyclic dependency, this sucks
+  ;; goog/base.js is treated special in several cases
   [:shadow.build.classpath/resource "goog/base.js"])
 
 (defn closure-defines-and-base [{:keys [asset-path cljs-runtime-path] :as state}]
@@ -389,8 +390,12 @@
       (subs s 0 idx)
       s)))
 
-(defn js-module-src-prepend [state {:keys [resource-name output-name provides requires deps] :as src} require?]
-  (let [roots (into #{"goog"} (map js-module-root) requires)]
+(defn js-module-src-prepend [state {:keys [resource-id resource-name output-name provides requires deps] :as src} require?]
+  (let [dep-syms
+        (data/deps->syms state src)
+
+        roots
+        (into #{"goog"} (map js-module-root) dep-syms)]
 
     (str (when require?
            "var $CLJS = require(\"./cljs_env\");\n")
@@ -400,17 +405,19 @@
            "var COMPILED = false;\n")
 
          (when require?
-           (->> deps
+           ;; emit requires to actual files to ensure that they were loaded properly
+           ;; can't ensure that the files were loaded before this as goog.require would
+           (->> dep-syms
                 (remove #{'goog})
-                (map (fn [sym]
-                       (get-in state [:provide->source sym])))
+                (map #(data/get-source-id-by-provide state %))
                 (distinct)
-                (map #(get-in state [:sources %]))
+                (map #(data/get-source-by-id state %))
                 (remove util/foreign?)
-                (map (fn [{:keys [output-name]}]
+                (map (fn [{:keys [output-name] :as x}]
                        (str "require(\"./" output-name "\");")))
                 (str/join "\n")))
          "\n"
+
          ;; require roots will exist
          (->> roots
               (map (fn [root]
@@ -451,13 +458,14 @@
        ;; the global must be overriden in goog/base.js since it contains some
        ;; goog.define(...) which would otherwise be exported to "this"
        ;; but we need it on $CLJS
-       (-> @(get-in state [:sources "goog/base.js" :input])
+       (-> (data/get-output! state {:resource-id goog-base-id})
+           (get :js)
            (str/replace "goog.global = this;" "goog.global = $CLJS;"))
 
        ;; set global back to actual global so things like setTimeout work
        "\ngoog.global = CLJS_GLOBAL;"
 
-       (slurp (io/resource "shadow/cljs/devtools/targets/npm_module_goog_overrides.js"))
+       (slurp (io/resource "shadow/build/targets/npm_module_goog_overrides.js"))
        "\nmodule.exports = $CLJS;\n"
        ))
 
@@ -481,6 +489,7 @@
         (spit env-file env-content))
 
       (doseq [src-id (:build-sources state)
+              :when (not= src-id goog-base-id)
               :let [src (get-in state [:sources src-id])]
               :when (not (util/foreign? src))]
 

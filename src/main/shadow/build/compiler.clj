@@ -20,7 +20,8 @@
             [shadow.build.ns-form :as ns-form]
             [shadow.build.data :as data]
             [shadow.build.closure :as closure]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [cljs.compiler :as cljs-comp])
   (:import (java.util.concurrent ExecutorService Executors)
            (java.io File StringReader PushbackReader StringWriter)))
 
@@ -179,7 +180,8 @@
   ;; keeping them for CLJS for now although they are not needed in JS mode
   #_(when (= :goog (get-in state [:build-options :module-format])))
   (comp/emitln "goog.provide('" (comp/munge name) "');")
-  (doseq [dep deps]
+  (doseq [dep deps
+          :when (not= 'goog dep)]
     (comp/emitln "goog.require('" (comp/munge dep) "');")))
 
 (defn default-compile-cljs

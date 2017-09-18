@@ -186,14 +186,14 @@
 
 
 
-(deftest test-file-relativize
-  (let [rel
-        (res/relative-path-from-dir
-          (io/file "node_modules/shadow-cljs")
-          (io/file "src/main/demo/foo.cljs")
-          "./bar")]
+#_(deftest test-file-relativize
+    (let [rel
+          (res/relative-path-from-dir
+            (io/file "node_modules/shadow-cljs")
+            (io/file "src/main/demo/foo.cljs")
+            "./bar")]
 
-    (is (= "../../src/main/demo/bar" rel))))
+      (is (= "../../src/main/demo/bar" rel))))
 
 (defn check [spec form]
   (s/explain spec form)

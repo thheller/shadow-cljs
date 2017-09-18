@@ -199,7 +199,7 @@
             (get-in state [:compiler-options :externs])
             ;; needed to get rid of process/global errors in cljs/core.cljs
             ["shadow/cljs/externs/node.js"
-             #_"shadow/cljs/externs/process.js"]
+             "shadow/cljs/externs/process.js"]
             (when (= :js (get-in state [:build-options :module-format]))
               ["shadow/cljs/externs/npm.js"])))
 
@@ -344,70 +344,60 @@
   (warnings/print-warnings warnings))
 
 (defn js-error-xf [state ^com.google.javascript.jscomp.Compiler cc]
-  (comp
-    ;; remove some annoying UNDECLARED_VARIABLES in cljs/core.cljs
-    ;; these are only used in self-hosted but I don't want to provide externs for them in browser builds
-    #_(remove
-        (fn [^JSError err]
-          (and (= "cljs/core.js" (.-sourceName err))
-               (let [text (.-description err)]
-                 (or (= "variable process is undeclared" text)
-                     (= "variable global is undeclared" text))))))
-    (map
-      (fn [^JSError err]
-        (let [source-name
-              (.-sourceName err)
+  (map (fn [^JSError err]
+         (let [source-name
+               (.-sourceName err)
 
-              line
-              (.getLineNumber err)
+               line
+               (.getLineNumber err)
 
-              column
-              (.getCharno err)
+               column
+               (.getCharno err)
 
-              mapping
-              (.getSourceMapping cc source-name line column)
+               mapping
+               (.getSourceMapping cc source-name line column)
 
-              src
-              (when mapping
-                (let [src-name (.getOriginalFile mapping)]
-                  (data/get-source-by-name state src-name)))]
+               src
+               (when mapping
+                 (let [src-name (.getOriginalFile mapping)]
+                   (data/get-source-by-name state src-name)))]
 
-          (if-not mapping
-            ;; FIXME: add source-excerpt if src wasn't CLJS
-            {:resource-name source-name
-             :source-name source-name
-             :line line
-             :column column
-             :msg (.-description err)}
+           (if-not mapping
+             ;; FIXME: add source-excerpt if src wasn't CLJS
+             {:resource-name source-name
+              :source-name source-name
+              :line line
+              :column column
+              :msg (.-description err)}
 
-            (let [{:keys [resource-id resource-name file url]} src
+             (let [{:keys [resource-id resource-name file url]} src
 
-                  file
-                  (or (when file (.getAbsolutePath file))
-                      (let [x (str url)]
-                        (if-let [idx (str/index-of x ".m2")]
-                          (str "~/" (subs x idx))
-                          x))
-                      (.getOriginalFile mapping))
+                   file
+                   (or (when file (.getAbsolutePath file))
+                       (let [x (str url)]
+                         (if-let [idx (str/index-of x ".m2")]
+                           (str "~/" (subs x idx))
+                           x))
+                       (.getOriginalFile mapping))
 
-                  line
-                  (.getLineNumber mapping)
+                   line
+                   (.getLineNumber mapping)
 
-                  column
-                  (.getColumnPosition mapping)
+                   column
+                   (.getColumnPosition mapping)
 
-                  source-excerpt
-                  (warnings/get-source-excerpt state src {:line line :column column})]
+                   source-excerpt
+                   (warnings/get-source-excerpt state src {:line line :column column})]
 
-              {:resource-id resource-id
-               :resource-name resource-name
-               :source-name source-name
-               :file file
-               :line line
-               :column column
-               :msg (.-description err)
-               :source-excerpt source-excerpt}
-              )))))))
+               {:resource-id resource-id
+                :resource-name resource-name
+                :source-name source-name
+                :file file
+                :line line
+                :column column
+                :msg (.-description err)
+                :source-excerpt source-excerpt}
+               ))))))
 
 (defn add-input-source-maps [{:keys [build-sources] :as state} cc]
   (doseq [src-id build-sources]
@@ -531,26 +521,32 @@
 
     (assoc state ::modules modules)))
 
+(defn as-module-exports [defs]
+  (when (seq defs)
+    (str "\nmodule.exports={" defs "};")))
+
 (defn make-js-module-per-source
   [{:keys [compiler-env build-sources] :as state}]
 
-  (let [base
-        (doto (JSModule. "goog.base.js")
-          (.add (SourceFile/fromCode "goog.base.js"
-                  (str (output/closure-defines-and-base state)
-                       goog-nodeGlobalRequire-fix))))
-
-        js-mods
+  (let [js-mods
         (reduce
           (fn [js-mods resource-id]
             (let [{:keys [ns deps output-name] :as src}
                   (data/get-source-by-id state resource-id)
 
                   {:keys [js] :as output}
-                  (data/get-output! state resource-id)
+                  (data/get-output! state {:resource-id resource-id})
 
                   defs
-                  (when ns
+                  (cond
+                    ;; special case for js shim namespaces
+                    (:export-self src)
+                    (str "\nmodule.exports=" ns ";")
+
+                    ;; for every CLJS namespace, collect every ^:export def
+                    ;; and copy them to module.exports, the goog.export... will be removed
+                    ;; as that exports to global which is not what we want
+                    ns
                     (->> (get-in compiler-env [::ana/namespaces ns :defs])
                          (vals)
                          (filter #(get-in % [:meta :export]))
@@ -559,34 +555,39 @@
                                 (let [export-name
                                       (-> def name str comp/munge pr-str)]
                                   (str export-name ":" (comp/munge def)))))
-                         (str/join ",")))
+                         (str/join ",")
+                         (as-module-exports))
+
+                    :else
+                    nil)
+
+                  base?
+                  (= output/goog-base-id resource-id)
 
                   code
-                  (str (if (util/foreign? src)
-                         (make-foreign-js-header src)
-                         js)
-                       ;; module.exports will become window.module.exports, rewritten later
+                  (str (when base?
+                         (output/closure-defines state))
+                       js
+                       (when base?
+                         goog-nodeGlobalRequire-fix)
+                       ;; FIXME: module.exports will become window.module.exports, rewritten later
                        (when (seq defs)
-                         (str "\nmodule.exports={" defs "};")))
+                         defs))
 
                   js-mod
                   (doto (JSModule. (util/flat-filename output-name))
                     (.add (SourceFile/fromCode output-name code)))]
 
-              #_(let [file (io/file "target" "npm-bug" output-name)]
-                  (io/make-parents file)
-                  (spit file code))
-
-              ;; everything depends on goog/base.js
-              (.addDependency js-mod base)
-
               (doseq [dep
-                      (->> deps
-                           (remove '#{goog})
-                           (map #(get-in state [:provide->source %]))
+                      (->> (data/deps->syms state src)
+                           (map #(data/get-source-id-by-provide state %))
                            (distinct)
                            (into []))]
+
                 (let [other-mod (get js-mods dep)]
+                  (when-not other-mod
+                    (throw (ex-info (format "internal module error, no mod for dep:%s" dep)
+                             {:dep dep})))
                   (.addDependency js-mod other-mod)))
 
               (assoc js-mods resource-id js-mod)))
@@ -602,10 +603,7 @@
                        :output-name (util/flat-filename (:output-name src))
                        :js-module (get js-mods resource-id)
                        :sources [resource-id]})))
-             (into [{:name "goog/base.js"
-                     :output-name "goog.base.js"
-                     :js-module base
-                     :sources ["goog/base.js"]}]))]
+             (into []))]
 
     (assoc state ::modules modules)))
 
@@ -631,9 +629,6 @@
           ;; (js/React...) will otherwise just work without externs
           (.setWarningLevel DiagnosticGroups/UNDEFINED_VARIABLES CheckLevel/WARNING))]
 
-    ;; FIXME: make-options already called set-options
-    ;; but I want to reset warnings and enable UNDEFINED_VARIABLES
-    ;; calling set-options again so user :closure-warnings works
     (set-options closure-opts compiler-options)
 
     (when source-map?
