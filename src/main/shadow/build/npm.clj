@@ -133,24 +133,20 @@
   ;; https://github.com/technomancy/leiningen/wiki/Repeatability
 
   (let [package-dir
-        (io/file node-modules-dir package-name)
+        (io/file node-modules-dir package-name)]
 
-        _ (when-not (.exists package-dir)
-            (throw (ex-info (format "could not find npm package: %s" package-name)
-                     {:tag ::missing-package
-                      :package-name package-name})))
+    (when (.exists package-dir)
 
-        package-json-file
-        (io/file package-dir "package.json")]
+      (let [package-json-file
+            (io/file package-dir "package.json")]
 
-    (when-not (.exists package-json-file)
-      (throw (ex-info (format "cannot find package.json for package %s at %s" package-name package-json-file)
-               {:tag ::missing-package-json
-                :package-name package-name
-                :package-json-file package-json-file})))
+        (when-not (.exists package-json-file)
+          (throw (ex-info (format "cannot find package.json for package %s at %s" package-name package-json-file)
+                   {:tag ::missing-package-json
+                    :package-name package-name
+                    :package-json-file package-json-file})))
 
-    (read-package-json npm package-json-file)
-    ))
+        (read-package-json npm package-json-file)))))
 
 (defn find-package [{:keys [index-ref] :as npm} package-name]
   {:pre [(string? package-name)
@@ -188,6 +184,9 @@
         (find-package npm package-name)]
 
     (cond
+      (nil? package)
+      nil
+
       ;; "react-dom", use entry-file
       (nil? suffix)
       (let [entries
@@ -437,9 +436,8 @@
              (instance? File require-from))
          (string? require)
          (map? require-ctx)]}
-  (when-let [file (-> (find-require npm require-from require)
-                      (maybe-browser-swap npm require-ctx))]
-    (get-file-info npm file)))
+  (when-let [file (find-require npm require-from require)]
+    (get-file-info npm (maybe-browser-swap file npm require-ctx ))))
 
 ;; FIXME: allow configuration of :extensions :main-keys
 ;; maybe some closure opts

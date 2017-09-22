@@ -2,6 +2,7 @@
   (:require-macros [demo.browser :refer (test-macro)])
   (:require ["react" :as react :refer (createElement)]
             ["react-dom" :as rdom :refer (render)]
+            ["shortid" :as sid]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
@@ -12,6 +13,8 @@
 (goog-define FOO "foo")
 
 (prn :foo :bar)
+
+(js/console.log "shortid" (sid))
 
 (js/console.log "react cljsjs" (identical? js/React react))
 

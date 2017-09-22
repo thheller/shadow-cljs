@@ -43,6 +43,15 @@
 
       )))
 
+(deftest test-missing-package
+  (with-npm [x {}]
+    (let [rc
+          (npm/find-resource x nil "i-dont-exist" {:target :browser})]
+
+      (is (nil? rc))
+      )))
+
+
 (deftest test-relative-file
   (with-npm [x {}]
     (let [file
