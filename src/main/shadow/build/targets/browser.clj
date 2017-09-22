@@ -256,7 +256,7 @@
 
           (and (= :dev mode) (:worker-info state))
           (-> (repl/setup)
-              (update :closure-defines merge (shared/repl-defines state config))))
+              (update-in [:compiler-options :closure-defines] merge (shared/repl-defines state config))))
 
         (configure-modules mode config)
         )))
@@ -427,8 +427,18 @@
                           ;; browserify is quite slow and js packages shouldn't change very frequently
                           (when (or (not js-index-cached?)
                                     (not (.exists include-file)))
-                            (let [browserify-cmd
-                                  (-> ["./node_modules/.bin/browserify"]
+
+                            (let [executable
+                                  ;; npm and yarn handle installing bin files differenly for dependencies
+                                  ;; so use the first thing that exists
+                                  (->> ["./node_modules/.bin/browserify" ;; npm
+                                        "./node_modules/shadow-cljs/node_modules/.bin/browserify"] ;; yarn
+                                       (filter #(.exists (io/file %)))
+                                       (first))
+
+                                  ;; if neither exists attempt to use the global command
+                                  browserify-cmd
+                                  (-> [(or executable "browserify")]
                                       (cond->
                                         dev?
                                         (conj "-d"))

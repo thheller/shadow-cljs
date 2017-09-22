@@ -215,17 +215,18 @@
           (= :dev mode)
           (-> (build-api/enable-source-maps)
               (build-api/with-build-options
-                {:use-file-min false
-                 :closure-defines {"goog.DEBUG" true}})
+                {:use-file-min false})
               (build-api/with-compiler-options
-                {:optimizations :none}))
+                {:optimizations :none
+                 :closure-defines {"goog.DEBUG" true}}))
 
           ;; generic release mode
           (= :release mode)
           (-> (build-api/with-compiler-options
                 {:optimizations :advanced
                  :elide-asserts true
-                 :pretty-print false}))
+                 :pretty-print false
+                 :closure-defines {"goog.DEBUG" false}}))
 
           closure-defines
           (build-api/with-compiler-options {:closure-defines closure-defines})

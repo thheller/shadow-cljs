@@ -11,7 +11,7 @@
 
 (goog-define FOO "foo")
 
-(prn :foo)
+(prn :foo :bar)
 
 (js/console.log "react cljsjs" (identical? js/React react))
 
