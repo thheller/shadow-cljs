@@ -99,7 +99,11 @@
       ;; FIXME: actually use configuration from :packages to use globals and such
       (when (or (contains? native-node-modules package-name)
                 (contains? js-packages package-name)
-                (npm/find-package (:npm state) package-name))
+                (try
+                  ;; FIXME: this should return nil instead of throwing
+                  (npm/find-package (:npm state) package-name)
+                  (catch Exception e
+                    nil)))
         (js-support/shim-require-resource require))
       )))
 

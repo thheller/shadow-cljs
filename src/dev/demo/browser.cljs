@@ -8,9 +8,13 @@
 
 (assoc nil :foo 1)
 
+(goog-define FOO "foo")
+
 (prn :foo)
 
 (js/console.log "demo.browser" react rdom Component)
+
+(js/console.log "foo" FOO)
 
 (s/def ::foo string?)
 

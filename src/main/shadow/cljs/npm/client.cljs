@@ -2,7 +2,7 @@
   (:require [cljs.reader :as reader]
             ["readline" :as rl]
             ["net" :as node-net]
-            [shadow.build.npm.util :as util]
+            [shadow.cljs.npm.util :as util]
             [clojure.string :as str]))
 
 (defn run [project-root config server-pid args]

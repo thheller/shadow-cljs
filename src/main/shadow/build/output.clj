@@ -10,14 +10,14 @@
   (:import (java.io StringReader BufferedReader File)
            (java.util Base64)))
 
-(defn closure-defines-json [{:keys [closure-defines] :as state}]
+(defn closure-defines-json [state]
   (let [closure-defines
         (reduce-kv
           (fn [def key value]
             (let [key (if (symbol? key) (str (comp/munge key)) key)]
               (assoc def key value)))
           {}
-          closure-defines)]
+          (get-in state [:compiler-options :closure-defines] {}))]
 
     (json/write-str closure-defines :escape-slashes false)))
 

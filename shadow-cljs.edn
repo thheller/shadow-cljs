@@ -1,6 +1,9 @@
 {:lein
  {:profile "+cljs"}
 
+ ;; target/shadow-cljs gets deleted by lein frequently which is rather annoying
+ :cache-root ".shadow-cljs"
+
  ;;  :dev-mode true
  :verbose true
  :debug true
@@ -36,7 +39,7 @@
    :devtools
    {:enabled false}
    :closure-defines
-   {shadow.cljs.npm.cli/jar-version "1.0.20170803"}}
+   {shadow.cljs.npm.cli/jar-version "2.0.0-alpha3"}}
 
   {:id :ui
    :target :browser
@@ -74,7 +77,8 @@
     {:global-this :off}
 
     :closure-defines
-    {process.env.NODE_ENV "production"}}
+    {process.env.NODE_ENV "production"
+     demo.browser/FOO "bar"}}
 
    :module-loader false
    :modules
@@ -108,7 +112,7 @@
      :web-worker true}}
 
    :js-options
-   {:js-provider :closure}
+   {:js-provider :require}
 
    :devtools
    {:http-root "out/demo-browser/public"
