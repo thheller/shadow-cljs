@@ -67,7 +67,9 @@
   (throw (ex-info "invalid [:js-options :js-provider] config" {})))
 
 (defmethod find-resource-for-string :closure [state {:keys [file] :as require-from} require]
-  (npm/find-resource (:npm state) file require))
+  ;; FIXME: hard-coded browser target
+  ;; since :closure mode should only be used in :browser that is fine for now
+  (npm/find-resource (:npm state) file require {:target :browser}))
 
 (def native-node-modules
   #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"

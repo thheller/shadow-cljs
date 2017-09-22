@@ -332,6 +332,7 @@
         {:test {:entries [#_ "jquery" ;; cant remove UMD
                           #_ "animated/lib/targets/react-dom" ;; internal compiler error
                           #_ "bootstrap" ;; expects global jQuery, wrapped IIFE, not properly converted
+                          "shortid"
                           ]}}
 
         :js-options

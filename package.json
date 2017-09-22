@@ -24,6 +24,7 @@
     "react": "^15.6.1",
     "react-dom": "^15.6.1",
     "readline-sync": "^1.4.7",
+    "shortid": "^2.2.8",
     "styled-components": "^2.1.1",
     "uglifyify": "^4.0.3",
     "webpack": "^3.5.5"

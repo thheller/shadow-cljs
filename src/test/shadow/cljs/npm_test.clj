@@ -15,7 +15,7 @@
 (deftest test-package-info
   (with-npm [x {}]
     (let [file
-          (npm/find-require x nil "react")
+          (npm/find-require x nil "shortid")
 
           {:keys [package-name] :as file-info}
           (npm/get-file-info x file)
@@ -25,7 +25,22 @@
 
       (prn file)
       (pprint file-info)
-      (pprint pkg-info)
+      (pprint (dissoc pkg-info :package-json))
+      )))
+
+(deftest test-browser-overrides
+  (with-npm [x {}]
+    (let [index
+          (-> (io/file "node_modules" "shortid" "lib" "index.js")
+              (.getAbsoluteFile))
+
+          _ (is (.exists index))
+
+          rc
+          (npm/find-resource x index "./util/cluster-worker-id" {:target :browser})]
+
+      (pprint rc)
+
       )))
 
 (deftest test-relative-file
@@ -47,7 +62,7 @@
               (.getAbsoluteFile))
 
           rel-file
-          (npm/find-relative x file "../core-js/symbol")
+          (npm/find-relative x {:file file} "../core-js/symbol")
 
           file-info
           (npm/get-file-info* x file)]

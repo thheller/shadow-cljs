@@ -18,6 +18,27 @@
 (defn service? [x]
   (and (map? x) (::service x)))
 
+(defn make-browser-overrides [package-name package-dir overrides]
+  (reduce-kv
+    (fn [out from to]
+      (let [from-file
+            (-> (io/file package-dir from)
+                (.getCanonicalFile))
+
+            to-file
+            (-> (io/file package-dir to)
+                (.getCanonicalFile))]
+
+        (when-not (.exists from-file)
+          (throw (ex-info (format "package %s tries to map %s but it doesn't exist" package-name from) {:from from :to to :package-name package-name})))
+
+        (when-not (.exists to-file)
+          (throw (ex-info (format "package %s tries to map %s to %s but it doesn't exist" package-name from to) {:from from :to to :package-name package-name})))
+
+        (assoc out from-file to-file)))
+    {}
+    overrides))
+
 (defn read-package-json
   "this caches the contents package.json files since we may access them quite often when resolving deps"
   [{:keys [index-ref] :as state} ^File file]
@@ -25,16 +46,64 @@
 
         cached
         (get-in @index-ref [:package-json-cache file])]
+
     (if (and cached (= last-modified (:last-modified cached)))
       (:content cached)
-      (let [content
+      (let [{:strs [dependencies name version browser] :as package-json}
             (-> (slurp file)
-                (json/read-str))]
+                (json/read-str))
+
+            package-dir
+            (.getParentFile file)
+
+            content
+            (-> {:package-name name
+                 :package-dir package-dir
+                 :package-json package-json
+                 :version version
+                 :dependencies (into #{} (keys dependencies))}
+                (cond->
+                  (string? browser)
+                  (assoc :browser browser)
+                  (map? browser)
+                  (assoc :browser-overrides (make-browser-overrides name package-dir browser))))
+            ]
 
         (swap! index-ref assoc-in [:package-json-cache file] {:content content
                                                               :last-modified last-modified})
         content
         ))))
+
+(defn find-package-json [file]
+  (loop [root (if (.isDirectory file)
+                (.getParentFile file)
+                file)]
+    (when root
+      (let [package-json (io/file root "package.json")]
+        (if (and (.exists package-json)
+                 (.isFile package-json))
+          package-json
+          (recur (.getParentFile root))
+          )))))
+
+(defn find-package-for-file [npm file]
+  (when-let [package-json-file (find-package-json file)]
+    (read-package-json npm package-json-file)))
+
+(defn maybe-browser-swap [file npm {:keys [target] :as require-ctx}]
+  (let [{:keys [browser-overrides] :as package}
+        (find-package-for-file npm file)]
+
+    (prn [:checking file target browser-overrides])
+    (cond
+      (not= :browser target)
+      file
+
+      (nil? browser-overrides)
+      file
+
+      :else
+      (get browser-overrides file file))))
 
 (defn test-file ^File [^File dir name]
   (when name
@@ -52,7 +121,9 @@
     nil
     extensions))
 
-(defn find-package* [{:keys [node-modules-dir main-keys] :as npm} package-name]
+
+
+(defn find-package* [{:keys [node-modules-dir] :as npm} package-name]
   ;; this intentionally only checks
   ;; $PROJECT_ROOT/node_modules/package-name
   ;; never
@@ -78,42 +149,8 @@
                 :package-name package-name
                 :package-json-file package-json-file})))
 
-    (let [{:strs [dependencies name version] :as package-json}
-          (read-package-json npm package-json-file)
-
-          entries
-          (->> main-keys
-               (map #(get package-json %))
-               (remove nil?)
-               (into []))
-
-          [entry entry-file]
-          (or (reduce
-                (fn [_ entry]
-                  (when-let [file (or (test-file package-dir entry)
-                                      ;; some libs have main:"some/dir/foo" without the .js
-                                      (test-file-exts npm package-dir entry))]
-
-                    (reduced [entry file])))
-                nil
-                ;; we only want the first one in case more exist
-                entries)
-
-              ;; FIXME: test-file-exts may have chosen index.json, not index.js
-              ["index.js"
-               (test-file-exts npm package-dir "index")])]
-
-      {:package-name name
-       :package-dir package-dir
-       :package-json package-json
-       ;; in case a package.json has "main", "module", "browser" and other entries
-       ;; we need to remember which one we have chosen
-       :entries entries
-       :entry-file entry-file
-       :entry entry
-       :version version
-       :dependencies (into #{} (keys dependencies))}
-      )))
+    (read-package-json npm package-json-file)
+    ))
 
 (defn find-package [{:keys [index-ref] :as npm} package-name]
   {:pre [(string? package-name)
@@ -147,19 +184,41 @@
   (let [[package-name suffix]
         (split-package-require require)
 
-        {:keys [package-dir entry-file] :as package}
+        {:keys [package-dir package-json entry-file] :as package}
         (find-package npm package-name)]
 
     (cond
       ;; "react-dom", use entry-file
       (nil? suffix)
-      (if-not entry-file
-        (throw (ex-info
-                 (format "module without entry or suffix: %s" require)
-                 {:package package
-                  :entry require}))
+      (let [entries
+            (->> (:main-keys npm)
+                 (map #(get package-json %))
+                 (remove nil?)
+                 (into []))
 
-        entry-file)
+            [entry entry-file]
+            (or (reduce
+                  (fn [_ entry]
+                    (when-let [file (or (test-file package-dir entry)
+                                        ;; some libs have main:"some/dir/foo" without the .js
+                                        (test-file-exts npm package-dir entry))]
+
+                      (reduced [entry file])))
+                  nil
+                  ;; we only want the first one in case more exist
+                  entries)
+
+                ;; FIXME: test-file-exts may have chosen index.json, not index.js
+                ["index.js"
+                 (test-file-exts npm package-dir "index")])]
+
+        (if-not entry-file
+          (throw (ex-info
+                   (format "module without entry or suffix: %s" require)
+                   {:package package
+                    :entry require}))
+
+          entry-file))
 
       ;; "react-dom/server" -> react-dom/server.js
       ;; "core-js/library/fn-symbol" is a directory, need to resolve to index.js
@@ -232,6 +291,9 @@
     file))
 
 (defn find-require [{:keys [project-dir] :as npm} require-from require]
+  {:pre [(or (nil? require-from)
+             (util/is-file-instance? require-from))
+         (string? require)]}
   (cond
     (util/is-relative? require)
     (find-relative npm require-from require)
@@ -252,17 +314,6 @@
     (find-package-require npm require)
     ))
 
-(defn find-package-json [file]
-  (loop [root (if (.isDirectory file)
-                (.getParentFile file)
-                file)]
-    (when root
-      (let [package-json (io/file root "package.json")]
-        (if (and (.exists package-json)
-                 (.isFile package-json))
-          package-json
-          (recur (.getParentFile root))
-          )))))
 
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
@@ -301,10 +352,9 @@
         ;; we can't just remember the entry require("react") since that may
         ;; require("./lib/React.js") which also belongs to the react package
         ;; so we must determine this from the file alone not by the way it was required
-        package-name
-        (when-let [package-json-file (find-package-json file)]
-          (let [{:strs [name] :as package-json} (read-package-json npm package-json-file)]
-            name))]
+        {:keys [package-name]}
+        (find-package-for-file npm file)
+        ]
 
     ;; require("../package.json").version is a thing
     ;; no need to parse it since it can't have any require/import/export
@@ -381,12 +431,14 @@
 ;; but since David pretty clearly said the relative requires are not going to happen
 ;; I'm not worried about finding relative requires in jars
 ;; https://dev.clojure.org/jira/browse/CLJS-2061?focusedCommentId=46191&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-46191
-(defn find-resource [npm relative-from require]
+(defn find-resource [npm require-from require require-ctx]
   {:pre [(service? npm)
-         (or (nil? relative-from)
-             (instance? File relative-from))
-         (string? require)]}
-  (when-let [file (find-require npm relative-from require)]
+         (or (nil? require-from)
+             (instance? File require-from))
+         (string? require)
+         (map? require-ctx)]}
+  (when-let [file (-> (find-require npm require-from require)
+                      (maybe-browser-swap npm require-ctx))]
     (get-file-info npm file)))
 
 ;; FIXME: allow configuration of :extensions :main-keys
@@ -431,7 +483,7 @@
      ;; some packages have module and browser where module is es6 but browser
      ;; is some CommonJS gibberish, we prefer ES6 so module takes precedence over browser
      ;; https://github.com/rollup/rollup/wiki/pkg.module
-     :main-keys ["module" "jsnext:main" "browser" "main"]
+     :main-keys ["module" "jsnext:main" "main"]
      }))
 
 (defn stop [npm])
