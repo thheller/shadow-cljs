@@ -15,7 +15,8 @@
             [shadow.build.closure :as closure]
             [shadow.build.data :as data]
             [clojure.java.shell :as sh]
-            [clojure.edn :as edn]))
+            [clojure.edn :as edn]
+            [shadow.build.log :as log]))
 
 (s/def ::entry
   (s/or :sym simple-symbol?
@@ -367,6 +368,10 @@
            (into [])
            ))))
 
+(defmethod log/event->str ::browserify
+  [{:keys [module-id js-packages] :as event}]
+  (format "Bundling %s for module %s" js-packages module-id))
+
 (defn bundle-js [{:keys [build-modules] :as state}]
   (let [js-index
         (reduce
@@ -442,7 +447,7 @@
 
                                   {:keys [exit out err] :as result}
                                   (try
-                                    (util/with-logged-time [state {:type :browserify
+                                    (util/with-logged-time [state {:type ::browserify
                                                                    :module-id module-id
                                                                    :cmd browserify-cmd
                                                                    :js-packages js-packages}]

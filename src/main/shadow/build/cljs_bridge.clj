@@ -48,17 +48,21 @@
 (defn register-ns-aliases
   "registers all resolved ns-aliases with the CLJS compiler env so it doesn't complain"
   ;; FIXME: not sure why I have to register these but not goog stuff? is there another hardcoded goog reference?
-  [{:keys [ns-aliases] :as state}]
-  (let [update-fn
-        (fn [js-mod-index]
+  [{:keys [ns-aliases str->sym] :as state}]
+  (let [add-aliases-fn
+        (fn [js-mod-index alias-map]
           (reduce-kv
             (fn [idx _ alias]
               ;; FIXME: not exactly sure why this is a map of str->sym
               (assoc idx (str alias) alias))
             js-mod-index
-            ns-aliases))]
+            alias-map))]
 
-    (update-in state [:compiler-env :js-module-index] update-fn)
+    (-> state
+        ;; FIXME: this includes clojure.* -> cljs.* aliases which should not be in js-module-index
+        (update-in [:compiler-env :js-module-index] add-aliases-fn ns-aliases)
+        ;; str->sym maps all string requires to their symbol name
+        (update-in [:compiler-env :js-module-index] add-aliases-fn str->sym))
     ))
 
 (def ^:dynamic *in-compiler-env* false)

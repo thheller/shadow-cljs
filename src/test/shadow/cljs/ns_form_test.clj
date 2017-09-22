@@ -118,7 +118,7 @@
 
         ast-resolved
         (ns-form/rewrite-js-deps ast
-          {:string->sym
+          {:str->sym
            ;; this maps the namespace that required a string to an alias created elsewhere
            ;; done per ns because of relative requires
            '{[something "react"] alias$react}})]

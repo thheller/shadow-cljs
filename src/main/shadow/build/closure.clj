@@ -949,6 +949,11 @@
 (def polyfill-name
   "SHADOW$POLYFILL.js")
 
+
+(defmethod log/event->str ::convert
+  [{:keys [num-sources] :as event}]
+  (format "Converting %d JS sources" num-sources))
+
 (defn convert-sources
   "takes a list of :npm sources and rewrites them to closure JS"
   [{:keys [project-dir npm] :as state} sources]

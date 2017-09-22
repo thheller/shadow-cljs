@@ -61,7 +61,7 @@
 
     #_(-> resolved-state
           (dissoc :npm :classpath)
-          ;; (select-keys [:string->sym :sym->source :cljs-aliases])
+          ;; (select-keys [:str->sym :sym->source :cljs-aliases])
           ;; (select-keys [:immediate-deps])
           (wide-pprint))
 

@@ -12,7 +12,9 @@
     "bootstrap": "^4.0.0-beta",
     "browser-resolve": "^1.11.2",
     "browserify": "^14.4.0",
+    "browserify-shim": "^3.8.14",
     "envify": "^4.1.0",
+    "jquery": "^3.2.1",
     "material-components-web": "^0.17.0",
     "material-ui": "^0.18.5",
     "module-deps": "^4.1.1",
@@ -23,5 +25,6 @@
     "styled-components": "^2.1.1",
     "uglifyify": "^4.0.3",
     "webpack": "^3.5.5"
-  }
+  },
+  "browserify-shim": {}
 }
