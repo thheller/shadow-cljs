@@ -73,7 +73,7 @@
    :builds {}})
 
 (def default-builds
-  {:npm {:id :npm
+  {:npm {:build-id :npm
          :target :npm-module
          :output-dir "node_modules/shadow-cljs"}})
 

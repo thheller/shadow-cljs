@@ -29,9 +29,9 @@
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
-  (with-open [con (-> (io/resource "shadow/build/compiler.clj")
-                      (.openConnection))]
-    (.getLastModified con)))
+  (-> (io/resource "shadow/build/compiler.clj")
+      (.openConnection)
+      (.getLastModified)))
 
 (def ^:dynamic *cljs-warnings-ref* nil)
 

@@ -2,6 +2,7 @@
   (:require-macros [demo.browser :refer (test-macro)])
   (:require ["react" :as react :refer (createElement)]
             ["react-dom" :as rdom :refer (render)]
+            [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
   (:import ["react" Component]))
@@ -11,6 +12,8 @@
 (goog-define FOO "foo")
 
 (prn :foo)
+
+(js/console.log "react cljsjs" (identical? js/React react))
 
 (js/console.log "demo.browser" react rdom Component)
 
