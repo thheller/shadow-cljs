@@ -2,7 +2,8 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [shadow.build.config :as build-config]))
+            [shadow.build.config :as build-config]
+            [shadow.cljs.util :as cljs-util]))
 
 (s/def ::builds (s/map-of keyword? ::build-config/build))
 
@@ -108,3 +109,8 @@
   (or (get-build id)
       (throw (ex-info (str "no build with id: " id) {:tag ::no-build :id id}))))
 
+(defn make-cache-dir [cache-root build-id mode]
+  {:pre [(cljs-util/is-file-instance? cache-root)
+         (keyword? build-id)
+         (keyword? mode)]}
+  (io/file cache-root "builds" (name build-id) (name mode)))

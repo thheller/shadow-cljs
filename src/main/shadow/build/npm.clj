@@ -94,7 +94,6 @@
   (let [{:keys [browser-overrides] :as package}
         (find-package-for-file npm file)]
 
-    (prn [:checking file target browser-overrides])
     (cond
       (not= :browser target)
       file

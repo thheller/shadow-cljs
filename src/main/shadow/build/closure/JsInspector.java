@@ -26,12 +26,6 @@ public class JsInspector {
         ITransientCollection invalidRequires = PersistentVector.EMPTY.asTransient();
         ITransientCollection imports = PersistentVector.EMPTY.asTransient();
 
-        private final SourceFile srcFile;
-
-        public RequireCollector(SourceFile srcFile) {
-            this.srcFile = srcFile;
-        }
-
         @Override
         public boolean shouldTraverse(NodeTraversal t, Node node, Node parent) {
             return true; // require may be anywhere
@@ -100,7 +94,7 @@ public class JsInspector {
         FeatureSet features = ast.getFeatures(cc);
 
         // FIXME: don't do this if result has errors?
-        RequireCollector collector = new RequireCollector(srcFile);
+        RequireCollector collector = new RequireCollector();
         NodeTraversal.traverseEs6(cc, node, collector);
 
         IPersistentMap map = RT.map(

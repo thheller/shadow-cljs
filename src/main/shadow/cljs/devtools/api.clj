@@ -35,12 +35,6 @@
     (super/get-worker supervisor id)
     ))
 
-(defn- make-cache-dir [cache-root build-id mode]
-  {:pre [(cljs-util/is-file-instance? cache-root)
-         (keyword? build-id)
-         (keyword? mode)]}
-  (io/file cache-root "builds" (name build-id) (name mode)))
-
 (defn- new-build [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
   (let [{:keys [npm classpath cache-root executor]}
         (or (runtime/get-instance)
@@ -66,7 +60,7 @@
                    (cp/index-classpath))}))
 
         cache-dir
-        (make-cache-dir cache-root build-id mode)]
+        (config/make-cache-dir cache-root build-id mode)]
 
     (-> (build-api/init)
         (build-api/with-npm npm)

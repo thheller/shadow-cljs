@@ -12,7 +12,7 @@
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            ))
+            [shadow.cljs.devtools.config :as config]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -89,7 +89,7 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config proc-id http executor npm classpath] :as worker-state}]
+  [{:keys [build-config proc-id http executor npm classpath cache-root] :as worker-state}]
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
@@ -104,12 +104,16 @@
            :host (:host http)
            :port (:port http)}
 
+          build-id
+          (:id build-config)
+
           build-state
           (-> (build-api/init)
               (build-api/with-classpath classpath)
               (build-api/with-npm npm)
               (build-api/with-executor executor)
               (build-api/with-logger (util/async-logger (-> worker-state :channels :output)))
+              (build-api/with-cache-dir (config/make-cache-dir cache-root build-id :dev))
               (assoc
                 :worker-info worker-info
                 ::compile-attempt 0)

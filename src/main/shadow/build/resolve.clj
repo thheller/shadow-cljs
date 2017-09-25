@@ -96,6 +96,7 @@
           [package-name suffix]
           (npm/split-package-require require)]
 
+      (prn [:hmm require package-name (contains? native-node-modules package-name)])
       ;; I hate magic symbols buts its the way chosen by CLJS
       ;; so if the package is configured or exists in node_modules we allow it
       ;; FIXME: actually use configuration from :packages to use globals and such

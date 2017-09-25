@@ -15,6 +15,7 @@
     "browserify-shim": "^3.8.14",
     "envify": "^4.1.0",
     "jquery": "^3.2.1",
+    "js-nacl": "^1.2.2",
     "material-components-web": "^0.17.0",
     "material-ui": "^0.18.5",
     "mkdirp": "^0.5.1",
