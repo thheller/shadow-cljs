@@ -7,6 +7,31 @@ import com.google.javascript.rhino.Node;
 import java.io.File;
 import java.nio.charset.Charset;
 
+
+/**
+ * FIXME: meh, this might not be worth it.
+ * just use babel/uglify so it matches what we find in npm packages
+ *
+ *
+ module$node_modules$prop_types$factoryWithTypeCheckers.js
+ 47:            if (process.env.NODE_ENV !== "production" && typeof console !== "undefined") {
+
+ module$node_modules$react$lib$checkReactTypeSpec.js
+ 8:  if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "test") {
+
+ module$node_modules$react_dom$lib$ReactChildReconciler.js
+ 9:  if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "test") {
+
+ module$node_modules$react_dom$lib$ReactCompositeComponent.js
+ 502:    if (process.env.NODE_ENV !== "production" || this._compositeType !== CompositeTypes.StatelessFunctional) {
+
+ module$node_modules$react_dom$lib$checkReactTypeSpec.js
+ 8:  if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "test") {
+
+ module$node_modules$react_dom$lib$flattenChildren.js
+ 6:  if (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "test") {
+ */
+
 public class NodeEnvTraversal {
 
     public static abstract class Base implements NodeTraversal.Callback {
@@ -54,11 +79,16 @@ public class NodeEnvTraversal {
             }
         }
 
-        public abstract boolean shouldTraverseBranch(Node ifNode, Node parent, boolean conditionResult);
+        public abstract void processBranch(Node ifNode, Node parent, boolean conditionResult);
 
         @Override
         public boolean shouldTraverse(NodeTraversal t, Node node, Node parent) {
-            if (node.isIf()) {
+            return true;
+        }
+
+        @Override
+        public void visit(NodeTraversal t, Node node, Node parent) {
+            if (node.isIf() || node.isHook()) {
                 Node condition = node.getFirstChild();
                 if (condition.getChildCount() == 2) {
                     Node lhs = condition.getChildAtIndex(0);
@@ -70,16 +100,10 @@ public class NodeEnvTraversal {
                     // only do something if both sides eval'd to strings
                     if (lhsValue != null && rhsValue != null) {
                         boolean result = test(condition.getToken().name(), lhsValue, rhsValue);
-                        return shouldTraverseBranch(node, parent, result);
+                        processBranch(node, parent, result);
                     }
                 }
             }
-
-            return true;
-        }
-
-        @Override
-        public void visit(NodeTraversal t, Node node, Node parent) {
         }
     }
 
@@ -94,7 +118,7 @@ public class NodeEnvTraversal {
             this.cc = cc;
         }
 
-        public boolean shouldTraverseBranch(Node ifNode, Node parent, boolean conditionResult) {
+        public void processBranch(Node ifNode, Node parent, boolean conditionResult) {
             // if evaled to true, remove else branch
             // FIXME: is it safe to just replace with the BLOCK or should it remove the BLOCK node?
             // JS doesn't care right?
@@ -112,11 +136,6 @@ public class NodeEnvTraversal {
 
             // FIXME: is this required when not actually compiling?
             // cc.reportChangeToChangeScope(parent);
-
-            // FIXME: does this mean it won't traverse into the if/else branches?
-            // should not be a problem since it is unlikely to find a nested
-            // process.env.NODE_ENV
-            return false;
         }
     }
 

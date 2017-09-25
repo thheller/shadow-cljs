@@ -40,6 +40,8 @@ if (process.env.NODE_ENV !== "development") {
 
 var test2 = (process.env.NODE_ENV !== "production") ? "dev" : "prod";
 
+process.env.NODE_ENV !== "production" ? warning(false, "`valueLink` prop on `input` is deprecated; set `value` and `onChange` instead.") : void 0;
+
 if (/[?&]react_perf\b/.test(url)) {
   ReactDebugTool.beginProfiling();
 }
