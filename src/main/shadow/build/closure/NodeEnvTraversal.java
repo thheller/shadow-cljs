@@ -7,12 +7,12 @@ import com.google.javascript.rhino.Node;
 import java.io.File;
 import java.nio.charset.Charset;
 
-public class NodeEnvConventions {
+public class NodeEnvTraversal {
 
-    public static abstract class NodeEnvBranchTraversal implements NodeTraversal.Callback {
+    public static abstract class Base implements NodeTraversal.Callback {
         private final String node_env;
 
-        public NodeEnvBranchTraversal(String node_env) {
+        public Base(String node_env) {
             this.node_env = node_env;
         }
 
@@ -81,10 +81,10 @@ public class NodeEnvConventions {
     /**
      * pass that replaces the if with the proper branch
      */
-    public static class NodeEnvBranchRemover extends NodeEnvBranchTraversal {
+    public static class Remove extends Base {
         private final AbstractCompiler cc;
 
-        public NodeEnvBranchRemover(String node_env, AbstractCompiler cc) {
+        public Remove(String node_env, AbstractCompiler cc) {
             super(node_env);
             this.cc = cc;
         }
@@ -121,7 +121,7 @@ public class NodeEnvConventions {
         JsAst.ParseResult result = (JsAst.ParseResult) node.getProp(Node.PARSE_RESULTS);
 
         // FIXME: don't do this if result has errors?
-        NodeTraversal.Callback pass = new NodeEnvBranchRemover("production", cc);
+        NodeTraversal.Callback pass = new Remove("production", cc);
         NodeTraversal.traverseEs6(cc, node, pass);
 
         return node;

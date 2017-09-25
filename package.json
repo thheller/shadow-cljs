@@ -8,6 +8,7 @@
   "dependencies": {
     "@atlaskit/navigation": "^18.0.0",
     "animated": "^0.2.0",
+    "aws-sdk": "^2.122.0",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.24.1",
     "bootstrap": "^4.0.0-beta",
     "browser-resolve": "^1.11.2",
