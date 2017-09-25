@@ -188,8 +188,12 @@
               {:js-provider :closure}))
 
         [resolved resolved-state]
-        (api/resolve-entries build-state '["react"])]
+        (api/resolve-entries build-state '["react"])
+
+        {:keys [str->sym]}
+        resolved-state]
 
     (pprint resolved)
+    (pprint str->sym)
     #_(-> resolved-state :npm :index-ref deref :package-json-cache (pprint))
     ))

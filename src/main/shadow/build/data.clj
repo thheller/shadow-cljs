@@ -13,7 +13,7 @@
 
 (def empty-data
   {::build-state true
-   ;; map of {[ns require] sym}
+   ;; map of {ns {require sym}}
    ;; keeping entries per ns since they might be relative
    ;; so the same alias might have different requires
    :str->sym {}
@@ -86,12 +86,12 @@
                 :require require
                 :sym sym})))
 
-  (update state :str->sym assoc [require-from-ns require] sym))
+  (assoc-in state [:str->sym require-from-ns require] sym))
 
 (defn get-string-alias [state require-from-ns require]
   {:pre [(symbol? require-from-ns)
          (string? require)]}
-  (or (get-in state [:str->sym [require-from-ns require]])
+  (or (get-in state [:str->sym require-from-ns require])
       (throw (ex-info (format "could not find string alias for \"%s\" from %s" require require-from-ns)
                {:require-from-id require-from-ns
                 :require require}))))
@@ -115,7 +115,7 @@
       (get ns-aliases dep dep)
 
       (string? dep)
-      (or (get-in state [:str->sym [(:ns rc) dep]])
+      (or (get-in state [:str->sym (:ns rc) dep])
           (throw (ex-info (format "no ns alias for dep: %s from: %s" dep resource-id) {:resource-id resource-id :dep dep})))
 
       :else

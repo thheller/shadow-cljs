@@ -333,7 +333,8 @@
                           #_ "animated/lib/targets/react-dom" ;; internal compiler error
                           #_ "bootstrap" ;; expects global jQuery, wrapped IIFE, not properly converted
                           #_ "shortid" ;; browser overrides
-                          "js-nacl" ;; fs dependency
+                          #_ "js-nacl" ;; fs dependency
+                          "readable-stream"
                           ]}}
 
         :js-options

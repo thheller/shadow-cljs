@@ -18,27 +18,6 @@
 (defn service? [x]
   (and (map? x) (::service x)))
 
-(defn make-browser-overrides [package-name package-dir overrides]
-  (reduce-kv
-    (fn [out from to]
-      (let [from-file
-            (-> (io/file package-dir from)
-                (.getCanonicalFile))
-
-            to-file
-            (-> (io/file package-dir to)
-                (.getCanonicalFile))]
-
-        (when-not (.exists from-file)
-          (throw (ex-info (format "package %s tries to map %s but it doesn't exist" package-name from) {:from from :to to :package-name package-name})))
-
-        (when-not (.exists to-file)
-          (throw (ex-info (format "package %s tries to map %s to %s but it doesn't exist" package-name from to) {:from from :to to :package-name package-name})))
-
-        (assoc out from-file to-file)))
-    {}
-    overrides))
-
 (defn read-package-json
   "this caches the contents package.json files since we may access them quite often when resolving deps"
   [{:keys [index-ref] :as state} ^File file]
@@ -66,7 +45,7 @@
                   (string? browser)
                   (assoc :browser browser)
                   (map? browser)
-                  (assoc :browser-overrides (make-browser-overrides name package-dir browser))))
+                  (assoc :browser-overrides browser)))
             ]
 
         (swap! index-ref assoc-in [:package-json-cache file] {:content content
@@ -89,20 +68,6 @@
 (defn find-package-for-file [npm file]
   (when-let [package-json-file (find-package-json file)]
     (read-package-json npm package-json-file)))
-
-(defn maybe-browser-swap [file npm {:keys [target] :as require-ctx}]
-  (let [{:keys [browser-overrides] :as package}
-        (find-package-for-file npm file)]
-
-    (cond
-      (not= :browser target)
-      file
-
-      (nil? browser-overrides)
-      file
-
-      :else
-      (get browser-overrides file file))))
 
 (defn test-file ^File [^File dir name]
   (when name
@@ -173,7 +138,11 @@
     (if-not slash-idx
       [entry nil]
       [(subs entry 0 slash-idx)
-       (subs entry (inc slash-idx))])))
+       ;; some requires might have trailing slash, which I guess means it is supposed to use main?
+       ;; "string_decoder/"
+       (let [suffix (subs entry (inc slash-idx))]
+         (when (not= suffix "")
+           suffix))])))
 
 (defn find-package-require [npm require]
   (let [[package-name suffix]
@@ -233,11 +202,13 @@
               (test-file-exts npm file-or-dir "index")
 
               :else
-              nil)]
+              file-or-dir)]
 
         (when-not (and file (.isFile file))
-          (throw (ex-info "could not find module-entry" {:entry require
-                                                         :package package})))
+          (throw (ex-info (format "could not find module-entry: %s" require)
+                   {:require require
+                    :entry require
+                    :package package})))
 
         file
         ))))
@@ -288,29 +259,7 @@
 
     file))
 
-(defn find-require [{:keys [project-dir] :as npm} require-from require]
-  {:pre [(or (nil? require-from)
-             (util/is-file-instance? require-from))
-         (string? require)]}
-  (cond
-    (util/is-relative? require)
-    (find-relative npm require-from require)
 
-    ;; absolute is always treated as relative to project dir
-    ;; FIXME: this makes them unusable in .jar files
-    ;; should maybe be absolute to the source path they are in?
-    ;; must be resolved elsewhere then though
-    (util/is-absolute? require)
-    (let [file (io/file project-dir (subs require 1))]
-      (when-not (and (.exists file)
-                     (.isFile file))
-        (throw (ex-info "absolute require not found" {:require-from require-from :require require :file file})))
-
-      file)
-
-    :else
-    (find-package-require npm require)
-    ))
 
 
 (defn get-file-info*
@@ -425,18 +374,161 @@
         file-info
         )))
 
+(defn find-package-resource [npm require]
+  (when-let [file (find-package-require npm require)]
+    (get-file-info npm file)))
+
+(def empty-rc
+  {:resource-id [::empty "shadow$empty.js"]
+   :resource-name "shadow$empty.js"
+   :output-name "shadow$empty.js"
+   :type :npm
+   :cache-key 0
+   :last-modified 0
+   :ns 'shadow$empty
+   :provides #{}
+   :requires #{}
+   :deps []
+   :source ""})
+
+;; https://github.com/webpack/node-libs-browser/blob/master/index.js
+;; using this package so have the same dependencies that webpack would use
+(def node-libs-browser
+  {"child_process" false
+   "cluster" false
+   "console" "console-browserify"
+   "constants" "constants-browserify"
+   "crypto" "crypto-browserify"
+   "dgram" false
+   "dns" false
+   "domain" "domain-browser"
+   "fs" false
+   "http" "stream-http"
+   "https" "https-browserify"
+   "module" false
+   "net" false
+   "os" "os-browserify/browser.js"
+   "path" "path-browserify"
+   "process" "process/browser.js"
+   "querystring" "querystring-es3"
+   "readline" false
+   "repl" false
+   "stream" "stream-browserify"
+   "_stream_duplex" "readable-stream/duplex.js"
+   "_stream_passthrough" "readable-stream/passthrough.js"
+   "_stream_readable" "readable-stream/readable.js"
+   "_stream_transform" "readable-stream/transform.js"
+   "_stream_writable" "readable-stream/writable.js"
+   "string_decoder" "string_decoder"
+   "sys" "util/util.js"
+   "timers" "timers-browserify"
+   "tls" false
+   "tty" "tty-browserify"
+   "url" "url"
+   "util" "util/util.js"
+   "vm" "vm-browserify"
+   "zlib" "browserify-zlib"})
+
 ;; FIXME: this should work with URLs now that we can easily resolve into jars
 ;; but since David pretty clearly said the relative requires are not going to happen
 ;; I'm not worried about finding relative requires in jars
 ;; https://dev.clojure.org/jira/browse/CLJS-2061?focusedCommentId=46191&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-46191
-(defn find-resource [npm require-from require require-ctx]
+(defn find-resource [{:keys [project-dir] :as npm} require-from require require-ctx]
   {:pre [(service? npm)
          (or (nil? require-from)
              (instance? File require-from))
          (string? require)
          (map? require-ctx)]}
-  (when-let [file (find-require npm require-from require)]
-    (get-file-info npm (maybe-browser-swap file npm require-ctx ))))
+
+  (let [{:keys [browser-overrides package-dir] :as pkg}
+        (when require-from
+          (find-package-for-file npm require-from))]
+    (cond
+      ;; absolute is relative to the project, no outside dependencies are allowed
+      (util/is-absolute? require)
+      (let [file (io/file project-dir (subs require 1))]
+        (when-not (and (.exists file)
+                       (.isFile file))
+          (throw (ex-info "absolute require not found" {:require-from require-from :require require :file file})))
+
+        (get-file-info npm file))
+
+      ;; browser override makes things complicated
+      ;; https://github.com/defunctzombie/package-browser-field-spec
+
+      ;; "browser":{"./lib/some-file.js":"./lib/some-other-file.js"}
+      ;; the file overrides are relative to the project folder
+      ;; but the actual require may be require("./some-file.js") since that is relative in the file
+      ;; so find the normal file first, when found we relativize the path to the package dir
+      ;; if that path was overriden we swap it, otherwise use the file we found first
+      (util/is-relative? require)
+      (let [file (find-relative npm require-from require)
+
+            override
+            (when pkg
+              (let [package-path
+                    (.toPath package-dir)
+
+                    rel-name
+                    (str "./" (.relativize package-path (.toPath file)))]
+
+                ;; FIXME: I'm almost certain that browser allows overriding without extension
+                ;; "./lib/some-file":"./lib/some-other-file"
+                (get browser-overrides rel-name)))]
+
+        (cond
+          (nil? override)
+          (get-file-info npm file)
+
+          ;; FIXME: is "./lib/some-file.js":"some-package" allowed?
+          (string? override)
+          (let [override-file
+                (-> (io/file package-dir override)
+                    (.getCanonicalFile))]
+
+            (when-not (.exists override-file)
+              (throw (ex-info "override to file that doesn't exist" {:require-from require-from
+                                                                     :require require
+                                                                     :file file
+                                                                     :override override
+                                                                     :override-file override-file})))
+            (get-file-info npm override-file))
+
+          ;; FIXME: is that allowed?
+          (false? override)
+          (throw (ex-info "TBD, rel-file is false" {:package-dir package-dir}))
+
+          :else
+          (throw (ex-info "invalid override" {:package-dir package-dir
+                                              :require require
+                                              :override override}))
+          ))
+
+      :else
+      (let [override
+            (let [override (get-in pkg [:browser-overrides require] ::not-found)]
+              (if (not= ::not-found override)
+                override
+                ;; FIXME: should check require-ctx :browser, which should be our only target but who knows
+                (get node-libs-browser require)))]
+
+        (cond
+          (nil? override)
+          (find-package-resource npm require)
+
+          ;; "browser":{"util":false} means we should ignore a package import
+          ;; since we must resolve to something we just resolve to an empty file
+          (false? override)
+          empty-rc
+
+          ;; FIXME: "util":"./file-in-package.js" - is that allowed?
+          (util/is-relative? require)
+          (throw (ex-info "browser override from package to relative" {:require-from require-from :require require :override override}))
+
+          ;; "foo":"bar"
+          :else
+          (find-resource npm require-from override require-ctx)
+          )))))
 
 ;; FIXME: allow configuration of :extensions :main-keys
 ;; maybe some closure opts
