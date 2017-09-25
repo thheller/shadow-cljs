@@ -145,7 +145,7 @@
         (-> (test-build)
             (api/with-js-options
               {:js-provider :require
-               :packages
+               :resolve
                '{"react"
                  {:type :include
                   :provides [cljsjs.react react]
@@ -193,7 +193,25 @@
         {:keys [str->sym]}
         resolved-state]
 
-    (pprint resolved)
+    (pprint (map second resolved))
+    (pprint str->sym)
+    #_(-> resolved-state :npm :index-ref deref :package-json-cache (pprint))
+    ))
+
+(deftest test-resolve-as-shadow
+
+  (let [build-state
+        (-> (test-build)
+            (api/with-js-options
+              {:js-provider :shadow}))
+
+        [resolved resolved-state]
+        (api/resolve-entries build-state '[demo.browser])
+
+        {:keys [str->sym]}
+        resolved-state]
+
+    (pprint (map second resolved))
     (pprint str->sym)
     #_(-> resolved-state :npm :index-ref deref :package-json-cache (pprint))
     ))

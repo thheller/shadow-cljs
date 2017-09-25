@@ -368,129 +368,6 @@
            (into [])
            ))))
 
-(defmethod log/event->str ::browserify
-  [{:keys [module-id js-packages] :as event}]
-  (format "Bundling %s for module %s" js-packages module-id))
-
-(defn bundle-js [{:keys [build-modules] :as state}]
-  (let [js-index
-        (reduce
-          (fn [js-index {:keys [module-id sources] :as module}]
-            (let [js-packages
-                  (->> sources
-                       (map #(get-in state [:sources % :js-require]))
-                       (remove nil?)
-                       (into #{}))]
-
-              (assoc js-index module-id js-packages)))
-          {}
-          build-modules)
-
-        dev?
-        (= :dev (::build/mode state))
-
-        js-index-file
-        (data/cache-file state "js-index.edn")
-
-        js-index-cached?
-        (and (.exists js-index-file)
-             (= js-index (-> (slurp js-index-file)
-                             (edn/read-string))))
-
-        build-modules
-        (->> build-modules
-             (map (fn [{:keys [module-id] :as mod}]
-                    (let [all-provided-js
-                          (->> (get-all-module-deps state mod)
-                               (map :module-id)
-                               (map js-index)
-                               (reduce set/union #{}))
-
-                          js-packages
-                          (get js-index module-id)]
-
-                      ;; if a given module doesn't have js requires we don't need to generate anything
-                      (if-not (seq js-packages)
-                        mod
-                        ;; otherwise generated an extra include via browserify
-                        (let [include-name
-                              (str "shadow.browserify." (name module-id) ".js")
-
-                              ;; in :dev mode we will load the file directly so it must be in :output-dir
-                              ;; in :release mode the file will be concatenated so it doesn't matter where it lives
-                              include-file
-                              (if dev?
-                                (data/output-file state "cljs-runtime" include-name)
-                                (data/cache-file state "js-cache" include-name))]
-
-                          ;; don't recreate files that already exist and were built off the same js-index
-                          ;; browserify is quite slow and js packages shouldn't change very frequently
-                          (when (or (not js-index-cached?)
-                                    (not (.exists include-file)))
-
-                            (let [executable
-                                  ;; npm and yarn handle installing bin files differenly for dependencies
-                                  ;; so use the first thing that exists
-                                  (->> ["./node_modules/.bin/browserify" ;; npm
-                                        "./node_modules/shadow-cljs/node_modules/.bin/browserify"] ;; yarn
-                                       (filter #(.exists (io/file %)))
-                                       (first))
-
-                                  ;; if neither exists attempt to use the global command
-                                  browserify-cmd
-                                  (-> [(or executable "browserify")]
-                                      (cond->
-                                        dev?
-                                        (conj "-d"))
-                                      (conj "-g" "envify")
-                                      (cond->
-                                        (not dev?)
-                                        (conj "-g" "uglifyify"))
-                                      (util/reduce->
-                                        (fn [cmd pkg]
-                                          (conj cmd "-r" pkg))
-                                        js-packages)
-                                      (util/reduce->
-                                        (fn [cmd ext]
-                                          (conj cmd "-x" ext))
-                                        all-provided-js))
-
-                                  {:keys [exit out err] :as result}
-                                  (try
-                                    (util/with-logged-time [state {:type ::browserify
-                                                                   :module-id module-id
-                                                                   :cmd browserify-cmd
-                                                                   :js-packages js-packages}]
-
-                                      (util/exec
-                                        browserify-cmd
-                                        {:env {"NODE_ENV" (if dev?
-                                                            "development"
-                                                            "production")}}))
-                                    (catch Exception e
-                                      (throw (ex-info
-                                               (format "Failed to run: %s" (str/join " " browserify-cmd))
-                                               {:tag ::browserify
-                                                :command browserify-cmd}
-                                               e))))]
-
-                              (when-not (zero? exit)
-                                (throw (ex-info "Failed to run browserify" result)))
-
-                              (io/make-parents include-file)
-                              (spit include-file out)))
-
-                          (update mod :includes util/vec-conj {:name include-name
-                                                               :file include-file}))
-                        ))))
-             (into []))]
-
-    ;; index must not be written if anything above throws
-    (when-not js-index-cached?
-      (spit js-index-file (pr-str js-index)))
-
-    (assoc state :build-modules build-modules)))
-
 (defn process
   [{::build/keys [stage mode config] :as state}]
   (case stage
@@ -503,9 +380,7 @@
         (cond->
           (:module-loader config)
           (inject-loader-setup (= :release mode))
-
-          (= :require (get-in state [:js-options :js-provider]))
-          (bundle-js)))
+          ))
 
     :flush
     (flush state mode config)

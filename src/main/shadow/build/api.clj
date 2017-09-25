@@ -39,7 +39,8 @@
    :closure-defines
    {"goog.DEBUG" false
     "goog.LOCALE" "en"
-    "goog.TRANSPILE" "never"}})
+    "goog.TRANSPILE" "never"
+    "process.env.NODE_ENV" "development"}})
 
 (def default-build-options
   {:print-fn :console

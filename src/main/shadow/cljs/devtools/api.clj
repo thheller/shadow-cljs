@@ -66,6 +66,7 @@
         (build-api/with-npm npm)
         (build-api/with-classpath classpath)
         (build-api/with-cache-dir cache-dir)
+        (assoc :mode mode)
         (cond->
           executor
           (build-api/with-executor executor)))))

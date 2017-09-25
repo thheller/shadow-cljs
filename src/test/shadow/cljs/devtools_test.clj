@@ -14,6 +14,7 @@
     [shadow.build.api :as build-api]
     [shadow.build.targets.browser :as browser]
     [shadow.build :as comp]
+    [shadow.build.npm :as npm]
     [shadow.build.closure :as closure]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.embedded :as em]
@@ -302,6 +303,31 @@
       (-> (get-in state [::closure/modules])
           (last)
           (:output)
+          (println)))
+
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+(deftest test-browser-build-with-js
+  (try
+    (let [build-state
+          (api/compile*
+            '{:build-id :browser
+              :target :browser
+
+              :output-dir "target/test-browser-js/js"
+              :asset-path "/js"
+              :compiler-options
+              {:language-out :ecmascript5}
+
+              :modules
+              {:test {:entries [demo.browser]}}
+
+              :js-options
+              {:js-provider :shadow}}
+            {:debug true})]
+
+      (-> (get-in build-state [:output [::npm/resource "node_modules/react/lib/React.js"] :js])
           (println)))
 
     (catch Exception ex

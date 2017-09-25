@@ -77,8 +77,7 @@
     {:global-this :off}
 
     :closure-defines
-    {process.env.NODE_ENV "production"
-     demo.browser/FOO "bar"}}
+    {demo.browser/FOO "bar"}}
 
    :module-loader false
    :modules
@@ -112,7 +111,7 @@
      :web-worker true}}
 
    :js-options
-   {:js-provider :closure}
+   {:js-provider :shadow}
 
    :devtools
    {:http-root "out/demo-browser/public"

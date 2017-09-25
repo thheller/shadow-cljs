@@ -116,6 +116,7 @@
               (build-api/with-cache-dir (config/make-cache-dir cache-root build-id :dev))
               (assoc
                 :worker-info worker-info
+                :mode :dev
                 ::compile-attempt 0)
               (build/configure :dev build-config))]
 

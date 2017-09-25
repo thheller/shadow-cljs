@@ -17,7 +17,12 @@ public class NodeEnvTraversal {
         }
 
         public boolean isEnvLookup(Node node) {
-            return node.isGetProp() && node.getQualifiedName().equals("process.env.NODE_ENV");
+            // there should be a simpler way to check this
+            // must check if two getprops, /someregex/.test() breaks eval
+            return node.isGetProp() &&
+                    node.getFirstChild().isGetProp() &&
+                    node.getFirstChild().getFirstChild().isName() &&
+                    node.getQualifiedName().equals("process.env.NODE_ENV");
         }
 
         /**
@@ -105,7 +110,8 @@ public class NodeEnvTraversal {
                 }
             }
 
-            cc.reportChangeToChangeScope(parent);
+            // FIXME: is this required when not actually compiling?
+            // cc.reportChangeToChangeScope(parent);
 
             // FIXME: does this mean it won't traverse into the if/else branches?
             // should not be a problem since it is unlikely to find a nested

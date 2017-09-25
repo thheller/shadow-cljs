@@ -288,9 +288,6 @@
                ;; (cljs-comp/munge) ;; FIXME: the above already does basically the same, does it cover everything?
                (symbol))
 
-        source
-        (slurp file)
-
         last-modified
         (.lastModified file)
 
@@ -309,7 +306,7 @@
           {:resource-id [::resource resource-name]
            :resource-name resource-name
            :output-name (str ns ".js")
-           :is-package-json true
+           :json true
            :type :npm
            :file file
            :last-modified last-modified
@@ -317,10 +314,15 @@
            :ns ns
            :provides #{ns}
            :requires #{}
-           :source source
+           :source (slurp file)
            :js-deps []}
 
-          (let [;; all requires are collected into
+          ;; FIXME: check if a .babelrc applies and then run source through babel first
+          ;; that should take care of .jsx and others if I actually want to support that?
+          (let [source
+                (slurp file)
+
+                ;; all requires are collected into
                 ;; :js-requires ["foo" "bar/thing" "./baz]
                 ;; all imports are collected into
                 ;; :js-imports ["react"]
@@ -359,7 +361,7 @@
                   :requires #{}
                   :source source
                   :js-deps js-deps
-                  :deps (into '[shadow.build.npm-support] js-deps)
+                  :deps (into '[shadow.npm] js-deps)
                   ))))
 
         (cond->
@@ -390,6 +392,43 @@
    :requires #{}
    :deps []
    :source ""})
+
+(defn js-resource-for-global
+  "a dependency might come from something already included in the page by other means
+
+   a config like:
+   {\"react\" {:type :global :global \"React\"}}
+
+   means require(\"react\") returns the global React instance"
+  [require {:keys [global] :as pkg}]
+  (let [ns (ModuleNames/fileToModuleName require)]
+    {:resource-id [::global require]
+     :resource-name (str "global$" ns ".js")
+     :output-name (str ns ".js")
+     :type :npm
+     :cache-key 0
+     :last-modified 0
+     :ns ns
+     :provides #{ns}
+     :requires #{}
+     :deps []
+     :source (str "module.exports=(" global ");")}))
+
+(defn js-resource-for-file
+  "if we want to include something that is not on npm or we want a custom thing
+  {\"react\" {:type :file :file \"path/to/my/react.js\"}}"
+
+  [npm require {:keys [file file-min] :as cfg} {:keys [mode] :as require-ctx}]
+  (let [file
+        (-> (if (and (= :release mode) (seq file-min))
+              (io/file file-min)
+              (io/file file))
+            (.getCanonicalFile))]
+    (when-not (.exists file)
+      (throw (ex-info "file override for require doesn't exist" {:file file :require require :config cfg})))
+
+    (get-file-info npm file)
+    ))
 
 ;; https://github.com/webpack/node-libs-browser/blob/master/index.js
 ;; using this package so have the same dependencies that webpack would use
@@ -433,7 +472,9 @@
 ;; but since David pretty clearly said the relative requires are not going to happen
 ;; I'm not worried about finding relative requires in jars
 ;; https://dev.clojure.org/jira/browse/CLJS-2061?focusedCommentId=46191&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-46191
-(defn find-resource [{:keys [project-dir] :as npm} require-from require require-ctx]
+
+(defn find-resource*
+  [{:keys [project-dir] :as npm} ^File require-from ^String require require-ctx]
   {:pre [(service? npm)
          (or (nil? require-from)
              (instance? File require-from))
@@ -443,6 +484,7 @@
   (let [{:keys [browser-overrides package-dir] :as pkg}
         (when require-from
           (find-package-for-file npm require-from))]
+
     (cond
       ;; absolute is relative to the project, no outside dependencies are allowed
       (util/is-absolute? require)
@@ -504,6 +546,8 @@
                                               :override override}))
           ))
 
+
+      ;; package-require
       :else
       (let [override
             (let [override (get-in pkg [:browser-overrides require] ::not-found)]
@@ -526,9 +570,53 @@
           (throw (ex-info "browser override from package to relative" {:require-from require-from :require require :override override}))
 
           ;; "foo":"bar"
+          ;; FIXME: should this call find-resource so one resolve override can link to another?
           :else
-          (find-resource npm require-from override require-ctx)
+          (find-resource* npm require-from override require-ctx)
           )))))
+
+(defn find-resource
+  [{:keys [project-dir] :as npm} ^File require-from ^String require require-ctx]
+  {:pre [(service? npm)
+         (or (nil? require-from)
+             (instance? File require-from))
+         (string? require)
+         (map? require-ctx)]}
+
+  ;; FIXME: this should probably be moved to shadow.build.resolve?
+
+  ;; per build :resolve config that may override where certain requires go
+  ;; FIXME: should this only allow overriding package requires?
+  ;; relative would need to be relative to the project, otherwise a generic
+  ;; "./something.js" would override anything from any package
+  ;; just assume ppl will only override packages for now
+  (let [resolve-config (:resolve require-ctx)]
+
+    (if-not (contains? resolve-config require)
+      (find-resource* npm require-from require require-ctx)
+
+      (let [{:keys [target] :as cfg} (get resolve-config require)]
+        ;; FIXME: defmulti?
+        (case target
+          ;; {"react" {:target :global :global "React"}}
+          :global
+          (js-resource-for-global require cfg)
+
+          ;; {"react" {:target :file :file "some/path.js"}}
+          :file
+          (js-resource-for-file npm require cfg require-ctx)
+
+          ;; {"react" {:target :npm :require "preact"}}
+          :npm
+          (let [other (:require cfg)]
+            ;; FIXME: maybe allow to add some additional stuff?
+            (when (= require other)
+              (throw (ex-info "can't resolve to self" {:require require :other other})))
+
+            (find-resource npm require-from other require-ctx))
+
+          (throw (ex-info "unknown resolve target" {:require require
+                                                    :config cfg})))))))
 
 ;; FIXME: allow configuration of :extensions :main-keys
 ;; maybe some closure opts

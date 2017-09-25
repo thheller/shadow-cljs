@@ -66,10 +66,22 @@
 (defmethod find-resource-for-string ::default [_ _ _]
   (throw (ex-info "invalid [:js-options :js-provider] config" {})))
 
-(defmethod find-resource-for-string :closure [state {:keys [file] :as require-from} require]
+(defmethod find-resource-for-string :closure
+  [{:keys [js-options] :as state} {:keys [file] :as require-from} require]
   ;; FIXME: hard-coded browser target
   ;; since :closure mode should only be used in :browser that is fine for now
-  (npm/find-resource (:npm state) file require {:target :browser}))
+  (npm/find-resource (:npm state) file require
+    (assoc js-options
+      :mode (:mode state)
+      :target :browser)))
+
+(defmethod find-resource-for-string :shadow
+  [{:keys [js-options] :as state} {:keys [file] :as require-from} require]
+  ;; FIXME: identical to :closure on this side, defmulti might not be best solution
+  (npm/find-resource (:npm state) file require
+    (assoc js-options
+      :mode (:mode state)
+      :target :browser)))
 
 (def native-node-modules
   #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
@@ -96,7 +108,6 @@
           [package-name suffix]
           (npm/split-package-require require)]
 
-      (prn [:hmm require package-name (contains? native-node-modules package-name)])
       ;; I hate magic symbols buts its the way chosen by CLJS
       ;; so if the package is configured or exists in node_modules we allow it
       ;; FIXME: actually use configuration from :packages to use globals and such

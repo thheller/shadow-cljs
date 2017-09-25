@@ -14,17 +14,14 @@
 
 (deftest test-package-info
   (with-npm [x {}]
-    (let [file
-          (npm/find-require x nil "shortid")
-
-          {:keys [package-name] :as file-info}
-          (npm/get-file-info x file)
+    (let [{:keys [file package-name] :as shortid}
+          (npm/find-resource x nil "shortid" {})
 
           pkg-info
           (npm/find-package x package-name)]
 
       (prn file)
-      (pprint file-info)
+      (pprint shortid)
       (pprint (dissoc pkg-info :package-json))
       )))
 
@@ -51,14 +48,49 @@
       (is (nil? rc))
       )))
 
+(deftest test-resolve-to-global
+  (with-npm [x {}]
+    (let [rc
+          (npm/find-resource x nil "react"
+            {:target :browser
+             :resolve
+             {"react" {:target :global
+                       :global "React"}}})]
+
+      (pprint rc)
+      )))
+
+(deftest test-resolve-to-file
+  (with-npm [x {}]
+    (let [rc
+          (npm/find-resource x nil "react"
+            {:target :browser
+             :mode :release
+             :resolve
+             {"react" {:target :file
+                       :file "test/dummy/react.dev.js"
+                       :file-min "test/dummy/react.min.js"}}})]
+
+      (pprint rc)
+      )))
+
+(deftest test-resolve-to-other
+  (with-npm [x {}]
+    (let [rc
+          (npm/find-resource x nil "react"
+            {:target :browser
+             :resolve
+             {"react" {:target :npm
+                       :require "preact"}}})]
+
+      (pprint rc)
+      )))
+
 
 (deftest test-relative-file
   (with-npm [x {}]
-    (let [file
-          (npm/find-require x (io/file ".") "./src/test/foo")
-
-          file-info
-          (npm/get-file-info* x file)]
+    (let [file-info
+          (npm/find-resource x (io/file ".") "./src/test/foo" {})]
 
       (pprint file-info)
       )))

@@ -48,7 +48,8 @@
    ;; resource-id -> rc, will be copied to :sources when used
    ;; extra map so it doesn't conflict with resolve results
    :virtual-sources {}
-   })
+
+   :mode :dev})
 
 (defn init [state]
   (merge state empty-data))

@@ -21,7 +21,8 @@
             [shadow.build.data :as data]
             [shadow.build.closure :as closure]
             [clojure.tools.logging :as log]
-            [cljs.compiler :as cljs-comp])
+            [cljs.compiler :as cljs-comp]
+            [shadow.build.js-support :as js-support])
   (:import (java.util.concurrent ExecutorService Executors)
            (java.io File StringReader PushbackReader StringWriter)))
 
@@ -746,6 +747,9 @@
    (let [state
          (reduce load-code-for-source state source-ids)
 
+         js-provider
+         (get-in state [:js-options :js-provider])
+
          sources
          (into [] (map #(data/get-source-by-id state %)) source-ids)
 
@@ -792,10 +796,13 @@
            ;; the conversions while optimizing. conversion may lose information
            ;; the optimizer may need. it does preserve type annotations but not much else
 
-           ;; only convert for :none
+           ;; only convert for :none?
            #_(and (not optimizing?) (seq npm))
-           (seq npm)
+           (and (= :closure js-provider) (seq npm))
            (maybe-closure-convert npm)
+
+           (and (= :shadow js-provider) (seq npm))
+           (js-support/compile-sources npm)
 
            ;; optimize the unprocessed sources
            ;; since processing may have lose information

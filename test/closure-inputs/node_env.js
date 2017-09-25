@@ -39,3 +39,7 @@ if (process.env.NODE_ENV !== "development") {
 
 
 var test2 = (process.env.NODE_ENV !== "production") ? "dev" : "prod";
+
+if (/[?&]react_perf\b/.test(url)) {
+  ReactDebugTool.beginProfiling();
+}
