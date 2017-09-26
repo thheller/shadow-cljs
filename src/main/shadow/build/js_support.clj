@@ -72,7 +72,7 @@
     (let [source-files
           (->> (for [{:keys [resource-name ns file source] :as src} sources]
                  (SourceFile/fromCode resource-name
-                   (str "shadow.npm.provide(\"" ns "\", function(module,exports) {\n"
+                   (str "shadow.npm.provide(\"" ns "\", function(require,module,exports) {\n"
                         source
                         "\n});\n")))
                (into []))
@@ -100,7 +100,7 @@
 
           ;; FIXME: are there more options we should take from the user?
           co-opts
-          {:pretty-print false
+          {:pretty-print true
            :source-map true
            ;; FIXME: is there any reason to not always use :simple?
            ;; source maps are pretty good so debugging should not be an issue

@@ -13,9 +13,13 @@ goog.provide("shadow.npm");
 
 shadow.npm.pkgs = {};
 
+shadow.npm.require = function(name) {
+  return shadow.npm.pkgs[name];
+};
+
 shadow.npm.provide = function(name, moduleFn) {
   var module = shadow.npm.pkgs[name] || { exports: {} };
-  moduleFn(module, module.exports);
+  moduleFn(shadow.npm.require, module, module.exports);
   shadow.npm.pkgs[name] = module.exports;
 
   // FIXME: make CLJS emit the property access instead of global, global just sucks

@@ -2,6 +2,7 @@ package shadow.build.closure;
 
 import com.google.javascript.jscomp.*;
 import com.google.javascript.jscomp.Compiler;
+import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
 import java.util.HashMap;
@@ -20,7 +21,8 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
     @Override
     public void visit(NodeTraversal t, Node node, Node parent) {
         if (NodeUtil.isCallTo(node, "require")) {
-            String require = node.getSecondChild().getString();
+            Node requireString = node.getSecondChild();
+            String require = requireString.getString();
             String sfn = node.getSourceFileName();
             if (sfn != null) {
                 Map<String, Object> requires = replacements.get(sfn);
@@ -29,9 +31,7 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
                     // might be a clj-sym or String
                     Object replacement = requires.get(require);
                     if (replacement != null) {
-                        // replace require("something") with shadow.npm.pkgs.module$something lookup
-                        final Node newNode = NodeUtil.newQName(compiler, replacement.toString());
-                        node.replaceWith(newNode);
+                        requireString.replaceWith(IR.string(replacement.toString()));
                         t.reportCodeChange();
                     }
                 }
