@@ -6,9 +6,9 @@
             [shadow.build.closure :as closure])
   (:import (java.io File StringWriter)
            (com.google.javascript.jscomp.deps ModuleNames ModuleLoader$ResolutionMode)
-           (com.google.javascript.jscomp DiagnosticGroups CheckLevel ShadowAccess SourceFile JsAst NodeTraversal)
+           (com.google.javascript.jscomp DiagnosticGroups CheckLevel ShadowAccess SourceFile JsAst NodeTraversal CustomPassExecutionTime)
            (com.google.javascript.rhino IR)
-           (shadow.build.closure NodeEnvTraversal$Remove ReplaceRequirePass)))
+           (shadow.build.closure ReplaceRequirePass NodeEnvInlinePass)))
 
 (defn shim-require-resource [js-require]
   (let [js-ns-alias
@@ -49,89 +49,219 @@
     ;; CLJS does one at a time but that has other issues
     ))
 
-(defn remove-node-env-branches [node cc node-env]
-  (let [pass (NodeEnvTraversal$Remove. node-env cc)]
-    (NodeTraversal/traverseEs6 cc node pass)))
+(defn require-replacement-map [{:keys [str->sym sym->id] :as state}]
+  (reduce-kv
+    (fn [m ns require-map]
+      (let [rc-id
+            (data/get-source-id-by-provide state ns)
+            {:keys [resource-name] :as rc}
+            (data/get-source-by-id state rc-id)]
+        (assoc m resource-name require-map)))
+    {}
+    str->sym))
 
-(defn replace-requires [node cc replacements]
-  (let [pass (ReplaceRequirePass. cc replacements)]
-    (NodeTraversal/traverseEs6 cc node pass)))
+(defn compile-sources
+  "takes a list of :npm sources and rewrites them to closure JS"
+  [{:keys [project-dir npm mode] :as state} sources]
+  (util/with-logged-time [state {:type ::convert
+                                 :num-sources (count sources)}]
 
-(defn compile-sources [{:keys [mode] :as state} sources]
-  (let [cc
-        (closure/make-closure-compiler)
+    ;; FIXME: this should do caching but Closure needs all files when compiling
+    ;; cannot compile one file at a time with this approach
+    ;; CLJS does one at a time but that has other issues
+    (let [source-files
+          (->> (for [{:keys [resource-name ns file source] :as src} sources]
+                 (SourceFile/fromCode resource-name
+                   (str "shadow.npm.provide(\"" ns "\", function(module,exports) {\n"
+                        source
+                        "\n});\n")))
+               (into []))
 
-        ;; FIXME: are there more options we should take from the user?
-        co-opts
-        {:pretty-print true
-         :source-map true
-         :language-in :ecmascript-next
-         :language-out :ecmascript3}
+          source-file-names
+          (into #{} (map #(.getName %)) source-files)
 
-        co
-        (doto (closure/make-options)
-          (closure/set-options co-opts))
+          ;; this includes all files (sources + package.json files)
+          source-files-by-name
+          (->> source-files
+               (map (juxt #(.getName %) identity))
+               (into {}))
 
-        co
-        (doto co
-          ;; we only transpile, no optimizing or type checking
-          ;; actually we don't even transpile, just replacing requires
-          (.setSkipNonTranspilationPasses true)
+          ;; this only includes resources we actually want output for
+          resource-by-name
+          (->> sources
+               (map (juxt :resource-name identity))
+               (into {}))
 
-          (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
+          cc
+          (closure/make-closure-compiler)
 
-          (.setPreserveTypeAnnotations true)
+          language-out
+          (get-in state [:compiler-options :language-out] :ecmascript3)
 
-          (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
+          ;; FIXME: are there more options we should take from the user?
+          co-opts
+          {:pretty-print false
+           :source-map true
+           ;; FIXME: is there any reason to not always use :simple?
+           ;; source maps are pretty good so debugging should not be an issue
+           ;; :whitespace is about an order of magnitude faster though
+           ;; could use that in :dev but given that npm deps won't change that often
+           ;; that might not matter, should cache anyways
+           :optimizations :simple
+           :language-in :ecmascript-next
+           :language-out language-out}
 
-        _
-        (.init cc [] [] co)
+          closure-opts
+          (doto (closure/make-options)
+            (closure/set-options co-opts))
 
-        source-map
-        (.getSourceMap cc)]
+          _ (do (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
+                  (NodeEnvInlinePass. cc (if (= :release mode)
+                                           "production"
+                                           "development")))
 
-    (reduce
-      (fn [state {:keys [resource-id resource-name output-name source ns] :as src}]
-        (.reset source-map)
+                (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
+                  (let [m (require-replacement-map state)]
+                    (ReplaceRequirePass. cc m))))
 
-        (let [source-file
-              (SourceFile/fromCode resource-name
-                (str "shadow.npm.register(\"" ns "\", function(module,exports) {\n"
-                     source
-                     "\n});\n"))
+          closure-opts
+          (doto closure-opts
+            (.resetWarningsGuard)
+            (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
+            (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
 
-              source-ast
-              (JsAst. source-file)
+          result
+          (try
+            (.compile cc [] source-files closure-opts)
+            ;; catch internal closure errors
+            (catch Exception e
+              (throw (ex-info "failed to convert sources"
+                       {:tag ::convert-error
+                        :sources (into [] (map :resource-id) sources)}
+                       e))))
 
-              source-node
-              (doto (.getAstRoot source-ast cc)
-                (remove-node-env-branches cc (if (= :release mode)
-                                               "production"
-                                               "development"))
-                (replace-requires cc (get-in state [:str->sym ns])))
+          _ (closure/throw-errors! state cc result)
+
+          source-map
+          (.getSourceMap cc)]
+
+      (-> state
+          (closure/log-warnings cc result)
+          (util/reduce->
+            (fn [state source-node]
+              (.reset source-map)
+
+              (let [name
+                    (.getSourceFileName source-node)
+
+                    source-file
+                    (get source-files-by-name name)
+
+                    {:keys [resource-id output-name] :as rc}
+                    (get resource-by-name name)
+
+                    js
+                    (try
+                      (ShadowAccess/nodeToJs cc source-map source-node)
+                      (catch Exception e
+                        (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+
+                    sw
+                    (StringWriter.)
+
+                    ;; for sourcesContent
+                    _ (.addSourceFile source-map source-file)
+                    _ (.appendTo source-map sw output-name)
+
+                    sm-json
+                    (.toString sw)
+
+                    output
+                    {:resource-id resource-id
+                     :js js
+                     :source-map-json sm-json}]
+
+                (assoc-in state [:output resource-id] output)))
+
+            (->> (ShadowAccess/getJsRoot cc)
+                 (.children) ;; the inputs
+                 ))))))
+
+#_(defn compile-sources [{:keys [mode] :as state} sources]
+    (let [cc
+          (closure/make-closure-compiler)
+
+          ;; FIXME: are there more options we should take from the user?
+          co-opts
+          {:pretty-print true
+           :source-map true
+           :language-in :ecmascript-next
+           :language-out :ecmascript3}
+
+          co
+          (doto (closure/make-options)
+            (closure/set-options co-opts))
+
+          co
+          (doto co
+            ;; we only transpile, no optimizing or type checking
+            ;; actually we don't even transpile, just replacing requires
+            (.setSkipNonTranspilationPasses true)
+
+            (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
+
+            (.setPreserveTypeAnnotations true)
+
+            (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
+
+          _
+          (.init cc [] [] co)
+
+          source-map
+          (.getSourceMap cc)]
+
+      (reduce
+        (fn [state {:keys [resource-id resource-name output-name source ns] :as src}]
+          (.reset source-map)
+
+          (let [source-file
+                (SourceFile/fromCode resource-name
+                  (str "shadow.npm.provide(\"" ns "\", function(module,exports) {\n"
+                       source
+                       "\n});\n"))
+
+                source-ast
+                (JsAst. source-file)
+
+                source-node
+                (doto (.getAstRoot source-ast cc)
+                  (remove-node-env-branches cc (if (= :release mode)
+                                                 "production"
+                                                 "development"))
+                  (replace-requires cc (get-in state [:str->sym ns])))
 
 
-              js
-              (try
-                (ShadowAccess/nodeToJs cc source-map source-node)
-                (catch Exception e
-                  (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                js
+                (try
+                  (ShadowAccess/nodeToJs cc source-map source-node)
+                  (catch Exception e
+                    (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
 
-              sw
-              (StringWriter.)
+                sw
+                (StringWriter.)
 
-              ;; for sourcesContent
-              _ (.addSourceFile source-map source-file)
-              _ (.appendTo source-map sw output-name)
+                ;; for sourcesContent
+                _ (.addSourceFile source-map source-file)
+                _ (.appendTo source-map sw output-name)
 
-              sm-json
-              (.toString sw)
+                sm-json
+                (.toString sw)
 
-              output
-              {:resource-id resource-id
-               :js js
-               :source-map-json sm-json}]
+                output
+                {:resource-id resource-id
+                 :js js
+                 :source-map-json sm-json}]
 
-          (assoc-in state [:output resource-id] output)))
-      state
-      sources)))
+            (assoc-in state [:output resource-id] output)))
+        state
+        sources)))

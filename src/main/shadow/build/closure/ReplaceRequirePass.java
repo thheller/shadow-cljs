@@ -1,21 +1,19 @@
 package shadow.build.closure;
 
-import clojure.lang.RT;
 import com.google.javascript.jscomp.*;
 import com.google.javascript.jscomp.Compiler;
-import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback {
+public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback implements CompilerPass {
 
-    private final AbstractCompiler cc;
-    private final Map<String, Object> replacements;
+    private final AbstractCompiler compiler;
+    private final Map<String, Map<String, Object>> replacements;
 
-    public ReplaceRequirePass(AbstractCompiler cc, Map<String, Object> replacements) {
-        this.cc = cc;
+    public ReplaceRequirePass(AbstractCompiler compiler, Map<String, Map<String, Object>> replacements) {
+        this.compiler = compiler;
         this.replacements = replacements;
     }
 
@@ -23,17 +21,27 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
     public void visit(NodeTraversal t, Node node, Node parent) {
         if (NodeUtil.isCallTo(node, "require")) {
             String require = node.getSecondChild().getString();
-            // might be a clj-sym or String
-            Object replacement = replacements.get(require);
-            if (replacement != null) {
-                // replace require("something") with shadow.npm.pkgs.module$something lookup
-                final Node newNode = IR.getprop( IR.name("shadow"), "npm", "pkgs", replacement.toString());
+            String sfn = node.getSourceFileName();
+            if (sfn != null) {
+                Map<String, Object> requires = replacements.get(sfn);
 
-                node.replaceWith(newNode);
-
-                cc.reportChangeToEnclosingScope(newNode);
+                if (requires != null) {
+                    // might be a clj-sym or String
+                    Object replacement = requires.get(require);
+                    if (replacement != null) {
+                        // replace require("something") with shadow.npm.pkgs.module$something lookup
+                        final Node newNode = NodeUtil.newQName(compiler, replacement.toString());
+                        node.replaceWith(newNode);
+                        t.reportCodeChange();
+                    }
+                }
             }
         }
+    }
+
+    @Override
+    public void process(Node externs, Node root) {
+        NodeTraversal.traverseEs6(compiler, root, this);
     }
 
     public static Node process(Compiler cc, SourceFile srcFile) {
@@ -42,10 +50,13 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
 
         JsAst.ParseResult result = (JsAst.ParseResult) node.getProp(Node.PARSE_RESULTS);
 
-        Map<String,Object> replacements = new HashMap<>();
-        replacements.put("test", "module$test");
+        Map<String,Object> nested = new HashMap<>();
+        nested.put("test", "module$test");
 
-        NodeTraversal.Callback pass = new ReplaceRequirePass(cc, replacements);
+        Map outer = new HashMap();
+        outer.put("test.js", nested);
+
+        NodeTraversal.Callback pass = new ReplaceRequirePass(cc, outer);
         NodeTraversal.traverseEs6(cc, node, pass);
 
         return node;

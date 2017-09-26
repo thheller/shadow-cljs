@@ -13,7 +13,7 @@ goog.provide("shadow.npm");
 
 shadow.npm.pkgs = {};
 
-shadow.npm.register = function(name, moduleFn) {
+shadow.npm.provide = function(name, moduleFn) {
   var module = shadow.npm.pkgs[name] || { exports: {} };
   moduleFn(module, module.exports);
   shadow.npm.pkgs[name] = module.exports;
