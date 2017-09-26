@@ -1,11 +1,13 @@
 
 # ![overview-img](https://user-images.githubusercontent.com/116838/28730426-d32dc74a-7395-11e7-9cec-54275af35345.png)
 
-`shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use. [![](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
+`shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
 
 ### Status: Alpha
 
 This is still in an alpha stage. Documentation is lacking and may sometimes be a bit out of date. I'll update things once everything is sorted out. The core parts provided by `shadow-build` were in production use for 3+ years and have now been merged into this project. `shadow-cljs` just adds a better configuration layer so you don't need to work with the low-level API.
+
+[![](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
 
 ## Features
 
