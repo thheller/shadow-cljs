@@ -106,7 +106,7 @@
           :stop reload-macros/stop}
 
          :supervisor
-         {:depends-on [:system-bus :executor :http :classpath :npm]
+         {:depends-on [:system-bus :executor :cache-root :http :classpath :npm]
           :start super/start
           :stop super/stop}
 

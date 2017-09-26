@@ -83,7 +83,7 @@
 ;; SERVICE API
 
 (defn start
-  [system-bus executor http classpath npm {:keys [build-id] :as build-config}]
+  [system-bus executor cache-root http classpath npm {:keys [build-id] :as build-config}]
   {:pre [(map? http)
          (map? build-config)
          (cp/service? classpath)
@@ -146,6 +146,7 @@
         {::impl/worker-state true
          :http http
          :classpath classpath
+         :cache-root cache-root
          :npm npm
          :proc-id proc-id
          :build-config build-config

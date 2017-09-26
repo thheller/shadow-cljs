@@ -1,7 +1,7 @@
 {
   "private": true,
   "devDependencies": {
-    "babel-core": "^6.25.0",
+    "babel-core": "^6.26.0",
     "source-map-support": "^0.4.15",
     "ws": "^3.1.0"
   },
@@ -9,7 +9,9 @@
     "@atlaskit/navigation": "^18.0.0",
     "animated": "^0.2.0",
     "aws-sdk": "^2.122.0",
+    "babel-cli": "^6.26.0",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.24.1",
+    "babel-preset-env": "^1.6.0",
     "bootstrap": "^4.0.0-beta",
     "browser-resolve": "^1.11.2",
     "browserify": "^14.4.0",

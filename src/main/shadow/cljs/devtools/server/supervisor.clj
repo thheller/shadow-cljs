@@ -21,13 +21,13 @@
     @workers-ref))
 
 (defn start-worker
-  [{:keys [system-bus state-ref workers-ref executor http classpath npm] :as svc} {:keys [build-id] :as build-config}]
+  [{:keys [system-bus state-ref workers-ref executor cache-root http classpath npm] :as svc} {:keys [build-id] :as build-config}]
   {:pre [(keyword? build-id)]}
   (when (get @workers-ref build-id)
     (throw (ex-info "already started" {:build-id build-id})))
 
   (let [{:keys [proc-stop] :as proc}
-        (worker/start system-bus executor http classpath npm build-config)]
+        (worker/start system-bus executor cache-root http classpath npm build-config)]
 
     (vswap! workers-ref assoc build-id proc)
 
@@ -43,9 +43,10 @@
   (when-some [proc (get @workers-ref id)]
     (worker/stop proc)))
 
-(defn start [system-bus executor http classpath npm]
+(defn start [system-bus executor cache-root http classpath npm]
   {:system-bus system-bus
    :executor executor
+   :cache-root cache-root
    :http http
    :classpath classpath
    :npm npm
