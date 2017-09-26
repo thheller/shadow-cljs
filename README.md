@@ -1,6 +1,7 @@
+
 # ![overview-img](https://user-images.githubusercontent.com/116838/28730426-d32dc74a-7395-11e7-9cec-54275af35345.png)
 
-`shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
+`shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use. [![](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
 
 ### Status: Alpha
 
