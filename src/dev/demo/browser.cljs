@@ -4,6 +4,7 @@
             ["react-dom" :as rdom :refer (render)]
             ["shortid" :as sid]
             ["jquery" :as jq]
+            ["material-ui" :as mui]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])

@@ -661,10 +661,7 @@
      :node-modules-dir node-modules-dir
      ;; FIXME: if a build ever needs to configure these we can't use the shared npm reference
      :extensions [".js" ".json"]
-     ;; some packages have module and browser where module is es6 but browser
-     ;; is some CommonJS gibberish, we prefer ES6 so module takes precedence over browser
-     ;; https://github.com/rollup/rollup/wiki/pkg.module
-     :main-keys ["module" "jsnext:main" "main"]
+     :main-keys [#_ "module" #_ "jsnext:main" "main"]
      }))
 
 (defn stop [npm])
