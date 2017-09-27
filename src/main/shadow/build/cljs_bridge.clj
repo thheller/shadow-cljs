@@ -58,8 +58,11 @@
         (fn [js-mod-index aliases]
           (reduce
             (fn [idx alias]
-              ;; FIXME: not exactly sure why this is a map of str->sym
-              (assoc idx (str alias) alias))
+              ;; FIXME: I don't quite get what this is supposed to be
+              ;; CLJS does {"React" {:name "module$node_modules$react$..."}}
+              ;; but we never have the "React" alias
+              (assoc idx (str alias) {:name (str alias)
+                                      :module-type :commonjs}))
             js-mod-index
             aliases))]
 

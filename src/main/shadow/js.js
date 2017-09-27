@@ -33,7 +33,20 @@ shadow.js.provide = function(name, moduleFn) {
   // FIXME: wrap in try/catch?
   moduleFn.call(module, shadow.js.require, module, module["exports"]);
 
-  shadow.js.files[name] = module["exports"];
+  exports = module["exports"];
+
+  // FIXME: working around the impl of CLJS-1620
+  // https://dev.clojure.org/jira/browse/CLJS-1620
+  // not exactly certain why it doesnt work but sometimes
+  // CLJS continues to rewrite thing.default to thing.default$
+  //
+  // this is a pattern done by babel when converted from ES6
+  // so its very isolated and should be reliable enough
+  if (exports && exports["__esModule"] === true) {
+    exports["default$"] = exports["default"];
+  }
+
+  shadow.js.files[name] = exports;
 };
 
 goog.exportSymbol("shadow.js.provide", shadow.js.provide);

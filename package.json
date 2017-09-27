@@ -20,7 +20,7 @@
     "jquery": "^3.2.1",
     "js-nacl": "^1.2.2",
     "material-components-web": "^0.17.0",
-    "material-ui": "^0.18.5",
+    "material-ui": "^0.18.7",
     "mkdirp": "^0.5.1",
     "module-deps": "^4.1.1",
     "moment": "^2.18.1",

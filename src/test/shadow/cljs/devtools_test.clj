@@ -360,7 +360,8 @@
                           #_ "bootstrap" ;; expects global jQuery, wrapped IIFE, not properly converted
                           #_ "shortid" ;; browser overrides
                           #_ "js-nacl" ;; fs dependency
-                          "readable-stream"
+                          #_ "readable-stream"
+                          "material-ui/styles/getMuiTheme"
                           ]}}
 
         :js-options
