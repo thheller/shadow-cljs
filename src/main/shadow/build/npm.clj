@@ -361,7 +361,7 @@
                   :requires #{}
                   :source source
                   :js-deps js-deps
-                  :deps (into '[shadow.npm] js-deps)
+                  :deps (into '[shadow.js] js-deps)
                   ))))
 
         (cond->
@@ -608,7 +608,11 @@
 
           ;; {"react" {:target :npm :require "preact"}}
           :npm
-          (let [other (:require cfg)]
+          (let [other
+                (if (and (= :release (:mode require-ctx)) (contains? cfg :require-min))
+                  (:require-min cfg)
+                  (:require cfg))]
+
             ;; FIXME: maybe allow to add some additional stuff?
             (when (= require other)
               (throw (ex-info "can't resolve to self" {:require require :other other})))

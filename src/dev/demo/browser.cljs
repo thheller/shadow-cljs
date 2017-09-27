@@ -3,6 +3,7 @@
   (:require ["react" :as react :refer (createElement)]
             ["react-dom" :as rdom :refer (render)]
             ["shortid" :as sid]
+            ["jquery" :as jq]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
@@ -21,6 +22,9 @@
 (js/console.log "demo.browser" react rdom Component)
 
 (js/console.log "foo" FOO)
+
+(js/console.log "jq" (-> (jq "body")
+                         (.append "foo")))
 
 (s/def ::foo string?)
 

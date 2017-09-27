@@ -727,14 +727,14 @@
 
     (assoc-in state [:sources resource-id :source] source)))
 
-(defn maybe-closure-convert [{:keys [output] :as state} npm]
+(defn maybe-closure-convert [{:keys [output] :as state} npm convert-fn]
   ;; incremental compiles might not need recompiling
   ;; if reset removed one output we must recompile everything again
   ;; this could probably do some more sophisticated caching
   ;; but for now closure is fast enough to do it all over again
   (if (every? #(contains? output %) (map :resource-id npm))
     state
-    (closure/convert-sources state npm)))
+    (convert-fn state npm)))
 
 (defn compile-all
   ([{:keys [build-sources] :as state}]
@@ -799,10 +799,10 @@
            ;; only convert for :none?
            #_(and (not optimizing?) (seq npm))
            (and (= :closure js-provider) (seq npm))
-           (maybe-closure-convert npm)
+           (maybe-closure-convert npm closure/convert-sources)
 
            (and (= :shadow js-provider) (seq npm))
-           (js-support/compile-sources npm)
+           (maybe-closure-convert npm closure/convert-sources-simple)
 
            ;; optimize the unprocessed sources
            ;; since processing may have lose information

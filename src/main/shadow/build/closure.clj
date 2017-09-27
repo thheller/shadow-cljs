@@ -19,7 +19,7 @@
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          SourceMap$LocationMapping BasicErrorManager Result ShadowAccess
                                          SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy)
-           (shadow.build.closure ReplaceCLJSConstants)
+           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (com.google.javascript.jscomp.parsing.parser FeatureSet)
            (java.nio.charset Charset)))
@@ -1132,3 +1132,167 @@
             (->> (ShadowAccess/getJsRoot cc)
                  (.children) ;; the inputs
                  ))))))
+
+(defn require-replacement-map [{:keys [str->sym sym->id] :as state}]
+  (reduce-kv
+    (fn [m ns require-map]
+      (let [rc-id
+            (data/get-source-id-by-provide state ns)
+            {:keys [resource-name] :as rc}
+            (data/get-source-by-id state rc-id)]
+        (assoc m resource-name require-map)))
+    {}
+    str->sym))
+
+(defn convert-sources-simple
+  "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
+  [{:keys [project-dir npm mode build-sources] :as state} sources]
+  (util/with-logged-time [state {:type ::convert
+                                 :num-sources (count sources)}]
+
+    ;; FIXME: this should do caching, :simple can be slow
+    (let [source-files
+          (->> (for [{:keys [resource-name ns file source] :as src} sources]
+                 (SourceFile/fromCode resource-name
+                   ;; first line should not contain new-line so line-numbers in source-maps
+                   ;; match the original file and is not off by one
+                   (str "shadow.js.provide(\"" ns "\", function(require,module,exports) {"
+                        source
+                        "\n});")))
+               (into []))
+
+          names-accessed-from-cljs
+          (->> (for [src-id build-sources
+                     :let [{:keys [resource-id type] :as src}
+                           (data/get-source-by-id state src-id)]
+                     :when (not= :npm type)
+                     :let [syms (data/deps->syms state src)]
+                     sym syms]
+                 sym)
+               (into #{}))
+
+          source-file-names
+          (into #{} (map #(.getName %)) source-files)
+
+          ;; this includes all files (sources + package.json files)
+          source-files-by-name
+          (->> source-files
+               (map (juxt #(.getName %) identity))
+               (into {}))
+
+          ;; this only includes resources we actually want output for
+          resource-by-name
+          (->> sources
+               (map (juxt :resource-name identity))
+               (into {}))
+
+          cc
+          (make-closure-compiler)
+
+          language-out
+          (get-in state [:compiler-options :language-out] :ecmascript3)
+
+          ;; FIXME: are there more options we should take from the user?
+          co-opts
+          {:pretty-print false
+           :source-map true
+           ;; FIXME: is there any reason to not always use :simple?
+           ;; source maps are pretty good so debugging should not be an issue
+           ;; :whitespace is about an order of magnitude faster though
+           ;; could use that in :dev but given that npm deps won't change that often
+           ;; that might not matter, should cache anyways
+           :optimizations :simple
+           :language-in :ecmascript-next
+           :language-out language-out}
+
+          closure-opts
+          (doto (make-options)
+            (set-options co-opts)
+
+            (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
+              (NodeEnvInlinePass. cc (if (= :release mode)
+                                       "production"
+                                       "development")))
+
+            (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
+              (let [m (require-replacement-map state)]
+                (ReplaceRequirePass. cc m))))
+
+          closure-opts
+          (doto closure-opts
+            (.resetWarningsGuard)
+            (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
+            (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
+            ;; unreachable code in react
+            (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)
+            (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
+
+          result
+          (try
+            (.compile cc [] source-files closure-opts)
+            ;; catch internal closure errors
+            (catch Exception e
+              (throw (ex-info "failed to convert sources"
+                       {:tag ::convert-error
+                        :sources (into [] (map :resource-id) sources)}
+                       e))))
+
+          _ (throw-errors! state cc result)
+
+          source-map
+          (.getSourceMap cc)]
+
+      (-> state
+          (log-warnings cc result)
+          (util/reduce->
+            (fn [state source-node]
+              (.reset source-map)
+
+              (let [name
+                    (.getSourceFileName source-node)
+
+                    source-file
+                    (get source-files-by-name name)
+
+                    {:keys [resource-id ns output-name] :as rc}
+                    (get resource-by-name name)
+
+                    js
+                    (try
+                      (ShadowAccess/nodeToJs cc source-map source-node)
+                      (catch Exception e
+                        (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+
+                    sw
+                    (StringWriter.)
+
+                    ;; for sourcesContent
+                    _ (.addSourceFile source-map source-file)
+                    _ (.appendTo source-map sw output-name)
+
+                    sm-json
+                    (.toString sw)
+
+                    ;; expose only the names actually used by CLJS
+                    ;; avoids creating a global for every npm file
+                    ;; JS files talk amongst themselves via shadow.js
+                    expose?
+                    (contains? names-accessed-from-cljs ns)
+
+                    output
+                    (-> {:resource-id resource-id
+                         :js js
+                         :source-map-json sm-json}
+                        (cond->
+                          expose?
+                          (update :js #(str %
+                                            "\ngoog.provide('" ns "');"
+                                            "\n" ns "=shadow.js.require(\"" ns "\");\n"))))]
+
+                (assoc-in state [:output resource-id] output)))
+
+            (->> (ShadowAccess/getJsRoot cc)
+                 (.children) ;; the inputs
+                 ))))))
+
+
