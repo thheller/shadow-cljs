@@ -266,9 +266,11 @@
   (spit
     (data/output-file state "manifest.json")
     (let [data
-          (->> (:build-modules state)
-               (map (fn [{:keys [name output-name entries depends-on sources foreign-files] :as mod}]
-                      {:name name
+          (->> (or (::closure/modules state)
+                   (:build-modules state))
+               (map (fn [{:keys [module-id output-name entries depends-on sources foreign-files] :as mod}]
+                      {:module-id module-id
+                       :name module-id
                        :output-name output-name
                        ;; FIXME: this is old, should always use :output-name
                        :js-name output-name
@@ -278,12 +280,6 @@
                        (->> sources
                             (map #(get-in state [:sources %]))
                             (map :resource-name)
-                            (into []))
-                       :js-modules
-                       (->> sources
-                            (map #(get-in state [:sources %]))
-                            (map :js-module)
-                            (remove nil?)
                             (into []))}
                       )))]
       (with-out-str
