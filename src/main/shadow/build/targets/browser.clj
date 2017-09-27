@@ -254,6 +254,9 @@
           public-path
           (build-api/merge-build-options {:asset-path public-path})
 
+          (not (contains? (:js-options config) :js-provider))
+          (build-api/with-js-options {:js-provider :shadow})
+
           (and (= :dev mode) (:worker-info state))
           (-> (repl/setup)
               (update-in [:compiler-options :closure-defines] merge (shared/repl-defines state config))))
