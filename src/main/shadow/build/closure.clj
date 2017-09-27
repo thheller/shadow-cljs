@@ -716,9 +716,16 @@
         success?
         (.success result)
 
+        js-provider
+        (get-in state [:js-options :js-provider])
+
         source-map
         (when (and success? (get-in state [:compiler-options :source-map]))
           (.getSourceMap compiler))]
+
+    (when (and source-map (= :shadow js-provider))
+      (util/log state {:type ::broken
+                       :msg ":advanced mode with source maps is currently broken!"}))
 
     (-> state
         (assoc ::result result)
@@ -771,24 +778,26 @@
                                 ;; prepending always doesn't work and neither does appending
                                 ;; prepend can work if we restrict JS from ever accessing CLJS which sucks
                                 js
-                                (reduce
-                                  (fn [js src-id]
-                                    (let [{:keys [ns type] :as src}
-                                          (data/get-source-by-id state src-id)]
-
-                                      (if (not= :npm type)
-                                        js
-                                        (let [output
-                                              (data/get-output! state src)
-
-                                              pattern
-                                              (str "shadow$placeholder(\"" ns "\");")]
-
-                                          ;; :simple strips the trailing ; something, but we need it
-                                          (str/replace js pattern (str (:js output) ";"))))
-                                      ))
+                                (if (not= :shadow js-provider)
                                   js
-                                  sources)
+                                  (reduce
+                                    (fn [js src-id]
+                                      (let [{:keys [ns type] :as src}
+                                            (data/get-source-by-id state src-id)]
+
+                                        (if (not= :npm type)
+                                          js
+                                          (let [output
+                                                (data/get-output! state src)
+
+                                                pattern
+                                                (str "shadow$placeholder(\"" ns "\");")]
+
+                                            ;; :simple strips the trailing ; something, but we need it
+                                            (str/replace js pattern (str (:js output) ";"))))
+                                        ))
+                                    js
+                                    sources))
 
                                 js
                                 (if (seq foreign-js)
@@ -1226,7 +1235,7 @@
            ;; :whitespace is about an order of magnitude faster though
            ;; could use that in :dev but given that npm deps won't change that often
            ;; that might not matter, should cache anyways
-           :optimizations :whitespace
+           :optimizations :simple
            :language-in :ecmascript-next
            :language-out language-out}
 
@@ -1307,11 +1316,6 @@
                      :js js
                      :expose expose?
                      :source-map-json sm-json}]
-
-                (let [file (data/cache-file state "shadow" output-name)]
-                  (io/make-parents file)
-                  (prn [:wrote file])
-                  (spit file js))
 
                 (assoc-in state [:output resource-id] output)))
 

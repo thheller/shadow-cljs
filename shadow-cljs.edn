@@ -71,7 +71,8 @@
 
    :compiler-options
    {:externs [#_"demo/browser-externs.js"
-              "react.externs.js"]
+              "test/react.ext.js"
+              "test/react-dom.ext.js"]
 
     :closure-warnings
     {:global-this :off}
