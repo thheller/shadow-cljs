@@ -24,3 +24,9 @@ var __dirname;
  * @return {?}
  */
 function require(name) {}
+
+
+/**
+ * FIXME: temporary placeholder until I can do better
+ */
+function shadow$placeholder(name) {}

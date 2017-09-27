@@ -458,6 +458,9 @@
              (map :module-id)
              (into #{}))
 
+        js-provider
+        (get-in state [:js-options :js-provider])
+
         js-mods
         (reduce
           (fn [js-mods {:keys [module-id output-name depends-on sources] :as mod}]
@@ -476,7 +479,7 @@
 
                 (.addDependency js-mod other-mod))
 
-              (doseq [{:keys [resource-id resource-name type output-name output] :as rc}
+              (doseq [{:keys [resource-id resource-name ns type output-name output] :as rc}
                       (->> sources
                            (map #(data/get-source-by-id state %))
                            (remove util/foreign?))]
@@ -485,27 +488,24 @@
                       (data/get-output! state rc)
 
                       js
-                      (if (not= "goog/base.js" resource-name)
-                        js
+                      (cond
+                        (= "goog/base.js" resource-name)
                         (str (output/closure-defines state)
                              js
-                             goog-nodeGlobalRequire-fix))]
+                             goog-nodeGlobalRequire-fix)
 
-                  (when-not (seq js)
-                    (throw (ex-info (format "no output for rc: %s" resource-id) output)))
+                        (and (= :npm type) (= :shadow js-provider))
+                        (str "shadow$placeholder(\"" ns "\");"
+                             ;; the compiler does not need to know about all js files
+                             ;; it only needs to know if used by cljs
+                             (when (:expose output)
+                               (str "goog.provide(\"" ns "\");\n"
+                                    ns " = shadow.js.require(\"" ns "\");")))
 
-                  ;; foreign files were filtered above
-                  (case type
-                    :goog
-                    (.add js-mod (SourceFile/fromCode output-name js))
+                        :else
+                        js)]
 
-                    :npm
-                    (.add js-mod (SourceFile/fromCode output-name js))
-
-                    :cljs
-                    (.add js-mod (SourceFile/fromCode output-name js))
-
-                    (throw (ex-info (format "unsupported type for closure: %s" type) rc)))))
+                  (.add js-mod (SourceFile/fromCode output-name js))))
 
 
 
@@ -765,6 +765,30 @@
                                      (map (fn [{:keys [name file] :as inc}]
                                             (slurp file)))
                                      (str/join "\n"))
+
+                                ;; FIXME: completely destroys source-maps
+                                ;; but I can't think of a better way to inject sources into the correct locations
+                                ;; prepending always doesn't work and neither does appending
+                                ;; prepend can work if we restrict JS from ever accessing CLJS which sucks
+                                js
+                                (reduce
+                                  (fn [js src-id]
+                                    (let [{:keys [ns type] :as src}
+                                          (data/get-source-by-id state src-id)]
+
+                                      (if (not= :npm type)
+                                        js
+                                        (let [output
+                                              (data/get-output! state src)
+
+                                              pattern
+                                              (str "shadow$placeholder(\"" ns "\");")]
+
+                                          ;; :simple strips the trailing ; something, but we need it
+                                          (str/replace js pattern (str (:js output) ";"))))
+                                      ))
+                                  js
+                                  sources)
 
                                 js
                                 (if (seq foreign-js)
@@ -1202,13 +1226,14 @@
            ;; :whitespace is about an order of magnitude faster though
            ;; could use that in :dev but given that npm deps won't change that often
            ;; that might not matter, should cache anyways
-           :optimizations :simple
+           :optimizations :whitespace
            :language-in :ecmascript-next
            :language-out language-out}
 
           closure-opts
           (doto (make-options)
             (set-options co-opts)
+            (.resetWarningsGuard)
 
             (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
               (NodeEnvInlinePass. cc (if (= :release mode)
@@ -1217,11 +1242,8 @@
 
             (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
               (let [m (require-replacement-map state)]
-                (ReplaceRequirePass. cc m))))
+                (ReplaceRequirePass. cc m)))
 
-          closure-opts
-          (doto closure-opts
-            (.resetWarningsGuard)
             (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
             (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
             ;; unreachable code in react
@@ -1281,14 +1303,15 @@
                     (contains? names-accessed-from-cljs ns)
 
                     output
-                    (-> {:resource-id resource-id
-                         :js js
-                         :source-map-json sm-json}
-                        (cond->
-                          expose?
-                          (update :js #(str %
-                                            "\ngoog.provide('" ns "');"
-                                            "\n" ns "=shadow.js.require(\"" ns "\");\n"))))]
+                    {:resource-id resource-id
+                     :js js
+                     :expose expose?
+                     :source-map-json sm-json}]
+
+                (let [file (data/cache-file state "shadow" output-name)]
+                  (io/make-parents file)
+                  (prn [:wrote file])
+                  (spit file js))
 
                 (assoc-in state [:output resource-id] output)))
 

@@ -177,10 +177,10 @@
        [state {:type :flush-sources
                :source-ids source-ids}]
        (doseq [src-id source-ids
-               :let [{:keys [output-name last-modified] :as src}
+               :let [{:keys [output-name ns last-modified] :as src}
                      (data/get-source-by-id state src-id)
 
-                     {:keys [js] :as output}
+                     {:keys [js expose] :as output}
                      (data/get-output! state src)
 
                      js-file
@@ -195,7 +195,10 @@
 
          (io/make-parents js-file)
 
-         (let [output (str js (generate-source-map state src output js-file ""))]
+         (let [output (str js
+                           (when expose
+                             (str "\nvar " ns "=shadow.js.require(\"" ns "\");\n"))
+                           (generate-source-map state src output js-file ""))]
            (spit js-file output)))
 
        state))))
