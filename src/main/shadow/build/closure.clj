@@ -198,8 +198,9 @@
             (:externs state)
             (get-in state [:compiler-options :externs])
             ;; needed to get rid of process/global errors in cljs/core.cljs
-            ["shadow/cljs/externs/node.js"
-             "shadow/cljs/externs/process.js"]
+            ["shadow/cljs/externs/node.js"]
+            (when (= :closure (get-in state [:js-options :js-provider]))
+              ["shadow/cljs/externs/process.js"])
             (when (= :js (get-in state [:build-options :module-format]))
               ["shadow/cljs/externs/npm.js"])))
 
