@@ -30,6 +30,7 @@ X.prototype.lstatSync;
 X.prototype.isCore;
 X.prototype.relative;
 
+var process;
 
 process.exit;
 process.stdin;
