@@ -9,6 +9,7 @@
 (defn shim-require-resource [js-require]
   (let [js-ns-alias
         (-> (ModuleNames/fileToModuleName js-require)
+            (->> (str "shadow.js.shim."))
             (symbol))
 
         name

@@ -71,7 +71,7 @@
   (if (false? (:enabled devtools))
     state
     (-> state
-        (update :closure-defines merge (repl-defines state config))
+        (update-in [:compiler-options :closure-defines] merge (repl-defines state config))
         (update-in [::modules/config :main :entries] prepend '[cljs.user shadow.cljs.devtools.client.node])
         )))
 

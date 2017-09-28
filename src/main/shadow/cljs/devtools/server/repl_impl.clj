@@ -122,7 +122,8 @@
            node-command
            pwd]
     :or {node-args []
-         node-command "node"}}]
+         node-command "node"}
+    :as opts}]
   (let [script-name
         "target/shadow-node-repl.js"
 

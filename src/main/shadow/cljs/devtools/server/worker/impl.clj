@@ -105,7 +105,7 @@
            :port (:port http)}
 
           build-id
-          (:id build-config)
+          (:build-id build-config)
 
           build-state
           (-> (build-api/init)

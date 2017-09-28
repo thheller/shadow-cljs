@@ -3,7 +3,7 @@
   "devDependencies": {
     "babel-core": "next",
     "source-map-support": "^0.4.15",
-    "ws": "^3.1.0"
+    "ws": "^3.2.0"
   },
   "dependencies": {
     "@atlaskit/navigation": "^18.0.0",
