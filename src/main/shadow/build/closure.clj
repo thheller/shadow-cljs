@@ -12,7 +12,8 @@
             [clojure.set :as set]
             [cljs.source-map :as sm]
             [shadow.build.npm :as npm]
-            [clojure.data.json :as json])
+            [clojure.data.json :as json]
+            [shadow.build.cache :as cache])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
@@ -23,6 +24,14 @@
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (com.google.javascript.jscomp.parsing.parser FeatureSet)
            (java.nio.charset Charset)))
+
+(def SHADOW-TIMESTAMP
+  ;; timestamp to ensure that new shadow-cljs release always invalidate caches
+  ;; technically needs to check all files but given that they'll all be in the
+  ;; same jar one is enough
+  (-> (io/resource "shadow/build/closure.clj")
+      (.openConnection)
+      (.getLastModified)))
 
 (defn noop-error-manager []
   (proxy [BasicErrorManager] []
@@ -36,7 +45,6 @@
   ([out-or-error-manager]
    (doto (com.google.javascript.jscomp.Compiler. out-or-error-manager)
      (.disableThreads))))
-
 
 ;;;
 ;;; partially taken from cljs/closure.clj
@@ -1178,15 +1186,14 @@
     {}
     str->sym))
 
-(defn convert-sources-simple
+(defn convert-sources-simple*
   "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
   [{:keys [project-dir npm mode build-sources] :as state} sources]
   (util/with-logged-time [state {:type ::convert
                                  :num-sources (count sources)}]
 
-    ;; FIXME: this should do caching, :simple can be slow
     (let [source-files
-          (->> (for [{:keys [resource-name ns file source] :as src} sources]
+          (->> (for [{:keys [resource-id resource-name ns file source] :as src} sources]
                  (SourceFile/fromCode resource-name
                    ;; first line should not contain new-line so line-numbers in source-maps
                    ;; match the original file and is not off by one
@@ -1317,12 +1324,90 @@
                     {:resource-id resource-id
                      :js js
                      :expose expose?
+                     :compiled-at (System/currentTimeMillis)
                      :source-map-json sm-json}]
 
                 (assoc-in state [:output resource-id] output)))
 
             (->> (ShadowAccess/getJsRoot cc)
                  (.children) ;; the inputs
-                 ))))))
+                 ))))
+    ))
 
+(defn convert-sources-simple
+  "convert and caches"
+  [state sources]
+  (let [cache-index-file
+        (data/cache-file state "shadow-js" "index.json.transit")
 
+        cache-index
+        (if (.exists cache-index-file)
+          (cache/read-cache cache-index-file)
+          ;; ensure that at least the directoy exists so we can write files into it later
+          (do (io/make-parents cache-index-file)
+              {}))
+
+        cache-files
+        (->> (for [{:keys [resource-id cache-key] :as src} sources
+                   ;; FIXME: this should probably check if the file exists
+                   ;; never should delete individual cached files without also removing the index though
+                   :when (and (= SHADOW-TIMESTAMP (:SHADOW-TIMESTAMP cache-index))
+                              (= cache-key (get cache-index resource-id)))]
+               src)
+             ;; need to preserve order for later
+             (into []))
+
+        cache-files-set
+        (into #{} (map :resource-id) cache-files)
+
+        recompile-sources
+        (->> sources
+             (remove #(contains? cache-files-set (:resource-id %)))
+             (into []))
+
+        need-compile?
+        (boolean (seq recompile-sources))
+
+        state
+        (if-not need-compile?
+          state
+          (convert-sources-simple* state recompile-sources))
+
+        cache-index-updated
+        (if-not need-compile?
+          cache-index
+          (util/with-logged-time [state {:type ::cache-write
+                                         :num-files (count recompile-sources)}]
+            (reduce
+              (fn [idx {:keys [cache-key resource-id output-name] :as compiled-src}]
+                (let [output
+                      (data/get-output! state compiled-src)
+
+                      cache-file
+                      (data/cache-file state "shadow-js" output-name)]
+
+                  (cache/write-cache cache-file output)
+
+                  (assoc idx resource-id cache-key)))
+              (assoc cache-index :SHADOW-TIMESTAMP SHADOW-TIMESTAMP)
+              recompile-sources)))]
+
+    (when need-compile?
+      (cache/write-cache cache-index-file cache-index-updated))
+
+    (if-not (seq cache-files)
+      state
+      (util/with-logged-time [state {:type ::cache-read
+                                     :num-files (count cache-files)}]
+        (reduce
+          (fn [state {:keys [resource-id output-name] :as cached-rc}]
+            (let [cache-file
+                  (data/cache-file state "shadow-js" output-name)
+
+                  cached-output
+                  (-> (cache/read-cache cache-file)
+                      (assoc :cached true))]
+
+              (assoc-in state [:output resource-id] cached-output)))
+          state
+          cache-files)))))

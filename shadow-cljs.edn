@@ -124,10 +124,6 @@
      {:target :npm
       :require "react-dom/cjs/react-dom.development.js"
       :require-min "react-dom/cjs/react-dom.production.min.js"}
-
-     "crypto"
-     {:target :global
-      :global "window.crypto"}
      }}
 
    :devtools

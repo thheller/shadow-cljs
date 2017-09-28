@@ -11,9 +11,26 @@
            (com.google.javascript.jscomp.deps ModuleNames)
            (shadow.build.closure JsInspector)))
 
-;; FIXME: figure out if we can use ModuleLoader from goog
-;; it does basically the same stuff but I couldn't figure out how to make it work
-;; requires much configuration and broke easily
+(def NPM-TIMESTAMP
+  ;; timestamp to ensure that new shadow-cljs release always invalidate caches
+  ;; technically needs to check all files but given that they'll all be in the
+  ;; same jar one is enough
+  (-> (io/resource "shadow/build/npm.clj")
+      (.openConnection)
+      (.getLastModified)))
+
+
+(def CLOSURE-TIMESTAMP
+  ;; timestamp to ensure that new shadow-cljs release always invalidate caches
+  ;; technically needs to check all files but given that they'll all be in the
+  ;; same jar one is enough
+  ;; this is bit ugly but since files are re-compiled by the shadow.build.closure
+  ;; namespace (which depends on this one) we need it to properly invalidate
+  ;; the cache
+  (-> (io/resource "shadow/build/closure.clj")
+      (.openConnection)
+      (.getLastModified)))
+
 
 (defn service? [x]
   (and (map? x) (::service x)))
@@ -259,9 +276,6 @@
 
     file))
 
-
-
-
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
   [{:keys [compiler project-dir] :as npm} ^File file]
@@ -310,7 +324,7 @@
            :type :npm
            :file file
            :last-modified last-modified
-           :cache-key last-modified
+           :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP last-modified]
            :ns ns
            :provides #{ns}
            :requires #{}
@@ -355,7 +369,7 @@
                   :type :npm
                   :file file
                   :last-modified last-modified
-                  :cache-key last-modified
+                  :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP last-modified]
                   :ns ns
                   :provides #{ns}
                   :requires #{}
@@ -386,7 +400,7 @@
      :resource-name "shadow$empty.js"
      :output-name "shadow$empty.js"
      :type :npm
-     :cache-key 0
+     :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
      :last-modified 0
      :ns ns
      :provides #{ns}
@@ -407,7 +421,7 @@
      :resource-name (str "global$" ns ".js")
      :output-name (str ns ".js")
      :type :npm
-     :cache-key 0
+     :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
      :last-modified 0
      :ns ns
      :provides #{ns}
