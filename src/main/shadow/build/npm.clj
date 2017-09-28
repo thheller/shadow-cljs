@@ -401,7 +401,7 @@
 
    means require(\"react\") returns the global React instance"
   [require {:keys [global] :as pkg}]
-  (let [ns (ModuleNames/fileToModuleName require)]
+  (let [ns (symbol (ModuleNames/fileToModuleName require))]
     {:resource-id [::global require]
      :resource-name (str "global$" ns ".js")
      :output-name (str ns ".js")
