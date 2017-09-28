@@ -39,7 +39,7 @@
    :devtools
    {:enabled false}
    :closure-defines
-   {shadow.cljs.npm.cli/jar-version "2.0.0-alpha15"}}
+   {shadow.cljs.npm.cli/jar-version "2.0.0-alpha16"}}
 
   {:id :ui
    :target :browser
@@ -124,6 +124,10 @@
      {:target :npm
       :require "react-dom/cjs/react-dom.development.js"
       :require-min "react-dom/cjs/react-dom.production.min.js"}
+
+     "crypto"
+     {:target :global
+      :global "window.crypto"}
      }}
 
    :devtools

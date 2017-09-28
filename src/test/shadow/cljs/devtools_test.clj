@@ -321,7 +321,7 @@
               {:language-out :ecmascript5}
 
               :modules
-              {:test {:entries [demo.browser]}}
+              {:test {:entries ["js-nacl"]}}
 
               :js-options
               {:js-provider :shadow}}

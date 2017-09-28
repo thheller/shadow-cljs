@@ -5,6 +5,7 @@
             ["shortid" :as sid]
             ["jquery" :as jq]
             ["material-ui" :as mui]
+            ["js-nacl" :as nacl-factory]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
@@ -26,6 +27,12 @@
 
 (js/console.log "jq" (-> (jq "body")
                          (.append "foo")))
+
+(defn use-nacl [nacl]
+  (let [bytes (.. nacl (random_bytes 16))]
+    (js/console.log "nacl" bytes (.. nacl (to_hex bytes)))))
+
+(nacl-factory/instantiate use-nacl)
 
 (s/def ::foo string?)
 

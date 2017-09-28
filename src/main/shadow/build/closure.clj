@@ -1191,7 +1191,9 @@
                    ;; first line should not contain new-line so line-numbers in source-maps
                    ;; match the original file and is not off by one
                    (str "shadow.js.provide(\"" ns "\", function(require,module,exports) {"
-                        source
+                        (if (str/ends-with? resource-name ".json")
+                          (str "module.exports=(" source ");")
+                          source)
                         "\n});")))
                (into []))
 

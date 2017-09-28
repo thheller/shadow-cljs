@@ -22,17 +22,22 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
     public void visit(NodeTraversal t, Node node, Node parent) {
         if (NodeUtil.isCallTo(node, "require")) {
             Node requireString = node.getSecondChild();
-            String require = requireString.getString();
-            String sfn = node.getSourceFileName();
-            if (sfn != null) {
-                Map<String, Object> requires = replacements.get(sfn);
+            // guard against things like require('buf' + 'fer');
+            // I have no idea what the purpose of that is but https://github.com/indutny/bn.js does it
+            // apparently it doesn't matter anyways
+            if (requireString.isString()) {
+                String require = requireString.getString();
+                String sfn = node.getSourceFileName();
+                if (sfn != null) {
+                    Map<String, Object> requires = replacements.get(sfn);
 
-                if (requires != null) {
-                    // might be a clj-sym or String
-                    Object replacement = requires.get(require);
-                    if (replacement != null) {
-                        requireString.replaceWith(IR.string(replacement.toString()));
-                        t.reportCodeChange();
+                    if (requires != null) {
+                        // might be a clj-sym or String
+                        Object replacement = requires.get(require);
+                        if (replacement != null) {
+                            requireString.replaceWith(IR.string(replacement.toString()));
+                            t.reportCodeChange();
+                        }
                     }
                 }
             }

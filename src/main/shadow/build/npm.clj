@@ -381,17 +381,18 @@
     (get-file-info npm file)))
 
 (def empty-rc
-  {:resource-id [::empty "shadow$empty.js"]
-   :resource-name "shadow$empty.js"
-   :output-name "shadow$empty.js"
-   :type :npm
-   :cache-key 0
-   :last-modified 0
-   :ns 'shadow$empty
-   :provides #{}
-   :requires #{}
-   :deps []
-   :source ""})
+  (let [ns 'shadow.empty]
+    {:resource-id [::empty "shadow$empty.js"]
+     :resource-name "shadow$empty.js"
+     :output-name "shadow$empty.js"
+     :type :npm
+     :cache-key 0
+     :last-modified 0
+     :ns ns
+     :provides #{ns}
+     :requires #{}
+     :deps '[shadow.js]
+     :source ""}))
 
 (defn js-resource-for-global
   "a dependency might come from something already included in the page by other means
