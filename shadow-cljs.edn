@@ -124,6 +124,10 @@
      {:target :npm
       :require "react-dom/cjs/react-dom.development.js"
       :require-min "react-dom/cjs/react-dom.production.min.js"}
+
+     "circular-test"
+     {:target :file
+      :file "test/dummy/circular-a.js"}
      }}
 
    :devtools

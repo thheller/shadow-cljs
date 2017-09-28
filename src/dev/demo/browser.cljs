@@ -4,7 +4,7 @@
             ["react-dom" :as rdom :refer (render)]
             ["shortid" :as sid]
             ["jquery" :as jq]
-            ["material-ui" :as mui]
+            ["circular-test" :as circ]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
@@ -26,6 +26,9 @@
 
 (js/console.log "jq" (-> (jq "body")
                          (.append "foo")))
+
+(js/console.log "circular - not yet" (circ/test))
+(js/console.log "circular - actual" (circ/foo))
 
 (s/def ::foo string?)
 

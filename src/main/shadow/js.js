@@ -19,12 +19,22 @@ goog.provide("shadow.js");
 shadow.js.files = {};
 
 shadow.js.require = function(name) {
-  return shadow.js.files[name];
+  var exports = shadow.js.files[name];
+  // always return something since circular dependencies are allowed in JS
+  if (exports === undefined) {
+    exports = shadow.js.files[name] = {};
+  }
+  return exports;
 };
 
 shadow.js.provide = function(name, moduleFn) {
-  var exports = shadow.js.files[name] || {};
+  var exports = shadow.js.require(name);
   var module = {};
+
+  // FIXME: should this use an empty {} for exports
+  // and copy onto the actual exports after? circular dependencies are weird
+  // I'm not sure all references work properly like this
+
   // must use string accessors, otherwise :advanced will rename them
   // but the JS is not optimized so it wont map properly
   module["exports"] = exports;
@@ -44,7 +54,7 @@ shadow.js.provide = function(name, moduleFn) {
   //
   // this is a pattern done by babel when converted from ES6
   // so its very isolated and should be reliable enough
-  if (exports && exports["__esModule"] === true) {
+  if (typeof(exports) == 'object' && exports["__esModule"] === true) {
     exports["default$"] = exports["default"];
   }
 
