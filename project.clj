@@ -49,16 +49,14 @@
   :source-paths
   ["src/main"]
 
-  :test-paths
-  ["src/test"]
-
   :java-source-paths
   ["src/main"]
 
   :profiles
   {:dev
    {:source-paths
-    ["src/dev"]
+    ["src/dev"
+     "src/repl"]
 
     :dependencies
     [#_[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
