@@ -51,6 +51,10 @@
                        [goog.array :as garray])
              (:import [goog.string StringBuffer]))
 
+          test
+          '(ns test.foo
+             (:import [goog.history Foo]))
+
           a (ns-form/parse test)
           b (-> (cljs-parse-ns ns-env test)
                 (dissoc :env :form))

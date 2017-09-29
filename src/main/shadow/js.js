@@ -9,6 +9,10 @@ goog.provide("process.env");
  * FIXME: allow specifying env as a map in config and generate this file?
  */
 goog.define("process.env.NODE_ENV", "development");
+
+/**
+ * @define {boolean}
+ */
 goog.define("process.browser", true);
 
 goog.provide("shadow.js");

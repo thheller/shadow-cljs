@@ -265,7 +265,10 @@
       (update-in [:js-deps lib] merge opts)))
 
 (defn process-symbol-require
-  [ns-info lib {:keys [js as refer refer-macros include-macros rename imports only] :as opts-m}]
+  [ns-info lib {:keys [js as refer refer-macros include-macros import rename only] :as opts-m}]
+
+  ;; FIXME: remove this, just a sanity check since the first impl was incorrect
+  (assert (not (contains? opts-m :imports)))
 
   (-> ns-info
       (add-dep lib)
@@ -273,6 +276,10 @@
       (cond->
         as
         (merge-require :requires as lib)
+
+        import
+        (-> (merge-require :imports import lib)
+            (merge-require :requires import lib))
 
         (or include-macros (seq refer-macros))
         (-> (merge-require :require-macros lib lib)
@@ -291,22 +298,7 @@
         rename)
       (reduce->
         (merge-require-fn :uses lib)
-        only)
-      (reduce->
-        (fn [ns-info sym]
-          (let [fqn (symbol (str lib "." sym))]
-            (-> ns-info
-                (merge-require :imports sym fqn)
-                (merge-require :requires sym fqn)
-                ;; FIXME: adding fqn into :deps causes it to emit goog.require for it
-                ;; for js deps that is not wanted since we never goog.provide it
-                ;; but we never need it in general since we already add-dep the ns for it?
-                ;; require/imports will still find it correctly, this is just about goog.require
-                ;; no idea why CLJS does the extra emit for :deps at all?
-                (cond->
-                  (not js)
-                  (add-dep fqn)))))
-        imports)))
+        only)))
 
 (defn process-require [ns-info lib opts]
   (if (string? lib)
@@ -379,13 +371,16 @@
 
     :seq
     (let [{:keys [lib names]} import]
-
       ;; (:import [goog.foo.Class]) is a no-op since no names are mentioned
       ;; FIXME: worthy of a warning?
       (if-not (seq names)
         ns-info
-        (process-require ns-info lib {:imports names})
-        ))))
+        (reduce
+          (fn [ns-info class]
+            (let [fqn (symbol (str lib "." class))]
+              (process-require ns-info fqn {:import class})))
+          ns-info
+          names)))))
 
 (defmethod reduce-ns-clause :import [ns-info [_ clause]]
   (let [{:keys [imports]} clause]
