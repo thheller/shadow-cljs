@@ -134,7 +134,13 @@
           (find-resource-for-string state require-from require)]
 
       (when-not rc
-        (throw (ex-info (format "Could not find js dependency \"%s\", either install the npm package or define in :js-options" require) {})))
+        (throw (ex-info
+                 (if require-from
+                   (format "The required JS dependency \"%s\" is not available, it was required by \"%s\"." require (:resource-name require-from))
+                   (format "The required JS dependency \"%s\" is not available." require))
+                 {:tag ::missing-js
+                  :require require
+                  :require-from (:resource-name require-from)})))
 
       (-> state
           (data/maybe-add-source rc)
@@ -208,11 +214,12 @@
       (throw
         (ex-info
           (if require-from
-            (format "The required namespace \"%s\" is not available, it was required by \"%s\"" require (:resource-name require-from))
-            (format "The required namespace \"%s\" is not available" require))
+            (format "The required namespace \"%s\" is not available, it was required by \"%s\"." require (:resource-name require-from))
+            (format "The required namespace \"%s\" is not available." require))
           {:tag ::missing-ns
            :stack (:resolved-stack state)
-           :ns require})))
+           :require require
+           :require-from (:resource-name require-from)})))
 
     ;; react symbol may have resolved to a JS dependency
     ;; CLJS/goog do not allow circular dependencies, JS does

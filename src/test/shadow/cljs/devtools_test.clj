@@ -361,7 +361,8 @@
                           #_ "shortid" ;; browser overrides
                           #_ "js-nacl" ;; fs dependency
                           #_ "readable-stream"
-                          "material-ui/styles/getMuiTheme"
+                          #_ "material-ui/styles/getMuiTheme"
+                          "foo"
                           ]}}
 
         :js-options

@@ -7,6 +7,7 @@
             [shadow.build.api :as build]
             [shadow.build.ns-form :as ns-form]
             [shadow.build :as comp]
+            [shadow.build.resolve :as resolve]
             [shadow.cljs.devtools.config :as config]
             [shadow.build.warnings :as w])
   (:import (java.io StringWriter)
@@ -90,7 +91,11 @@
   (.write w "Invalid configuration\n")
   (spec-explain w data))
 
-(defmethod ex-data-format ::build/missing-ns
+(defmethod ex-data-format ::resolve/missing-ns
+  [w e data]
+  (write-msg w e))
+
+(defmethod ex-data-format ::resolve/missing-js
   [w e data]
   (write-msg w e))
 
