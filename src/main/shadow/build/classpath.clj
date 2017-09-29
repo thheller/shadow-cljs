@@ -267,7 +267,15 @@
   (assoc contents :resources
     (->> resources
          (map set-output-name)
-         (map #(inspect-resource cp %))
+         (map (fn [src]
+                (try
+                  (inspect-resource cp src)
+                  (catch Exception e
+                    (log/warnf "failed to inspect resource \"%s\", it will not be available." (or (:file src)
+                                                                                                  (:url src)
+                                                                                                  (:resource-name src)))
+                    nil))))
+         (remove nil?)
          (remove (fn [{:keys [type module-type]}]
                    ;; only want goog resources here
                    ;; es6 and others will be done by shadow.build.npm

@@ -49,6 +49,9 @@
   :source-paths
   ["src/main"]
 
+  :test-paths
+  ["src/test"]
+
   :java-source-paths
   ["src/main"]
 
