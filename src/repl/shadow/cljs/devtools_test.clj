@@ -322,7 +322,7 @@
               {:language-out :ecmascript5}
 
               :modules
-              {:test {:entries ["/test/js/entry.js"]}}
+              {:test {:entries ["/test/cjs/entry.js"]}}
 
               :js-options
               {:js-provider :shadow}}
