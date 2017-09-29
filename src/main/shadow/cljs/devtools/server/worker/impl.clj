@@ -355,7 +355,7 @@
       :else
       (let [build-state
             (build-api/reset-resources build-state sources-used-by-build)]
-        (log/warnf "build-update: %s" sources-used-by-build)
+        (log/debugf "build-update: %s" sources-used-by-build)
 
         (-> worker-state
             (assoc :build-state build-state)

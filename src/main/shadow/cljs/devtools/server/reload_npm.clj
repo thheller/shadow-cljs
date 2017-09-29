@@ -37,7 +37,7 @@
 
     (when (seq modified-resources)
 
-      (log/warnf "npm count: %d modified: %d" (count files) (count modified-files))
+      (log/debugf "npm count: %d modified: %d" (count files) (count modified-files))
 
       ;; remove from cache
       (swap! index-ref invalidate-files modified-files)
