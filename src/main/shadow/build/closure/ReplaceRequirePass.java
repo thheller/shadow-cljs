@@ -27,16 +27,23 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
             // apparently it doesn't matter anyways
             if (requireString.isString()) {
                 String require = requireString.getString();
-                String sfn = node.getSourceFileName();
-                if (sfn != null) {
-                    Map<String, Object> requires = replacements.get(sfn);
 
-                    if (requires != null) {
-                        // might be a clj-sym or String
-                        Object replacement = requires.get(require);
-                        if (replacement != null) {
-                            requireString.replaceWith(IR.string(replacement.toString()));
-                            t.reportCodeChange();
+                if (require.startsWith("goog:")) {
+                    // closure names are global, these must be exported so they aren't renamed
+                    String global = require.substring(5);
+                    node.replaceWith(NodeUtil.newQName(compiler, global));
+                } else {
+                    String sfn = node.getSourceFileName();
+                    if (sfn != null) {
+                        Map<String, Object> requires = replacements.get(sfn);
+
+                        if (requires != null) {
+                            // might be a clj-sym or String
+                            Object replacement = requires.get(require);
+                            if (replacement != null) {
+                                requireString.replaceWith(IR.string(replacement.toString()));
+                                t.reportCodeChange();
+                            }
                         }
                     }
                 }
@@ -75,7 +82,7 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
         co.setPrettyPrint(true);
         cc.initOptions(co);
 
-        SourceFile srcFile = SourceFile.fromCode("test.js", "require('test');");
+        SourceFile srcFile = SourceFile.fromCode("test.js", "require('test'); require('goog:goog.string');");
 
         System.out.println(cc.toSource(process(cc, srcFile)));
     }

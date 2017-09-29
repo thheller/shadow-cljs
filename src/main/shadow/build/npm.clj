@@ -276,6 +276,11 @@
 
     file))
 
+(defn maybe-convert-goog [dep]
+  (if-not (str/starts-with? dep "goog:")
+    dep
+    (symbol (subs dep 5))))
+
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
   [{:keys [compiler project-dir] :as npm} ^File file]
@@ -348,6 +353,7 @@
 
                 js-deps
                 (->> (concat js-requires js-imports)
+                     (map maybe-convert-goog)
                      (distinct)
                      (into []))]
 

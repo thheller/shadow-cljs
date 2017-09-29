@@ -121,34 +121,26 @@
   [state {require-from-ns :ns :as require-from} require]
   {:pre [(data/build-state? state)
          (string? require)]}
-  (cond
-    ;; special case closure does to allow ES6 to require goog code (which technically includes cljs)
-    (str/starts-with? require "goog:")
-    (let [sym (symbol (subs require 5))]
-      (when (= :cljs (:type require-from))
-        (throw (ex-info "CLJS files are not allowed to include via goog:, use a symbol." {:require-from require-from-ns})))
-      (resolve-require state require-from sym))
 
-    :else
-    (let [{:keys [resource-id ns] :as rc}
-          (find-resource-for-string state require-from require)]
+  (let [{:keys [resource-id ns] :as rc}
+        (find-resource-for-string state require-from require)]
 
-      (when-not rc
-        (throw (ex-info
-                 (if require-from
-                   (format "The required JS dependency \"%s\" is not available, it was required by \"%s\"." require (:resource-name require-from))
-                   (format "The required JS dependency \"%s\" is not available." require))
-                 {:tag ::missing-js
-                  :require require
-                  :require-from (:resource-name require-from)})))
+    (when-not rc
+      (throw (ex-info
+               (if require-from
+                 (format "The required JS dependency \"%s\" is not available, it was required by \"%s\"." require (:resource-name require-from))
+                 (format "The required JS dependency \"%s\" is not available." require))
+               {:tag ::missing-js
+                :require require
+                :require-from (:resource-name require-from)})))
 
-      (-> state
-          (data/maybe-add-source rc)
-          (cond->
-            require-from-ns
-            (data/add-string-lookup require-from-ns require ns))
-          (resolve-deps rc)
-          ))))
+    (-> state
+        (data/maybe-add-source rc)
+        (cond->
+          require-from-ns
+          (data/add-string-lookup require-from-ns require ns))
+        (resolve-deps rc)
+        )))
 
 (defn ensure-non-circular!
   [{:keys [resolved-stack] :as state} resource-id]

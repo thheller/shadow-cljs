@@ -1188,16 +1188,20 @@
 
 (defn convert-sources-simple*
   "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
-  [{:keys [project-dir npm mode build-sources] :as state} sources]
+  [{:keys [project-dir js-options npm mode build-sources] :as state} sources]
   (util/with-logged-time [state {:type ::convert
                                  :num-sources (count sources)}]
 
     (let [source-files
-          (->> (for [{:keys [resource-id resource-name ns file source] :as src} sources]
+          (->> (for [{:keys [resource-id resource-name ns file source deps] :as src} sources]
                  (SourceFile/fromCode resource-name
                    ;; first line should not contain new-line so line-numbers in source-maps
                    ;; match the original file and is not off by one
-                   (str "shadow.js.provide(\"" ns "\", function(require,module,exports) {"
+                   (str (->> deps
+                             (filter symbol?)
+                             (map #(str "goog.require(\"" % "\");"))
+                             (str/join "\n"))
+                        "shadow.js.provide(\"" ns "\", function(require,module,exports) {"
                         (if (str/ends-with? resource-name ".json")
                           (str "module.exports=(" source ");")
                           source)
@@ -1237,14 +1241,14 @@
 
           ;; FIXME: are there more options we should take from the user?
           co-opts
-          {:pretty-print false
-           :source-map true
+          {:source-map (:source-maps js-options true)
            ;; FIXME: is there any reason to not always use :simple?
            ;; source maps are pretty good so debugging should not be an issue
            ;; :whitespace is about an order of magnitude faster though
            ;; could use that in :dev but given that npm deps won't change that often
            ;; that might not matter, should cache anyways
-           :optimizations :simple
+           :optimizations (:optimizations js-options :simple) ;; FIXME: validate whitespace or simple
+           :pretty-print (:pretty-print js-options false)
            :language-in :ecmascript-next
            :language-out language-out}
 

@@ -308,6 +308,33 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+
+(deftest test-js-only-build
+  (try
+    (let [build-state
+          (api/compile*
+            '{:build-id :js-only
+              :target :browser
+
+              :output-dir "target/js-only/js"
+              :asset-path "/js"
+              :compiler-options
+              {:language-out :ecmascript5}
+
+              :modules
+              {:test {:entries ["/test/js/entry.js"]}}
+
+              :js-options
+              {:js-provider :shadow}}
+            {:debug true})]
+
+
+      )
+
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+
 (deftest test-browser-build-with-js
   (try
     (let [build-state
