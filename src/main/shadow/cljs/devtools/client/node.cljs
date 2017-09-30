@@ -80,8 +80,8 @@
 
           files-to-require
           (->> sources
-               (filter (fn [{:keys [name]}]
-                         (contains? compiled name)))
+               (filter (fn [{:keys [resource-id]}]
+                         (contains? compiled resource-id)))
                (map :output-name)
                (into []))]
 
@@ -108,7 +108,6 @@
 (defn process-message
   [{:keys [type] :as msg}]
   ;; (js/console.log "repl-msg" msg)
-  ;; (prn [:repl-msg type msg])
   (case type
     :repl/init
     (repl-init msg)
