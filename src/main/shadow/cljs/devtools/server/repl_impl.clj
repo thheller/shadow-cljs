@@ -117,7 +117,8 @@
 
 (defn node-repl*
   [{:keys [supervisor] :as app}
-   {:keys [verbose
+   {:keys [via
+           verbose
            node-args
            node-command
            pwd]
@@ -134,11 +135,14 @@
          :hashbang false
          :output-to script-name}
 
-        out-chan
-        (-> (async/sliding-buffer 10)
-            (async/chan))
+        worker
+        (super/start-worker supervisor build-config)]
 
-        _
+    (when (not= via :main)
+      (let [out-chan
+            (-> (async/sliding-buffer 10)
+                (async/chan))]
+
         (go (loop []
               (when-some [msg (<! out-chan)]
                 (try
@@ -148,9 +152,7 @@
                 (recur)
                 )))
 
-        ;; FIXME: just connect if already running
-        worker
-        (super/start-worker supervisor build-config)]
+        (worker/watch worker out-chan)))
 
     (try
       (let [result
@@ -158,9 +160,6 @@
                 ;; forwards all build messages to the server output
                 ;; prevents spamming the REPL with build progress
                 (worker/watch (:out app) false)
-                ;; warnings currently go to the output of the server
-                ;; should probably go to the REPL as well
-                (worker/watch out-chan)
                 (worker/compile!))]
 
         ;; FIXME: validate that compilation succeeded

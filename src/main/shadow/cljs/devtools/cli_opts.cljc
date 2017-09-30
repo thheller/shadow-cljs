@@ -35,6 +35,7 @@
    [nil "--debug" "enable source-maps + pseudo-names. DO NOT SHIP THIS CODE!"]
    ["-v" "--verbose" "verbose build log"]
    [nil "--cli-info" "prints a bunch of information"]
+   [nil "--via VIA" "internal option, used by node script" :parse-fn keyword]
    ["-h" "--help"]])
 
 (def action-help

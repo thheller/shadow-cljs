@@ -120,7 +120,7 @@
    disconnect instead of us forcibly dropping the connection"
   [complete-token error-token args]
   (try
-    (apply main args)
+    (apply main "--via" "remote" args)
     (print-token complete-token)
     (catch Exception e
       (print-main-error e)
@@ -129,7 +129,7 @@
 ;; direct launches don't need to mess with tokens
 (defn -main [& args]
   (try
-    (apply main args)
+    (apply main "--via" "main" args)
     (shutdown-agents)
     (catch Exception e
       (print-main-error e)

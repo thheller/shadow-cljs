@@ -35,7 +35,7 @@
    [thheller/shadow-util "0.5.1"]
    [thheller/shadow-client "1.0.20170628"]
 
-   [aleph "0.4.3"]
+   [aleph "0.4.4-alpha4"]
    [hiccup "1.0.5"]
    [ring/ring-core "1.6.1"
     :exclusions
