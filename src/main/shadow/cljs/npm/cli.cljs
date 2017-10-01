@@ -17,7 +17,9 @@
             [shadow.cljs.devtools.cli-opts :as opts]
             ))
 
-(goog-define jar-version "SNAPSHOT")
+(def jar-version
+  (-> (js/require "../package.json")
+      (gobj/get "jar-version")))
 
 (defn file-older-than [a b]
   (let [xa (fs/statSync a)
