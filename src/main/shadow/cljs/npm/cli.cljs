@@ -187,6 +187,18 @@
   (let [aot-path
         (path/resolve project-root cache-root "aot-classes")
 
+        aot-version-path
+        (path/resolve aot-path "version.txt")
+
+        ;; only aot compile when the shadow-cljs version changes
+        ;; changing the version of a lib (eg. reagent) does not need a new AOT compile
+        ;; actual shadow-cljs deps should only change when shadow-cljs version itself changes
+        aot-compile?
+        (if-not (fs/existsSync aot-version-path)
+          true
+          (let [aot-version (util/slurp aot-version-path)]
+            (not= jar-version aot-version)))
+
         classpath
         (get-classpath project-root config)
 
@@ -200,21 +212,23 @@
         (-> []
             (into jvm-opts)
             (cond->
-              (:updated? classpath) ;; FIXME: maybe try direct linking?
+              aot-compile? ;; FIXME: maybe try direct linking?
               (into [(str "-Dclojure.compile.path=" aot-path)]))
             (into ["-cp" classpath-str "clojure.main"])
             (cond->
-              (:updated? classpath)
+              aot-compile?
               (into ["-e" "(require 'shadow.cljs.aot-helper)"]))
             (into ["-m" "shadow.cljs.devtools.cli"
                    "--npm"])
             (into args))]
 
-    (when (:updated? classpath)
-      (println "shadow-cljs - re-building aot cache on startup, that will take some time.")
-      (remove-class-files aot-path))
 
     (mkdirp/sync aot-path)
+
+    (when aot-compile?
+      (println "shadow-cljs - re-building aot cache on startup, that will take some time.")
+      (remove-class-files aot-path)
+      (fs/writeFileSync aot-version-path jar-version))
 
     (println "shadow-cljs - starting ...")
     (run-java project-root cli-args {}))
