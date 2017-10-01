@@ -262,15 +262,33 @@
      (catch Exception e
        (e/user-friendly-error e)))))
 
-(defn repl [build-id]
-  (let [{:keys [supervisor] :as app}
-        (runtime/get-instance!)
+;; nREPL support
 
-        worker
-        (super/get-worker supervisor build-id)]
-    (if-not worker
-      :no-worker
-      (repl-impl/stdin-takeover! worker app))))
+(def ^:dynamic *nrepl-cljs* nil)
+(def ^:dynamic *nrepl-active* false)
+
+(defn nrepl-select [id]
+  (if-not (get-worker id)
+    [:no-worker id]
+    (do (set! *nrepl-cljs* id)
+        ;; required for prompt?
+        ;; don't actually need to do this
+        (set! *ns* 'cljs.user)
+        (println "To quit, type: :repl/quit")
+        [:selected id])))
+
+
+(defn repl [build-id]
+  (if *nrepl-active*
+    (nrepl-select build-id)
+    (let [{:keys [supervisor] :as app}
+          (runtime/get-instance!)
+
+          worker
+          (super/get-worker supervisor build-id)]
+      (if-not worker
+        :no-worker
+        (repl-impl/stdin-takeover! worker app)))))
 
 (defn help []
   (-> (slurp (io/resource "shadow/txt/repl-help.txt"))
@@ -333,17 +351,4 @@
         (node/execute-affected-tests! source-names))
     ::test-affected))
 
-;; nREPL support
-
-(def ^:dynamic *nrepl-cljs* nil)
-
-(defn nrepl-select [id]
-  (if-not (get-worker id)
-    [:no-worker id]
-    (do (set! *nrepl-cljs* id)
-        ;; required for prompt?
-        ;; don't actually need to do this
-        (set! *ns* 'cljs.user)
-        (println "To quit, type: :build-api/quit")
-        [:selected id])))
 

@@ -96,6 +96,8 @@
       (when-not (contains? @session repl-var)
         (swap! session assoc repl-var nil))
 
+      (swap! session assoc #'api/*nrepl-active* true)
+
       (let [build-id
             (get @session repl-var)
 
