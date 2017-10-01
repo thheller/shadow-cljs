@@ -1,6 +1,7 @@
 (ns shadow.build.warnings
   (:require [clojure.string :as str]
-            [shadow.build.data :as data])
+            [shadow.build.data :as data]
+            [clojure.tools.logging :as log])
   (:import (java.io BufferedReader StringReader)))
 
 (defn get-source-excerpts
@@ -41,9 +42,18 @@
          (into []))))
 
 (defn get-source-excerpt [state rc location]
-  ;; defaults to a seq of locations to avoid parsing a file multiple times
-  (-> (get-source-excerpts state rc [location])
-      (first)))
+  (try
+    ;; defaults to a seq of locations to avoid parsing a file multiple times
+    (-> (get-source-excerpts state rc [location])
+        (first))
+    (catch Exception e
+      (log/warnf e
+        "failed to get source excerpt for %s at %s"
+        (or (:file rc)
+            (:url rc)
+            (:resource-name rc))
+        location)
+      nil)))
 
 ;; https://en.wikipedia.org/wiki/ANSI_escape_code
 ;; https://github.com/chalk/ansi-styles/blob/master/index.js
