@@ -346,10 +346,12 @@
                   (binding [cljc-comp/*source-map-data*
                             (atom {:source-map (sorted-map)
                                    :gen-col 0
-                                   :gen-line 0})]
+                                   :gen-line 0})
+
+                            ]
 
                     (let [ast
-                          (comp/analyze state (:current repl-state) form :expr)
+                          (comp/analyze state (:current repl-state) form true)
 
                           js
                           (with-out-str

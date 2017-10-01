@@ -95,8 +95,8 @@
 
 (defn analyze
   ([state compile-state form]
-   (analyze state compile-state form :statement))
-  ([state {:keys [ns resource-name] :as compile-state} form context]
+   (analyze state compile-state form false))
+  ([state {:keys [ns resource-name] :as compile-state} form repl-context?]
    {:pre [(map? compile-state)
           (symbol? ns)
           (string? resource-name)
@@ -112,7 +112,11 @@
              ana/*cljs-file* resource-name]
 
      (-> (ana/empty-env) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
-         (assoc :context context)
+         (cond->
+           repl-context?
+           (assoc
+             :context :expr
+             :def-emits-var true))
          (ana/analyze form resource-name
            ;; doing this since I no longer want :compiler-options at the root
            ;; of the compiler state, instead they are in :compiler-options
