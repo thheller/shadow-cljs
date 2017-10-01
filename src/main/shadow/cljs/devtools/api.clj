@@ -27,6 +27,11 @@
   (:import (java.io PushbackReader StringReader)
            (java.lang ProcessBuilder$Redirect)))
 
+;; nREPL support
+
+(def ^:dynamic *nrepl-cljs* nil)
+(def ^:dynamic *nrepl-active* false)
+
 (defn get-worker
   [id]
   {:pre [(keyword? id)]}
@@ -145,33 +150,6 @@
   {:pre [(keyword? id)]}
   (config/get-build! id))
 
-(defn dev*
-  [build-config {:keys [autobuild] :as opts}]
-  (let [config
-        (config/load-cljs-edn)
-
-        {:keys [out supervisor] :as app}
-        (runtime/get-instance!)]
-
-    (-> (get-or-start-worker build-config opts)
-        (worker/watch out false)
-        (worker/start-autobuild)
-        (worker/sync!)
-        (repl-impl/stdin-takeover! app))
-
-    (super/stop-worker supervisor (:build-id build-config))
-    :done))
-
-(defn dev
-  ([build]
-   (dev build {:autobuild true}))
-  ([build {:keys [autobuild] :as opts}]
-   (try
-     (let [build-config (config/get-build! build)]
-       (dev* build-config opts))
-     (catch Exception e
-       (e/user-friendly-error e)))))
-
 (defn build-finish [{::build/keys [build-info] :as state} config]
   (util/print-build-complete build-info config)
   state)
@@ -262,11 +240,6 @@
      (catch Exception e
        (e/user-friendly-error e)))))
 
-;; nREPL support
-
-(def ^:dynamic *nrepl-cljs* nil)
-(def ^:dynamic *nrepl-active* false)
-
 (defn nrepl-select [id]
   (if-not (get-worker id)
     [:no-worker id]
@@ -276,7 +249,6 @@
         (set! *ns* 'cljs.user)
         (println "To quit, type: :repl/quit")
         [:selected id])))
-
 
 (defn repl [build-id]
   (if *nrepl-active*
@@ -289,6 +261,38 @@
       (if-not worker
         :no-worker
         (repl-impl/stdin-takeover! worker app)))))
+
+(defn dev*
+  [build-config {:keys [autobuild] :as opts}]
+  (let [config
+        (config/load-cljs-edn)
+
+        {:keys [out supervisor] :as app}
+        (runtime/get-instance!)
+
+        worker
+        (-> (get-or-start-worker build-config opts)
+            (worker/watch out false)
+            (worker/start-autobuild)
+            (worker/sync!))]
+
+    ;; for normal REPL loops we wait for the CLJS loop to end
+    (when-not *nrepl-active*
+      (repl-impl/stdin-takeover! worker app)
+      (super/stop-worker supervisor (:build-id build-config)))
+
+    :done))
+
+(defn dev
+  ([build]
+   (dev build {:autobuild true}))
+  ([build {:keys [autobuild] :as opts}]
+   (try
+     (let [build-config (config/get-build! build)]
+       (dev* build-config opts))
+     (catch Exception e
+       (e/user-friendly-error e)))))
+
 
 (defn help []
   (-> (slurp (io/resource "shadow/txt/repl-help.txt"))
