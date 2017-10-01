@@ -184,8 +184,13 @@
       (println "shadow-cljs - error" (.-message ex)))
     ))
 
+(defn check-dependencies! [{:keys [dependencies] :as config}]
+  (when (seq (filter #(= 'org.clojure/clojure (first %)) dependencies))
+    (throw (ex-info "Please remove org.clojure/clojure from your :dependencies." {}))))
+
 (defn run-standalone
   [project-root {:keys [cache-root source-paths jvm-opts] :as config} args]
+  (check-dependencies! config)
   (let [aot-path
         (path/resolve project-root cache-root "aot-classes")
 
