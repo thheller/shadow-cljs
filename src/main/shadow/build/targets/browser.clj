@@ -141,26 +141,31 @@
 
 (defn inject-repl-client
   [{:keys [entries] :as module-config} state build-config]
-  (let [{:keys [enabled preloads]}
+  (let [{:keys [enabled]}
         (:devtools build-config)
-
         entries
         (-> []
             (cond->
               (not (false? enabled))
               (into '[cljs.user shadow.cljs.devtools.client.browser]))
-            (cond->
-              (seq preloads)
-              (into preloads))
             (into entries))]
 
     (assoc module-config :entries entries)))
 
 (defn inject-devtools-console [{:keys [entries] :as module-config} state build-config]
-  (if (false? (get-in build-config [:devtools :console-support]))
+  (if (or (false? (get-in build-config [:devtools :console-support]))
+          (->> (get-in build-config [:devtools :preloads])
+               ;; automatically back off if cljs-devtools is used
+               (filter #(str/starts-with? (str %) "devtools."))
+               (seq)))
     module-config
     (assoc module-config :entries (into '[shadow.cljs.devtools.client.console] entries))))
 
+(defn inject-preloads [{:keys [entries] :as module-config} state build-config]
+  (let [preloads (get-in build-config [:devtools :preloads])]
+    (if-not (seq preloads)
+      module-config
+      (assoc module-config :entries (into (vec preloads) entries)))))
 
 (defn pick-default-module-from-config [modules]
   (or (reduce-kv
@@ -221,8 +226,8 @@
 
                     ;; other modules just need to tell the loader they finished loading
                     (and module-loader (not (or default? web-worker)))
-                    (update :append-js str "\nshadow.loader.set_loaded('" (name module-id) "');")
-                    ))]
+                    (update :append-js str "\nshadow.loader.set_loaded('" (name module-id) "');"))
+                  (inject-preloads state config))]
 
           (assoc mods module-id module-config)))
       {}

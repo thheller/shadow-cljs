@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.4"
+(defproject thheller/shadow-cljs "2.0.5"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -70,7 +70,8 @@
    :cljs
    {:dependencies
     [[cljsjs/create-react-class "15.6.0-2"]
-     [reagent "0.8.0-alpha1"]]
+     [reagent "0.8.0-alpha1"]
+     [binaryage/devtools "0.9.4"]]
     :source-paths
     ["src/dev"
      "src/test"]

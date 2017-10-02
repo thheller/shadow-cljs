@@ -134,7 +134,8 @@
     :http-port 8600
     :before-load demo.browser/stop
     :after-load demo.browser/start
-    :preloads [shadow.cljs.devtools.client.hud]}}
+    :preloads [shadow.cljs.devtools.client.hud
+               devtools.preload]}}
 
   {:id :webpack-bundle
    :target :browser
