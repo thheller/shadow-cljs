@@ -1195,13 +1195,12 @@
     (let [source-files
           (->> (for [{:keys [resource-id resource-name ns file source deps] :as src} sources]
                  (SourceFile/fromCode resource-name
-                   ;; first line should not contain new-line so line-numbers in source-maps
-                   ;; match the original file and is not off by one
                    (str (->> deps
                              (filter symbol?)
+                             (remove '#{shadow.js})
                              (map #(str "goog.require(\"" % "\");"))
                              (str/join "\n"))
-                        "shadow.js.provide(\"" ns "\", function(require,module,exports) {"
+                        "shadow.js.provide(\"" ns "\", function(require,module,exports) {\n"
                         (if (str/ends-with? resource-name ".json")
                           (str "module.exports=(" source ");")
                           source)

@@ -1,14 +1,15 @@
 (ns demo.browser
   (:require-macros [demo.browser :refer (test-macro)])
-  (:require ["react" :as react :refer (createElement)]
+  (:require ["react" :as react :refer (Component createElement)]
             ["react-dom" :as rdom :refer (render)]
             ["shortid" :as sid]
             ["jquery" :as jq]
             ["circular-test" :as circ]
+            ["highlight.js" :as hljs]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
-  (:import ["react" Component]))
+  #_ (:import ["react" Component]))
 
 (assoc nil :foo 1)
 
@@ -29,6 +30,8 @@
 
 (js/console.log "circular - not yet" (circ/test))
 (js/console.log "circular - actual" (circ/foo))
+
+(hljs/initHighlightingOnLoad)
 
 (s/def ::foo string?)
 
