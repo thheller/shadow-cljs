@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.5"
+(defproject thheller/shadow-cljs "2.0.6"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -15,7 +15,7 @@
 
    [org.clojure/tools.logging "0.4.0"]
    [org.clojure/tools.cli "0.3.5"]
-   [org.clojure/tools.nrepl "0.2.12"]
+   [org.clojure/tools.nrepl "0.2.13"]
 
    [com.cognitect/transit-clj "0.8.300"
     :exclusions
@@ -37,7 +37,7 @@
 
    [aleph "0.4.4-alpha4"]
    [hiccup "1.0.5"]
-   [ring/ring-core "1.6.1"
+   [ring/ring-core "1.6.2"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
@@ -63,14 +63,13 @@
 
     :dependencies
     [#_[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
-     [org.slf4j/slf4j-log4j12 "1.7.21"]
+     [org.slf4j/slf4j-log4j12 "1.7.25"]
      [log4j "1.2.17"]
      [org.clojure/tools.namespace "0.2.11"]]}
 
    :cljs
    {:dependencies
-    [[cljsjs/create-react-class "15.6.0-2"]
-     [reagent "0.8.0-alpha1"]
+    [[reagent "0.8.0-alpha1"]
      [binaryage/devtools "0.9.4"]]
     :source-paths
     ["src/dev"
