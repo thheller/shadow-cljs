@@ -33,6 +33,11 @@
     :key #{:as}
     :value ::local-name))
 
+(s/def ::default
+  (s/cat
+    :key #{:default}
+    :value ::local-name))
+
 (s/def ::refer
   (s/cat
     :key #{:refer :refer-macros}
@@ -61,6 +66,7 @@
     :refer ::refer
     :refer-macros ::refer
     :rename ::rename
+    :default ::default
     :include-macros ::include-macros
     ))
 
@@ -265,7 +271,7 @@
       (update-in [:js-deps lib] merge opts)))
 
 (defn process-symbol-require
-  [ns-info lib {:keys [js as refer refer-macros include-macros import rename only] :as opts-m}]
+  [ns-info lib {:keys [js as default refer refer-macros include-macros import rename only] :as opts-m}]
 
   ;; FIXME: remove this, just a sanity check since the first impl was incorrect
   (assert (not (contains? opts-m :imports)))
@@ -276,6 +282,9 @@
       (cond->
         as
         (merge-require :requires as lib)
+
+        default
+        (update :renames assoc default (symbol (str lib) "default"))
 
         import
         (-> (merge-require :imports import lib)

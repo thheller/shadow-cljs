@@ -5,7 +5,7 @@
             ["shortid" :as sid]
             ["jquery" :as jq]
             ["circular-test" :as circ]
-            ["highlight.js" :as hljs]
+            ["material-ui/RaisedButton" :as mui-btn :default btn]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
@@ -28,10 +28,10 @@
 (js/console.log "jq" (-> (jq "body")
                          (.append "foo")))
 
+(js/console.log "mui-btn" mui-btn btn)
+
 (js/console.log "circular - not yet" (circ/test))
 (js/console.log "circular - actual" (circ/foo))
-
-(hljs/initHighlightingOnLoad)
 
 (s/def ::foo string?)
 
@@ -43,7 +43,6 @@
 
 (render (foo "foo") (js/document.getElementById "app"))
 
-
 (defn ^:export start []
   (js/console.log "browser-start"))
 
@@ -52,8 +51,10 @@
 
 (defrecord Foo [a b])
 
-(js/console.log (pr-str Foo) (pr-str (Foo. 1 2)))
+(js/console.log (pr-str Foo) (pr-str (Foo. 1 2)) (Foo. 1 2))
 
 (js/console.log (test-macro 1 2 3))
+
+(js/console.log {:something [:nested #{1 2 3}]})
 
 

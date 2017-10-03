@@ -389,7 +389,8 @@
                           #_ "js-nacl" ;; fs dependency
                           #_ "readable-stream"
                           #_ "material-ui/styles/getMuiTheme"
-                          "foo"
+                          #_ "foo"
+                          cljs.tools.reader.reader-types
                           ]}}
 
         :js-options

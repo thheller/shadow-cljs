@@ -20,8 +20,11 @@
   ([ns sym]
    (is-macro? (symbol (str ns) (str sym))))
   ([fqn]
-   (when-let [the-var (find-var fqn)]
-     (.isMacro the-var))))
+   (try
+     (when-let [the-var (find-var fqn)]
+       (.isMacro the-var))
+     (catch Exception e
+       false))))
 
 (defn find-macros-in-ns
   [name]

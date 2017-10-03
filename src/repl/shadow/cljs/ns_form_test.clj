@@ -1,4 +1,4 @@
-(ns shadow.build.ns-form-test
+(ns shadow.cljs.ns-form-test
   (:require [clojure.test :as test :refer (deftest is)]
             [clojure.pprint :refer (pprint)]
             [shadow.build.ns-form :as ns-form]
@@ -103,8 +103,9 @@
   (let [test
         '(ns something
            (:require
+             [some.lib :refer (x) :rename {x Bar}]
              ["react" :as react]
-             ["react-dom/server" :refer (render)]
+             ["react-dom/server" :refer (render) :default Foo]
              ["./foo" :as f]))
 
         ast
@@ -135,7 +136,7 @@
 (deftest test-parse-and-rewrite-syms-that-should-be-strings
   (let [test
         '(ns something
-           (:require [react :as react]))
+           (:require [react :as react :default Foo]))
 
         ast
         (ns-form/parse test)
