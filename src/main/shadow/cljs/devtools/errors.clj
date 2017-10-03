@@ -170,7 +170,7 @@
       )))
 
 (defmethod ex-data-format :shadow.build.compiler/compile-cljs
-  [w e {:keys [source-name file url line column source-excerpt] :as data}]
+  [w e {:keys [resource-name file url line column source-excerpt] :as data}]
 
   ;; FIXME: rewrite warnings code to use a writer instead of just print
   ;; use custom class that handles the styling to it can be turned off easily
@@ -178,14 +178,12 @@
     (with-out-str
       (println (w/coded-str [:bold :red] (w/sep-line " ERROR " 6)))
       (println " File:"
-        (if-not file
-          source-name
-          (str file
-               (when (pos-int? line)
-                 (str ":" line
-                      (when (pos-int? column)
-                        (str ":" column))))
-               )))
+        (str (or file url resource-name)
+             (when (pos-int? line)
+               (str ":" line
+                    (when (pos-int? column)
+                      (str ":" column))))
+             ))
 
       (when source-excerpt
         (w/print-source-excerpt-header data))))
