@@ -169,7 +169,7 @@
       (.write w (.getMessage e))
       )))
 
-(defmethod ex-data-format :shadow.build/compile-cljs
+(defmethod ex-data-format :shadow.build.compiler/compile-cljs
   [w e {:keys [source-name file url line column source-excerpt] :as data}]
 
   ;; FIXME: rewrite warnings code to use a writer instead of just print

@@ -5,7 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/clojure "1.9.0-alpha17"]
+  [[org.clojure/clojure "1.9.0-beta1"]
 
    ;; [org.clojure/spec.alpha "0.1.108"]
    ;; [org.clojure/core.specs.alpha "0.1.10"]
@@ -26,7 +26,7 @@
    #_ [org.clojure/clojurescript "1.9.854"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.9.908"
+   [org.clojure/clojurescript "1.9.946"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded]]
 
@@ -69,7 +69,9 @@
 
    :cljs
    {:dependencies
-    [[reagent "0.8.0-alpha1"]
+    [[reagent "0.8.0-alpha1"
+      :exclusions
+      [cljsjs/create-react-class]]
      [binaryage/devtools "0.9.4"]]
     :source-paths
     ["src/dev"
