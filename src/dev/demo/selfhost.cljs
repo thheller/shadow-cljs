@@ -4,14 +4,21 @@
             [cljs.env :as env]))
 
 (defn print-result [{:keys [error value] :as result}]
-  (js/console.log "result" error value))
+  (js/console.log "result" result)
+  (js/console.log "compile-state" @boot/compile-state-ref)
+  (set! (.-innerHTML (js/document.getElementById "dump")) value))
+
 
 (defn compile-it []
   (cljs/compile-str
     boot/compile-state-ref
     "(ns my.user (:require [reagent.core :as r])) (map inc [1 2 3])"
-    ""
-    {:eval cljs/js-eval
+    "[test]"
+    {:eval
+     (fn [{:keys [source cache lang name]}]
+       (js/console.log "Eval" name lang {:cache (some-> cache (str) (subs 0 20))
+                                         :source (some-> source (subs 0 150))})
+       (js/eval source))
      :load boot/load}
     print-result))
 

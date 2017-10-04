@@ -67,43 +67,32 @@
       (get-in idx [:sources id]))))
 
 (defn load-analyzer-data [ns]
-  (if (get-in @compile-state-ref [:cljs.analyzer/namespaces ns])
-    already-loaded-helper
-    (let [{:keys [source-name] :as ns-info}
-          (get-ns-info ns)
+  (let [{:keys [source-name] :as ns-info}
+        (get-ns-info ns)
 
-          ;; FIXME: full name should in info
-          req
-          (transit-load (str asset-path "/ana/" source-name ".ana.transit.json"))]
+        ;; FIXME: full name should in info
+        req
+        (transit-load (str asset-path "/ana/" source-name ".ana.transit.json"))]
 
-      (go (when-some [x (<! req)]
-            (js/console.log "analyzer" ns ns-info x)
-            (cljs/load-analysis-cache! compile-state-ref ns x)
-            true)))))
+    (go (when-some [x (<! req)]
+          (js/console.log "analyzer" ns ns-info x)
+          x))))
 
 (defn load-macro-js [ns]
-  (if (contains? @loaded-ref ns)
-    already-loaded-helper
-    (let [{:keys [output-name] :as ns-info}
-          (get-ns-info ns)]
+  (let [{:keys [output-name] :as ns-info}
+        (get-ns-info ns)]
 
-      (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
-            (js/console.log "macro-js" ns ns-info (count x) "bytes")
-            (swap! loaded-ref conj ns)
-            (js/eval x)
-            x)))))
+    (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
+          (js/console.log "macro-js" ns ns-info (count x) "bytes")
+          x))))
 
 (defn load-js [ns]
-  (if (contains? @loaded-ref ns)
-    already-loaded-helper
-    (let [{:keys [output-name provides] :as ns-info}
-          (get-ns-info ns)]
+  (let [{:keys [output-name provides] :as ns-info}
+        (get-ns-info ns)]
 
-      (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
-            (js/console.log "js" ns ns-info (count x) "bytes")
-            (swap! loaded-ref set/union provides)
-            (js/eval x)
-            x)))))
+    (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
+          (js/console.log "js" ns ns-info (count x) "bytes")
+          x))))
 
 (defn init [init-cb]
   ;; FIXME: add goog-define to path
@@ -115,9 +104,10 @@
   (let [ch (async/chan)]
 
     (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
-          (let [idx (build-index data)]
-            (<! (load-analyzer-data 'cljs.core))
-            (<! (load-macro-js 'cljs.core$macros))
+          (let [idx (build-index data)
+                ana-core (<! (load-analyzer-data 'cljs.core))]
+            (cljs/load-analysis-cache! compile-state-ref 'cljs.core ana-core)
+            (js/eval (<! (load-macro-js 'cljs.core$macros)))
             (init-cb)
             )))))
 
@@ -127,10 +117,10 @@
   ;; load js and ana data via xhr
   ;; maybe eval?
   ;; call cb
-  (js/console.log "boot/load" name path macros)
 
   ;; FIXME: needs to ensure that deps are loaded first
-  (go (<! (load-analyzer-data name))
-      (<! (load-js name))
-      ;; (cb)
+  (go (let [ana (<! (load-analyzer-data name))
+            js (<! (load-js name))]
+        (js/console.log "boot/load" name macros ana (count js))
+        (cb {:lang :js :source js :cache ana}))
       ))
