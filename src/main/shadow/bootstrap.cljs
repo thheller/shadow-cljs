@@ -4,7 +4,8 @@
             [cljs.core.async :as async]
             [cljs.js :as cljs]
             [shadow.xhr :as xhr]
-            [cognitect.transit :as transit]))
+            [cognitect.transit :as transit]
+            [cljs.env :as env]))
 
 (goog-define asset-path "/js/bootstrap")
 
@@ -20,14 +21,20 @@
   (xhr/chan :GET path nil {:body-only true
                            :transform identity}))
 
-(defonce loaded-libs (atom #{}))
+(defonce already-loaded-helper
+  (-> (async/chan)
+      (async/close!)))
+
+(defonce compile-state-ref (env/default-compiler-env))
+
+(defonce loaded-ref (atom #{}))
 
 ;; calls to this will be injected by shadow-cljs
 ;; it will receive an array of strings matching the goog.provide
 ;; names that where provided by the "app"
 (defn set-loaded [namespaces]
   (let [loaded (into #{} (map symbol) namespaces)]
-    (swap! loaded-libs set/union loaded)))
+    (swap! loaded-ref set/union loaded)))
 
 (defonce index-ref (atom nil))
 
@@ -60,26 +67,41 @@
       (get-in idx [:sources id]))))
 
 (defn load-analyzer-data [ns]
-  (let [{:keys [source-name] :as ns-info}
-        (get-ns-info ns)
+  (if (get-in @compile-state-ref [:cljs.analyzer/namespaces ns])
+    already-loaded-helper
+    (let [{:keys [source-name] :as ns-info}
+          (get-ns-info ns)
 
-        ;; FIXME: full name should in info
-        req
-        (transit-load (str asset-path "/ana/" source-name ".ana.transit.json"))]
+          ;; FIXME: full name should in info
+          req
+          (transit-load (str asset-path "/ana/" source-name ".ana.transit.json"))]
 
-    (go (when-some [x (<! req)]
-          (js/console.log "analyzer" ns ns-info x)
-          ;; FIXME: where do I put it? cljs.js/load-analyzer-cache! wants a state
-          x))))
+      (go (when-some [x (<! req)]
+            (js/console.log "analyzer" ns ns-info x)
+            (cljs/load-analysis-cache! compile-state-ref ns x)
+            true)))))
 
 (defn load-macro-js [ns]
-  (let [{:keys [output-name] :as ns-info}
-        (get-ns-info ns)]
+  (if (contains? @loaded-ref ns)
+    already-loaded-helper
+    (let [{:keys [output-name] :as ns-info}
+          (get-ns-info ns)]
 
-    (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
-          (js/console.log "macro-js" ns ns-info (count x) "bytes")
-          (js/eval x)
-          x))))
+      (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
+            (js/console.log "macro-js" ns ns-info (count x) "bytes")
+            (js/eval x)
+            x)))))
+
+(defn load-js [ns]
+  (if (contains? @loaded-ref ns)
+    already-loaded-helper
+    (let [{:keys [output-name] :as ns-info}
+          (get-ns-info ns)]
+
+      (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
+            (js/console.log "js" ns ns-info (count x) "bytes")
+            (js/eval x)
+            x)))))
 
 (defn init [init-cb]
   ;; FIXME: add goog-define to path
@@ -94,12 +116,18 @@
           (let [idx (build-index data)]
             (<! (load-analyzer-data 'cljs.core))
             (<! (load-macro-js 'cljs.core$macros))
+            (init-cb)
             )))))
 
-(defn load [compile-state {:keys [name path macros] :as rc} cb]
+(defn load [{:keys [name path macros] :as rc} cb]
   ;; check index build by init
   ;; find all dependencies
   ;; load js and ana data via xhr
   ;; maybe eval?
   ;; call cb
-  (js/console.log "boot/load" rc))
+  (js/console.log "boot/load" name path macros)
+
+  ;; FIXME: needs to ensure that deps are loaded first
+  (go (<! (load-analyzer-data name))
+      (<! (load-js name))
+      (cb)))
