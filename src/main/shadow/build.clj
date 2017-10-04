@@ -76,14 +76,16 @@
         build-sources
         (->> (:build-sources state)
              (map (fn [src-id]
-                    (let [{:keys [resource-name type output-name] :as rc}
+                    (let [{:keys [resource-name type output-name from-jar] :as rc}
                           (data/get-source-by-id state src-id)]
                       {:resource-id src-id
                        :resource-name resource-name
                        :output-name output-name
                        :type type
                        :module (get source->module src-id)
-                       :warnings (enhance-warnings state rc)}
+                       :warnings (enhance-warnings state rc)
+                       :from-jar from-jar}
+
                       )))
              (into []))]
 

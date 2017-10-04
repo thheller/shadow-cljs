@@ -22,8 +22,8 @@
                            :transform identity}))
 
 (defonce already-loaded-helper
-  (-> (async/chan)
-      (async/close!)))
+  (doto (async/chan)
+    (async/close!)))
 
 (defonce compile-state-ref (env/default-compiler-env))
 
@@ -89,17 +89,19 @@
 
       (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
             (js/console.log "macro-js" ns ns-info (count x) "bytes")
+            (swap! loaded-ref conj ns)
             (js/eval x)
             x)))))
 
 (defn load-js [ns]
   (if (contains? @loaded-ref ns)
     already-loaded-helper
-    (let [{:keys [output-name] :as ns-info}
+    (let [{:keys [output-name provides] :as ns-info}
           (get-ns-info ns)]
 
       (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
             (js/console.log "js" ns ns-info (count x) "bytes")
+            (swap! loaded-ref set/union provides)
             (js/eval x)
             x)))))
 
@@ -130,4 +132,5 @@
   ;; FIXME: needs to ensure that deps are loaded first
   (go (<! (load-analyzer-data name))
       (<! (load-js name))
-      (cb)))
+      ;; (cb)
+      ))

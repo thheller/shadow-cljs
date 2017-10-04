@@ -21,9 +21,6 @@
 
 (defonce socket-ref (volatile! nil))
 
-
-
-
 (defn devtools-msg [msg & args]
   (.apply (.-log js/console) nil (into-array (into [(str "%c" msg) "color: blue;"] args))))
 
@@ -97,6 +94,7 @@
 
         warnings
         (->> (for [{:keys [resource-name warnings] :as src} sources
+                   :when (not (:from-jar src))
                    warning warnings]
                (assoc warning :source-name resource-name))
              (distinct)
@@ -113,14 +111,19 @@
       (let [sources-to-get
             (->> sources
                  (filter
-                   (fn [{:keys [module]}]
+                   (fn [{:keys [module] :as rc}]
                      (or (= "js" env/module-format)
                          (module-is-active? module))))
                  (filter
                    (fn [{:keys [output-name resource-id] :as src}]
                      (or (not (src-is-loaded? src))
-                         (contains? compiled resource-id))))
+                         (and (contains? compiled resource-id)
+                              ;; never reload files from jar
+                              ;; they can't be hot-swapped so the only way they get re-compiled
+                              ;; is if they have warnings, which we can't to anything about
+                              (not (:from-jar src))))))
                  (into []))]
+
 
         ;; FIXME: should allow reload with warnings
         (when (empty? warnings)
