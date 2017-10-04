@@ -34,7 +34,8 @@
 ;; names that where provided by the "app"
 (defn set-loaded [namespaces]
   (let [loaded (into #{} (map symbol) namespaces)]
-    (swap! loaded-ref set/union loaded)))
+    (swap! loaded-ref set/union loaded)
+    (swap! cljs/*loaded* set/union loaded)))
 
 (defonce index-ref (atom nil))
 
@@ -63,10 +64,13 @@
 
 (defn get-ns-info [ns]
   (let [idx @index-ref]
-    (when-some [id (get-in idx [:sym->id ns])]
-      (get-in idx [:sources id]))))
+    (let [id (get-in idx [:sym->id ns])]
+      (or (get-in idx [:sources id])
+          (throw (ex-info (str "ns " ns " not available") {:ns ns}))
+          ))))
 
 (defn load-analyzer-data [ns]
+  {:pre [(symbol? ns)]}
   (let [{:keys [source-name] :as ns-info}
         (get-ns-info ns)
 
@@ -79,8 +83,8 @@
           x))))
 
 (defn load-macro-js [ns]
-  (let [{:keys [output-name] :as ns-info}
-        (get-ns-info ns)]
+  {:pre [(symbol? ns)]}
+  (let [{:keys [output-name] :as ns-info} (get-ns-info ns)]
 
     (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
           (js/console.log "macro-js" ns ns-info (count x) "bytes")
@@ -111,6 +115,8 @@
             (init-cb)
             )))))
 
+(def loop-guard (atom 0))
+
 (defn load [{:keys [name path macros] :as rc} cb]
   ;; check index build by init
   ;; find all dependencies
@@ -118,9 +124,20 @@
   ;; maybe eval?
   ;; call cb
 
-  ;; FIXME: needs to ensure that deps are loaded first
-  (go (let [ana (<! (load-analyzer-data name))
-            js (<! (load-js name))]
-        (js/console.log "boot/load" name macros ana (count js))
-        (cb {:lang :js :source js :cache ana}))
-      ))
+  (when (> (swap! loop-guard inc) 20)
+    (js/console.log "boom" rc)
+    (throw (ex-info "enough is enough" {})))
+
+  (let [ns
+        (if macros
+          (symbol (str name "$macros"))
+          name)]
+
+    ;; FIXME: needs to ensure that deps are loaded first
+    (go (let [ana (<! (load-analyzer-data ns))
+              js (<! (load-js ns))]
+          (js/console.log "boot/load" name macros ns ana (count js))
+          (when ana
+            (swap! cljs/*loaded* conj ns)
+            (cb {:lang :js :source js :cache ana})))
+        )))

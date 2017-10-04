@@ -144,7 +144,11 @@
 
    :bootstrap-options
    {:entries [reagent.core]
-    :macros [cljs.spec.alpha]}
+    :macros [cljs.support
+             reagent.ratom
+             reagent.debug
+             reagent.interop
+             reagent.core]}
 
    :modules
    {:base

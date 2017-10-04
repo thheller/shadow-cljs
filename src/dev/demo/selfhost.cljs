@@ -10,7 +10,7 @@
 
 
 (defn compile-it []
-  (cljs/compile-str
+  (cljs/eval-str
     boot/compile-state-ref
     "(ns my.user (:require [reagent.core :as r])) (map inc [1 2 3])"
     "[test]"
