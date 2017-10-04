@@ -17,9 +17,8 @@
    [org.clojure/tools.cli "0.3.5"]
    [org.clojure/tools.nrepl "0.2.13"]
 
-   [com.cognitect/transit-clj "0.8.300"
-    :exclusions
-    [org.msgpack/msgpack]]
+   [com.cognitect/transit-clj "0.8.300"]
+   [com.cognitect/transit-cljs "0.8.239"]
 
    [org.clojure/core.async "0.3.443"]
 

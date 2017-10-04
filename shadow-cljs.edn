@@ -28,8 +28,8 @@
   "src/test"]
 
  :builds
- [{:id :cli
-   :target :node-library
+ {:cli
+  {:target :node-library
    :exports {:main shadow.cljs.npm.cli/main}
    :output-to "packages/shadow-cljs/cli/lib.js"
 
@@ -40,8 +40,8 @@
    :devtools
    {:enabled false}}
 
-  {:id :ui
-   :target :browser
+  :ui
+  {:target :browser
 
    :output-dir "target/shadow-cljs/ui/output/js"
    :asset-path "/js"
@@ -62,8 +62,8 @@
 
   ;; test builds
 
-  {:id :browser
-   :target :browser
+  :browser
+  {:target :browser
 
    :output-dir "out/demo-browser/public/js"
    :asset-path "/js"
@@ -136,26 +136,29 @@
     :after-load demo.browser/start
     :preloads [shadow.cljs.devtools.client.hud]}}
 
-  {:id :webpack-bundle
-   :target :browser
+  :bootstrap
+  {:target :browser
 
-   :output-dir "out/webpack-bundle/public/js"
-   :assets-path "/js"
+   :output-dir "out/demo-selfhost/public/js"
+   :asset-path "/js"
+
+   :bootstrap-options
+   {:entries [reagent.core]
+    :macros [cljs.spec.alpha]}
 
    :modules
-   {:shared
-    {:entries [app.shared]}
-
-    :page
-    {:entries [app.page]
-     :depends-on #{:shared}}}
+   {:base
+    {:entries [demo.selfhost]}}
 
    :devtools
-   {:http-root "out/webpack-bundle/public"
-    :http-port 8500}}
+   {:http-root "out/demo-selfhost/public"
+    :http-port 8700
+    :before-load demo.selfhost/stop
+    :after-load demo.selfhost/start}}
 
-  {:id :script
-   :target :node-script
+
+  :script
+  {:target :node-script
    :main demo.script/main
    :output-to "out/demo-script/script.js"
 
@@ -163,14 +166,14 @@
    {:before-load demo.script/stop
     :after-load demo.script/start}}
 
-  {:id :library
-   :target :node-library
+  :library
+  {:target :node-library
    :output-to "out/demo-library/lib.js"
    :exports
    {:hello demo.lib/hello}}
 
-  {:id :custom
-   :target build/custom
+  :custom
+  {:target build/custom
 
    :output-dir "out/demo-browser/js"
    :asset-path "/js"
@@ -182,18 +185,18 @@
    {:before-load demo.browser/stop
     :after-load demo.browser/start}}
 
-  {:id :warnings
-   :target :node-script
+  :warnings
+  {:target :node-script
    :main demo.warnings/main
    :output-to "out/demo-warnings/script.js"}
 
-  {:id :errors
-   :target :node-script
+  :errors
+  {:target :node-script
    :main demo.errors/main
    :output-to "out/demo-errors/script.js"}
 
-  {:id :foreign
-   :target :browser
+  :foreign
+  {:target :browser
    :output-dir "out/demo-foreign/js"
    :asset-path "/js"
    :compiler-options
@@ -202,13 +205,13 @@
    :modules
    {:main {:entries [demo.foreign]}}}
 
-  {:id :npm
-   :target :npm-module
+  :npm
+  {:target :npm-module
    :output-dir "out/demo-npm/lib"
    :entries [demo.npm]}
 
-  {:id :npm-web
-   :target :npm-module
+  :npm-web
+  {:target :npm-module
    :runtime :browser
    :entries [demo.browser]
    :output-dir "out/npm-web/src/cljs"
@@ -216,18 +219,13 @@
    {:externs ["shadow/cljs/npm/externs.js"
               "demo/browser-externs.js"]}}
 
-  {:id :chokidar
-   :target :node-script
-   :main shadow.chokidar/main
-   :output-to "tmp/chokidar.js"}
-
-  {:id :node-repl-test
-   :target :node-script
+  :node-repl-test
+  {:target :node-script
    :main shadow.cljs.devtools.client.node-repl/main
    :output-to "out/node-repl-dev/node-repl.js"}
 
-  {:id :dce
-   :target :browser
+  :dce
+  {:target :browser
    :output-dir "target/dce-test"
    :compiler-options
    {:fn-invoke-direct true}
@@ -235,4 +233,4 @@
    {:core {:entries [cljs.core]}
     :main {:entries [demo.dce]
            :depends-on #{:core}}}
-   }]}
+   }}}

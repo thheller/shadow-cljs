@@ -431,8 +431,8 @@
      :last-modified 0
      :ns ns
      :provides #{ns}
-     :requires #{}
-     :deps []
+     :requires #{'shadow.js}
+     :deps ['shadow.js]
      :source (str "module.exports=(" global ");")}))
 
 (defn js-resource-for-file
