@@ -196,12 +196,22 @@
                 ["index.js"
                  (test-file-exts npm package-dir "index")])]
 
-        (if-not entry-file
+
+        (cond
+          (not entry-file)
           (throw (ex-info
                    (format "module without entry or suffix: %s" require)
                    {:package package
                     :entry require}))
 
+          (.isDirectory entry-file)
+          (or (test-file-exts npm entry-file "index")
+              (throw (ex-info
+                       (format "module entry not found, it was a directory: %s -> %s" require entry-file)
+                       {:require require
+                        :entry entry-file})))
+
+          :else
           entry-file))
 
       ;; "react-dom/server" -> react-dom/server.js

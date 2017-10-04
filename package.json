@@ -33,6 +33,7 @@
     "react": "^16.0.0",
     "react-dom": "^16.0.0",
     "react-leaflet": "^1.7.0",
+    "react-vis": "^1.7.9",
     "readline-sync": "^1.4.7",
     "shortid": "^2.2.8",
     "styled-components": "^2.1.1",

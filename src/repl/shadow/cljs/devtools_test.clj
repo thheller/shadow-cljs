@@ -411,7 +411,8 @@
                           #_ "readable-stream"
                           #_ "material-ui/styles/getMuiTheme"
                           #_ "foo"
-                          cljs.tools.reader.reader-types
+                          #_ cljs.tools.reader.reader-types
+                          "react-vis"
                           ]}}
 
         :js-options
