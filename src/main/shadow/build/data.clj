@@ -110,18 +110,18 @@
       (reduce #(get-deps-for-id state %1 %2) (conj result rc-id) deps))))
 
 (defn deps->syms [{:keys [ns-aliases] :as state} {:keys [resource-id deps] :as rc}]
-  (for [dep deps]
-    (cond
-      (symbol? dep)
-      (get ns-aliases dep dep)
+  (into [] (for [dep deps]
+             (cond
+               (symbol? dep)
+               (get ns-aliases dep dep)
 
-      (string? dep)
-      (or (get-in state [:str->sym (:ns rc) dep])
-          (throw (ex-info (format "no ns alias for dep: %s from: %s" dep resource-id) {:resource-id resource-id :dep dep})))
+               (string? dep)
+               (or (get-in state [:str->sym (:ns rc) dep])
+                   (throw (ex-info (format "no ns alias for dep: %s from: %s" dep resource-id) {:resource-id resource-id :dep dep})))
 
-      :else
-      (throw (ex-info "invalid dep" {:dep dep}))
-      )))
+               :else
+               (throw (ex-info "invalid dep" {:dep dep}))
+               ))))
 
 (defn get-source-by-id [state id]
   {:pre [(rc/valid-resource-id? id)]}

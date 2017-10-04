@@ -94,13 +94,15 @@
 (defn make-index [{::keys [deps] :as state}]
   (->> deps
        (map #(data/get-source-by-id state %))
-       (map (fn [{:keys [type requires provides ns resource-id resource-name output-name] :as rc}]
-              {:resource-id resource-id
-               :type type
-               :provides provides
-               :requires requires
-               :source-name (util/flat-filename resource-name)
-               :output-name output-name}
+       (map (fn [{:keys [type requires provides ns deps resource-id resource-name output-name] :as rc}]
+              (let [resolved-deps (data/deps->syms state rc)]
+                {:resource-id resource-id
+                 :type type
+                 :provides provides
+                 :requires (into #{} resolved-deps)
+                 :deps resolved-deps
+                 :source-name (util/flat-filename resource-name)
+                 :output-name output-name})
               ))
        (into [])))
 
