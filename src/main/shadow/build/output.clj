@@ -265,7 +265,7 @@
       )))
 
 (defn flush-unoptimized-module!
-  [{:keys [unoptimizable build-options] :as state}
+  [{:keys [unoptimizable build-options bootstrap-options] :as state}
    {:keys [goog-base output-name prepend append sources web-worker includes] :as mod}]
 
   (let [{:keys [dev-inline-js cljs-runtime-path asset-path]}

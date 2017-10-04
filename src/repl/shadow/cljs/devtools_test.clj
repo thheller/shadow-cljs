@@ -199,6 +199,27 @@
 (deftest test-npm-release
   (api/release :npm))
 
+
+(deftest test-build-with-selfhost
+  (try
+    (api/compile*
+      '{:build-id :selfhost
+        :target :browser
+
+        :output-dir "out/demo-selfhost/public/js"
+        :asset-path "/js"
+
+        :bootstrap-options
+        {:entries [reagent.core]
+         :macros [cljs.spec.alpha]}
+
+        :modules
+        {:base
+         {:entries [demo.selfhost]}}}
+      {})
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
 (deftest test-build-with-reagent
   (try
     (api/compile*

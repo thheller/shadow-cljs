@@ -78,6 +78,9 @@
   (-> (ns-form/parse form)
       (ns-form/rewrite-ns-aliases build-state)
       (ns-form/rewrite-js-deps build-state)
+      (cond->
+        (:macro-ns opts)
+        (update :name #(symbol (str % "$macros"))))
       (assoc :env env :form form :op :ns)))
 
 ;; I don't want to use with-redefs but I also don't want to replace the default
@@ -121,8 +124,11 @@
            ;; doing this since I no longer want :compiler-options at the root
            ;; of the compiler state, instead they are in :compiler-options
            ;; still want the build-state accessible though
-           (assoc (:compiler-options state)
-             ::build-state state))
+           (-> (:compiler-options state)
+               (assoc ::build-state state)
+               (cond->
+                 (:macro-ns compile-state)
+                 (assoc :macro-ns true))))
          (post-analyze state)))))
 
 (defn do-compile-cljs-string
@@ -306,11 +312,14 @@
         [state {:type :compile-cljs :resource-id resource-id :resource-name resource-name}]
 
         (let [compile-init
-              {:resource-id resource-id
-               :resource-name resource-name
-               :ns 'cljs.user
-               :js ""
-               :cljc (util/is-cljc? resource-name)}
+              (-> {:resource-id resource-id
+                   :resource-name resource-name
+                   :ns 'cljs.user
+                   :js ""
+                   :cljc (util/is-cljc? resource-name)}
+                  (cond->
+                    (:macro-ns rc)
+                    (assoc :macro-ns true)))
 
               {:keys [ns] :as output}
               (cond
@@ -497,7 +506,8 @@
 
         cache?
         (or (and (= cache-level :all)
-                 (or from-jar file))
+                 ;; don't cache files with no actual backing url/file
+                 (or url file))
             (and (= cache-level :jars)
                  from-jar))]
 

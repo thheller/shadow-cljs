@@ -5,7 +5,9 @@
             [shadow.build.resolve :as res]
             [shadow.build.compiler :as impl]
             [shadow.build.resource :as rc]
-            [shadow.build.data :as data]))
+            [shadow.build.data :as data]
+            [clojure.java.io :as io]
+            [shadow.build.classpath :as cp]))
 
 (defn topo-sort-modules*
   [{:keys [modules deps visited] :as state} module-id]
@@ -210,8 +212,11 @@
           (seq prepend-js)
           (add-module-pseudo-rc ::prepend module-id prepend-js)
 
-          (seq append-js)
-          (add-module-pseudo-rc ::append module-id append-js)
+          ;; bootstrap needs to append some load info
+          ;; this ensures that the rc is append correctly
+          ;; it will be modified by shadow.build.bootstrap
+          (or (seq append-js) (:bootstrap-options state))
+          (add-module-pseudo-rc ::append module-id (or append-js ""))
           ))))
 
 (defn analyze-modules [{::keys [module-order] :as state}]

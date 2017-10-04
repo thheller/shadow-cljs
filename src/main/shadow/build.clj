@@ -7,7 +7,9 @@
             [shadow.build.config :as config]
             [shadow.build.closure :as closure]
             [shadow.build.warnings :as warnings]
+            [shadow.build.bootstrap :as bootstrap]
             [shadow.build.modules :as modules]
+
     ;; FIXME: move these
             [shadow.cljs.devtools.cljs-specs]
             [shadow.build.data :as data]
@@ -188,7 +190,7 @@
          (some? target)]
    :post [(build-api/build-state? %)]}
 
-  (let [{:keys [build-options closure-defines compiler-options js-options] :as config}
+  (let [{:keys [build-options closure-defines bootstrap-options compiler-options js-options] :as config}
         (config-merge config mode)
 
         target-fn
@@ -223,7 +225,7 @@
           ;; generic release mode
           (= :release mode)
           (-> (build-api/with-compiler-options
-                {:optimizations :advanced
+                {:optimizations (if bootstrap-options :simple :advanced)
                  :elide-asserts true
                  :pretty-print false
                  :closure-defines {"goog.DEBUG" false}}))
@@ -233,6 +235,9 @@
 
           compiler-options
           (build-api/with-compiler-options compiler-options)
+
+          bootstrap-options
+          (build-api/with-bootstrap-options bootstrap-options)
 
           build-options
           (build-api/with-build-options build-options)
@@ -257,7 +262,10 @@
       (update-build-info-from-modules)
       (build-api/compile-sources)
       (update-build-info-after-compile)
-      (process-stage :compile-finish true)))
+      (process-stage :compile-finish true)
+      (cond->
+        (:bootstrap-options state)
+        (bootstrap/compile))))
 
 (defn optimize
   [{::keys [mode skip-optimize] :as state}]
@@ -283,6 +291,10 @@
   [state]
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
-  (process-stage state :flush true))
+  (-> state
+      (process-stage :flush true)
+      (cond->
+        (:bootstrap-options state)
+        (bootstrap/flush))))
 
 

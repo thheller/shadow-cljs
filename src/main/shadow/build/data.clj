@@ -229,3 +229,12 @@
         ;; {:type :relative :path "src/main/foo"}
         (->> (str "./"))
         )))
+
+(defn add-virtual-resource
+  "dynamically generated resource that overrides anything from the classpath or npm"
+  [state {:keys [resource-id provides] :as rc}]
+  {:pre [(rc/valid-resource? rc)]}
+  (-> state
+      (update :virtual-sources assoc resource-id rc)
+      (update :virtual-provides merge-virtual-provides rc)
+      ))

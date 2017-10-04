@@ -1,4 +1,4 @@
-(ns shadow.build.api-test
+(ns shadow.cljs.build-api-test
   (:require [clojure.test :refer :all]
             [clojure.java.io :as io]
             [cljs.analyzer :as cljs-ana]
@@ -16,7 +16,8 @@
             [shadow.build.compiler :as impl]
             [shadow.build.macros :as macros]
             [shadow.build.data :as data]
-            [shadow.cljs.repl :as repl])
+            [shadow.cljs.repl :as repl]
+            [shadow.build.output :as output])
   (:import (java.util.concurrent Executors)))
 
 (deftest test-compile
@@ -105,8 +106,80 @@
     (-> (api/init)
         (api/with-cache-dir (io/file cache-root "cache"))
         (api/with-classpath cp)
+        (api/with-build-options
+          {:output-dir output-dir})
         (api/with-npm npm)
         (api/with-logger log))
+    ))
+
+(defn find-resource-for-macro
+  [macro-ns]
+  (let [path
+        (util/ns->path macro-ns)
+
+        rc-url
+        (or (io/resource (str path ".clj"))
+            (io/resource (str path ".cljc")))
+
+        last-mod
+        (-> rc-url
+            (.openConnection)
+            (.getLastModified))
+
+        rc
+        (->> {:resource-id [::macro macro-ns]
+              :resource-name (str path "$macros.cljc")
+              :type :cljs
+              :url rc-url
+              :last-modified last-mod
+              :cache-key last-mod
+              :macro-ns true
+              :output-name (str macro-ns "$macros.js")}
+             ;; extract requires, deps
+             (cp/inspect-cljs {}))]
+
+    rc
+    ))
+
+
+(deftest test-macro-resources
+  (pprint (find-resource-for-macro 'shadow.api)))
+
+(deftest test-self-host-build
+  (let [rc
+        (io/resource "cljs/core.cljc")
+
+        last-mod
+        (-> rc
+            (.openConnection)
+            (.getLastModified))
+
+        [resolved state]
+        (-> (test-build)
+            (api/add-virtual-resource
+              {:resource-id [::macro "cljs/core.cljc"]
+               :resource-name "cljs/core.cljc"
+               :type :cljs
+               :last-modified last-mod
+               :cache-key last-mod
+               :macro-ns true
+               :output-name "cljs.core$macros.js"
+               :provides '#{cljs.core$macros}
+               :requires '#{cljs.core}
+               :deps '[cljs.core]
+               :source (slurp rc)})
+            (api/resolve-entries '[demo.selfhost cljs.core$macros]))
+
+        {:keys [logger] :as compiled}
+        (-> state
+            (assoc :build-sources resolved)
+            (api/compile-sources)
+            (output/flush-sources))]
+
+    (pprint @logger)
+
+    #_(pprint (get-in compiled [:output [::macro "cljs/core.cljc"]]))
+
     ))
 
 

@@ -14,7 +14,8 @@
             [shadow.build.log :as build-log]
             [shadow.build.resource :as rc]
             [clojure.tools.logging :as log]
-            [clojure.set :as set])
+            [clojure.set :as set]
+            [shadow.build.resolve :as resolve])
   (:import (java.io File)
            (java.util.concurrent ExecutorService)))
 
@@ -62,6 +63,10 @@
   {:js-provider :require ;; :closure, :require, :include maybe :webpack, maybe something
    :packages {}})
 
+(def default-bootstrap-options
+  ;; not enabled by default
+  false)
+
 (defn init []
   (-> {:shadow.build/marker true
 
@@ -79,6 +84,9 @@
 
        :build-options
        default-build-options
+
+       :bootstrap-options
+       default-bootstrap-options
 
        :js-options
        default-js-options
@@ -127,6 +135,11 @@
 (defn with-js-options [state opts]
   (update state :js-options merge opts))
 
+(defn with-bootstrap-options [state opts]
+  (if (:bootstrap-options state)
+    (update state :bootstrap-options merge opts)
+    (assoc state :bootstrap-options opts)))
+
 (defn enable-source-maps [state]
   (update state :compiler-options merge {:source-map "/dev/null"
                                          :source-map-comment true}))
@@ -136,11 +149,8 @@
 
 (defn add-virtual-resource
   "dynamically generated resource that overrides anything from the classpath or npm"
-  [state {:keys [resource-id provides] :as rc}]
-  (-> state
-      (update :virtual-sources assoc resource-id rc)
-      (update :virtual-provides data/merge-virtual-provides rc)
-      ))
+  [state rc]
+  (data/add-virtual-resource state rc))
 
 (defn analyze-modules
   "takes module config and resolves all sources needed to compile"

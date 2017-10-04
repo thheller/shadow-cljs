@@ -57,12 +57,19 @@
 (defn inspect-cljs
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
    with ns-related infos"
-  [state {:keys [url] :as rc}]
-  (let [{:keys [name deps requires] :as ast} (cljs-bridge/get-resource-info url)]
+  [state {:keys [url macro-ns] :as rc}]
+  (let [{:keys [name deps requires] :as ast}
+        (cljs-bridge/get-resource-info url)
+
+        provide-name
+        (if-not macro-ns
+          name
+          (symbol (str name "$macros")))]
+
     (assoc rc
       :ns-info (dissoc ast :env)
-      :ns name
-      :provides #{name}
+      :ns provide-name
+      :provides #{provide-name}
       :requires (into #{} (vals requires))
       :macro-requires
       (-> #{}
@@ -626,6 +633,8 @@
     (when-let [src-name (get-in index [:file->name abs-file])]
       (get-in index [:sources src-name]))))
 
+
+
 (defn get-deps-externs [{:keys [index-ref] :as cp}]
   (:deps-externs @index-ref))
 
@@ -659,6 +668,8 @@
       (-> index
           (index-file-remove source-path file)
           (index-file-add source-path file)))))
+
+
 
 (comment
   ;; FIXME: implement correctly

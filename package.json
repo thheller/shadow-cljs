@@ -16,6 +16,7 @@
     "browser-resolve": "^1.11.2",
     "browserify": "^14.4.0",
     "browserify-shim": "^3.8.14",
+    "create-react-class": "^15.6.2",
     "envify": "^4.1.0",
     "highlight.js": "^9.12.0",
     "jquery": "^3.2.1",
