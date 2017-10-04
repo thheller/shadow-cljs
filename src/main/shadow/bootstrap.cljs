@@ -4,6 +4,7 @@
             [cljs.core.async :as async]
             [cljs.js :as cljs]
             [shadow.xhr :as xhr]
+            [shadow.js]
             [cognitect.transit :as transit]
             [cljs.env :as env]))
 
@@ -21,7 +22,7 @@
   (xhr/chan :GET path nil {:body-only true
                            :transform identity}))
 
-(defonce already-loaded-helper
+(defonce empty-result-helper
   (doto (async/chan)
     (async/close!)))
 
@@ -71,16 +72,11 @@
 
 (defn load-analyzer-data [ns]
   {:pre [(symbol? ns)]}
-  (let [{:keys [source-name] :as ns-info}
-        (get-ns-info ns)
-
-        ;; FIXME: full name should in info
-        req
-        (transit-load (str asset-path "/ana/" source-name ".ana.transit.json"))]
-
-    (go (when-some [x (<! req)]
-          (js/console.log "analyzer" ns ns-info x)
-          x))))
+  (let [{:keys [type source-name] :as ns-info} (get-ns-info ns)]
+    (js/console.log "analyzer" ns ns-info)
+    (if (not= :cljs type)
+      empty-result-helper
+      (transit-load (str asset-path "/ana/" source-name ".ana.transit.json")))))
 
 (defn load-macro-js [ns]
   {:pre [(symbol? ns)]}
@@ -131,13 +127,15 @@
   (let [ns
         (if macros
           (symbol (str name "$macros"))
-          name)]
+          name)
+
+        {:keys [type] :as ns-info}
+        (get-ns-info ns)]
 
     ;; FIXME: needs to ensure that deps are loaded first
     (go (let [ana (<! (load-analyzer-data ns))
               js (<! (load-js ns))]
           (js/console.log "boot/load" name macros ns ana (count js))
-          (when ana
-            (swap! cljs/*loaded* conj ns)
-            (cb {:lang :js :source js :cache ana})))
+          (swap! cljs/*loaded* conj ns)
+          (cb {:lang :js :source js :cache ana}))
         )))
