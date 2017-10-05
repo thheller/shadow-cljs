@@ -65,13 +65,11 @@
     idx))
 
 (defn get-ns-info [ns]
-  (let [idx @index-ref]
-    (let [id (get-in idx [:sym->id ns])]
-      (or (get-in idx [:sources id])
-          (throw (ex-info (str "ns " ns " not available") {:ns ns}))
-          ))))
-
-
+  (let [idx @index-ref
+        id (get-in idx [:sym->id ns])]
+    (or (get-in idx [:sources id])
+        (throw (ex-info (str "ns " ns " not available") {:ns ns}))
+        )))
 
 (defn find-deps [entries]
   {:pre [(set? entries)
@@ -83,11 +81,6 @@
          (fn [{:keys [deps order] :as x} {:keys [resource-id output-name provides requires] :as src}]
 
            (cond
-             ;; skip loading files that are loaded
-             ;; FIXME: keep track of loaded resource-ids instead of the provides?
-             (set/superset? @loaded-ref provides)
-             x
-
              ;; don't load files that don't provide anything we want
              (not (seq (set/intersection deps provides)))
              x
@@ -119,11 +112,14 @@
           (symbol (str name "$macros"))
           name)
 
-        deps-to-load
+        ns-info
+        (get-ns-info ns)
+
+        deps-to-load-for-ns
         (find-deps #{ns})
 
         macro-deps
-        (->> deps-to-load
+        (->> deps-to-load-for-ns
              (filter #(= :cljs (:type %)))
              (map :macro-requires)
              (reduce set/union)
@@ -131,24 +127,34 @@
              (into #{}))
 
         ;; second pass due to circular dependencies in macros
-        deps-to-load
+        deps-to-load-with-macros
         (find-deps (conj macro-deps ns))
 
+        compile-state
+        @compile-state-ref
+
+        js-files-to-load
+        (->> deps-to-load-with-macros
+             (remove #(set/superset? @loaded-ref (:provides %)))
+             (map (fn [{:keys [ns output-name provides]}]
+                    {:type :js
+                     :ns ns
+                     :provides provides
+                     :uri (str asset-path "/js/" output-name)})))
+
+        analyzer-data-to-load
+        (->> deps-to-load-with-macros
+             (filter #(= :cljs (:type %)))
+             (filter #(not (contains? (:cljs.analyzer/namespaces compile-state) (:ns %))))
+             (map (fn [{:keys [ns source-name]}]
+                    {:type :analyzer
+                     :ns ns
+                     :uri (str asset-path "/ana/" source-name ".ana.transit.json")})))
+
         load-info
-        (reduce
-          (fn [load-info {:keys [ns provides type output-name source-name]}]
-            (-> load-info
-                (cond->
-                  (= :cljs type)
-                  (conj {:type :analyzer
-                         :ns ns
-                         :uri (str asset-path "/ana/" source-name ".ana.transit.json")}))
-                (conj {:type :js
-                       :ns ns
-                       :provides provides
-                       :uri (str asset-path "/js/" output-name)})))
-          []
-          deps-to-load)
+        (-> []
+            (into js-files-to-load)
+            (into analyzer-data-to-load))
 
         uris
         (into [] (map :uri) load-info)
@@ -156,38 +162,32 @@
         loader
         (BulkLoader. (into-array uris))]
 
-    (js/console.log :load-fn ns load-info)
+    ;; may sometimes not need to load anything?
+    (if (empty? load-info)
+      (cb {:lang :js :source ""})
 
-    (.listen loader js/goog.net.EventType.SUCCESS
-      (fn [e]
-        (let [texts (.getResponseTexts loader)]
-          ;; FIXME: this should probably do something async
-          ;; otherwise it will block the entire time 60 or so files
-          ;; are eval'd or transit parsed
-          (doseq [load (map #(assoc %1 :text %2) load-info texts)]
-            (execute-load! load))
+      (do (.listen loader js/goog.net.EventType.SUCCESS
+            (fn [e]
+              (let [texts (.getResponseTexts loader)]
+                ;; FIXME: this should probably do something async
+                ;; otherwise it will block the entire time 60 or so files
+                ;; are eval'd or transit parsed
+                (doseq [load (map #(assoc %1 :text %2) load-info texts)]
+                  (execute-load! load))
 
-          (js/console.log "compile-state after load" @compile-state-ref)
-          ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
-          (cb {:lang :js :source ""})
-          )))
+                (js/console.log "compile-state after load" @compile-state-ref)
+                ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
+                (cb {:lang :js :source ""})
+                )))
 
-    (.load loader)
+          (.load loader)))
     ))
 
 (defn init [init-cb]
   ;; FIXME: add goog-define to path
-  ;; load /js/boostrap/index.transit.json
-  ;; build load index
-  ;; call init-cb
-  (let [ch (async/chan)]
+  (if @index-ref
+    (init-cb)
     (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
           (build-index data)
-
-          ;; FIXME: this is ugly but we need to grab analyzer data for already loaded things
-          ;; FIXME: actually load it all, not just core
-          (let [core-ana (<! (transit-load (str asset-path "/ana/cljs.core.cljs.ana.transit.json")))]
-            (cljs/load-analysis-cache! compile-state-ref 'cljs.core core-ana))
-
           (load {:name 'cljs.core :macros true} init-cb)
           ))))
