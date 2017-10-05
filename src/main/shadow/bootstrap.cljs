@@ -19,10 +19,6 @@
   (xhr/chan :GET path nil {:body-only true
                            :transform transit-read}))
 
-(defn txt-load [path]
-  (xhr/chan :GET path nil {:body-only true
-                           :transform identity}))
-
 (defonce empty-result-helper
   (doto (async/chan)
     (async/close!)))
@@ -36,8 +32,7 @@
 ;; names that where provided by the "app"
 (defn set-loaded [namespaces]
   (let [loaded (into #{} (map symbol) namespaces)]
-    (swap! loaded-ref set/union loaded)
-    (swap! cljs/*loaded* set/union loaded)))
+    (swap! loaded-ref set/union loaded)))
 
 (defonce index-ref (atom nil))
 
@@ -133,6 +128,12 @@
         compile-state
         @compile-state-ref
 
+        things-already-loaded
+        (->> deps-to-load-with-macros
+             (filter #(set/superset? @loaded-ref (:provides %)))
+             (map :provides)
+             (reduce set/union))
+
         js-files-to-load
         (->> deps-to-load-with-macros
              (remove #(set/superset? @loaded-ref (:provides %)))
@@ -161,6 +162,11 @@
 
         loader
         (BulkLoader. (into-array uris))]
+
+    ;; this is transfered to cljs/*loaded* here to delay it as much as possible
+    ;; the JS may already be loaded but the analyzer data may be missing
+    ;; this way cljs.js is forced to ask first
+    (swap! cljs/*loaded* set/union things-already-loaded)
 
     ;; may sometimes not need to load anything?
     (if (empty? load-info)
