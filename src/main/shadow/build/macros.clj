@@ -3,7 +3,8 @@
             [cljs.analyzer :as ana]
             [shadow.build.cljs-bridge :as cljs-bridge]
             [clojure.java.io :as io]
-            [shadow.cljs.util :as util])
+            [shadow.cljs.util :as util]
+            [shadow.build.classpath :as cp])
   (:import (clojure.lang Namespace)
            (java.net URL)))
 
@@ -166,3 +167,34 @@
                   (let [file (io/file (.getPath url))]
                     (assoc info :file file))))))
        (into [])))
+
+(defn make-bootstrap-resource [macro-ns]
+  (let [path
+        (util/ns->path macro-ns)
+
+        rc-url
+        (or (io/resource (str path ".clj"))
+            (io/resource (str path ".cljc")))
+
+        last-mod
+        (-> rc-url
+            (.openConnection)
+            (.getLastModified))
+
+        rc
+        (->> {:resource-id [::macro macro-ns]
+              :resource-name (str path "$macros.cljc")
+              :type :cljs
+              :url rc-url
+              :last-modified last-mod
+              :cache-key last-mod
+              :macro-ns true
+              :output-name (str macro-ns "$macros.js")
+              :source (slurp rc-url)}
+             ;; extract requires, deps
+             (cp/inspect-cljs {}))]
+
+    rc
+    ))
+
+

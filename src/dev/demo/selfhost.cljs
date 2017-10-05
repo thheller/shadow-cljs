@@ -12,7 +12,9 @@
 (defn compile-it []
   (cljs/eval-str
     boot/compile-state-ref
-    "(ns my.user (:require [reagent.core :as r])) (map inc [1 2 3])"
+    "(ns my.user (:require [reagent.core :as r]))
+     (doall (for [n (range 10)] n))
+     (map inc [1 2 3])"
     "[test]"
     {:eval
      (fn [{:keys [source cache lang name]}]

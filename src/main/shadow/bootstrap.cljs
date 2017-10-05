@@ -6,7 +6,8 @@
             [shadow.xhr :as xhr]
             [shadow.js]
             [cognitect.transit :as transit]
-            [cljs.env :as env]))
+            [cljs.env :as env])
+  (:import [goog.net BulkLoader]))
 
 (goog-define asset-path "/js/bootstrap")
 
@@ -70,52 +71,61 @@
           (throw (ex-info (str "ns " ns " not available") {:ns ns}))
           ))))
 
-(defn load-analyzer-data [ns]
-  {:pre [(symbol? ns)]}
-  (let [{:keys [type source-name] :as ns-info} (get-ns-info ns)]
-    (js/console.log "analyzer" ns ns-info)
-    (if (not= :cljs type)
-      empty-result-helper
-      (transit-load (str asset-path "/ana/" source-name ".ana.transit.json")))))
-
-(defn load-macro-js [ns]
-  {:pre [(symbol? ns)]}
-  (let [{:keys [output-name] :as ns-info} (get-ns-info ns)]
-
-    (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
-          (js/console.log "macro-js" ns ns-info (count x) "bytes")
-          x))))
-
-(defn load-js [ns]
-  (let [{:keys [output-name provides] :as ns-info}
-        (get-ns-info ns)]
-
-    (go (when-some [x (<! (txt-load (str asset-path "/js/" output-name)))]
-          (js/console.log "js" ns ns-info (count x) "bytes")
-          x))))
-
 (defn init [init-cb]
   ;; FIXME: add goog-define to path
   ;; load /js/boostrap/index.transit.json
   ;; build load index
-  ;; load cljs.core$macros
-  ;; load cljs.core analyzer data + maybe others
   ;; call init-cb
   (let [ch (async/chan)]
     (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
-          (let [idx (build-index data)
-                ana-core (<! (load-analyzer-data 'cljs.core))]
-            (cljs/load-analysis-cache! compile-state-ref 'cljs.core ana-core)
-            (js/eval (<! (load-macro-js 'cljs.core$macros)))
-            (init-cb)
-            )))))
+          (build-index data)
 
-(def loop-guard (atom 0))
+          ;; FIXME: this is ugly but we need to grab analyzer data for already loaded things
+          ;; FIXME: actually load it all, not just core
+          (let [core-ana (<! (transit-load (str asset-path "/ana/cljs.core.cljs.ana.transit.json")))]
+            (cljs/load-analysis-cache! compile-state-ref 'cljs.core core-ana))
+          (init-cb)
+          ))))
 
+(defn find-deps [entries]
+  {:pre [(set? entries)
+         (every? symbol? entries)]}
+  ;; abusing that :sources-ordered is in correct dependency order
+  ;; just walk in reverse and pick up everything along the way
+  (->> (reverse (:sources-ordered @index-ref))
+       (reduce
+         (fn [{:keys [deps order] :as x} {:keys [resource-id output-name provides requires] :as src}]
 
-(defn get-all-module-deps [{:keys [build-modules] :as state} {:keys [depends-on] :as mod}]
-  ;; FIXME: not exactly pretty, just abusing the fact that build-modules is already ordered
-  )
+           (cond
+             ;; skip loading files that are loaded
+             ;; FIXME: keep track of loaded resource-ids instead of the provides?
+             (set/superset? @loaded-ref provides)
+             x
+
+             ;; don't load files that don't provide anything we want
+             (not (seq (set/intersection deps provides)))
+             x
+
+             :else
+             {:deps (set/union deps requires)
+              :order (conj order src)}))
+         {:deps entries
+          :order []})
+       (:order)
+       (reverse)
+       (into [])))
+
+(defn execute-load! [{:keys [type text uri ns provides] :as load-info}]
+  (js/console.log "load" type ns load-info)
+  (case type
+    :analyzer
+    (let [data (transit-read text)]
+      (cljs/load-analysis-cache! compile-state-ref ns data))
+    :js
+    (do (swap! loaded-ref set/union provides)
+        (swap! cljs/*loaded* set/union provides)
+        (js/eval text))
+    ))
 
 (defn load [{:keys [name path macros] :as rc} cb]
   ;; check index build by init
@@ -123,61 +133,63 @@
   ;; load js and ana data via xhr
   ;; maybe eval?
   ;; call cb
-  (when (> (swap! loop-guard inc) 20)
-    (js/console.log "boom" rc)
-    (throw (ex-info "enough is enough" {})))
-
   (let [ns
         (if macros
           (symbol (str name "$macros"))
           name)
 
-        idx
-        @index-ref
-
-        ;; abusing that :sources-ordered is in correct dependency order
-        ;; just walk in reverse and pick up everything along the way
         deps-to-load
-        (->> (reverse (:sources-ordered idx))
-             (reduce
-               (fn [{:keys [deps order] :as x} {:keys [resource-id output-name provides requires] :as src}]
+        (find-deps #{ns})
 
-                 (cond
-                   ;; skip loading files that are loaded
-                   ;; FIXME: keep track of loaded resource-ids instead of the provides?
-                   (set/superset? @loaded-ref provides)
-                   x
+        macro-deps
+        (->> deps-to-load
+             (filter #(= :cljs (:type %)))
+             (map :macro-requires)
+             (reduce set/union)
+             (map #(symbol (str % "$macros")))
+             (into #{}))
 
-                   ;; don't load files that don't provide anything we want
-                   (not (seq (set/intersection deps provides)))
-                   x
+        ;; second pass due to circular dependencies in macros
+        deps-to-load
+        (find-deps (conj macro-deps ns))
 
-                   :else
-                   {:deps (set/union deps requires)
-                    :order (conj order src)}))
-               {:deps #{ns}
-                :order []})
-             (:order)
-             (reverse)
-             (into []))
-
-        uris
+        load-info
         (reduce
-          (fn [uris {:keys [type output-name source-name]}]
-            (-> uris
+          (fn [load-info {:keys [ns provides type output-name source-name]}]
+            (-> load-info
                 (cond->
                   (= :cljs type)
-                  (conj (str asset-path "/ana/" source-name ".ana.transit.json")))
-                (conj (str asset-path "/js/" output-name))))
+                  (conj {:type :analyzer
+                         :ns ns
+                         :uri (str asset-path "/ana/" source-name ".ana.transit.json")}))
+                (conj {:type :js
+                       :ns ns
+                       :provides provides
+                       :uri (str asset-path "/js/" output-name)})))
           []
-          deps-to-load)]
+          deps-to-load)
 
-    (js/console.log "required" (into-array uris))
+        uris
+        (into [] (map :uri) load-info)
 
-    ;; FIXME: server side should provide correct macro infos
-    ;; bulk load uris (parallel, might be many files)
-    ;; eval them in order
-    ;; populate analysis cache
-    ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
-    #_ (cb {:lang :js :source ""})
+        loader
+        (BulkLoader. (into-array uris))]
+
+    (js/console.log :load-fn ns load-info)
+
+    (.listen loader js/goog.net.EventType.SUCCESS
+      (fn [e]
+        (let [texts (.getResponseTexts loader)]
+          ;; FIXME: this should probably do something async
+          ;; otherwise it will block the entire time 60 or so files
+          ;; are eval'd or transit parsed
+          (doseq [load (map #(assoc %1 :text %2) load-info texts)]
+            (execute-load! load))
+
+          (js/console.log "compile-state after load" @compile-state-ref)
+          ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
+          (cb {:lang :js :source ""})
+          )))
+
+    (.load loader)
     ))

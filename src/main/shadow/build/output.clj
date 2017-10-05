@@ -171,7 +171,10 @@
   ([{:keys [build-sources] :as state}]
    (flush-sources state build-sources))
   ([{:keys [build-options] :as state} source-ids]
-   (let [{:keys [cljs-runtime-path]} build-options]
+   (let [{:keys [cljs-runtime-path]} build-options
+
+         required-js-names
+         (data/js-names-accessed-from-cljs state source-ids)]
 
      (util/with-logged-time
        [state {:type :flush-sources
@@ -180,7 +183,7 @@
                :let [{:keys [output-name ns last-modified] :as src}
                      (data/get-source-by-id state src-id)
 
-                     {:keys [js expose] :as output}
+                     {:keys [js] :as output}
                      (data/get-output! state src)
 
                      js-file
@@ -196,7 +199,7 @@
          (io/make-parents js-file)
 
          (let [output (str js
-                           (when expose
+                           (when (contains? required-js-names ns)
                              (str "\nvar " ns "=shadow.js.require(\"" ns "\");\n"))
                            (generate-source-map state src output js-file ""))]
            (spit js-file output)))

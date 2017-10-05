@@ -455,7 +455,7 @@
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
 (defn make-js-modules
-  [{:keys [build-modules closure-configurators compiler-options] :as state}]
+  [{:keys [build-modules closure-configurators compiler-options build-sources] :as state}]
 
   ;; modules that only contain foreign sources must not be exposed to closure
   ;; since they technically do not depend on goog but closure only allows one root module
@@ -468,6 +468,9 @@
 
         js-provider
         (get-in state [:js-options :js-provider])
+
+        required-js-names
+        (data/js-names-accessed-from-cljs state build-sources)
 
         js-mods
         (reduce
@@ -506,7 +509,7 @@
                         (str "shadow$placeholder(\"" ns "\");"
                              ;; the compiler does not need to know about all js files
                              ;; it only needs to know if used by cljs
-                             (when (:expose output)
+                             (when (contains? required-js-names ns)
                                (str "goog.provide(\"" ns "\");\n"
                                     ns " = shadow.js.require(\"" ns "\");")))
 
@@ -1207,16 +1210,6 @@
                         "\n});")))
                (into []))
 
-          names-accessed-from-cljs
-          (->> (for [src-id build-sources
-                     :let [{:keys [resource-id type] :as src}
-                           (data/get-source-by-id state src-id)]
-                     :when (not= :npm type)
-                     :let [syms (data/deps->syms state src)]
-                     sym syms]
-                 sym)
-               (into #{}))
-
           source-file-names
           (into #{} (map #(.getName %)) source-files)
 
@@ -1317,16 +1310,9 @@
                     sm-json
                     (.toString sw)
 
-                    ;; expose only the names actually used by CLJS
-                    ;; avoids creating a global for every npm file
-                    ;; JS files talk amongst themselves via shadow.js
-                    expose?
-                    (contains? names-accessed-from-cljs ns)
-
                     output
                     {:resource-id resource-id
                      :js js
-                     :expose expose?
                      :compiled-at (System/currentTimeMillis)
                      :source-map-json sm-json}]
 

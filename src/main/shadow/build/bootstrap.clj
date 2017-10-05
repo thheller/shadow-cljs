@@ -41,13 +41,6 @@
     rc
     ))
 
-(defn self-host-support [state]
-  (let [self-host-opts
-        (get-in state [:build-options :self-host])]
-    (if-not (seq self-host-opts)
-      state
-      )))
-
 (defn append-load-info [state]
   (reduce
     (fn [state {:keys [module-id sources] :as mod}]
@@ -65,17 +58,36 @@
     state
     (:build-modules state)))
 
-(defn compile [{:keys [bootstrap-options] :as state}]
+(defn compile [{:keys [bootstrap-options build-sources] :as state}]
   (util/with-logged-time [state {:type ::compile}]
     (let [{:keys [entries macros]} bootstrap-options
 
+          entries
+          (into '[cljs.core] entries)
+
+          [deps state]
+          (resolve/resolve-entries state entries)
+
+          ;; resolving macros in a second pass
+          ;; because they are circular in nature
+          ;; cljs.core requires cljs.core$macros which requires on cljs.core
+          ;; the files themselves do not depend on the macros when compiled normally
+          ;; only the bootstrap compiler will require them
+          macros-from-deps
+          (->> (for [dep-id deps
+                     :let [{:keys [macro-requires] :as src} (data/get-source-by-id state dep-id)]
+                     macro-ns macro-requires]
+                 macro-ns)
+               (distinct)
+               (into []))
+
           macros
-          (into '[cljs.core] macros)
+          (into macros-from-deps macros)
 
           macro-resources
           (into [] (map make-macro-resource) macros)
 
-          macro-resource-namespaces
+          all-entries
           (-> []
               (into entries)
               (into (map :ns) macro-resources))
@@ -83,11 +95,13 @@
           [deps state]
           (-> state
               (util/reduce-> data/add-virtual-resource macro-resources)
-              (resolve/resolve-entries macro-resource-namespaces))]
+              (resolve/resolve-entries all-entries))]
 
       (-> state
           (assoc ::deps deps)
-          (impl/compile-all deps)
+          (assoc :build-sources deps)
+          (impl/compile-all)
+          (assoc :build-sources build-sources)
           (append-load-info))
       )))
 
@@ -96,13 +110,18 @@
        (map #(data/get-source-by-id state %))
        (map (fn [{:keys [type requires provides ns deps resource-id resource-name output-name] :as rc}]
               (let [resolved-deps (data/deps->syms state rc)]
-                {:resource-id resource-id
-                 :type type
-                 :provides provides
-                 :requires (into #{} resolved-deps)
-                 :deps resolved-deps
-                 :source-name (util/flat-filename resource-name)
-                 :output-name output-name})
+                (-> {:resource-id resource-id
+                     :type type
+                     :provides provides
+                     :requires (into #{} resolved-deps)
+                     :ns ns
+                     :deps resolved-deps
+                     :source-name (util/flat-filename resource-name)
+                     :output-name output-name}
+                    (cond->
+                      (= :cljs type)
+                      (assoc :macro-requires (:macro-requires rc))
+                      )))
               ))
        (into [])))
 
@@ -131,7 +150,10 @@
             (io/file bootstrap-dir "js")
 
             ana-dir
-            (io/file bootstrap-dir "ana")]
+            (io/file bootstrap-dir "ana")
+
+            required-js-names
+            (data/js-names-accessed-from-cljs state deps)]
 
         (io/make-parents source-dir "foo")
         (io/make-parents js-dir "foo")
@@ -155,7 +177,12 @@
 
             (spit source-file (:source src))
 
-            (spit js-file js)
+            (spit js-file
+              (str js
+                   (when (contains? required-js-names ns)
+                     ;; goog.provide so goog.require is happy
+                     (str "\ngoog.provide(\"" ns "\");"
+                          "\nvar " ns "=shadow.js.require(\"" ns "\");\n"))))
 
             (when (= type :cljs)
               (let [ana

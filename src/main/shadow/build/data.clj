@@ -2,7 +2,9 @@
   "generic helpers for the build data structure"
   (:require [shadow.build.resource :as rc]
             [clojure.java.io :as io]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [clojure.string :as str]
+            [clojure.set :as set])
   (:import (java.net URL)))
 
 ;; FIXME: there are still lots of places that work directly with the map
@@ -238,3 +240,23 @@
       (update :virtual-sources assoc resource-id rc)
       (update :virtual-provides merge-virtual-provides rc)
       ))
+
+(defn js-names-accessed-from-cljs [state build-sources]
+  (let [all-names
+        (->> (for [src-id build-sources
+                   :let [{:keys [resource-id type] :as src}
+                         (get-source-by-id state src-id)]
+                   :when (not= :npm type)
+                   :let [syms (deps->syms state src)]
+                   sym syms]
+               sym)
+             (into #{}))]
+
+    ;; filter out the names provided by npm deps
+    (->> build-sources
+         (map #(get-source-by-id state %))
+         (filter #(= :npm (:type %)))
+         (filter #(set/superset? all-names (:provides %)))
+         (map :ns)
+         (into #{}))))
+
