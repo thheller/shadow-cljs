@@ -79,7 +79,7 @@
       (ns-form/rewrite-ns-aliases build-state)
       (ns-form/rewrite-js-deps build-state)
       (cond->
-        (:macro-ns opts)
+        (:macros-ns opts)
         (update :name #(symbol (str % "$macros"))))
       (assoc :env env :form form :op :ns)))
 
@@ -127,8 +127,8 @@
            (-> (:compiler-options state)
                (assoc ::build-state state)
                (cond->
-                 (:macro-ns compile-state)
-                 (assoc :macro-ns true))))
+                 (:macros-ns compile-state)
+                 (assoc :macros-ns true))))
          (post-analyze state)))))
 
 (defn do-compile-cljs-string
@@ -147,7 +147,14 @@
 
       (let [result
             (loop [{:keys [ns ns-info] :as compile-state} init]
-              (let [form
+              (let [ns
+                    (if-not (:macros-ns compile-state)
+                      ns
+                      (-> (str ns)
+                          (str/replace #"\$macros" "")
+                          (symbol)))
+
+                    form
                     (binding [*ns*
                               (create-ns ns)
 
@@ -318,8 +325,8 @@
                    :js ""
                    :cljc (util/is-cljc? resource-name)}
                   (cond->
-                    (:macro-ns rc)
-                    (assoc :macro-ns true)))
+                    (:macros-ns rc)
+                    (assoc :macros-ns true)))
 
               {:keys [ns] :as output}
               (cond

@@ -57,25 +57,29 @@
 (defn inspect-cljs
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
    with ns-related infos"
-  [state {:keys [url macro-ns] :as rc}]
+  [state {:keys [url macros-ns] :as rc}]
   (let [{:keys [name deps requires] :as ast}
         (cljs-bridge/get-resource-info url)
 
         provide-name
-        (if-not macro-ns
+        (if-not macros-ns
           name
           (symbol (str name "$macros")))]
 
-    (assoc rc
-      :ns-info (dissoc ast :env)
-      :ns provide-name
-      :provides #{provide-name}
-      :requires (into #{} (vals requires))
-      :macro-requires
-      (-> #{}
-          (into (-> ast :require-macros vals))
-          (into (-> ast :use-macros vals)))
-      :deps deps)))
+    (-> rc
+        (assoc
+          :ns-info (dissoc ast :env)
+          :ns provide-name
+          :provides #{provide-name}
+          :requires (into #{} (vals requires))
+          :macro-requires
+          (-> #{}
+              (into (-> ast :require-macros vals))
+              (into (-> ast :use-macros vals)))
+          :deps deps)
+        (cond->
+          macros-ns
+          (assoc :macros-ns true)))))
 
 (defn inspect-resource
   [state {:keys [resource-name url] :as rc}]

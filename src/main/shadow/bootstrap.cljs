@@ -71,21 +71,7 @@
           (throw (ex-info (str "ns " ns " not available") {:ns ns}))
           ))))
 
-(defn init [init-cb]
-  ;; FIXME: add goog-define to path
-  ;; load /js/boostrap/index.transit.json
-  ;; build load index
-  ;; call init-cb
-  (let [ch (async/chan)]
-    (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
-          (build-index data)
 
-          ;; FIXME: this is ugly but we need to grab analyzer data for already loaded things
-          ;; FIXME: actually load it all, not just core
-          (let [core-ana (<! (transit-load (str asset-path "/ana/cljs.core.cljs.ana.transit.json")))]
-            (cljs/load-analysis-cache! compile-state-ref 'cljs.core core-ana))
-          (init-cb)
-          ))))
 
 (defn find-deps [entries]
   {:pre [(set? entries)
@@ -128,11 +114,6 @@
     ))
 
 (defn load [{:keys [name path macros] :as rc} cb]
-  ;; check index build by init
-  ;; find all dependencies
-  ;; load js and ana data via xhr
-  ;; maybe eval?
-  ;; call cb
   (let [ns
         (if macros
           (symbol (str name "$macros"))
@@ -193,3 +174,20 @@
 
     (.load loader)
     ))
+
+(defn init [init-cb]
+  ;; FIXME: add goog-define to path
+  ;; load /js/boostrap/index.transit.json
+  ;; build load index
+  ;; call init-cb
+  (let [ch (async/chan)]
+    (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
+          (build-index data)
+
+          ;; FIXME: this is ugly but we need to grab analyzer data for already loaded things
+          ;; FIXME: actually load it all, not just core
+          (let [core-ana (<! (transit-load (str asset-path "/ana/cljs.core.cljs.ana.transit.json")))]
+            (cljs/load-analysis-cache! compile-state-ref 'cljs.core core-ana))
+
+          (load {:name 'cljs.core :macros true} init-cb)
+          ))))

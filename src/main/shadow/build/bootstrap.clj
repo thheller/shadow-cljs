@@ -32,7 +32,7 @@
               :url rc-url
               :last-modified last-mod
               :cache-key last-mod
-              :macro-ns true
+              :macros-ns true
               :output-name (str macro-ns "$macros.js")
               :source (slurp rc-url)}
              ;; extract requires, deps
@@ -80,6 +80,9 @@
                  macro-ns)
                (distinct)
                (into []))
+
+          #_ #_ macros-from-deps
+          '[demo.macro]
 
           macros
           (into macros-from-deps macros)
@@ -182,7 +185,7 @@
                    (when (contains? required-js-names ns)
                      ;; goog.provide so goog.require is happy
                      (str "\ngoog.provide(\"" ns "\");"
-                          "\nvar " ns "=shadow.js.require(\"" ns "\");\n"))))
+                          "\ngoog.global. " ns "=shadow.js.require(\"" ns "\");\n"))))
 
             (when (= type :cljs)
               (let [ana

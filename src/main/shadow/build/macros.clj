@@ -167,34 +167,3 @@
                   (let [file (io/file (.getPath url))]
                     (assoc info :file file))))))
        (into [])))
-
-(defn make-bootstrap-resource [macro-ns]
-  (let [path
-        (util/ns->path macro-ns)
-
-        rc-url
-        (or (io/resource (str path ".clj"))
-            (io/resource (str path ".cljc")))
-
-        last-mod
-        (-> rc-url
-            (.openConnection)
-            (.getLastModified))
-
-        rc
-        (->> {:resource-id [::macro macro-ns]
-              :resource-name (str path "$macros.cljc")
-              :type :cljs
-              :url rc-url
-              :last-modified last-mod
-              :cache-key last-mod
-              :macro-ns true
-              :output-name (str macro-ns "$macros.js")
-              :source (slurp rc-url)}
-             ;; extract requires, deps
-             (cp/inspect-cljs {}))]
-
-    rc
-    ))
-
-
