@@ -6,7 +6,8 @@
             [shadow.xhr :as xhr]
             [shadow.js]
             [cognitect.transit :as transit]
-            [cljs.env :as env])
+            [cljs.env :as env]
+            [goog.async.run])
   (:import [goog.net BulkLoader]))
 
 (goog-define asset-path "/js/bootstrap")
@@ -18,12 +19,6 @@
 (defn transit-load [path]
   (xhr/chan :GET path nil {:body-only true
                            :transform transit-read}))
-
-(defonce empty-result-helper
-  (doto (async/chan)
-    (async/close!)))
-
-(defonce compile-state-ref (env/default-compiler-env))
 
 (defonce loaded-ref (atom #{}))
 
@@ -89,7 +84,7 @@
        (reverse)
        (into [])))
 
-(defn execute-load! [{:keys [type text uri ns provides] :as load-info}]
+(defn execute-load! [compile-state-ref {:keys [type text uri ns provides] :as load-info}]
   (js/console.log "load" type ns load-info)
   (case type
     :analyzer
@@ -101,7 +96,13 @@
         (js/eval text))
     ))
 
-(defn load [{:keys [name path macros] :as rc} cb]
+(defn queue-task! [task]
+  ;; FIXME: this is a very naive queue that does all pending tasks at once
+  ;; should use something like window.requestIdleCallback that does as much work as
+  ;; possible in the time it was given and then yield control back to the browser
+  (js/goog.async.run task))
+
+(defn load [compile-state-ref {:keys [name path macros] :as rc} cb]
   (let [ns
         (if macros
           (symbol (str name "$macros"))
@@ -155,13 +156,7 @@
         load-info
         (-> []
             (into js-files-to-load)
-            (into analyzer-data-to-load))
-
-        uris
-        (into [] (map :uri) load-info)
-
-        loader
-        (BulkLoader. (into-array uris))]
+            (into analyzer-data-to-load))]
 
     ;; this is transfered to cljs/*loaded* here to delay it as much as possible
     ;; the JS may already be loaded but the analyzer data may be missing
@@ -172,28 +167,34 @@
     (if (empty? load-info)
       (cb {:lang :js :source ""})
 
-      (do (.listen loader js/goog.net.EventType.SUCCESS
-            (fn [e]
-              (let [texts (.getResponseTexts loader)]
-                ;; FIXME: this should probably do something async
-                ;; otherwise it will block the entire time 60 or so files
-                ;; are eval'd or transit parsed
-                (doseq [load (map #(assoc %1 :text %2) load-info texts)]
-                  (execute-load! load))
+      (let [uris
+            (into [] (map :uri) load-info)
 
-                (js/console.log "compile-state after load" @compile-state-ref)
-                ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
-                (cb {:lang :js :source ""})
-                )))
+            loader
+            (BulkLoader. (into-array uris))]
 
-          (.load loader)))
+        (.listen loader js/goog.net.EventType.SUCCESS
+          (fn [e]
+            (let [texts (.getResponseTexts loader)]
+              ;; FIXME: this should probably do something async
+              ;; otherwise it will block the entire time 60 or so files
+              ;; are eval'd or transit parsed
+              (doseq [load (map #(assoc %1 :text %2) load-info texts)]
+                (queue-task! #(execute-load! compile-state-ref load)))
+
+              (queue-task! #(js/console.log "compile-state after load" @compile-state-ref))
+              ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
+              (queue-task! #(cb {:lang :js :source ""}))
+              )))
+
+        (.load loader)))
     ))
 
-(defn init [init-cb]
+(defn init [compile-state-ref init-cb]
   ;; FIXME: add goog-define to path
   (if @index-ref
     (init-cb)
     (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
           (build-index data)
-          (load {:name 'cljs.core :macros true} init-cb)
+          (load compile-state-ref {:name 'cljs.core :macros true} init-cb)
           ))))

@@ -6,7 +6,6 @@
 
 (defn print-result [{:keys [error value] :as result}]
   (js/console.log "result" result)
-  (js/console.log "compile-state" @boot/compile-state-ref)
   (set! (.-innerHTML (js/document.getElementById "dump")) value))
 
 (def code
@@ -46,18 +45,20 @@
 
 (r/render [simple-example] (js/document.getElementById \"app\"))")
 
+(defonce compile-state-ref (env/default-compiler-env))
+
 (defn compile-it []
   (cljs/eval-str
-    boot/compile-state-ref
+    compile-state-ref
     code
     "[test]"
     {:eval cljs/js-eval
      :analyze-deps false
      :verbose true
-     :load boot/load}
+     :load (partial boot/load compile-state-ref)}
     print-result))
 
 (defn start []
-  (boot/init compile-it))
+  (boot/init compile-state-ref compile-it))
 
 (defn stop [])
