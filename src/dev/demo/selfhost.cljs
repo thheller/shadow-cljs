@@ -59,6 +59,8 @@
     print-result))
 
 (defn start []
-  (boot/init compile-state-ref compile-it))
+  (boot/init compile-state-ref
+    {}
+    compile-it))
 
 (defn stop [])

@@ -105,6 +105,8 @@
           (assoc :build-sources deps)
           (impl/compile-all)
           (assoc :build-sources build-sources)
+          (assoc-in [:compiler-options :closure-defines 'shadow.bootstrap/asset-path]
+            (str (get-in state [:build-options :asset-path]) "/bootstrap"))
           (append-load-info))
       )))
 

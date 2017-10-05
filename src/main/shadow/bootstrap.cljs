@@ -12,6 +12,9 @@
 
 (goog-define asset-path "/js/bootstrap")
 
+(defn compile-state-ref? [x]
+  (and (instance? cljs.core/Atom x) (map? @x)))
+
 (defn transit-read [txt]
   (let [r (transit/reader :json)]
     (transit/read r txt)))
@@ -50,7 +53,7 @@
 
     (reset! index-ref idx)
 
-    (js/console.log "build-index" idx)
+    #_ (js/console.log "build-index" idx)
 
     idx))
 
@@ -85,7 +88,7 @@
        (into [])))
 
 (defn execute-load! [compile-state-ref {:keys [type text uri ns provides] :as load-info}]
-  (js/console.log "load" type ns load-info)
+  #_ (js/console.log "load" type ns load-info)
   (case type
     :analyzer
     (let [data (transit-read text)]
@@ -93,8 +96,7 @@
     :js
     (do (swap! loaded-ref set/union provides)
         (swap! cljs/*loaded* set/union provides)
-        (js/eval text))
-    ))
+        (js/eval text))))
 
 (defn queue-task! [task]
   ;; FIXME: this is a very naive queue that does all pending tasks at once
@@ -102,17 +104,15 @@
   ;; possible in the time it was given and then yield control back to the browser
   (js/goog.async.run task))
 
-(defn load [compile-state-ref {:keys [name path macros] :as rc} cb]
-  (let [ns
-        (if macros
-          (symbol (str name "$macros"))
-          name)
-
-        ns-info
-        (get-ns-info ns)
-
-        deps-to-load-for-ns
-        (find-deps #{ns})
+(defn load-namespaces
+  "loads a set of namespaces, must be called after init"
+  [compile-state-ref namespaces cb]
+  {:pre [(compile-state-ref? compile-state-ref)
+         (set? namespaces)
+         (every? symbol? namespaces)
+         (fn? cb)]}
+  (let [deps-to-load-for-ns
+        (find-deps namespaces)
 
         macro-deps
         (->> deps-to-load-for-ns
@@ -124,7 +124,7 @@
 
         ;; second pass due to circular dependencies in macros
         deps-to-load-with-macros
-        (find-deps (conj macro-deps ns))
+        (find-deps (set/union namespaces macro-deps))
 
         compile-state
         @compile-state-ref
@@ -163,7 +163,7 @@
     ;; this way cljs.js is forced to ask first
     (swap! cljs/*loaded* set/union things-already-loaded)
 
-    ;; may sometimes not need to load anything?
+    ;; may not need to load anything sometimes?
     (if (empty? load-info)
       (cb {:lang :js :source ""})
 
@@ -176,13 +176,11 @@
         (.listen loader js/goog.net.EventType.SUCCESS
           (fn [e]
             (let [texts (.getResponseTexts loader)]
-              ;; FIXME: this should probably do something async
-              ;; otherwise it will block the entire time 60 or so files
-              ;; are eval'd or transit parsed
               (doseq [load (map #(assoc %1 :text %2) load-info texts)]
                 (queue-task! #(execute-load! compile-state-ref load)))
 
-              (queue-task! #(js/console.log "compile-state after load" @compile-state-ref))
+              #_ (queue-task! #(js/console.log "compile-state after load" @compile-state-ref))
+
               ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
               (queue-task! #(cb {:lang :js :source ""}))
               )))
@@ -190,11 +188,33 @@
         (.load loader)))
     ))
 
-(defn init [compile-state-ref init-cb]
+(defn load
+  ":load fn for cljs.js, must be passed the compile-state as first arg
+   eg. :load (partial boot/load compile-state-ref)"
+  [compile-state-ref {:keys [name path macros] :as rc} cb]
+  {:pre [(compile-state-ref? compile-state-ref)
+         (symbol? name)
+         (fn? cb)]}
+  (let [ns (if macros
+             (symbol (str name "$macros"))
+             name)]
+    ;; just ensures we actually have data for it
+    (get-ns-info ns)
+    (load-namespaces compile-state-ref #{ns} cb)))
+
+(defn init
+  "initializes the bootstrapped compiler by loading the dependency index
+   and loading cljs.core + macros (and namespaces specified in :load-on-init)"
+  [compile-state-ref {:keys [load-on-init] :as opts} init-cb]
+  {:pre [(compile-state-ref? compile-state-ref)
+         (map? opts)
+         (fn? init-cb)]}
   ;; FIXME: add goog-define to path
   (if @index-ref
     (init-cb)
     (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
           (build-index data)
-          (load compile-state-ref {:name 'cljs.core :macros true} init-cb)
-          ))))
+          (load-namespaces
+            compile-state-ref
+            (into '#{cljs.core cljs.core$macros} load-on-init)
+            init-cb)))))
