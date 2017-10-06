@@ -260,3 +260,5 @@
          (map :ns)
          (into #{}))))
 
+(defn bootstrap-host? [{:keys [sym->id] :as state}]
+  (contains? sym->id 'cljs.js))

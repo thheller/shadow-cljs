@@ -198,6 +198,13 @@
   ;; keeping them for CLJS for now although they are not needed in JS mode
   #_(when (= :goog (get-in state [:build-options :module-format])))
   (comp/emitln "goog.provide('" (comp/munge name) "');")
+
+  (when (= name 'cljs.js)
+    ;; this fixes the issue that cljs.js unconditionally attempts to load cljs.core$macros
+    ;; via goog.require, which should be done when bootstrapping the compiler instead
+    ;; this saves downloading a bunch of data prematurely
+    (comp/emitln "goog.provide(\"cljs.core$macros\");"))
+
   (doseq [dep deps
           :when (not= 'goog dep)]
     (comp/emitln "goog.require('" (comp/munge dep) "');")))

@@ -53,7 +53,7 @@
 
     (reset! index-ref idx)
 
-    #_ (js/console.log "build-index" idx)
+    (js/console.log "build-index" idx)
 
     idx))
 
@@ -88,7 +88,7 @@
        (into [])))
 
 (defn execute-load! [compile-state-ref {:keys [type text uri ns provides] :as load-info}]
-  #_ (js/console.log "load" type ns load-info)
+  (js/console.log "load" type ns load-info)
   (case type
     :analyzer
     (let [data (transit-read text)]
@@ -147,7 +147,8 @@
         analyzer-data-to-load
         (->> deps-to-load-with-macros
              (filter #(= :cljs (:type %)))
-             (filter #(not (contains? (:cljs.analyzer/namespaces compile-state) (:ns %))))
+             ;; :dump-core still populates the cljs.core analyzer data with an empty map
+             (filter #(nil? (get-in compile-state [:cljs.analyzer/namespaces (:ns %) :name])))
              (map (fn [{:keys [ns source-name]}]
                     {:type :analyzer
                      :ns ns
@@ -179,7 +180,7 @@
               (doseq [load (map #(assoc %1 :text %2) load-info texts)]
                 (queue-task! #(execute-load! compile-state-ref load)))
 
-              #_ (queue-task! #(js/console.log "compile-state after load" @compile-state-ref))
+              (queue-task! #(js/console.log "compile-state after load" @compile-state-ref))
 
               ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
               (queue-task! #(cb {:lang :js :source ""}))
@@ -202,6 +203,13 @@
     (get-ns-info ns)
     (load-namespaces compile-state-ref #{ns} cb)))
 
+(defn fix-provide-conflict! []
+  ;; since cljs.js unconditionally does a goog.require("cljs.core$macros")
+  ;; the compile pretended to provide this but didn't
+  ;; need to remove that before we load it, otherwise it would goog.provide conflict
+  ;; FIXME: should test if actually empty, might delete something accidentally?
+  (js-delete js/cljs "core$macros"))
+
 (defn init
   "initializes the bootstrapped compiler by loading the dependency index
    and loading cljs.core + macros (and namespaces specified in :load-on-init)"
@@ -212,9 +220,10 @@
   ;; FIXME: add goog-define to path
   (if @index-ref
     (init-cb)
-    (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
-          (build-index data)
-          (load-namespaces
-            compile-state-ref
-            (into '#{cljs.core cljs.core$macros} load-on-init)
-            init-cb)))))
+    (do (fix-provide-conflict!)
+        (go (when-some [data (<! (transit-load (str asset-path "/index.transit.json")))]
+              (build-index data)
+              (load-namespaces
+                compile-state-ref
+                (into '#{cljs.core cljs.core$macros} load-on-init)
+                init-cb))))))

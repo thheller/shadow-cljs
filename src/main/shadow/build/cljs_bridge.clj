@@ -43,7 +43,10 @@
   [state]
   (cond-> state
     (nil? (:compiler-env state))
-    (assoc :compiler-env @(cljs-env/default-compiler-env (:compiler-options state)))))
+    (assoc :compiler-env @(cljs-env/default-compiler-env (assoc (:compiler-options state)
+                                                           ;; leave loading core data to the shadow.cljs.bootstrap loader
+                                                           :dump-core false
+                                                           )))))
 
 (defn nested-vals [map]
   (for [[_ ns-map] map
