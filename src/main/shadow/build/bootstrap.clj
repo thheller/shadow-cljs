@@ -51,7 +51,7 @@
                  (reduce set/union))
 
             load-str
-            (str "shadow.bootstrap.set_loaded(" (json/write-str all-provides) ");")]
+            (str "shadow.cljs.bootstrap.env.set_loaded(" (json/write-str all-provides) ");")]
 
         (update-in state [:output [::modules/append module-id] :js] str "\n" load-str "\n")
         ))

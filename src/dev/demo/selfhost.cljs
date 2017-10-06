@@ -1,7 +1,6 @@
 (ns demo.selfhost
   (:require [cljs.js :as cljs]
-            [clojure.string] ;; reagent doesn't declare this dep
-            [shadow.bootstrap :as boot]
+            [shadow.cljs.bootstrap.browser :as boot]
             [cljs.env :as env]))
 
 (defn print-result [{:keys [error value] :as result}]
