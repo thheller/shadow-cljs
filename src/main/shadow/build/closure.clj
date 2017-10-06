@@ -1375,14 +1375,14 @@
                       cache-file
                       (data/cache-file state "shadow-js" output-name)]
 
-                  (cache/write-cache cache-file output)
+                  (cache/write-file cache-file output)
 
                   (assoc idx resource-id cache-key)))
               (assoc cache-index :SHADOW-TIMESTAMP SHADOW-TIMESTAMP)
               recompile-sources)))]
 
     (when need-compile?
-      (cache/write-cache cache-index-file cache-index-updated))
+      (cache/write-file cache-index-file cache-index-updated))
 
     (if-not (seq cache-files)
       state

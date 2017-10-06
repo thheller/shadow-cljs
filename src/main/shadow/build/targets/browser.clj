@@ -204,6 +204,7 @@
 
               module-config
               (-> module-config
+                  (assoc :force-append true)
                   (cond->
                     ;; REPL client - only for watch (via worker-info), not compile
                     (and default? (= :dev mode) worker-info)
@@ -372,6 +373,26 @@
            (into [])
            ))))
 
+(defn bootstrap-host-build? [{:keys [sym->id] :as state}]
+  (contains? sym->id 'shadow.cljs.bootstrap.env))
+
+(defn bootstrap-host-info [state]
+  (reduce
+    (fn [state {:keys [module-id sources] :as mod}]
+      (let [all-provides
+            (->> sources
+                 (map #(data/get-source-by-id state %))
+                 (map :provides)
+                 (reduce set/union))
+
+            load-str
+            (str "shadow.cljs.bootstrap.env.set_loaded(" (json/write-str all-provides) ");")]
+
+        (update-in state [:output [:shadow.build.modules/append module-id] :js] str "\n" load-str "\n")
+        ))
+    state
+    (:build-modules state)))
+
 (defn process
   [{::build/keys [stage mode config] :as state}]
   (case stage
@@ -382,6 +403,9 @@
     (-> state
         (module-wrap)
         (cond->
+          (bootstrap-host-build? state)
+          (bootstrap-host-info)
+
           (:module-loader config)
           (inject-loader-setup (= :release mode))
           ))

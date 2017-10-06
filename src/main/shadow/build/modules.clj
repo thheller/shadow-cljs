@@ -215,7 +215,7 @@
           ;; bootstrap needs to append some load info
           ;; this ensures that the rc is append correctly
           ;; it will be modified by shadow.build.bootstrap
-          (or (seq append-js) (:bootstrap-options state))
+          (or (seq append-js) (:force-append module))
           (add-module-pseudo-rc ::append module-id (or append-js ""))
           ))))
 
@@ -247,6 +247,9 @@
 (defn configure [state config]
   (let [modules (normalize-config config)]
     (assoc state ::config modules)))
+
+(defn configured? [state]
+  (contains? state ::config))
 
 (defn set-build-info [state]
   (let [build-modules

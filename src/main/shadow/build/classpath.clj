@@ -323,7 +323,7 @@
               (->> (find-jar-resources* cp jar-file)
                    (process-root-contents cp jar-file))]
           (io/make-parents mfile)
-          (cache/write-cache mfile jar-contents)
+          (cache/write-file mfile jar-contents)
           jar-contents))))
 
 (defn make-fs-resource [file name]

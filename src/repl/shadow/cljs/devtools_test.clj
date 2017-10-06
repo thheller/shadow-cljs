@@ -199,8 +199,11 @@
 (deftest test-npm-release
   (api/release :npm))
 
-(deftest test-build-with-bootstrap
-  (api/compile :bootstrap))
+(deftest test-build-bootstrap-host
+  (api/compile :bootstrap-host))
+
+(deftest test-build-bootstrap-support
+  (api/compile :bootstrap-support))
 
 (deftest test-build-with-reagent
   (try

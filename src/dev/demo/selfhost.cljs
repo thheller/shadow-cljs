@@ -59,7 +59,7 @@
 
 (defn start []
   (boot/init compile-state-ref
-    {}
+    {:path "/bootstrap"}
     compile-it))
 
 (defn stop [])

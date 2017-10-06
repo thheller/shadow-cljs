@@ -505,7 +505,7 @@
     (let [out (File. "target/dummy.cache")
           data {:dummy "data"
                 :url (URL. "http://github.com")}
-          read (do (cache/write-cache out data)
+          read (do (cache/write-file out data)
                    (cache/read-cache out))]
       (is (= data read))))
 

@@ -136,16 +136,11 @@
     :after-load demo.browser/start
     :preloads [shadow.cljs.devtools.client.hud]}}
 
-  :bootstrap
+  :bootstrap-host
   {:target :browser
 
    :output-dir "out/demo-selfhost/public/js"
    :asset-path "/js"
-
-   :bootstrap-options
-   {:entries [demo.macro
-              reagent.core]
-    :macros []}
 
    :modules
    {:base
@@ -157,6 +152,11 @@
     :before-load demo.selfhost/stop
     :after-load demo.selfhost/start}}
 
+  :bootstrap-support
+  {:target :bootstrap
+   :output-dir "out/demo-selfhost/public/bootstrap"
+   :entries [demo.macro reagent.core]
+   :macros []}
 
   :script
   {:target :node-script

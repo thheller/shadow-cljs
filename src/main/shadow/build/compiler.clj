@@ -498,7 +498,7 @@
                  :compiler-options cache-compiler-options}]
 
             (io/make-parents cache-file)
-            (cache/write-cache cache-file cache-data)
+            (cache/write-file cache-file cache-data)
 
             (util/log state {:type :cache-write :resource-id resource-id :resource-name resource-name :ns ns})
             true)

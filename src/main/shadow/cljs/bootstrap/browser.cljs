@@ -8,7 +8,12 @@
             [goog.net.XhrIo :as xhr])
   (:import [goog.net BulkLoader]))
 
-(goog-define asset-path "/js/bootstrap")
+
+(defonce init-opts (atom {:path "/bootstrap"
+                          :load-on-init []}))
+
+(defn asset-path [& args]
+  (apply str (:path @init-opts) args))
 
 (defn compile-state-ref? [x]
   (and (instance? cljs.core/Atom x) (map? @x)))
@@ -22,10 +27,12 @@
     path
     (fn [res]
       (this-as req
-        (let [data (-> (.getResponseText req)
-                       (transit-read))]
-          (callback data)
-          )))))
+        (if-not (.isSuccess req)
+          (throw (ex-info (str "failed to download boostrap file:" path " status:" (.getStatus req)) {:path path}))
+          (let [data (-> (.getResponseText req)
+                         (transit-read))]
+            (callback data)
+            ))))))
 
 (defn execute-load! [compile-state-ref {:keys [type text uri ns provides] :as load-info}]
   (js/console.log "load" type ns load-info)
@@ -78,21 +85,21 @@
         js-files-to-load
         (->> deps-to-load-with-macros
              (remove #(set/superset? @env/loaded-ref (:provides %)))
-             (map (fn [{:keys [ns output-name provides]}]
+             (map (fn [{:keys [ns provides js-name]}]
                     {:type :js
                      :ns ns
                      :provides provides
-                     :uri (str asset-path "/js/" output-name)})))
+                     :uri (asset-path js-name)})))
 
         analyzer-data-to-load
         (->> deps-to-load-with-macros
              (filter #(= :cljs (:type %)))
              ;; :dump-core still populates the cljs.core analyzer data with an empty map
              (filter #(nil? (get-in compile-state [:cljs.analyzer/namespaces (:ns %) :name])))
-             (map (fn [{:keys [ns source-name]}]
+             (map (fn [{:keys [ns ana-name]}]
                     {:type :analyzer
                      :ns ns
-                     :uri (str asset-path "/ana/" source-name ".ana.transit.json")})))
+                     :uri (asset-path ana-name)})))
 
         load-info
         (-> []
@@ -157,12 +164,16 @@
   [compile-state-ref {:keys [load-on-init] :as opts} init-cb]
   {:pre [(compile-state-ref? compile-state-ref)
          (map? opts)
-         (fn? init-cb)]}
+         (fn? init-cb)
+         (string? (:path opts))]}
   ;; FIXME: add goog-define to path
+
+  (reset! init-opts opts)
+
   (if @env/index-ref
     (init-cb)
     (do (fix-provide-conflict!)
-        (transit-load (str asset-path "/index.transit.json")
+        (transit-load (asset-path "/index.transit.json")
           (fn [data]
             (env/build-index data)
             (load-namespaces
