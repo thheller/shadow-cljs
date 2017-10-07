@@ -352,7 +352,7 @@
                (closure-defines-and-base state)
                ;; create the $CLJS var so devtools can always use it
                ;; always exists for :module-format :js
-               "window[\"$CLJS\"] = window;\n"
+               "goog.global[\"$CLJS\"] = goog.global;\n"
                (closure-goog-deps state (:build-sources state))
                "\n\n"
                out)

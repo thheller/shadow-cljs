@@ -35,7 +35,10 @@
             ))))))
 
 (defn execute-load! [compile-state-ref {:keys [type text uri ns provides] :as load-info}]
-  (js/console.log "load" type ns load-info)
+  #_(js/console.log "load" type ns load-info)
+  ;; quick hack for worker experiment, needs proper design
+  (when-let [load-fn (:load @init-opts)]
+    (load-fn load-info))
   (case type
     :analyzer
     (let [data (transit-read text)]

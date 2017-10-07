@@ -147,7 +147,12 @@
 
    :modules
    {:base
-    {:entries [demo.selfhost]}}
+    {:entries [shadow.cljs.bootstrap.env
+               demo.selfhost]}
+    :worker
+    {:entries [demo.selfhost-worker]
+     :depends-on #{:base}
+     :web-worker true}}
 
    :devtools
    {:http-root "out/demo-selfhost/public"

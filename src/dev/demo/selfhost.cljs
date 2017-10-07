@@ -1,7 +1,18 @@
 (ns demo.selfhost
-  (:require [cljs.js :as cljs]
-            [shadow.cljs.bootstrap.browser :as boot]
-            [cljs.env :as env]))
+  (:require [cognitect.transit :as transit]
+            [cljs.env :as env]
+            [cljs.js]
+            [shadow.js]
+            ))
+
+;; these should be helper fns somewhere, worker has them too
+(defn transit-read [txt]
+  (let [r (transit/reader :json)]
+    (transit/read r txt)))
+
+(defn transit-write [obj]
+  (let [r (transit/writer :json)]
+    (transit/write r obj)))
 
 (defn print-result [{:keys [error value] :as result}]
   (js/console.log "result" result)
@@ -44,22 +55,33 @@
 
 (r/render [simple-example] (js/document.getElementById \"app\"))")
 
-(defonce compile-state-ref (env/default-compiler-env))
+(defn shadow-load [{:keys [type provides text] :as load-info}]
+  ;; FIXME: should not eval if if provides are loaded
+  (js/eval text))
 
-(defn compile-it []
-  (cljs/eval-str
-    compile-state-ref
-    code
-    "[test]"
-    {:eval cljs/js-eval
-     :analyze-deps false
-     :verbose true
-     :load (partial boot/load compile-state-ref)}
-    print-result))
+(defn handle-worker [{:keys [action] :as in} out]
+  (case action
+    :eval
+    (js/eval (:source in))
+
+    :shadow-load
+    (shadow-load (:load-info in))
+
+    :ready
+    (out {:action :compile
+          :code code})))
 
 (defn start []
-  (boot/init compile-state-ref
-    {:path "/bootstrap"}
-    compile-it))
+  (let [w (js/Worker. "/js/worker.js")
+
+        write-fn
+        (fn [obj]
+          (.postMessage w (transit-write obj)))]
+
+    (.addEventListener w "message"
+      (fn [e]
+        ;; (js/console.log "worker message" e)
+        (let [msg (transit-read (.-data e))]
+          (handle-worker msg write-fn))))))
 
 (defn stop [])
