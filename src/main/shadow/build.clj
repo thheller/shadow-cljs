@@ -7,7 +7,6 @@
             [shadow.build.config :as config]
             [shadow.build.closure :as closure]
             [shadow.build.warnings :as warnings]
-            [shadow.build.bootstrap :as bootstrap]
             [shadow.build.modules :as modules]
 
     ;; FIXME: move these

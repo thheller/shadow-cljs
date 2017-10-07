@@ -142,6 +142,9 @@
    :output-dir "out/demo-selfhost/public/js"
    :asset-path "/js"
 
+   :compiler-options
+   {:optimizations :simple}
+
    :modules
    {:base
     {:entries [demo.selfhost]}}

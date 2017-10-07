@@ -1,6 +1,45 @@
 <div>
-<pre id="dump"></pre>
+    <pre id="dump"></pre>
 </div>
 <div id="app"></div>
+
+
+<div style="padding: 200px;">
+    <div class="pulse-box">
+        ANIMATION
+    </div>
+</div>
+
+<style>
+.pulse-box {
+    padding: 40px;
+    color: white;
+    background-color: #ccc;
+    animation: pulse 1s ease infinite;
+}
+
+.pulse-box:hover {
+    color: black;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+
+
+</style>
+
+
 <script src="/js/base.js"></script>
 <script>demo.selfhost.start();</script>
