@@ -139,8 +139,27 @@
   :bootstrap-host
   {:target :browser
 
-   :output-dir "out/demo-selfhost/public/js"
-   :asset-path "/js"
+   :output-dir "out/demo-selfhost/public/simple/js"
+   :asset-path "/simple/js"
+
+   :compiler-options
+   {:optimizations :simple}
+
+   :modules
+   {:base
+    {:entries [demo.selfhost.simple]}}
+
+   :devtools
+   {:http-root "out/demo-selfhost/public"
+    :http-port 8700
+    :before-load demo.selfhost.simple/stop
+    :after-load demo.selfhost.simple/start}}
+
+  :bootstrap-worker
+  {:target :browser
+
+   :output-dir "out/demo-selfhost/public/worker/js"
+   :asset-path "/worker/js"
 
    :compiler-options
    {:optimizations :simple}
@@ -148,17 +167,15 @@
    :modules
    {:base
     {:entries [shadow.cljs.bootstrap.env
-               demo.selfhost]}
+               demo.selfhost.host]}
     :worker
-    {:entries [demo.selfhost-worker]
+    {:entries [demo.selfhost.worker]
      :depends-on #{:base}
      :web-worker true}}
 
    :devtools
-   {:http-root "out/demo-selfhost/public"
-    :http-port 8700
-    :before-load demo.selfhost/stop
-    :after-load demo.selfhost/start}}
+   {:before-load demo.selfhost.host/stop
+    :after-load demo.selfhost.host/start}}
 
   :bootstrap-support
   {:target :bootstrap

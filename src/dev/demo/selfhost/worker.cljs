@@ -1,4 +1,4 @@
-(ns demo.selfhost-worker
+(ns demo.selfhost.worker
   (:require [shadow.cljs.bootstrap.browser :as boot]
             [cljs.js :as cljs]
             [cljs.env :as env]

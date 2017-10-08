@@ -1,4 +1,4 @@
-(ns demo.selfhost
+(ns demo.selfhost.host
   (:require [cognitect.transit :as transit]
             [cljs.env :as env]
             [cljs.js]
@@ -72,7 +72,7 @@
           :code code})))
 
 (defn start []
-  (let [w (js/Worker. "/js/worker.js")
+  (let [w (js/Worker. "/worker/js/worker.js")
 
         write-fn
         (fn [obj]
