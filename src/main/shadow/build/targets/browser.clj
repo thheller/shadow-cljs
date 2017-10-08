@@ -273,7 +273,7 @@
 (defn flush-manifest
   [{:keys [build-options] :as state} include-foreign?]
   (spit
-    (data/output-file state "manifest.json")
+    (data/output-file state (:manifest-name build-options "manifest.json"))
     (let [data
           (->> (or (::closure/modules state)
                    (:build-modules state))
