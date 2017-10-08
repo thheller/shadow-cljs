@@ -248,7 +248,8 @@
          {:entries [cljs.core]}
 
          :react
-         {:entries [cljsjs.react]}
+         {:entries [cljsjs.react]
+          :depends-on #{:base}}
 
          :test
          {:entries [shadow.markup.react]

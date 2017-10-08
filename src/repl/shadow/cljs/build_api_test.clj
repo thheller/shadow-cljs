@@ -112,6 +112,32 @@
         (api/with-logger log))
     ))
 
+(deftest test-analyzer-data
+  (let [test-ns
+        'demo.type
+
+        {:keys [compiler-env] :as state}
+        (-> (test-build)
+            (api/configure-modules {:base {:entries [test-ns]}})
+            (api/analyze-modules)
+            (api/compile-sources))
+
+        src-id
+        (data/get-source-id-by-provide state test-ns)
+
+        src
+        (data/get-source-by-id state src-id)
+
+        {:keys [js warnings] :as out}
+        (data/get-output! state src)
+        ]
+
+    (pprint warnings)
+
+    (pprint (get-in compiler-env [:cljs.analyzer/namespaces test-ns]))
+    (println js)
+    ))
+
 (defn find-resource-for-macro
   [macro-ns]
   (let [path

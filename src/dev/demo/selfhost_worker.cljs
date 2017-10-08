@@ -35,7 +35,6 @@
     (fn [result]
       (js/console.log "result" result))))
 
-
 (defn ready []
   (post-message {:action :ready})
   (set! (.-onmessage js/self)
