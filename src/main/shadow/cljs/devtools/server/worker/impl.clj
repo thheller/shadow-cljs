@@ -332,11 +332,14 @@
 (defn do-resource-update
   [{:keys [autobuild build-state] :as worker-state}
    {:keys [resources] :as msg}]
+
   (let [sources-in-use
-        (:sources build-state)
+        (into #{} (:build-sources build-state))
 
         sources-used-by-build
         (->> resources
+             ;; cannot check against :sources since they will be removed by reset
+             ;; :build-sources maintains is not affected
              (filter #(contains? sources-in-use %))
              (into []))]
 
