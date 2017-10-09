@@ -178,6 +178,8 @@
                        :js-name js-name
                        :js-file js-file}
                       (cond->
+                        (= type :cljs)
+                        (assoc :macro-requires (:macro-requires src))
                         ana
                         (assoc
                           :ana-file ana-file

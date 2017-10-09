@@ -35,7 +35,7 @@
             ))))))
 
 (defn execute-load! [compile-state-ref {:keys [type text uri ns provides] :as load-info}]
-  #_(js/console.log "load" type ns load-info)
+  (js/console.log "load" type ns load-info)
   ;; quick hack for worker experiment, needs proper design
   (when-let [load-fn (:load @init-opts)]
     (load-fn load-info))
@@ -109,6 +109,7 @@
             (into js-files-to-load)
             (into analyzer-data-to-load))]
 
+    (js/console.log "going to load" load-info)
 
     ;; this is transfered to cljs/*loaded* here to delay it as much as possible
     ;; the JS may already be loaded but the analyzer data may be missing
