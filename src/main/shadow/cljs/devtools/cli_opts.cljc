@@ -52,6 +52,8 @@
    :cljs-repl
    :clj-repl
 
+   :npm-deps
+
    :test
 
    :init

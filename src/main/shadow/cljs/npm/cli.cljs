@@ -30,6 +30,14 @@
   (when-not (fs/existsSync dir)
     (fs/mkdirSync dir)))
 
+;; FIXME: windows uses ;
+(def cp-seperator ":")
+
+(defn is-directory? [path]
+  (-> (fs/lstatSync path)
+      (.isDirectory)))
+
+
 (defn run [project-root java-cmd java-args proc-opts]
   (let [spawn-opts
         (-> {:cwd project-root
@@ -147,12 +155,24 @@
         (reader/read-string)
         (assoc :updated? updated?))))
 
-;; FIXME: windows uses ;
-(def cp-seperator ":")
 
-(defn is-directory? [path]
-  (-> (fs/lstatSync path)
-      (.isDirectory)))
+(defn run-npm-deps [project-root {:keys [cache-root source-paths jvm-opts] :as config}]
+  (let [classpath
+        (get-classpath project-root config)
+
+        classpath-str
+        (->> (:files classpath)
+             (concat source-paths)
+             (str/join cp-seperator))
+
+        cli-args
+        (-> []
+            (into jvm-opts)
+            (into ["-cp" classpath-str "clojure.main"])
+            (into ["-m" "shadow.cljs.devtools.server.npm-deps"]))]
+
+    (println "shadow-cljs - installing npm deps")
+    (run-java project-root cli-args {})))
 
 (defn remove-class-files [path]
   (when (fs/existsSync path)
@@ -238,8 +258,7 @@
       (fs/writeFileSync aot-version-path jar-version))
 
     (println "shadow-cljs - starting ...")
-    (run-java project-root cli-args {}))
-  )
+    (run-java project-root cli-args {})))
 
 (def defaults
   {:cache-root "target/shadow-cljs"
@@ -362,6 +381,9 @@
                   (println "shadow-cljs - config:" config-path "version:" version)
 
                   (cond
+                    (= action :npm-deps)
+                    (run-npm-deps project-root config)
+
                     (:cli-info options)
                     (print-cli-info project-root config-path config opts)
 
