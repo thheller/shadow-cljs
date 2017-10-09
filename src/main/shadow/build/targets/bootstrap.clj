@@ -101,7 +101,7 @@
                :ana-file :ana-json))
        (into [])))
 
-(defn prepare-output [state build-sources mode]
+(defn prepare-output [{:keys [build-sources] :as state} mode {:keys [exclude] :as config}]
   (let [hash-fn
         (if (= :dev mode)
           ;; dev mode just use the name, avoids generating too many hash filenames
@@ -112,7 +112,10 @@
                      ;; no idea how likely conflicts are if only taking the first 4 bytes?
                      (subs 0 8)
                      (str/lower-case))
-                 "." name)))]
+                 "." name)))
+
+        exclude
+        (into #{} exclude)]
 
     (->> build-sources
          (map (fn [src-id]
@@ -183,7 +186,7 @@
                        :js-file js-file}
                       (cond->
                         (= type :cljs)
-                        (assoc :macro-requires (:macro-requires src))
+                        (assoc :macro-requires (into #{} (remove exclude) (:macro-requires src)))
                         ana
                         (assoc
                           :ana-file ana-file
@@ -192,7 +195,7 @@
                           )))
                   ))))))
 
-(defn flush [{:keys [build-sources bootstrap-options] :as state} mode]
+(defn flush [{:keys [build-sources bootstrap-options] :as state} mode config]
   (util/with-logged-time [state {:type ::flush}]
     (let [index-file
           (data/output-file state "index.transit.json")
@@ -201,7 +204,7 @@
           (.getParentFile index-file)
 
           output-data
-          (prepare-output state build-sources mode)
+          (prepare-output state mode config)
 
           index
           (make-index output-data)]
@@ -250,7 +253,7 @@
     state
 
     :flush
-    (flush state mode)
+    (flush state mode config)
 
     state
     ))
