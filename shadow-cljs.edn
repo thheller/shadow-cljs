@@ -180,7 +180,8 @@
   :bootstrap-support
   {:target :bootstrap
    :output-dir "out/demo-selfhost/public/bootstrap"
-   :entries [demo.macro reagent.core]
+   :exclude #{cljs.js}
+   :entries [cljs.js demo.macro reagent.core]
    :macros []}
 
   :script

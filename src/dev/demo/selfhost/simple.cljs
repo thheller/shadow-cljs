@@ -8,7 +8,7 @@
   (set! (.-innerHTML (js/document.getElementById "dump")) value))
 
 (def code
-  "
+  #_ "
 (ns simpleexample.core
   (:require [clojure.string :as str]
             [reagent.core :as r]))
@@ -34,7 +34,9 @@
    [greeting \"Hello world, it is now\"]
    [clock]
    [color-input]])
-(r/render [simple-example] (js/document.getElementById \"app\"))")
+(r/render [simple-example] (js/document.getElementById \"app\"))"
+  "(ns my.foo (:require [cljs.js :as cljs]))
+   (js/console.log cljs/eval-str)")
 
 (defonce compile-state-ref (env/default-compiler-env))
 
