@@ -46,10 +46,13 @@
     ))
 
 
-(defn resolve [state {:keys [entries macros] :as config}]
+(defn resolve [state {:keys [entries macros exclude] :as config}]
   (util/with-logged-time [state {:type ::compile}]
     (let [entries
           (into '[cljs.core] entries)
+
+          exclude
+          (into #{} exclude)
 
           [deps state]
           (resolve/resolve-entries state entries)
@@ -62,7 +65,8 @@
           macros-from-deps
           (->> (for [dep-id deps
                      :let [{:keys [macro-requires] :as src} (data/get-source-by-id state dep-id)]
-                     macro-ns macro-requires]
+                     macro-ns macro-requires
+                     :when (not (contains? exclude macro-ns))]
                  macro-ns)
                (distinct)
                (into []))
