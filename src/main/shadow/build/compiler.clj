@@ -637,6 +637,19 @@
             src
             ))))))
 
+(def load-core-lock (Object.))
+
+(defn load-core []
+  ;; there is a race condition in cljs.analyzer/load-core
+  ;; it will check if the cljs.core macros have been loaded
+  ;; if not it will FIRST set the check to true then do the actual work
+  ;; another thread might call (load-core) will the first is still working
+  ;; since the flag is already set it won't do the work again but it will then
+  ;; intern a cljs.core macro namespace that might still be loading leading to very confusing errors
+  ;; so 50% of the macros might have been initialized but the rest might be missing
+  (locking load-core-lock
+    (cljs-ana/load-core)))
+
 (defn par-compile-cljs-sources
   "compile files in parallel, files MUST be in dependency order and ALL dependencies must be present
    this cannot do a partial incremental compile"
@@ -645,7 +658,7 @@
          (every? symbol non-cljs-provides)]}
 
   (cljs-bridge/with-compiler-env state
-    (cljs-ana/load-core)
+    (load-core)
     (let [;; namespaces that we don't need to wait for
           ready
           (atom non-cljs-provides)
@@ -686,7 +699,7 @@
   "compiles with just the main thread, can do partial compiles assuming deps are compiled"
   [state sources]
   (cljs-bridge/with-compiler-env state
-    (cljs-ana/load-core)
+    (load-core)
     (reduce
       (fn [state {:keys [resource-id type] :as src}]
         (assert (= :cljs type))

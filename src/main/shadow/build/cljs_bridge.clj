@@ -43,10 +43,17 @@
   [state]
   (cond-> state
     (nil? (:compiler-env state))
-    (assoc :compiler-env @(cljs-env/default-compiler-env (assoc (:compiler-options state)
-                                                           ;; leave loading core data to the shadow.cljs.bootstrap loader
-                                                           :dump-core false
-                                                           )))))
+    (assoc :compiler-env
+      ;; cljs.env/default-compiler-env force initializes a :js-dependency-index we are never going to use
+      ;; this should always have the same structure
+      {:cljs.analyzer/namespaces {'cljs.user {:name 'cljs.user}}
+       :cljs.analyzer/constant-table {}
+       :cljs.analyzer/data-readers {}
+       :cljs.analyzer/externs nil
+       :js-dependency-index {}
+       :options (assoc (:compiler-options state)
+                  ;; leave loading core data to the shadow.cljs.bootstrap loader
+                  :dump-core false)})))
 
 (defn nested-vals [map]
   (for [[_ ns-map] map
