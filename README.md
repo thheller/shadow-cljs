@@ -15,8 +15,10 @@
 
 ## Guides
 
-- [Beginner guide to compile ClojureScript to CommonJS and use Webpack](http://clojureverse.org/t/beginner-guide-to-compile-clojurescript-to-commonjs-and-use-webpack/523)
+- [EN] [Beginner guide to compile ClojureScript to CommonJS and use Webpack](http://clojureverse.org/t/beginner-guide-to-compile-clojurescript-to-commonjs-and-use-webpack/523)
+- [CN] [shadow-cljs 2.x 使用教程](https://segmentfault.com/a/1190000011499210)
 - More coming soon ...
+
 
 ## Installation
 
