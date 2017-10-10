@@ -47,51 +47,50 @@
 
 
 (defn resolve [state {:keys [entries macros exclude] :as config}]
-  (util/with-logged-time [state {:type ::compile}]
-    (let [entries
-          (into '[cljs.core] entries)
+  (let [entries
+        (into '[cljs.core] entries)
 
-          exclude
-          (into #{} exclude)
+        exclude
+        (into #{} exclude)
 
-          [deps state]
-          (resolve/resolve-entries state entries)
+        [deps state]
+        (resolve/resolve-entries state entries)
 
-          ;; resolving macros in a second pass
-          ;; because they are circular in nature
-          ;; cljs.core requires cljs.core$macros which requires on cljs.core
-          ;; the files themselves do not depend on the macros when compiled normally
-          ;; only the bootstrap compiler will require them
-          macros-from-deps
-          (->> (for [dep-id deps
-                     :let [{:keys [macro-requires] :as src} (data/get-source-by-id state dep-id)]
-                     macro-ns macro-requires
-                     :when (not (contains? exclude macro-ns))]
-                 macro-ns)
-               (distinct)
-               (into []))
+        ;; resolving macros in a second pass
+        ;; because they are circular in nature
+        ;; cljs.core requires cljs.core$macros which requires on cljs.core
+        ;; the files themselves do not depend on the macros when compiled normally
+        ;; only the bootstrap compiler will require them
+        macros-from-deps
+        (->> (for [dep-id deps
+                   :let [{:keys [macro-requires] :as src} (data/get-source-by-id state dep-id)]
+                   macro-ns macro-requires
+                   :when (not (contains? exclude macro-ns))]
+               macro-ns)
+             (distinct)
+             (into []))
 
-          #_#_macros-from-deps
-              '[demo.macro]
+        #_#_macros-from-deps
+            '[demo.macro]
 
-          macros
-          (into macros-from-deps macros)
+        macros
+        (into macros-from-deps macros)
 
-          macro-resources
-          (into [] (map make-macro-resource) macros)
+        macro-resources
+        (into [] (map make-macro-resource) macros)
 
-          all-entries
-          (-> []
-              (into entries)
-              (into (map :ns) macro-resources))
+        all-entries
+        (-> []
+            (into entries)
+            (into (map :ns) macro-resources))
 
-          [deps state]
-          (-> state
-              (util/reduce-> data/add-virtual-resource macro-resources)
-              (resolve/resolve-entries all-entries))]
+        [deps state]
+        (-> state
+            (util/reduce-> data/add-virtual-resource macro-resources)
+            (resolve/resolve-entries all-entries))]
 
-      (assoc state :build-sources deps)
-      )))
+    (assoc state :build-sources deps)
+    ))
 
 (defn make-index [output-data]
   (->> output-data
@@ -196,41 +195,40 @@
                   ))))))
 
 (defn flush [{:keys [build-sources bootstrap-options] :as state} mode config]
-  (util/with-logged-time [state {:type ::flush}]
-    (let [index-file
-          (data/output-file state "index.transit.json")
+  (let [index-file
+        (data/output-file state "index.transit.json")
 
-          index-dir
-          (.getParentFile index-file)
+        index-dir
+        (.getParentFile index-file)
 
-          output-data
-          (prepare-output state mode config)
+        output-data
+        (prepare-output state mode config)
 
-          index
-          (make-index output-data)]
+        index
+        (make-index output-data)]
 
-      (io/make-parents index-file)
+    (io/make-parents index-file)
 
-      (io/make-parents index-dir "src" "foo")
-      (io/make-parents index-dir "js" "foo")
-      (io/make-parents index-dir "ana" "foo")
+    (io/make-parents index-dir "src" "foo")
+    (io/make-parents index-dir "js" "foo")
+    (io/make-parents index-dir "ana" "foo")
 
-      (cache/write-file index-file index)
+    (cache/write-file index-file index)
 
-      (doseq [{:keys [type
-                      source-file source
-                      js-file js
-                      ana-file ana-json] :as x}
-              output-data]
+    (doseq [{:keys [type
+                    source-file source
+                    js-file js
+                    ana-file ana-json] :as x}
+            output-data]
 
-        (spit source-file source)
-        (spit js-file js)
+      (spit source-file source)
+      (spit js-file js)
 
-        (when (= type :cljs)
-          (spit ana-file ana-json)
-          )))
+      (when (= type :cljs)
+        (spit ana-file ana-json)
+        )))
 
-    state))
+  state)
 
 (defn configure [state mode {:keys [output-dir] :as config}]
   (-> state

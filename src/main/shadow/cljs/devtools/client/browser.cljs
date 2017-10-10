@@ -96,12 +96,12 @@
         (->> (for [{:keys [resource-name warnings] :as src} sources
                    :when (not (:from-jar src))
                    warning warnings]
-               (assoc warning :source-name resource-name))
+               (assoc warning :resource-name resource-name))
              (distinct)
              (into []))]
 
-    (doseq [{:keys [msg line column source-name] :as w} warnings]
-      (js/console.warn (str "BUILD-WARNING in " source-name " at [" line ":" column "]\n\t" msg)))
+    (doseq [{:keys [msg line column resource-name] :as w} warnings]
+      (js/console.warn (str "BUILD-WARNING in " resource-name " at [" line ":" column "]\n\t" msg)))
 
     (when env/autoload
       ;; load all files for current build:

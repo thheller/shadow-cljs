@@ -34,9 +34,9 @@
         build-info
 
         warnings
-        (->> (for [{:keys [warnings name]} sources
+        (->> (for [{:keys [warnings resource-name]} sources
                    warning warnings]
-               (assoc warning :source-name name))
+               (assoc warning :resource-name resource-name))
              (into []))]
 
     (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings, %.2fs)"

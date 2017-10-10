@@ -141,9 +141,9 @@
                 (str ":" column))))))
 
 (defn print-warning
-  [{:keys [source-name file line column source-excerpt msg] :as warning}]
+  [{:keys [resource-name file line column source-excerpt msg] :as warning}]
   (println (coded-str [:bold] (sep-line (str " WARNING #" (::idx warning) " ") 6)))
-  (println " File:" (name-with-loc (or file source-name) line column))
+  (println " File:" (name-with-loc (or file resource-name) line column))
 
   (if-not source-excerpt
     (do (println)
@@ -166,7 +166,7 @@
         :let [{:keys [resource-name file url] :as rc} (data/get-source-by-id state id)
               {:keys [warnings]} (data/get-output! state rc)]
         warning warnings]
-    (assoc warning :source-id id :source-name resource-name :file file :url url)))
+    (assoc warning :source-id id :resource-name resource-name :file file :url url)))
 
 (defn print-warnings-for-build [state]
   (->> (get-warnings-for-build state)
