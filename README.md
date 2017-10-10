@@ -12,6 +12,12 @@
 - Code splitting (via `:modules`)
 - Fast builds, reliable caching, ...
 
+
+## Guides
+
+- [Beginner guide to compile ClojureScript to CommonJS and use Webpack](http://clojureverse.org/t/beginner-guide-to-compile-clojurescript-to-commonjs-and-use-webpack/523)
+- More coming soon ...
+
 ## Installation
 
 `shadow-cljs` is easiest to use by installing the `npm` package.
