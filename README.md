@@ -3,6 +3,8 @@
 
 `shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
 
+### Quick Guide
+
 Say the project is called `app`:
 
 ```
@@ -22,7 +24,7 @@ npm install -g shadow-cljs
 Add a `shadow-cljs.edn` file with configurations:
 
 ```edn
-{:source-paths ["src"]
+{:source-paths ["src/"]
  :dependencies []
  :builds {:app {:output-dir "target/"
                 :asset-path "."
@@ -31,22 +33,12 @@ Add a `shadow-cljs.edn` file with configurations:
                 :devtools {:after-load app.main/reload!}}}}
 ```
 
-Now you can compile code to `target/` folder:
+To compile code:
 
 ```bash
 shadow-cljs compile app
-```
-
-During development, shadow-cljs watches the `src/` folder, comiples on every file change and called `app.main/reload!`:
-
-```bash
-shadow-cljs watch app
-```
-
-After the app is ready, optimize the code with shadow-cljs:
-
-```bash
-shadow-cljs release app
+shadow-cljs watch app # watch files, recompile and trigger `app.main/reload!`
+shadow-cljs release app # with optimizations
 ```
 
 ### Status: Alpha
