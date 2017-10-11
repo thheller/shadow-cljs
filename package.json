@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@atlaskit/navigation": "^18.0.0",
+    "@expo/vector-icons": "^5.2.0",
     "animated": "^0.2.0",
     "aws-sdk": "^2.122.0",
     "babel-cli": "^6.26.0",
@@ -30,8 +31,8 @@
     "node-libs-browser": "^2.0.0",
     "node-resolve": "^1.3.3",
     "preact": "^8.2.5",
-    "react": "^15.6.2",
-    "react-dom": "^15.6.2",
+    "react": "^16.0.0",
+    "react-dom": "^16.0.0",
     "react-leaflet": "^1.7.0",
     "react-vis": "^1.7.9",
     "readline-sync": "^1.4.7",

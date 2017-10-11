@@ -1,5 +1,4 @@
 (ns cljsjs.react
-  (:require [goog.object :as gobj]
-            ["react" :as react]))
+  (:require ["react" :as react]))
 
-(gobj/set js/goog.global "React" react)
+(js/goog.exportSymbol "React" react)

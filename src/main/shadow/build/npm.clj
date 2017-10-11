@@ -522,7 +522,11 @@
       (let [file (io/file project-dir (subs require 1))]
         (when-not (and (.exists file)
                        (.isFile file))
-          (throw (ex-info "absolute require not found" {:require-from require-from :require require :file file})))
+          (throw (ex-info "absolute require not found"
+                   {:tag ::not-found
+                    :require-from require-from
+                    :require require
+                    :file file})))
 
         (get-file-info npm file))
 
@@ -560,21 +564,27 @@
                     (.getCanonicalFile))]
 
             (when-not (.exists override-file)
-              (throw (ex-info "override to file that doesn't exist" {:require-from require-from
-                                                                     :require require
-                                                                     :file file
-                                                                     :override override
-                                                                     :override-file override-file})))
+              (throw (ex-info "override to file that doesn't exist"
+                       {:tag ::invalid-override
+                        :require-from require-from
+                        :require require
+                        :file file
+                        :override override
+                        :override-file override-file})))
             (get-file-info npm override-file))
 
           ;; FIXME: is that allowed?
           (false? override)
-          (throw (ex-info "TBD, rel-file is false" {:package-dir package-dir}))
+          (throw (ex-info "TBD, rel-file is false"
+                   {:tag ::false-override
+                    :package-dir package-dir}))
 
           :else
-          (throw (ex-info "invalid override" {:package-dir package-dir
-                                              :require require
-                                              :override override}))
+          (throw (ex-info "invalid override"
+                   {:tag ::invalid-override
+                    :package-dir package-dir
+                    :require require
+                    :override override}))
           ))
 
 
@@ -598,7 +608,11 @@
 
           ;; FIXME: "util":"./file-in-package.js" - is that allowed?
           (util/is-relative? require)
-          (throw (ex-info "browser override from package to relative" {:require-from require-from :require require :override override}))
+          (throw (ex-info "browser override from package to relative"
+                   {::tag ::relative-override
+                    :require-from require-from
+                    :require require
+                    :override override}))
 
           ;; "foo":"bar"
           ;; FIXME: should this call find-resource so one resolve override can link to another?
@@ -648,10 +662,16 @@
             (when (= require other)
               (throw (ex-info "can't resolve to self" {:require require :other other})))
 
-            (find-resource npm require-from other require-ctx))
+            (or (find-resource npm require-from other require-ctx)
+                (throw (ex-info (format ":resolve override for \"%s\" to \"%s\" which does not exist" require other)
+                         {:tag ::invalid-override
+                          :require-from require-from
+                          :require require
+                          :other other}))))
 
-          (throw (ex-info "unknown resolve target" {:require require
-                                                    :config cfg})))))))
+          (throw (ex-info "unknown resolve target"
+                   {:require require
+                    :config cfg})))))))
 
 ;; FIXME: allow configuration of :extensions :main-keys
 ;; maybe some closure opts
@@ -692,7 +712,7 @@
      :node-modules-dir node-modules-dir
      ;; FIXME: if a build ever needs to configure these we can't use the shared npm reference
      :extensions [".js" ".json"]
-     :main-keys [#_ "module" #_ "jsnext:main" "main"]
+     :main-keys [#_"module" #_"jsnext:main" "main"]
      }))
 
 (defn stop [npm])
