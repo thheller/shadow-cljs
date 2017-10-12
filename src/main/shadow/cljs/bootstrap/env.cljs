@@ -12,12 +12,13 @@
 
 (defonce index-ref (atom nil))
 
-(defn build-index [sources]
+(defn build-index [{:keys [sources exclude] :as data}]
   (let [idx
         (reduce
           (fn [idx {:keys [resource-id] :as rc}]
             (assoc-in idx [:sources resource-id] rc))
-          {:sources-ordered sources}
+          {:sources-ordered sources
+           :exclude exclude}
           sources)
 
         idx

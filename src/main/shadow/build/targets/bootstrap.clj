@@ -194,7 +194,7 @@
                           )))
                   ))))))
 
-(defn flush [{:keys [build-sources bootstrap-options] :as state} mode config]
+(defn flush [{:keys [build-sources bootstrap-options] :as state} mode {:keys [exclude] :as config}]
   (let [index-file
         (data/output-file state "index.transit.json")
 
@@ -205,7 +205,8 @@
         (prepare-output state mode config)
 
         index
-        (make-index output-data)]
+        {:sources (make-index output-data)
+         :exclude (into #{} exclude)}]
 
     (io/make-parents index-file)
 

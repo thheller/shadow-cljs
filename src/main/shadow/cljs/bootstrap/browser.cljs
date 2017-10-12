@@ -151,7 +151,6 @@
   (let [ns (if macros
              (symbol (str name "$macros"))
              name)]
-    ;; just ensures we actually have data for it
     (env/get-ns-info ns)
     (load-namespaces compile-state-ref #{ns} cb)))
 
@@ -179,7 +178,12 @@
     (do (fix-provide-conflict!)
         (transit-load (asset-path "/index.transit.json")
           (fn [data]
-            (env/build-index data)
+            ;; pretend that all excluded macro namespaces are loaded
+            ;; so CLJS doesn't request them
+            ;; the macro are never available so any code trying to use them will fail
+            (let [{:keys [exclude] :as idx} (env/build-index data)]
+              (swap! cljs/*loaded* set/union (into #{} (map #(symbol (str % "$macros"))) exclude)))
+
             (load-namespaces
               compile-state-ref
               (into '#{cljs.core cljs.core$macros} load-on-init)
