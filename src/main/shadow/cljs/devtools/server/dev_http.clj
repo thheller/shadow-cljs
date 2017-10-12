@@ -23,22 +23,40 @@
           "expires" "0"))))
 
 (defn start-build-server
-  [executor {:keys [build-id http-root http-port]
-             :or {http-port 0}}]
+  [executor {:keys [build-id http-root http-port http-handler]
+             :or {http-port 0}
+             :as config}]
 
-  (let [root-dir (io/file http-root)]
+  (let [root-dir
+        (io/file http-root)
+
+        default-handler
+        (if-not http-handler
+          common/not-found
+
+          (let [http-handler-ns
+                (require (symbol (namespace http-handler)))
+                http-handler-fn
+                @(find-var http-handler)]
+
+            (fn [req]
+              (-> req
+                  (assoc :http-root root-dir
+                         :build-id build-id
+                         :devtools config)
+                  (http-handler-fn)))))]
+
     (when-not (.exists root-dir)
       (io/make-parents (io/file root-dir "index.html")))
 
     (let [http-handler
-          (-> common/not-found
+          (-> default-handler
               ;; some default resources, only used if no file exists
               ;; currently only contains the CLJS logo as favicon.ico
               ;; pretty much only doing this because of the annoying
               ;; 404 chrome devtools show then no icon exists
               (ring-resource/wrap-resource "shadow/cljs/devtools/server/dev_http")
               (ring-content-type/wrap-content-type)
-
               (ring-file/wrap-file root-dir {:allow-symlinks? true
                                              :index-files? true})
               (ring-file-info/wrap-file-info
@@ -61,19 +79,14 @@
 
       instance)))
 
-(def http-keys
-  [:http-port
-   :http-root])
-
 (defn get-server-configs []
   (let [{:keys [builds] :as config}
         (config/load-cljs-edn!)]
 
     (->> (vals builds)
          (map (fn [{:keys [build-id devtools] :as build-config}]
-                (let [http-config (select-keys devtools http-keys)]
-                  (when-not (empty? http-config)
-                    (assoc http-config :build-id build-id)))))
+                (when (contains? devtools :http-root)
+                  (assoc devtools :build-id build-id))))
          (remove nil?)
          (into []))))
 
