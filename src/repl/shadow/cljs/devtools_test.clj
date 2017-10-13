@@ -345,7 +345,7 @@
 (deftest test-browser-build-with-js
   (try
     (let [build-state
-          (api/compile*
+          (api/release*
             '{:build-id :js-test
               :target :browser
 
@@ -356,7 +356,8 @@
                :optimizations :advanced}
 
               :modules
-              {:test {:entries ["@firebase/app"]}}
+              {:test {:entries ["@firebase/app"
+                                "@firebase/auth"]}}
 
               :js-options
               {:js-provider :shadow}}

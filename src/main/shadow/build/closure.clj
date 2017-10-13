@@ -252,8 +252,19 @@
                 (->> (:build-sources state)
                      (map #(get-in state [:sources %]))
                      (filter #(= :npm (:type %)))
-                     (map #(data/get-output! state %))
-                     (map :properties)
+                     (map (fn [{:keys [file] :as src}]
+                            (let [{:keys [properties] :as output}
+                                  (data/get-output! state src)]
+
+                              ;; some files may have been minified by closure
+                              ;; which follows this naming pattern
+                              ;; the user is never going to use those directly so we do not
+                              ;; need to generate externs for these
+                              (if-not (set/superset? properties #{"a" "b" "c" "Aa" "Ab" "Ac"})
+                                properties
+                                ;; just strip out the "short" properties
+                                (into #{} (remove #(<= (count %) 2)) properties)
+                                ))))
                      (reduce set/union #{}))
 
                 content
@@ -394,7 +405,12 @@
                src
                (when mapping
                  (let [src-name (.getOriginalFile mapping)]
-                   (data/get-source-by-name state src-name)))]
+                   (try
+                     (data/get-source-by-name state src-name)
+                     (catch Exception e
+                       ;; we might be importing JS files with source maps
+                       ;; which map back to source files we do not have
+                       nil))))]
 
            (if-not mapping
              ;; FIXME: add source-excerpt if src wasn't CLJS
@@ -697,9 +713,9 @@
       (.setRenamePrefixNamespace closure-opts "$CLJS"))
 
     (assoc state
-      ::externs (load-externs state)
-      ::compiler cc
-      ::compiler-options closure-opts)))
+           ::externs (load-externs state)
+           ::compiler cc
+           ::compiler-options closure-opts)))
 
 (defn rewrite-node-global-access [js]
   (-> js
@@ -897,8 +913,8 @@
              (into #{}))]
 
     (assoc state
-      ::dead-modules dead-modules
-      ::dead-sources dead-sources)))
+           ::dead-modules dead-modules
+           ::dead-sources dead-sources)))
 
 (defn log-warnings
   ([{::keys [compiler result] :as state}]
