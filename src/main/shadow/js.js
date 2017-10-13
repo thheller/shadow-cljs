@@ -22,6 +22,9 @@ goog.provide("shadow.js");
  */
 shadow.js.files = {};
 
+/**
+ * @return ShadowJS
+ */
 shadow.js.require = function(name) {
   var exports = shadow.js.files[name];
   // always return something since circular dependencies are allowed in JS

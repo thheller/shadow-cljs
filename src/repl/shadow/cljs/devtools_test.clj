@@ -345,23 +345,26 @@
 (deftest test-browser-build-with-js
   (try
     (let [build-state
-          (api/compile*
-            '{:build-id :browser
+          (api/release*
+            '{:build-id :js-test
               :target :browser
 
               :output-dir "target/test-browser-js/js"
               :asset-path "/js"
               :compiler-options
-              {:language-out :ecmascript5}
+              {:language-out :ecmascript5
+               :optimizations :advanced}
 
               :modules
-              {:test {:entries ["js-nacl"]}}
+              {:test {:entries ["/node_modules/react/cjs/react.production.min.js"]}}
 
               :js-options
               {:js-provider :shadow}}
             {:debug true})]
 
-      (-> (get-in build-state [:output [::npm/resource "node_modules/react/lib/React.js"] :js])
+      (pprint (:build-sources build-state))
+
+      (-> (get-in build-state [:output [::npm/resource "node_modules/react/cjs/react.development.js"] :js])
           (println)))
 
     (catch Exception ex
@@ -370,7 +373,7 @@
 (deftest test-random-node-module
   (try
     (api/compile*
-      '{:build-id :browser
+      '{:build-id :npm-package
         :target :browser
 
         :output-dir "target/test-node-module/js"

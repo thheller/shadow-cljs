@@ -61,6 +61,7 @@
 
 (def default-js-options
   {:js-provider :require ;; :closure, :require, :include maybe :webpack, maybe something
+   :generate-externs true
    :packages {}})
 
 (defn init []

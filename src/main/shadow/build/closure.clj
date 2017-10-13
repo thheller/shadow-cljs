@@ -20,7 +20,7 @@
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          SourceMap$LocationMapping BasicErrorManager Result ShadowAccess
                                          SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy)
-           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass)
+           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (com.google.javascript.jscomp.parsing.parser FeatureSet)
            (java.nio.charset Charset)))
@@ -243,9 +243,34 @@
              (filter :externs-source)
              (map (fn [{:keys [source-path output-name externs externs-source] :as foreign-src}]
                     (SourceFile/fromCode (str "EXTERNS:" source-path "!/" output-name) externs-source)))
-             (into []))]
+             (into []))
 
-    (->> (concat default-externs deps-externs foreign-externs manual-externs)
+        auto-externs
+        (when (and (= :shadow (get-in state [:js-options :js-provider]))
+                   (true? (get-in state [:js-options :generate-externs])))
+          (let [js-props
+                (->> (:build-sources state)
+                     (map #(get-in state [:sources %]))
+                     (filter #(= :npm (:type %)))
+                     (map #(data/get-output! state %))
+                     (map :properties)
+                     (reduce set/union #{}))
+
+                content
+                (str "/** @constructor */\nfunction ShadowJS() {};\n"
+                     (->> js-props
+                          (sort)
+                          (map #(str "ShadowJS.prototype." % ";"))
+                          (str/join "\n")))]
+
+            ;; not actually required but makes it easier to verify
+            (let [file (data/cache-file state "shadow.js.auto_externs.js")]
+              (spit file content))
+
+            [(SourceFile/fromCode "shadow/js/auto_externs.js" content)]
+            ))]
+
+    (->> (concat default-externs deps-externs foreign-externs manual-externs auto-externs)
          (into []))
     ))
 
@@ -1244,6 +1269,9 @@
            :language-in :ecmascript-next
            :language-out language-out}
 
+          property-collector
+          (PropertyCollector. cc)
+
           closure-opts
           (doto (make-options)
             (set-options co-opts)
@@ -1257,6 +1285,8 @@
             (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
               (let [m (require-replacement-map state)]
                 (ReplaceRequirePass. cc m)))
+
+            (.addCustomPass CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector)
 
             (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
             (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
@@ -1313,6 +1343,7 @@
                     output
                     {:resource-id resource-id
                      :js js
+                     :properties (into #{} (-> property-collector (.-properties) (.get name)))
                      :compiled-at (System/currentTimeMillis)
                      :source-map-json sm-json}]
 
