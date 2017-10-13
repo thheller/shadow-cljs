@@ -132,7 +132,7 @@
    :devtools
    {:http-root "out/demo-browser/public"
     :http-port 8600
-    :http-handler demo.http/loud-404s
+    :http-handler shadow.http.push-state/handle
     :before-load demo.browser/stop
     :after-load demo.browser/start
     :preloads [shadow.cljs.devtools.client.hud]}}
