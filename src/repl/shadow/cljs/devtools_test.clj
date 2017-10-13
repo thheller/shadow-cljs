@@ -345,7 +345,7 @@
 (deftest test-browser-build-with-js
   (try
     (let [build-state
-          (api/release*
+          (api/compile*
             '{:build-id :js-test
               :target :browser
 
@@ -356,7 +356,7 @@
                :optimizations :advanced}
 
               :modules
-              {:test {:entries ["/node_modules/react/cjs/react.production.min.js"]}}
+              {:test {:entries ["@firebase/app"]}}
 
               :js-options
               {:js-provider :shadow}}

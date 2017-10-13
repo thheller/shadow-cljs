@@ -206,7 +206,7 @@
               {:js-provider :shadow}))
 
         [resolved resolved-state]
-        (api/resolve-entries build-state '[demo.browser])
+        (api/resolve-entries build-state '["firebase/app"])
 
         {:keys [str->sym]}
         resolved-state]

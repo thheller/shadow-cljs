@@ -39,4 +39,7 @@ public class ShadowAccess {
         return builder.build();
 
     }
+
+    // access to package protected globals
+    public static final DiagnosticType NON_GLOBAL_DEFINE_INIT_ERROR = ProcessDefines.NON_GLOBAL_DEFINE_INIT_ERROR;
 }

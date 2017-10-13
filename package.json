@@ -19,6 +19,7 @@
     "browserify-shim": "^3.8.14",
     "create-react-class": "^15.6.2",
     "envify": "^4.1.0",
+    "firebase": "^4.5.1",
     "highlight.js": "^9.12.0",
     "jquery": "^3.2.1",
     "js-nacl": "^1.2.2",

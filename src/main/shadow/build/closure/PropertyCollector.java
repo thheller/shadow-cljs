@@ -27,7 +27,7 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
     public static boolean isJSIdentifier(String s) {
         int length = s.length();
         if (length != 0 && !Character.isIdentifierIgnorable(s.charAt(0)) && Character.isJavaIdentifierStart(s.charAt(0))) {
-            for(int i = 1; i < length; ++i) {
+            for (int i = 1; i < length; ++i) {
                 if (Character.isIdentifierIgnorable(s.charAt(i)) || !Character.isJavaIdentifierPart(s.charAt(i))) {
                     return false;
                 }
@@ -40,6 +40,7 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
     }
 
     public final static Set<String> ignoredProps = new HashSet<>();
+
     static {
         ignoredProps.add("exports");
         ignoredProps.add("module");
@@ -95,11 +96,11 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         } else if (node.isObjectLit()) {
             for (int i = 0; i < node.getChildCount(); i++) {
                 Node keyNode = node.getChildAtIndex(i);
-                if (!keyNode.isStringKey()) {
+                if (keyNode.isStringKey() || keyNode.isGetterDef() || keyNode.isSetterDef()) {
+                    addProperty(t, keyNode.getString());
+                } else {
                     System.out.println("==== object-lit without string key");
                     System.out.println(node.toStringTree());
-                } else {
-                   addProperty(t, keyNode.getString());
                 }
             }
         }
@@ -132,7 +133,7 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         co.setPrettyPrint(true);
         cc.initOptions(co);
 
-        SourceFile srcFile = SourceFile.fromFile("node_modules/react/cjs/react.production.min.js");
+        SourceFile srcFile = SourceFile.fromFile("node_modules/@firebase/util/dist/cjs/src/crypt.js");
         cc.toSource(process(cc, srcFile));
 
     }

@@ -19,7 +19,7 @@
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          SourceMap$LocationMapping BasicErrorManager Result ShadowAccess
-                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy)
+                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup)
            (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (com.google.javascript.jscomp.parsing.parser FeatureSet)
@@ -1290,6 +1290,11 @@
 
             (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
             (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
+            ;; node_modules/@firebase/util/dist/cjs/src/constants.ts:26: ERROR - @define variable  assignment must be global
+            (.setWarningLevel
+              (DiagnosticGroup.
+                (into-array [ShadowAccess/NON_GLOBAL_DEFINE_INIT_ERROR]))
+              CheckLevel/OFF)
             ;; unreachable code in react
             (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)
             (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
