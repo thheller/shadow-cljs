@@ -13,7 +13,8 @@
             [clojure.set :as set]
             [clojure.spec.alpha :as s]
             [cljs.analyzer :as ana]
-            [cljs.env :as env])
+            [cljs.env :as env]
+            [cljs.externs :as externs])
   (:import (java.io PushbackReader StringReader)
            (java.util.concurrent Executors ExecutorService)))
 
@@ -39,21 +40,34 @@
                 :cljc cljc?))
           )))))
 
+(defmethod cljs-ana/resolve* :js
+  [sym full-ns current-ns]
+  ;; quick hack to record all accesses to any JS mod
+  ;; (:require ["react" :as r :refer (foo]) (r/bar ...)
+  ;; would record foo+bar
+  (let [prop (name sym)
+        qname (symbol (str full-ns "." (name sym)))]
+    (swap! env/*compiler* update ::js-properties conj prop)
+
+    {:name (with-meta qname {:tag 'js})
+     :ns 'js}))
+
 (defn ensure-compiler-env
   [state]
   (cond-> state
     (nil? (:compiler-env state))
     (assoc :compiler-env
-      ;; cljs.env/default-compiler-env force initializes a :js-dependency-index we are never going to use
-      ;; this should always have the same structure
-      {:cljs.analyzer/namespaces {'cljs.user {:name 'cljs.user}}
-       :cljs.analyzer/constant-table {}
-       :cljs.analyzer/data-readers {}
-       :cljs.analyzer/externs nil
-       :js-dependency-index {}
-       :options (assoc (:compiler-options state)
-                  ;; leave loading core data to the shadow.cljs.bootstrap loader
-                  :dump-core false)})))
+           ;; cljs.env/default-compiler-env force initializes a :js-dependency-index we are never going to use
+           ;; this should always have the same structure
+           {:cljs.analyzer/namespaces {'cljs.user {:name 'cljs.user}}
+            :cljs.analyzer/constant-table {}
+            :cljs.analyzer/data-readers {}
+            :cljs.analyzer/externs nil
+            :js-dependency-index {}
+            ::js-properties #{}
+            :options (assoc (:compiler-options state)
+                            ;; leave loading core data to the shadow.cljs.bootstrap loader
+                            :dump-core false)})))
 
 (defn nested-vals [map]
   (for [[_ ns-map] map
@@ -71,8 +85,8 @@
               ;; FIXME: I don't quite get what this is supposed to be
               ;; CLJS does {"React" {:name "module$node_modules$react$..."}}
               ;; but we never have the "React" alias
-              (assoc idx (str alias) {:name (str alias)
-                                      :module-type :commonjs}))
+              (assoc idx (str alias) {:name (with-meta alias {:tag 'js})
+                                      :module-type :js}))
             js-mod-index
             aliases))]
 
@@ -130,9 +144,9 @@
       (ex-info msg
         (-> (ana/source-info env)
             (assoc :tag :cljs/analysis-error
-              :error-type error-type
-              :msg msg
-              :extra error-data))))))
+                   :error-type error-type
+                   :msg msg
+                   :extra error-data))))))
 
 (defn check-uses! [{:keys [env uses use-macros] :as ns-info}]
   (doseq [[sym lib] use-macros]

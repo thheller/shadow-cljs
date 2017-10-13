@@ -205,6 +205,36 @@
 (deftest test-build-bootstrap-support
   (api/compile :bootstrap-support))
 
+(deftest test-infer-externs
+  (try
+    (let [{:keys [compiler-env] :as state}
+          (api/compile*
+            '{:build-id :infer-externs
+              :target :browser
+
+              :output-dir "target/test-infer-externs/js"
+              :asset-path "/js"
+
+              :compiler-options
+              {:infer-externs true}
+
+              :modules
+              {:base
+               {:entries [demo.native]}}
+
+              :js-options
+              {}}
+            {})]
+
+
+      (pprint (->> (get-in compiler-env [:shadow.build.cljs-bridge/js-properties])))
+      (pprint (->> (get-in compiler-env [:cljs.analyzer/namespaces 'demo.native :externs])))
+      (prn (keys compiler-env))
+      )
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+
 (deftest test-build-with-reagent
   (try
     (api/compile*
