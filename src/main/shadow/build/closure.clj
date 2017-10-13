@@ -260,7 +260,7 @@
                               ;; which follows this naming pattern
                               ;; the user is never going to use those directly so we do not
                               ;; need to generate externs for these
-                              (if-not (set/superset? properties #{"a" "b" "c" "Aa" "Ab" "Ac"})
+                              (if-not (set/superset? properties #{"a" "b" "c" "d" "e" "f"})
                                 properties
                                 ;; just strip out the "short" properties
                                 (into #{} (remove #(<= (count %) 2)) properties)
