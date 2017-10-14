@@ -35,7 +35,7 @@
             ))))))
 
 (defn execute-load! [compile-state-ref {:keys [type text uri ns provides] :as load-info}]
-  (js/console.log "load" type ns load-info)
+  #_ (js/console.log "load" type ns load-info)
   ;; quick hack for worker experiment, needs proper design
   (when-let [load-fn (:load @init-opts)]
     (load-fn load-info))
@@ -109,7 +109,7 @@
             (into js-files-to-load)
             (into analyzer-data-to-load))]
 
-    (js/console.log "going to load" load-info)
+    #_ (js/console.log "going to load" load-info)
 
     ;; this is transfered to cljs/*loaded* here to delay it as much as possible
     ;; the JS may already be loaded but the analyzer data may be missing
@@ -132,7 +132,7 @@
               (doseq [load (map #(assoc %1 :text %2) load-info texts)]
                 (queue-task! #(execute-load! compile-state-ref load)))
 
-              (queue-task! #(js/console.log "compile-state after load" @compile-state-ref))
+              #_ (queue-task! #(js/console.log "compile-state after load" @compile-state-ref))
 
               ;; callback with dummy so cljs.js doesn't attempt to load deps all over again
               (queue-task! #(cb {:lang :js :source ""}))

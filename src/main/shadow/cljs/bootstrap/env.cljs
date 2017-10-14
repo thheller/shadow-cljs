@@ -32,7 +32,7 @@
 
     (reset! index-ref idx)
 
-    (js/console.log "build-index" idx)
+    #_ (js/console.log "build-index" idx)
 
     idx))
 
