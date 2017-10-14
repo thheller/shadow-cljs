@@ -1,6 +1,7 @@
 (ns shadow.build.cljs-bridge
   "things that connect the shadow.cljs world with the cljs world"
   (:require [cljs.analyzer :as cljs-ana]
+            #_ [shadow.build.cljs-hacks]
             [cljs.compiler :as cljs-comp]
             [cljs.env :as cljs-env]
 
@@ -40,18 +41,6 @@
                 :cljc cljc?))
           )))))
 
-(defmethod cljs-ana/resolve* :js
-  [sym full-ns current-ns]
-  ;; quick hack to record all accesses to any JS mod
-  ;; (:require ["react" :as r :refer (foo]) (r/bar ...)
-  ;; would record foo+bar
-  (let [prop (name sym)
-        qname (symbol (str full-ns "." (name sym)))]
-    (swap! env/*compiler* update ::js-properties conj prop)
-
-    {:name (with-meta qname {:tag 'js})
-     :ns 'js}))
-
 (defn ensure-compiler-env
   [state]
   (cond-> state
@@ -64,7 +53,7 @@
             :cljs.analyzer/data-readers {}
             :cljs.analyzer/externs nil
             :js-dependency-index {}
-            ::js-properties #{}
+            :shadow/js-properties #{}
             :options (assoc (:compiler-options state)
                             ;; leave loading core data to the shadow.cljs.bootstrap loader
                             :dump-core false)})))
@@ -85,7 +74,7 @@
               ;; FIXME: I don't quite get what this is supposed to be
               ;; CLJS does {"React" {:name "module$node_modules$react$..."}}
               ;; but we never have the "React" alias
-              (assoc idx (str alias) {:name (with-meta alias {:tag 'js})
+              (assoc idx (str alias) {:name alias
                                       :module-type :js}))
             js-mod-index
             aliases))]

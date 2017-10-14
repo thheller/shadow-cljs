@@ -227,7 +227,7 @@
             {})]
 
 
-      (pprint (->> (get-in compiler-env [:shadow.build.cljs-bridge/js-properties])))
+      (pprint (->> (get-in compiler-env [:shadow/js-properties])))
       (pprint (->> (get-in compiler-env [:cljs.analyzer/namespaces 'demo.native :externs])))
       (prn (keys compiler-env))
       )
