@@ -204,48 +204,54 @@
                                                :tag ::config
                                                :config config))))
 
-    (-> build-state
-        (assoc
-          ::stage :init
-          ::config config
-          ::target-fn target-fn
-          ::mode mode)
-        ;; FIXME: not setting this for :release builds may cause errors
-        ;; http://dev.clojure.org/jira/browse/CLJS-2002
-        (update :runtime assoc :print-fn :console)
-        (cond->
-          ;; generic dev mode, each target can overwrite in :init stage
-          (= :dev mode)
-          (-> (build-api/enable-source-maps)
-              (build-api/with-build-options
-                {:use-file-min false})
-              (build-api/with-compiler-options
-                {:optimizations :none
-                 :closure-defines {"goog.DEBUG" true}}))
+    (let [externs-file (io/file "externs" (str (name build-id) ".txt"))]
 
-          ;; generic release mode
-          (= :release mode)
-          (-> (build-api/with-compiler-options
-                {:optimizations :advanced
-                 :elide-asserts true
-                 :pretty-print false
-                 :closure-defines {"goog.DEBUG" false}}))
+      (-> build-state
+          (assoc
+            :build-id build-id
+            ::stage :init
+            ::config config
+            ::target-fn target-fn
+            ::mode mode)
+          ;; FIXME: not setting this for :release builds may cause errors
+          ;; http://dev.clojure.org/jira/browse/CLJS-2002
+          (update :runtime assoc :print-fn :console)
+          (cond->
+            ;; generic dev mode, each target can overwrite in :init stage
+            (= :dev mode)
+            (-> (build-api/enable-source-maps)
+                (build-api/with-build-options
+                  {:use-file-min false})
+                (build-api/with-compiler-options
+                  {:optimizations :none
+                   :closure-defines {"goog.DEBUG" true}}))
 
-          closure-defines
-          (build-api/with-compiler-options {:closure-defines closure-defines})
+            ;; generic release mode
+            (= :release mode)
+            (-> (build-api/with-compiler-options
+                  {:optimizations :advanced
+                   :elide-asserts true
+                   :pretty-print false
+                   :closure-defines {"goog.DEBUG" false}}))
 
-          compiler-options
-          (build-api/with-compiler-options compiler-options)
+            closure-defines
+            (build-api/with-compiler-options {:closure-defines closure-defines})
 
-          build-options
-          (build-api/with-build-options build-options)
+            compiler-options
+            (build-api/with-compiler-options compiler-options)
 
-          js-options
-          (build-api/with-js-options js-options))
+            build-options
+            (build-api/with-build-options build-options)
 
-        ;; should do all configuration necessary
-        (process-stage :configure true)
-        )))
+            (.exists externs-file)
+            (assoc :externs-file externs-file)
+
+            js-options
+            (build-api/with-js-options js-options))
+
+          ;; should do all configuration necessary
+          (process-stage :configure true)
+          ))))
 
 
 (defn compile

@@ -240,6 +240,104 @@
          window]
        (into #{} (map str))))
 
+(defn extern-props-from-js [state]
+  (->> (:build-sources state)
+       (map #(get-in state [:sources %]))
+       (filter #(= :npm (:type %)))
+       (map (fn [{:keys [file] :as src}]
+              (let [{:keys [properties] :as output}
+                    (data/get-output! state src)]
+
+                ;; some files may have been minified by closure
+                ;; which follows this naming pattern
+                ;; the user is never going to use those directly so we do not
+                ;; need to generate externs for these
+                (if-not (set/superset? properties #{"a" "b" "c" "d" "e" "f"})
+                  properties
+                  ;; just strip out the "short" properties
+                  (into #{} (remove #(<= (count %) 2)) properties)
+                  ))))
+       (reduce set/union #{})))
+
+(defn extern-props-from-cljs [state]
+  (->> (:build-sources state)
+       (map #(get-in state [:sources %]))
+       (filter #(= :cljs (:type %)))
+       (map (fn [{:keys [ns file] :as src}]
+              ;; we know those don't need externs
+              (when (not= ns 'cljs.core)
+                (let [{:shadow/keys [js-access-properties]}
+                      (get-in state [:compiler-env :cljs.analyzer/namespaces ns])]
+                  js-access-properties
+                  ))))
+       (reduce set/union #{})))
+
+(defn extern-globals-from-cljs [state]
+  (->> (:build-sources state)
+       (map #(get-in state [:sources %]))
+       (filter #(= :cljs (:type %)))
+       (map (fn [{:keys [ns file] :as src}]
+              ;; we know those don't need externs
+              (when (not= ns 'cljs.core)
+                (let [{:shadow/keys [js-access-global]}
+                      (get-in state [:compiler-env :cljs.analyzer/namespaces ns])]
+                  js-access-global
+                  ))))
+       (reduce set/union #{})))
+
+(defn externs-for-build [{:keys [build-id externs-file] :as state}]
+  (when (and externs-file (.exists externs-file))
+    (let [{props false
+           globals true
+           :as lines}
+          (with-open [rdr (io/reader externs-file)]
+            (->> (line-seq rdr)
+                 (map str/trim)
+                 (filter seq)
+                 (remove #(str/starts-with? % "#"))
+                 (group-by #(str/starts-with? % "global:"))))]
+
+      [(into #{} props)
+       (into #{} (map #(subs % 7)) globals)]
+      )))
+
+(defn generate-externs [state]
+  (let [[file-props file-globals]
+        (externs-for-build state)
+
+        js-props
+        (set/union
+          (extern-props-from-js state)
+          (extern-props-from-cljs state)
+          file-props)
+
+        js-globals
+        (set/union
+          (extern-globals-from-cljs state)
+          file-globals)
+
+        content
+        (str "/** @constructor */\nfunction ShadowJS() {};\n"
+             (->> js-globals
+                  (remove known-js-globals)
+                  (map cljs-comp/munge)
+                  (sort)
+                  (map #(str "/** @const {ShadowJS} */ var " % ";"))
+                  (str/join "\n"))
+             "\n"
+             (->> js-props
+                  (sort)
+                  (map cljs-comp/munge)
+                  (map #(str "ShadowJS.prototype." % ";"))
+                  (str/join "\n")))]
+
+    ;; not actually required but makes it easier to verify
+    (let [file (data/cache-file state "externs.shadow.js")]
+      (spit file content))
+
+    (SourceFile/fromCode "externs.shadow.js" content)
+    ))
+
 (defn load-externs [{:keys [deps-externs build-modules] :as state}]
   (let [externs
         (distinct
@@ -289,72 +387,7 @@
         auto-externs
         (when (and (true? (get-in state [:js-options :generate-externs]))
                    (= :shadow (get-in state [:js-options :js-provider])))
-          (let [js-props
-                (->> (:build-sources state)
-                     (map #(get-in state [:sources %]))
-                     (filter #(= :npm (:type %)))
-                     (map (fn [{:keys [file] :as src}]
-                            (let [{:keys [properties] :as output}
-                                  (data/get-output! state src)]
-
-                              ;; some files may have been minified by closure
-                              ;; which follows this naming pattern
-                              ;; the user is never going to use those directly so we do not
-                              ;; need to generate externs for these
-                              (if-not (set/superset? properties #{"a" "b" "c" "d" "e" "f"})
-                                properties
-                                ;; just strip out the "short" properties
-                                (into #{} (remove #(<= (count %) 2)) properties)
-                                ))))
-                     (reduce set/union #{}))
-
-                js-props
-                (->> (:build-sources state)
-                     (map #(get-in state [:sources %]))
-                     (filter #(= :cljs (:type %)))
-                     (map (fn [{:keys [ns file] :as src}]
-                            ;; we know those don't need externs
-                            (when (not= ns 'cljs.core)
-                              (let [{:shadow/keys [js-access-properties]}
-                                    (get-in state [:compiler-env :cljs.analyzer/namespaces ns])]
-                                js-access-properties
-                                ))))
-                     (reduce set/union js-props))
-
-                js-globals
-                (->> (:build-sources state)
-                     (map #(get-in state [:sources %]))
-                     (filter #(= :cljs (:type %)))
-                     (map (fn [{:keys [ns file] :as src}]
-                            ;; we know those don't need externs
-                            (when (not= ns 'cljs.core)
-                              (let [{:shadow/keys [js-access-global]}
-                                    (get-in state [:compiler-env :cljs.analyzer/namespaces ns])]
-                                js-access-global
-                                ))))
-                     (reduce set/union #{}))
-
-                content
-                (str "/** @constructor */\nfunction ShadowJS() {};\n"
-                     (->> js-globals
-                          (remove known-js-globals)
-                          (map cljs-comp/munge)
-                          (sort)
-                          (map #(str "/** @const {ShadowJS} */ var " % ";"))
-                          (str/join "\n"))
-                     "\n"
-                     (->> js-props
-                          (sort)
-                          (map cljs-comp/munge)
-                          (map #(str "ShadowJS.prototype." % ";"))
-                          (str/join "\n")))]
-
-            ;; not actually required but makes it easier to verify
-            (let [file (data/cache-file state "externs.shadow.js")]
-              (spit file content))
-
-            [(SourceFile/fromCode "externs.shadow.js" content)]
-            ))]
+          [(generate-externs state)])]
 
     (->> (concat default-externs deps-externs foreign-externs manual-externs auto-externs)
          (into []))

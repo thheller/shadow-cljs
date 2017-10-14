@@ -1,14 +1,15 @@
 (ns demo.selfhost.simple
   (:require [cljs.js :as cljs]
+            [cljs.env :as env]
             [shadow.cljs.bootstrap.browser :as boot]
-            [cljs.env :as env]))
+            ))
 
 (defn print-result [{:keys [error value] :as result}]
   (js/console.log "result" result)
   (set! (.-innerHTML (js/document.getElementById "dump")) value))
 
 (def code
-  #_ "
+  "
 (ns simpleexample.core
   (:require [clojure.string :as str]
             [reagent.core :as r]))
@@ -34,9 +35,7 @@
    [greeting \"Hello world, it is now\"]
    [clock]
    [color-input]])
-(r/render [simple-example] (js/document.getElementById \"app\"))"
-  "(ns my.foo (:require [cljs.js :as cljs]))
-   (js/console.log cljs/eval-str)")
+(r/render [simple-example] (js/document.getElementById \"app\"))" )
 
 (defonce compile-state-ref (env/default-compiler-env))
 

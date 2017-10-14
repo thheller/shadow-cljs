@@ -23,7 +23,7 @@ goog.provide("shadow.js");
 shadow.js.files = {};
 
 /**
- * @return ShadowJS
+ * @return {ShadowJS}
  */
 shadow.js.require = function(name) {
   var exports = shadow.js.files[name];

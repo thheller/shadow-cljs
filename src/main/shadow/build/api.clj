@@ -186,9 +186,6 @@
      :file rc-file
      :source (slurp rc-file)}))
 
-
-
-
 (comment
   (defn compile-all-for-ns
     "compiles all files required by ns"
