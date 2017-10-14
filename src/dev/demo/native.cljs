@@ -5,7 +5,7 @@
 
 (thing)
 
-(.test (r/xyz))
+(.nested (.test (r/xyz)))
 (.bar r)
 
 (defn x [y]
@@ -14,7 +14,9 @@
 (defn wrap-baz [x]
   (.baz x))
 
-(js/foo.bar.thing)
+(js/foo.bar.xyz)
+(js/goog.object.set nil nil)
+(js/cljs.core.assoc nil :foo :bar)
 
 foo ;; warning, to prevent cache
 

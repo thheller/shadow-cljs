@@ -13,7 +13,8 @@
             [cljs.source-map :as sm]
             [shadow.build.npm :as npm]
             [clojure.data.json :as json]
-            [shadow.build.cache :as cache])
+            [shadow.build.cache :as cache]
+            [cljs.compiler :as cljs-comp])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
@@ -199,6 +200,46 @@
 (def default-externs
   (into [] (CommandLineRunner/getDefaultExterns)))
 
+;; should use the exters/externs-map?
+(def known-js-globals
+  (->> '[$CLJS
+         CLOSURE_BASE_PATH
+         COMPILED
+         Array
+         Boolean
+         document
+         Date
+         DocumentFragment
+         encodeURIComponent
+         Error
+         HTMLElement
+         Infinity
+         JSON
+         Number
+         Math
+         Object
+         ReferenceError
+         RegExp
+         self
+         setTimeout
+         String
+         Symbol
+         TypeError
+         console
+         eval
+         global
+         isFinite
+         isNaN
+         parseFloat
+         parseInt
+         performance
+         postMessage
+         process
+         WebSocket
+         XMLHttpRequest
+         window]
+       (into #{} (map str))))
+
 (defn load-externs [{:keys [deps-externs build-modules] :as state}]
   (let [externs
         (distinct
@@ -246,8 +287,8 @@
              (into []))
 
         auto-externs
-        (when (and (= :shadow (get-in state [:js-options :js-provider]))
-                   (true? (get-in state [:js-options :generate-externs])))
+        (when (and (true? (get-in state [:js-options :generate-externs]))
+                   (= :shadow (get-in state [:js-options :js-provider])))
           (let [js-props
                 (->> (:build-sources state)
                      (map #(get-in state [:sources %]))
@@ -267,18 +308,52 @@
                                 ))))
                      (reduce set/union #{}))
 
+                js-props
+                (->> (:build-sources state)
+                     (map #(get-in state [:sources %]))
+                     (filter #(= :cljs (:type %)))
+                     (map (fn [{:keys [ns file] :as src}]
+                            ;; we know those don't need externs
+                            (when (not= ns 'cljs.core)
+                              (let [{:shadow/keys [js-access-properties]}
+                                    (get-in state [:compiler-env :cljs.analyzer/namespaces ns])]
+                                js-access-properties
+                                ))))
+                     (reduce set/union js-props))
+
+                js-globals
+                (->> (:build-sources state)
+                     (map #(get-in state [:sources %]))
+                     (filter #(= :cljs (:type %)))
+                     (map (fn [{:keys [ns file] :as src}]
+                            ;; we know those don't need externs
+                            (when (not= ns 'cljs.core)
+                              (let [{:shadow/keys [js-access-global]}
+                                    (get-in state [:compiler-env :cljs.analyzer/namespaces ns])]
+                                js-access-global
+                                ))))
+                     (reduce set/union #{}))
+
                 content
                 (str "/** @constructor */\nfunction ShadowJS() {};\n"
+                     (->> js-globals
+                          (remove known-js-globals)
+                          (map cljs-comp/munge)
+                          (sort)
+                          (map #(str "/** ShadowJS */ var " % ";"))
+                          (str/join "\n"))
+                     "\n"
                      (->> js-props
                           (sort)
+                          (map cljs-comp/munge)
                           (map #(str "ShadowJS.prototype." % ";"))
                           (str/join "\n")))]
 
             ;; not actually required but makes it easier to verify
-            (let [file (data/cache-file state "shadow.js.auto_externs.js")]
+            (let [file (data/cache-file state "externs.shadow.js")]
               (spit file content))
 
-            [(SourceFile/fromCode "shadow/js/auto_externs.js" content)]
+            [(SourceFile/fromCode "externs.shadow.js" content)]
             ))]
 
     (->> (concat default-externs deps-externs foreign-externs manual-externs auto-externs)

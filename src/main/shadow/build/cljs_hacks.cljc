@@ -1,29 +1,57 @@
 (ns shadow.build.cljs-hacks
   (:require [cljs.analyzer]))
 
-
 ;; these things to some slight modifications to cljs.analyzer
 ;; there are some odd checks related to JS integration
 ;; which sort of conflict with the way shadow-cljs handles this
 
 ;; it operates without the modifications but has some weird edge cases
 
+
+;; it also fully replaces the :infer-externs implementation
+;; the default implementation was far more ambitious by trying to keep everything typed
+;; which only works reliably if everything is annotated properly
+;; new users are unlikely to do that
+;; basically all of cljs.core is untyped as well which means the typing is not as useful anyways
+
+;; this impl just records all js globals that were accessed in a given namespace
+;; as well as all properties identified on js objects
+;; (:require ["something" :as x :refer (y)])
+;; both x and y are tagged as 'js and will be recorded
+
+
+;; to be fair I could have built the simplified version on top of the typed version
+;; but there were I a few aspects I didn't quite understand
+;; so this was easier for ME, not better.
+
 (in-ns 'cljs.analyzer)
 
-(def shadow-js-tag
-  (with-meta 'js {:prefix ['ShadowJS]}))
+(def conj-to-set (fnil conj #{}))
 
-(defn resolve-js-var [ns sym]
+(defn shadow-js-access-global [current-ns global]
+  {:pre [(symbol? current-ns)
+         (string? global)]}
+  (swap! env/*compiler* update-in
+    [::namespaces current-ns :shadow/js-access-global] conj-to-set global))
+
+(defn shadow-js-access-property [current-ns prop]
+  {:pre [(symbol? current-ns)
+         (string? prop)]}
+  (when-not (string/starts-with? prop "cljs$")
+    (swap! env/*compiler* update-in
+      [::namespaces current-ns :shadow/js-access-properties] conj-to-set prop)))
+
+(defn resolve-js-var [ns sym current-ns]
   ;; quick hack to record all accesses to any JS mod
   ;; (:require ["react" :as r :refer (foo]) (r/bar ...)
-  ;; would record foo+bar
+  ;; will record foo+bar
   (let [prop (name sym)
-        qname (symbol (str ns "." prop))]
-    (swap! env/*compiler* update :shadow/js-properties conj prop)
+        qname (symbol "js" (str ns "." prop))]
+    (shadow-js-access-property current-ns prop)
 
     {:name qname
-     :tag shadow-js-tag
-     :ret-tag shadow-js-tag
+     :tag 'js
+     :ret-tag 'js
      :ns 'js}))
 
 ;; there is one bad call in cljs.analyzer/resolve-var
@@ -36,16 +64,42 @@
   {:pre [(symbol? module)]}
   (some? (get-in @env/*compiler* [:js-module-index (name module)])))
 
-(defn resolve-cljs-var [ns sym]
+(defn resolve-cljs-var [ns sym current-ns]
   (merge (gets @env/*compiler* ::namespaces ns :defs sym)
          {:name (symbol (str ns) (str sym))
           :ns ns}))
 
-(defn resolve-ns-var [ns sym]
-  (if (js-module-exists? ns)
-    (resolve-js-var ns sym)
-    (resolve-cljs-var ns sym)
+(defn resolve-ns-var [ns sym current-ns]
+  (cond
+    (js-module-exists? ns)
+    (resolve-js-var ns sym current-ns)
+
+    (contains? (:goog-names @env/*compiler*) ns)
+    {:name (symbol (str ns) (str sym))
+     :ns ns}
+
+    :else
+    (resolve-cljs-var ns sym current-ns)
     ))
+
+(defn invokeable-ns?
+  "Returns true if ns is a required namespace and a JavaScript module that
+   might be invokeable as a function."
+  [alias env]
+  (when-let [ns (resolve-ns-alias env alias nil)]
+    (js-module-exists? ns)))
+
+(defn resolve-invokeable-ns [alias current-ns env]
+  (let [ns (resolve-ns-alias env alias)]
+    {:name ns
+     :tag 'js
+     :ret-tag 'js
+     :ns 'js}))
+
+(def known-safe-js-globals
+  "symbols known to be closureJS compliant namespaces"
+  #{"cljs"
+    "goog"})
 
 (defn resolve-var
   "Resolve a var. Accepts a side-effecting confirm fn for producing
@@ -53,46 +107,54 @@
   ([env sym] (resolve-var env sym nil))
   ([env sym confirm]
    (let [locals (:locals env)
+         current-ns (-> env :ns :name)
          sym-ns-str (namespace sym)]
-     (if #?(:clj  (= "js" sym-ns-str)
-            :cljs (identical? "js" sym-ns-str))
-       (do
-         (when (contains? locals (-> sym name symbol))
-           (warning :js-shadowed-by-local env {:name sym}))
-         (let [pre (->> (string/split (name sym) #"\.") (map symbol) vec)]
-           (when-not (has-extern? pre)
-             (swap! env/*compiler* update-in
-               (into [::namespaces (-> env :ns :name) :externs] pre) merge {}))
-           (merge
-             {:name sym
-              :ns   'js
-              :tag  (with-meta (or (js-tag pre) (:tag (meta sym)) 'js) {:prefix pre})}
-             (when-let [ret-tag (js-tag pre :ret-tag)]
-               {:js-fn-var true
-                :ret-tag ret-tag}))))
-       (let [s  (str sym)
+     (if (= "js" sym-ns-str)
+       (do (when (contains? locals (-> sym name symbol))
+             (warning :js-shadowed-by-local env {:name sym}))
+           ;; always record all fully qualified js/foo.bar calls
+           (let [[global & props]
+                 (clojure.string/split (name sym) #"\.")]
+
+             ;; do not record access to
+             ;; js/goog.string.format
+             ;; js/cljs.core.assoc
+             ;; just in case someone does that, we won't need externs for those
+             (when-not (contains? known-safe-js-globals global)
+               (shadow-js-access-global current-ns global)
+               (when (seq props)
+                 (doseq [prop props]
+                   (shadow-js-access-property current-ns prop)))))
+
+           {:name sym
+            :ns 'js
+            :tag 'js
+            :ret-tag 'js})
+
+       (let [s (str sym)
              lb (get locals sym)
-             current-ns (-> env :ns :name)
+
              current-ns-info (gets @env/*compiler* ::namespaces current-ns)]
          (cond
            (some? lb) lb
 
            (some? sym-ns-str)
-           (let [ns      sym-ns-str
-                 ns      (if #?(:clj  (= "clojure.core" ns)
-                                :cljs (identical? "clojure.core" ns))
-                           "cljs.core"
-                           ns)
-                 ;; thheller: removed bad check here
-                 full-ns (resolve-ns-alias env ns (symbol ns))]
+           (let [ns sym-ns-str
+                 ns (symbol (if (= "clojure.core" ns) "cljs.core" ns))
+                 ;; thheller: remove the or
+                 full-ns (resolve-ns-alias env ns (symbol ns))
+                 ;; strip ns
+                 sym (symbol (name sym))]
              (when (some? confirm)
                (when (not= current-ns full-ns)
                  (confirm-ns env full-ns))
-               (confirm env full-ns (symbol (name sym))))
-             (resolve-ns-var full-ns sym))
+               (confirm env full-ns sym))
+             (resolve-ns-var full-ns sym current-ns))
 
+           ;; FIXME: would this not be better handled if checked before calling resolve-var
+           ;; and analyzing this properly?
            (dotted-symbol? sym)
-           (let [idx    (.indexOf s ".")
+           (let [idx (.indexOf s ".")
                  prefix (symbol (subs s 0 idx))
                  suffix (subs s (inc idx))]
              (if-some [lb (get locals prefix)]
@@ -109,13 +171,13 @@
 
            (some? (gets current-ns-info :uses sym))
            (let [full-ns (gets current-ns-info :uses sym)]
-             (resolve-ns-var full-ns sym))
+             (resolve-ns-var full-ns sym current-ns))
 
            (some? (gets current-ns-info :renames sym))
            (let [qualified-symbol (gets current-ns-info :renames sym)
                  full-ns (symbol (namespace qualified-symbol))
-                 sym     (symbol (name qualified-symbol))]
-             (resolve-ns-var full-ns sym))
+                 sym (symbol (name qualified-symbol))]
+             (resolve-ns-var full-ns sym current-ns))
 
            (some? (gets current-ns-info :imports sym))
            (recur env (gets current-ns-info :imports sym) confirm)
@@ -124,40 +186,54 @@
            (do
              (when (some? confirm)
                (confirm env current-ns sym))
-             (resolve-cljs-var current-ns sym))
+             (resolve-cljs-var current-ns sym current-ns))
 
            (core-name? env sym)
            (do
              (when (some? confirm)
                (confirm env 'cljs.core sym))
-             (resolve-cljs-var 'cljs.core sym))
+             (resolve-cljs-var 'cljs.core sym current-ns))
 
            (invokeable-ns? s env)
            (resolve-invokeable-ns s current-ns env)
 
            :else
-           (do
-             (when (some? confirm)
-               (confirm env current-ns sym))
-             (resolve-cljs-var current-ns sym)
-             )))))))
+           (do (when (some? confirm)
+                 (confirm env current-ns sym))
+               (resolve-cljs-var current-ns sym current-ns)
+               )))))))
 
-(defn invokeable-ns?
-  "Returns true if ns is a required namespace and a JavaScript module that
-   might be invokeable as a function."
-  [alias env]
-  (let [ns (resolve-ns-alias env alias nil)]
-    ;; whats the point of this (required? ...) check?
-    ;; we first call resolve-ns-alias, which looks at the :require
-    ;; then it checks again if it was required? seems redundant?
-    (and ns
-         #_(required? ns env)
-         (js-module-exists? ns))))
+(defn analyze-dot [env target field member+ form]
+  (let [v [target field member+]
+        {:keys [dot-action target method field args]} (build-dot-form v)
+        enve (assoc env :context :expr)
+        targetexpr (analyze enve target)
+        form-meta (meta form)
+        target-tag (:tag targetexpr)
+        prop (or field method)
+        tag (or (:tag form-meta)
+                (and (js-tag? target-tag) 'js)
+                nil)]
 
-(defn resolve-invokeable-ns [alias current-ns env]
-  (let [ns (resolve-ns-alias env alias)]
-    {:name ns
-     :tag shadow-js-tag
-     :ret-tag shadow-js-tag
-     :ns 'js}))
+    (when (js-tag? tag)
+      (shadow-js-access-property (-> env :ns :name) (str prop)))
 
+    (case dot-action
+      ::access (let [children [targetexpr]]
+                 {:op :dot
+                  :env env
+                  :form form
+                  :target targetexpr
+                  :field field
+                  :children children
+                  :tag tag})
+      ::call (let [argexprs (map #(analyze enve %) args)
+                   children (into [targetexpr] argexprs)]
+               {:op :dot
+                :env env
+                :form form
+                :target targetexpr
+                :method method
+                :args argexprs
+                :children children
+                :tag tag}))))

@@ -182,7 +182,7 @@
   (api/check :browser))
 
 (deftest test-browser-release
-  (api/release :browser {} #_ {:source-maps true}))
+  (api/release :browser {} #_{:source-maps true}))
 
 (deftest test-browser-release-pseudo
   (api/release :browser {:pseudo-names true}))
@@ -208,7 +208,7 @@
 (deftest test-infer-externs
   (try
     (let [{:keys [compiler-env] :as state}
-          (api/compile*
+          (api/release*
             '{:build-id :infer-externs
               :target :browser
 
@@ -228,8 +228,13 @@
 
 
       (pprint (->> (get-in compiler-env [:shadow/js-properties])))
-      (pprint (->> (get-in compiler-env [:cljs.analyzer/namespaces 'demo.native :externs])))
-      (prn (keys compiler-env))
+
+      (doseq [[ns ns-info] (get-in compiler-env [:cljs.analyzer/namespaces])]
+        (prn ns)
+        (pprint (-> ns-info
+                    (select-keys [:shadow/js-access-global
+                                  :shadow/js-access-properties]))))
+
       )
     (catch Exception ex
       (errors/user-friendly-error ex))))
@@ -365,7 +370,6 @@
               {:js-provider :shadow}}
             {:debug true})]
 
-
       )
 
     (catch Exception ex
@@ -423,15 +427,15 @@
         ;; @material/drawer
         ;; IllegalStateException: com.google.common.base.Preconditions.checkState (Preconditions.java:429
         :modules
-        {:test {:entries [#_ "jquery" ;; cant remove UMD
-                          #_ "animated/lib/targets/react-dom" ;; internal compiler error
-                          #_ "bootstrap" ;; expects global jQuery, wrapped IIFE, not properly converted
-                          #_ "shortid" ;; browser overrides
-                          #_ "js-nacl" ;; fs dependency
-                          #_ "readable-stream"
-                          #_ "material-ui/styles/getMuiTheme"
-                          #_ "foo"
-                          #_ cljs.tools.reader.reader-types
+        {:test {:entries [#_"jquery" ;; cant remove UMD
+                          #_"animated/lib/targets/react-dom" ;; internal compiler error
+                          #_"bootstrap" ;; expects global jQuery, wrapped IIFE, not properly converted
+                          #_"shortid" ;; browser overrides
+                          #_"js-nacl" ;; fs dependency
+                          #_"readable-stream"
+                          #_"material-ui/styles/getMuiTheme"
+                          #_"foo"
+                          #_cljs.tools.reader.reader-types
                           "react-vis"
                           ]}}
 

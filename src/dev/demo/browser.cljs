@@ -57,3 +57,5 @@
 
 (js/console.log {:something [:nested #{1 2 3}]})
 
+(defn tokenize []
+  (js/console.log "REMOVE-CHECK"))

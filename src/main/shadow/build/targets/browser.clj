@@ -231,8 +231,10 @@
 
                     ;; other modules just need to tell the loader they finished loading
                     (and module-loader (not (or default? web-worker)))
-                    (update :append-js str "\nshadow.loader.set_loaded('" (name module-id) "');"))
-                  (inject-preloads state config))]
+                    (update :append-js str "\nshadow.loader.set_loaded('" (name module-id) "');")
+
+                    (= :dev mode)
+                    (inject-preloads state config)))]
 
           (assoc mods module-id module-config)))
       {}

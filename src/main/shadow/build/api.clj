@@ -155,6 +155,7 @@
    (-> state
        (cljs-bridge/ensure-compiler-env)
        (cljs-bridge/register-ns-aliases)
+       (cljs-bridge/register-goog-names)
        (impl/compile-all source-ids))))
 
 (defn optimize [{:keys [classpath] :as state}]

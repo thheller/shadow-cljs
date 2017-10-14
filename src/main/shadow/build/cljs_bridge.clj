@@ -1,7 +1,7 @@
 (ns shadow.build.cljs-bridge
   "things that connect the shadow.cljs world with the cljs world"
   (:require [cljs.analyzer :as cljs-ana]
-            #_ [shadow.build.cljs-hacks]
+            [shadow.build.cljs-hacks]
             [cljs.compiler :as cljs-comp]
             [cljs.env :as cljs-env]
 
@@ -52,7 +52,8 @@
             :cljs.analyzer/constant-table {}
             :cljs.analyzer/data-readers {}
             :cljs.analyzer/externs nil
-            :js-dependency-index {}
+            :js-module-index {}
+            :goog-names #{}
             :shadow/js-properties #{}
             :options (assoc (:compiler-options state)
                             ;; leave loading core data to the shadow.cljs.bootstrap loader
@@ -85,6 +86,16 @@
         ;; str->sym maps all string requires to their symbol name
         (update-in [:compiler-env :js-module-index] add-aliases-fn (nested-vals str->sym)))
     ))
+
+(defn register-goog-names [state]
+  (let [goog-names
+        (->> (:build-sources state)
+             (map #(get-in state [:sources %]))
+             (filter #(= :goog (:type %)))
+             (map :provides)
+             (reduce set/union #{}))]
+
+    (assoc-in state [:compiler-env :goog-names] goog-names)))
 
 (def ^:dynamic *in-compiler-env* false)
 
