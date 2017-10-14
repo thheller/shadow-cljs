@@ -79,7 +79,8 @@
     :closure-defines
     {demo.browser/FOO "bar"}}
 
-   :module-loader false
+   :module-loader true
+   ;; :module-hash-names true
    :modules
    {:base
     {:entries

@@ -89,9 +89,13 @@
   (json/write-str obj :escape-slash false))
 
 (defn inject-loader-setup
-  [{:keys [build-modules build-options] :as state} release?]
+  [{:keys [build-options] :as state} release?]
   (let [{:keys [asset-path cljs-runtime-path]}
         build-options
+
+        build-modules
+        (or (::closure/modules state)
+            (:build-modules state))
 
         [loader-module & modules]
         build-modules
