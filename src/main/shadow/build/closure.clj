@@ -340,7 +340,7 @@
                           (remove known-js-globals)
                           (map cljs-comp/munge)
                           (sort)
-                          (map #(str "/** ShadowJS */ var " % ";"))
+                          (map #(str "/** @const {ShadowJS} */ var " % ";"))
                           (str/join "\n"))
                      "\n"
                      (->> js-props
