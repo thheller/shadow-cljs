@@ -104,7 +104,7 @@
 
         module-uris
         (reduce
-          (fn [m {:keys [name foreign-files sources] :as module}]
+          (fn [m {:keys [module-id foreign-files sources] :as module}]
             (let [uris
                   (if release?
                     [(str asset-path "/" (:output-name module))]
@@ -117,21 +117,21 @@
                                       (data/get-source-by-id state src-id)]
                                   (str asset-path "/" cljs-runtime-path "/" output-name))))
                          (into [])))]
-              (assoc m name uris)))
+              (assoc m module-id uris)))
           {}
           modules)
 
         module-infos
         (reduce
-          (fn [m {:keys [name depends-on]}]
-            (assoc m name (disj depends-on (:name loader-module))))
+          (fn [m {:keys [module-id depends-on]}]
+            (assoc m module-id (disj depends-on (:module-id loader-module))))
           {}
           modules)
 
         loader-append-rc
         (-> loader-module :sources last)]
 
-    (when-not (data/get-output! state loader-append-rc)
+    (when-not (data/get-output! state {:resource-id loader-append-rc})
       (throw (ex-info "no loader append rc" {:rc loader-append-rc})))
 
     (update-in state [:output loader-append-rc :js]
