@@ -31,7 +31,7 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
                 if (require.startsWith("goog:")) {
                     // closure names are global, these must be exported so they aren't renamed
                     String global = require.substring(5);
-                    node.replaceWith(NodeUtil.newQName(compiler, global));
+                    node.replaceWith(NodeUtil.newQName(compiler, "global." + global));
                 } else {
                     String sfn = node.getSourceFileName();
                     if (sfn != null) {

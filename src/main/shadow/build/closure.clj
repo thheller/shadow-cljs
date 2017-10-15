@@ -1347,16 +1347,16 @@
     (let [source-files
           (->> (for [{:keys [resource-id resource-name ns file source deps] :as src} sources]
                  (SourceFile/fromCode resource-name
-                   (str (->> deps
-                             (filter symbol?)
-                             (remove '#{shadow.js})
-                             (map #(str "goog.require(\"" % "\");"))
-                             (str/join "\n"))
-                        "shadow.js.provide(\"" ns "\", function(require,module,exports) {\n"
-                        (if (str/ends-with? resource-name ".json")
-                          (str "module.exports=(" source ");")
-                          source)
-                        "\n});")))
+                   (str #_(->> deps
+                               (filter symbol?)
+                               (remove '#{shadow.js})
+                               (map #(str "goog.require(\"" % "\");"))
+                               (str/join "\n"))
+                     "shadow.js.provide(\"" ns "\", function(global,require,module,exports) {\n"
+                     (if (str/ends-with? resource-name ".json")
+                       (str "module.exports=(" source ");")
+                       source)
+                     "\n});")))
                (into []))
 
           source-file-names

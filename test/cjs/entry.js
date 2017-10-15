@@ -1,4 +1,3 @@
-var react = require("react");
-
-console.log(react);
+var demo = require("goog:demo.lib");
+console.log(demo.hello());
 

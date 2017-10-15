@@ -205,6 +205,9 @@
 (deftest test-build-bootstrap-support
   (api/compile :bootstrap-support))
 
+(deftest test-js-only
+  (api/compile :js-only))
+
 (deftest test-infer-externs
   (try
     (let [{:keys [compiler-env] :as state}

@@ -50,7 +50,7 @@ shadow.js.provide = function(name, moduleFn) {
   // which should match node? not entirely sure how others do it.
 
   // FIXME: wrap in try/catch?
-  moduleFn.call(module, shadow.js.require, module, module["exports"]);
+  moduleFn.call(module, goog.global, shadow.js.require, module, module["exports"]);
 
   exports = module["exports"];
 

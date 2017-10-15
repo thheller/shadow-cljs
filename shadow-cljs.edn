@@ -190,7 +190,13 @@
   {:target :browser
    :output-dir "out/demo-js-only/public/js"
    :asset-path "/js"
-   :modules {:main {:entries ["/test/cjs/entry.js"]}}
+   :compiler-options
+   {:optimizations :simple
+    :pretty-print true}
+   :modules {:base {:entries [cljs.core
+                              shadow.js]}
+             :main {:entries ["/test/cjs/entry.js"]
+                    :depends-on #{:base}}}
    :devtools
    {:enabled false
     :console-support false}}
