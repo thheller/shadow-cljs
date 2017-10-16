@@ -439,7 +439,8 @@
                           #_"material-ui/styles/getMuiTheme"
                           #_"foo"
                           #_cljs.tools.reader.reader-types
-                          "react-vis"
+                          #_ "react-vis"
+                          "@material/animation"
                           ]}}
 
         :js-options

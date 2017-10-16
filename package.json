@@ -24,7 +24,7 @@
     "jquery": "^3.2.1",
     "js-nacl": "^1.2.2",
     "leaflet": "^1.2.0",
-    "material-components-web": "^0.17.0",
+    "material-components-web": "^0.22.0",
     "material-ui": "^0.18.7",
     "mkdirp": "^0.5.1",
     "module-deps": "^4.1.1",

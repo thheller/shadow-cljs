@@ -601,12 +601,15 @@
 
 ;; API
 
+(defonce ^:private classpath-lock (Object.))
+
 (defn index-classpath
   ([cp]
     (index-classpath cp (get-classpath-entries cp)))
   ([{:keys [index-ref] :as cp} paths]
    {:pre [(service? cp)]}
-   (swap! index-ref #(reduce index-path* % paths))
+   (locking classpath-lock
+     (swap! index-ref #(reduce index-path* % paths)))
    cp))
 
 (defn find-resource-for-provide
