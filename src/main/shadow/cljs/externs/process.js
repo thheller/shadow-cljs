@@ -13,6 +13,7 @@ var process = {};
 process.browser;
 process.env;
 process.env.NODE_ENV;
+process.argv;
 
 // this is in cljs.core
 process.hrtime;

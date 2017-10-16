@@ -305,9 +305,14 @@
   (let [[file-props file-globals]
         (externs-for-build state)
 
+        js-externs?
+        (and (true? (get-in state [:js-options :generate-externs]))
+             (= :shadow (get-in state [:js-options :js-provider])))
+
         js-props
         (set/union
-          (extern-props-from-js state)
+          (when js-externs?
+            (extern-props-from-js state))
           (extern-props-from-cljs state)
           file-props)
 
@@ -385,9 +390,8 @@
              (into []))
 
         auto-externs
-        (when (and (true? (get-in state [:js-options :generate-externs]))
-                   (= :shadow (get-in state [:js-options :js-provider])))
-          [(generate-externs state)])]
+        [(generate-externs state)]
+        ]
 
     (->> (concat default-externs deps-externs foreign-externs manual-externs auto-externs)
          (into []))

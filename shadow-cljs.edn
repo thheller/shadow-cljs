@@ -206,6 +206,9 @@
    :main demo.script/main
    :output-to "out/demo-script/script.js"
 
+   :compiler-options
+   {:optimizations :advanced}
+
    :devtools
    {:before-load demo.script/stop
     :after-load demo.script/start}}
