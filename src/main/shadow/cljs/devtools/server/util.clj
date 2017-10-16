@@ -104,6 +104,9 @@
         :worker-shutdown
         (println "Worker shutdown.")
 
+        :println
+        (println (:msg x))
+
         ;; default
         (prn [:log x])))))
 

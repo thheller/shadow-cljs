@@ -1,6 +1,7 @@
 (ns shadow.cljs.devtools.server.dev-http
   "provides a basic static http server per build"
   (:require [clojure.java.io :as io]
+            [clojure.core.async :as async :refer (>!!)]
             [shadow.cljs.devtools.server.web.common :as common]
             [ring.middleware.resource :as ring-resource]
             [ring.middleware.file :as ring-file]
@@ -23,9 +24,9 @@
           "expires" "0"))))
 
 (defn start-build-server
-  [executor {:keys [build-id http-root http-port http-handler]
-             :or {http-port 0}
-             :as config}]
+  [executor out {:keys [build-id http-root http-port http-handler]
+                 :or {http-port 0}
+                 :as config}]
 
   (let [root-dir
         (io/file http-root)
@@ -74,7 +75,7 @@
           port
           (netty/port instance)]
 
-      ;; FIXME: this should show a proper message somewhere
+      (>!! out {:type :println :msg (format "HTTP server for \"%s\" available at http://localhost:%s" build-id http-port)})
       (log/info ::http-serve {:http-port port :http-root http-root :build-id build-id})
 
       instance)))
@@ -94,12 +95,12 @@
   (get-server-configs))
 
 ;; FIXME: use config watch to restart servers on config change
-(defn start [executor]
+(defn start [executor out]
   (let [configs
         (get-server-configs)
 
         servers
-        (into [] (map #(start-build-server executor %)) configs)]
+        (into [] (map #(start-build-server executor out %)) configs)]
 
     {:servers servers
      :configs configs}

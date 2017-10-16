@@ -26,7 +26,7 @@
   (merge
     (common/app config)
     {:dev-http
-     {:depends-on [:executor]
+     {:depends-on [:executor :out]
       :start dev-http/start
       :stop dev-http/stop}
      :out
