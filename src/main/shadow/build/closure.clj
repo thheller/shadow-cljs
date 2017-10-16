@@ -1361,8 +1361,7 @@
                        (str "module.exports=(" source ");")
                        source)
                      "\n});")))
-               (map #(do (println (.getCode %))
-                         %))
+               #_(map #(do (println (.getCode %)) %))
                (into []))
 
           source-file-names

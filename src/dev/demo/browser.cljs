@@ -6,6 +6,7 @@
             ["jquery" :as jq]
             ["circular-test" :as circ]
             ["material-ui/RaisedButton" :as mui-btn :default btn]
+            ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
@@ -14,6 +15,8 @@
 (assoc nil :foo 1)
 
 (goog-define FOO "foo")
+
+(def mdc-checkbox (MDCCheckbox. (js/document.getElementById "material")))
 
 (prn :foo :bar)
 

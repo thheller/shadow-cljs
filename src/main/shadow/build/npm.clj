@@ -296,6 +296,7 @@
   (when-not (seq babel-executable)
     (throw (ex-info "babel executable not found, please add shadow-cljs to your project. npm add --dev shadow-cljs." {})))
 
+  (log/debug ::babel-transform file)
   (let [{:keys [exit out err] :as result}
         (util/exec
           [babel-executable
@@ -381,12 +382,7 @@
                 (->> (concat js-requires js-imports)
                      (map maybe-convert-goog)
                      (distinct)
-                     (into []))
-
-                source
-                (if (contains? #{"es3 es5"} js-language)
-                  source
-                  (babel-convert-source npm file source))]
+                     (into []))]
 
             (when (seq js-errors)
               (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
@@ -410,7 +406,11 @@
                   :ns ns
                   :provides #{ns}
                   :requires #{}
-                  :source source
+                  :source-fn
+                  (fn [state]
+                    (if (contains? #{"es3" "es5"} js-language)
+                      source
+                      (babel-convert-source npm file source)))
                   :js-deps js-deps
                   :deps (into '[shadow.js] js-deps)
                   ))))
