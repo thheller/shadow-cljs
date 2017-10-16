@@ -29,6 +29,8 @@
     "readline-sync": "^1.4.7",
     "shadow-cljs-jar": "^0.10.0",
     "source-map-support": "^0.4.15",
-    "ws": "^3.0.0"
+    "ws": "^3.0.0",
+    "babel-cli": "^6.26.0",
+    "babel-preset-env": "^1.6.0"
   }
 }

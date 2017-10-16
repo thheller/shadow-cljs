@@ -1,4 +1,4 @@
-(ns shadow.build.npm-test
+(ns shadow.cljs.npm-test
   (:require [clojure.test :refer :all]
             [clojure.pprint :refer (pprint)]
             [clojure.java.io :as io]
@@ -15,7 +15,7 @@
 (deftest test-package-info
   (with-npm [x {}]
     (let [{:keys [file package-name] :as shortid}
-          (npm/find-resource x nil "shortid" {})
+          (npm/find-resource x nil "@material/animation" {})
 
           pkg-info
           (npm/find-package x package-name)]
@@ -23,6 +23,13 @@
       (prn file)
       (pprint shortid)
       (pprint (dissoc pkg-info :package-json))
+      )))
+
+(deftest test-babel-transform
+  (with-npm [x {}]
+
+    (let [source "var foo = 1; export { foo };"]
+      (pprint (npm/babel-convert-source x nil source))
       )))
 
 (deftest test-browser-overrides

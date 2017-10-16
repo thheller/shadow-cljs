@@ -393,8 +393,7 @@
                :optimizations :advanced}
 
               :modules
-              {:test {:entries ["@firebase/app"
-                                "@firebase/auth"]}}
+              {:test {:entries ["@material/animation"]}}
 
               :js-options
               {:js-provider :shadow}}

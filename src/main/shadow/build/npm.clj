@@ -291,6 +291,22 @@
     dep
     (symbol (subs dep 5))))
 
+(defn babel-convert-source [{:keys [babel-executable] :as npm} file source]
+  ;; minimum babel transforms for now
+  (when-not (seq babel-executable)
+    (throw (ex-info "babel executable not found, please add shadow-cljs to your project. npm add --dev shadow-cljs." {})))
+
+  (let [{:keys [exit out err] :as result}
+        (util/exec
+          [babel-executable
+           "--presets=env"]
+          {:in source})]
+    (when-not (zero? exit)
+      (throw (ex-info "babel exited with non-zero exit code" (assoc result :file file))))
+
+    out
+    ))
+
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
   [{:keys [compiler project-dir] :as npm} ^File file]
@@ -365,7 +381,12 @@
                 (->> (concat js-requires js-imports)
                      (map maybe-convert-goog)
                      (distinct)
-                     (into []))]
+                     (into []))
+
+                source
+                (if (contains? #{"es3 es5"} js-language)
+                  source
+                  (babel-convert-source npm file source))]
 
             (when (seq js-errors)
               (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
@@ -710,6 +731,13 @@
      ;; JVM working dir always
      :project-dir project-dir
      :node-modules-dir node-modules-dir
+     ;; npm and yarn handle installing bin files differenly for dependencies
+     ;; so use the first thing that exists
+     :babel-executable
+     (->> ["./node_modules/.bin/babel" ;; npm
+           "./node_modules/shadow-cljs/node_modules/.bin/babel"] ;; yarn
+          (filter #(.exists (io/file %)))
+          (first))
      ;; FIXME: if a build ever needs to configure these we can't use the shared npm reference
      :extensions [".js" ".json"]
      :main-keys [#_"module" #_"jsnext:main" "main"]
