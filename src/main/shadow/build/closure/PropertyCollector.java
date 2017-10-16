@@ -103,6 +103,11 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
                     System.out.println(node.toStringTree());
                 }
             }
+        } else if (NodeUtil.isCallTo(node,"Object.defineProperty")) {
+            Node property = node.getChildAtIndex(2);
+            if (property.isString()) {
+                addProperty(t, property.getString());
+            }
         }
     }
 
@@ -133,7 +138,8 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         co.setPrettyPrint(true);
         cc.initOptions(co);
 
-        SourceFile srcFile = SourceFile.fromFile("node_modules/@firebase/util/dist/cjs/src/crypt.js");
+        // SourceFile srcFile = SourceFile.fromFile("node_modules/@firebase/util/dist/cjs/src/crypt.js");
+        SourceFile srcFile = SourceFile.fromFile("test/closure-inputs/assigns.js");
         cc.toSource(process(cc, srcFile));
 
     }

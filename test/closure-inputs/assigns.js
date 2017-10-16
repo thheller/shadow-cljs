@@ -20,3 +20,5 @@ exports.d = {
 var g = { h: {} };
 
 g.h.j = 1;
+
+Object.defineProperty(g, "thing", {});
