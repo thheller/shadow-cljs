@@ -133,8 +133,8 @@
 
        (let [s (str sym)
              lb (get locals sym)
-
              current-ns-info (gets @env/*compiler* ::namespaces current-ns)]
+
          (cond
            (some? lb) lb
 
@@ -237,3 +237,14 @@
                 :args argexprs
                 :children children
                 :tag tag}))))
+
+;; thheller: changed tag inference to always use tag on form first
+;; destructured bindings had meta in their :init
+;; https://dev.clojure.org/jira/browse/CLJS-2385
+(defn get-tag [e]
+  (if-some [tag (-> e :form meta :tag)]
+    tag
+    (if-some [tag  (-> e :tag)]
+      tag
+      (-> e :info :tag)
+      )))

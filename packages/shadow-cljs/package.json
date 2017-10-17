@@ -1,7 +1,7 @@
 {
   "name": "shadow-cljs",
-  "version": "2.0.20",
-  "jar-version": "2.0.20",
+  "version": "2.0.22",
+  "jar-version": "2.0.22",
   "description": "ClojureScript compiler and JS bundler",
   "author": "Thomas Heller",
   "license": "ISC",
@@ -20,17 +20,17 @@
   "bin": {
     "shadow-cljs": "./cli/runner.js"
   },
-  "engines" : {
-    "node" : ">=6.0.0"
+  "engines": {
+    "node": ">=6.0.0"
   },
   "dependencies": {
+    "babel-core": "^6.26.0",
+    "babel-preset-env": "^1.6.0",
     "mkdirp": "^0.5.1",
     "node-libs-browser": "^2.0.0",
     "readline-sync": "^1.4.7",
     "shadow-cljs-jar": "^0.10.0",
     "source-map-support": "^0.4.15",
-    "ws": "^3.0.0",
-    "babel-cli": "^6.26.0",
-    "babel-preset-env": "^1.6.0"
+    "ws": "^3.0.0"
   }
 }
