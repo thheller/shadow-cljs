@@ -211,7 +211,7 @@
 (deftest test-infer-externs
   (try
     (let [{:keys [compiler-env] :as state}
-          (api/release*
+          (api/compile*
             '{:build-id :infer-externs
               :target :browser
 

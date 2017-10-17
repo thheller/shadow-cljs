@@ -2,10 +2,12 @@
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [shadow.build.resource :as rc]
-            [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)]
             [cljs.compiler :as cljs-comp]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [shadow.build.resource :as rc]
+            [shadow.build.babel :as babel]
+            [shadow.build.log :as cljs-log]
+            [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)])
   (:import (java.io File)
            (com.google.javascript.jscomp SourceFile CompilerOptions CompilerOptions$LanguageMode)
            (com.google.javascript.jscomp.deps ModuleNames)
@@ -291,22 +293,22 @@
     dep
     (symbol (subs dep 5))))
 
-(defn babel-convert-source [{:keys [babel-executable] :as npm} file source]
-  ;; minimum babel transforms for now
-  (when-not (seq babel-executable)
-    (throw (ex-info "babel executable not found, please add shadow-cljs to your project. npm add --dev shadow-cljs." {})))
+(defmethod cljs-log/event->str ::babel-transform
+  [{:keys [resource-name] :as event}]
+  (format "Babel transform: %s " resource-name))
 
-  (log/debug ::babel-transform file)
-  (let [{:keys [exit out err] :as result}
-        (util/exec
-          [babel-executable
-           "--presets=env"]
-          {:in source})]
-    (when-not (zero? exit)
-      (throw (ex-info "babel exited with non-zero exit code" (assoc result :file file))))
+(defn babel-convert-source [{:keys [babel] :as npm} state source resource-name]
+  (util/with-logged-time [state {:type ::babel-transform
+                                 :resource-name resource-name}]
 
-    out
-    ))
+    (let [{:keys [code] :as result}
+          (babel/transform babel {:code source
+                                  :resource-name resource-name})]
+      (when-not (seq code)
+        (throw (ex-info "babel failed?" (assoc result :resource-name resource-name))))
+
+      code
+      )))
 
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
@@ -378,6 +380,10 @@
                   ;; SourceFile/fromFile seems to leak file descriptors
                   (SourceFile/fromCode (.getAbsolutePath file) source))
 
+
+                babel-rewrite?
+                (not (contains? #{"es3" "es5"} js-language))
+
                 js-deps
                 (->> (concat js-requires js-imports)
                      (map maybe-convert-goog)
@@ -408,11 +414,16 @@
                   :requires #{}
                   :source-fn
                   (fn [state]
-                    (if (contains? #{"es3" "es5"} js-language)
+                    (if-not babel-rewrite?
                       source
-                      (babel-convert-source npm file source)))
+                      (babel-convert-source npm state source resource-name)))
                   :js-deps js-deps
-                  :deps (into '[shadow.js] js-deps)
+                  :deps
+                  (-> '[shadow.js]
+                      (cond->
+                        babel-rewrite?
+                        (conj 'shadow.js.babel))
+                      (into js-deps))
                   ))))
 
         (cond->
@@ -722,25 +733,25 @@
 
         ;; FIXME: allow configuration of this
         node-modules-dir
-        (io/file project-dir "node_modules")]
+        (io/file project-dir "node_modules")
+
+        babel
+        (babel/start)]
 
     {::service true
      :index-ref index-ref
      :compiler cc
      :compiler-options co
+     :babel babel
      ;; JVM working dir always
      :project-dir project-dir
      :node-modules-dir node-modules-dir
      ;; npm and yarn handle installing bin files differenly for dependencies
      ;; so use the first thing that exists
-     :babel-executable
-     (->> ["./node_modules/.bin/babel" ;; npm
-           "./node_modules/shadow-cljs/node_modules/.bin/babel"] ;; yarn
-          (filter #(.exists (io/file %)))
-          (first))
      ;; FIXME: if a build ever needs to configure these we can't use the shared npm reference
      :extensions [".js" ".json"]
      :main-keys [#_"module" #_"jsnext:main" "main"]
      }))
 
-(defn stop [npm])
+(defn stop [{:keys [babel] :as npm}]
+  (babel/stop babel))

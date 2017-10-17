@@ -10,7 +10,8 @@
             [aleph.http :as aleph]
             [aleph.netty :as netty]
             [clojure.tools.logging :as log]
-            [shadow.cljs.devtools.config :as config]))
+            [shadow.cljs.devtools.config :as config])
+  (:import (java.net BindException)))
 
 (defn disable-all-kinds-of-caching [handler]
   ;; this is strictly a dev server and caching is not wanted for anything
@@ -50,35 +51,44 @@
     (when-not (.exists root-dir)
       (io/make-parents (io/file root-dir "index.html")))
 
-    (let [http-handler
-          (-> default-handler
-              ;; some default resources, only used if no file exists
-              ;; currently only contains the CLJS logo as favicon.ico
-              ;; pretty much only doing this because of the annoying
-              ;; 404 chrome devtools show then no icon exists
-              (ring-resource/wrap-resource "shadow/cljs/devtools/server/dev_http")
-              (ring-content-type/wrap-content-type)
-              (ring-file/wrap-file root-dir {:allow-symlinks? true
-                                             :index-files? true})
-              (ring-file-info/wrap-file-info
-                ;; source maps
-                {"map" "application/json"})
+    (try
+      (let [http-handler
+            (-> default-handler
+                ;; some default resources, only used if no file exists
+                ;; currently only contains the CLJS logo as favicon.ico
+                ;; pretty much only doing this because of the annoying
+                ;; 404 chrome devtools show then no icon exists
+                (ring-resource/wrap-resource "shadow/cljs/devtools/server/dev_http")
+                (ring-content-type/wrap-content-type)
+                (ring-file/wrap-file root-dir {:allow-symlinks? true
+                                               :index-files? true})
+                (ring-file-info/wrap-file-info
+                  ;; source maps
+                  {"map" "application/json"})
 
-              (disable-all-kinds-of-caching))
+                (disable-all-kinds-of-caching))
 
-          instance
-          (aleph/start-server http-handler
-            {:port http-port
-             :executor executor
-             :shutdown-executor? false})
+            instance
+            (aleph/start-server http-handler
+              {:port http-port
+               :executor executor
+               :shutdown-executor? false})
 
-          port
-          (netty/port instance)]
+            port
+            (netty/port instance)]
 
-      (>!! out {:type :println :msg (format "HTTP server for \"%s\" available at http://localhost:%s" build-id http-port)})
-      (log/info ::http-serve {:http-port port :http-root http-root :build-id build-id})
+        (>!! out {:type :println
+                  :msg (format "HTTP server for \"%s\" available at http://localhost:%s" build-id http-port)})
+        (log/info ::http-serve {:http-port port :http-root http-root :build-id build-id})
 
-      instance)))
+        instance)
+      (catch BindException e
+        (>!! out {:type :println
+                  :msg (format "HTTP server at port %s already running" http-port)})
+        nil)
+      (catch Exception e
+        (log/warn ::start-error http-root http-port e)
+        nil))))
 
 (defn get-server-configs []
   (let [{:keys [builds] :as config}
@@ -107,5 +117,6 @@
     ))
 
 (defn stop [{:keys [servers] :as svc}]
-  (doseq [srv servers]
+  (doseq [srv servers
+          :when srv]
     (.close srv)))

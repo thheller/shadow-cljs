@@ -235,9 +235,12 @@
          performance
          postMessage
          process
+         require
          WebSocket
          XMLHttpRequest
-         window]
+         window
+         __filename
+         __dirname]
        (into #{} (map str))))
 
 (defn extern-props-from-js [state]
@@ -734,7 +737,8 @@
                          (output/closure-defines state))
                        js
                        (when base?
-                         goog-nodeGlobalRequire-fix)
+                         (str goog-nodeGlobalRequire-fix
+                              "\ngoog.global = global;"))
                        ;; FIXME: module.exports will become window.module.exports, rewritten later
                        (when (seq defs)
                          defs))

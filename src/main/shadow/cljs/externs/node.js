@@ -21,7 +21,7 @@ var __dirname;
 
 /**
  * @param {string} name
- * @return {ShadowJS}
+ * @return {?}
  */
 function require(name) {}
 

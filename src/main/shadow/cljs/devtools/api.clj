@@ -162,13 +162,18 @@
       (build/flush)
       (build-finish build-config)))
 
+(defn compile!
+  "do not use at the REPL, will return big pile of build state, will blow up REPL by printing too much"
+  [build opts]
+  (let [build-config (config/get-build! build)]
+    (compile* build-config opts)))
+
 (defn compile
   ([build]
    (compile build {}))
   ([build opts]
    (try
-     (let [build-config (config/get-build! build)]
-       (compile* build-config opts))
+     (compile! build opts)
      :done
      (catch Exception e
        (e/user-friendly-error e)))))

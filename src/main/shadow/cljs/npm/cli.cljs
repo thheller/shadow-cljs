@@ -18,7 +18,7 @@
             ))
 
 (def jar-version
-  (-> (js/require "../package.json")
+  (-> (js/require "../../package.json")
       (gobj/get "jar-version")))
 
 (defn file-older-than [a b]
@@ -94,7 +94,7 @@
     (run project-root "lein" lein-args {})))
 
 (def default-config-str
-  (util/slurp (path/resolve js/__dirname "default-config.edn")))
+  (util/slurp (path/resolve js/__dirname ".." "default-config.edn")))
 
 (def default-config
   (reader/read-string default-config-str))
@@ -282,7 +282,7 @@
 
 (defn print-cli-info [project-root config-path {:keys [cache-root source-paths] :as config} opts]
   (println "=== Version")
-  (println "cli:           " (-> (js/require "../package.json")
+  (println "cli:           " (-> (js/require "../../package.json")
                                  (gobj/get "version")))
   (println "jar-version:   " jar-version)
   (println "config-version:" (:version config))
@@ -334,7 +334,7 @@
       ;; FIXME: show error location with excerpt like other warnings
       (throw (ex-info (format "failed reading config file: %s" config-path) {:config-path config-path} ex)))))
 
-(defn main [args]
+(defn ^:export main [args]
   ;; FIXME: doesn't work, don't know why
   (js/process.on "SIGUSR2" dump-script-state)
 

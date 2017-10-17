@@ -8,8 +8,8 @@
 (.nested (.test (r/xyz)))
 (.bar r)
 
-(defn x [y]
-  (.test y))
+(defn x [^js y]
+  (.. y (jsFun) -jsProp (jsFunTwo)))
 
 (defn wrap-baz [x]
   (.baz x))
@@ -19,4 +19,3 @@
 (js/cljs.core.assoc nil :foo :bar)
 
 foo ;; warning, to prevent cache
-
