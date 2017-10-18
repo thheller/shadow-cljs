@@ -7,6 +7,7 @@
             ["circular-test" :as circ]
             ["material-ui/RaisedButton" :as mui-btn :default btn]
             ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
+            ["babel-test" :as babel-test :default Shape]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
@@ -19,6 +20,8 @@
 #_ (def mdc-checkbox (MDCCheckbox. (js/document.getElementById "material")))
 
 (prn :foo :bar)
+
+(js/console.log "babel-test" babel-test Shape)
 
 (js/console.log "shortid" (sid))
 

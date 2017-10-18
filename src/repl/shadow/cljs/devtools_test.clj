@@ -379,6 +379,31 @@
       (errors/user-friendly-error ex))))
 
 
+(deftest test-babel-transform
+  (try
+    (let [build-state
+          (api/compile*
+            '{:build-id :babel-transform
+              :target :browser
+
+              :output-dir "target/babel-transform/js"
+              :asset-path "/js"
+              :compiler-options
+              {:language-out :ecmascript5}
+
+              :modules
+              {:test {:entries ["/test/es6/babel.js"]}}
+
+              :js-options
+              {:js-provider :shadow}}
+            {:debug true})]
+
+      )
+
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+
 (deftest test-browser-build-with-js
   (try
     (let [{:keys [live-js-deps dead-js-deps js-entries] :as build-state}

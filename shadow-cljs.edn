@@ -119,6 +119,9 @@
     {"circular-test"
      {:target :file
       :file "test/dummy/circular-a.js"}
+     "babel-test"
+     {:target :file
+      :file "test/es6/babel.js"}
      }}
 
    :devtools
