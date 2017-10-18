@@ -4,7 +4,8 @@
             [clojure.pprint :refer (pprint)]
             [clojure.string :as str]
             [shadow.cljs.devtools.server.util :as util]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [clojure.data.json :as json]))
 
 (defn dep->str [dep-id]
   (cond
@@ -26,11 +27,11 @@
    {a-version :version a-url :url :as a id :id}
    {b-version :version b-url :url :as b}]
   ;; FIXME: actually resolve this based on versions if possible
-  (prn [:npm-deps-conflict id :using :a])
-  (prn [:a a-version a-url])
-  (prn [:b b-version b-url])
+  (when (not= a-version b-version)
+    (prn [:npm-deps-conflict id :using :a])
+    (prn [:a a-version a-url])
+    (prn [:b b-version b-url]))
   deps-to-install)
-
 
 (defn resolve-conflicts [deps]
   (let [deps-to-install
@@ -85,21 +86,49 @@
        :url url})
     ))
 
-(defn -main []
-  (let [deps
+(defn read-package-json []
+  (let [package-json-file (io/file "package.json")]
+    (if-not (.exists package-json-file)
+      {}
+      (-> (slurp package-json-file)
+          (json/read-str)))))
+
+(defn is-installed? [{:keys [id version url]} package-json]
+  (let [installed-version
+        (or (get-in package-json ["dependencies" id])
+            (get-in package-json ["devDependencies" id]))]
+    (if-not (seq installed-version)
+      false
+      (do (when (and installed-version
+                     (not= installed-version version))
+            (prn [:deps-version-conflict installed-version version url]))
+          true))))
+
+;; FIXME: call this as part of server startup?
+(defn main []
+  (let [package-json
+        (read-package-json)
+
+        deps
         (->> (get-deps-from-classpath)
-             ;; FIXME: remove things already in package.json
-             (resolve-conflicts))]
+             (resolve-conflicts)
+             (remove #(is-installed? % package-json)))]
 
     (when (seq deps)
       (install-deps deps)
       )))
+
+(defn -main []
+  (main))
 
 (comment
   (get-deps-from-classpath)
 
   (resolve-conflicts [{:id "react" :version "^15.0.0" :url "a"}
                       {:id "react" :version "^16.0.0" :url "b"}])
+
+  (let [pkg {"dependencies" {"reactx" "^16.0.0"}}]
+    (is-installed? {:id "react" :version "^16.0.0" :url "a"} pkg))
 
   (install-deps [{:id "react" :version "^15.0.0"}
                  {:id "react-dom" :version "^15.0.0"}]))
