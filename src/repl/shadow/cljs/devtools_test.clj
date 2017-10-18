@@ -381,8 +381,8 @@
 
 (deftest test-browser-build-with-js
   (try
-    (let [build-state
-          (api/release*
+    (let [{:keys [live-js-deps dead-js-deps js-entries] :as build-state}
+          (api/compile*
             '{:build-id :js-test
               :target :browser
 
@@ -393,16 +393,22 @@
                :optimizations :advanced}
 
               :modules
-              {:test {:entries ["@material/animation"]}}
+              {:test {:entries ["react"]}}
 
               :js-options
               {:js-provider :shadow}}
             {:debug true})]
 
       (pprint (:build-sources build-state))
+      (pprint live-js-deps)
+      (pprint dead-js-deps)
+      (pprint js-entries)
 
-      (-> (get-in build-state [:output [::npm/resource "node_modules/react/cjs/react.development.js"] :js])
-          (println)))
+      (let [{:keys [js removed-requires actual-requires] :as output}
+            (get-in build-state [:output [::npm/resource "node_modules/react/index.js"]])]
+        (println js)
+        (prn removed-requires)
+        (prn actual-requires)))
 
     (catch Exception ex
       (errors/user-friendly-error ex))))
@@ -438,7 +444,7 @@
                           #_"material-ui/styles/getMuiTheme"
                           #_"foo"
                           #_cljs.tools.reader.reader-types
-                          #_ "react-vis"
+                          #_"react-vis"
                           "@material/animation"
                           ]}}
 

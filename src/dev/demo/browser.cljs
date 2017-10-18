@@ -5,8 +5,8 @@
             ["shortid" :as sid]
             ["jquery" :as jq]
             ["circular-test" :as circ]
-            ["material-ui/RaisedButton" :as mui-btn :default btn]
-            ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
+            #_ ["material-ui/RaisedButton" :as mui-btn :default btn]
+            #_ ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
@@ -16,7 +16,7 @@
 
 (goog-define FOO "foo")
 
-(def mdc-checkbox (MDCCheckbox. (js/document.getElementById "material")))
+#_ (def mdc-checkbox (MDCCheckbox. (js/document.getElementById "material")))
 
 (prn :foo :bar)
 
@@ -31,7 +31,7 @@
 (js/console.log "jq" (-> (jq "body")
                          (.append "foo")))
 
-(js/console.log "mui-btn" mui-btn btn)
+#_ (js/console.log "mui-btn" mui-btn btn)
 
 (js/console.log "circular - not yet" (circ/test))
 (js/console.log "circular - actual" (circ/foo))

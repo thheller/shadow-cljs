@@ -138,7 +138,9 @@
         (data/maybe-add-source rc)
         (cond->
           require-from-ns
-          (data/add-string-lookup require-from-ns require ns))
+          (data/add-string-lookup require-from-ns require ns)
+          (nil? require-from)
+          (update :js-entries conj ns))
         (resolve-deps rc)
         )))
 

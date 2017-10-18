@@ -6,7 +6,9 @@ import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback implements CompilerPass {
 

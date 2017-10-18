@@ -611,7 +611,7 @@
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
 (defn make-js-modules
-  [{:keys [build-modules closure-configurators compiler-options build-sources] :as state}]
+  [{:keys [build-modules dead-js-deps closure-configurators compiler-options build-sources] :as state}]
 
   ;; modules that only contain foreign sources must not be exposed to closure
   ;; since they technically do not depend on goog but closure only allows one root module
@@ -649,8 +649,8 @@
               (doseq [{:keys [resource-id resource-name ns type output-name output] :as rc}
                       (->> sources
                            (map #(data/get-source-by-id state %))
-                           (remove util/foreign?))]
-
+                           (remove util/foreign?))
+                      :when (not (contains? dead-js-deps ns))]
                 (let [{:keys [js] :as output}
                       (data/get-output! state rc)
 
@@ -1461,7 +1461,7 @@
                     source-file
                     (get source-files-by-name name)
 
-                    {:keys [resource-id ns output-name] :as rc}
+                    {:keys [resource-id ns output-name deps] :as rc}
                     (get resource-by-name name)
 
                     js
@@ -1469,6 +1469,23 @@
                       (ShadowAccess/nodeToJs cc source-map source-node)
                       (catch Exception e
                         (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+
+                    ;; the :simple optimization may remove conditional requires
+                    ;; the JS inspector is not smart enough to detect this without optimizing itself
+                    ;; so instead just check if the compiled JS still contains the module name
+                    ;; the name is unique enough so it shouldn't run into something the user actually typed
+                    ;; module$node_modules$react$cjs$react_production_min
+                    ;; it is not done as a compiler pass since I cannot figure out how to do it
+                    ;; the require("thing") is renamed to b("thing") so I can't check NodeUtil.isCallTo("require")
+                    ;; no idea if I can get the original name after renaming, its not always b so can't use that
+                    ;; anyways this should be good enough and fixes the react conditional require issue
+                    removed-requires
+                    (->> (get-in state [:str->sym ns])
+                         (vals)
+                         ;; test at least for ("module$thing")
+                         ;; so it doesn't conflict with module$thing$b
+                         (remove #(str/includes? js (str "(\"" % "\")")))
+                         (into #{}))
 
                     sw
                     (StringWriter.)
@@ -1480,14 +1497,25 @@
                     sm-json
                     (.toString sw)
 
+                    deps
+                    (data/deps->syms state rc)
+
+                    actual-requires
+                    (into #{} (remove removed-requires) deps)
+
                     output
                     {:resource-id resource-id
                      :js js
+                     :removed-requires removed-requires
+                     :actual-requires actual-requires
                      :properties (into #{} (-> property-collector (.-properties) (.get name)))
                      :compiled-at (System/currentTimeMillis)
                      :source-map-json sm-json}]
 
-                (assoc-in state [:output resource-id] output)))
+                (-> state
+                    (assoc-in [:output resource-id] output)
+                    (update :live-js-deps set/union actual-requires))
+                ))
 
             (->> (ShadowAccess/getJsRoot cc)
                  (.children) ;; the inputs
@@ -1555,19 +1583,37 @@
     (when need-compile?
       (cache/write-file cache-index-file cache-index-updated))
 
-    (if-not (seq cache-files)
-      state
-      (util/with-logged-time [state {:type ::cache-read
-                                     :num-files (count cache-files)}]
-        (reduce
-          (fn [state {:keys [resource-id output-name] :as cached-rc}]
-            (let [cache-file
-                  (data/cache-file state "shadow-js" output-name)
+    (let [{:keys [live-js-deps] :as state}
+          (if-not (seq cache-files)
+            state
+            (util/with-logged-time [state {:type ::cache-read
+                                           :num-files (count cache-files)}]
+              (reduce
+                (fn [state {:keys [resource-id output-name] :as cached-rc}]
+                  (let [cache-file
+                        (data/cache-file state "shadow-js" output-name)
 
-                  cached-output
-                  (-> (cache/read-cache cache-file)
-                      (assoc :cached true))]
+                        {:keys [actual-requires] :as cached-output}
+                        (-> (cache/read-cache cache-file)
+                            (assoc :cached true))]
 
-              (assoc-in state [:output resource-id] cached-output)))
-          state
-          cache-files)))))
+                    (-> state
+                        (assoc-in [:output resource-id] cached-output)
+                        (update :live-js-deps set/union actual-requires))))
+                state
+                cache-files)))
+
+          required-js-names
+          (data/js-names-accessed-from-cljs state (:build-sources state))
+
+          live-names
+          (set/union required-js-names live-js-deps)
+
+          dead-js-deps
+          (->> sources
+               (remove #(contains? live-names (:ns %)))
+               (map :ns)
+               (into #{}))]
+
+      (assoc state :dead-js-deps dead-js-deps)
+      )))

@@ -51,6 +51,16 @@
    ;; extra map so it doesn't conflict with resolve results
    :virtual-sources {}
 
+   ;; set of namespaces that are actually in use after :simple optimizations
+   ;; some condition requires are removed, eg. react v16 bundle style
+   ;; and those should not be included in the final output
+   :live-js-deps #{}
+
+   ;; set of dead js resource ids
+   :dead-js-deps #{}
+
+   :js-entries #{}
+
    :mode :dev})
 
 (defn init [state]
@@ -241,7 +251,7 @@
       (update :virtual-provides merge-virtual-provides rc)
       ))
 
-(defn js-names-accessed-from-cljs [state build-sources]
+(defn js-names-accessed-from-cljs [{:keys [js-entries] :as state} build-sources]
   (let [all-names
         (->> (for [src-id build-sources
                    :let [{:keys [resource-id type] :as src}
@@ -258,4 +268,4 @@
          (filter #(= :npm (:type %)))
          (filter #(set/superset? all-names (:provides %)))
          (map :ns)
-         (into #{}))))
+         (into js-entries))))

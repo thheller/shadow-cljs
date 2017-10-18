@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.22"
+(defproject thheller/shadow-cljs "2.0.23"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -18,7 +18,7 @@
    [org.clojure/tools.nrepl "0.2.13"]
 
    [com.cognitect/transit-clj "0.8.300"]
-   [com.cognitect/transit-cljs "0.8.239"]
+   [com.cognitect/transit-cljs "0.8.243"]
 
    [org.clojure/core.async "0.3.443"]
 
