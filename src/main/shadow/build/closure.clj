@@ -1355,18 +1355,19 @@
                                  :num-sources (count sources)}]
 
     (let [source-files
-          (->> (for [{:keys [resource-id resource-name ns file source deps] :as src} sources]
-                 (SourceFile/fromCode resource-name
-                   (str #_(->> deps
-                               (filter symbol?)
-                               (remove '#{shadow.js})
-                               (map #(str "goog.require(\"" % "\");"))
-                               (str/join "\n"))
-                     "shadow.js.provide(\"" ns "\", function(global,require,module,exports) {\n"
-                     (if (str/ends-with? resource-name ".json")
-                       (str "module.exports=(" source ");")
-                       source)
-                     "\n});")))
+          (->> (for [{:keys [resource-id resource-name ns file deps] :as src} sources]
+                 (let [source (data/get-source-code state src)]
+                   (SourceFile/fromCode resource-name
+                     (str #_(->> deps
+                                 (filter symbol?)
+                                 (remove '#{shadow.js})
+                                 (map #(str "goog.require(\"" % "\");"))
+                                 (str/join "\n"))
+                       "shadow.js.provide(\"" ns "\", function(global,require,module,exports) {\n"
+                       (if (str/ends-with? resource-name ".json")
+                         (str "module.exports=(" source ");")
+                         source)
+                       "\n});"))))
                #_(map #(do (println (.getCode %)) %))
                (into []))
 
@@ -1506,6 +1507,7 @@
                     output
                     {:resource-id resource-id
                      :js js
+                     :source (.getCode source-file)
                      :removed-requires removed-requires
                      :actual-requires actual-requires
                      :properties (into #{} (-> property-collector (.-properties) (.get name)))
@@ -1521,6 +1523,14 @@
                  (.children) ;; the inputs
                  ))))
     ))
+
+(defmethod log/event->str ::cache-read
+  [{:keys [num-files]}]
+  (format "JS Cache read: %d JS files" num-files))
+
+(defmethod log/event->str ::cache-write
+  [{:keys [num-files]}]
+  (format "JS Cache write: %d JS files" num-files))
 
 (defn convert-sources-simple
   "convert and caches"

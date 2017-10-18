@@ -118,10 +118,10 @@
 
     (->> build-sources
          (map (fn [src-id]
-                (let [{:keys [type source resource-name resource-id output-name ns] :as src}
+                (let [{:keys [type resource-name resource-id output-name ns] :as src}
                       (data/get-source-by-id state src-id)
 
-                      {:keys [js] :as output}
+                      {:keys [js source] :as output}
                       (data/get-output! state src)
 
                       flat-name

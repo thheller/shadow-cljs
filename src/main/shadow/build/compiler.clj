@@ -291,9 +291,12 @@
 
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}
-   {:keys [resource-id resource-name url source output-name] :as rc}]
+   {:keys [resource-id resource-name url output-name] :as rc}]
   (let [{:keys [static-fns elide-asserts fn-invoke-direct]}
-        compiler-options]
+        compiler-options
+
+        source
+        (data/get-source-code state rc)]
 
     (binding [ana/*cljs-static-fns*
               (true? static-fns)
@@ -328,6 +331,7 @@
         (let [compile-init
               (-> {:resource-id resource-id
                    :resource-name resource-name
+                   :source source
                    :ns 'cljs.user
                    :js ""
                    :cljc (util/is-cljc? resource-name)}
@@ -558,9 +562,8 @@
           (assoc output :cached false)))))
 
 (defn generate-output-for-source
-  [state {:keys [resource-id type source] :as src}]
-  {:pre [(rc/valid-resource? src)
-         (some? source)]
+  [state {:keys [resource-id type] :as src}]
+  {:pre [(rc/valid-resource? src)]
    :post [(rc/valid-output? %)]}
 
   (let [output (get-in state [:output resource-id])]
@@ -720,53 +723,13 @@
 
 (defn copy-source-to-output [state sources]
   (reduce
-    (fn [state {:keys [resource-id source] :as src}]
-      {:pre [(string? source)]}
-      (update state :output assoc resource-id {:resource-id resource-id
-                                               :js source}))
+    (fn [state {:keys [resource-id] :as src}]
+      (let [source (data/get-source-code state src)]
+        (update state :output assoc resource-id {:resource-id resource-id
+                                                 :source source
+                                                 :js source})))
     state
     sources))
-
-(defn load-code-for-source
-  "this loads the source code for each source or uses the current if already loaded
-   everything should only ever access :source from the compiler resources and never access the
-   filesystem again (since it may have changed)
-
-   the loading is delayed until here because of the :foreign which may have a minified file
-   that should be used for release builds"
-  [state resource-id]
-  (let [{:keys [type source-fn source file url] :as rc}
-        (data/get-source-by-id state resource-id)
-
-        source
-        (or source
-
-            ;; dynamic resources that decide their contents based on build state
-            ;; ie. js includes that choose to provide minified or dev versions
-            (when source-fn
-              (source-fn state))
-
-            ;; FIXME: foreign lib support removed?
-            ;; foreign is special case because it may have url-min as well as url
-            #_(when (= :foreign type)
-                (let [use-file-min
-                      (not= :none (get-in state [:compiler-options :optimizations] :none))]
-                  (if (and use-file-min url-min)
-                    (slurp url-min)
-                    (slurp url))))
-
-            ;; otherwise read the file
-            (when file
-              (slurp file))
-
-            ;; or url fallback when no file exists (files in jar)
-            (when url
-              (slurp url))
-
-            (throw (ex-info (format "failed to get code for %s" resource-id)
-                     rc)))]
-
-    (assoc-in state [:sources resource-id :source] source)))
 
 (defn maybe-closure-convert [{:keys [output] :as state} npm convert-fn]
   ;; incremental compiles might not need recompiling
@@ -785,10 +748,7 @@
     requires that the ids are in dependency order
     requires that ALL of the dependencies NOT listed are already compiled
     eg. you cannot just compile clojure.string as it requires other files to be compiled first"
-   (let [state
-         (reduce load-code-for-source state source-ids)
-
-         js-provider
+   (let [js-provider
          (get-in state [:js-options :js-provider])
 
          sources

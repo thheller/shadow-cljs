@@ -6,8 +6,11 @@
 
 (defn get-source-excerpts
   "adds source excerpts to warnings if line information is available"
-  [state {:keys [source file] :as rc} locations]
-  (let [source-lines
+  [state {:keys [file] :as rc} locations]
+  (let [{:keys [source]}
+        (data/get-output! state rc)
+
+        source-lines
         (into [] (-> source
                      (StringReader.)
                      (BufferedReader.)

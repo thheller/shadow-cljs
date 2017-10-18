@@ -109,8 +109,8 @@ shadow.js.babel["asyncGenerator"] = function () {
 
     this._invoke = send;
 
-    if (typeof gen.return !== "function") {
-      this.return = undefined;
+    if (typeof gen["return"] !== "function") {
+      this["return"] = undefined;
     }
   }
 
@@ -124,11 +124,11 @@ shadow.js.babel["asyncGenerator"] = function () {
     return this._invoke("next", arg);
   };
 
-  AsyncGenerator.prototype.throw = function (arg) {
+  AsyncGenerator.prototype["throw"] = function (arg) {
     return this._invoke("throw", arg);
   };
 
-  AsyncGenerator.prototype.return = function (arg) {
+  AsyncGenerator.prototype["return"] = function (arg) {
     return this._invoke("return", arg);
   };
 
@@ -176,8 +176,8 @@ shadow.js.babel["asyncGeneratorDelegate"] = function (inner, awaitWrap) {
     return pump("next", value);
   };
 
-  if (typeof inner.throw === "function") {
-    iter.throw = function (value) {
+  if (typeof inner["throw"] === "function") {
+    iter["throw"] = function (value) {
       if (waiting) {
         waiting = false;
         throw value;
@@ -187,8 +187,8 @@ shadow.js.babel["asyncGeneratorDelegate"] = function (inner, awaitWrap) {
     };
   }
 
-  if (typeof inner.return === "function") {
-    iter.return = function (value) {
+  if (typeof inner["return"] === "function") {
+    iter["return"] = function (value) {
       return pump("return", value);
     };
   }
@@ -355,7 +355,7 @@ shadow.js.babel["instanceof"] = function (left, right) {
 
 shadow.js.babel["interopRequireDefault"] = function (obj) {
   return obj && obj.__esModule ? obj : {
-    default: obj
+    "default": obj
   };
 };
 
@@ -371,7 +371,7 @@ shadow.js.babel["interopRequireWildcard"] = function (obj) {
       }
     }
 
-    newObj.default = obj;
+    newObj["default"] = obj;
     return newObj;
   }
 };

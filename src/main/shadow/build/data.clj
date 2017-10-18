@@ -269,3 +269,37 @@
          (filter #(set/superset? all-names (:provides %)))
          (map :ns)
          (into js-entries))))
+
+(defn get-source-code
+  "this loads the source code for each source or uses the current if already loaded
+   everything should only ever access :source from the compiler resources and never access the
+   filesystem again (since it may have changed)
+
+   the loading is delayed until here because of the :foreign which may have a minified file
+   that should be used for release builds"
+  [state {:keys [resource-id type source-fn source file url] :as rc}]
+  (or source
+
+      ;; dynamic resources that decide their contents based on build state
+      ;; ie. js includes that choose to provide minified or dev versions
+      (when source-fn
+        (source-fn state))
+
+      ;; FIXME: foreign lib support removed?
+      ;; foreign is special case because it may have url-min as well as url
+      #_(when (= :foreign type)
+          (let [use-file-min
+                (not= :none (get-in state [:compiler-options :optimizations] :none))]
+            (if (and use-file-min url-min)
+              (slurp url-min)
+              (slurp url))))
+
+      ;; otherwise read the file
+      (when file
+        (slurp file))
+
+      ;; or url fallback when no file exists (files in jar)
+      (when url
+        (slurp url))
+
+      (throw (ex-info (format "failed to get code for %s" resource-id) rc))))

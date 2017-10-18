@@ -5,8 +5,8 @@
             ["shortid" :as sid]
             ["jquery" :as jq]
             ["circular-test" :as circ]
-            #_ ["material-ui/RaisedButton" :as mui-btn :default btn]
-            #_ ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
+            ["material-ui/RaisedButton" :as mui-btn :default btn]
+            ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])

@@ -16,8 +16,8 @@
 
 (defn enhance-warnings
   "adds source excerpts to warnings if line information is available"
-  [state {:keys [resource-id file source resource-name warnings] :as rc}]
-  (let [{:keys [warnings] :as output}
+  [state {:keys [resource-id file resource-name warnings] :as rc}]
+  (let [{:keys [warnings source] :as output}
         (data/get-output! state rc)]
 
     (if (or (not (seq warnings))
