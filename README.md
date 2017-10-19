@@ -29,6 +29,7 @@
 npm install --save-dev shadow-cljs
 # yarn
 yarn add --dev shadow-cljs
+yarn shadow-cljs --help
 ```
 
 To make things easier to use you might also want to install it globally so you have access to the `shadow-cljs` command without `./node_modules/.bin/shadow-cljs`. The global install is optional but recommended.
@@ -54,8 +55,9 @@ It should contain a map with some global configuration and a `:builds` entry for
  :dependencies []
  :builds {}}
 ```
-- `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot`
+
 - `:source-paths` define where the compiler will look for `.cljs` and `.cljc` files
+- `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot`
 - `:builds` is a map or build-id (a keyword) to the build config.
 
 An example config could look like this:
@@ -70,6 +72,7 @@ An example config could look like this:
 ```
 
 The file structure for this example should look like this:
+
 ```
 .
 ├── package.json
@@ -81,7 +84,10 @@ The file structure for this example should look like this:
 
 ## Compilation
 
-`shadow-cljs` has 2 compilation modes: `:dev` and `:release`. `:dev` will inject a few development helpers for dealing with things like a CLJS REPL and live code reloading. In `:release` mode those things will not be included and the code will be optimized by the Closure Compiler.
+`shadow-cljs` has 2 compilation modes:
+
+* `:dev`, it will inject a few development helpers for dealing with things like a CLJS REPL and live code reloading
+* `:release`, in this mode those things will not be included and the code will be optimized by the Closure Compiler.
 
 ### Development
 
@@ -119,7 +125,6 @@ Each build in `shadow-cljs` must define a `:target` which defines where you inte
 - [Compiling node.js scripts](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-scripts) for the `:node-script` target.
 - [Compiling node.js libraries](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-libraries) for the `:node-library` target.
 - TBD: `:npm-module` docs
-
 
 ## License
 
