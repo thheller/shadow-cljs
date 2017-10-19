@@ -10,7 +10,8 @@
             ["babel-test" :as babel-test :default Shape]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as gen])
+            [clojure.spec.gen.alpha :as gen]
+            [shadow.api :refer (ns-ready)])
   #_ (:import ["react" Component]))
 
 (assoc nil :foo 1)
@@ -65,3 +66,5 @@
 
 (defn tokenize []
   (js/console.log "REMOVE-CHECK"))
+
+(ns-ready)

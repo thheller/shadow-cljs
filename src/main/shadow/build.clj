@@ -224,7 +224,8 @@
                   {:use-file-min false})
                 (build-api/with-compiler-options
                   {:optimizations :none
-                   :closure-defines {"goog.DEBUG" true}}))
+                   :closure-defines {"goog.DEBUG" true}})
+                (assoc :devtools (:devtools config)))
 
             ;; generic release mode
             (= :release mode)

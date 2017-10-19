@@ -350,6 +350,8 @@
           (str unoptimizable
                (when web-worker
                  "\nvar CLOSURE_IMPORT_SCRIPT = function(src) { importScripts(src); };\n")
+               (when (get-in state [:devtools :async-require])
+                 (str "\n" (slurp (io/resource "shadow/build/async-closure-import.js")) "\n"))
                (closure-defines-and-base state)
                ;; create the $CLJS var so devtools can always use it
                ;; always exists for :module-format :js

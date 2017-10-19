@@ -14,7 +14,9 @@ class Shape {
     }
 }
 
-export { PI };
+import * as str from "goog:goog.string";
+
+export { PI, Something, Foo, str };
 
 export default Shape;
 
