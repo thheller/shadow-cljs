@@ -326,9 +326,10 @@
   (let [package-json-file
         (path/resolve project-root "package.json")]
 
-    (or (and (fs/existsSync package-json-file)
+    (or (fs/existsSync (path/resolve "node_modules" "shadow-cljs"))
+        (and (fs/existsSync package-json-file)
              (let [pkg (js->clj (js/require package-json-file))]
-               (or (get-in pkg ["devDepdendencies" "shadow-cljs"])
+               (or (get-in pkg ["devDependencies" "shadow-cljs"])
                    (get-in pkg ["dependencies" "shadow-cljs"]))))
 
         ;; not installed
