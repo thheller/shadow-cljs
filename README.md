@@ -50,14 +50,9 @@ It should contain a map with some global configuration and a `:builds` entry for
 
 
 ```edn
-{:source-paths
- ["src"]
-
- :dependencies
- []
-
- :builds
- {}}
+{:source-paths ["src"]
+ :dependencies []
+ :builds {}}
 ```
 - `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot`
 - `:source-paths` define where the compiler will look for `.cljs` and `.cljc` files
@@ -66,17 +61,12 @@ It should contain a map with some global configuration and a `:builds` entry for
 An example config could look like this:
 
 ```edn
-{:dependencies
- [[reagent "0.8.0-alpha1"]]
-
- :source-paths
- ["src"]
-
- :builds
- {:app {:target :browser
-        :output-dir "public/js"
-        :asset-path "/js"
-        :modules {:main {:entries [my.app]}}}}}
+{:source-paths ["src"]
+ :dependencies [[reagent "0.8.0-alpha1"]]
+ :builds {:app {:target :browser
+                :output-dir "public/js"
+                :asset-path "/js"
+                :modules {:main {:entries [my.app]}}}}}
 ```
 
 The file structure for this example should look like this:
