@@ -1,7 +1,7 @@
 `shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
 
-[![](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
-
+[![Clojars Project](https://img.shields.io/clojars/v/thheller/shadow-cljs.svg)](https://clojars.org/thheller/shadow-cljs)
+[![Clojurians - shadow-cljs](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
 
 ## Features
 
@@ -24,7 +24,7 @@
 
 `shadow-cljs` is easiest to use by installing the `npm` package.
 
-```
+```bash
 # npm
 npm install --save-dev shadow-cljs
 # yarn
@@ -33,7 +33,7 @@ yarn add --dev shadow-cljs
 
 To make things easier to use you might also want to install it globally so you have access to the `shadow-cljs` command without `./node_modules/.bin/shadow-cljs`. The global install is optional but recommended.
 
-```
+```bash
 # npm
 npm install -g shadow-cljs
 # yarn
@@ -49,7 +49,7 @@ yarn global add shadow-cljs
 It should contain a map with some global configuration and a `:builds` entry for all your builds.
 
 
-```clojure
+```edn
 {:source-paths
  ["src"]
 
@@ -65,7 +65,7 @@ It should contain a map with some global configuration and a `:builds` entry for
 
 An example config could look like this:
 
-```clojure
+```edn
 {:dependencies
  [[reagent "0.8.0-alpha1"]]
 
@@ -95,7 +95,7 @@ The file structure for this example should look like this:
 
 ### Development
 
-```
+```bash
 # compile a build once in :dev mode
 shadow-cljs compile app
 
@@ -110,13 +110,13 @@ shadow-cljs cljs-repl app
 
 This will run the compiler with optimized settings for production builds.
 
-```
+```bash
 shadow-cljs release app
 ```
 
 Sometimes you may run into some release issues due to `:advanced` compilation. These commands can help track down the causes.
 
-```
+```bash
 shadow-cljs check app
 shadow-cljs release app --debug
 ```
