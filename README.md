@@ -1,7 +1,7 @@
 `shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
 
-[![](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
-
+[![Clojars Project](https://img.shields.io/clojars/v/thheller/shadow-cljs.svg)](https://clojars.org/thheller/shadow-cljs)
+[![Clojurians - shadow-cljs](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
 
 ## Features
 
@@ -24,16 +24,17 @@
 
 `shadow-cljs` is easiest to use by installing the `npm` package.
 
-```
+```bash
 # npm
 npm install --save-dev shadow-cljs
 # yarn
 yarn add --dev shadow-cljs
+yarn shadow-cljs --help
 ```
 
 To make things easier to use you might also want to install it globally so you have access to the `shadow-cljs` command without `./node_modules/.bin/shadow-cljs`. The global install is optional but recommended.
 
-```
+```bash
 # npm
 npm install -g shadow-cljs
 # yarn
@@ -49,37 +50,29 @@ yarn global add shadow-cljs
 It should contain a map with some global configuration and a `:builds` entry for all your builds.
 
 
-```clojure
-{:source-paths
- ["src"]
-
- :dependencies
- []
-
- :builds
- {}}
+```edn
+{:source-paths ["src"]
+ :dependencies []
+ :builds {}}
 ```
-- `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot`
+
 - `:source-paths` define where the compiler will look for `.cljs` and `.cljc` files
+- `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot`
 - `:builds` is a map or build-id (a keyword) to the build config.
 
 An example config could look like this:
 
-```clojure
-{:dependencies
- [[reagent "0.8.0-alpha1"]]
-
- :source-paths
- ["src"]
-
- :builds
- {:app {:target :browser
-        :output-dir "public/js"
-        :asset-path "/js"
-        :modules {:main {:entries [my.app]}}}}}
+```edn
+{:source-paths ["src"]
+ :dependencies [[reagent "0.8.0-alpha1"]]
+ :builds {:app {:target :browser
+                :output-dir "public/js"
+                :asset-path "/js"
+                :modules {:main {:entries [my.app]}}}}}
 ```
 
 The file structure for this example should look like this:
+
 ```
 .
 ├── package.json
@@ -91,11 +84,14 @@ The file structure for this example should look like this:
 
 ## Compilation
 
-`shadow-cljs` has 2 compilation modes: `:dev` and `:release`. `:dev` will inject a few development helpers for dealing with things like a CLJS REPL and live code reloading. In `:release` mode those things will not be included and the code will be optimized by the Closure Compiler.
+`shadow-cljs` has 2 compilation modes:
+
+* `:dev`, it will inject a few development helpers for dealing with things like a CLJS REPL and live code reloading
+* `:release`, in this mode those things will not be included and the code will be optimized by the Closure Compiler.
 
 ### Development
 
-```
+```bash
 # compile a build once in :dev mode
 shadow-cljs compile app
 
@@ -110,13 +106,13 @@ shadow-cljs cljs-repl app
 
 This will run the compiler with optimized settings for production builds.
 
-```
+```bash
 shadow-cljs release app
 ```
 
 Sometimes you may run into some release issues due to `:advanced` compilation. These commands can help track down the causes.
 
-```
+```bash
 shadow-cljs check app
 shadow-cljs release app --debug
 ```
@@ -129,7 +125,6 @@ Each build in `shadow-cljs` must define a `:target` which defines where you inte
 - [Compiling node.js scripts](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-scripts) for the `:node-script` target.
 - [Compiling node.js libraries](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-libraries) for the `:node-library` target.
 - TBD: `:npm-module` docs
-
 
 ## License
 
