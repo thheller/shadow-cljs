@@ -1,5 +1,9 @@
 # Changelog
 
+### 2.0.0 and beyond ...
+
+- Too much has happend. Trying to blog about the important stuff: https://code.thheller.com/
+
 ## [1.0.20170728](https://github.com/thheller/shadow-cljs/compare/1.0.20170721...1.0.20170728)
 
 - fix missing cljs.spec.gen.alpha alias #74
