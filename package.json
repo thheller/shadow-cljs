@@ -3,6 +3,7 @@
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.0",
+    "shadow-cljs": "file:packages/shadow-cljs",
     "source-map-support": "^0.4.15",
     "ws": "^3.2.0"
   },

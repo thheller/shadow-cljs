@@ -6,7 +6,7 @@
             ["readline-sync" :as rl-sync] ;; FIXME: drop this?
             ["mkdirp" :as mkdirp]
             [cljs.core.async :as async]
-            #_ [cljs.tools.reader :as reader]
+    #_[cljs.tools.reader :as reader]
             [cljs.reader :as reader]
             [clojure.string :as str]
             [goog.object :as gobj]
@@ -154,25 +154,6 @@
     (-> (util/slurp cp-file)
         (reader/read-string)
         (assoc :updated? updated?))))
-
-
-(defn run-npm-deps [project-root {:keys [cache-root source-paths jvm-opts] :as config}]
-  (let [classpath
-        (get-classpath project-root config)
-
-        classpath-str
-        (->> (:files classpath)
-             (concat source-paths)
-             (str/join cp-seperator))
-
-        cli-args
-        (-> []
-            (into jvm-opts)
-            (into ["-cp" classpath-str "clojure.main"])
-            (into ["-m" "shadow.cljs.devtools.server.npm-deps"]))]
-
-    (println "shadow-cljs - installing npm deps")
-    (run-java project-root cli-args {})))
 
 (defn remove-class-files [path]
   (when (fs/existsSync path)
@@ -334,6 +315,41 @@
       ;; FIXME: show error location with excerpt like other warnings
       (throw (ex-info (format "failed reading config file: %s" config-path) {:config-path config-path} ex)))))
 
+(defn guess-node-package-manager [project-root config]
+  (or (get-in config [:node-modules :managed-by])
+      (let [yarn-lock (path/resolve project-root "yarn.lock")]
+        (when (fs/existsSync yarn-lock)
+          :yarn))
+      :npm))
+
+(defn check-project-install! [project-root config]
+  (let [package-json-file
+        (path/resolve project-root "package.json")]
+
+    (or (and (fs/existsSync package-json-file)
+             (let [pkg (js->clj (js/require package-json-file))]
+               (or (get-in pkg ["devDepdendencies" "shadow-cljs"])
+                   (get-in pkg ["dependencies" "shadow-cljs"]))))
+
+        ;; not installed
+        (do (println "shadow-cljs not installed in project.")
+            (println "")
+
+            (if-not (rl-sync/keyInYN "Add it now?")
+              false
+              (let [[pkg-cmd pkg-args]
+                    (case (guess-node-package-manager project-root config)
+                      :yarn
+                      ["yarn" ["add" "--dev" "shadow-cljs"]]
+                      :npm
+                      ["npm" ["install" "--save-dev" "shadow-cljs"]])]
+
+                (println (str "Running: " pkg-cmd " " (str/join " " pkg-args)))
+
+                (cp/spawnSync pkg-cmd (into-array pkg-args) #js {:cwd project-root
+                                                                 :stdio "inherit"})
+                true))))))
+
 (defn ^:export main [args]
   ;; FIXME: doesn't work, don't know why
   (js/process.on "SIGUSR2" dump-script-state)
@@ -366,36 +382,35 @@
                   config
                   (read-config config-path opts)]
 
-              (if (not (map? config))
-                (do (println "shadow-cljs - old config format no longer supported")
-                    (println config-path)
-                    (println "  previously a vector was used to define builds")
-                    (println "  now {:builds the-old-vector} is expected"))
+              (when (check-project-install! project-root config)
 
-                (let [{:keys [cache-root version] :as config}
-                      (merge defaults config)
+                (if (not (map? config))
+                  (do (println "shadow-cljs - old config format no longer supported")
+                      (println config-path)
+                      (println "  previously a vector was used to define builds")
+                      (println "  now {:builds the-old-vector} is expected"))
 
-                      server-pid
-                      (path/resolve project-root cache-root "cli-repl.port")]
+                  (let [{:keys [cache-root version] :as config}
+                        (merge defaults config)
 
-                  (println "shadow-cljs - config:" config-path "version:" version)
+                        server-pid
+                        (path/resolve project-root cache-root "cli-repl.port")]
 
-                  (cond
-                    (= action :npm-deps)
-                    (run-npm-deps project-root config)
+                    (println "shadow-cljs - config:" config-path "version:" version)
 
-                    (:cli-info options)
-                    (print-cli-info project-root config-path config opts)
+                    (cond
+                      (:cli-info options)
+                      (print-cli-info project-root config-path config opts)
 
-                    (fs/existsSync server-pid)
-                    (client/run project-root config server-pid args)
+                      (fs/existsSync server-pid)
+                      (client/run project-root config server-pid args)
 
-                    (:lein config)
-                    (run-lein project-root config args)
+                      (:lein config)
+                      (run-lein project-root config args)
 
-                    :else
-                    (run-standalone project-root config args)
-                    ))))))))
+                      :else
+                      (run-standalone project-root config args)
+                      )))))))))
     (catch :default ex
       (print-error ex)
       (js/process.exit 1))))

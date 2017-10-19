@@ -3,9 +3,10 @@
   (:require [clojure.edn :as edn]
             [clojure.pprint :refer (pprint)]
             [clojure.string :as str]
-            [shadow.cljs.devtools.server.util :as util]
             [clojure.java.io :as io]
-            [clojure.data.json :as json]))
+            [clojure.data.json :as json]
+            [shadow.cljs.devtools.server.util :as util]
+            ))
 
 (defn dep->str [dep-id]
   (cond
@@ -45,16 +46,32 @@
 
     (vals deps-to-install)))
 
-(defn install-deps [deps]
+(defn guess-node-package-manager [config]
+  (or (get-in config [:node-modules :managed-by])
+      (let [yarn-lock (io/file "yarn.lock")]
+        (when (.exists yarn-lock)
+          :yarn))
+      :npm))
+
+(defn install-deps [config deps]
   (let [args
         (for [{:keys [id version]} deps]
           (str id "@" version))
 
+        install-cmd
+        (case (guess-node-package-manager config)
+          :yarn
+          ["yarn" "add"]
+          :npm
+          ["npm" "install" "--save"])
+
+        full-cmd
+        (into install-cmd args)
+
+        _ (println (str "running: " (str/join " " full-cmd)))
+
         proc
-        (-> (ProcessBuilder.
-              (into-array
-                ;; FIXME: add shadow-cljs.edn config option to allow using yarn
-                (into ["npm" "install" "--save"] args)))
+        (-> (ProcessBuilder. (into-array full-cmd))
             (.directory nil)
             (.start))]
 
@@ -101,11 +118,10 @@
       false
       (do (when (and installed-version
                      (not= installed-version version))
-            (prn [:deps-version-conflict installed-version version url]))
+            (println (format "NPM dependency %s has installed version %s%n%s wants version %s" id installed-version url version)))
           true))))
 
-;; FIXME: call this as part of server startup?
-(defn main []
+(defn main [config opts]
   (let [package-json
         (read-package-json)
 
@@ -115,11 +131,8 @@
              (remove #(is-installed? % package-json)))]
 
     (when (seq deps)
-      (install-deps deps)
+      (install-deps config deps)
       )))
-
-(defn -main []
-  (main))
 
 (comment
   (get-deps-from-classpath)
@@ -130,5 +143,7 @@
   (let [pkg {"dependencies" {"reactx" "^16.0.0"}}]
     (is-installed? {:id "react" :version "^16.0.0" :url "a"} pkg))
 
-  (install-deps [{:id "react" :version "^15.0.0"}
-                 {:id "react-dom" :version "^15.0.0"}]))
+  (install-deps
+    {:node-modules {:managed-by :yarn}}
+    [{:id "react" :version "^16.0.0"}
+     {:id "react-dom" :version "^16.0.0"}]))

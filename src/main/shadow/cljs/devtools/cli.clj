@@ -18,6 +18,7 @@
             [shadow.cljs.devtools.server :as server]
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.cljs.devtools.errors :as errors]
+            [shadow.cljs.devtools.server.npm-deps :as npm-deps]
             [shadow.http.router :as http]
             [shadow.build.api :as cljs]
             [shadow.build.node :as node]))
@@ -46,34 +47,38 @@
     ))
 
 (defn do-build-commands
-  [{:keys [action options] :as opts} build-ids]
-  (let [{:keys [builds] :as config}
-        (config/load-cljs-edn!)]
+  [{:keys [builds] :as config} {:keys [action options] :as opts} build-ids]
+  ;; FIXME: this should start classpath/npm services so builds can use it
+  ;; if this is not a server instance
 
-    ;; FIXME: this should start classpath/npm services so builds can use it
-    ;; if this is not a server instance
-
-    (->> build-ids
-         (map (fn [build-id]
-                (or (get builds build-id)
-                    (do (println (str "No config for build \"" (name build-id) "\" found."))
-                        ;; FIXME: don't repeat this
-                        (println (str "Available builds are: " (->> builds
-                                                                    (keys)
-                                                                    (map name)
-                                                                    (str/join ", "))))))))
-         (remove nil?)
-         (map #(future (do-build-command opts %)))
-         (into []) ;; force lazy seq
-         (map deref)
-         (remove #{:success})
-         (into []) ;; force again
-         ;; need to throw exceptions to ensure that cli commands can exit with proper exit codes
-         (maybe-rethrow-exceptions))))
+  (->> build-ids
+       (map (fn [build-id]
+              (or (get builds build-id)
+                  (do (println (str "No config for build \"" (name build-id) "\" found."))
+                      ;; FIXME: don't repeat this
+                      (println (str "Available builds are: " (->> builds
+                                                                  (keys)
+                                                                  (map name)
+                                                                  (str/join ", "))))))))
+       (remove nil?)
+       (map #(future (do-build-command opts %)))
+       (into []) ;; force lazy seq
+       (map deref)
+       (remove #{:success})
+       (into []) ;; force again
+       ;; need to throw exceptions to ensure that cli commands can exit with proper exit codes
+       (maybe-rethrow-exceptions)))
 
 (defn main [& args]
   (let [{:keys [action builds options summary errors] :as opts}
-        (opts/parse args)]
+        (opts/parse args)
+
+        config
+        (config/load-cljs-edn!)]
+
+    ;; always attempt to install npm-deps?
+    ;; doesn't do anything if all deps are in package.json
+    (npm-deps/main config opts)
 
     (cond
       (:version options)
@@ -85,8 +90,11 @@
       ;;(= action :test)
       ;;(api/test-all)
 
+      (= :npm-deps action)
+      (println "npm-deps done.")
+
       (contains? #{:compile :check :release} action)
-      (do-build-commands opts builds)
+      (do-build-commands config opts builds)
 
       (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
       (server/from-cli action builds options))))
