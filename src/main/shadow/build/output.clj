@@ -200,7 +200,8 @@
 
          (let [output (str js
                            (when (contains? required-js-names ns)
-                             (str "\nvar " ns "=shadow.js.require(\"" ns "\");\n"))
+                             (str "\ngoog.provide(\"" ns"\");"
+                                  "\n" ns "=shadow.js.require(\"" ns "\");\n"))
                            (generate-source-map state src output js-file ""))]
            (spit js-file output)))
 
