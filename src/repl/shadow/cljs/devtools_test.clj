@@ -418,10 +418,14 @@
                :optimizations :advanced}
 
               :modules
-              {:test {:entries ["react"]}}
+              {:test {:entries ["react-dom" #_ "/test/cjs/a.js"]}}
 
               :js-options
-              {:js-provider :shadow}}
+              {:js-provider :shadow}
+
+              :devtools
+              {:enabled false
+               :console-support false}}
             {:debug true})]
 
       (pprint (:build-sources build-state))
@@ -429,11 +433,11 @@
       (pprint dead-js-deps)
       (pprint js-entries)
 
-      (let [{:keys [js removed-requires actual-requires] :as output}
-            (get-in build-state [:output [::npm/resource "node_modules/react/index.js"]])]
-        (println js)
-        (prn removed-requires)
-        (prn actual-requires)))
+      #_(let [{:keys [js removed-requires actual-requires] :as output}
+              (get-in build-state [:output [::npm/resource "node_modules/react/index.js"]])]
+          (println js)
+          (prn removed-requires)
+          (prn actual-requires)))
 
     (catch Exception ex
       (errors/user-friendly-error ex))))

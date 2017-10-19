@@ -63,7 +63,7 @@
 (defn closure-goog-deps
   ([state]
    (closure-goog-deps state (-> state :sources keys)))
-  ([state source-ids]
+  ([{:keys [dead-js-deps] :as state} source-ids]
    (->> source-ids
         (remove #{goog-base-id})
         (map #(get-in state [:sources %]))
@@ -73,6 +73,7 @@
                     "],["
                     (->> (data/deps->syms state rc)
                          (remove '#{goog})
+                         (remove dead-js-deps)
                          (ns-list-string))
                     "]);")))
         (str/join "\n"))))

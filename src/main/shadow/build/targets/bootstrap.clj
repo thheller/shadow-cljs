@@ -100,7 +100,7 @@
                :ana-file :ana-json))
        (into [])))
 
-(defn prepare-output [{:keys [build-sources] :as state} mode {:keys [exclude] :as config}]
+(defn prepare-output [{:keys [build-sources dead-js-deps] :as state} mode {:keys [exclude] :as config}]
   (let [hash-fn
         (if (= :dev mode)
           ;; dev mode just use the name, avoids generating too many hash filenames
@@ -169,7 +169,8 @@
                           [ana-file ana-name ana-json]))
 
                       resolved-deps
-                      (data/deps->syms state src)]
+                      (->> (data/deps->syms state src)
+                           (remove dead-js-deps))]
 
                   (-> {:resource-id resource-id
                        :type type

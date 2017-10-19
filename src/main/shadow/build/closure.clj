@@ -1514,9 +1514,7 @@
                      :compiled-at (System/currentTimeMillis)
                      :source-map-json sm-json}]
 
-                (-> state
-                    (assoc-in [:output resource-id] output)
-                    (update :live-js-deps set/union actual-requires))
+                (assoc-in state [:output resource-id] output)
                 ))
 
             (->> (ShadowAccess/getJsRoot cc)
@@ -1593,7 +1591,7 @@
     (when need-compile?
       (cache/write-file cache-index-file cache-index-updated))
 
-    (let [{:keys [live-js-deps] :as state}
+    (let [state
           (if-not (seq cache-files)
             state
             (util/with-logged-time [state {:type ::cache-read
@@ -1607,23 +1605,31 @@
                         (-> (cache/read-cache cache-file)
                             (assoc :cached true))]
 
-                    (-> state
-                        (assoc-in [:output resource-id] cached-output)
-                        (update :live-js-deps set/union actual-requires))))
+                    (assoc-in state [:output resource-id] cached-output)
+                    ))
                 state
                 cache-files)))
 
           required-js-names
           (data/js-names-accessed-from-cljs state (:build-sources state))
 
-          live-names
-          (set/union required-js-names live-js-deps)
-
-          dead-js-deps
+          {:keys [live-js-deps dead-js-deps required]}
           (->> sources
-               (remove #(contains? live-names (:ns %)))
-               (map :ns)
-               (into #{}))]
+               (reverse)
+               (reduce
+                 (fn [{:keys [required] :as idx} {:keys [ns provides] :as src}]
+                   (if-not (seq (set/intersection required provides))
+                     (update idx :dead-js-deps conj ns)
+                     (let [{:keys [actual-requires]}
+                           (data/get-output! state src)]
+                       (-> idx
+                           (update :live-js-deps conj ns)
+                           (update :required set/union actual-requires)))))
+                 {:required required-js-names
+                  :live-js-deps #{}
+                  :dead-js-deps #{}}))]
 
-      (assoc state :dead-js-deps dead-js-deps)
+      (assoc state
+             :dead-js-deps dead-js-deps
+             :live-js-deps live-js-deps)
       )))
