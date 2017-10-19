@@ -310,6 +310,19 @@
       code
       )))
 
+(def asset-exts
+  #{"css"
+    "png"
+    "jpg"
+    "jpeg"
+    "svg"})
+
+(defn asset-require? [require]
+  (when-let [dot (str/last-index-of require ".")]
+    (let [ext (str/lower-case (subs require (inc dot)))]
+      (contains? asset-exts ext)
+      )))
+
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
   [{:keys [compiler project-dir] :as npm} ^File file]
@@ -386,8 +399,11 @@
 
                 js-deps
                 (->> (concat js-requires js-imports)
-                     (map maybe-convert-goog)
+                     ;; FIXME: not sure I want to go down this road or how
+                     ;; require("./some.css") should not break the build though
+                     (remove asset-require?)
                      (distinct)
+                     (map maybe-convert-goog)
                      (into []))]
 
             (when (seq js-errors)

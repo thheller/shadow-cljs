@@ -25,12 +25,12 @@
       (pprint (dissoc pkg-info :package-json))
       )))
 
-(deftest test-babel-transform
-  (with-npm [x {}]
+(comment (deftest test-babel-transform
+           (with-npm [x {}]
 
-    (let [source "var foo = 1; export { foo };"]
-      (pprint (npm/babel-convert-source x nil source))
-      )))
+             (let [source "var foo = 1; export { foo };"]
+               (pprint (npm/babel-convert-source x nil source))
+               ))))
 
 (deftest test-browser-overrides
   (with-npm [x {}]
@@ -98,6 +98,15 @@
   (with-npm [x {}]
     (let [file-info
           (npm/find-resource x (io/file ".") "./src/test/foo" {})]
+
+      (pprint file-info)
+      )))
+
+
+(deftest test-file-info-direct
+  (with-npm [x {}]
+    (let [file-info
+          (npm/get-file-info x (.getCanonicalFile (io/file "test" "cjs" "entry.js")))]
 
       (pprint file-info)
       )))
