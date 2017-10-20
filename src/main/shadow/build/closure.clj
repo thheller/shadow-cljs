@@ -1202,8 +1202,9 @@
     ;; cannot compile one file at a time with this approach
     ;; CLJS does one at a time but that has other issues
     (let [source-files
-          (for [{:keys [resource-name file source] :as src} sources]
-            (closure-source-file resource-name source))
+          (for [{:keys [resource-name file] :as src} sources]
+            (let [source (data/get-source-code state src)]
+              (closure-source-file resource-name source)))
 
           source-file-names
           (into #{} (map #(.getName %)) source-files)
@@ -1364,6 +1365,7 @@
                         output
                         {:resource-id resource-id
                          :js js
+                         :source (.getCode source-file)
                          :source-map-json sm-json}]
 
                     (assoc-in state [:output resource-id] output)))))
@@ -1432,7 +1434,7 @@
            ;; that might not matter, should cache anyways
            :optimizations (:optimizations js-options :simple) ;; FIXME: validate whitespace or simple
            :pretty-print (:pretty-print js-options false)
-           :language-in :ecmascript-next
+           :language-in :ecmascript5 ;; es6+ is transformed by babel first
            :language-out language-out}
 
           property-collector
@@ -1442,6 +1444,8 @@
           (doto (make-options)
             (set-options co-opts)
             (.resetWarningsGuard)
+
+            (.setStrictModeInput false)
 
             (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
               (NodeEnvInlinePass. cc (if (= :release mode)
