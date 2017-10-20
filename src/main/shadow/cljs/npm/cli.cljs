@@ -61,18 +61,9 @@
       (throw (ex-info "java process exit with non-zero exit code" {:tag :java-exit :status status :result result}))
 
       (and (.-error result) (= "ENOENT" (.. result -error -errno)))
-      (do (js/console.log "shadow-cljs - java not found, trying node-jre")
-          (prn result)
-          (let [jre
-                (js/require "node-jre")
-
-                result
-                (run project-root (.driver jre) args opts)]
-
-            (when-not (zero? (.-status result))
-              (js/console.log "failed to run java", result)
-              (js/process.exit 1)
-              ))))))
+      (do (js/console.log "shadow-cljs - java not found, please install a Java8 SDK. (OpenJDK or Oracle)")
+          (js/process.exit 1)
+          ))))
 
 (defn run-lein [project-root {:keys [lein] :as config} args]
   (let [{:keys [profile] :as lein-config}
