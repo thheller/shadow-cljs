@@ -105,6 +105,14 @@
   [w e data]
   (write-msg w e))
 
+(defmethod ex-data-format :shadow.build.targets.node-script/main-not-found
+  [w e data]
+  (write-msg w e))
+
+(defmethod ex-data-format :shadow.build.targets.node-library/export-not-found
+  [w e data]
+  (write-msg w e))
+
 (defmethod ex-data-format ::s/problems
   [w e {::s/keys [problems value spec] :as data}]
   (let [msg (.getMessage e)

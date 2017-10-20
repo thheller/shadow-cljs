@@ -105,6 +105,22 @@
             :prepend prepend
             :append append}}))))
 
+(defn check-exports!
+  [{:keys [compiler-env] :as state}
+   {:keys [exports] :as config}]
+
+  (doseq [[export-name export-sym] exports]
+    (let [export-ns (symbol (namespace export-sym))
+          export-fn (symbol (name export-sym))]
+
+      (when-not (get-in compiler-env [:cljs.analyzer/namespaces export-ns :defs export-fn])
+        (throw (ex-info (format "The export %s as %s does not exist!" export-sym export-name)
+                 {:tag ::export-not-found
+                  :export-name export-name
+                  :export-sym export-sym})))))
+
+  state)
+
 (defn configure [state mode {:keys [id] :as config}]
   (-> state
       (cond->
@@ -135,6 +151,9 @@
   (case stage
     :configure
     (configure state mode config)
+
+    :compile-finish
+    (check-exports! state config)
 
     :flush
     (flush state mode config)

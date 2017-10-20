@@ -47,6 +47,16 @@
         (-> (repl/setup)
             (shared/inject-node-repl config)))))
 
+(defn check-main-exists! [{:keys [compiler-env node-config] :as state}]
+  (let [{:keys [main main-ns main-fn]} node-config]
+    (when-not (get-in compiler-env [:cljs.analyzer/namespaces main-ns :defs main-fn])
+      (throw (ex-info (format "The configured main \"%s\" does not exist!" main)
+               {:tag ::main-not-found
+                :main-ns main-ns
+                :main-fn main-fn
+                :main main})))
+    state))
+
 (defn flush [state mode config]
   (case mode
     :dev
@@ -59,6 +69,9 @@
   (case stage
     :configure
     (configure state mode config)
+
+    :compile-finish
+    (check-main-exists! state)
 
     :flush
     (flush state mode config)

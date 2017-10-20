@@ -44,10 +44,11 @@
         (symbol main-ns main-fn)
 
         node-config
-        (assoc opts :main-ns main-ns
-          :main-fn main-fn
-          :main main
-          :output-to output-to)
+        (assoc opts
+               :main-ns (symbol main-ns)
+               :main-fn (symbol main-fn)
+               :main main
+               :output-to output-to)
 
         main-call
         (-> node-config :main (make-main-call-js))
@@ -67,8 +68,8 @@
         (build-api/configure-modules
           {:main
            (assoc module-opts
-             :entries [(symbol main-ns)]
-             :depends-on #{})})
+                  :entries [(symbol main-ns)]
+                  :depends-on #{})})
         )))
 
 (defn compile [state]
