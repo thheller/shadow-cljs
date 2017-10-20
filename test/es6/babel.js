@@ -14,9 +14,10 @@ class Shape {
     }
 }
 
-import * as str from "goog:goog.string";
+// works but needs externs or exports in :advanced
+// import * as str from "goog:goog.string";
 
-export { PI, Something, Foo, str };
+export { PI, Something, Foo };
 
 export default Shape;
 

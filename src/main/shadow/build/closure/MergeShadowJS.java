@@ -4,15 +4,20 @@ import com.google.javascript.jscomp.*;
 import com.google.javascript.jscomp.Compiler;
 import com.google.javascript.rhino.Node;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MergeShadowJS extends NodeTraversal.AbstractPostOrderCallback implements CompilerPass {
 
     private final AbstractCompiler compiler;
-    private final Map<String, Map<String, Object>> replacements;
+    private final Map<String, SourceFile> replacements;
 
-    public MergeShadowJS(AbstractCompiler compiler, Map<String, Map<String, Object>> replacements) {
+    public MergeShadowJS(AbstractCompiler compiler, Map<String, SourceFile> replacements) {
         this.compiler = compiler;
         this.replacements = replacements;
     }
@@ -24,7 +29,14 @@ public class MergeShadowJS extends NodeTraversal.AbstractPostOrderCallback imple
             if (requireString.isString()) {
                 String require = requireString.getString();
 
-                Node replacement = fileToNode(compiler, SourceFile.fromCode("dummy.js", "var x = 1;"));
+
+                SourceFile replacementFile = replacements.get(require);
+
+                if (replacementFile == null) {
+                    throw new IllegalStateException(String.format("found placeholder for %s without replacement", require));
+                }
+
+                Node replacement = fileToNode(compiler, replacementFile).getFirstChild().getFirstChild().detach();
 
                 node.replaceWith(replacement);
                 t.reportCodeChange();
@@ -42,31 +54,63 @@ public class MergeShadowJS extends NodeTraversal.AbstractPostOrderCallback imple
         return ast.getAstRoot(cc);
     }
 
-    public static Node process(Compiler cc, SourceFile srcFile) {
-        Node node = fileToNode(cc, srcFile);
+    public static class Result {
+        public final String js;
+        public final String sourceMapJson;
 
-        Map<String,Object> nested = new HashMap<>();
-        nested.put("test", "module$test");
-
-        Map outer = new HashMap();
-        outer.put("test.js", nested);
-
-        NodeTraversal.Callback pass = new MergeShadowJS(cc, outer);
-        NodeTraversal.traverseEs6(cc, node, pass);
-
-        return node;
+        public Result(String js, String sourceMapJson) {
+            this.js = js;
+            this.sourceMapJson = sourceMapJson;
+        }
     }
 
-    public static void main(String... args) {
+    public static Result merge(SourceFile input, Map<String, SourceFile> replacements, List<SourceFile> sourceMapSources) throws IOException {
         Compiler cc = new Compiler();
-
         CompilerOptions co = new CompilerOptions();
         co.setLanguageIn(CompilerOptions.LanguageMode.ECMASCRIPT_2017);
-        co.setPrettyPrint(true);
+        co.setSourceMapOutputPath("/dev/null");
+        co.setSourceMapFormat(SourceMap.Format.V3);
+        co.setSourceMapIncludeSourcesContent(true);
+        co.setApplyInputSourceMaps(true);
+        co.setResolveSourceMapAnnotations(true);
+        // co.setPrettyPrint(true);
+
         cc.initOptions(co);
+        cc.initBasedOnOptions();
 
-        SourceFile srcFile = SourceFile.fromCode("test.js", "shadow$placeholder('foo');");
+        Node inputNode = fileToNode(cc, input);
 
-        System.out.println(cc.toSource(process(cc, srcFile)));
+        MergeShadowJS pass = new MergeShadowJS(cc, replacements);
+        NodeTraversal.traverseEs6(cc, inputNode, pass);
+
+        SourceMap sm = cc.getSourceMap();
+        sm.reset();
+
+        for (SourceFile x: sourceMapSources) {
+           sm.addSourceFile(x);
+        }
+
+        String js = ShadowAccess.nodeToJs(cc, sm, inputNode);
+
+        StringWriter sw = new StringWriter();
+
+        sm.appendTo(sw, input.getName());
+
+        return new Result(js, sw.toString());
+    }
+
+    public static void main(String... args) throws IOException {
+
+        SourceFile srcFile = SourceFile.fromCode("test.js", "a;shadow$placeholder('foo');b;");
+
+        SourceFile replacement = SourceFile.fromFile("test/cjs/a-compiled.js");
+
+        Map<String, SourceFile> replacements = new HashMap<>();
+        replacements.put("foo", replacement);
+
+        Result result = merge(srcFile, replacements, new ArrayList());
+
+        System.out.println(result.js);
+        System.out.println(result.sourceMapJson);
     }
 }

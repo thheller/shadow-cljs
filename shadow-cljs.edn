@@ -127,7 +127,6 @@
    :devtools
    {:http-root "out/demo-browser/public"
     :http-port 8600
-    :http-handler shadow.http.push-state/handle
     :async-require true
     :before-load demo.browser/stop
     :after-load demo.browser/start

@@ -117,7 +117,7 @@
 
 (defn generate-source-map-inline
   [state
-   {:keys [resource-name output-name source] :as src}
+   src
    {:keys [source-map source-map-json] :as output}
    prepend]
   (when (or source-map source-map-json)

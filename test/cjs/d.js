@@ -1,1 +1,1 @@
-exports = "d";
+exports.d = "d";

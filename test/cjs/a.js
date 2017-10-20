@@ -1,4 +1,4 @@
-if (process.env.NODE_ENV == "production") {
-  require("./b");
+if (process.env.NODE_ENV == "development") {
+  console.log(require("./b"));
 }
-require("./d");
+console.log(require("./d"));

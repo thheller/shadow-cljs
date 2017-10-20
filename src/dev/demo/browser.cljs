@@ -22,7 +22,7 @@
 
 (prn :foo :bar)
 
-(js/console.log "babel-test" babel-test Shape)
+(js/console.log "babel-test" babel-test (Shape. 1 1))
 
 (js/console.log "shortid" (sid))
 

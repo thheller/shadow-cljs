@@ -21,7 +21,6 @@
       (.openConnection)
       (.getLastModified)))
 
-
 (def CLOSURE-TIMESTAMP
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
   ;; technically needs to check all files but given that they'll all be in the
@@ -32,7 +31,6 @@
   (-> (io/resource "shadow/build/closure.clj")
       (.openConnection)
       (.getLastModified)))
-
 
 (defn service? [x]
   (and (map? x) (::service x)))

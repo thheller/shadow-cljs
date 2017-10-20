@@ -407,7 +407,7 @@
 (deftest test-browser-build-with-js
   (try
     (let [{:keys [live-js-deps dead-js-deps js-entries] :as build-state}
-          (api/compile*
+          (api/release*
             '{:build-id :js-test
               :target :browser
 
@@ -415,10 +415,12 @@
               :asset-path "/js"
               :compiler-options
               {:language-out :ecmascript5
+               :pretty-print true
+               :source-map true
                :optimizations :advanced}
 
               :modules
-              {:test {:entries ["react-dom" #_ "/test/cjs/a.js"]}}
+              {:test {:entries ["/test/cjs/a.js"]}}
 
               :js-options
               {:js-provider :shadow}
@@ -426,12 +428,15 @@
               :devtools
               {:enabled false
                :console-support false}}
-            {:debug true})]
+            {})]
 
       (pprint (:build-sources build-state))
       (pprint live-js-deps)
       (pprint dead-js-deps)
       (pprint js-entries)
+
+      (let [{:keys [output] :as module} (get-in build-state [::closure/modules 0])]
+        (println output))
 
       #_(let [{:keys [js removed-requires actual-requires] :as output}
               (get-in build-state [:output [::npm/resource "node_modules/react/index.js"]])]
