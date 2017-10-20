@@ -96,8 +96,8 @@
     (count (line-seq rdr))))
 
 (defn encode-source-map
-  [{:keys [resource-name prepend output-name source] :as src}
-   {:keys [source-map] :as output}]
+  [{:keys [resource-name prepend output-name] :as src}
+   {:keys [source source-map] :as output}]
   (let [sm-opts
         {;; :lines (line-count output)
          :file output-name
@@ -134,8 +134,8 @@
 
 (defn generate-source-map
   [state
-   {:keys [resource-name output-name input source] :as src}
-   {:keys [source-map source-map-json] :as output}
+   {:keys [resource-name output-name input] :as src}
+   {:keys [source source-map source-map-json] :as output}
    js-file
    prepend]
   (when (or source-map source-map-json)
