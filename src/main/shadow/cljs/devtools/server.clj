@@ -209,7 +209,15 @@
       (netty/wait-for-close)))
 
 (defn wait-for-eof! []
-  (read *in* false ::eof))
+  (loop []
+    (let [x (try
+              (read *in* false ::eof)
+              (catch clojure.lang.LispReader$ReaderException e
+                ::continue)
+              (catch Exception e
+                ::eof))]
+      (when (not= x ::eof)
+        (recur)))))
 
 (defn watch-builds [build-ids options]
   (let [{:keys [supervisor] :as app}
