@@ -303,15 +303,29 @@
 
   state)
 
-(defn hash-optimized-module [{:keys [output output-name] :as mod}]
-  (let [signature (util/md5hex output)]
+(defn hash-optimized-module [{:keys [output output-name] :as mod} module-hash-names]
+  (let [signature
+        (util/md5hex output)
+
+        signature
+        (cond
+          (true? module-hash-names)
+          signature
+          (and (number? module-hash-names)
+               (<= 0 module-hash-names 32))
+          (subs signature 0 module-hash-names)
+          :else
+          (throw (ex-info (format "invalid :module-hash-names value %s" module-hash-names)
+                   {:tag ::module-hash-names
+                    :module-hash-names module-hash-names})))]
+
     (assoc mod :output-name (str/replace output-name #".js$" (str "." signature ".js")))))
 
-(defn hash-optimized-modules [state]
+(defn hash-optimized-modules [state module-hash-names]
   (update state ::closure/modules
     (fn [optimized]
       (->> optimized
-           (map hash-optimized-module)
+           (map #(hash-optimized-module % module-hash-names))
            (into [])))))
 
 (defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
@@ -322,13 +336,13 @@
         (flush-manifest false))
     :release
     (do (when (and (true? module-loader)
-                   (true? module-hash-names))
+                   module-hash-names)
           ;; FIXME: provide a way to export module config instead of appending it always.
           (throw (ex-info ":module-loader true defeats purpose of :module-hash-names" {})))
         (-> state
             (cond->
               module-hash-names
-              (hash-optimized-modules))
+              (hash-optimized-modules module-hash-names))
             (output/flush-optimized)
             (flush-manifest true)))))
 
