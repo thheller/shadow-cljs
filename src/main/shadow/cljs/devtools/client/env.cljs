@@ -24,9 +24,12 @@
 
 (goog-define repl-port 8200)
 
-(defn ws-url [client-type]
-  {:pre [(keyword? client-type)]}
-  (str "ws://" repl-host ":" repl-port "/worker/ws/" build-id "/" proc-id "/" client-id "/" (name client-type)))
+(defn ws-url
+  ([client-type]
+    (ws-url repl-host client-type))
+  ([host client-type]
+   {:pre [(keyword? client-type)]}
+   (str "ws://" host ":" repl-port "/worker/ws/" build-id "/" proc-id "/" client-id "/" (name client-type))))
 
 (defn ws-listener-url []
   (str "ws://" repl-host ":" repl-port "/worker/listener-ws/" build-id "/" proc-id "/" client-id))
