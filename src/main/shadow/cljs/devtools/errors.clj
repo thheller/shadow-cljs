@@ -38,6 +38,8 @@
 
 (defn get-tag [data]
   (or (:tag data)
+      (when (= :reader-exception (:type data))
+        ::reader-exception)
       (when (contains? data ::s/problems)
         ::s/problems)))
 
@@ -56,7 +58,7 @@
   (ex-format w e))
 
 (defn write-msg [w e]
-  (.write w (str (.getMessage e) "\n")))
+  (.write w (str (str/trim (.getMessage e)) "\n")))
 
 (defmethod ex-data-format ::comp/get-target-fn
   [w e data]
@@ -96,6 +98,10 @@
   (write-msg w e))
 
 (defmethod ex-data-format ::resolve/missing-js
+  [w e data]
+  (write-msg w e))
+
+(defmethod ex-data-format ::reader-exception
   [w e data]
   (write-msg w e))
 
@@ -188,16 +194,16 @@
       (when source-excerpt
         (w/print-source-excerpt-header data))))
 
+  (->> e (.getCause) (error-format w))
+  (.write w "\n")
+  (.write w (w/sep-line))
+  (.write w "\n")
+
   (.write w
     (with-out-str
       (if source-excerpt
         (w/print-source-excerpt-footer data)
-        (println (w/sep-line)))))
-
-  (->> e (.getCause) (error-format w))
-
-  (.write w "\n")
-  (.write w (w/sep-line)))
+        (println (w/sep-line))))))
 
 (defmethod ex-data-format :shadow.cljs.util/macro-load
   [w e {:keys [macro-ns] :as data}]

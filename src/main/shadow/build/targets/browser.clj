@@ -252,6 +252,7 @@
 
     (-> state
         (assoc ::build/config config) ;; so the merged defaults don't get lost
+        (assoc-in [:compiler-options :closure-defines 'process.browser] true)
         (cond->
           asset-path
           (build-api/merge-build-options {:asset-path asset-path})

@@ -391,7 +391,6 @@
                   ;; SourceFile/fromFile seems to leak file descriptors
                   (SourceFile/fromCode (.getAbsolutePath file) source))
 
-
                 babel-rewrite?
                 (not (contains? #{"es3" "es5"} js-language))
 

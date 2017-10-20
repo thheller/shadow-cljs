@@ -13,7 +13,7 @@ goog.define("process.env.NODE_ENV", "development");
 /**
  * @define {boolean}
  */
-goog.define("process.browser", true);
+goog.define("process.browser", false);
 
 goog.provide("shadow.js");
 

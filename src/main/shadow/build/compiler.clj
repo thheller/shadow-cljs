@@ -291,12 +291,12 @@
 
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}
-   {:keys [resource-id resource-name url output-name] :as rc}]
+   {:keys [resource-id resource-name url output-name] :as rc}
+   source]
   (let [{:keys [static-fns elide-asserts fn-invoke-direct]}
         compiler-options
 
-        source
-        (data/get-source-code state rc)]
+        ]
 
     (binding [ana/*cljs-static-fns*
               (true? static-fns)
@@ -518,7 +518,7 @@
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
    make sure you are in with-compiler-env"
-  [{:keys [build-options] :as state} {:keys [resource-id from-jar file url] :as src}]
+  [{:keys [build-options] :as state} {:keys [resource-id from-jar file url] :as rc}]
   (let [{:keys [cache-level]}
         build-options
 
@@ -530,13 +530,25 @@
                  from-jar))]
 
     (or (when cache?
-          (load-cached-cljs-resource state src))
-        (let [output
+          (load-cached-cljs-resource state rc))
+        (let [source
+              (data/get-source-code state rc)
+
+              output
               (try
-                (do-compile-cljs-resource state src)
+                (do-compile-cljs-resource state rc source)
                 (catch Exception e
-                  (let [{:keys [tag line column] :as data}
+                  (let [{:keys [tag line] :as data}
                         (ex-data e)
+
+                        column
+                        (or (:column data) ;; cljs.analyzer
+                            (:col data)) ;; tools.reader
+
+                        line ;; tools.reader is off by one?
+                        (if (= :reader-exception (:type data))
+                          (dec line)
+                          line)
 
                         err-data
                         (-> {:tag ::compile-cljs
@@ -550,13 +562,19 @@
                               column
                               (assoc :column column)
 
-                              (and data (= tag :cljs/analysis-error) line column)
-                              (assoc :source-excerpt (warnings/get-source-excerpt state src {:line line :column column}))))]
+                              (and data line column)
+                              (assoc :source-excerpt
+                                     (warnings/get-source-excerpt
+                                       ;; FIXME: this is a bit ugly but compilation failed so the source is not in state
+                                       ;; but the warnings extractor wants to access it
+                                       (assoc-in state [:output resource-id] {:source source})
+                                       rc
+                                       {:line line :column column}))))]
 
                     (throw (ex-info (format "failed to compile resource: %s" resource-id) err-data e)))))]
 
           (when cache?
-            (write-cached-cljs-resource state src output))
+            (write-cached-cljs-resource state rc output))
 
           ;; fresh compiled, not from cache
           (assoc output :cached false)))))
