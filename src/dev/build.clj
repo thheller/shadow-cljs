@@ -16,6 +16,7 @@
 
 (defn custom
   [{::comp/keys [stage mode config] :as state}]
+  (prn [:custom-build stage])
   (-> state
       (browser/process)
       (cond->

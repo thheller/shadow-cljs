@@ -208,6 +208,9 @@
 (deftest test-js-only
   (api/compile :js-only))
 
+(deftest test-sm-release
+  (api/release :sm-test))
+
 (deftest test-infer-externs
   (try
     (let [{:keys [compiler-env] :as state}

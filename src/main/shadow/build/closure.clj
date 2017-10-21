@@ -20,7 +20,7 @@
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          SourceMap$LocationMapping BasicErrorManager Result ShadowAccess
-                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup)
+                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal)
            (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector MergeShadowJS)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode ModuleNames)
            (com.google.javascript.jscomp.parsing.parser FeatureSet)
@@ -573,7 +573,7 @@
     (let [{:keys [resource-name output-name] :as rc}
           (data/get-source-by-id state src-id)
 
-          {:keys [source-map-json source-map] :as output}
+          {:keys [source-map-json] :as output}
           (data/get-output! state rc)
 
           source-map-json
@@ -649,23 +649,12 @@
                              goog-nodeGlobalRequire-fix)
 
                         (and (= :npm type) (= :shadow js-provider))
-                        (let [placeholder
-                              (str "shadow$placeholder(\"" ns "\");")
-
-                              offset
-                              (+ 3 (- (count js) (count placeholder)))
-
-                              placeholder
-                              (str placeholder
-                                   (->> (repeat offset " ")
-                                        (str/join "")))]
-
-                          (str placeholder
-                               ;; the compiler does not need to know about all js files
-                               ;; it only needs to know if used by cljs
-                               (when (contains? required-js-names ns)
-                                 (str "\ngoog.provide(\"" ns "\");\n"
-                                      ns " = shadow.js.require(\"" ns "\");"))))
+                        (str "shadow$placeholder(\"" ns "\");\n"
+                             ;; the compiler does not need to know about all js files
+                             ;; it only needs to know if used by cljs
+                             (when (contains? required-js-names ns)
+                               (str "goog.provide(\"" ns "\");\n"
+                                    ns " = shadow.js.require(\"" ns "\");")))
 
                         :else
                         js)]
@@ -906,33 +895,85 @@
                 (closure-source-file resource-name (or source "")))))
        (into [])))
 
-(defn replace-shadow-placeholders-with-source-map
-  [{:keys [output-name output source-map-json] :as mod} state sources]
+(defn add-sources-to-source-map [state source-map]
+  ;; this needs to add ALL sources, not just the sources of the module
+  ;; this is because cross-module motion may have moved code
+  ;; closure will only include the relevant files but it needs to be able to find all
+  ;; for some reason .reset removes them all so we need to repeat this for every module
+  ;; since modules require .reset
+  (doseq [src-file (source-map-sources state)]
+    (.addSourceFile source-map src-file)))
 
-  (let [replacement-files
+(defn replace-shadow-placeholders-with-source-map
+  [{:keys [resource-name output-name output source-map-json] :as mod} {:keys [js-options] :as state} sources]
+
+  (let [language-out
+        (get-in state [:compiler-options :language-out] :ecmascript3)
+
+        co-opts
+        {:source-map true
+         :pretty-print (:pretty-print js-options false)
+         :language-in language-out
+         :language-out language-out}
+
+        closure-opts
+        (doto (make-options)
+          (set-options co-opts)
+          (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
+          (.setApplyInputSourceMaps true)
+          (.setResolveSourceMapAnnotations false))
+
+        cc
+        (doto (make-closure-compiler)
+          (.initOptions closure-opts)
+          (.initBasedOnOptions)
+          (.addInputSourceMap output-name
+            (SourceMapInput.
+              (closure-source-file output-name source-map-json))))
+
+        source-map
+        (doto (.getSourceMap cc)
+          (.reset))
+
+        _
+        (add-sources-to-source-map state source-map)
+
+        replacement-files
         (->> sources
              (map #(data/get-source-by-id state %))
              (filter #(= :npm (:type %)))
              (reduce
-               (fn [idx {:keys [ns output-name] :as src}]
+               (fn [idx {:keys [ns resource-name output-name] :as src}]
                  (let [{:keys [js source-map-json] :as output}
                        (data/get-output! state src)
 
                        file
-                       (source-file-with-inline-source-map output-name js source-map-json)]
+                       (closure-source-file resource-name js)]
 
                    (assoc idx (str ns) file)))
                {}))
 
-        module-src
-        (source-file-with-inline-source-map output-name output source-map-json)
+        input-file
+        (closure-source-file output-name output)
 
-        result
-        (MergeShadowJS/merge module-src replacement-files (source-map-sources state))]
+        input-node
+        (MergeShadowJS/fileToNode cc input-file)
 
-    (assoc mod
-           :output (.-js result)
-           :source-map-json (.-sourceMapJson result))))
+        pass
+        (MergeShadowJS. cc replacement-files)
+
+        _ (NodeTraversal/traverseEs6 cc input-node pass)
+
+
+        js
+        (ShadowAccess/nodeToJs cc source-map input-node)
+
+        #_(MergeShadowJS/merge
+            module-src
+            replacement-files
+            (source-map-sources state))]
+
+    (assoc mod :output js :source-map-json source-map-json)))
 
 (defn replace-shadow-placeholders
   "initially shadow$placeholder(\"module$foo\"); calls are placed into the source
@@ -946,20 +987,12 @@
    naively this can be done by string replacements but that destroy source maps
    so we run this through the closure compiler and do the replacements there if needed"
   [{:keys [source-map-json] :as mod} state sources]
-  (replace-shadow-placeholders-naive mod state sources)
+  ;; (replace-shadow-placeholders-naive mod state sources)
   ;; doesn't quite work, can't figure out why
-  #_(if-not source-map-json
-      (replace-shadow-placeholders-naive mod state sources)
-      (replace-shadow-placeholders-with-source-map mod state sources)))
+  (if-not source-map-json
+    (replace-shadow-placeholders-naive mod state sources)
+    (replace-shadow-placeholders-with-source-map mod state sources)))
 
-(defn add-sources-to-source-map [state source-map]
-  ;; this needs to add ALL sources, not just the sources of the module
-  ;; this is because cross-module motion may have moved code
-  ;; closure will only include the relevant files but it needs to be able to find all
-  ;; for some reason .reset removes them all so we need to repeat this for every module
-  ;; since modules require .reset
-  (doseq [src-file (source-map-sources state)]
-    (.addSourceFile source-map src-file)))
 
 (defn compile-js-modules
   [{::keys [externs modules compiler compiler-options] :as state}]

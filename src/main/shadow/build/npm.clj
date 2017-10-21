@@ -539,7 +539,6 @@
    "timers" "timers-browserify"
    "tls" false
    "tty" "tty-browserify"
-   "url" "url"
    "util" "util/util.js"
    "vm" "vm-browserify"
    "zlib" "browserify-zlib"})
