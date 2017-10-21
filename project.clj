@@ -71,6 +71,8 @@
     [[reagent "0.8.0-alpha1"
       :exclusions
       [cljsjs/create-react-class]]
+
+     [re-view "0.4.6"]
      [binaryage/devtools "0.9.4"]]
     :source-paths
     ["src/dev"

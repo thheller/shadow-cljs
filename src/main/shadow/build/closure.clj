@@ -797,6 +797,10 @@
       (add-input-source-maps state cc))
 
     (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS (ReplaceCLJSConstants. cc))
+    (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
+      (NodeEnvInlinePass. cc (if (= :release (:mode state))
+                               "production"
+                               "development")))
 
     ;; (fn [closure-compiler compiler-options state])
     (doseq [cfg (:closure-configurators compiler-options)]

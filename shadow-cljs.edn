@@ -233,6 +233,25 @@
    {:enabled false
     :console-support false}}
 
+  :closure
+  {:target :browser
+   :output-dir "out/demo-closure/public/js"
+   :asset-path "/js"
+   :modules {:base {:entries [cljs.core
+                              shadow.js]}
+             :main {:entries [demo.reagent]
+                    :depends-on #{:base}}}
+   :compiler-options
+   {:externs ["test/react.ext.js"
+              "test/react-dom.ext.js"]
+    :closure-warnings {:global-this :off}}
+   :js-options
+   {:js-provider :closure}
+   :devtools
+   {:http-root "out/demo-closure/public"
+    :http-port 7810
+    :autoload true}}
+
   :script
   {:target :node-script
    :main demo.script/main

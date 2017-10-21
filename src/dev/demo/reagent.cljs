@@ -3,8 +3,6 @@
 
 (defonce timer (r/atom (js/Date.)))
 
-(defonce time-color (r/atom "#f34"))
-
 (defonce time-updater (js/setInterval
                         #(reset! timer (js/Date.)) 1000))
 
@@ -13,23 +11,23 @@
 
 (defn clock []
   (let [time-str (-> @timer .toTimeString (clojure.string/split " ") first)]
-    [:div.example-clock
-     {:style {:color @time-color}}
-     time-str]))
+    [:div.example-clock time-str]))
 
-(defn color-input []
+(defonce click-count (r/atom 0))
+
+(defn clicker []
   [:div.color-input
-   "Time color: "
-   [:input {:type "text"
-            :value @time-color
-            :on-change #(reset! time-color (-> % .-target .-value))}]])
+   {:on-click #(swap! click-count inc)}
+   (str "clicks:" @click-count)])
 
 (defn simple-example []
   [:div
    [greeting "Hello world, it is now"]
-   [clock]
-   [color-input]])
+   [clicker]
+   [clock]])
 
 (defn ^:export run []
   (r/render [simple-example]
     (js/document.getElementById "app")))
+
+(run)

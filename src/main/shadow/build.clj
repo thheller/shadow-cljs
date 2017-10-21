@@ -286,7 +286,7 @@
       (cond->
         (and (= :release mode) (not skip-optimize))
         (-> (process-stage :optimize-prepare true)
-            (closure/optimize)
+            (build-api/optimize)
             (process-stage :optimize-finish true)))))
 
 (defn check

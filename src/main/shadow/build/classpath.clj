@@ -643,10 +643,7 @@
 
 
 (defn get-deps-externs [{:keys [index-ref] :as cp}]
-  (->> (:deps-externs @index-ref)
-       (vals)
-       (mapcat identity)
-       (into [])))
+  (:deps-externs @index-ref))
 
 (defn get-source-provides
   "returns the set of provided symbols from sources not in jars"

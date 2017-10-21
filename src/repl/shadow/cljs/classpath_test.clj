@@ -1,4 +1,4 @@
-(ns shadow.build.classpath-test
+(ns shadow.cljs.classpath-test
   (:require [clojure.test :refer :all]
             [clojure.pprint :refer (pprint)]
             [clojure.java.io :as io]
@@ -92,6 +92,9 @@
 (deftest test-all
   (let [x (-> (cp/start (io/file "target" "classpath-test"))
               (cp/index-classpath))]
+    (doseq [[path externs] (cp/get-deps-externs x)
+            {:keys [resource-name url] :as ext} externs]
+      (prn [:ext resource-name url]))
     ))
 
 

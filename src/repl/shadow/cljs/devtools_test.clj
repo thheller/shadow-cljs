@@ -213,6 +213,12 @@
 (deftest test-sm-release
   (api/release :sm-test))
 
+(deftest test-closure
+  (api/compile :closure))
+
+(deftest test-closure-release
+  (api/release :closure))
+
 (deftest test-infer-externs
   (try
     (let [{:keys [compiler-env] :as state}
