@@ -5,8 +5,34 @@
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [shadow.cljs.devtools.server.util :as util]
-            ))
+            [shadow.cljs.devtools.server.util :as util])
+  (:import (javax.script ScriptEngineManager ScriptEngine Invocable)))
+
+(defn make-engine []
+  (let [engine
+        (-> (ScriptEngineManager.)
+            (.getEngineByName "nashorn"))
+
+        semver-js
+        (slurp (io/resource "shadow/build/js/semver.js"))]
+
+    (.eval engine semver-js)
+
+    engine))
+
+(def semver-intersects
+  (let [engine (delay (make-engine))]
+    (fn [a b]
+      (try
+        (.invokeFunction @engine "intersects" (into-array Object [a b true]))
+        (catch Exception e
+          (prn [:failed-to-compare a b e])
+          true)))))
+
+(comment
+  (semver-intersects "^1.0.0" "^1.1.0")
+  (semver-intersects ">=1.3.0" "1.2.0")
+  (semver-intersects "^2.0.0" "^1.1.0"))
 
 (defn dep->str [dep-id]
   (cond
@@ -27,12 +53,18 @@
   [deps-to-install
    {a-version :version a-url :url :as a id :id}
    {b-version :version b-url :url :as b}]
-  ;; FIXME: actually resolve this based on versions if possible
-  (when (not= a-version b-version)
-    (prn [:npm-deps-conflict id :using :a])
-    (prn [:a a-version a-url])
-    (prn [:b b-version b-url]))
-  deps-to-install)
+  (cond
+    (semver-intersects a-version b-version)
+    deps-to-install
+
+    (semver-intersects b-version a-version)
+    (assoc deps-to-install id b)
+
+    :else
+    (do (println (format "NPM version conflict for \"%s\" in deps.cljs (will use A)" id))
+        (println (format "A: \"%s\" from %s" a-version a-url))
+        (println (format "B: \"%s\" from %s" b-version b-url))
+        deps-to-install)))
 
 (defn resolve-conflicts [deps]
   (let [deps-to-install
@@ -116,9 +148,13 @@
             (get-in package-json ["devDependencies" id]))]
     (if-not (seq installed-version)
       false
-      (do (when (and installed-version
-                     (not= installed-version version))
-            (println (format "NPM dependency %s has installed version %s%n%s wants version %s" id installed-version url version)))
+      (do (when-not (semver-intersects installed-version version)
+            (println
+              (format "NPM dependency \"%s\" has installed version \"%s\"%n\"%s\" was required by %s"
+                id
+                installed-version
+                version
+                url)))
           true))))
 
 (defn main [config opts]
@@ -133,17 +169,3 @@
     (when (seq deps)
       (install-deps config deps)
       )))
-
-(comment
-  (get-deps-from-classpath)
-
-  (resolve-conflicts [{:id "react" :version "^15.0.0" :url "a"}
-                      {:id "react" :version "^16.0.0" :url "b"}])
-
-  (let [pkg {"dependencies" {"reactx" "^16.0.0"}}]
-    (is-installed? {:id "react" :version "^16.0.0" :url "a"} pkg))
-
-  (install-deps
-    {:node-modules {:managed-by :yarn}}
-    [{:id "react" :version "^16.0.0"}
-     {:id "react-dom" :version "^16.0.0"}]))

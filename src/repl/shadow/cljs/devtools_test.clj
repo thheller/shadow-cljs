@@ -19,7 +19,9 @@
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.embedded :as em]
     [shadow.cljs.devtools.server.util :as util]
-    [shadow.cljs.devtools.errors :as errors])
+    [shadow.cljs.devtools.errors :as errors]
+    [shadow.build.data :as data]
+    [clojure.string :as str])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)))
 
 
@@ -359,7 +361,7 @@
 
 (deftest test-js-only-build
   (try
-    (let [build-state
+    (let [{:keys [build-sources] :as state}
           (api/compile*
             '{:build-id :js-only
               :target :browser
@@ -370,11 +372,13 @@
               {:language-out :ecmascript5}
 
               :modules
-              {:test {:entries ["/test/cjs/entry.js"]}}
+              {:test {:entries ["d3" #_ "/test/cjs/entry.js"]}}
 
               :js-options
               {:js-provider :shadow}}
             {:debug true})]
+
+
 
       )
 

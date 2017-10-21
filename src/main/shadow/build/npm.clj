@@ -510,6 +510,7 @@
 ;; using this package so have the same dependencies that webpack would use
 (def node-libs-browser
   {"child_process" false
+   "xmlhttprequest" false
    "cluster" false
    "console" "console-browserify"
    "constants" "constants-browserify"
@@ -642,6 +643,16 @@
                 (get node-libs-browser require)))]
 
         (cond
+          (false? override)
+          (throw (ex-info
+                   (format "node-only package \"%s\" used by \"%s\" is not available"
+                     require
+                     (when require-from
+                       (.getAbsolutePath require-from)))
+                   {:tag ::node-only
+                    :require require
+                    :require-from require-from}))
+
           (nil? override)
           (find-package-resource npm require)
 
@@ -653,7 +664,7 @@
           ;; FIXME: "util":"./file-in-package.js" - is that allowed?
           (util/is-relative? require)
           (throw (ex-info "browser override from package to relative"
-                   {::tag ::relative-override
+                   {:tag ::relative-override
                     :require-from require-from
                     :require require
                     :override override}))
@@ -732,7 +743,7 @@
           ;; if the code has any other problems we'll get to it when importing
           (.resetWarningsGuard)
           ;; should be the highest possible option, since we can't tell before parsing
-          (.setLanguageIn CompilerOptions$LanguageMode/ECMASCRIPT_2017))
+          (.setLanguageIn CompilerOptions$LanguageMode/ECMASCRIPT_NEXT))
 
         cc ;; FIXME: error reports still prints to stdout
         (doto (com.google.javascript.jscomp.Compiler.)
@@ -762,7 +773,7 @@
      ;; so use the first thing that exists
      ;; FIXME: if a build ever needs to configure these we can't use the shared npm reference
      :extensions [".js" ".json"]
-     :main-keys [#_"module" #_"jsnext:main" "main"]
+     :main-keys [#_#_"module" "jsnext:main" "main"]
      }))
 
 (defn stop [{:keys [babel] :as npm}]

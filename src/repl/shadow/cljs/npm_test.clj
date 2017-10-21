@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [clojure.pprint :refer (pprint)]
             [clojure.java.io :as io]
-            [shadow.build.npm :as npm]))
+            [shadow.build.npm :as npm]
+            [shadow.cljs.devtools.server.npm-deps :as npm-deps]))
 
 (defmacro with-npm [[sym config] & body]
   `(let [~sym (npm/start)]
@@ -131,3 +132,30 @@
   (with-npm [x {}]
     (pprint (npm/find-package* x "react"))
     ))
+
+
+(deftest test-classpath
+  (prn (npm-deps/get-deps-from-classpath)))
+
+(deftest test-resolve-conflict-a
+  (prn
+    (npm-deps/resolve-conflicts
+      [{:id "react" :version ">=15.0.0" :url "a"}
+       {:id "react" :version "^16.0.0" :url "b"}])))
+
+(deftest test-resolve-conflict-b
+  (prn
+    (npm-deps/resolve-conflicts
+      [{:id "react" :version ">=16.0.0" :url "a"}
+       {:id "react" :version ">=16.1.0" :url "b"}])))
+
+(deftest test-is-installed
+  (let [pkg {"dependencies" {"react" "^16.0.0"}}]
+    (npm-deps/is-installed? {:id "react" :version "^15.0.0" :url "a"} pkg)))
+
+(comment
+  (install-deps
+    {:node-modules {:managed-by :yarn}}
+    [{:id "react" :version "^16.0.0"}
+     {:id "react-dom" :version "^16.0.0"}]))
+
