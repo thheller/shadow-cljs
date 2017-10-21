@@ -176,14 +176,19 @@
   ([sys-config]
    (start! sys-config (app sys-config)))
   ([sys-config app]
-   (let [{:keys [http socket-repl nrepl] :as app}
+   (let [{:keys [http socket-repl nrepl config] :as app}
          (start-system app sys-config)]
 
-     (println (str "shadow-cljs - server running at http://" (:host http) ":" (:port http)))
-     (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl)))
-     (println (str "shadow-cljs - nrepl running at "
-                   (-> (:server-socket nrepl) (.getInetAddress))
-                   ":" (:port nrepl)))
+     (when (get-in config [:http :port])
+       (println (str "shadow-cljs - server running at http://" (:host http) ":" (:port http))))
+
+     (when (get-in config [:socket-repl :port])
+       (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl))))
+
+     (when (get-in config [:nrepl :port])
+       (println (str "shadow-cljs - nrepl running at "
+                     (-> (:server-socket nrepl) (.getInetAddress))
+                     ":" (:port nrepl))))
 
      (runtime/set-instance! app)
      ::started

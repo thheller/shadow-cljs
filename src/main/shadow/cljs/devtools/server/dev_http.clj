@@ -78,13 +78,13 @@
             (netty/port instance)]
 
         (>!! out {:type :println
-                  :msg (format "HTTP server for \"%s\" available at http://localhost:%s" build-id http-port)})
+                  :msg (format "shadow-cljs - HTTP server for \"%s\" available at http://localhost:%s" build-id http-port)})
         (log/info ::http-serve {:http-port port :http-root http-root :build-id build-id})
 
         instance)
       (catch BindException e
         (>!! out {:type :println
-                  :msg (format "HTTP server at port %s already running" http-port)})
+                  :msg (format "[WARNING] shadow-cljs - HTTP server at port %s failed, port is in use." http-port)})
         nil)
       (catch Exception e
         (log/warn ::start-error http-root http-port e)
