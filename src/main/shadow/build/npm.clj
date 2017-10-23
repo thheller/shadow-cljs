@@ -643,15 +643,17 @@
                 (get node-libs-browser require)))]
 
         (cond
-          (false? override)
-          (throw (ex-info
-                   (format "node-only package \"%s\" used by \"%s\" is not available"
-                     require
-                     (when require-from
-                       (.getAbsolutePath require-from)))
-                   {:tag ::node-only
-                    :require require
-                    :require-from require-from}))
+          ;; some node packages do conditional requires for some of the npm only packages
+          ;; but work if they fail, so we shouldn't fail the build always.
+          #_(false? override)
+          #_(throw (ex-info
+                     (format "node-only package \"%s\" used by \"%s\" is not available"
+                       require
+                       (when require-from
+                         (.getAbsolutePath require-from)))
+                     {:tag ::node-only
+                      :require require
+                      :require-from require-from}))
 
           (nil? override)
           (find-package-resource npm require)
