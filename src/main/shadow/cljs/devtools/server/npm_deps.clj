@@ -24,13 +24,14 @@
   (let [engine (delay (make-engine))]
     (fn [a b]
       (try
-        (.invokeFunction @engine "intersects" (into-array Object [a b true]))
+        (.invokeFunction @engine "shadowIntersects" (into-array Object [a b]))
         (catch Exception e
           (prn [:failed-to-compare a b e])
           true)))))
 
 (comment
   (semver-intersects "^1.0.0" "^1.1.0")
+  (semver-intersects "github:foo" "github:foo")
   (semver-intersects ">=1.3.0" "1.2.0")
   (semver-intersects "^2.0.0" "^1.1.0"))
 

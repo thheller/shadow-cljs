@@ -48,10 +48,18 @@
 (defn module-is-active? [module]
   (contains? @active-modules-ref module))
 
+(defn script-eval
+  "js/eval doesn't get optimized properly, this hack seems to do the trick"
+  [code]
+  (let [node (js/document.createElement "script")]
+    (.appendChild node (js/document.createTextNode code))
+    (js/document.body.appendChild node)
+    (js/document.body.removeChild node)))
+
 (defn do-js-load [sources]
   (doseq [{:keys [resource-id resource-name js] :as src} sources]
     (devtools-msg "LOAD:" resource-name)
-    (js/eval (str js "\n// @sourceURL=" resource-name))))
+    (script-eval (str js "\n// @sourceURL=" resource-name))))
 
 (defn do-js-reload [sources]
   (let [reload-state

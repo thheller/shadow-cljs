@@ -34,6 +34,14 @@
             (callback data)
             ))))))
 
+(defn script-eval
+  "js/eval doesn't get optimized properly, this hack seems to do the trick"
+  [code]
+  (let [node (js/document.createElement "script")]
+    (.appendChild node (js/document.createTextNode code))
+    (js/document.body.appendChild node)
+    (js/document.body.removeChild node)))
+
 (defn execute-load! [compile-state-ref {:keys [type text uri ns provides] :as load-info}]
   #_ (js/console.log "load" type ns load-info)
   ;; quick hack for worker experiment, needs proper design
@@ -46,7 +54,7 @@
     :js
     (do (swap! env/loaded-ref set/union provides)
         (swap! cljs/*loaded* set/union provides)
-        (js/eval text))))
+        (script-eval text))))
 
 (defn queue-task! [task]
   ;; FIXME: this is a very naive queue that does all pending tasks at once

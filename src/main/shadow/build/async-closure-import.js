@@ -22,7 +22,6 @@ var CLOSURE_IMPORT_SCRIPT = (function() {
   }
 
   function loadPending() {
-    var loadNow = "";
     for (var i = 0, len = loadOrder.length; i < len; i++) {
       var uri = loadOrder[i];
       var state = loadState[uri];
