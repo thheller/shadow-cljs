@@ -11,13 +11,26 @@ var CLOSURE_IMPORT_SCRIPT = (function() {
     return response.text();
   }
 
+  // apparently calling eval causes the code to never be optimized
+  // creating a script node, appending it and removing it seems to
+  // have the same effect without the speed penalty?
+  function scriptEval(code) {
+    var node = document.createElement("script");
+    node.appendChild(document.createTextNode(code));
+    document.body.append(node);
+    document.body.removeChild(node);
+  }
+
   function loadPending() {
+    var loadNow = "";
     for (var i = 0, len = loadOrder.length; i < len; i++) {
       var uri = loadOrder[i];
       var state = loadState[uri];
       if (typeof(state) === "string") {
-        var code = state + "\n//# sourceURL=" + uri + "\n";
-        eval(code);
+        if (state != "") {
+          var code = state + "\n//# sourceURL=" + uri + "\n";
+          scriptEval(code);
+        }
         loadState[uri] = true;
       } else if (state === true) {
         continue;
