@@ -62,9 +62,9 @@
                 (str/join "")))]
      (str (sep offset) label (sep (- sep-len (+ offset len)))))))
 
-(defn file-link [{:keys [source-name file line column] :as warning}]
+(defn file-link [{:keys [resource-name file line column] :as warning}]
   (if-not file
-    [:span source-name]
+    [:span resource-name]
 
     [:span {:style {:text-decoration "underline"
                     :color "blue"
@@ -74,9 +74,9 @@
                           (open-file file line column)
                           )}}
 
-     source-name]))
+     resource-name]))
 
-(defn html-for-warning [{:keys [source-name msg file line column source-excerpt] :as warning}]
+(defn html-for-warning [{:keys [resource-name msg file line column source-excerpt] :as warning}]
   [:div {:style {:border "2px solid #ccc"
                  :background-color "#fadb64"
                  :padding "10px"
