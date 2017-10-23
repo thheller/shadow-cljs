@@ -33,6 +33,7 @@
    [nil "--source-maps" "temporarily enable source-maps for release debugging"]
    [nil "--pseudo-names" "temporarily enable pseudo-names for release debugging. DO NOT SHIP THIS CODE!"]
    [nil "--debug" "enable source-maps + pseudo-names. DO NOT SHIP THIS CODE!"]
+   [nil "--stdin" "clj-eval from stdin"]
    ["-v" "--verbose" "verbose build log"]
    [nil "--cli-info" "prints a bunch of information"]
    [nil "--via VIA" "internal option, used by node script" :parse-fn keyword]
@@ -51,6 +52,7 @@
    :node-repl
    :cljs-repl
    :clj-repl
+   :clj-eval
 
    :npm-deps
 

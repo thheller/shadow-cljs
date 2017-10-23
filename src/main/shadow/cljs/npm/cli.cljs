@@ -395,7 +395,7 @@
                       (print-cli-info project-root config-path config opts)
 
                       (fs/existsSync server-pid)
-                      (client/run project-root config server-pid args)
+                      (client/run project-root config server-pid opts args)
 
                       (:lein config)
                       (run-lein project-root config args)

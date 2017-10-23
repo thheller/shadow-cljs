@@ -1,16 +1,17 @@
 (ns shadow.cljs.devtools.cli
   (:gen-class)
-  (:require [shadow.runtime.services :as rt]
-            [clojure.tools.cli :as cli]
+  (:require [clojure.tools.cli :as cli]
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.cli-opts :as opts]
             [clojure.repl :as repl]
-            [shadow.cljs.devtools.server.worker.ws :as ws]
-            [shadow.cljs.devtools.server.web.common :as web-common]
+            [clojure.main :as main]
             [aleph.http :as aleph]
             [aleph.netty :as netty]
+            [shadow.runtime.services :as rt]
+            [shadow.cljs.devtools.server.worker.ws :as ws]
+            [shadow.cljs.devtools.server.web.common :as web-common]
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.cli-opts :as opts]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.common :as common]
             [shadow.cljs.devtools.server.supervisor :as super]
@@ -21,7 +22,10 @@
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
             [shadow.http.router :as http]
             [shadow.build.api :as cljs]
-            [shadow.build.node :as node]))
+            [shadow.build.node :as node]
+            [shadow.cljs.devtools.server.socket-repl :as socket-repl])
+  (:import (clojure.lang LineNumberingPushbackReader)
+           (java.io StringReader)))
 
 (defn do-build-command [{:keys [action options] :as opts} build-config]
   (try
@@ -69,6 +73,20 @@
        ;; need to throw exceptions to ensure that cli commands can exit with proper exit codes
        (maybe-rethrow-exceptions)))
 
+(defn do-clj-eval [config {:keys [arguments options] :as opts}]
+  (let [in
+        (if (:stdin options)
+          *in*
+          (-> (str/join " " arguments)
+              (StringReader.)
+              (LineNumberingPushbackReader.)))]
+
+    (binding [*in* in]
+      (main/repl
+        :init #(socket-repl/repl-init {:print false})
+        :prompt (fn [])))
+    ))
+
 (defn main [& args]
   (let [{:keys [action builds options summary errors] :as opts}
         (opts/parse args)
@@ -92,6 +110,9 @@
 
       (= :npm-deps action)
       (println "npm-deps done.")
+
+      (= :clj-eval action)
+      (do-clj-eval config opts)
 
       (contains? #{:compile :check :release} action)
       (do-build-commands config opts builds)
