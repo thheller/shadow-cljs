@@ -1669,15 +1669,17 @@
                                            :num-files (count cache-files)}]
               (reduce
                 (fn [state {:keys [resource-id output-name] :as cached-rc}]
-                  (let [cache-file
-                        (data/cache-file state "shadow-js" output-name)
+                  (if (get-in state [:output resource-id])
+                    state
+                    (let [cache-file
+                          (data/cache-file state "shadow-js" output-name)
 
-                        {:keys [actual-requires] :as cached-output}
-                        (-> (cache/read-cache cache-file)
-                            (assoc :cached true))]
+                          {:keys [actual-requires] :as cached-output}
+                          (-> (cache/read-cache cache-file)
+                              (assoc :cached true))]
 
-                    (assoc-in state [:output resource-id] cached-output)
-                    ))
+                      (assoc-in state [:output resource-id] cached-output)
+                      )))
                 state
                 cache-files)))
 
