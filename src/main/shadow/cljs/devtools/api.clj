@@ -88,14 +88,14 @@
       (super/start-worker supervisor build-config)
       )))
 
-(defn start-worker
+(defn watch
   "starts a dev worker process for a given :build-id
   opts defaults to {:autobuild true}"
   ([build-id]
-   (start-worker build-id {:autobuild true}))
-  ([build-id opts]
-   (let [{:keys [autobuild]}
-         opts
+   (watch build-id {}))
+  ([build-id {:keys [autobuild verbose] :as opts}]
+   (let [out
+         (util/stdout-dump verbose)
 
          build-config
          (if (map? build-id)
@@ -103,11 +103,14 @@
            (config/get-build! build-id))]
 
      (-> (get-or-start-worker build-config opts)
+         (worker/watch out true)
          (cond->
-           autobuild
+           (not (false? autobuild))
            (-> (worker/start-autobuild)
-               (worker/sync!)))))
-   :started))
+               (worker/sync!))))
+
+     :watching
+     )))
 
 (defn active-builds []
   (let [{:keys [supervisor]}
@@ -124,14 +127,8 @@
           :build-state
           :compiler-env))))
 
-(defn watch
-  ([build-id]
-   (start-worker build-id))
-  ([build-id opts]
-   (start-worker build-id opts)))
-
 (comment
-  (start-worker :browser)
+  (watch :browser)
   (stop-worker :browser))
 
 (defn stop-worker [build-id]
@@ -268,18 +265,23 @@
         (repl-impl/stdin-takeover! worker app)))))
 
 (defn dev*
-  [build-config {:keys [autobuild] :as opts}]
+  [build-config {:keys [autobuild verbose] :as opts}]
   (let [config
         (config/load-cljs-edn)
 
-        {:keys [out supervisor] :as app}
+        {:keys [supervisor] :as app}
         (runtime/get-instance!)
+
+        out
+        (util/stdout-dump verbose)
 
         worker
         (-> (get-or-start-worker build-config opts)
             (worker/watch out false)
-            (worker/start-autobuild)
-            (worker/sync!))]
+            (cond->
+              (not (false? autobuild))
+              (-> (worker/start-autobuild)
+                  (worker/sync!))))]
 
     ;; for normal REPL loops we wait for the CLJS loop to end
     (when-not *nrepl-active*
@@ -290,14 +292,13 @@
 
 (defn dev
   ([build]
-   (dev build {:autobuild true}))
-  ([build {:keys [autobuild] :as opts}]
+   (dev build {}))
+  ([build opts]
    (try
      (let [build-config (config/get-build! build)]
        (dev* build-config opts))
      (catch Exception e
        (e/user-friendly-error e)))))
-
 
 (defn help []
   (-> (slurp (io/resource "shadow/txt/repl-help.txt"))

@@ -12,7 +12,7 @@
   (server/stop!))
 
 (defn start-worker [& args]
-  (apply api/start-worker args))
+  (apply api/watch args))
 
 (defn stop-worker [& args]
   (apply api/stop-worker args))
