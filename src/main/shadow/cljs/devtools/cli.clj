@@ -123,13 +123,8 @@
 (defn print-main-error [e]
   (try
     (errors/user-friendly-error e)
-    (catch Exception e2
-      (println "failed to format error because of:")
-      (repl/pst e2)
-      (flush)
-      (println "actual error:")
-      (repl/pst e)
-      (flush)
+    (catch Exception ignored
+      ;; print failed, don't attempt to print anything again
       )))
 
 (defn print-token

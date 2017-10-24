@@ -337,8 +337,7 @@
           (wait-for-eof!)))
 
       (when-not already-running?
-        (stop!)
-        (shutdown-agents)))))
+        (stop!)))))
 
 (comment
   (start!)
