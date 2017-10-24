@@ -217,8 +217,6 @@
   (loop []
     (let [x (try
               (read *in* false ::eof)
-              (catch clojure.lang.LispReader$ReaderException e
-                ::continue)
               (catch Exception e
                 ::eof))]
       (when (not= x ::eof)
