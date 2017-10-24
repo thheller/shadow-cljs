@@ -378,14 +378,13 @@
               {:language-out :ecmascript5}
 
               :modules
-              {:test {:entries ["d3" #_ "/test/cjs/entry.js"]}}
+              {:test {:entries ["react-apollo" #_ "/test/cjs/entry.js"]}}
 
               :js-options
               {:js-provider :shadow}}
             {:debug true})]
 
-
-
+      (pprint (map second build-sources))
       )
 
     (catch Exception ex

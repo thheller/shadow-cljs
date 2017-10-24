@@ -286,6 +286,94 @@
 
     file))
 
+;; https://github.com/webpack/node-libs-browser/blob/master/index.js
+;; using this package so have the same dependencies that webpack would use
+(def node-libs-browser
+  {"child_process" false
+   "xmlhttprequest" false
+   "cluster" false
+   "console" "console-browserify"
+   "constants" "constants-browserify"
+   "crypto" "crypto-browserify"
+   "dgram" false
+   "dns" false
+   "domain" "domain-browser"
+   "fs" false
+   "http" "stream-http"
+   "https" "https-browserify"
+   "module" false
+   "net" false
+   "os" "os-browserify/browser.js"
+   "path" "path-browserify"
+   "process" "process/browser.js"
+   "querystring" "querystring-es3"
+   "readline" false
+   "repl" false
+   "stream" "stream-browserify"
+   "_stream_duplex" "readable-stream/duplex.js"
+   "_stream_passthrough" "readable-stream/passthrough.js"
+   "_stream_readable" "readable-stream/readable.js"
+   "_stream_transform" "readable-stream/transform.js"
+   "_stream_writable" "readable-stream/writable.js"
+   "string_decoder" "string_decoder"
+   "sys" "util/util.js"
+   "timers" "timers-browserify"
+   "tls" false
+   "tty" "tty-browserify"
+   "util" "util/util.js"
+   "vm" "vm-browserify"
+   "zlib" "browserify-zlib"})
+
+(def empty-rc
+  (let [ns 'shadow.empty]
+    {:resource-id [::empty "shadow$empty.js"]
+     :resource-name "shadow$empty.js"
+     :output-name "shadow$empty.js"
+     :type :npm
+     :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
+     :last-modified 0
+     :ns ns
+     :provides #{ns}
+     :requires #{}
+     :deps '[shadow.js]
+     :source ""}))
+
+(defn find-file
+  [{:keys [project-dir] :as npm} ^File require-from ^String require]
+  (cond
+    ;; absolute is relative to the project, no outside dependencies are allowed
+    (util/is-absolute? require)
+    (let [file (io/file project-dir (subs require 1))]
+      (when-not (and (.exists file)
+                     (.isFile file))
+        (throw (ex-info "absolute require not found"
+                 {:tag ::not-found
+                  :require-from require-from
+                  :require require
+                  :file file})))
+
+      file)
+
+    (util/is-relative? require)
+    (find-relative npm require-from require)
+
+    ;; FIXME: do node libs ever have nested things?
+    ;; path/foo would not be overridden by path
+    :else
+    (let [override (get node-libs-browser require)]
+
+      (cond
+        (nil? override)
+        (find-package-require npm require)
+
+        (false? override)
+        empty-rc
+
+        ;; "foo":"bar"
+        :else
+        (find-package-require npm override)
+        ))))
+
 (defn maybe-convert-goog [dep]
   (if-not (str/starts-with? dep "goog:")
     dep
@@ -455,19 +543,7 @@
   (when-let [file (find-package-require npm require)]
     (get-file-info npm file)))
 
-(def empty-rc
-  (let [ns 'shadow.empty]
-    {:resource-id [::empty "shadow$empty.js"]
-     :resource-name "shadow$empty.js"
-     :output-name "shadow$empty.js"
-     :type :npm
-     :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
-     :last-modified 0
-     :ns ns
-     :provides #{ns}
-     :requires #{}
-     :deps '[shadow.js]
-     :source ""}))
+
 
 (defn js-resource-for-global
   "a dependency might come from something already included in the page by other means
@@ -506,44 +582,6 @@
     (get-file-info npm file)
     ))
 
-;; https://github.com/webpack/node-libs-browser/blob/master/index.js
-;; using this package so have the same dependencies that webpack would use
-(def node-libs-browser
-  {"child_process" false
-   "xmlhttprequest" false
-   "cluster" false
-   "console" "console-browserify"
-   "constants" "constants-browserify"
-   "crypto" "crypto-browserify"
-   "dgram" false
-   "dns" false
-   "domain" "domain-browser"
-   "fs" false
-   "http" "stream-http"
-   "https" "https-browserify"
-   "module" false
-   "net" false
-   "os" "os-browserify/browser.js"
-   "path" "path-browserify"
-   "process" "process/browser.js"
-   "querystring" "querystring-es3"
-   "readline" false
-   "repl" false
-   "stream" "stream-browserify"
-   "_stream_duplex" "readable-stream/duplex.js"
-   "_stream_passthrough" "readable-stream/passthrough.js"
-   "_stream_readable" "readable-stream/readable.js"
-   "_stream_transform" "readable-stream/transform.js"
-   "_stream_writable" "readable-stream/writable.js"
-   "string_decoder" "string_decoder"
-   "sys" "util/util.js"
-   "timers" "timers-browserify"
-   "tls" false
-   "tty" "tty-browserify"
-   "util" "util/util.js"
-   "vm" "vm-browserify"
-   "zlib" "browserify-zlib"})
-
 ;; FIXME: this should work with URLs now that we can easily resolve into jars
 ;; but since David pretty clearly said the relative requires are not going to happen
 ;; I'm not worried about finding relative requires in jars
@@ -557,125 +595,57 @@
          (string? require)
          (map? require-ctx)]}
 
-  (let [{:keys [browser-overrides package-dir] :as pkg}
-        (when require-from
-          (find-package-for-file npm require-from))]
+  (let [file
+        (find-file npm require-from require)
+
+        {:keys [browser-overrides package-dir] :as pkg}
+        (find-package-for-file npm file)
+
+        ;; the package may have "browser":{"./a":"./b"} overrides
+        override
+        (when (and pkg (seq browser-overrides))
+          (let [package-path
+                (.toPath package-dir)
+
+                rel-name
+                (str "./" (.relativize package-path (.toPath file)))]
+
+            ;; FIXME: I'm almost certain that browser allows overriding without extension
+            ;; "./lib/some-file":"./lib/some-other-file"
+            (get browser-overrides rel-name)))]
 
     (cond
-      ;; absolute is relative to the project, no outside dependencies are allowed
-      (util/is-absolute? require)
-      (let [file (io/file project-dir (subs require 1))]
-        (when-not (and (.exists file)
-                       (.isFile file))
-          (throw (ex-info "absolute require not found"
-                   {:tag ::not-found
-                    :require-from require-from
-                    :require require
-                    :file file})))
+      ;; good to go, no browser overrides
+      (nil? override)
+      (get-file-info npm file)
 
-        (get-file-info npm file))
+      ;; disabled require
+      (false? override)
+      empty-rc
 
-      ;; browser override makes things complicated
-      ;; https://github.com/defunctzombie/package-browser-field-spec
+      ;; FIXME: is "./lib/some-file.js":"some-package" allowed?
+      ;; currently assumes its always a file in the package itself
+      (string? override)
+      (let [override-file
+            (-> (io/file package-dir override)
+                (.getCanonicalFile))]
 
-      ;; "browser":{"./lib/some-file.js":"./lib/some-other-file.js"}
-      ;; the file overrides are relative to the project folder
-      ;; but the actual require may be require("./some-file.js") since that is relative in the file
-      ;; so find the normal file first, when found we relativize the path to the package dir
-      ;; if that path was overriden we swap it, otherwise use the file we found first
-      (util/is-relative? require)
-      (let [file (find-relative npm require-from require)
-
-            override
-            (when pkg
-              (let [package-path
-                    (.toPath package-dir)
-
-                    rel-name
-                    (str "./" (.relativize package-path (.toPath file)))]
-
-                ;; FIXME: I'm almost certain that browser allows overriding without extension
-                ;; "./lib/some-file":"./lib/some-other-file"
-                (get browser-overrides rel-name)))]
-
-        (cond
-          (nil? override)
-          (get-file-info npm file)
-
-          ;; FIXME: is "./lib/some-file.js":"some-package" allowed?
-          (string? override)
-          (let [override-file
-                (-> (io/file package-dir override)
-                    (.getCanonicalFile))]
-
-            (when-not (.exists override-file)
-              (throw (ex-info "override to file that doesn't exist"
-                       {:tag ::invalid-override
-                        :require-from require-from
-                        :require require
-                        :file file
-                        :override override
-                        :override-file override-file})))
-            (get-file-info npm override-file))
-
-          ;; FIXME: is that allowed?
-          (false? override)
-          (throw (ex-info "TBD, rel-file is false"
-                   {:tag ::false-override
-                    :package-dir package-dir}))
-
-          :else
-          (throw (ex-info "invalid override"
+        (when-not (.exists override-file)
+          (throw (ex-info "override to file that doesn't exist"
                    {:tag ::invalid-override
-                    :package-dir package-dir
-                    :require require
-                    :override override}))
-          ))
-
-
-      ;; package-require
-      :else
-      (let [override
-            (let [override (get-in pkg [:browser-overrides require] ::not-found)]
-              (if (not= ::not-found override)
-                override
-                ;; FIXME: should check require-ctx :browser, which should be our only target but who knows
-                (get node-libs-browser require)))]
-
-        (cond
-          ;; some node packages do conditional requires for some of the npm only packages
-          ;; but work if they fail, so we shouldn't fail the build always.
-          #_(false? override)
-          #_(throw (ex-info
-                     (format "node-only package \"%s\" used by \"%s\" is not available"
-                       require
-                       (when require-from
-                         (.getAbsolutePath require-from)))
-                     {:tag ::node-only
-                      :require require
-                      :require-from require-from}))
-
-          (nil? override)
-          (find-package-resource npm require)
-
-          ;; "browser":{"util":false} means we should ignore a package import
-          ;; since we must resolve to something we just resolve to an empty file
-          (false? override)
-          empty-rc
-
-          ;; FIXME: "util":"./file-in-package.js" - is that allowed?
-          (util/is-relative? require)
-          (throw (ex-info "browser override from package to relative"
-                   {:tag ::relative-override
                     :require-from require-from
                     :require require
-                    :override override}))
+                    :file file
+                    :override override
+                    :override-file override-file})))
+        (get-file-info npm override-file))
 
-          ;; "foo":"bar"
-          ;; FIXME: should this call find-resource so one resolve override can link to another?
-          :else
-          (find-resource* npm require-from override require-ctx)
-          )))))
+      :else
+      (throw (ex-info "invalid override"
+               {:tag ::invalid-override
+                :package-dir package-dir
+                :require require
+                :override override})))))
 
 (defn find-resource
   [{:keys [project-dir] :as npm} ^File require-from ^String require require-ctx]

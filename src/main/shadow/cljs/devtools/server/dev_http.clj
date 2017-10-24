@@ -79,7 +79,7 @@
 
         (>!! out {:type :println
                   :msg (format "shadow-cljs - HTTP server for \"%s\" available at http://localhost:%s" build-id http-port)})
-        (log/info ::http-serve {:http-port port :http-root http-root :build-id build-id})
+        (log/debug ::http-serve {:http-port port :http-root http-root :build-id build-id})
 
         instance)
       (catch BindException e
