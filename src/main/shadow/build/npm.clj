@@ -61,9 +61,13 @@
                 (cond->
                   (string? browser)
                   (assoc :browser browser)
+
+                  ;; browser can point to a string and to an object
+                  ;; since object has an entirely different meaning
+                  ;; don't use it as a main
                   (map? browser)
-                  (assoc :browser-overrides browser)))
-            ]
+                  (-> (assoc :browser-overrides browser)
+                      (update :package-json dissoc "browser"))))]
 
         (swap! index-ref assoc-in [:package-json-cache file] {:content content
                                                               :last-modified last-modified})
@@ -101,8 +105,6 @@
         (reduced path)))
     nil
     extensions))
-
-
 
 (defn find-package* [{:keys [node-modules-dir] :as npm} package-name]
   ;; this intentionally only checks
@@ -745,7 +747,7 @@
      ;; so use the first thing that exists
      ;; FIXME: if a build ever needs to configure these we can't use the shared npm reference
      :extensions [".js" ".json"]
-     :main-keys [#_#_"module" "jsnext:main" "main"]
+     :main-keys [#_#_"module" "jsnext:main" "browser" "main"]
      }))
 
 (defn stop [{:keys [babel] :as npm}]
