@@ -37,7 +37,6 @@
   (-> (fs/lstatSync path)
       (.isDirectory)))
 
-
 (defn run [project-root java-cmd java-args proc-opts]
   (let [spawn-opts
         (-> {:cwd project-root
@@ -343,8 +342,14 @@
                 true))))))
 
 (defn ^:export main [args]
-  ;; FIXME: doesn't work, don't know why
-  (js/process.on "SIGUSR2" dump-script-state)
+
+  ;; https://github.com/tapjs/signal-exit
+  ;; without this the shadow-cljs process leaves orphan java processes
+  ;; that do not exit when the node process is killed (by closing the terminal)
+  ;; just adding this causes the java processes to exit properly ...
+  ;; I do not understand why ... but I can still use spawnSync this way so I'll take it
+  (let [onExit (js/require "signal-exit")]
+    (onExit (fn [code signal])))
 
   (try
     (let [{:keys [action builds options summary errors] :as opts}

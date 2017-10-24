@@ -87,6 +87,17 @@
         :prompt (fn [])))
     ))
 
+(defn blocking-action
+  [config {:keys [action builds options] :as opts}]
+  (binding [*in* *in*]
+    (cond
+      (= :clj-eval action)
+      (do-clj-eval config opts)
+
+      (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
+      (server/from-cli action builds options)
+      )))
+
 (defn main [& args]
   (let [{:keys [action builds options summary errors] :as opts}
         (opts/parse args)
@@ -94,11 +105,14 @@
         config
         (config/load-cljs-edn!)]
 
-    ;; always attempt to install npm-deps?
-    ;; doesn't do anything if all deps are in package.json
+    ;; always install since its a noop if everything is in package.json
+    ;; and a server restart is not required for them to be picked up
     (npm-deps/main config opts)
 
     (cond
+      ;;
+      ;; actions that do a thing and exit
+      ;;
       (:version options)
       (println "TBD")
 
@@ -111,14 +125,18 @@
       (= :npm-deps action)
       (println "npm-deps done.")
 
-      (= :clj-eval action)
-      (do-clj-eval config opts)
-
       (contains? #{:compile :check :release} action)
       (do-build-commands config opts builds)
 
-      (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
-      (server/from-cli action builds options))))
+      ;;
+      ;; actions that may potentially block
+      ;;
+      (contains? #{:watch :node-repl :cljs-repl :clj-repl :server :clj-eval} action)
+      (blocking-action config opts)
+
+      :else
+      (println "Unknown action.")
+      )))
 
 (defn print-main-error [e]
   (try
