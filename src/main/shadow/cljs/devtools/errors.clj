@@ -9,7 +9,8 @@
             [shadow.build :as comp]
             [shadow.build.resolve :as resolve]
             [shadow.cljs.devtools.config :as config]
-            [shadow.build.warnings :as w])
+            [shadow.build.warnings :as w]
+            [expound.alpha :as expound])
   (:import (java.io StringWriter)
            (clojure.lang ExceptionInfo)))
 
@@ -81,7 +82,10 @@
         (.write w (pr-str (s/abbrev pred)))
         (.write w "\n")
         ))
-  (.write w (with-out-str (s/explain-out (select-keys data [::s/problems])))))
+
+  (.write w (with-out-str
+              (expound/printer data)
+              #_ (s/explain-out (select-keys data [::s/problems])))))
 
 (defmethod ex-data-format ::ns-form/invalid-ns
   [w e {:keys [config] :as data}]
@@ -100,6 +104,11 @@
 (defmethod ex-data-format ::resolve/missing-js
   [w e data]
   (write-msg w e))
+
+(defmethod ex-data-format :shadow.build.classpath/inspect-cljs
+  [w e data]
+  (write-msg w e)
+  (error-format w (.getCause e)))
 
 (defmethod ex-data-format ::reader-exception
   [w e data]

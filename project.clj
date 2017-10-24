@@ -41,6 +41,7 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
+   [expound "0.3.1"]
    ;; [cljs-tooling "0.2.0"]
    ;; [compliment "0.3.4"]
    ]
@@ -72,6 +73,7 @@
       :exclusions
       [cljsjs/create-react-class]]
 
+     [thi.ng/geom "0.0.908"]
      [re-view "0.4.6"]
      [binaryage/devtools "0.9.4"]]
     :source-paths

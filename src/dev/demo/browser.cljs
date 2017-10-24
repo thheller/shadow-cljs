@@ -6,14 +6,13 @@
             ["jquery" :as jq]
             ["circular-test" :as circ]
             ["material-ui/RaisedButton" :as mui-btn :default btn]
-            ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
+    ;; ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
             ["babel-test" :as babel-test :default Shape]
             ["d3" :as d3]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen]
-            [shadow.api :refer (ns-ready)])
-  #_ (:import ["react" Component]))
+            [shadow.api :refer (ns-ready)]))
 
 (assoc nil :foo 1)
 

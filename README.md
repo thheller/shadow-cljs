@@ -67,7 +67,7 @@ An example config could look like this:
 
 ```clojure
 {:dependencies
- [[reagent "0.8.0-alpha1"]]
+ [[reagent "0.8.0-alpha2"]]
 
  :source-paths
  ["src"]

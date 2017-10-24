@@ -49,17 +49,26 @@
         (into #{} (map util/munge-goog-ns) (.getProvides deps-info))]
 
     (assoc rc
-      :deps deps
-      :requires (into #{} deps)
-      :provides provides
-      :module-type (or module-type "goog"))))
+           :deps deps
+           :requires (into #{} deps)
+           :provides provides
+           :module-type (or module-type "goog"))))
 
 (defn inspect-cljs
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
    with ns-related infos"
-  [state {:keys [url macros-ns] :as rc}]
+  [state {:keys [url resource-name macros-ns] :as rc}]
   (let [{:keys [name deps requires] :as ast}
-        (cljs-bridge/get-resource-info url)
+        (try
+          (cljs-bridge/get-resource-info url)
+          (catch Exception e
+            (throw (ex-info
+                     (if macros-ns
+                       (format "failed to inspect macro file: %s" url)
+                       (format "failed to inspect cljs file: %s" url))
+                     {:tag ::inspect-cljs
+                      :resource-name resource-name
+                      :url url} e))))
 
         provide-name
         (if-not macros-ns
@@ -129,9 +138,9 @@
             _ (when-not (s/valid? ::config/deps-cljs deps-cljs)
                 (throw (ex-info "invalid deps.cljs"
                          (assoc (s/explain-data ::config/deps-cljs deps-cljs)
-                           :tag ::deps-cljs
-                           :deps deps-cljs
-                           :source-path source-path))))
+                                :tag ::deps-cljs
+                                :deps deps-cljs
+                                :source-path source-path))))
 
             get-index-rc
             (fn [index resource-name]
@@ -276,24 +285,24 @@
 
 (defn inspect-resources [cp {:keys [resources] :as contents}]
   (assoc contents :resources
-    (->> resources
-         (map set-output-name)
-         (map (fn [src]
-                (try
-                  (inspect-resource cp src)
-                  (catch Exception e
-                    (log/warnf "failed to inspect resource \"%s\", it will not be available." (or (:file src)
-                                                                                                  (:url src)
-                                                                                                  (:resource-name src)))
-                    nil))))
-         (remove nil?)
-         (remove (fn [{:keys [type module-type]}]
-                   ;; only want goog resources here
-                   ;; es6 and others will be done by shadow.build.npm
-                   (and (= :goog type) (not= "goog" module-type))))
-         (remove #(empty? (:provides %)))
-         (into [])
-         )))
+         (->> resources
+              (map set-output-name)
+              (map (fn [src]
+                     (try
+                       (inspect-resource cp src)
+                       (catch Exception e
+                         (log/warnf "failed to inspect resource \"%s\", it will not be available." (or (:file src)
+                                                                                                       (:url src)
+                                                                                                       (:resource-name src)))
+                         nil))))
+              (remove nil?)
+              (remove (fn [{:keys [type module-type]}]
+                        ;; only want goog resources here
+                        ;; es6 and others will be done by shadow.build.npm
+                        (and (= :goog type) (not= "goog" module-type))))
+              (remove #(empty? (:provides %)))
+              (into [])
+              )))
 
 (defn process-root-contents [cp source-path root-contents]
   {:pre [(sequential? root-contents)
@@ -442,9 +451,9 @@
         ;; remove all provides, otherwise it might end up being used despite the invalid name
         ;; enforce this behavior since the warning might get overlooked easily
         (let [invalid-src (assoc rc
-                            :provides #{}
-                            :requires #{}
-                            :deps [])]
+                                 :provides #{}
+                                 :requires #{}
+                                 :deps [])]
           (index-rc-add index invalid-src)))
 
     ;; do not merge files that are already present from a different source path
@@ -605,7 +614,7 @@
 
 (defn index-classpath
   ([cp]
-    (index-classpath cp (get-classpath-entries cp)))
+   (index-classpath cp (get-classpath-entries cp)))
   ([{:keys [index-ref] :as cp} paths]
    {:pre [(service? cp)]}
    (locking classpath-lock

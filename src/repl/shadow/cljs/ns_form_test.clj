@@ -42,18 +42,18 @@
                [goog.ui SomeElement OtherElement]
                a.fully-qualified.Name))
 
-          test
-          '(ns cljs.core
-             (:require goog.math.Long
-                       goog.math.Integer
-                       [goog.string :as gstring]
-                       [goog.object :as gobject]
-                       [goog.array :as garray])
-             (:import [goog.string StringBuffer]))
+          #_[test
+             '(ns cljs.core
+                (:require goog.math.Long
+                          goog.math.Integer
+                          [goog.string :as gstring]
+                          [goog.object :as gobject]
+                          [goog.array :as garray])
+                (:import [goog.string StringBuffer]))
 
-          test
-          '(ns test.foo
-             (:import [goog.history Foo]))
+             test
+             '(ns test.foo
+                (:import [goog.history Foo]))]
 
           a (ns-form/parse test)
           b (-> (cljs-parse-ns ns-env test)
