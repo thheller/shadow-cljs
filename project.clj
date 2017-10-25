@@ -5,7 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/clojure "1.9.0-beta2"]
+  [[org.clojure/clojure "1.9.0-beta3"]
 
    ;; [org.clojure/spec.alpha "0.1.108"]
    ;; [org.clojure/core.specs.alpha "0.1.10"]
