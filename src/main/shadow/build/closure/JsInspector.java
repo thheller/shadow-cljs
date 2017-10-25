@@ -11,13 +11,10 @@ import java.util.List;
 
 /**
  * Created by thheller on 29/06/2017.
- * <p>
+ *
  * takes a SourceFile and extracts all require/import names
  * similar to "detective" from node
- * <p>
- * I have no idea why Closure doesn't have something like this
- * <p>
- * FIXME: should probably be more like JSFileParser, actually parsing might not always be possible (eg. JSX)
+ *
  */
 public class JsInspector {
 
@@ -28,7 +25,21 @@ public class JsInspector {
 
         @Override
         public boolean shouldTraverse(NodeTraversal t, Node node, Node parent) {
-            return true; // require may be anywhere
+            if (node.isFunction()) {
+                Node params = node.getSecondChild(); // NodeUtil.getFunctionParameters(node) does a precondition we just did
+                Node param = params.getFirstChild();
+                while (param != null) {
+                    // do not traverse into any function that declares a require local
+                    // non-minified browserify bundles might do this
+                    // function(require, module, exports) {}
+                    // as that is not a require we should resolves
+                    if (param.isName() && param.getString().equals("require")) {
+                        return false;
+                    }
+                    param = param.getNext();
+                }
+            }
+            return true;
         }
 
         @Override
@@ -119,15 +130,11 @@ public class JsInspector {
         co.setLanguageIn(CompilerOptions.LanguageMode.ECMASCRIPT_2017);
         cc.initOptions(co);
 
-        SourceFile srcFile = SourceFile.fromCode("foo.js", "require('react'); require('./foo'); import 'foo'; import { x } from 'bar';");
-
-
+        SourceFile srcFile = SourceFile.fromCode("foo.js", "var x = function(require) { require('DONT'); }; require('react'); require('./foo'); import 'foo'; import { x } from 'bar';");
         System.out.println(getFileInfo(cc, srcFile));
 
         SourceFile exportFrom = SourceFile.fromCode("foo.js", "export * from './foo';");
         System.out.println(getFileInfo(cc, exportFrom));
-
-
 
         SourceFile jsxFile = SourceFile.fromCode(
                 "jsx.js",
