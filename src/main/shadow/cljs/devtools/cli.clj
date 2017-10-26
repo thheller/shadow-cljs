@@ -128,6 +128,10 @@
       (contains? #{:compile :check :release} action)
       (do-build-commands config opts builds)
 
+      ;; MVP, really not sure where to take this
+      (= :test action)
+      (api/test)
+
       ;;
       ;; actions that may potentially block
       ;;

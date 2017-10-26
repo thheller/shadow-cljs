@@ -684,20 +684,19 @@
           (index-file-remove source-path file)
           (index-file-add source-path file)))))
 
-
+(defn find-resources-using-ns
+  [{:keys [index-ref] :as cp} ns-sym]
+  {:pre [(symbol? ns-sym)]}
+  (->> (:sources @index-ref)
+       (vals)
+       (filter (fn [{:keys [requires]}]
+                 (contains? requires ns-sym)))
+       (into #{})))
 
 (comment
   ;; FIXME: implement correctly
 
-  (defn find-dependent-names
-    [state ns-sym]
-    (->> (:sources state)
-         (vals)
-         (filter (fn [{:keys [requires]}]
-                   (contains? requires ns-sym)))
-         (map :name)
-         (into #{})
-         ))
+
 
   (defn find-dependents-for-names [state source-names]
     (->> source-names

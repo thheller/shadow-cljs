@@ -1,5 +1,5 @@
 (ns shadow.cljs.devtools.api
-  (:refer-clojure :exclude (compile))
+  (:refer-clojure :exclude (compile test))
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -9,6 +9,7 @@
             [shadow.runtime.services :as rt]
             [shadow.build :as build]
             [shadow.build.api :as build-api]
+            [shadow.build.test :as build-test]
             [shadow.build.node :as node]
             [shadow.cljs.util :as cljs-util]
             [shadow.cljs.repl :as repl]
@@ -40,29 +41,32 @@
     (super/get-worker supervisor id)
     ))
 
+(defn get-runtime []
+  (or (runtime/get-instance)
+
+      ;; FIXME: this should be done by shadow.cljs.devtools.cli
+      ;; shadow-cljs release multiple builds foo bar
+      ;; otherwise each build repeats this work since this is not shared
+      (let [{:keys [cache-root] :as config}
+            (config/load-cljs-edn!)
+
+            cache-root
+            (io/file cache-root)]
+
+        ;; FIXME: add executor but not sure where to call shutdown
+        {:cache-root
+         cache-root
+
+         :npm
+         (npm/start)
+
+         :classpath
+         (-> (cp/start (io/file cache-root "classpath-cache"))
+             (cp/index-classpath))})))
+
 (defn- new-build [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
   (let [{:keys [npm classpath cache-root executor]}
-        (or (runtime/get-instance)
-
-            ;; FIXME: this should be done by shadow.cljs.devtools.cli
-            ;; shadow-cljs release multiple builds foo bar
-            ;; otherwise each build repeats this work since this is not shared
-            (let [{:keys [cache-root] :as config}
-                  (config/load-cljs-edn!)
-
-                  cache-root
-                  (io/file cache-root)]
-
-              ;; FIXME: add executor but not sure where to call shutdown
-              {:cache-root
-               cache-root
-
-               :npm
-               (npm/start)
-
-               :classpath
-               (-> (cp/start (io/file cache-root "classpath-cache"))
-                   (cp/index-classpath))}))
+        (get-runtime)
 
         cache-dir
         (config/make-cache-dir cache-root build-id mode)]
@@ -304,40 +308,72 @@
   (-> (slurp (io/resource "shadow/txt/repl-help.txt"))
       (println)))
 
+(defn find-resources-using-ns [ns]
+  (let [{:keys [classpath]} (get-runtime)]
+    (->> (cp/find-resources-using-ns classpath ns)
+         (map :ns)
+         (into #{}))))
+
+(defn node-execute! [node-args file]
+  (let [script-args
+        ["node"]
+
+        pb
+        (doto (ProcessBuilder. script-args)
+          (.directory nil))]
+
+
+    ;; not using this because we only get output once it is done
+    ;; I prefer to see progress
+    ;; (prn (apply shell/sh script-args))
+
+    (let [node-proc (.start pb)]
+
+      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
+      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
+
+      (let [out (.getOutputStream node-proc)]
+        (io/copy (io/file file) out)
+        (.close out))
+
+      ;; FIXME: what if this doesn't terminate?
+      (let [exit-code (.waitFor node-proc)]
+        exit-code))))
+
+(defn test []
+  (let [{:keys [npm classpath cache-root executor]}
+        (get-runtime)
+
+        mode
+        :dev
+
+        cache-dir
+        (config/make-cache-dir cache-root :test mode)
+
+        build-state
+        (-> (build-api/init)
+            (build-api/with-npm npm)
+            (build-api/with-classpath classpath)
+            (build-api/with-cache-dir cache-dir)
+            (assoc :mode mode)
+            (build-api/with-build-options
+              {:output-dir (io/file "target" "test-out")})
+            (cond->
+              executor
+              (build-api/with-executor executor))
+
+            (build-test/setup-runner '[demo.app-test])
+            (build-api/analyze-modules)
+            (build-api/compile-sources)
+            (node/flush-unoptimized))]
+
+    (node-execute! [] (io/file "target" "shadow-test-runner.js"))
+    ))
+
 (comment
-  (defn test-setup []
-    (-> (build-api/init)
-        (build-api/enable-source-maps)
-        (as-> X
-          (build-api/with-build-options X
-            {:output-dir (io/file (:cache-dir X) "test-out")}))
-        ))
-
-  (defn node-execute! [node-args file]
-    (let [script-args
-          ["node"]
-
-          pb
-          (doto (ProcessBuilder. script-args)
-            (.directory nil))]
 
 
-      ;; not using this because we only get output once it is done
-      ;; I prefer to see progress
-      ;; (prn (apply shell/sh script-args))
 
-      (let [node-proc (.start pb)]
-
-        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
-
-        (let [out (.getOutputStream node-proc)]
-          (io/copy (io/file file) out)
-          (.close out))
-
-        ;; FIXME: what if this doesn't terminate?
-        (let [exit-code (.waitFor node-proc)]
-          exit-code))))
 
   (defn test-all []
     (-> (build/configure :dev '{:build-id :shadow-build-api/test
