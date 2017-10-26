@@ -9,7 +9,7 @@
   (set! (.-innerHTML (js/document.getElementById "dump")) value))
 
 (def code
-  "
+  #_ "
 (ns simpleexample.core
   (:require [clojure.string :as str]
             [reagent.core :as r]))
@@ -35,7 +35,14 @@
    [greeting \"Hello world, it is now\"]
    [clock]
    [color-input]])
-(r/render [simple-example] (js/document.getElementById \"app\"))" )
+(r/render [simple-example] (js/document.getElementById \"app\"))"
+  "(ns reagent.core)
+   (def x 1)
+   (ns b.core (:require [reagent.core :as a]))
+   (js/console.log \"x\" a/x)
+   (require 'reagent.core :reload)
+   "
+  )
 
 (defonce compile-state-ref (env/default-compiler-env))
 
