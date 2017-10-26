@@ -159,7 +159,8 @@
   (let [ns (if macros
              (symbol (str name "$macros"))
              name)]
-    (env/get-ns-info ns)
+    (or (get-in @compile-state-ref [:cljs.analyzer/namespaces ns])
+        (env/get-ns-info ns))
     (load-namespaces compile-state-ref #{ns} cb)))
 
 (defn fix-provide-conflict! []
