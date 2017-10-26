@@ -159,8 +159,10 @@
   (let [ns (if macros
              (symbol (str name "$macros"))
              name)]
-    (env/get-ns-info ns)
-    (load-namespaces compile-state-ref #{ns} cb)))
+    (if (get-in @compile-state-ref [:cljs.analyzer/namespaces ns])
+      (cb {:lang :js :source ""})
+      (do (env/get-ns-info ns)
+          (load-namespaces compile-state-ref #{ns} cb)))))
 
 (defn fix-provide-conflict! []
   ;; since cljs.js unconditionally does a goog.require("cljs.core$macros")
