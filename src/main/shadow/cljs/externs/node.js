@@ -27,6 +27,6 @@ function require(name) {}
 
 
 /**
- * FIXME: temporary placeholder until I can do better
+ * @dict
  */
-function shadow$placeholder(name) {}
+var shadow$provide = {};

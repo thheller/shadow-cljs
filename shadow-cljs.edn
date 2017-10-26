@@ -85,7 +85,7 @@
    :modules
    {:base
     {:entries
-     [cljs.core]
+     [cljs.core demo.sm-test-before]
      :depends-on
      #{}}
 

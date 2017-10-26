@@ -34,7 +34,10 @@ shadow.js.require = function(name) {
   return exports;
 };
 
-shadow.js.provide = function(name, moduleFn) {
+shadow.js.exec = function(name) {
+  var moduleFn = shadow$provide[name];
+  delete shadow$provide[name];
+
   var exports = shadow.js.require(name);
   var module = {};
 
@@ -66,10 +69,4 @@ shadow.js.provide = function(name, moduleFn) {
   }
 
   shadow.js.files[name] = exports;
-};
-
-goog.exportSymbol("shadow.js.provide", shadow.js.provide);
-
-// FIXME: remove, just for debugging :advanced stuff
-goog.exportSymbol("shadow.js.files", shadow.js.files);
-
+}

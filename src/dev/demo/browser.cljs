@@ -4,7 +4,7 @@
             ["react-dom" :as rdom :refer (render)]
             ["shortid" :as sid]
             ["jquery" :as jq]
-            ["circular-test" :as circ]
+
             ["material-ui/RaisedButton" :as mui-btn :default btn]
     ;; ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
             ["babel-test" :as babel-test :default Shape]
@@ -12,7 +12,9 @@
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen]
-            [shadow.api :refer (ns-ready)]))
+            [shadow.api :refer (ns-ready)]
+
+            ["circular-test" :as circ]))
 
 (assoc nil :foo 1)
 

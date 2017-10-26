@@ -14,6 +14,8 @@ class Shape {
     }
 }
 
+console.log("babel.js", new Shape("test", 1, 2));
+
 // works but needs externs or exports in :advanced
 // import * as str from "goog:goog.string";
 

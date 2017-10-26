@@ -21,7 +21,7 @@
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          SourceMap$LocationMapping BasicErrorManager Result ShadowAccess
                                          SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal)
-           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector MergeShadowJS)
+           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode ModuleNames)
            (com.google.javascript.jscomp.parsing.parser FeatureSet)
            (java.nio.charset Charset)
@@ -569,11 +569,12 @@
   (SourceFile/fromCode name code))
 
 (defn add-input-source-maps [{:keys [build-sources] :as state} cc]
-  (doseq [src-id build-sources]
-    (let [{:keys [resource-name output-name] :as rc}
-          (data/get-source-by-id state src-id)
+  (doseq [src-id build-sources
+          :let [{:keys [resource-name type output-name] :as rc}
+                (data/get-source-by-id state src-id)]
+          :when (not= :npm type)]
 
-          {:keys [source-map-json] :as output}
+    (let [{:keys [source-map-json] :as output}
           (data/get-output! state rc)
 
           source-map-json
@@ -649,9 +650,10 @@
                              goog-nodeGlobalRequire-fix)
 
                         (and (= :npm type) (= :shadow js-provider))
-                        (str "shadow$placeholder(\"" ns "\");\n"
-                             ;; the compiler does not need to know about all js files
-                             ;; it only needs to know if used by cljs
+                        ;; all shadow.js.provide are prepended to the module so they do not mess up source maps
+                        ;; exec ensures that they are loaded at the correct time
+                        ;; this is not done lazily in require due to circular dependencies
+                        (str "shadow.js.exec(\"" ns "\");"
                              (when (contains? required-js-names ns)
                                (str "goog.provide(\"" ns "\");\n"
                                     ns " = shadow.js.require(\"" ns "\");")))
@@ -857,36 +859,6 @@
     (doseq [input (.getInputs js-mod)]
       (println (format "--js %s \\" (.getName input))))))
 
-(defn replace-shadow-placeholders-naive
-  [{:keys [output] :as mod} state sources]
-  (let [module-js
-        (->> sources
-             (map #(data/get-source-by-id state %))
-             (filter #(= :npm (:type %)))
-             (reduce
-               (fn [module-js {:keys [ns type] :as src}]
-                 (let [{:keys [js] :as output}
-                       (data/get-output! state src)
-
-                       pattern
-                       (str "shadow$placeholder(\"" ns "\");")]
-
-                   ;; :simple strips the trailing ; something, but we need it
-                   (str/replace module-js pattern (str js ";"))))
-               output))]
-
-    (assoc mod :output module-js)))
-
-(defn source-file-with-inline-source-map [name js source-map-json]
-  (let [b64
-        (-> (Base64/getEncoder)
-            (.encodeToString (.getBytes source-map-json)))
-
-        js
-        (str js "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n")]
-
-    (closure-source-file name js)))
-
 (defn source-map-sources [state]
   (->> (:build-sources state)
        (map (fn [src-id]
@@ -907,96 +879,6 @@
   ;; since modules require .reset
   (doseq [src-file (source-map-sources state)]
     (.addSourceFile source-map src-file)))
-
-(defn replace-shadow-placeholders-with-source-map
-  [{:keys [resource-name output-name output source-map-json] :as mod} {:keys [js-options] :as state} sources]
-
-  (let [language-out
-        (get-in state [:compiler-options :language-out] :ecmascript3)
-
-        co-opts
-        {:source-map true
-         :pretty-print (:pretty-print js-options false)
-         :language-in language-out
-         :language-out language-out}
-
-        closure-opts
-        (doto (make-options)
-          (set-options co-opts)
-          (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
-          (.setApplyInputSourceMaps true)
-          (.setResolveSourceMapAnnotations false))
-
-        cc
-        (doto (make-closure-compiler)
-          (.initOptions closure-opts)
-          (.initBasedOnOptions)
-          (.addInputSourceMap output-name
-            (SourceMapInput.
-              (closure-source-file output-name source-map-json))))
-
-        source-map
-        (doto (.getSourceMap cc)
-          (.reset))
-
-        _
-        (add-sources-to-source-map state source-map)
-
-        replacement-files
-        (->> sources
-             (map #(data/get-source-by-id state %))
-             (filter #(= :npm (:type %)))
-             (reduce
-               (fn [idx {:keys [ns resource-name output-name] :as src}]
-                 (let [{:keys [js source-map-json] :as output}
-                       (data/get-output! state src)
-
-                       file
-                       (closure-source-file resource-name js)]
-
-                   (assoc idx (str ns) file)))
-               {}))
-
-        input-file
-        (closure-source-file output-name output)
-
-        input-node
-        (MergeShadowJS/fileToNode cc input-file)
-
-        pass
-        (MergeShadowJS. cc replacement-files)
-
-        _ (NodeTraversal/traverseEs6 cc input-node pass)
-
-
-        js
-        (ShadowAccess/nodeToJs cc source-map input-node)
-
-        #_(MergeShadowJS/merge
-            module-src
-            replacement-files
-            (source-map-sources state))]
-
-    (assoc mod :output js :source-map-json source-map-json)))
-
-(defn replace-shadow-placeholders
-  "initially shadow$placeholder(\"module$foo\"); calls are placed into the source
-   that gets optimized by closure since we can't let it run the JS deps through
-   :advanced in many cases.
-
-   shadow$placeholder is externed so it doesn't get removed.
-
-   once :advanced finishes we replace those placeholders with the originals
-
-   naively this can be done by string replacements but that destroy source maps
-   so we run this through the closure compiler and do the replacements there if needed"
-  [{:keys [source-map-json] :as mod} state sources]
-  ;; (replace-shadow-placeholders-naive mod state sources)
-  ;; doesn't quite work, can't figure out why
-  (if-not source-map-json
-    (replace-shadow-placeholders-naive mod state sources)
-    (replace-shadow-placeholders-with-source-map mod state sources)))
-
 
 (defn compile-js-modules
   [{::keys [externs modules compiler compiler-options] :as state}]
@@ -1023,10 +905,6 @@
         (when (and success? (get-in state [:compiler-options :source-map]))
           (.getSourceMap compiler))]
 
-    (when (and source-map (= :shadow js-provider))
-      (util/log state {:type ::broken
-                       :msg ":advanced mode with source maps is currently broken!"}))
-
     (-> state
         (assoc ::result result)
         (cond->
@@ -1034,7 +912,7 @@
           (update ::modules
             (fn [modules]
               (->> modules
-                   (map (fn [{:keys [module-id prepend append output-name js-module sources includes] :as mod}]
+                   (map (fn [{:keys [goog-base module-id prepend append output-name js-module sources includes] :as mod}]
                           ;; must reset source map before calling .toSource
                           (when source-map
                             (.reset source-map)
@@ -1056,29 +934,10 @@
                                     (not= :goog (get-in state [:build-options :module-format]))
                                     (update :output rewrite-node-global-access)
 
-                                    ;; generate source maps
                                     (and js-module source-map)
                                     (merge (let [sw (StringWriter.)]
-
-                                             ;; must call .appendTo after calling toSource
-                                             (let [lines
-                                                   (-> (if (seq prepend)
-                                                         (output/line-count prepend)
-                                                         0)
-                                                       (cond->
-                                                         ;; the npm mode will add one additional line
-                                                         ;; for the env setup and requires
-                                                         (= :js (get-in state [:build-options :module-format]))
-                                                         (inc)))]
-
-                                               (.setStartingPosition source-map lines 0))
-
                                              (.appendTo source-map sw output-name)
-
                                              {:source-map-json (.toString sw)}))
-
-                                    (= :shadow js-provider)
-                                    (replace-shadow-placeholders state sources)
                                     ))))))
                    (into []))))))))
 
@@ -1432,11 +1291,11 @@
           (->> (for [{:keys [resource-id resource-name ns file deps] :as src} sources]
                  (let [source (data/get-source-code state src)]
                    (closure-source-file resource-name
-                     (str "shadow.js.provide(\"" ns "\", function(global,require,module,exports) {\n"
+                     (str "shadow$provide[\"" ns "\"] = function(global,require,module,exports) {\n"
                           (if (str/ends-with? resource-name ".json")
                             (str "module.exports=(" source ");")
                             source)
-                          "\n});"))))
+                          "\n};"))))
                #_(map #(do (println (.getCode %)) %))
                (into []))
 
