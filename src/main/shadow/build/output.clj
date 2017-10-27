@@ -216,7 +216,7 @@
 (defn flush-optimized
   ;; FIXME: can't alias this due to cyclic dependency
   [{modules :shadow.build.closure/modules
-    :keys [build-options]
+    :keys [build-options dead-js-deps]
     :as state}]
 
   (let [{:keys [module-format]} build-options
@@ -256,6 +256,7 @@
                         (->> sources
                              (map #(data/get-source-by-id state %))
                              (filter #(= :npm (:type %)))
+                             (remove #(contains? dead-js-deps (:ns %)))
                              (map #(data/get-output! state %))
                              (map :js)
                              (str/join ";\n"))]
@@ -318,6 +319,7 @@
                             (->> sources
                                  (map #(data/get-source-by-id state %))
                                  (filter #(= :npm (:type %)))
+                                 (remove #(contains? dead-js-deps (:ns %)))
                                  (map #(data/get-output! state %)))
                             )))
 
