@@ -164,6 +164,8 @@
            suffix))])))
 
 (defn find-package-require [npm require]
+  {:pre [(not (util/is-relative? require))
+         (not (util/is-absolute? require))]}
   (let [[package-name suffix]
         (split-package-require require)
 
@@ -185,9 +187,11 @@
             [entry entry-file]
             (or (reduce
                   (fn [_ entry]
-                    (when-let [file (or (test-file package-dir entry)
-                                        ;; some libs have main:"some/dir/foo" without the .js
-                                        (test-file-exts npm package-dir entry))]
+                    ;; test file exts first, so we don't pick a directory over a file
+                    ;; lib/jsdom
+                    ;; lib/jsdom.js
+                    (when-let [file (or (test-file-exts npm package-dir entry)
+                                        (test-file package-dir entry))]
 
                       (reduced [entry file])))
                   nil
@@ -276,7 +280,17 @@
           ;; so for each directory first test if there is file by the same name
           (.isDirectory file)
           (or (test-file-exts npm rel-dir require)
-              (test-file-exts npm file "index"))
+              (test-file-exts npm file "index")
+              (let [package-json (io/file file "package.json")]
+                (when (.exists package-json)
+                  ;; node_modules/htmlparser2/lib/Stream.js
+                  ;; has a require("../") which resolves to node_modules/htmlparser2
+                  ;; which is the root of the package (without a index.js)
+                  ;; didn't even know that was allowed but node seems to resolve this
+                  ;; by looking at the package and picking the main
+                  ;; so we mimick that
+                  (find-package-require npm (-> file (.getCanonicalFile) (.getName)))
+                  )))
 
           :else
           file)]
@@ -359,27 +373,42 @@
     (util/is-relative? require)
     (find-relative npm require-from require)
 
-    ;; FIXME: do node libs ever have nested things?
-    ;; path/foo would not be overridden by path
     :else
-    (let [browser-override
-          (and require-from
-               (let [{:keys [browser-overrides] :as require-from-pkg}
-                     (find-package-for-file npm require-from)]
-                 (get browser-overrides require)))
+    (let [require-from-pkg
+          (when require-from ;; no overrides for entries
+            (find-package-for-file npm require-from))
+
+          browser-override
+          (and require-from-pkg
+               (get-in require-from-pkg [:browser-overrides require]))
 
           override
           (if (some? browser-override)
             browser-override
             (get node-libs-browser require))]
-      (cond
-        (false? override)
-        false
 
+      (cond
         (nil? override)
         (find-package-require npm require)
 
+        ;; "canvas": false
+        (false? override)
+        false
+
+        (not (string? override))
+        (throw (ex-info (format "invalid override in package: %s" require-from)
+                 {:require require
+                  :require-from require-from
+                  :override override}))
+
+        ;; jsdom
+        ;; "contextify": "./lib/jsdom/contextify-shim.js"
+        ;; overrides a package require from within the package to a local file
+        (util/is-relative? override)
+        (find-relative npm (:package-dir require-from-pkg) override)
+
         ;; "foo":"bar"
+        ;; swap one package with the other
         :else
         (find-package-require npm override)
         ))))
@@ -641,7 +670,8 @@
 
           ;; FIXME: is "./lib/some-file.js":"some-package" allowed?
           ;; currently assumes its always a file in the package itself
-          (string? override)
+          (and (string? override)
+               (util/is-relative? override))
           (let [override-file
                 (-> (io/file package-dir override)
                     (.getCanonicalFile))]
