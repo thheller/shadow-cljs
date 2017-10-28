@@ -1,4 +1,4 @@
-(ns shadow.build-test
+(ns shadow.cljs.build-test
   (:require
     [clojure.test :as test :refer (is deftest)]
     [shadow.build.api :as build-api]

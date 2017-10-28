@@ -11,6 +11,7 @@
             [cljs.env :as e]
             [clojure.pprint :refer (pprint)]
             [clojure.test :refer (deftest is)]
+            [clojure.inspector :refer (inspect)]
             ))
 
 (defn test-build []

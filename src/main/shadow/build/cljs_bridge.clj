@@ -173,3 +173,14 @@
 
   (pprint *1))
 
+(defn infer-externs-var [env {:keys [name] :as ast} opts]
+  ast)
+
+(defn infer-externs-invoke [env ast opts]
+  ast)
+
+(defn infer-externs [env {:keys [op] :as ast} opts]
+  (case op
+    :var (infer-externs-var env ast opts)
+    :invoke (infer-externs-invoke env ast opts)
+    ast))

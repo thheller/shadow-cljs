@@ -337,6 +337,9 @@
    "tls" false
    "tty" "tty-browserify"
    "util" "util/util.js"
+   ;; just has a bunch of isThing functions that are in util
+   ;; but also tries to use a Buffer global, which doesn't exist
+   "core-util-is" "util/util.js"
    "vm" "vm-browserify"
    "zlib" "browserify-zlib"})
 

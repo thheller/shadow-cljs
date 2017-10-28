@@ -650,10 +650,7 @@
                              goog-nodeGlobalRequire-fix)
 
                         (and (= :npm type) (= :shadow js-provider))
-                        ;; all shadow.js.provide are prepended to the module so they do not mess up source maps
-                        ;; exec ensures that they are loaded at the correct time
-                        ;; this is not done lazily in require due to circular dependencies
-                        (str "shadow.js.exec(\"" ns "\");"
+                        (str ;; "shadow.js.exec(\"" ns "\");"
                              (when (contains? required-js-names ns)
                                (str "goog.provide(\"" ns "\");\n"
                                     ns " = shadow.js.require(\"" ns "\");")))

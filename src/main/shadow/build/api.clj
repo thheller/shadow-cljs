@@ -87,7 +87,8 @@
 
        ;; FIXME: should these ever be configurable?
        :analyzer-passes
-       [cljs-ana/infer-type]}
+       [cljs-ana/infer-type
+        cljs-bridge/infer-externs]}
       (data/init)))
 
 ;; helper methods that validate their args, sort of

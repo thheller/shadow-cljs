@@ -378,10 +378,15 @@
               {:language-out :ecmascript5}
 
               :modules
-              {:test {:entries ["react-apollo" #_ "/test/cjs/entry.js"]}}
+              {:test {:entries ["fabric" #_ "/test/cjs/entry.js"]}}
+
+              :devtools
+              {:enabled false
+               :console-support false}
 
               :js-options
-              {:js-provider :shadow}}
+              {:js-provider :shadow
+               :pretty-print true}}
             {:debug true})]
 
       (pprint (map second build-sources))

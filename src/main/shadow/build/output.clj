@@ -204,8 +204,9 @@
 
          (let [output (str js
                            (when (and (= :shadow js-provider)
-                                      (= :npm type))
-                             (str "\nshadow.js.exec(\"" ns "\");"
+                                      (= :npm type)
+                                      (contains? required-js-names ns))
+                             (str ;; "\nshadow.js.exec(\"" ns "\");"
                                   "\ngoog.provide(\"" ns"\");"
                                   "\n" ns "=shadow.js.require(\"" ns "\");\n"))
                            (generate-source-map state src output js-file ""))]
