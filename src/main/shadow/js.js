@@ -9,11 +9,14 @@ goog.provide("process.env");
  * FIXME: allow specifying env as a map in config and generate this file?
  */
 goog.define("process.env.NODE_ENV", "development");
+goog.exportSymbol("process.env.NODE_ENV", process.env.NODE_ENV);
 
 /**
  * @define {boolean}
  */
 goog.define("process.browser", false);
+
+goog.exportSymbol("process.browser", process.browser);
 
 goog.provide("shadow.js");
 
@@ -52,8 +55,12 @@ shadow.js.exec = function(name) {
   // FIXME: is the call necessary? only ensures that this equals the module
   // which should match node? not entirely sure how others do it.
 
-  // FIXME: wrap in try/catch?
-  moduleFn.call(module, goog.global, shadow.js.require, module, module["exports"]);
+  try {
+    moduleFn.call(module, goog.global, shadow.js.require, module, module["exports"]);
+  } catch (e) {
+    console.warn("shadow-cljs - failed to load", name);
+    throw e;
+  }
 
   exports = module["exports"];
 
