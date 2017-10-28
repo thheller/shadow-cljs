@@ -362,14 +362,22 @@
     ;; FIXME: do node libs ever have nested things?
     ;; path/foo would not be overridden by path
     :else
-    (let [override (get node-libs-browser require)]
+    (let [browser-override
+          (and require-from
+               (let [{:keys [browser-overrides] :as require-from-pkg}
+                     (find-package-for-file npm require-from)]
+                 (get browser-overrides require)))
 
+          override
+          (if (some? browser-override)
+            browser-override
+            (get node-libs-browser require))]
       (cond
+        (false? override)
+        false
+
         (nil? override)
         (find-package-require npm require)
-
-        (false? override)
-        empty-rc
 
         ;; "foo":"bar"
         :else
@@ -597,56 +605,63 @@
          (string? require)
          (map? require-ctx)]}
 
-  (when-let [file (find-file npm require-from require)]
-    
-    (let [{:keys [browser-overrides package-dir] :as pkg}
-          (find-package-for-file npm file)
+  (let [file (find-file npm require-from require)]
+    (cond
+      (nil? file)
+      nil
 
-          ;; the package may have "browser":{"./a":"./b"} overrides
-          override
-          (when (and pkg (seq browser-overrides))
-            (let [package-path
-                  (.toPath package-dir)
+      (false? file)
+      empty-rc
 
-                  rel-name
-                  (str "./" (.relativize package-path (.toPath file)))]
+      :else
+      (let [{:keys [browser-overrides package-dir] :as pkg}
+            (find-package-for-file npm file)
 
-              ;; FIXME: I'm almost certain that browser allows overriding without extension
-              ;; "./lib/some-file":"./lib/some-other-file"
-              (get browser-overrides rel-name)))]
+            ;; the package may have "browser":{"./a":"./b"} overrides
+            override
+            (when (and pkg (seq browser-overrides))
+              (let [package-path
+                    (.toPath package-dir)
 
-      (cond
-        ;; good to go, no browser overrides
-        (nil? override)
-        (get-file-info npm file)
+                    rel-name
+                    (str "./" (.relativize package-path (.toPath file)))]
 
-        ;; disabled require
-        (false? override)
-        empty-rc
+                ;; FIXME: I'm almost certain that browser allows overriding without extension
+                ;; "./lib/some-file":"./lib/some-other-file"
+                (get browser-overrides rel-name)))]
 
-        ;; FIXME: is "./lib/some-file.js":"some-package" allowed?
-        ;; currently assumes its always a file in the package itself
-        (string? override)
-        (let [override-file
-              (-> (io/file package-dir override)
-                  (.getCanonicalFile))]
+        (cond
+          ;; good to go, no browser overrides
+          (nil? override)
+          (get-file-info npm file)
 
-          (when-not (.exists override-file)
-            (throw (ex-info "override to file that doesn't exist"
-                     {:tag ::invalid-override
-                      :require-from require-from
-                      :require require
-                      :file file
-                      :override override
-                      :override-file override-file})))
-          (get-file-info npm override-file))
+          ;; disabled require
+          (false? override)
+          empty-rc
 
-        :else
-        (throw (ex-info "invalid override"
-                 {:tag ::invalid-override
-                  :package-dir package-dir
-                  :require require
-                  :override override}))))))
+          ;; FIXME: is "./lib/some-file.js":"some-package" allowed?
+          ;; currently assumes its always a file in the package itself
+          (string? override)
+          (let [override-file
+                (-> (io/file package-dir override)
+                    (.getCanonicalFile))]
+
+            (when-not (.exists override-file)
+              (throw (ex-info "override to file that doesn't exist"
+                       {:tag ::invalid-override
+                        :require-from require-from
+                        :require require
+                        :file file
+                        :override override
+                        :override-file override-file})))
+            (get-file-info npm override-file))
+
+          :else
+          (throw (ex-info "invalid override"
+                   {:tag ::invalid-override
+                    :package-dir package-dir
+                    :require require
+                    :override override})))))))
 
 (defn find-resource
   [{:keys [project-dir] :as npm} ^File require-from ^String require require-ctx]
