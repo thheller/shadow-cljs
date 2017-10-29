@@ -15,7 +15,8 @@
             [clojure.spec.alpha :as s]
             [cljs.analyzer :as ana]
             [cljs.env :as env]
-            [cljs.externs :as externs])
+            [cljs.externs :as externs]
+            [clojure.string :as str])
   (:import (java.io PushbackReader StringReader)
            (java.util.concurrent Executors ExecutorService)))
 
@@ -173,14 +174,31 @@
 
   (pprint *1))
 
-(defn infer-externs-var [env {:keys [name] :as ast} opts]
-  ast)
+(comment
+  ;; can't do externs inference in a pass since methods are analyzed twice
+  ;; should see if that is really necessary
+  (defn infer-externs-dot
+    [env {:keys [field method target tag form] :as ast} opts]
+    (let [prop (str (or method field))
+          target-tag (:tag target)]
 
-(defn infer-externs-invoke [env ast opts]
-  ast)
+      (when (and (not (str/starts-with? prop "cljs$"))
+                 (not= 'js target-tag)
+                 (or (nil? target-tag)
+                     (= 'any target-tag)))
 
-(defn infer-externs [env {:keys [op] :as ast} opts]
-  (case op
-    :var (infer-externs-var env ast opts)
-    :invoke (infer-externs-invoke env ast opts)
-    ast))
+        (prn [:infer-warning form])
+        ;; (warning :infer-warning env {:warn-type :target :form form})
+        ))
+    ast)
+
+  (defn infer-externs-invoke
+    [env {:keys [tag f form] :as ast} opts]
+    (prn [:invoke tag form])
+    ast)
+
+  (defn infer-externs [env {:keys [op] :as ast} opts]
+    (case op
+      :dot (infer-externs-dot env ast opts)
+      :invoke (infer-externs-invoke env ast opts)
+      ast)))

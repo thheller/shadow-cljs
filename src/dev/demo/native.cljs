@@ -22,9 +22,9 @@
 
 
 (defn thing [{:keys [foo] :as this}]
-  (.componentDidUpdate ^js/Thing this))
+  (.componentDidUpdate this))
 
 (defn thing2 [simple]
-  (.componentDidUpdate ^js/Thing simple))
+  (.componentDidUpdate simple))
 
 foo ;; warning, to prevent cache
