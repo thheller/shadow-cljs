@@ -1,5 +1,6 @@
 (ns shadow.build.cljs-hacks
-  (:require [cljs.analyzer]))
+  (:require [cljs.analyzer]
+            [cljs.core]))
 
 ;; these things to some slight modifications to cljs.analyzer
 ;; there are some odd checks related to JS integration
@@ -248,3 +249,42 @@
       tag
       (-> e :info :tag)
       )))
+
+(in-ns 'cljs.core)
+
+;; https://dev.clojure.org/jira/browse/CLJS-1439
+
+(core/defmacro goog-define
+  "Defines a var using `goog.define`. Passed default value must be
+  string, number or boolean.
+
+  Default value can be overridden at compile time using the
+  compiler option `:closure-defines`.
+
+  Example:
+    (ns your-app.core)
+    (goog-define DEBUG! false)
+    ;; can be overridden with
+    :closure-defines {\"your_app.core.DEBUG_BANG_\" true}
+    or
+    :closure-defines {'your-app.core/DEBUG! true}"
+  [sym default]
+  (assert-args goog-define
+    (core/or (core/string? default)
+             (core/number? default)
+             (core/true? default)
+             (core/false? default)) "a string, number or boolean as default value")
+  (core/let [defname (comp/munge (core/str *ns* "/" sym))
+             type    (core/cond
+                       (core/string? default) "string"
+                       (core/number? default) "number"
+                       (core/or (core/true? default) (core/false? default)) "boolean")]
+    `(do
+       (declare ~(core/vary-meta sym
+                   (fn [m]
+                     (core/cond-> m
+                       (core/not (core/contains? m :tag))
+                       (core/assoc :tag (core/symbol type))
+                       ))))
+       (~'js* ~(core/str "/** @define {" type "} */"))
+       (goog/define ~defname ~default))))

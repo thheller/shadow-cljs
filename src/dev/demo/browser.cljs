@@ -70,3 +70,8 @@
   (js/console.log "REMOVE-CHECK"))
 
 (ns-ready)
+
+(goog-define DEBUG false)
+
+(when DEBUG
+  (js/console.log "foo2"))
