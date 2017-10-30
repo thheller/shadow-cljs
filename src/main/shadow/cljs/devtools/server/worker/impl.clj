@@ -367,6 +367,25 @@
               (build-compile))))
       )))
 
+(defn do-asset-update
+  [{:keys [eval-clients] :as worker-state} updates]
+  (let [watch-path
+        (get-in worker-state [:build-config :devtools :watch-path])
+
+        updates
+        (->> updates
+             (filter #(= :mod (:event %)))
+             (map #(str watch-path "/" (:name %)))
+             (into []))]
+    ;; only interested in file modifications
+    ;; don't need file instances, just the names
+    (when (seq updates)
+      (doseq [{:keys [eval-out] :as client} (vals eval-clients)]
+        (>!! eval-out {:type :asset-watch
+                       :updates updates}))))
+
+  worker-state)
+
 (defn do-config-watch
   [{:keys [autobuild] :as worker-state} {:keys [config] :as msg}]
   (-> worker-state

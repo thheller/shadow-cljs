@@ -138,20 +138,17 @@
           (load-sources sources-to-get do-js-reload)
           )))))
 
-(defn handle-css-changes [{:keys [asset-path name manifest] :as pkg}]
-  (doseq [[css-name css-file-name] manifest]
-    (when-let [node (js/document.querySelector (str "link[data-css-package=\"" name "\"][data-css-module=\"" css-name "\"]"))]
-      (let [full-path
-            (str asset-path "/" css-file-name)
-
-            new-link
+(defn handle-asset-watch [{:keys [updates] :as msg}]
+  (doseq [path updates
+          ;; FIXME: could support images?
+          :when (str/ends-with? path "css")]
+    (when-let [node (js/document.querySelector (str "link[href^=\"" path "\"]"))]
+      (let [new-link
             (doto (js/document.createElement "link")
               (.setAttribute "rel" "stylesheet")
-              (.setAttribute "href" (str full-path "?r=" (rand)))
-              (.setAttribute "data-css-package" name)
-              (.setAttribute "data-css-module" css-name))]
+              (.setAttribute "href" (str path "?r=" (rand))))]
 
-        (devtools-msg "LOAD CSS:" full-path)
+        (devtools-msg "LOAD CSS:" path)
         (gdom/insertSiblingAfter new-link node)
         (gdom/removeNode node)
         ))))
@@ -231,9 +228,8 @@
 (defn handle-message [{:keys [type] :as msg}]
   ;; (js/console.log "ws-msg" msg)
   (case type
-    ;; FIXME: doesn't work anymore
-    :css/reload
-    (handle-css-changes msg)
+    :asset-watch
+    (handle-asset-watch msg)
 
     :repl/invoke
     (repl-invoke msg)

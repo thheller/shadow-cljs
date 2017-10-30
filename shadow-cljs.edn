@@ -115,7 +115,6 @@
    :js-options
    {:js-provider :shadow
     :resolve
-    ;; FIXME: can't yet process the process.env.NODE_ENV based require react v16 does
     {"d3"
      {:target :npm
       :require "d3/build/d3"}

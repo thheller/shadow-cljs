@@ -10,7 +10,8 @@
             [aleph.http :as aleph]
             [aleph.netty :as netty]
             [clojure.tools.logging :as log]
-            [shadow.cljs.devtools.config :as config])
+            [shadow.cljs.devtools.config :as config]
+            [clojure.string :as str])
   (:import (java.net BindException)))
 
 (defn disable-all-kinds-of-caching [handler]

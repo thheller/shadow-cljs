@@ -6,7 +6,8 @@
             [shadow.cljs.devtools.server.system-msg :as system-msg]
             [clojure.java.io :as io]
             [clojure.string :as str])
-  (:import (shadow.util FileWatcher)))
+  (:import (shadow.util FileWatcher)
+           (java.io File)))
 
 
 (defn service? [x]
@@ -30,7 +31,7 @@
            ))))
 
 (defn watch-loop
-  [watch-dirs control sys-bus topic]
+  [watch-dirs control publish-fn]
 
   (loop []
     (alt!!
@@ -46,7 +47,7 @@
                    (into []))]
 
           (when (seq fs-updates)
-            (system-bus/publish! sys-bus topic {:updates fs-updates}))
+            (publish-fn fs-updates))
 
           (recur)))))
 
@@ -56,7 +57,10 @@
 
   ::shutdown-complete)
 
-(defn start [system-bus topic directories file-exts]
+(defn start [directories file-exts publish-fn]
+  {:pre [(every? #(instance? File %) directories)
+         (coll? file-exts)
+         (every? string? file-exts)]}
   (let [control
         (async/chan)
 
@@ -64,13 +68,13 @@
         (->> directories
              (map (fn [dir]
                     {:dir dir
-                     :watcher (FileWatcher/create dir file-exts)}))
+                     :watcher (FileWatcher/create dir (vec file-exts))}))
              (into []))]
 
     {::service true
      :control control
      :watch-dirs watch-dirs
-     :thread (thread (watch-loop watch-dirs control system-bus topic))}))
+     :thread (thread (watch-loop watch-dirs control publish-fn))}))
 
 (defn stop [{:keys [control thread] :as svc}]
   {:pre [(service? svc)]}

@@ -15,7 +15,8 @@
             [clojure.java.io :as io]
             [clojure.java.classpath :as cp]
             [shadow.cljs.devtools.server.config-watch :as config-watch]
-            [shadow.cljs.devtools.server.supervisor :as super])
+            [shadow.cljs.devtools.server.supervisor :as super]
+            [shadow.cljs.devtools.server.system-bus :as system-bus])
   (:import (java.io ByteArrayOutputStream InputStream)
            (java.util.concurrent Executors)))
 
@@ -133,9 +134,11 @@
           (merge {:cljs-watch
                   {:depends-on [:system-bus]
                    :start (fn [system-bus]
-                            (fs-watch/start system-bus ::sys-msg/cljs-watch
+                            (fs-watch/start
                               (get-classpath-directories)
                               ;; no longer watches .clj files, reload-macros directly looks at used macros
-                              ["cljs" "cljc" "js"]))
+                              ["cljs" "cljc" "js"]
+                              #(system-bus/publish! system-bus ::sys-msg/cljs-watch {:updates %})
+                              ))
                    :stop fs-watch/stop}})
           ))))

@@ -9,7 +9,8 @@
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.web.common :as common]
             [shadow.build.classpath :as cp]
-            [shadow.build.npm :as npm])
+            [shadow.build.npm :as npm]
+            [shadow.cljs.devtools.server.fs-watch :as fs-watch])
   (:import (java.util UUID)))
 
 (defn get-status [{:keys [status-ref] :as proc}]
@@ -124,6 +125,9 @@
         resource-update
         (async/chan (async/sliding-buffer 10))
 
+        asset-update
+        (async/chan (async/sliding-buffer 10))
+
         macro-update
         (async/chan (async/sliding-buffer 10))
 
@@ -137,6 +141,7 @@
          :output output
          :resource-update resource-update
          :macro-update macro-update
+         :asset-update asset-update
          :config-watch config-watch}
 
         status-ref
@@ -170,6 +175,7 @@
           {proc-stop nil
            proc-control impl/do-proc-control
            resource-update impl/do-resource-update
+           asset-update impl/do-asset-update
            macro-update impl/do-macro-update
            config-watch impl/do-config-watch}
           {:validate
@@ -189,19 +195,35 @@
              (>!! output {:type :worker-shutdown :proc-id proc-id})
              state)})
 
+        {:keys [watch-dir watch-exts]
+         :or {watch-exts #{"css"}}}
+        (:devtools build-config)
+
+        watch-dir
+        (or watch-dir
+            (get-in build-config [:devtools :http-root]))
+
         worker-proc
-        {::impl/proc true
-         :proc-stop proc-stop
-         :proc-id proc-id
-         :proc-control proc-control
-         :system-bus system-bus
-         :resource-update resource-update
-         :macro-update macro-update
-         :output output
-         :output-mult output-mult
-         :thread-ref thread-ref
-         :state-ref state-ref
-         :status-ref status-ref}]
+        (-> {::impl/proc true
+             :proc-stop proc-stop
+             :proc-id proc-id
+             :proc-control proc-control
+             :system-bus system-bus
+             :resource-update resource-update
+             :macro-update macro-update
+             :output output
+             :output-mult output-mult
+             :thread-ref thread-ref
+             :state-ref state-ref
+             :status-ref status-ref}
+            (cond->
+              (seq watch-dir)
+              (assoc :fs-watch
+                     (let [watch-dir (io/file watch-dir)]
+                       (when-not (.exists watch-dir)
+                         (throw (ex-info (format ":watch-dir \"%s\" does not exist" watch-dir)
+                                  {:watch-dir watch-dir})))
+                       (fs-watch/start [watch-dir] watch-exts #(async/>!! asset-update %))))))]
 
     (sys-bus/sub system-bus ::sys-msg/resource-update resource-update)
     (sys-bus/sub system-bus ::sys-msg/macro-update macro-update)
@@ -213,11 +235,14 @@
         (async/close! proc-stop)
         (async/close! resource-update)
         (async/close! macro-update)
+        (async/close! asset-update)
         (log/debug ::stop build-id proc-id))
 
     worker-proc))
 
-(defn stop [proc]
+(defn stop [{:keys [fs-watch] :as proc}]
   {:pre [(impl/proc? proc)]}
+  (when fs-watch
+    (fs-watch/stop fs-watch))
   (async/close! (:proc-stop proc))
   (<!! (:thread-ref proc)))

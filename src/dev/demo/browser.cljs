@@ -8,12 +8,10 @@
     ;; ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
             ["babel-test" :as babel-test :default Shape]
             ["d3" :as d3]
-            ["fabric" :as fabric :refer (Canvas IText Image)]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen]
             [shadow.api :refer (ns-ready)]
-
             ["circular-test" :as circ]))
 
 (assoc nil :foo 1)
