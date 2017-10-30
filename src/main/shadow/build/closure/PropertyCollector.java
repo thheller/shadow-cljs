@@ -23,10 +23,26 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         return true;
     }
 
+    // private in parser/Scanner.java
+    public static boolean isIdentifierStart(char ch) {
+        switch (ch) {
+            case '$':
+            case '_':
+                return true;
+            default:
+                // Workaround b/36459436
+                // When running under GWT, Character.isLetter only handles ASCII
+                // Angular relies heavily on U+0275 (Latin Barred O)
+                return ch == 0x0275
+                        // TODO: UnicodeLetter also includes Letter Number (NI)
+                        || Character.isLetter(ch);
+        }
+    }
+
     // TokenUtil.isJSIdentifier is package protected ...
     public static boolean isJSIdentifier(String s) {
         int length = s.length();
-        if (length != 0 && !Character.isIdentifierIgnorable(s.charAt(0)) && Character.isJavaIdentifierStart(s.charAt(0))) {
+        if (length != 0 && isIdentifierStart(s.charAt(0))) {
             for (int i = 1; i < length; ++i) {
                 if (Character.isIdentifierIgnorable(s.charAt(i)) || !Character.isJavaIdentifierPart(s.charAt(i))) {
                     return false;
