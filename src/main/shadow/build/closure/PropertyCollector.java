@@ -20,7 +20,8 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
 
     @Override
     public boolean shouldTraverse(NodeTraversal t, Node node, Node parent) {
-        return true;
+        // don't traverse into .json files
+        return !node.isScript() || !t.getSourceName().endsWith(".json");
     }
 
     // private in parser/Scanner.java
@@ -155,7 +156,8 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         cc.initOptions(co);
 
         // SourceFile srcFile = SourceFile.fromFile("node_modules/@firebase/util/dist/cjs/src/crypt.js");
-        SourceFile srcFile = SourceFile.fromFile("test/closure-inputs/assigns.js");
+        // SourceFile srcFile = SourceFile.fromFile("test/closure-inputs/assigns.js");
+        SourceFile srcFile = SourceFile.fromCode("test.json", "exports.foo = 1;");
         cc.toSource(process(cc, srcFile));
 
     }
