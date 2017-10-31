@@ -210,9 +210,6 @@
             build-state
             (:build-state @state-ref)
 
-            js-provider
-            (get-in build-state [:js-options :js-provider])
-
             module-format
             (get-in build-state [:build-options :module-format])]
 
@@ -226,14 +223,7 @@
                            (data/get-source-by-id build-state src-id)
 
                            {:keys [js] :as output}
-                           (data/get-output! build-state src)
-
-                           js
-                           (cond-> js
-                             (and (= :npm type)
-                                  (= :shadow js-provider))
-                             (str "\ngoog.provide(\"" ns "\");"
-                                  "\n" ns "=shadow.js.require(\"" ns "\");\n"))]
+                           (data/get-output! build-state src)]
 
                        {:resource-name resource-name
                         :resource-id src-id

@@ -184,7 +184,7 @@
 
    :devtools
    {:http-root "out/demo-selfhost/public"
-    :http-port 8700
+    :http-port 8610
     :before-load demo.selfhost.simple/stop
     :after-load demo.selfhost.simple/start}}
 
