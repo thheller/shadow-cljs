@@ -150,6 +150,8 @@
           (deep-merge mode-opts))
         (dissoc :release :dev))))
 
+(defonce target-require-lock (Object.))
+
 (defn get-target-fn [target build-id]
 
   (let [target-fn-sym
@@ -168,19 +170,20 @@
 
         target-ns (-> target-fn-sym namespace symbol)]
 
-    (when-not (find-ns target-ns)
-      (try
-        (require target-ns)
-        (catch Exception e
-          (throw (ex-info (format "failed to require :target %s for build %s" target build-id)
-                   {:tag ::get-target-fn :target target} e)))))
+    (locking target-require-lock
+      (when-not (find-ns target-ns)
+        (try
+          (require target-ns)
+          (catch Exception e
+            (throw (ex-info (format "failed to require :target %s for build %s" target build-id)
+                     {:tag ::get-target-fn :target target} e)))))
 
-    (let [fn (ns-resolve target-ns target-fn-sym)]
-      (when-not fn
-        (throw (ex-info (str "target-fn " target-fn-sym " not found") {:target target})))
+      (let [fn (ns-resolve target-ns target-fn-sym)]
+        (when-not fn
+          (throw (ex-info (str "target-fn " target-fn-sym " not found") {:target target})))
 
-      fn
-      )))
+        fn
+        ))))
 
 (defn configure
   [build-state mode {:keys [build-id target] :as config}]
