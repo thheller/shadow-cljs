@@ -252,6 +252,14 @@
 
           ;; should do all configuration necessary
           (process-stage :configure true)
+
+          ;; :optimizations is ignored in dev mode
+          ;; but cljs-devtools still reads it from the options and complains
+          ;; when it is not equal to :none
+          ;; so we overwrite whatever configure did since dev/release configs are shared
+          (cond->
+            (= :dev mode)
+            (assoc-in [:compiler-options :optimizations] :none))
           ))))
 
 
