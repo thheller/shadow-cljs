@@ -1540,7 +1540,7 @@
                 cache-files)))
 
           required-js-names
-          (data/js-names-accessed-from-cljs state (:build-sources state))
+          (data/js-names-accessed-from-cljs state)
 
           {:keys [live-js-deps dead-js-deps required]}
           (->> sources

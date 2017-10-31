@@ -7,6 +7,8 @@
             ["material-ui/RaisedButton" :as mui-btn :default btn]
     ;; ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
             ["babel-test" :as babel-test :default Shape]
+            ["@material/menu/simple/foundation" :default menu]
+            ["@material/menu/util" :as util]
             ["d3" :as d3]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
@@ -18,9 +20,12 @@
 
 (goog-define FOO "foo")
 
-#_ (def mdc-checkbox (MDCCheckbox. (js/document.getElementById "material")))
+#_(def mdc-checkbox (MDCCheckbox. (js/document.getElementById "material")))
 
 (prn :foo :bar)
+
+(js/console.log "menu" menu)
+(js/console.log "util" util)
 
 (js/console.log "babel-test" babel-test (Shape. 1 1))
 
@@ -35,7 +40,7 @@
 (js/console.log "jq" (-> (jq "body")
                          (.append "foo")))
 
-#_ (js/console.log "mui-btn" mui-btn btn)
+#_(js/console.log "mui-btn" mui-btn btn)
 
 (js/console.log "circular - not yet" (circ/test))
 (js/console.log "circular - actual" (circ/foo))

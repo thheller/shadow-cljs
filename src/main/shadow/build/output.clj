@@ -172,13 +172,7 @@
   ([{:keys [build-sources] :as state}]
    (flush-sources state build-sources))
   ([{:keys [build-options] :as state} source-ids]
-   (let [{:keys [cljs-runtime-path]} build-options
-
-         js-provider
-         (get-in state [:js-options :js-provider] :shadow)
-
-         required-js-names
-         (data/js-names-accessed-from-cljs state source-ids)]
+   (let [{:keys [cljs-runtime-path]} build-options]
 
      (util/with-logged-time
        [state {:type :flush-sources
@@ -202,14 +196,7 @@
 
          (io/make-parents js-file)
 
-         (let [output (str js
-                           (when (and (= :shadow js-provider)
-                                      (= :npm type)
-                                      (contains? required-js-names ns))
-                             (str ;; "\nshadow.js.exec(\"" ns "\");"
-                                  "\ngoog.provide(\"" ns"\");"
-                                  "\n" ns "=shadow.js.require(\"" ns "\");\n"))
-                           (generate-source-map state src output js-file ""))]
+         (let [output (str js (generate-source-map state src output js-file ""))]
            (spit js-file output)))
 
        state))))

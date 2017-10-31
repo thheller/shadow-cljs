@@ -207,7 +207,18 @@
 
   (doseq [dep deps
           :when (not= 'goog dep)]
-    (comp/emitln "goog.require('" (comp/munge dep) "');")))
+    (comp/emitln "goog.require('" (comp/munge dep) "');"))
+
+  ;; the goog.require for these deps only ensured that the shadow$provide is available
+  ;; the shadow$provide can't be called eagerly because of cyclic (and conditional) requires
+  ;; so we properly require them in the CLJS file.
+  ;; this is not done in release mode since optimized code will treat this differently
+  ;; as shadow.js.require should only be called once (since it exposes a global var)
+  ;; this is fine in :none but :advanced complains (when using :modules)
+  (when (and (= :shadow (get-in state [:js-options :js-provider]))
+             (= :dev (:mode state)))
+    (doseq [[js-require js-alias] (:js-aliases ast)]
+      (comp/emitln "var " js-alias "=shadow.js.require(\"" js-alias "\");"))))
 
 (defn default-compile-cljs
   [state compile-state form]
