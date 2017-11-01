@@ -6,7 +6,8 @@
             [shadow.build.classpath :as cp]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [shadow.cljs.util :as util]))
+            [shadow.cljs.util :as util]
+            [shadow.build.resource :as rc]))
 
 
 ;; FIXME: rewrite this similar to npm-update so that it only checks files that are actually used
@@ -46,6 +47,7 @@
         resources
         (->> fs-updates
              (map :name)
+             (map rc/normalize-name)
              (map #(cp/find-resource-by-name classpath %))
              ;; may have been filtered out
              (remove nil?)
