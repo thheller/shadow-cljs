@@ -58,6 +58,7 @@ public class FileWatcher implements AutoCloseable {
 
     /**
      * blocking operation to gather all changes, blocks until at least one change happened
+     *
      * @return {"path-to-file" :new|:mod|:del}
      * @throws IOException
      * @throws InterruptedException
@@ -106,16 +107,25 @@ public class FileWatcher implements AutoCloseable {
                     if (kind == ENTRY_CREATE) {
                         registerAll(child);
                     }
-                } else if (!Files.isHidden(resolvedName) && matcher.matches(name)) {
-                    // skip hidden files (eg. emacs creates a #.something.scss file when editing)
-
-                    // System.out.format("CSS: %s: %s\n", kind, child);
-                    if (kind == ENTRY_CREATE) {
-                        changes = changes.assoc(childName, KW_NEW);
-                    } else if (kind == ENTRY_DELETE) {
+                } else if (matcher.matches(name)) {
+                    if (kind == ENTRY_DELETE) {
                         changes = changes.assoc(childName, KW_DEL);
-                    } else if (kind == ENTRY_MODIFY) {
-                        changes = changes.assoc(childName, KW_MOD);
+                    } else {
+                        // windows is really picky here, fails with exception when asking if a
+                        // deleted file is hidden
+                        // intellij on windows seems to
+                        // create a temp file
+                        // modify the temp file
+                        // swap temp file -> real file
+                        // delete temp file
+                        // for every file save, this really confuses the watcher
+                        if (Files.exists(resolvedName) && !Files.isHidden(resolvedName)) {
+                            if (kind == ENTRY_CREATE) {
+                                changes = changes.assoc(childName, KW_NEW);
+                            } else if (kind == ENTRY_MODIFY) {
+                                changes = changes.assoc(childName, KW_MOD);
+                            }
+                        }
                     }
                 }
             }
