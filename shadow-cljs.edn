@@ -130,7 +130,7 @@
    {:http-root "out/demo-browser/public"
     :http-port 8600
     :async-require true
-    :before-load demo.browser/stop
+    :before-load-async demo.browser/stop
     :after-load demo.browser/start
     :preloads [shadow.cljs.devtools.client.hud]}}
 
@@ -260,7 +260,7 @@
    {:optimizations :advanced}
 
    :devtools
-   {:before-load demo.script/stop
+   {:before-load-async demo.script/stop
     :after-load demo.script/start}}
 
   :library

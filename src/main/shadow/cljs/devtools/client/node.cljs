@@ -86,24 +86,39 @@
                (into []))]
 
       (when (seq files-to-require)
+        (let [start-fn
+              (if-not (seq env/after-load)
+                (fn [state])
+                (js/goog.getObjectByName env/after-load))
 
-        (let [reload-state (volatile! nil)]
+              [stop-fn stop-label]
+              (cond
+                (seq env/before-load)
+                (let [stop-fn (js/goog.getObjectByName env/before-load)]
+                  [(fn [done]
+                     (stop-fn)
+                     (done))
+                   env/before-load])
 
-          (when env/before-load
-            (let [fn (js/goog.getObjectByName env/before-load)]
-              (js/console.warn "REPL before-load" env/before-load)
-              (vreset! reload-state (fn))))
+                (seq env/before-load-async)
+                [(js/goog.getObjectByName env/before-load-async)
+                 env/before-load-async]
 
-          (doseq [src files-to-require]
-            (closure-import src))
+                :else
+                [(fn [done] (done))
+                 nil])]
 
-          (when env/after-load
-            (let [fn (js/goog.getObjectByName env/after-load)]
-              (js/console.warn "REPL after-load " env/after-load)
-              (if-not env/reload-with-state
-                (fn)
-                (fn @reload-state))))))
-      )))
+          (when stop-label
+            (js/console.warn "DEVTOOLS: app shutdown" stop-label))
+          (stop-fn
+            (fn [state]
+              (doseq [src files-to-require]
+                (closure-import src))
+              (when (seq env/after-load)
+                (js/console.warn "DEVTOOLS: app start" env/after-load))
+              (start-fn state)
+              )))
+        ))))
 
 (defn process-message
   [{:keys [type] :as msg}]

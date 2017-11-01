@@ -58,8 +58,13 @@
 (defn ^:export start []
   (js/console.log "browser-start"))
 
-(defn stop []
-  (js/console.log "browser-stop"))
+(defn stop [done]
+  (js/console.log "browser-stop async")
+  (js/setTimeout
+    (fn []
+      (js/console.log "browser-stop async complete")
+      (done))
+    500))
 
 (defrecord Foo [a b])
 

@@ -29,7 +29,7 @@
         {:keys [build-id]}
         build-config
 
-        {:keys [reload-with-state before-load after-load autoload]}
+        {:keys [reload-with-state before-load before-load-async after-load autoload]}
         (:devtools build-config)]
 
     {"shadow.cljs.devtools.client.env.enabled"
@@ -56,6 +56,10 @@
      "shadow.cljs.devtools.client.env.before_load"
      (when before-load
        (str (cljs-comp/munge before-load)))
+
+     "shadow.cljs.devtools.client.env.before_load_async"
+     (when before-load-async
+       (str (cljs-comp/munge before-load-async)))
 
      "shadow.cljs.devtools.client.env.after_load"
      (when after-load

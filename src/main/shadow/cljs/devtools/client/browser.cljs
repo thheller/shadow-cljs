@@ -22,7 +22,7 @@
 (defonce socket-ref (volatile! nil))
 
 (defn devtools-msg [msg & args]
-  (.apply (.-log js/console) nil (into-array (into [(str "%c" msg) "color: blue;"] args))))
+  (.apply (.-log js/console) nil (into-array (into [(str "%cDEVTOOLS: " msg) "color: blue;"] args))))
 
 (defn ws-msg [msg]
   (if-let [s @socket-ref]
@@ -58,25 +58,45 @@
 
 (defn do-js-load [sources]
   (doseq [{:keys [resource-id resource-name js] :as src} sources]
-    (devtools-msg "LOAD:" resource-name)
+    (devtools-msg "load JS" resource-name)
     (script-eval (str js "\n// @sourceURL=" resource-name))))
 
-(defn do-js-reload [sources]
-  (let [reload-state
-        (when env/before-load
-          (let [fn (js/goog.getObjectByName env/before-load js/$CLJS)]
-            (devtools-msg "Executing :before-load" env/before-load)
-            (fn)))]
+(defn do-js-reload
+  "stops the running app, loads sources, starts app
+   stop might be async as several node APIs are async
+   start is sync since we don't need to do anything after startup finishes"
+  [sources]
+  (let [start-fn
+        (if-not (seq env/after-load)
+          (fn [state])
+          (js/goog.getObjectByName env/after-load js/$CLJS))
 
-    (do-js-load sources)
+        [stop-fn stop-label]
+        (cond
+          (seq env/before-load)
+          (let [stop-fn (js/goog.getObjectByName env/before-load js/$CLJS)]
+            [(fn [done]
+               (stop-fn)
+               (done))
+             env/before-load])
 
-    (when env/after-load
-      (let [fn (js/goog.getObjectByName env/after-load js/$CLJS)]
-        (devtools-msg "Executing :after-load " env/after-load)
-        (if-not env/reload-with-state
-          (fn)
-          (fn reload-state)))
-      )))
+          (seq env/before-load-async)
+          [(js/goog.getObjectByName env/before-load-async js/$CLJS)
+           env/before-load-async]
+
+          :else
+          [(fn [done] (done))
+           nil])]
+
+    (when stop-label
+      (devtools-msg "app shutdown" stop-label))
+    (stop-fn
+      (fn [state]
+        (do-js-load sources)
+        (when (seq env/after-load)
+          (devtools-msg "app start" env/after-load))
+        (start-fn state)
+        ))))
 
 (defn load-sources [sources callback]
   (if (empty? sources)
@@ -148,7 +168,7 @@
               (.setAttribute "rel" "stylesheet")
               (.setAttribute "href" (str path "?r=" (rand))))]
 
-        (devtools-msg "LOAD CSS:" path)
+        (devtools-msg "load CSS" path)
         (gdom/insertSiblingAfter new-link node)
         (gdom/removeNode node)
         ))))
@@ -174,12 +194,12 @@
 (defn repl-error [result e]
   (js/console.error "repl/invoke error" e)
   (assoc result
-    :ua-product (get-ua-product)
-    :error (str e)
-    :asset-root (get-asset-root)
-    :stacktrace (if (.hasOwnProperty e "stack")
-                  (.-stack e)
-                  "No stacktrace available.")))
+         :ua-product (get-ua-product)
+         :error (str e)
+         :asset-root (get-asset-root)
+         :stacktrace (if (.hasOwnProperty e "stack")
+                       (.-stack e)
+                       "No stacktrace available.")))
 
 (defn repl-invoke [{:keys [id js]}]
   (let [result (env/repl-call #(js/eval js) repl-error)]
@@ -218,7 +238,7 @@
     (fn [sources]
       (do-js-load sources)
       (ws-msg {:type :repl/init-complete :id id})
-      (devtools-msg "DEVTOOLS: repl init successful"))))
+      (devtools-msg "REPL init successful"))))
 
 (defn repl-set-ns [{:keys [id ns]}]
   ;; (js/console.log "repl/set-ns" (str ns))
@@ -277,14 +297,14 @@
         (when (= "goog" env/module-format)
           ;; patch away the already declared exception
           (set! (.-provide js/goog) js/goog.constructNamespace_))
-        (devtools-msg "DEVTOOLS: connected!")
+        (devtools-msg "connected!")
         ))
 
     (set! (.-onclose socket)
       (fn [e]
         ;; not a big fan of reconnecting automatically since a disconnect
         ;; may signal a change of config, safer to just reload the page
-        (devtools-msg "DEVTOOLS: disconnected!")
+        (devtools-msg "disconnected!")
         (vreset! socket-ref nil)
         ))
 
@@ -296,7 +316,7 @@
   ;; disconnect an already connected socket, happens if this file is reloaded
   ;; pretty much only for me while working on this file
   (when-let [s @socket-ref]
-    (devtools-msg "DEVTOOLS: connection reset!")
+    (devtools-msg "connection reset!")
     (set! (.-onclose s) (fn [e]))
     (.close s)
     (vreset! socket-ref nil))

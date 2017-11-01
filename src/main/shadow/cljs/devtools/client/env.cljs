@@ -12,6 +12,8 @@
 
 (goog-define before-load "")
 
+(goog-define before-load-async "")
+
 (goog-define after-load "")
 
 (goog-define reload-with-state false)

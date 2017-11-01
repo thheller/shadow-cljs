@@ -25,11 +25,12 @@
   (js/console.warn "start called")
   (main))
 
-(defn stop []
+(defn stop [done]
   (js/console.warn "stop called")
   (when-some [srv @server-ref]
     (.close srv
       (fn [err]
-        (js/console.log "stop completed" err)))))
+        (js/console.log "stop completed" err)
+        (done)))))
 
 (js/goog.global.setTimeout (fn [] (js/console.log "foo")) 50)

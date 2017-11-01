@@ -1,11 +1,11 @@
-(defproject thheller/shadow-cljs "2.0.52"
+(defproject thheller/shadow-cljs "2.0.53"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/clojure "1.9.0-beta3"]
+  [[org.clojure/clojure "1.9.0-beta4"]
 
    ;; [org.clojure/spec.alpha "0.1.108"]
    ;; [org.clojure/core.specs.alpha "0.1.10"]
