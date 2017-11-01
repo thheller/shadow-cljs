@@ -222,12 +222,9 @@
       (when (not= x ::eof)
         (recur)))))
 
-(defn watch-builds [build-ids options]
+(defn watch-builds [config build-configs options]
   (let [{:keys [supervisor] :as app}
         @runtime/instance-ref
-
-        {:keys [builds] :as config}
-        (config/load-cljs-edn!)
 
         out-chan
         (-> (async/sliding-buffer 100)
@@ -235,19 +232,16 @@
 
         verbose
         (or (:verbose options)
-            (:verbose config))]
+            (:verbose config))
 
-    (doseq [build-id build-ids]
-      (let [{:keys [supervisor] :as app}
-            @runtime/instance-ref
+        {:keys [supervisor] :as app}
+        @runtime/instance-ref]
 
-            build-config
-            (get builds build-id)]
-
-        (println "shadow-cljs - watching build" build-id)
-        (-> (api/get-or-start-worker build-config options)
-            (worker/watch out-chan false)
-            (worker/start-autobuild))))
+    (doseq [{:keys [build-id] :as build-config} build-configs]
+      (println "shadow-cljs - watching build" build-id)
+      (-> (api/get-or-start-worker build-config options)
+          (worker/watch out-chan false)
+          (worker/start-autobuild)))
 
     (go (loop []
           (when-some [msg (<! out-chan)]
@@ -260,84 +254,96 @@
     ))
 
 (defn from-cli [action builds {:keys [verbose] :as options}]
-  (if (and (contains? #{:watch :cljs-repl} action)
-           (empty? builds))
-    (println "Build id required.")
+  (let [config
+        (config/load-cljs-edn!)
 
-    (let [already-running?
-          (some? @runtime/instance-ref)]
+        build-configs
+        (->> builds
+             (map (fn [build-id]
+                    (let [build-config (get-in config [:builds build-id])]
+                      (when-not build-config
+                        (println (str "No config for build \"" (name build-id) "\" found.")))
 
-      (when-not already-running?
-        (start!))
+                      build-config
+                      )))
+             (remove nil?)
+             (into []))
 
-      (case action
-        :watch
-        (do (let [before (api/active-builds)]
-              (watch-builds builds options)
+        already-running?
+        (some? @runtime/instance-ref)]
+
+    (if (and (contains? #{:watch :cljs-repl} action)
+             (empty? build-configs))
+      (println "Build id required.")
+
+      (do (when-not already-running?
+            (start!))
+
+          (case action
+            :watch
+            (let [before (api/active-builds)]
+              (watch-builds config build-configs options)
 
               (wait-for-eof!)
 
               ;; stop only builds that weren't running before
               (doseq [build builds
                       :when (not (contains? before build))]
-                (api/stop-worker build))))
+                (api/stop-worker build)))
 
-        :clj-repl
-        (r/enter-root {}
-          (socket-repl/repl {}))
+            :clj-repl
+            (r/enter-root {}
+              (socket-repl/repl {}))
 
-        :cljs-repl
-        (let [{:keys [supervisor] :as app}
-              @runtime/instance-ref
+            :cljs-repl
+            (let [{:keys [supervisor] :as app}
+                  @runtime/instance-ref
 
-              build-id
-              (first builds)
+                  {:keys [build-id] :as build-config}
+                  (first build-configs)]
 
-              build-config
-              (config/get-build! build-id)]
+              (if (false? (get-in build-config [:devtools :enabled]))
+                (println (format "Build %s has :devtools {:enabled false}, can't connect to a REPL" build-id))
+                (let [worker
+                      (super/get-worker supervisor build-id)
 
-          (if (false? (get-in build-config [:devtools :enabled]))
-            (println (format "Build %s has :devtools {:enabled false}, can't connect to a REPL" build-id))
-            (let [worker
-                  (super/get-worker supervisor build-id)
+                      started-by-us?
+                      (nil? worker)
 
-                  started-by-us?
-                  (nil? worker)
+                      worker
+                      (-> (or worker
+                              (-> (super/start-worker supervisor build-config)
+                                  (worker/compile)))
+                          ;; need to sync in case it is still compiling
+                          (worker/sync!))]
+
+                  (api/repl build-id)
+
+                  (when started-by-us?
+                    (super/stop-worker supervisor build-id)))))
+
+            :node-repl
+            (let [{:keys [supervisor] :as app} @runtime/instance-ref
 
                   worker
-                  (-> (or worker
-                          (-> (super/start-worker supervisor build-config)
-                              (worker/compile)))
-                      ;; need to sync in case it is still compiling
-                      (worker/sync!))]
+                  (super/get-worker supervisor :node-repl)]
+              ;; FIXME: connect to if already running or launch another one?
+              (if-not worker
+                (do (println "shadow-cljs - starting node-repl")
+                    (api/node-repl options))
 
-              (api/repl build-id)
+                (do (println "shadow-cljs - connecting to running node-repl")
+                    (api/repl :node-repl))
+                ))
 
-              (when started-by-us?
-                (super/stop-worker supervisor build-id)))))
+            ;; makes this a noop if server is already running
+            :server
+            (if already-running?
+              (println "server already running")
+              (wait-for-eof!)))
 
-        :node-repl
-        (let [{:keys [supervisor] :as app} @runtime/instance-ref
-
-              worker
-              (super/get-worker supervisor :node-repl)]
-          ;; FIXME: connect to if already running or launch another one?
-          (if-not worker
-            (do (println "shadow-cljs - starting node-repl")
-                (api/node-repl options))
-
-            (do (println "shadow-cljs - connecting to running node-repl")
-                (api/repl :node-repl))
-            ))
-
-        ;; makes this a noop if server is already running
-        :server
-        (if already-running?
-          (println "server already running")
-          (wait-for-eof!)))
-
-      (when-not already-running?
-        (stop!)))))
+          (when-not already-running?
+            (stop!))))))
 
 (comment
   (start!)
