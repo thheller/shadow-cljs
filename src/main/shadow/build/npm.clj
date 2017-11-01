@@ -656,7 +656,10 @@
                     (.toPath package-dir)
 
                     rel-name
-                    (str "./" (.relativize package-path (.toPath file)))]
+                    (str "./" (-> (.toPath file)
+                                  (.relativize package-path)
+                                  (str)
+                                  (rc/normalize-name)))]
 
                 ;; FIXME: I'm almost certain that browser allows overriding without extension
                 ;; "./lib/some-file":"./lib/some-other-file"
