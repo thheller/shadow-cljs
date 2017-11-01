@@ -95,7 +95,8 @@ public class FileWatcher implements AutoCloseable {
 
                 WatchEvent<Path> ev = (WatchEvent<Path>) event;
                 Path name = ev.context();
-                Path child = root.relativize(dir.resolve(name));
+                Path resolvedName = dir.resolve(name);
+                Path child = root.relativize(resolvedName);
                 String childName = child.toString();
 
                 if (Files.isDirectory(child, NOFOLLOW_LINKS)) {
@@ -105,7 +106,7 @@ public class FileWatcher implements AutoCloseable {
                     if (kind == ENTRY_CREATE) {
                         registerAll(child);
                     }
-                } else if (!Files.isHidden(child) && matcher.matches(name)) {
+                } else if (!Files.isHidden(resolvedName) && matcher.matches(name)) {
                     // skip hidden files (eg. emacs creates a #.something.scss file when editing)
 
                     // System.out.format("CSS: %s: %s\n", kind, child);

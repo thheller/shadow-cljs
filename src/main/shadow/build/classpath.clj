@@ -291,9 +291,10 @@
                      (try
                        (inspect-resource cp src)
                        (catch Exception e
-                         (log/warnf "failed to inspect resource \"%s\", it will not be available." (or (:file src)
-                                                                                                       (:url src)
-                                                                                                       (:resource-name src)))
+                         (log/warnf e "failed to inspect resource \"%s\", it will not be available."
+                           (or (:file src)
+                               (:url src)
+                               (:resource-name src)))
                          nil))))
               (remove nil?)
               (remove (fn [{:keys [type module-type]}]
