@@ -31,7 +31,10 @@
     (fs/mkdirSync dir)))
 
 ;; FIXME: windows uses ;
-(def cp-seperator ":")
+(def cp-seperator
+  (if (str/starts-with? js/process.platform "win")
+    ";"
+    ":"))
 
 (defn is-directory? [path]
   (-> (fs/lstatSync path)
