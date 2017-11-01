@@ -30,7 +30,6 @@
   (when-not (fs/existsSync dir)
     (fs/mkdirSync dir)))
 
-;; FIXME: windows uses ;
 (def cp-seperator
   (if (str/starts-with? js/process.platform "win")
     ";"
