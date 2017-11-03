@@ -232,6 +232,9 @@
               :compiler-options
               {:infer-externs true}
 
+              :build-options
+              {:cache-level :jars}
+
               :modules
               {:base
                {:entries [demo.native]}}

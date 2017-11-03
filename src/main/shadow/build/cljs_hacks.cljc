@@ -216,6 +216,15 @@
                 (and (js-tag? target-tag) 'js)
                 nil)]
 
+
+    ;; simplified *warn-on-infer* warnings since we do not care about them being typed
+    ;; we just need ^js not ^js/Foo.Bar
+    (when (and (or (nil? target-tag)
+                   (= 'any target-tag))
+               (not (string/starts-with? (str prop) "cljs$")))
+
+      (warning :infer-warning env {:warn-type :target :form form}))
+
     (when (js-tag? tag)
       (shadow-js-access-property (-> env :ns :name) (str prop)))
 

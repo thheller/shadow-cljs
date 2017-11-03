@@ -12,7 +12,8 @@
             [clojure.pprint :refer (pprint)]
             [clojure.test :refer (deftest is)]
             [clojure.inspector :refer (inspect)]
-            ))
+            [clojure.tools.analyzer :as ana]
+            [cljs.analyzer.api :as ana-api]))
 
 (defn test-build []
   (let [npm
@@ -85,5 +86,37 @@
         (pprint (to-ast form))
 
         (pprint (get-in @compiler-env-ref [::a/namespaces 'cljs.user]))))
+
+    ))
+
+(deftest test-macroexpand
+  (let [test-ns
+        'cljs.core
+
+        {:keys [compiler-env] :as state}
+        (-> (test-build)
+            (api/configure-modules {:base {:entries [test-ns]}})
+            (api/analyze-modules)
+            (api/compile-sources))
+
+        compiler-env-ref
+        (atom compiler-env)
+
+        form
+        '(fn [{:as c}]
+           (.render ^js c))]
+
+    (binding [a/*cljs-ns* 'cljs.user
+              a/*cljs-warnings* (assoc a/*cljs-warnings* :infer-warning true)]
+      (e/with-compiler-env compiler-env-ref
+
+        (pprint (cljs-ana/macroexpand-1
+                  (cljs-ana/empty-env)
+                  '(deftype Foo [bar]
+                     Object
+                     (thing [this foo]))
+                  ))
+
+        ))
 
     ))

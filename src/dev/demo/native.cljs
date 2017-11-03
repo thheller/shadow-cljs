@@ -4,6 +4,7 @@
             [clojure.set :as set]))
 
 ;; lots of native interop, not actually valid code, just for testing externs generator
+(set! *warn-on-infer* true)
 
 (thing)
 
@@ -27,4 +28,4 @@
 (defn thing2 [simple]
   (.componentDidUpdate simple))
 
-foo ;; warning, to prevent cache
+;; foo ;; warning, to prevent cache

@@ -120,7 +120,10 @@
            (assoc
              :context :expr
              :def-emits-var true))
-         (ana/analyze form resource-name
+         ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
+         ;; it seems to do this to get rid of duplicated warnings?
+         ;; we just do a distinct later
+         (ana/analyze* form resource-name
            ;; doing this since I no longer want :compiler-options at the root
            ;; of the compiler state, instead they are in :compiler-options
            ;; still want the build-state accessible though
@@ -305,9 +308,7 @@
    {:keys [resource-id resource-name url output-name] :as rc}
    source]
   (let [{:keys [static-fns elide-asserts fn-invoke-direct]}
-        compiler-options
-
-        ]
+        compiler-options]
 
     (binding [ana/*cljs-static-fns*
               (true? static-fns)
