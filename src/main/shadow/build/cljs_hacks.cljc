@@ -189,6 +189,13 @@
                (confirm env current-ns sym))
              (resolve-cljs-var current-ns sym current-ns))
 
+           ;; https://dev.clojure.org/jira/browse/CLJS-2380
+           ;; not sure if correct fix
+           ;; cljs.core/Object is used by parse-type so using that here
+           (= 'Object sym)
+           '{:name cljs.core/Object
+             :ns cljs.core}
+
            (core-name? env sym)
            (do
              (when (some? confirm)
@@ -214,6 +221,9 @@
         prop (or field method)
         tag (or (:tag form-meta)
                 (and (js-tag? target-tag) 'js)
+                ;; FIXME: this might break a whole bunch of stuff?
+                ;; tagging all (. thing -prototype) accesses as JS
+                (and (= dot-action ::access) field (= 'prototype field) 'js)
                 nil)]
 
 
@@ -254,10 +264,67 @@
 (defn get-tag [e]
   (if-some [tag (-> e :form meta :tag)]
     tag
-    (if-some [tag  (-> e :tag)]
+    (if-some [tag (-> e :tag)]
       tag
       (-> e :info :tag)
       )))
+
+;; cljs.analyzer/parse-type, cleaned up since I couldnt follow it otherwise
+;; removed one resolve-var call
+;; added :tag
+(defn parse-type
+  [op env [_ tsym fields pmasks body :as form]]
+  (let [ns
+        (-> env :ns :name)
+
+        tsym-meta
+        (meta tsym)
+
+        ;; thheller: I don't understand why this uses resolve-var only to get the name?
+        type-sym
+        (with-meta
+          (symbol (str ns) (str tsym))
+          tsym-meta)
+
+        locals-fields
+        (if (= :defrecord* op)
+          (concat fields '[__meta __extmap ^:mutable __hash])
+          fields)
+
+        locals
+        (reduce
+          (fn [m fld]
+            (let [field-info
+                  {:name fld
+                   :line (get-line fld env)
+                   :column (get-col fld env)
+                   :field true
+                   :mutable (-> fld meta :mutable)
+                   :unsynchronized-mutable (-> fld meta :unsynchronized-mutable)
+                   :volatile-mutable (-> fld meta :volatile-mutable)
+                   :tag (-> fld meta :tag)
+                   :shadow (get m fld)}]
+              (assoc m fld field-info)))
+          {} ;; FIXME: should this use env :locals?
+          locals-fields)
+
+        protocols
+        (-> tsym meta :protocols)]
+
+    (swap! env/*compiler* update-in [::namespaces ns :defs tsym]
+      (fn [m]
+        (-> (assoc m
+                   :name type-sym
+                   :type true
+                   :tag type-sym
+                   :num-fields (count fields)
+                   :record (= :defrecord* op))
+            (merge (source-info tsym env)))))
+
+    {:op op :env env :form form :t type-sym :fields fields :pmasks pmasks
+     :tag type-sym
+     :protocols (disj protocols 'cljs.core/Object)
+     :body (analyze (assoc env :locals locals) body)}))
 
 (in-ns 'cljs.core)
 
@@ -284,10 +351,10 @@
              (core/true? default)
              (core/false? default)) "a string, number or boolean as default value")
   (core/let [defname (comp/munge (core/str *ns* "/" sym))
-             type    (core/cond
-                       (core/string? default) "string"
-                       (core/number? default) "number"
-                       (core/or (core/true? default) (core/false? default)) "boolean")]
+             type (core/cond
+                    (core/string? default) "string"
+                    (core/number? default) "number"
+                    (core/or (core/true? default) (core/false? default)) "boolean")]
     `(do
        (declare ~(core/vary-meta sym
                    (fn [m]

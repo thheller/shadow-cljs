@@ -245,7 +245,7 @@
               "test/react-dom.ext.js"]
     :closure-warnings {:global-this :off}}
    :js-options
-   {:js-provider :closure}
+   {:js-provider :shadow}
    :devtools
    {:http-root "out/demo-closure/public"
     :http-port 7810

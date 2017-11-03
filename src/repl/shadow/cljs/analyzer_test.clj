@@ -79,8 +79,7 @@
         '(fn [{:as c}]
            (.render ^js c))]
 
-    (binding [a/*cljs-ns* 'cljs.user
-              a/*cljs-warnings* (assoc a/*cljs-warnings* :infer-warning true)]
+    (binding [a/*cljs-ns* 'cljs.user]
       (e/with-compiler-env compiler-env-ref
 
         (pprint (to-ast form))
@@ -112,11 +111,38 @@
 
         (pprint (cljs-ana/macroexpand-1
                   (cljs-ana/empty-env)
-                  '(deftype Foo [bar]
-                     Object
-                     (thing [this foo]))
+                  #_'(deftype Foo [bar]
+                       Object
+                       (thing [this foo]))
+                  '(cljs.core/extend-type Foo Object (thing ([this foo])))
                   ))
 
         ))
+
+    ))
+
+(deftest test-analyzer-deftype
+  (let [test-ns
+        'cljs.core
+
+        {:keys [compiler-env] :as state}
+        (-> (test-build)
+            (api/configure-modules {:base {:entries [test-ns]}})
+            (api/analyze-modules)
+            (api/compile-sources))
+
+        compiler-env-ref
+        (atom compiler-env)
+
+        form
+        '(deftype Foo [bar]
+           Object
+           (x [y]))]
+
+    (binding [a/*cljs-ns* 'cljs.user]
+      (e/with-compiler-env compiler-env-ref
+        (to-ast form)
+
+        (pprint (get-in @compiler-env-ref [::a/namespaces 'cljs.user]))))
 
     ))

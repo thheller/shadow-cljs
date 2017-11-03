@@ -23,9 +23,17 @@
 
 
 (defn thing [{:keys [foo] :as this}]
-  (.componentDidUpdate this))
+  (.componentDidUpdate ^js this))
 
 (defn thing2 [simple]
   (.componentDidUpdate simple))
 
+(deftype ShouldNotWarnAboutInfer [foo bar]
+  Object
+  (yo [x])
+  ILookup
+  (-lookup [this key]
+    ::fake))
+
+(list)
 ;; foo ;; warning, to prevent cache

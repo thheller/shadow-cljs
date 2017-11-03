@@ -244,9 +244,9 @@
             {})]
 
 
-      (pprint (->> (get-in compiler-env [:shadow/js-properties])))
+      #_ (pprint (->> (get-in compiler-env [:shadow/js-properties])))
 
-      (doseq [[ns ns-info] (get-in compiler-env [:cljs.analyzer/namespaces])]
+      #_ (doseq [[ns ns-info] (get-in compiler-env [:cljs.analyzer/namespaces])]
         (prn ns)
         (pprint (-> ns-info
                     (select-keys [:shadow/js-access-global
