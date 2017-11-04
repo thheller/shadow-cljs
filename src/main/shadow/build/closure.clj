@@ -9,9 +9,9 @@
             [shadow.build.warnings :as warnings]
             [shadow.build.log :as log]
             [shadow.build.data :as data]
+            [shadow.build.npm :as npm]
             [clojure.set :as set]
             [cljs.source-map :as sm]
-            [shadow.build.npm :as npm]
             [clojure.data.json :as json]
             [shadow.build.cache :as cache]
             [cljs.compiler :as cljs-comp])
@@ -653,7 +653,7 @@
                         (str ;; "shadow.js.exec(\"" ns "\");"
                              (when (contains? required-js-names ns)
                                (str "goog.provide(\"" ns "\");\n"
-                                    ns " = shadow.js.require(\"" ns "\");")))
+                                    ns " = " (npm/shadow-js-require rc))))
 
                         :else
                         js)]

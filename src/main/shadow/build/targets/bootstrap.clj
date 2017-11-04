@@ -14,7 +14,8 @@
             [clojure.data.json :as json]
             [shadow.build.api :as build-api]
             [cljs.compiler :as comp]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [shadow.build.npm :as npm]))
 
 (defn make-macro-resource [macro-ns]
   (let [path
@@ -138,7 +139,8 @@
                            ;; always expose all JS names, we don't know which the user is going to use
                            (when (= :npm type)
                              (str "\ngoog.provide(\"" ns "\");"
-                                  "\ngoog.global. " ns "=shadow.js.require(\"" ns "\");\n")))
+                                  ;; FIXME: not safe to always require everything due to cyclic dependencies in JS
+                                  "\ngoog.global. " ns "=" (npm/shadow-js-require src) "\n")))
 
                       js-name-hash
                       (hash-fn output-name js)

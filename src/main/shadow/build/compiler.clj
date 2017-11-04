@@ -20,6 +20,7 @@
             [shadow.build.ns-form :as ns-form]
             [shadow.build.data :as data]
             [shadow.build.closure :as closure]
+            [shadow.build.npm :as npm]
             [clojure.tools.logging :as log]
             [cljs.compiler :as cljs-comp]
             [shadow.build.js-support :as js-support])
@@ -225,7 +226,7 @@
       (when shadow-js?
         (let [{:keys [ns type] :as rc} (data/get-source-by-provide state dep)]
           (when (= :npm type)
-            (comp/emitln "var " ns "=shadow.js.require(\"" ns "\");")
+            (comp/emitln "var " ns "=" (npm/shadow-js-require rc))
             ))))))
 
 (defn default-compile-cljs

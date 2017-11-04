@@ -28,7 +28,7 @@ shadow.js.files = {};
 /**
  * @return {ShadowJS}
  */
-shadow.js.require = function(name) {
+shadow.js.require = function(name, opts) {
   var exports = shadow.js.files[name];
   if (exports === undefined) {
     exports = shadow.js.files[name] = {};
@@ -72,6 +72,15 @@ shadow.js.require = function(name) {
     }
 
     shadow.js.files[name] = exports;
+
+    if (opts) {
+      var globals = opts["globals"];
+      if (globals) {
+        for (var i = 0; i < globals.length; i++) {
+          window[globals[i]] = exports;
+        }
+      }
+    }
   }
 
   return exports;

@@ -715,14 +715,15 @@
   ;; relative would need to be relative to the project, otherwise a generic
   ;; "./something.js" would override anything from any package
   ;; just assume ppl will only override packages for now
-  (let [resolve-config (:resolve require-ctx)]
+  (let [{:keys [target] :as cfg}
+        (get-in require-ctx [:resolve require])
 
-    (if-not (contains? resolve-config require)
-      (find-resource* npm require-from require require-ctx)
-
-      (let [{:keys [target] :as cfg} (get resolve-config require)]
-        ;; FIXME: defmulti?
+        rc
         (case target
+          ;; no resolve config, or resolve config without :target
+          nil
+          (find-resource* npm require-from require require-ctx)
+
           ;; {"react" {:target :global :global "React"}}
           :global
           (js-resource-for-global require cfg)
@@ -751,7 +752,38 @@
 
           (throw (ex-info "unknown resolve target"
                    {:require require
-                    :config cfg})))))))
+                    :config cfg})))]
+
+    (when rc ;; don't assoc into nil (aka resource not found)
+      (cond-> rc
+        cfg
+        (-> (assoc :resource-config (assoc cfg :original-require require))
+            ;; make sure that any change to the resolve config invalidated the cache
+            (update :cache-key conj cfg))))))
+
+(defn shadow-js-require [{:keys [ns resource-config] :as rc}]
+  (let [{:keys [export-global export-globals]}
+        resource-config
+
+        ;; FIXME: not the greatest idea to introduce two keys for this
+        ;; but most of the time there will only be one exported global per resource
+        ;; only in jQuery case sometimes we need jQuery and sometimes $
+        ;; so it must export both
+        globals
+        (-> []
+            (cond->
+              (seq export-global)
+              (conj export-global)
+              (seq export-globals)
+              (into export-globals)))
+
+        opts
+        (-> {}
+            (cond->
+              (seq globals)
+              (assoc :globals globals)))]
+
+    (str "shadow.js.require(\"" ns "\", " (json/write-str opts) ");")))
 
 ;; FIXME: allow configuration of :extensions :main-keys
 ;; maybe some closure opts

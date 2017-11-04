@@ -124,6 +124,8 @@
      "babel-test"
      {:target :file
       :file "test/es6/babel.js"}
+     "jquery"
+     {:export-globals ["$" "jQuery"]}
      }}
 
    :devtools
