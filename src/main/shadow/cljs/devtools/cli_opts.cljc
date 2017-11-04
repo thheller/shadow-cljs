@@ -54,6 +54,9 @@
    :clj-repl
    :clj-eval
 
+   :info
+   :pom
+
    :npm-deps
 
    :test
