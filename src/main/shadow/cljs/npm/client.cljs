@@ -2,6 +2,7 @@
   (:require [cljs.reader :as reader]
             ["readline" :as rl]
             ["net" :as node-net]
+            ["fs" :as fs]
             [shadow.cljs.npm.util :as util]
             [clojure.string :as str]))
 
@@ -48,28 +49,20 @@
           (.end socket)
           (println))]
 
-    (.on socket "connect"
-      (fn [err]
-        (if err
-          (println "shadow-cljs - socket connect failed")
+    (println "shadow-cljs - connected to server")
 
-          (do (println "shadow-cljs - connected to server")
-              ;; FIXME: this should be loaded but for some reason it sometimes can't find from_remote
-              (write (str "(require 'shadow.cljs.devtools.cli)\n"))
+    ;; FIXME: this is an ugly hack that will be removed soon
+    ;; its just a quick way to interact with the server without a proper API protocol
+    (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) ")\n"))
 
-              ;; FIXME: this is an ugly hack that will be removed soon
-              ;; its just a quick way to interact with the server without a proper API protocol
-              (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) ")\n"))
+    (.on rl "line"
+      (fn [line]
+        (write (str line "\n"))))
 
-              (.on rl "line"
-                (fn [line]
-                  (write (str line "\n"))))
-
-              ;; CTRL+D closes the rl
-              (.on rl "close"
-                (fn []
-                  (stop!)))
-              ))))
+    ;; CTRL+D closes the rl
+    (.on rl "close"
+      (fn []
+        (stop!)))
 
     (.on socket "data"
       (fn [data]
@@ -134,17 +127,10 @@
         (fn [buffer]
           (write (.toString buffer)))]
 
-    (.on socket "connect"
-      (fn [err]
-        (if err
-          (do (println "shadow-cljs - socket connect failed")
-              (js/process.exit 1))
+    (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) ")\n"))
 
-          (do (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) ")\n"))
-
-              (js/process.stdin.on "data" stdin-read)
-              (js/process.stdin.on "close" stop!)
-              ))))
+    (js/process.stdin.on "data" stdin-read)
+    (js/process.stdin.on "close" stop!)
 
     (.on socket "data"
       (fn [data]
@@ -180,16 +166,34 @@
         (js/process.stdin.removeListener "close" stop!)
         ))))
 
-(defn run [project-root config server-pid opts args]
+(defn run [project-root config server-pid-file opts args]
   (let [cli-repl
-        (-> (util/slurp server-pid)
+        (-> (util/slurp server-pid-file)
             (js/parseInt 10))]
 
     (if-not (pos-int? cli-repl)
-      (prn [:no-socket-repl-port server-pid cli-repl])
-      (let [socket (node-net/connect cli-repl "localhost")]
-        (if (get-in opts [:options :stdin])
-          (socket-pipe socket args)
-          (repl-client socket args)
-          )))))
+      (prn [:no-socket-repl-port server-pid-file cli-repl])
+      (let [connect-listener
+            (fn [err]
+              (this-as socket
+                (when-not
+                  (if (get-in opts [:options :stdin])
+                    (socket-pipe socket args)
+                    (repl-client socket args)))))
+
+            socket
+            (node-net/connect
+              #js {:port cli-repl
+                   :host "localhost"
+                   :timeout 1000}
+              connect-listener)]
+
+        (.on socket "error"
+          (fn [err]
+            (println "shadow-cljs - socket connect failed, server process dead?")
+            (fs/unlinkSync server-pid-file)
+            ;; FIXME: should do this automatically?
+            (println "deleted pid file, please retry command to start new server")
+            (js/process.exit 1)))
+        ))))
 
