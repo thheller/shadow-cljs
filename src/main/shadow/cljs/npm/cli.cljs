@@ -391,6 +391,20 @@
                   [:artifactId project-name]
                   [:version "0.0.1"]
                   [:name project-name]
+
+                  ;; FIXME: need config for this at some point, defaults from lein
+                  [:repositories
+                   [:repository
+                    [:id "central"]
+                    [:url "https://repo1.maven.org/maven2/"]
+                    [:snapshots [:enabled "false"]]
+                    [:releases [:enabled "true"]]]
+                   [:repository
+                    [:id "clojars"]
+                    [:url "https://repo.clojars.org/"]
+                    [:snapshots [:enabled "true"]]
+                    [:releases [:enabled "true"]]]]
+
                   (->> (into [['thheller/shadow-cljs jar-version]] dependencies)
                        (map (fn [[dep-sym dep-version & more]]
                               (let [id (name dep-sym)
