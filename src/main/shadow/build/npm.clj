@@ -700,6 +700,10 @@
                     :require require
                     :override override})))))))
 
+(def global-resolve-config
+  {"jquery"
+   {:export-globals ["$", "jQuery"]}})
+
 (defn find-resource
   [{:keys [project-dir] :as npm} ^File require-from ^String require require-ctx]
   {:pre [(service? npm)
@@ -716,7 +720,8 @@
   ;; "./something.js" would override anything from any package
   ;; just assume ppl will only override packages for now
   (let [{:keys [target] :as cfg}
-        (get-in require-ctx [:resolve require])
+        (or (get-in require-ctx [:resolve require])
+            (get global-resolve-config require))
 
         rc
         (case target
