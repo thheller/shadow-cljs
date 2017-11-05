@@ -228,8 +228,6 @@
                ;; set in cljs.core/extend-prefix hack below
                (not (some-> prop meta :shadow/protocol-prop)))
 
-      (prn [:infer-warning target-tag])
-
       (warning :infer-warning env {:warn-type :target :form form}))
 
     (when (js-tag? tag)
