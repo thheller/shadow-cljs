@@ -211,52 +211,99 @@
                (resolve-cljs-var current-ns sym current-ns)
                )))))))
 
-(defn analyze-dot [env target field member+ form]
-  (let [v [target field member+]
-        {:keys [dot-action target method field args]} (build-dot-form v)
-        enve (assoc env :context :expr)
-        targetexpr (analyze enve target)
-        form-meta (meta form)
-        target-tag (:tag targetexpr)
-        prop (or field method)
-        tag (or (:tag form-meta)
-                (and (js-tag? target-tag) 'js)
-                ;; FIXME: this might break a whole bunch of stuff?
-                ;; tagging all (. thing -prototype) accesses as JS
-                (and (= dot-action ::access) field (= 'prototype field) 'js)
-                nil)]
-
+(defn infer-externs-dot [{:keys [form target-tag method field env prop tag] :as ast}]
+  (let [sprop (str prop)]
 
     ;; simplified *warn-on-infer* warnings since we do not care about them being typed
     ;; we just need ^js not ^js/Foo.Bar
-    (when (and (or (nil? target-tag)
-                   (= 'any target-tag))
-               (not (string/starts-with? (str prop) "cljs$")))
+    (when (and (or (nil? tag) (= 'any tag))
+               (not= target-tag 'clj)
+               (not= "-prototype" sprop)
+               (not= "-constructor" sprop)
+               ;; defrecord
+               (not= "-getBasis" sprop)
+               (not (string/starts-with? sprop "-cljs$"))
+               ;; protocol fns, never need externs for those
+               (not (string/includes? sprop "$arity$"))
+               ;; set in cljs.core/extend-prefix hack below
+               (not (some-> prop meta :shadow/protocol-prop)))
+
+      (prn [:infer-warning target-tag])
 
       (warning :infer-warning env {:warn-type :target :form form}))
 
     (when (js-tag? tag)
-      (shadow-js-access-property (-> env :ns :name) (str prop)))
+      (shadow-js-access-property
+        (-> env :ns :name)
+        (str (or method field))
+        ))))
 
-    (case dot-action
-      ::access (let [children [targetexpr]]
-                 {:op :dot
-                  :env env
-                  :form form
-                  :target targetexpr
-                  :field field
-                  :children children
-                  :tag tag})
-      ::call (let [argexprs (map #(analyze enve %) args)
-                   children (into [targetexpr] argexprs)]
-               {:op :dot
-                :env env
-                :form form
-                :target targetexpr
-                :method method
-                :args argexprs
-                :children children
-                :tag tag}))))
+(defn analyze-dot [env target member member+ form]
+  (when (nil? target)
+    (throw (ex-info "Cannot use dot form on nil" {:form form})))
+
+  (let [member-sym? (symbol? member)
+        member-seq? (seq? member)
+        prop-access? (and member-sym? (= \- (first (name member))))
+
+        ;; common for all paths
+        enve (assoc env :context :expr)
+        targetexpr (analyze enve target)
+        form-meta (meta form)
+        target-tag (:tag targetexpr)
+        tag (or (:tag form-meta)
+                (and (js-tag? target-tag) 'js)
+                nil)
+
+        ast
+        {:op :dot
+         :env env
+         :form form
+         :target targetexpr
+         :target-tag target-tag
+         :tag tag
+         :prop member}
+
+        ast
+        (cond
+          ;; (. thing (foo) 1 2 3)
+          (and member-seq? (seq member+))
+          (throw (ex-info "dot with extra args" {:form form}))
+
+          ;; (. thing (foo))
+          ;; (. thing (foo 1 2 3))
+          member-seq?
+          (let [[method & args] member
+                argexprs (map #(analyze enve %) args)
+                children (into [targetexpr] argexprs)]
+            (assoc ast :method method :args argexprs :children children))
+
+          ;; (. thing -foo 1 2 3)
+          (and prop-access? (seq member+))
+          (throw (ex-info "dot prop access with args" {:form form}))
+
+          ;; (. thing -foo)
+          prop-access?
+          (let [children [targetexpr]]
+            (assoc ast :field (-> member (name) (subs 1) (symbol)) :children children))
+
+          ;; (. thing foo)
+          ;; (. thing foo 1 2 3)
+          member-sym?
+          (let [argexprs (map #(analyze enve %) member+)
+                children (into [targetexpr] argexprs)]
+            (assoc ast :method member :args argexprs :children children))
+
+          :else
+          (throw (ex-info "invalid dot form" {:form form})))]
+
+    (infer-externs-dot ast)
+
+    ast))
+
+(defmethod parse '.
+  [_ env [_ target field & member+ :as form] _ _]
+  (disallowing-recur (analyze-dot env target field member+ form)))
 
 ;; thheller: changed tag inference to always use tag on form first
 ;; destructured bindings had meta in their :init
@@ -364,3 +411,185 @@
                        ))))
        (~'js* ~(core/str "/** @define {" type "} */"))
        (goog/define ~defname ~default))))
+
+(defn shadow-mark-protocol-prop [sym]
+  (with-meta sym {:shadow/protocol-prop true}))
+
+;; multimethod in core, although I don't see how this is ever going to go past 2 impls?
+;; also added the metadata for easier externs inference
+(defn- extend-prefix [tsym sym]
+  (let [prop-sym
+        (-> (to-property sym)
+            (cond->
+              ;; exploiting a "flaw" where extend-prefix is called with a string
+              ;; instead of a symbol for protocol impls
+              ;; adding the extra meta so we can use it for smarter externs inference
+              (core/string? sym)
+              (shadow-mark-protocol-prop)
+              ))]
+
+    (core/case (core/-> tsym meta :extend)
+      :instance
+      `(. ~tsym ~prop-sym)
+      ;; :default
+      `(.. ~tsym ~'-prototype ~prop-sym))))
+
+
+(core/defmacro implements?
+  "EXPERIMENTAL"
+  [psym x]
+  (core/let [p (:name (cljs.analyzer/resolve-var (dissoc &env :locals) psym))
+             prefix (protocol-prefix p)
+             ;; thheller: ensure things are tagged so externs inference knows this is a protocol prop
+             protocol-prop (shadow-mark-protocol-prop (symbol (core/str "-" prefix)))
+             xsym (bool-expr (gensym))
+             [part bit] (fast-path-protocols p)
+             msym (symbol
+                    (core/str "-cljs$lang$protocol_mask$partition" part "$"))]
+    (core/if-not (core/symbol? x)
+      `(let [~xsym ~x]
+         (if ~xsym
+           (if (or ~(if bit `(unsafe-bit-and (. ~xsym ~msym) ~bit) false)
+                   (identical? cljs.core/PROTOCOL_SENTINEL (. ~xsym ~protocol-prop)))
+             true
+             false)
+           false))
+      `(if-not (nil? ~x)
+         (if (or ~(if bit `(unsafe-bit-and (. ~x ~msym) ~bit) false)
+                 (identical? cljs.core/PROTOCOL_SENTINEL (. ~x ~protocol-prop)))
+           true
+           false)
+         false))))
+
+(core/defmacro satisfies?
+  "Returns true if x satisfies the protocol"
+  [psym x]
+  (core/let [p (:name
+                 (cljs.analyzer/resolve-var
+                   (dissoc &env :locals) psym))
+             prefix (protocol-prefix p)
+             ;; thheller: ensure things are tagged so externs inference knows this is a protocol prop
+             protocol-prop (shadow-mark-protocol-prop (symbol (core/str "-" prefix)))
+             xsym (bool-expr (gensym))
+             [part bit] (fast-path-protocols p)
+             msym (symbol
+                    (core/str "-cljs$lang$protocol_mask$partition" part "$"))]
+    (core/if-not (core/symbol? x)
+      `(let [~xsym ~x]
+         (if-not (nil? ~xsym)
+           (if (or ~(if bit `(unsafe-bit-and (. ~xsym ~msym) ~bit) false)
+                   (identical? cljs.core/PROTOCOL_SENTINEL (. ~xsym ~protocol-prop)))
+             true
+             (if (coercive-not (. ~xsym ~msym))
+               (cljs.core/native-satisfies? ~psym ~xsym)
+               false))
+           (cljs.core/native-satisfies? ~psym ~xsym)))
+      `(if-not (nil? ~x)
+         (if (or ~(if bit `(unsafe-bit-and (. ~x ~msym) ~bit) false)
+                 (identical? cljs.core/PROTOCOL_SENTINEL (. ~x ~protocol-prop)))
+           true
+           (if (coercive-not (. ~x ~msym))
+             (cljs.core/native-satisfies? ~psym ~x)
+             false))
+         (cljs.core/native-satisfies? ~psym ~x)))))
+
+
+(core/defn- emit-defrecord
+  "Do not use this directly - use defrecord"
+  [env tagname rname fields impls]
+  (core/let [hinted-fields fields
+             fields (vec (map #(with-meta % nil) fields))
+             base-fields fields
+             pr-open (core/str "#" #?(:clj  (.getNamespace rname)
+                                      :cljs (namespace rname))
+                               "." #?(:clj  (.getName rname)
+                                      :cljs (name rname))
+                               "{")
+             fields (conj fields '__meta '__extmap (with-meta '__hash {:mutable true}))]
+    (core/let [gs (gensym)
+               ksym (gensym "k")
+               impls (concat
+                       impls
+                       ['IRecord
+                        'ICloneable
+                        `(~'-clone [this#] (new ~tagname ~@fields))
+                        'IHash
+                        `(~'-hash [this#]
+                           (caching-hash this#
+                             (fn [coll#]
+                               (bit-xor
+                                 ~(hash (core/-> rname comp/munge core/str))
+                                 (hash-unordered-coll coll#)))
+                             ~'__hash))
+                        'IEquiv
+                        ;; thheller: added tags here
+                        (core/let [this (with-meta (gensym 'this) {:tag 'clj})
+                                   other (with-meta (gensym 'other) {:tag 'clj})]
+                          `(~'-equiv [~this ~other]
+                             (and (some? ~other)
+                                  (identical? (.-constructor ~this)
+                                    (.-constructor ~other))
+                                  ~@(map (core/fn [field]
+                                           `(= (.. ~this ~(to-property field))
+                                               (.. ~other ~(to-property field))))
+                                      base-fields)
+                                  (= (.-__extmap ~this)
+                                     (.-__extmap ~other)))))
+                        'IMeta
+                        `(~'-meta [this#] ~'__meta)
+                        'IWithMeta
+                        `(~'-with-meta [this# ~gs] (new ~tagname ~@(replace {'__meta gs} fields)))
+                        'ILookup
+                        `(~'-lookup [this# k#] (-lookup this# k# nil))
+                        `(~'-lookup [this# ~ksym else#]
+                           (case ~ksym
+                             ~@(mapcat (core/fn [f] [(keyword f) f]) base-fields)
+                             (cljs.core/get ~'__extmap ~ksym else#)))
+                        'ICounted
+                        `(~'-count [this#] (+ ~(count base-fields) (count ~'__extmap)))
+                        'ICollection
+                        `(~'-conj [this# entry#]
+                           (if (vector? entry#)
+                             (-assoc this# (-nth entry# 0) (-nth entry# 1))
+                             (reduce -conj
+                               this#
+                               entry#)))
+                        'IAssociative
+                        `(~'-assoc [this# k# ~gs]
+                           (condp keyword-identical? k#
+                             ~@(mapcat (core/fn [fld]
+                                         [(keyword fld) (list* `new tagname (replace {fld gs '__hash nil} fields))])
+                                 base-fields)
+                             (new ~tagname ~@(remove #{'__extmap '__hash} fields) (assoc ~'__extmap k# ~gs) nil)))
+                        'IMap
+                        `(~'-dissoc [this# k#] (if (contains? #{~@(map keyword base-fields)} k#)
+                                                 (dissoc (-with-meta (into {} this#) ~'__meta) k#)
+                                                 (new ~tagname ~@(remove #{'__extmap '__hash} fields)
+                                                   (not-empty (dissoc ~'__extmap k#))
+                                                   nil)))
+                        'ISeqable
+                        `(~'-seq [this#] (seq (concat [~@(map #(core/list `vector (keyword %) %) base-fields)]
+                                                ~'__extmap)))
+
+                        'IIterable
+                        `(~'-iterator [~gs]
+                           (RecordIter. 0 ~gs ~(count base-fields) [~@(map keyword base-fields)] (if ~'__extmap
+                                                                                                   (-iterator ~'__extmap)
+                                                                                                   (core/nil-iter))))
+
+                        'IPrintWithWriter
+                        `(~'-pr-writer [this# writer# opts#]
+                           (let [pr-pair# (fn [keyval#] (pr-sequential-writer writer# pr-writer "" " " "" opts# keyval#))]
+                             (pr-sequential-writer
+                               writer# pr-pair# ~pr-open ", " "}" opts#
+                               (concat [~@(map #(core/list `vector (keyword %) %) base-fields)]
+                                 ~'__extmap))))
+                        ])
+               [fpps pmasks] (prepare-protocol-masks env impls)
+               protocols (collect-protocols impls env)
+               tagname (vary-meta tagname assoc
+                         :protocols protocols
+                         :skip-protocol-flag fpps)]
+      `(do
+         (~'defrecord* ~tagname ~hinted-fields ~pmasks
+           (extend-type ~tagname ~@(dt->et tagname impls fields true)))))))

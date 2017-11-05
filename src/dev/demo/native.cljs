@@ -1,5 +1,6 @@
 (ns demo.native
   (:require ["react" :as r :refer (thing)]
+            [demo.protocol :as dp]
             [clojure.string :as string]
             [clojure.set :as set]))
 
@@ -31,9 +32,19 @@
 (deftype ShouldNotWarnAboutInfer [foo bar]
   Object
   (yo [x])
+
   ILookup
   (-lookup [this key]
     ::fake))
+
+(extend-protocol dp/SomeProtocol
+  ShouldNotWarnAboutInfer
+  (some-protocol-fn [this x]
+    x))
+
+(defrecord SomeRecord [x y])
+
+(implements? SomeProtocol (SomeRecord. 1 2))
 
 (list)
 ;; foo ;; warning, to prevent cache

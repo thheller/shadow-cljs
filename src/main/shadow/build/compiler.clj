@@ -311,7 +311,7 @@
 
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}
-   {:keys [resource-id resource-name url output-name] :as rc}
+   {:keys [resource-id resource-name url file output-name] :as rc}
    source]
   (let [{:keys [static-fns elide-asserts fn-invoke-direct]}
         compiler-options]

@@ -22,7 +22,7 @@
 
    [org.clojure/core.async "0.3.443"]
 
-   #_ [org.clojure/clojurescript "1.9.854"]
+   #_[org.clojure/clojurescript "1.9.854"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.9.946"
@@ -75,6 +75,14 @@
 
      [thi.ng/geom "0.0.908"]
      [re-view "0.4.6"]
+     #_[com.cemerick/pomegranate "1.0.0"
+        :exclusions [org.slf4j/jcl-over-slf4j]]
+     [org.clojure/tools.deps.alpha "0.2.173"
+      :exclusions
+      [org.slf4j/jcl-over-slf4j
+       org.slf4j/slf4j-nop
+       ch.qos.logback/logback-classic
+       commons-logging]]
      [binaryage/devtools "0.9.4"]]
     :source-paths
     ["src/dev"

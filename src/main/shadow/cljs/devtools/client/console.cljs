@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.client.console
   (:require [clojure.string :as str]))
 
-(defn- push-all [arr item]
+(defn- push-all [^js arr item]
   (if (vector? item)
     (doseq [it item]
       (.push arr it))
@@ -129,7 +129,7 @@
     (clj->jsonml [:div {:margin-left "14px"} (object-ref @v)])))
 
 (defn install-all! []
-  (when-let [f js/goog.global.devtoolsFormatters]
+  (when-let [^js f js/goog.global.devtoolsFormatters]
     (doto f
       (.push (KeywordFormatter.))
       (.push (MapFormatter.))

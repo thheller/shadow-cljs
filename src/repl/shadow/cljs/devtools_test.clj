@@ -237,17 +237,18 @@
 
               :modules
               {:base
-               {:entries [demo.native]}}
+               {:entries [shadow.dom demo.native]}}
 
               :js-options
               {}}
             {})]
 
 
-      #_ (pprint (->> (get-in compiler-env [:shadow/js-properties])))
+      #_(pprint (->> (get-in compiler-env [:shadow/js-properties])))
 
-      #_ (doseq [[ns ns-info] (get-in compiler-env [:cljs.analyzer/namespaces])]
-        (prn ns)
+      (doseq [ns-info (->> '[demo.protocol demo.native]
+                           (map #(get-in compiler-env [:cljs.analyzer/namespaces %])))]
+        (prn (:name ns-info))
         (pprint (-> ns-info
                     (select-keys [:shadow/js-access-global
                                   :shadow/js-access-properties]))))
@@ -381,7 +382,7 @@
               {:language-out :ecmascript5}
 
               :modules
-              {:test {:entries ["fabric" #_ "/test/cjs/entry.js"]}}
+              {:test {:entries ["fabric" #_"/test/cjs/entry.js"]}}
 
               :devtools
               {:enabled false

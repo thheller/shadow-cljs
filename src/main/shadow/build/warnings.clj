@@ -36,27 +36,24 @@
             {:start-idx before
              :before (subvec source-lines before idx)
              :line (nth source-lines idx)
-             :after (subvec source-lines line after)}
+             :after (subvec source-lines line after)}))]
 
-            ))]
-
-    (->> (for [{:keys [line column]} locations]
-           (make-source-excerpt line column))
+    (->> (for [{:keys [line column] :as location} locations]
+           (try
+             (make-source-excerpt line column)
+             (catch Exception e
+               (log/warnf e
+                 "failed to get source excerpt for %s at %s"
+                 (or (:file rc)
+                     (:url rc)
+                     (:resource-name rc))
+                 location)
+               nil)))
          (into []))))
 
 (defn get-source-excerpt [state rc location]
-  (try
-    ;; defaults to a seq of locations to avoid parsing a file multiple times
-    (-> (get-source-excerpts state rc [location])
-        (first))
-    (catch Exception e
-      (log/warnf e
-        "failed to get source excerpt for %s at %s"
-        (or (:file rc)
-            (:url rc)
-            (:resource-name rc))
-        location)
-      nil)))
+  (-> (get-source-excerpts state rc [location])
+      (first)))
 
 ;; https://en.wikipedia.org/wiki/ANSI_escape_code
 ;; https://github.com/chalk/ansi-styles/blob/master/index.js
