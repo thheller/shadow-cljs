@@ -8,7 +8,7 @@
 ## Features
 
 - Good configuration defaults so you don't have to sweat the details
-- Live code reloading
+- Live Reload (CLJS + CSS)
 - CLJS REPL
 - JS dependencies via `npm`
 - Code splitting (via `:modules`)
