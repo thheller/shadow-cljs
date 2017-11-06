@@ -1,6 +1,8 @@
 `shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
 
 [![](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
+[![npm](https://img.shields.io/npm/v/shadow-cljs.svg)](https://github.com/thheller/shadow-cljs)
+[![Clojars Project](https://img.shields.io/clojars/v/thheller/shadow-cljs.svg)](https://clojars.org/thheller/shadow-cljs)
 
 
 ## Features
@@ -12,13 +14,13 @@
 - Code splitting (via `:modules`)
 - Fast builds, reliable caching, ...
 
-
 ## Guides
 
 - [EN] [A beginner guide to compile ClojureScript with shadow-cljs](https://medium.com/@jiyinyiyong/a-beginner-guide-to-compile-clojurescript-with-shadow-cljs-26369190b786)
 - [CN] [shadow-cljs 2.x 使用教程](https://segmentfault.com/a/1190000011499210)
 - More coming soon ...
 
+![overview-img](https://user-images.githubusercontent.com/116838/28730426-d32dc74a-7395-11e7-9cec-54275af35345.png)
 
 ## Installation
 
