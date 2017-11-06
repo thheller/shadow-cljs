@@ -389,7 +389,7 @@
         (into manual-externs)
         (cond->
           generate?
-          (into (generate-externs state))))))
+          (conj (generate-externs state))))))
 
 (defn register-cljs-protocol-properties
   "this is needed to make :check-types work

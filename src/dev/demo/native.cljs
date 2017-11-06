@@ -44,7 +44,7 @@
 
 (defrecord SomeRecord [x y])
 
-(implements? SomeProtocol (SomeRecord. 1 2))
+(implements? dp/SomeProtocol (SomeRecord. 1 2))
 
 (def empty-map {})
 
@@ -61,3 +61,7 @@
   ([a] a)
   ([a b] a)
   ([a b & c] a))
+
+(reify dp/SomeProtocol
+  (some-protocol-fn [this x]
+    ::reify))
