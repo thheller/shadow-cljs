@@ -1,22 +1,21 @@
 (ns shadow.build.cljs-bridge
   "things that connect the shadow.cljs world with the cljs world"
-  (:require [cljs.analyzer :as cljs-ana]
-            [shadow.build.cljs-hacks]
-            [cljs.compiler :as cljs-comp]
-            [cljs.env :as cljs-env]
-
-            [clojure.tools.reader :as reader]
-            [clojure.tools.reader.reader-types :as readers]
-            [cljs.tagged-literals :as tags]
-
-            [shadow.cljs.util :as util]
-            [shadow.build.ns-form :as ns-form]
-            [clojure.set :as set]
-            [clojure.spec.alpha :as s]
-            [cljs.analyzer :as ana]
-            [cljs.env :as env]
-            [cljs.externs :as externs]
-            [clojure.string :as str])
+  (:require
+    [clojure.string :as str]
+    [clojure.set :as set]
+    [clojure.spec.alpha :as s]
+    [clojure.tools.reader :as reader]
+    [clojure.tools.reader.reader-types :as readers]
+    [cljs.tagged-literals :as tags]
+    [cljs.analyzer :as ana]
+    [cljs.env :as env]
+    [cljs.externs :as externs]
+    [cljs.analyzer :as cljs-ana]
+    [cljs.compiler :as cljs-comp]
+    [cljs.env :as cljs-env]
+    [shadow.cljs.util :as util]
+    [shadow.build.ns-form :as ns-form]
+    [shadow.build.cljs-hacks])
   (:import (java.io PushbackReader StringReader)
            (java.util.concurrent Executors ExecutorService)))
 
@@ -106,17 +105,20 @@
    doesn't carry the atom arround cause the compiler state itself should be persistent
    thus it should provide safe points
 
-   the body should yield the updated compiler state and not touch the compiler env
-
-   I don't touch the compiler env itself yet at all, might do for some metadata later"
+   the body should yield the updated compiler state and not touch the compiler env"
   [state & body]
   `(do (when *in-compiler-env*
          (throw (ex-info "already in compiler env" {})))
-       (let [dyn-env# (atom (:compiler-env ~state))
+       (let [dyn-env# (atom (assoc (:compiler-env ~state) ::state ~state))
              new-state# (binding [cljs-env/*compiler* dyn-env#
                                   *in-compiler-env* true]
                           ~@body)]
-         (assoc new-state# :compiler-env @dyn-env#))))
+         (assoc new-state# :compiler-env (dissoc @dyn-env# ::state)))))
+
+(defn get-build-state []
+  (when-not *in-compiler-env*
+    (throw (ex-info "not in compiler env" {})))
+  (get @cljs-env/*compiler* ::state))
 
 (defn swap-compiler-env!
   [state update-fn & args]

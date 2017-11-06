@@ -104,7 +104,7 @@
     (xhr/send
       (env/files-url)
       (fn [res]
-        (this-as req
+        (this-as ^goog req
           (let [content
                 (-> req
                     (.getResponseText)

@@ -347,7 +347,7 @@
     (SourceFile/fromCode "externs.shadow.js" content)
     ))
 
-(defn load-externs [{:keys [deps-externs build-modules] :as state}]
+(defn load-externs [{:keys [deps-externs] :as state} generate?]
   (let [externs
         (distinct
           (concat
@@ -381,25 +381,15 @@
                    {:keys [resource-name url] :as ext} externs]
                ;; FIXME: use url? deps-path is accurate enough for now
                (SourceFile/fromCode (str "EXTERNS:" deps-path "!/" resource-name) (slurp url)))
-             (into []))
+             (into []))]
 
-        foreign-externs
-        (->> build-modules
-             (mapcat :sources)
-             (map #(get-in state [:sources %]))
-             (filter util/foreign?)
-             (filter :externs-source)
-             (map (fn [{:keys [source-path output-name externs externs-source] :as foreign-src}]
-                    (SourceFile/fromCode (str "EXTERNS:" source-path "!/" output-name) externs-source)))
-             (into []))
-
-        auto-externs
-        [(generate-externs state)]
-        ]
-
-    (->> (concat default-externs deps-externs foreign-externs manual-externs auto-externs)
-         (into []))
-    ))
+    (-> []
+        (into default-externs)
+        (into deps-externs)
+        (into manual-externs)
+        (cond->
+          generate?
+          (into (generate-externs state))))))
 
 (defn register-cljs-protocol-properties
   "this is needed to make :check-types work
@@ -817,9 +807,32 @@
       (.setRenamePrefixNamespace closure-opts "$CLJS"))
 
     (assoc state
-           ::externs (load-externs state)
+           ::externs (load-externs state true)
            ::compiler cc
            ::compiler-options closure-opts)))
+
+(defn load-extern-properties [{::keys [extern-properties] :as state}]
+  (if extern-properties
+    state
+    (let [cc (make-closure-compiler)
+          co (make-options)
+
+          externs
+          (load-externs state false)
+
+          result
+          (.compile cc externs [] co)
+
+          ;; already immutable set, but incompatible
+          ;; com.google.common.collect.RegularImmutableSet cannot be cast to clojure.lang.IPersistentCollection
+          extern-properties
+          (into #{} (ShadowAccess/getExternProperties cc))]
+
+      (when-not (.success result)
+        (throw (ex-info "externs trouble" {})))
+
+      (assoc state ::extern-properties extern-properties)
+      )))
 
 (defn rewrite-node-global-access [js]
   (-> js
@@ -1542,23 +1555,26 @@
           required-js-names
           (data/js-names-accessed-from-cljs state)
 
-          {:keys [live-js-deps dead-js-deps required]}
+          {:keys [live-js-deps dead-js-deps required js-properties]}
           (->> sources
                (reverse)
                (reduce
                  (fn [{:keys [required] :as idx} {:keys [ns provides] :as src}]
                    (if-not (seq (set/intersection required provides))
                      (update idx :dead-js-deps conj ns)
-                     (let [{:keys [actual-requires]}
+                     (let [{:keys [actual-requires properties]}
                            (data/get-output! state src)]
                        (-> idx
+                           (update :js-properties set/union properties)
                            (update :live-js-deps conj ns)
                            (update :required set/union actual-requires)))))
                  {:required required-js-names
+                  :js-properties #{}
                   :live-js-deps #{}
                   :dead-js-deps #{}}))]
 
       (assoc state
+             :js-properties js-properties
              :dead-js-deps dead-js-deps
              :live-js-deps live-js-deps)
       )))

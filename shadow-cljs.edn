@@ -70,10 +70,7 @@
    :asset-path "/js"
 
    :compiler-options
-   {:externs [#_"demo/browser-externs.js"
-              #_"test/react.ext.js"
-              #_"test/react-dom.ext.js"]
-
+   {:infer-externs :auto
     :closure-warnings
     {:global-this :off}
 

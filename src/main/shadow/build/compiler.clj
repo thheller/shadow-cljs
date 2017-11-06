@@ -75,14 +75,15 @@
     (throw (ex-info "ns* not supported (require, require-macros, import, import-macros, ... must be part of your ns form)" ast))
     ast))
 
-(defn hijacked-parse-ns [env form rc {::keys [build-state] :as opts}]
-  (-> (ns-form/parse form)
-      (ns-form/rewrite-ns-aliases build-state)
-      (ns-form/rewrite-js-deps build-state)
-      (cond->
-        (:macros-ns opts)
-        (update :name #(symbol (str % "$macros"))))
-      (assoc :env env :form form :op :ns)))
+(defn hijacked-parse-ns [env form rc opts]
+  (let [build-state (cljs-bridge/get-build-state)]
+    (-> (ns-form/parse form)
+        (ns-form/rewrite-ns-aliases build-state)
+        (ns-form/rewrite-js-deps build-state)
+        (cond->
+          (:macros-ns opts)
+          (update :name #(symbol (str % "$macros"))))
+        (assoc :env env :form form :op :ns))))
 
 ;; I don't want to use with-redefs but I also don't want to replace the default
 ;; keep a reference to the default impl and dispatch based on binding
@@ -115,25 +116,26 @@
              ana/*cljs-ns* ns
              ana/*cljs-file* resource-name]
 
-     (-> (ana/empty-env) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
-         (cond->
-           repl-context?
-           (assoc
-             :context :expr
-             :def-emits-var true))
-         ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
-         ;; it seems to do this to get rid of duplicated warnings?
-         ;; we just do a distinct later
-         (ana/analyze* form resource-name
-           ;; doing this since I no longer want :compiler-options at the root
-           ;; of the compiler state, instead they are in :compiler-options
-           ;; still want the build-state accessible though
-           (-> (:compiler-options state)
-               (assoc ::build-state state)
+     ;; opts are pretty much 50/50 chance to be used over :options in env/*compiler*
+     ;; they are not passed around properly, so make sure it always matches what in compiler env
+     ;; initialized in cljs-bridge/ensure-compiler-env
+     (let [opts
+           (-> (get-in state [:compiler-env :options])
                (cond->
                  (:macros-ns compile-state)
-                 (assoc :macros-ns true))))
-         (post-analyze state)))))
+                 (assoc :macros-ns true)))]
+
+       (-> (ana/empty-env) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
+           (cond->
+             repl-context?
+             (assoc
+               :context :expr
+               :def-emits-var true))
+           ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
+           ;; it seems to do this to get rid of duplicated warnings?
+           ;; we just do a distinct later
+           (ana/analyze* form resource-name opts)
+           (post-analyze state))))))
 
 (defn do-compile-cljs-string
   [{:keys [resource-name cljc] :as init} reduce-fn cljs-source]
@@ -313,7 +315,7 @@
   [{:keys [compiler-options] :as state}
    {:keys [resource-id resource-name url file output-name] :as rc}
    source]
-  (let [{:keys [static-fns elide-asserts fn-invoke-direct]}
+  (let [{:keys [static-fns elide-asserts fn-invoke-direct infer-externs]}
         compiler-options]
 
     (binding [ana/*cljs-static-fns*
@@ -332,7 +334,11 @@
 
               ;; root binding for warnings so (set! *warn-on-infer* true) can work
               ana/*cljs-warnings*
-              ana/*cljs-warnings*
+              (-> ana/*cljs-warnings*
+                  (cond->
+                    (or (and file (= :auto infer-externs))
+                        (= :all infer-externs))
+                    (assoc :infer-warning true)))
 
               ana/*unchecked-arrays*
               ana/*unchecked-arrays*
@@ -403,12 +409,20 @@
           (macros/macros-used-by-ids state deps)))))
 
 (def cache-affecting-options
-  [:static-fns
-   :elide-asserts
-   :optimize-constants
-   :fn-invoke-direct
-   :emit-constants
-   :source-map])
+  ;; paths into the build state
+  ;; options which may effect the output of the CLJS compiler
+  [[:mode]
+   [:js-options :js-provider]
+   [:compiler-options :source-map]
+   [:compiler-options :fn-invoke-direct]
+   [:compiler-options :elide-asserts]
+   ;; doesn't affect output but affects compiler env
+   [:compiler-options :infer-externs]
+   ;; these should basically never be changed
+   [:compiler-options :static-fns]
+   [:compiler-options :optimize-constants]
+   [:compiler-options :emit-constants]
+   ])
 
 (defn load-cached-cljs-resource
   [{:keys [build-options] :as state}
@@ -436,7 +450,7 @@
 
           (when (and (= cache-key-map (:cache-keys cache-data))
                      (every?
-                       #(= (get-in state [:compiler-options %])
+                       #(= (get-in state %)
                            (get-in cache-data [:compiler-options %]))
                        cache-affecting-options))
 
@@ -480,8 +494,8 @@
         (try
           (let [cache-compiler-options
                 (reduce
-                  (fn [cache-options option-key]
-                    (assoc cache-options option-key (get-in state [:compiler-options option-key])))
+                  (fn [cache-options option-path]
+                    (assoc cache-options option-path (get-in state option-path)))
                   {}
                   cache-affecting-options)
 
@@ -747,8 +761,18 @@
       state
       sources)))
 
-(defn compile-cljs-sources [{:keys [executor] :as state} sources non-cljs-provides]
+(defn use-extern-properties [{:keys [js-properties] :as state}]
+  ;; this is used by cljs-hacks/infer-externs-dot and should contains all known properties from externs (strings)
+  (assoc-in state [:compiler-env :shadow/js-properties]
+    (set/union
+      js-properties ;; from JS deps
+      (::closure/extern-properties state) ;; from CC externs
+      )))
+
+(defn compile-cljs-sources [{:keys [executor js-properties] :as state} sources non-cljs-provides]
   (-> state
+      (closure/load-extern-properties)
+      (use-extern-properties)
       (cond->
         executor
         (par-compile-cljs-sources sources non-cljs-provides)
@@ -814,9 +838,6 @@
          ;; order of this is important
          ;; CLJS first since all it needs are the provided names
          (cond->
-           (seq cljs)
-           (compile-cljs-sources cljs non-cljs-provides)
-
            (seq goog)
            (copy-source-to-output goog)
 
@@ -841,6 +862,9 @@
            (and (= :shadow js-provider) (seq npm))
            (maybe-closure-convert npm closure/convert-sources-simple)
 
+           ;; do this last as it uses data from above
+           (seq cljs)
+           (compile-cljs-sources cljs non-cljs-provides)
            ;; optimize the unprocessed sources
            ;; since processing may have lose information
            #_(and optimizing? (seq npm))

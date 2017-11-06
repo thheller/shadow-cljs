@@ -26,12 +26,11 @@
   {:optimizations :none
    :static-fns true
    :elide-asserts false
+   :closure-configurators []
+   :infer-externs true
 
    :closure-warnings
    {:check-types :off}
-
-   :closure-configurators
-   []
 
    :closure-threads
    (-> (Runtime/getRuntime)

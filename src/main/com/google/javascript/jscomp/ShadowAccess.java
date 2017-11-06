@@ -3,6 +3,7 @@ package com.google.javascript.jscomp;
 import com.google.javascript.rhino.Node;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Helper class to access package-protected things in custom CLJS compiler passes
@@ -24,6 +25,10 @@ public class ShadowAccess {
 
     public static Node getJsRoot(AbstractCompiler compiler) {
         return compiler.getJsRoot();
+    }
+
+    public static Set<String> getExternProperties(AbstractCompiler compiler) {
+        return compiler.getExternProperties();
     }
 
     // comp.toSource(node, source, first-input) is private for some reason

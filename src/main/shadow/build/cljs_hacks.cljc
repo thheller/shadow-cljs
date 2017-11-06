@@ -211,32 +211,57 @@
                (resolve-cljs-var current-ns sym current-ns)
                )))))))
 
-(defn infer-externs-dot [{:keys [form target-tag method field env prop tag] :as ast}]
-  (let [sprop (str prop)]
+(defn infer-externs-dot
+  [{:keys [form form-meta method field target-tag env prop tag] :as ast}
+   {:keys [infer-externs] :as opts}]
+  (when infer-externs
+    (let [sprop
+          (str (or method field))
 
-    ;; simplified *warn-on-infer* warnings since we do not care about them being typed
-    ;; we just need ^js not ^js/Foo.Bar
-    (when (and (or (nil? tag) (= 'any tag))
-               (not= target-tag 'clj)
-               (not= "-prototype" sprop)
-               (not= "-constructor" sprop)
-               ;; defrecord
-               (not= "-getBasis" sprop)
-               (not (string/starts-with? sprop "-cljs$"))
-               ;; protocol fns, never need externs for those
-               (not (string/includes? sprop "$arity$"))
-               ;; set in cljs.core/extend-prefix hack below
-               (not (some-> prop meta :shadow/protocol-prop)))
+          ;; added by cljs.core/add-obj-methods
+          ;; used by deftype/defrecord when adding functions to Object
+          ;; without tag we record the property for externs
+          ;; if tagged with anything but ^js we skip the record
+          shadow-object-fn
+          (:shadow/object-fn form-meta)]
 
-      (warning :infer-warning env {:warn-type :target :form form}))
+      ;; simplified *warn-on-infer* warnings since we do not care about them being typed
+      ;; we just need ^js not ^js/Foo.Bar
+      (when (and (:infer-warning *cljs-warnings*) ;; skip all checks if the warning is ignored anyways
+                 (not= "prototype" sprop)
+                 (not= "constructor" sprop)
+                 ;; defrecord
+                 (not= "getBasis" sprop)
+                 (not (string/starts-with? sprop "cljs$"))
+                 (or (nil? tag) (= 'any tag))
+                 (or (nil? target-tag) (= 'any target-tag))
+                 ;; properties from externs and JS deps
+                 (not (contains? (:shadow/js-properties @env/*compiler*) sprop))
+                 ;; protocol fns, never need externs for those
+                 (not (string/includes? sprop "$arity$"))
+                 ;; set in cljs.core/extend-prefix hack below
+                 (not (some-> prop meta :shadow/protocol-prop))
+                 (not shadow-object-fn)
+                 ;; no immediate ideas how to annotate these so it doesn't warn
+                 (not= form '(. cljs.core/List -EMPTY))
+                 (not= form '(. cljs.core/PersistentVector -EMPTY-NODE)))
 
-    (when (js-tag? tag)
-      (shadow-js-access-property
-        (-> env :ns :name)
-        (str (or method field))
-        ))))
+        (warning :infer-warning env {:warn-type :target :form form}))
 
-(defn analyze-dot [env target member member+ form]
+      (when (and shadow-object-fn
+                 (let [tag (-> shadow-object-fn meta :tag)]
+                   (or (nil? tag) (= 'js tag))))
+        (shadow-js-access-property
+          (-> env :ns :name)
+          (str shadow-object-fn)))
+
+      (when (js-tag? tag)
+        (shadow-js-access-property
+          (-> env :ns :name)
+          sprop
+          )))))
+
+(defn analyze-dot [env target member member+ form opts]
   (when (nil? target)
     (throw (ex-info "Cannot use dot form on nil" {:form form})))
 
@@ -257,10 +282,10 @@
         {:op :dot
          :env env
          :form form
+         :form-meta form-meta
          :target targetexpr
          :target-tag target-tag
-         :tag tag
-         :prop member}
+         :tag tag}
 
         ast
         (cond
@@ -274,7 +299,7 @@
           (let [[method & args] member
                 argexprs (map #(analyze enve %) args)
                 children (into [targetexpr] argexprs)]
-            (assoc ast :method method :args argexprs :children children))
+            (assoc ast :prop method :method method :args argexprs :children children))
 
           ;; (. thing -foo 1 2 3)
           (and prop-access? (seq member+))
@@ -283,25 +308,25 @@
           ;; (. thing -foo)
           prop-access?
           (let [children [targetexpr]]
-            (assoc ast :field (-> member (name) (subs 1) (symbol)) :children children))
+            (assoc ast :prop member :field (-> member (name) (subs 1) (symbol)) :children children))
 
           ;; (. thing foo)
           ;; (. thing foo 1 2 3)
           member-sym?
           (let [argexprs (map #(analyze enve %) member+)
                 children (into [targetexpr] argexprs)]
-            (assoc ast :method member :args argexprs :children children))
+            (assoc ast :prop member :method member :args argexprs :children children))
 
           :else
           (throw (ex-info "invalid dot form" {:form form})))]
 
-    (infer-externs-dot ast)
+    (infer-externs-dot ast opts)
 
     ast))
 
 (defmethod parse '.
-  [_ env [_ target field & member+ :as form] _ _]
-  (disallowing-recur (analyze-dot env target field member+ form)))
+  [_ env [_ target field & member+ :as form] _ opts]
+  (disallowing-recur (analyze-dot env target field member+ form opts)))
 
 ;; thheller: changed tag inference to always use tag on form first
 ;; destructured bindings had meta in their :init
@@ -415,6 +440,7 @@
 
 ;; multimethod in core, although I don't see how this is ever going to go past 2 impls?
 ;; also added the metadata for easier externs inference
+;; switched .. to nested . since .. looses form meta
 (defn- extend-prefix [tsym sym]
   (let [prop-sym
         (-> (to-property sym)
@@ -430,7 +456,7 @@
       :instance
       `(. ~tsym ~prop-sym)
       ;; :default
-      `(.. ~tsym ~'-prototype ~prop-sym))))
+      `(. (. ~tsym ~'-prototype) ~prop-sym))))
 
 
 (core/defmacro implements?
@@ -591,3 +617,86 @@
       `(do
          (~'defrecord* ~tagname ~hinted-fields ~pmasks
            (extend-type ~tagname ~@(dt->et tagname impls fields true)))))))
+
+(core/defmacro case
+  "Takes an expression, and a set of clauses.
+
+  Each clause can take the form of either:
+
+  test-constant result-expr
+
+  (test-constant1 ... test-constantN)  result-expr
+
+  The test-constants are not evaluated. They must be compile-time
+  literals, and need not be quoted.  If the expression is equal to a
+  test-constant, the corresponding result-expr is returned. A single
+  default expression can follow the clauses, and its value will be
+  returned if no clause matches. If no default expression is provided
+  and no clause matches, an Error is thrown.
+
+  Unlike cond and condp, case does a constant-time dispatch, the
+  clauses are not considered sequentially.  All manner of constant
+  expressions are acceptable in case, including numbers, strings,
+  symbols, keywords, and (ClojureScript) composites thereof. Note that since
+  lists are used to group multiple constants that map to the same
+  expression, a vector can be used to match a list if needed. The
+  test-constants need not be all of the same type."
+  [e & clauses]
+  (core/let [esym (gensym)
+             default (if (odd? (count clauses))
+                       (last clauses)
+                       `(throw
+                          (js/Error.
+                            (cljs.core/str "No matching clause: " ~esym))))
+             env &env
+             pairs (reduce
+                     (core/fn [m [test expr]]
+                       (core/cond
+                         (seq? test)
+                         (reduce
+                           (core/fn [m test]
+                             (core/let [test (if (core/symbol? test)
+                                               (core/list 'quote test)
+                                               test)]
+                               (assoc-test m test expr env)))
+                           m test)
+                         (core/symbol? test)
+                         (assoc-test m (core/list 'quote test) expr env)
+                         :else
+                         (assoc-test m test expr env)))
+                     {} (partition 2 clauses))
+             tests (keys pairs)]
+    (core/cond
+      (every? (some-fn core/number? core/string? #?(:clj core/char? :cljs (core/fnil core/char? :nonchar)) #(const? env %)) tests)
+      (core/let [no-default (if (odd? (count clauses)) (butlast clauses) clauses)
+                 tests (mapv #(if (seq? %) (vec %) [%]) (take-nth 2 no-default))
+                 thens (vec (take-nth 2 (drop 1 no-default)))]
+        `(let [~esym ~e] (case* ~esym ~tests ~thens ~default)))
+
+      (every? core/keyword? tests)
+      (core/let [no-default (if (odd? (count clauses)) (butlast clauses) clauses)
+                 kw-str #(.substring (core/str %) 1)
+                 tests (mapv #(if (seq? %) (mapv kw-str %) [(kw-str %)]) (take-nth 2 no-default))
+                 thens (vec (take-nth 2 (drop 1 no-default)))]
+        `(let [~esym ~e
+               ;; thheller: added clj tag
+               ~esym (if (keyword? ~esym) ^clj (.-fqn ~esym) nil)]
+           (case* ~esym ~tests ~thens ~default)))
+
+      ;; equality
+      :else
+      `(let [~esym ~e]
+         (cond
+           ~@(mapcat (core/fn [[m c]] `((cljs.core/= ~m ~esym) ~c)) pairs)
+           :else ~default)))))
+
+(core/defn- add-obj-methods [type type-sym sigs]
+  (map (core/fn [[f & meths :as form]]
+         (core/let [[f meths] (if (vector? (first meths))
+                                [f [(rest form)]]
+                                [f meths])]
+           `(set! ~(with-meta
+                     (extend-prefix type-sym f)
+                     {:shadow/object-fn f})
+              ~(with-meta `(fn ~@(map #(adapt-obj-params type %) meths)) (meta form)))))
+    sigs))

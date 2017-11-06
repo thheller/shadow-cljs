@@ -46,5 +46,18 @@
 
 (implements? SomeProtocol (SomeRecord. 1 2))
 
-(list)
-;; foo ;; warning, to prevent cache
+(def empty-map {})
+
+(def empty-set #{})
+
+(def empty-vec [])
+
+(def empty-list (list))
+
+
+(defn var-args [thing & more])
+
+(defn arities
+  ([a] a)
+  ([a b] a)
+  ([a b & c] a))

@@ -230,7 +230,7 @@
               :asset-path "/js"
 
               :compiler-options
-              {:infer-externs true}
+              {:infer-externs :auto}
 
               :build-options
               {:cache-level :jars}
