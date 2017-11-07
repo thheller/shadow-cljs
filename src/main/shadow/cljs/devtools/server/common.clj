@@ -1,5 +1,6 @@
 (ns shadow.cljs.devtools.server.common
   (:require [shadow.cljs.devtools.server.fs-watch :as fs-watch]
+            [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch-hawk]
             [shadow.cljs.devtools.server.js-watch :as js-watch]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
@@ -134,11 +135,11 @@
           (merge {:cljs-watch
                   {:depends-on [:system-bus]
                    :start (fn [system-bus]
-                            (fs-watch/start
+                            (fs-watch-hawk/start
                               (get-classpath-directories)
                               ;; no longer watches .clj files, reload-macros directly looks at used macros
                               ["cljs" "cljc" "js"]
                               #(system-bus/publish! system-bus ::sys-msg/cljs-watch {:updates %})
                               ))
-                   :stop fs-watch/stop}})
+                   :stop fs-watch-hawk/stop}})
           ))))

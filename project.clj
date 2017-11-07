@@ -42,8 +42,9 @@
     [clj-time]]
 
    [expound "0.3.1"]
-   ;; [cljs-tooling "0.2.0"]
-   ;; [compliment "0.3.4"]
+
+   ;; experimental
+   [hawk "0.2.11"]
    ]
 
   :source-paths
