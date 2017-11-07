@@ -63,7 +63,7 @@ It should contain a map with some global configuration and a `:builds` entry for
 ```
 - `:dependencies` manage your CLJS dependencies in the same format as `leiningen` or `boot`
 - `:source-paths` define where the compiler will look for `.cljs` and `.cljc` files
-- `:builds` is a map or build-id (a keyword) to the build config.
+- `:builds` is a map of build-id (a keyword) to the build config.
 
 An example config could look like this:
 
@@ -125,7 +125,7 @@ shadow-cljs release app --debug
 
 ## Build Targets
 
-Each build in `shadow-cljs` must define a `:target` which defines where you intent your code to be executed. There are default built-ins for the Browser and `node.js`. They all share the basic concept of having `:dev` and `:release` modes. `:dev` mode provides all the usual development goodies like fast compilation, live code reloading and a REPL. `:release` mode will produce optimized output intended for production.
+Each build in `shadow-cljs` must define a `:target` which defines where you intend your code to be executed. There are default built-ins for the Browser and `node.js`. They all share the basic concept of having `:dev` and `:release` modes. `:dev` mode provides all the usual development goodies like fast compilation, live code reloading and a REPL. `:release` mode will produce optimized output intended for production.
 
 - [Compiling for the browser](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-the-browser) for the `:browser` target.
 - [Compiling node.js scripts](https://github.com/thheller/shadow-cljs/wiki/ClojureScript-for-node.js-scripts) for the `:node-script` target.
