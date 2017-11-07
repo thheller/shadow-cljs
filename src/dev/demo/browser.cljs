@@ -10,6 +10,7 @@
             ["@material/menu/simple/foundation" :default menu]
             ["@material/menu/util" :as util]
             ["d3" :as d3]
+            [com.rpl.specter :as sp]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen]

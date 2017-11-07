@@ -87,7 +87,7 @@
       :clause
       #{:require :require-macros}
       :requires
-      (s/+ ::require)
+      (s/* ::require)
       :flags
       (s/* ::require-flag)
       )))
@@ -184,7 +184,7 @@
       :clause
       #{:use}
       :uses
-      (s/+ ::use))))
+      (s/* ::use))))
 
 ;; :ns
 
