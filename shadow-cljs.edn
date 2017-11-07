@@ -36,7 +36,7 @@
 
    :compiler-options
    {:optimizations :advanced
-    :externs ["shadow/cljs/npm/externs.js"]}
+    :infer-externs :auto}
 
    :devtools
    {:enabled false}}

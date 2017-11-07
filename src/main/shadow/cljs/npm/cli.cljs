@@ -49,7 +49,8 @@
     (cp/spawnSync java-cmd (into-array java-args) spawn-opts)))
 
 (defn run-java [project-root args opts]
-  (let [result (run project-root "java" args opts)
+  (let [^js result
+        (run project-root "java" args opts)
 
         status
         (.-status result)]

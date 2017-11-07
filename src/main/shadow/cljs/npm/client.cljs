@@ -8,7 +8,7 @@
 
 (defn repl-client
   "readline client that tries to maintain a prompt. not quite smart yet."
-  [socket args]
+  [^js socket args]
   (let [last-prompt-ref
         (volatile! nil)
 
@@ -108,7 +108,7 @@
 
 (defn socket-pipe
   "client that just pipes everything through the socket without any processing"
-  [socket args]
+  [^js socket args]
   (let [write
         (fn [text]
           (.write socket text))
