@@ -36,11 +36,8 @@
    [clock]
    [color-input]])
 (r/render [simple-example] (js/document.getElementById \"app\"))"
-  "(ns reagent.core)
-   (def x 1)
-   (ns b.core (:require [reagent.core :as a]))
-   (js/console.log \"x\" a/x)
-   (require 'reagent.core :reload)
+  "(require '[demo.lib :as x])
+   (js/console.log \"x\" (x/hello))
    "
   )
 

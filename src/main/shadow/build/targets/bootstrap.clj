@@ -15,7 +15,8 @@
             [shadow.build.api :as build-api]
             [cljs.compiler :as comp]
             [clojure.string :as str]
-            [shadow.build.npm :as npm]))
+            [shadow.build.npm :as npm]
+            [shadow.build.output :as output]))
 
 (defn make-macro-resource [macro-ns]
   (let [path
@@ -45,7 +46,6 @@
 
     rc
     ))
-
 
 (defn resolve [state {:keys [entries macros exclude] :as config}]
   (let [entries
@@ -122,7 +122,7 @@
                 (let [{:keys [type resource-name resource-id output-name ns] :as src}
                       (data/get-source-by-id state src-id)
 
-                      {:keys [js source] :as output}
+                      {:keys [js source source-map-json source-map] :as output}
                       (data/get-output! state src)
 
                       flat-name
@@ -169,6 +169,18 @@
                               (data/output-file state "ana" (str ns-name ".transit.json"))]
 
                           [ana-file ana-name ana-json]))
+
+                      sm-append
+                      (when (get-in state [:compiler-options :source-map])
+                        (output/generate-source-map
+                          state
+                          (assoc src :output-name js-name-hash)
+                          output
+                          js-file
+                          ""))
+
+                      js
+                      (str js sm-append)
 
                       resolved-deps
                       (->> (data/deps->syms state src)

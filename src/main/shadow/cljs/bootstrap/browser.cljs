@@ -54,7 +54,9 @@
     :js
     (do (swap! env/loaded-ref set/union provides)
         (swap! cljs/*loaded* set/union provides)
-        (script-eval text))))
+        (let [js (str text "\n//# sourceURL=" uri "\n")]
+          (js/console.log "load" js)
+          (script-eval js)))))
 
 (defn queue-task! [task]
   ;; FIXME: this is a very naive queue that does all pending tasks at once

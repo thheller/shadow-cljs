@@ -211,7 +211,7 @@
   {:target :bootstrap
    :output-dir "out/demo-selfhost/public/bootstrap"
    :exclude #{cljs.js}
-   :entries [cljs.js demo.macro reagent.core]
+   :entries [cljs.js demo.macro demo.lib reagent.core]
    :macros []}
 
   :js-only
