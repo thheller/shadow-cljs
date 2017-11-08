@@ -10,12 +10,16 @@
             ["@material/menu/simple/foundation" :default menu]
             ["@material/menu/util" :as util]
             ["d3" :as d3]
-            [com.rpl.specter :as sp]
+            [cljs.pprint :refer (pprint)]
+            [om.next :as om]
+            [fulcro.client.core :as fc]
             [cljsjs.react]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen]
             [shadow.api :refer (ns-ready)]
             ["circular-test" :as circ]))
+
+(pprint [1 2 3])
 
 (assoc nil :foo 1)
 

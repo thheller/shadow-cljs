@@ -74,6 +74,15 @@
       :exclusions
       [cljsjs/create-react-class]]
 
+     [fulcrologic/fulcro "1.0.0"
+      :exclusions
+      [clojure-future-spec]]
+     [org.omcljs/om "1.0.0-beta1"
+      :exclusions
+      [cljsjs/react-dom
+       cljsjs/react
+       org.clojure/clojurescript]]
+
      [thi.ng/geom "0.0.908"]
      [re-view "0.4.6"]
      [com.rpl/specter "1.0.4"]
