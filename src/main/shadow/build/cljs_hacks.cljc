@@ -66,13 +66,17 @@
   {:pre [(symbol? module)]}
   (some? (get-in @env/*compiler* [:js-module-index (name module)])))
 
-(defn resolve-cljs-var [ns sym current-ns]
+(defn resolve-cljs-var [ns sym]
   (merge (gets @env/*compiler* ::namespaces ns :defs sym)
          {:name (symbol (str ns) (str sym))
           :ns ns}))
 
 (defn resolve-ns-var [ns sym current-ns]
   (cond
+    ;; must ensure that CLJS vars resolve first
+    (contains? (:cljs.analyzer/namespaces @env/*compiler*) ns)
+    (resolve-cljs-var ns sym)
+
     (js-module-exists? ns)
     (resolve-js-var ns sym current-ns)
 
@@ -81,7 +85,7 @@
      :ns ns}
 
     :else
-    (resolve-cljs-var ns sym current-ns)
+    (resolve-cljs-var ns sym)
     ))
 
 (defn invokeable-ns?
@@ -188,7 +192,7 @@
            (do
              (when (some? confirm)
                (confirm env current-ns sym))
-             (resolve-cljs-var current-ns sym current-ns))
+             (resolve-cljs-var current-ns sym))
 
            ;; https://dev.clojure.org/jira/browse/CLJS-2380
            ;; not sure if correct fix
@@ -201,7 +205,7 @@
            (do
              (when (some? confirm)
                (confirm env 'cljs.core sym))
-             (resolve-cljs-var 'cljs.core sym current-ns))
+             (resolve-cljs-var 'cljs.core sym))
 
            (invokeable-ns? s env)
            (resolve-invokeable-ns s current-ns env)
@@ -209,7 +213,7 @@
            :else
            (do (when (some? confirm)
                  (confirm env current-ns sym))
-               (resolve-cljs-var current-ns sym current-ns)
+               (resolve-cljs-var current-ns sym)
                )))))))
 
 (defn infer-externs-dot
@@ -396,7 +400,6 @@
      :tag type-sym
      :protocols (disj protocols 'cljs.core/Object)
      :body (analyze (assoc env :locals locals) body)}))
-
 
 (in-ns 'cljs.compiler)
 

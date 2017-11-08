@@ -72,11 +72,15 @@
         (fn [js-mod-index aliases]
           (reduce
             (fn [idx alias]
-              ;; FIXME: I don't quite get what this is supposed to be
-              ;; CLJS does {"React" {:name "module$node_modules$react$..."}}
-              ;; but we never have the "React" alias
-              (assoc idx (str alias) {:name alias
-                                      :module-type :js}))
+              (let [s (str alias)]
+                ;; ignored clojure->cljs aliases, we only want the JS aliases
+                (if (str/starts-with? s "cljs.")
+                  idx
+                  ;; FIXME: I don't quite get what this is supposed to be
+                  ;; CLJS does {"React" {:name "module$node_modules$react$..."}}
+                  ;; but we never have the "React" alias
+                  (assoc idx (str alias) {:name alias
+                                          :module-type :js}))))
             js-mod-index
             aliases))]
 
