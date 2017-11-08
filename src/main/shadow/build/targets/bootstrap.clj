@@ -41,7 +41,7 @@
               :output-name (str macro-ns "$macros.js")
               :source (slurp rc-url)}
              ;; extract requires, deps
-             (cp/inspect-cljs {}))]
+             (cp/inspect-cljs))]
 
     rc
     ))

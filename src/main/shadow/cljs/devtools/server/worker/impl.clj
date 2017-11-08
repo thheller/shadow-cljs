@@ -68,6 +68,7 @@
      :msg msg}))
 
 (defn repl-error [e]
+  (log/debug repl-error e)
   {:type :repl/error
    :message (.getMessage e)
    :data (ex-data e)
@@ -140,7 +141,7 @@
     (try
       (update-status! worker-state :started {})
 
-      (let [{::build/keys [build-info] :as build-state}
+      (let [{::build/keys [build-info] :keys [build-sources] :as build-state}
             (-> build-state
                 (build/compile)
                 (build/flush)
@@ -156,7 +157,9 @@
 
         (update-status! worker-state :complete {:build-info build-info})
 
-        (assoc worker-state :build-state build-state))
+        (assoc worker-state
+               :build-state build-state
+               :last-build-sources build-sources))
       (catch Exception e
         (build-failure worker-state e)))))
 
@@ -230,6 +233,62 @@
   [worker-state msg]
   (assoc worker-state :autobuild false))
 
+(defmethod do-proc-control :load-file
+  [{:keys [build-state eval-clients pending-results] :as worker-state}
+   {:keys [result-chan input] :as msg}]
+  (let [eval-count (count eval-clients)]
+
+    (cond
+      (nil? build-state)
+      (do (>!! result-chan {:type :repl/illegal-state})
+          worker-state)
+
+      (> eval-count 1)
+      (do (>!! result-chan {:type :repl/too-many-eval-clients :count eval-count})
+          worker-state)
+
+      (zero? eval-count)
+      (do (>!! result-chan {:type :repl/no-eval-target})
+          worker-state)
+
+      :else
+      (try
+        (let [{:keys [eval-out] :as eval-client}
+              (first (vals eval-clients))
+
+              start-idx
+              (count (get-in build-state [:repl-state :repl-actions]))
+
+              {:keys [repl-state] :as build-state}
+              (repl/repl-load-file* build-state msg)
+
+              new-actions
+              (subvec (:repl-actions repl-state) start-idx)
+
+              pending-results
+              (reduce
+                (fn [pending [idx action]]
+                  (let [idx (+ idx start-idx)]
+                    (assoc pending idx (assoc action :reply-to result-chan))))
+                pending-results
+                (map-indexed vector new-actions))]
+
+          (doseq [[idx action] (map-indexed vector new-actions)
+                  :let [idx (+ idx start-idx)
+                        action (assoc action :id idx)]]
+            (>!!output worker-state {:type :repl/action
+                                     :action action})
+            (>!! eval-out (transform-repl-action build-state action)))
+
+          (assoc worker-state
+                 :build-state build-state
+                 :pending-results pending-results))
+
+        (catch Exception e
+          (let [msg (repl-error e)]
+            (>!! result-chan msg)
+            (>!!output worker-state msg))
+          worker-state)))))
 
 (defmethod do-proc-control :repl-eval
   [{:keys [build-state eval-clients pending-results] :as worker-state}
@@ -334,7 +393,7 @@
    {:keys [resources] :as msg}]
 
   (let [sources-in-use
-        (into #{} (:build-sources build-state))
+        (into #{} (:last-build-sources worker-state))
 
         sources-used-by-build
         (->> resources

@@ -1,0 +1,60 @@
+(ns shadow.cljs.repl-test
+  (:require [clojure.test :refer (deftest)]
+            [clojure.java.io :as io]
+            [clojure.pprint :refer (pprint)]
+            [shadow.cljs.repl :as repl]
+            [shadow.build.api :as api]
+            [shadow.build.npm :as npm]
+            [shadow.build.classpath :as cp]))
+
+(defn basic-repl-setup []
+  (let [npm
+        (npm/start)
+
+        cache-root
+        (io/file "target" "test-repl")
+
+        cp
+        (-> (cp/start cache-root)
+            (cp/index-classpath))
+
+        output-dir
+        (io/file "target" "test-repl" "out")]
+
+    (-> (api/init)
+        (api/with-cache-dir (io/file cache-root "cache"))
+        (api/with-classpath cp)
+        (api/with-build-options
+          {:output-dir output-dir})
+        (api/with-npm npm)
+        (repl/prepare)
+        )))
+
+
+(deftest test-repl-load-file
+  (let [abs-file
+        (-> (io/file "src" "dev" "demo" "repl.cljs")
+            (.getAbsolutePath))
+
+        {:keys [repl-state dead-js-deps] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/repl-load-file* {:file-path abs-file :source "(ns demo."})
+            (repl/process-input (str "(load-file \"" abs-file "\")")))]
+
+    (pprint repl-state)
+    ))
+
+(deftest test-repl-load-file-not-on-disk-yet
+  (let [abs-file
+        (-> (io/file "src" "dev" "demo" "not_on_disk.cljs")
+            (.getAbsolutePath))
+
+        {:keys [repl-state dead-js-deps] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            ;; nREPL also provides the actual source code
+            (repl/repl-load-file* {:file-path abs-file :source "(ns demo.not-on-disk (:require [\"react\"]))"}))]
+
+    (pprint repl-state)
+    ))

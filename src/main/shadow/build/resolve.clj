@@ -72,16 +72,16 @@
   ;; since :closure mode should only be used in :browser that is fine for now
   (npm/find-resource (:npm state) file require
     (assoc js-options
-      :mode (:mode state)
-      :target :browser)))
+           :mode (:mode state)
+           :target :browser)))
 
 (defmethod find-resource-for-string :shadow
   [{:keys [js-options] :as state} {:keys [file] :as require-from} require]
   ;; FIXME: identical to :closure on this side, defmulti might not be best solution
   (npm/find-resource (:npm state) file require
     (assoc js-options
-      :mode (:mode state)
-      :target :browser)))
+           :mode (:mode state)
+           :target :browser)))
 
 (def native-node-modules
   #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
@@ -156,8 +156,12 @@
 
 (defn find-resource-for-symbol
   [{:keys [virtual-provides virtual-sources classpath sym->id] :as state} require-from require]
-  ;; first check if there is virtual resource that provides a symbol
-  (or (when-let [virtual-id (get virtual-provides require)]
+  ;; check if already registered by add-source
+  (or (when-let [rc-id (get-in state [:sym->id require])]
+        [(get-in state [:sources rc-id]) state])
+
+      ;; check if there is virtual resource that provides a symbol
+      (when-let [virtual-id (get virtual-provides require)]
         (let [virtual-rc (get virtual-sources virtual-id)]
           [virtual-rc state]))
 

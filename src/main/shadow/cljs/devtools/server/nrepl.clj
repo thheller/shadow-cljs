@@ -13,7 +13,8 @@
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-            [shadow.cljs.devtools.fake-piggieback :as fake-piggieback])
+            [shadow.cljs.devtools.fake-piggieback :as fake-piggieback]
+            [clojure.java.io :as io])
   (:import (java.io StringReader)))
 
 (defn send [req res]
@@ -149,8 +150,9 @@
    :expects
    #{"eval"}})
 
-(defn do-cljs-load-file [msg]
-  (send msg {:err "TBD"}))
+(defn do-cljs-load-file [{::keys [worker] :keys [file file-path] :as msg}]
+  (worker/load-file worker {:file-path file-path :source file})
+  (send msg {:status :done}))
 
 (defn cljs-load-file [next]
   (fn [{::keys [worker] :keys [op] :as msg}]

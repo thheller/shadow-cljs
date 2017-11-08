@@ -19,7 +19,8 @@
             [shadow.build.macros :as macros]
             [shadow.build.compiler :as comp]
             [shadow.build.data :as data]
-            [shadow.build.resolve :as res])
+            [shadow.build.resolve :as res]
+            [shadow.build.classpath :as classpath])
   (:import (java.io StringReader BufferedReader)))
 
 (comment
@@ -178,55 +179,75 @@
     (update-in state [:repl-state :repl-actions] conj action)
     ))
 
-(defn repl-load-file
-  [{:keys [source-paths] :as state} read-result [_ file-path :as form]]
+(defn repl-load-file*
+  [{:keys [source-paths classpath] :as state} {:keys [file-path source]}]
   ;; FIXME: could clojure.core/load-file .clj files?
 
   (let [matched-paths
-        (->> source-paths
-             (vals)
-             (filter :file)
+        (->> (classpath/get-classpath-entries classpath)
+             (filter #(.isDirectory %))
+             (map #(.getAbsolutePath %))
              (filter
-               (fn [{:keys [path] :as src-path}]
+               (fn [path]
                  ;; without the / it will create 2 matches for
                  ;; something/src/clj
                  ;; something/src/cljs
                  (.startsWith file-path (str path "/"))))
              (into []))]
 
-    (if (not= 1 (count matched-paths))
-      ;; FIXME: configure it?
-      (do (prn [:not-on-registered-source-path file-path matched-paths])
-          state)
+    (cond
+      (not (util/is-cljs-file? file-path))
+      (throw (ex-info "can only load .cljs and .cljc files"
+               {:file-path file-path}))
 
-      ;; on registered source path
-      ;; FIXME: could just reload if it exists? might be a recently created file, this covers both cases
-      (let [{:keys [path] :as the-path}
+      (not (seq matched-paths))
+      (throw (ex-info "file not on classpath"
+               {:file-path file-path}))
+
+      (not= 1 (count matched-paths))
+      (throw (ex-info "file matched more than one classpath entry?"
+               {:file-path file-path
+                :matches matched-paths}))
+
+      ;; FIXME: could make the requirement for the file to be on the classpath optional
+      :else
+      (let [path
             (first matched-paths)
 
             rc-name
             (subs file-path (-> path (count) (inc)))
 
-            {:keys [deps] :as rc}
-            (build-api/make-virtual-resource-from-file state path rc-name (io/file file-path))
-
-            state
-            (build-api/add-virtual-resource state rc)
+            {:keys [ns] :as rc}
+            (-> (classpath/make-fs-resource (io/file file-path) rc-name)
+                (assoc :type :cljs)
+                (cond->
+                  (seq source)
+                  (-> (assoc :source source)
+                      ;; make sure we are not using cache when loading file for REPL with source
+                      (update :cache-key conj :repl (System/currentTimeMillis))))
+                (classpath/inspect-cljs)
+                (classpath/set-output-name))
 
             [deps-sources state]
-            (build-api/resolve-entries state deps)
+            (-> state
+                (data/overwrite-source rc)
+                (build-api/resolve-entries [ns]))
 
-            state
+            {:keys [build-sources] :as state}
             (build-api/compile-sources state deps-sources)
 
             action
             {:type :repl/require
-             :sources deps-sources
+             :sources build-sources
              :reload :reload}]
 
-        (output/flush-sources state deps-sources)
+        (output/flush-sources state build-sources)
         (update-in state [:repl-state :repl-actions] conj action)
         ))))
+
+(defn repl-load-file
+  [state read-result [_ file-path :as form]]
+  (repl-load-file* state {:file-path file-path}))
 
 (defn repl-ns [{:keys [compiler-env] :as state} read-result [_ ns :as form]]
   (let [{:keys [ns deps ns-info] :as ns-rc}

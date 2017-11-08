@@ -75,7 +75,9 @@
 
 (defn is-absolute-file? [x]
   (and (is-file-instance? x)
-       (.isFile x)
+       ;; nrepl/load-file may want to load files that are not on disk yet
+       ;; since its provide the source that is ok, should still be an absolute path though
+       (or (not (.exists x)) (.isFile x))
        (.isAbsolute x)))
 
 (defn is-directory? [x]

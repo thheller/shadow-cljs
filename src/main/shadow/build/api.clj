@@ -148,14 +148,16 @@
 (defn compile-sources
   "compiles a list of sources in dependency order
    compiles :build-sources if no list is given, use prepare-modules to make :build-sources"
-  ([state]
-   (compile-sources state (:build-sources state)))
-  ([state source-ids]
+  ([{:keys [build-sources] :as state}]
    (-> state
        (cljs-bridge/ensure-compiler-env)
        (cljs-bridge/register-ns-aliases)
        (cljs-bridge/register-goog-names)
-       (impl/compile-all source-ids))))
+       (impl/compile-all build-sources)))
+  ([state source-ids]
+   (-> state
+       (assoc :build-sources source-ids)
+       (compile-sources))))
 
 (defn optimize [{:keys [classpath] :as state}]
   (let [deps-externs
@@ -173,17 +175,6 @@
 
 (defn resolve-entries [state entries]
   (res/resolve-entries state entries))
-
-(defn make-virtual-resource-from-file [state source-path rc-name ^File rc-file]
-  (cp/inspect-resource
-    (:classpath state)
-    {:resource-name rc-name
-     :resource-id [::virtual rc-name]
-     :source-path source-path
-     :last-modified (.lastModified rc-file)
-     :url (.toURL (.toURI rc-file))
-     :file rc-file
-     :source (slurp rc-file)}))
 
 (comment
   (defn compile-all-for-ns
@@ -229,15 +220,7 @@
   [state callback]
   (update state :closure-configurators conj callback))
 
-(defn reset-resource [state source-id]
-  {:pre [(build-state? state)
-         (rc/valid-resource-id? source-id)]}
 
-  ;; FIXME: this should also clear up all lookup indexes
-  (-> state
-      (update :sources dissoc source-id)
-      (update :output dissoc source-id)
-      (update :immediate-deps dissoc source-id)))
 
 (defn find-resources-affected-by
   "returns the set all resources and the immediate dependents of those sources
@@ -269,7 +252,7 @@
 
         all-deps-to-reset
         (find-resources-affected-by state source-ids)]
-    (reduce reset-resource state all-deps-to-reset)))
+    (reduce data/remove-source-by-id state all-deps-to-reset)))
 
 (defn- macro-test-fn [macros]
   (fn [{:keys [type macro-requires] :as src}]

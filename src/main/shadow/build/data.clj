@@ -88,6 +88,15 @@
     state
     provides))
 
+(defn remove-provides [state {:keys [provides] :as rc}]
+  {:pre [(rc/valid-resource? rc)
+         (set? provides)]}
+
+  (reduce
+    #(update %1 :sym->id dissoc %2)
+    state
+    provides))
+
 (defn add-string-lookup [{:keys [sources] :as state} require-from-ns require sym]
   {:pre [(symbol? require-from-ns)
          (string? require)
@@ -172,6 +181,26 @@
         resource-name
         (update :name->id assoc resource-name resource-id)
         )))
+
+(defn remove-source-by-id [state resource-id]
+  (let [rc (get-source-by-id state resource-id)]
+    (-> state
+        (remove-provides rc)
+        (update :output dissoc resource-id)
+        (update :immediate-deps dissoc resource-id)
+        (update :sources dissoc resource-id)
+        )))
+
+(defn overwrite-source
+  "adds a source to the build state, if the ns was provided previously the other is removed"
+  [state {:keys [ns resource-id] :as rc}]
+  {:pre [(rc/valid-resource? rc)]}
+  (let [other-id (get-in state [:sym->id ns])]
+    (-> state
+        (cond->
+          other-id
+          (remove-source-by-id other-id))
+        (add-source rc))))
 
 (defn maybe-add-source
   "add given resource to the :sources and lookup indexes"

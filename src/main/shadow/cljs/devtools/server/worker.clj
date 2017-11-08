@@ -1,5 +1,5 @@
 (ns shadow.cljs.devtools.server.worker
-  (:refer-clojure :exclude (compile))
+  (:refer-clojure :exclude (compile load-file))
   (:require [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
             [clojure.tools.logging :as log]
             [clojure.java.io :as io]
@@ -57,16 +57,13 @@
   [proc client-id client-out]
   (impl/repl-eval-connect proc client-id client-out))
 
-(defn repl-eval
-  [{:keys [proc-control] :as worker} client-id input]
+(defn worker-request [{:keys [proc-control] :as worker} request]
+  {:pre [(impl/proc? worker)
+         (map? request)
+         (keyword? (:type request))]}
+  (let [result-chan (async/chan 1)]
 
-  (let [result-chan
-        (async/chan 1)]
-
-    (>!! proc-control {:type :repl-eval
-                       :client-id client-id
-                       :input input
-                       :result-chan result-chan})
+    (>!! proc-control (assoc request :result-chan result-chan))
 
     (try
       (alt!!
@@ -80,6 +77,19 @@
 
       (catch InterruptedException e
         {:type :repl/interrupt}))))
+
+(defn repl-eval [worker client-id input]
+  (worker-request worker
+    {:type :repl-eval
+     :client-id client-id
+     :input input}))
+
+(defn load-file [worker {:keys [source file-path] :as file-info}]
+  {:pre [(string? file-path)]}
+  (worker-request worker
+    {:type :load-file
+     :source source
+     :file-path file-path}))
 
 ;; SERVICE API
 

@@ -73,8 +73,8 @@
   (format "Flushing: %s (%d bytes)" js-name js-size))
 
 (defmethod event->str :flush-sources
-  [{:keys [source-names] :as event}]
-  (format "Flushing %s sources" (count source-names)))
+  [{:keys [source-ids] :as event}]
+  (format "Flushing %s sources" (count source-ids)))
 
 (defmethod event->str :flush-source-maps
   [event]

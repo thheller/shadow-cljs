@@ -800,6 +800,15 @@
     state
     (convert-fn state npm)))
 
+(defn remove-dead-js-deps [{:keys [build-sources dead-js-deps] :as state}]
+  (assoc state
+         :build-sources
+         (->> build-sources
+              (remove (fn [src-id]
+                        (let [{:keys [ns]} (data/get-source-by-id state src-id)]
+                          (contains? dead-js-deps ns))))
+              (into []))))
+
 (defn compile-all
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
@@ -871,6 +880,7 @@
            #_(copy-source-to-output npm))
 
 
+         (remove-dead-js-deps)
          (assoc :compile-finish (System/currentTimeMillis))
          ))))
 

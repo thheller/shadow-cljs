@@ -20,25 +20,23 @@
            (java.util.concurrent Executors ExecutorService)))
 
 
-(defn get-resource-info [url]
+(defn get-resource-info [resource-name content]
+  {:pre [(string? content)]}
   (let [eof-sentinel (Object.)
-        name (str url)
-        cljc? (util/is-cljc? (.toString url))
+        cljc? (util/is-cljc? resource-name)
         opts (merge
                {:eof eof-sentinel}
                (when cljc?
                  {:read-cond :allow :features #{:cljs}}))
-        rdr (StringReader. (slurp url))
-        in (readers/indexing-push-back-reader (PushbackReader. rdr) 1 name)]
+        rdr (StringReader. content)
+        in (readers/indexing-push-back-reader (PushbackReader. rdr) 1 resource-name)]
 
     (binding [reader/*data-readers* tags/*cljs-data-readers*]
       (let [peek (reader/read opts in)]
         (if (identical? peek eof-sentinel)
-          (throw (ex-info "file is empty" {:name name}))
+          (throw (ex-info "file is empty" {:resource-name resource-name}))
           (-> (ns-form/parse peek)
-              (assoc
-                :url url
-                :cljc cljc?))
+              (assoc :cljc cljc?))
           )))))
 
 (defn ensure-compiler-env
@@ -176,7 +174,8 @@
   (require '[clojure.pprint :refer (pprint)])
 
   (get-resource-info
-    (io/resource "demo/browser.cljs"))
+    "demo/browser.cljs"
+    (slurp (io/resource "demo/browser.cljs")))
 
   (pprint *1))
 

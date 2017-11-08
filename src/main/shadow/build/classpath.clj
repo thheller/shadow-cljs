@@ -57,10 +57,13 @@
 (defn inspect-cljs
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
    with ns-related infos"
-  [state {:keys [url resource-name macros-ns] :as rc}]
+  [{:keys [url resource-name macros-ns] :as rc}]
   (let [{:keys [name deps requires] :as ast}
         (try
-          (cljs-bridge/get-resource-info url)
+          (cljs-bridge/get-resource-info
+            resource-name
+            (or (:source rc) ;; nREPL load-file supplies source
+                (slurp url)))
           (catch Exception e
             (throw (ex-info
                      (if macros-ns
@@ -99,7 +102,7 @@
 
     (util/is-cljs-file? resource-name)
     (->> (assoc rc :type :cljs)
-         (inspect-cljs state))
+         (inspect-cljs))
 
     :else
     (throw (ex-info "cannot identify as cljs resource" {:resource-name resource-name :url (str url)}))))
@@ -337,12 +340,17 @@
           jar-contents))))
 
 (defn make-fs-resource [file name]
-  {:resource-id [::resource name]
-   :resource-name name
-   :cache-key (.lastModified file)
-   :last-modified (.lastModified file)
-   :file file
-   :url (.toURL file)})
+  (let [last-mod
+        (if (.exists file)
+          (.lastModified file)
+          (System/currentTimeMillis))]
+
+    {:resource-id [::resource name]
+     :resource-name name
+     :cache-key [last-mod]
+     :last-modified last-mod
+     :file file
+     :url (.toURL file)}))
 
 (defn find-fs-resources*
   [cp ^File root]
@@ -649,8 +657,6 @@
         index @index-ref]
     (when-let [src-name (get-in index [:file->name abs-file])]
       (get-in index [:sources src-name]))))
-
-
 
 (defn get-deps-externs [{:keys [index-ref] :as cp}]
   (:deps-externs @index-ref))

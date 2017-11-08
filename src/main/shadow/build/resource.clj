@@ -18,8 +18,6 @@
 
 (s/def ::type #{:cljs :goog :npm :foreign})
 
-
-
 (s/def ::file util/is-absolute-file?)
 (s/def ::url #(instance? URL %))
 

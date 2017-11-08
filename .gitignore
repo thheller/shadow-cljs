@@ -13,6 +13,7 @@ pom.xml.asc
 *.iml
 *.jar
 *.class
+.cpcache
 .cljs-cache
 .shadow-cljs
 .cljs-repl

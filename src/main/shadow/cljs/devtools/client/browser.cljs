@@ -154,7 +154,8 @@
 
 
         ;; FIXME: should allow reload with warnings
-        (when (empty? warnings)
+        (when (and (empty? warnings)
+                   (seq sources-to-get))
           (load-sources sources-to-get do-js-reload)
           )))))
 

@@ -162,7 +162,7 @@
               :macro-ns true
               :output-name (str macro-ns "$macros.js")}
              ;; extract requires, deps
-             (cp/inspect-cljs {}))]
+             (cp/inspect-cljs))]
 
     rc
     ))
