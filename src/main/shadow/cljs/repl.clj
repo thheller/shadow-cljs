@@ -32,7 +32,6 @@
 (defn repl-state? [x]
   (and (map? x) (::repl-state x)))
 
-
 (defn make-repl-resource* [ns ns-form]
   (let [resource-name
         (util/ns->cljs-filename ns)
@@ -40,7 +39,7 @@
         output-name
         (util/flat-js-name resource-name)]
 
-    {:resource-id [::resource name]
+    {:resource-id [::resource resource-name]
      :resource-name resource-name
      :output-name output-name
      :type :cljs
