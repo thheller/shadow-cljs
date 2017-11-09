@@ -1,1 +1,25 @@
-{:paths ["src/main"]}
+{:paths ["src/main"
+         "src/repl"
+         "src/dev"
+         "target/classes"]
+
+ :deps
+ {org.clojure/clojurescript {:mvn/version "1.9.946"}
+  org.clojure/data.json {:mvn/version "0.2.6"}
+  org.clojure/tools.logging {:mvn/version "0.4.0"}
+  org.clojure/java.classpath {:mvn/version "0.2.3"}
+  org.clojure/core.async {:mvn/version "0.3.443"}
+  org.clojure/tools.nrepl {:mvn/version "0.2.13"}
+  org.clojure/tools.cli {:mvn/version "0.3.5"}
+
+  com.cognitect/transit-clj {:mvn/version "0.8.300"}
+  com.cognitect/transit-cljs {:mvn/version "0.8.243"}
+
+  thheller/shadow-client {:mvn/version "1.1.0"}
+  thheller/shadow-util {:mvn/version "0.5.1"}
+
+  expound {:mvn/version "0.3.1"}
+  hiccup {:mvn/version "1.0.5"}
+  aleph {:mvn/version "0.4.4"}
+  ring/ring-core {:mvn/version "1.6.2"}
+  hawk {:mvn/version "0.2.11"}}}

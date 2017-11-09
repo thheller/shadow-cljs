@@ -4,8 +4,10 @@
             [clojure.java.io :as io]
             [shadow.cljs.util :as util]
             [shadow.build.classpath :as cp]
-            [shadow.build.npm :as npm]))
-
+            [shadow.build.npm :as npm]
+            [shadow.cljs.devtools.cli]
+            [shadow.cljs.devtools.server]
+            ))
 
 (defn test-build []
   (let [npm
@@ -40,7 +42,10 @@
     (api/compile-sources @test-state)))
 
 (deftest test-go
-  (go 1))
+  (go 5))
+
+(defn -main []
+  (go 5))
 
 (comment
   (go 1)

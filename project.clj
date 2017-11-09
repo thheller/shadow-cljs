@@ -68,7 +68,8 @@
      [org.clojure/tools.namespace "0.2.11"]]}
 
    :cljs
-   {:dependencies
+   {:java-opts ^:replace []
+    :dependencies
     [[reagent "0.8.0-alpha1"
       :exclusions
       [cljsjs/create-react-class]]

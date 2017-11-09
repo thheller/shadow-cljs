@@ -26,3 +26,8 @@
   ;; i cannot figure out why
   ;; (ns-tools/refresh :after 'repl/start)
   (start))
+
+(defn -main []
+  (start)
+  (read)
+  (stop))
