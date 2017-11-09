@@ -72,6 +72,7 @@
   {:type :repl/error
    :message (.getMessage e)
    :data (ex-data e)
+   :ex e
    :causes
    (loop [e (.getCause e)
           causes []]
