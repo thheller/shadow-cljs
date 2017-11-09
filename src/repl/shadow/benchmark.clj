@@ -42,7 +42,7 @@
     (api/compile-sources @test-state)))
 
 (deftest test-go
-  (go 5))
+  (go 1))
 
 (defn -main []
   (go 5))
