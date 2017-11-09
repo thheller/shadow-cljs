@@ -204,7 +204,7 @@
 (defn flush-optimized
   ;; FIXME: can't alias this due to cyclic dependency
   [{modules :shadow.build.closure/modules
-    :keys [build-options dead-js-deps]
+    :keys [build-options]
     :as state}]
 
   (let [{:keys [module-format]} build-options
@@ -244,7 +244,6 @@
                         (->> sources
                              (map #(data/get-source-by-id state %))
                              (filter #(= :npm (:type %)))
-                             (remove #(contains? dead-js-deps (:ns %)))
                              (map #(data/get-output! state %))
                              (map :js)
                              (str/join ";\n"))]
@@ -307,7 +306,6 @@
                             (->> sources
                                  (map #(data/get-source-by-id state %))
                                  (filter #(= :npm (:type %)))
-                                 (remove #(contains? dead-js-deps (:ns %)))
                                  (map #(data/get-output! state %)))
                             )))
 
@@ -327,7 +325,7 @@
       )))
 
 (defn flush-unoptimized-module!
-  [{:keys [dead-js-deps unoptimizable build-options] :as state}
+  [{:keys [unoptimizable build-options] :as state}
    {:keys [goog-base output-name prepend append sources web-worker includes] :as mod}]
 
   (let [{:keys [dev-inline-js cljs-runtime-path asset-path]}
@@ -379,7 +377,6 @@
              (distinct)
              (remove inlined-provides)
              (remove '#{goog})
-             (remove dead-js-deps)
              (map (fn [ns]
                     (str "goog.require('" (comp/munge ns) "');")))
              (str/join "\n"))

@@ -589,7 +589,7 @@
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
 (defn make-js-modules
-  [{:keys [build-modules dead-js-deps closure-configurators compiler-options build-sources] :as state}]
+  [{:keys [build-modules closure-configurators compiler-options build-sources] :as state}]
 
   ;; modules that only contain foreign sources must not be exposed to closure
   ;; since they technically do not depend on goog but closure only allows one root module
@@ -627,8 +627,7 @@
               (doseq [{:keys [resource-id resource-name output-name ns type output] :as rc}
                       (->> sources
                            (map #(data/get-source-by-id state %))
-                           (remove util/foreign?))
-                      :when (not (contains? dead-js-deps ns))]
+                           (remove util/foreign?))]
                 (let [{:keys [js source] :as output}
                       (data/get-output! state rc)
 
@@ -1101,184 +1100,182 @@
 (defn convert-sources
   "takes a list of :npm sources and rewrites them to closure JS"
   [{:keys [project-dir npm] :as state} sources]
-  (util/with-logged-time [state {:type ::convert
-                                 :num-sources (count sources)}]
+  ;; cannot compile one file at a time with this approach
+  ;; CLJS does one at a time but that has other issues
+  (let [source-files
+        (for [{:keys [resource-name file] :as src} sources]
+          (let [source (data/get-source-code state src)]
+            (closure-source-file resource-name source)))
 
-    ;; FIXME: this should do caching but Closure needs all files when compiling
-    ;; cannot compile one file at a time with this approach
-    ;; CLJS does one at a time but that has other issues
-    (let [source-files
-          (for [{:keys [resource-name file] :as src} sources]
-            (let [source (data/get-source-code state src)]
-              (closure-source-file resource-name source)))
+        source-file-names
+        (into #{} (map #(.getName %)) source-files)
 
-          source-file-names
-          (into #{} (map #(.getName %)) source-files)
+        source-files
+        ;; closure prepends polyfills to the first resource
+        ;; adding an empty placeholder ensures we can take them out easily
+        (-> [(closure-source-file polyfill-name "")]
+            ;; then add all resources
+            (into source-files)
+            ;; closure needs package.json files to properly resolve modules
+            ;; FIXME: pull request to GCC to allow configuration of packageJsonMainEntries
+            ;; currently it always computes those from entries but we already did that
+            (into (->> sources
+                       (map :package-name)
+                       (remove nil?)
+                       (distinct)
+                       (map #(npm/find-package npm %))
+                       ;; sometimes source reference the package.json
+                       ;; in that case we can't add it again here since closure
+                       ;; does not accept duplicate inputs
+                       (remove #(contains? source-file-names (:entry-file %)))
+                       (map (fn [{:keys [package-name entry]}]
+                              (let [filename
+                                    (str "node_modules/" package-name "/package.json")
 
-          source-files
-          ;; closure prepends polyfills to the first resource
-          ;; adding an empty placeholder ensures we can take them out easily
-          (-> [(closure-source-file polyfill-name "")]
-              ;; then add all resources
-              (into source-files)
-              ;; closure needs package.json files to properly resolve modules
-              ;; FIXME: pull request to GCC to allow configuration of packageJsonMainEntries
-              ;; currently it always computes those from entries but we already did that
-              (into (->> sources
-                         (map :package-name)
-                         (remove nil?)
-                         (distinct)
-                         (map #(npm/find-package npm %))
-                         ;; sometimes source reference the package.json
-                         ;; in that case we can't add it again here since closure
-                         ;; does not accept duplicate inputs
-                         (remove #(contains? source-file-names (:entry-file %)))
-                         (map (fn [{:keys [package-name entry]}]
-                                (let [filename
-                                      (str "node_modules/" package-name "/package.json")
+                                    package-json
+                                    (-> {:name package-name
+                                         :main entry}
+                                        (json/write-str))]
 
-                                      package-json
-                                      (-> {:name package-name
-                                           :main entry}
-                                          (json/write-str))]
+                                ;; we don't feed the actual package.json file since closure may not recognize
+                                ;; some things we do, eg. "module" instead of "main"
+                                (SourceFile/fromCode filename package-json))
+                              )))))
 
-                                  ;; we don't feed the actual package.json file since closure may not recognize
-                                  ;; some things we do, eg. "module" instead of "main"
-                                  (SourceFile/fromCode filename package-json))
-                                )))))
+        ;; this includes all files (sources + package.json files)
+        source-files-by-name
+        (->> source-files
+             (map (juxt #(.getName %) identity))
+             (into {}))
 
-          ;; this includes all files (sources + package.json files)
-          source-files-by-name
-          (->> source-files
-               (map (juxt #(.getName %) identity))
-               (into {}))
+        #_(->> source-files-by-name
+               (keys)
+               (pprint))
 
-          #_(->> source-files-by-name
-                 (keys)
-                 (pprint))
+        ;; this only includes resources we actually want output for
+        resource-by-name
+        (->> sources
+             (map (juxt :resource-name identity))
+             (into {}))
 
-          ;; this only includes resources we actually want output for
-          resource-by-name
-          (->> sources
-               (map (juxt :resource-name identity))
-               (into {}))
+        cc
+        (make-closure-compiler)
 
-          cc
-          (make-closure-compiler)
+        language-out
+        (get-in state [:compiler-options :language-out] :ecmascript3)
 
-          language-out
-          (get-in state [:compiler-options :language-out] :ecmascript3)
+        rewrite-polyfills
+        (get-in state [:compiler-options :rewrite-polyfills])
 
-          rewrite-polyfills
-          (get-in state [:compiler-options :rewrite-polyfills])
+        ;; FIXME: are there more options we should take from the user?
+        co-opts
+        {:pretty-print true
+         :source-map true
+         :language-in :ecmascript-next
+         :language-out language-out}
 
-          ;; FIXME: are there more options we should take from the user?
-          co-opts
-          {:pretty-print true
-           :source-map true
-           :language-in :ecmascript-next
-           :language-out language-out}
+        co
+        (doto (make-options)
+          (set-options co-opts))
 
-          co
-          (doto (make-options)
-            (set-options co-opts))
+        ;; since we are not optimizing closure will not inject polyfills
+        ;; so we manually inject all
+        ;; FIXME: figure out if we can determine which are actually needed
+        _ (when rewrite-polyfills
+            (doto co
+              (.setRewritePolyfills true)
+              (.setPreventLibraryInjection false)
+              (.setForceLibraryInjection ["es6_runtime"])))
 
-          ;; since we are not optimizing closure will not inject polyfills
-          ;; so we manually inject all
-          ;; FIXME: figure out if we can determine which are actually needed
-          _ (when rewrite-polyfills
-              (doto co
-                (.setRewritePolyfills true)
-                (.setPreventLibraryInjection false)
-                (.setForceLibraryInjection ["es6_runtime"])))
+        co
+        (doto co
+          ;; we only transpile, no optimizing or type checking
+          (.setSkipNonTranspilationPasses true)
 
-          co
-          (doto co
-            ;; we only transpile, no optimizing or type checking
-            (.setSkipNonTranspilationPasses true)
+          (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
 
-            (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
+          (.setProcessCommonJSModules true)
+          (.setTransformAMDToCJSModules true)
+          ;; just in case there are some type annotations
+          (.setPreserveTypeAnnotations true)
 
-            (.setProcessCommonJSModules true)
-            (.setTransformAMDToCJSModules true)
-            ;; just in case there are some type annotations
-            (.setPreserveTypeAnnotations true)
+          (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
+          (.setModuleResolutionMode ModuleLoader$ResolutionMode/NODE))
 
-            (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
-            (.setModuleResolutionMode ModuleLoader$ResolutionMode/NODE))
+        result
+        (try
+          (util/with-logged-time [state {:type ::convert
+                                         :num-sources (count source-files)}]
+            (.compile cc [] source-files co))
+          ;; catch internal closure errors
+          (catch Exception e
+            (throw (ex-info "failed to convert sources"
+                     {:tag ::convert-error
+                      :sources (into [] (map :resource-id) sources)}
+                     e))))
 
-          result
-          (try
-            (.compile cc [] source-files co)
-            ;; catch internal closure errors
-            (catch Exception e
-              (throw (ex-info "failed to convert sources"
-                       {:tag ::convert-error
-                        :sources (into [] (map :resource-id) sources)}
-                       e))))
+        _ (throw-errors! state cc result)
 
-          _ (throw-errors! state cc result)
+        source-map
+        (.getSourceMap cc)]
 
-          source-map
-          (.getSourceMap cc)]
+    (-> state
+        (log-warnings cc result)
+        (util/reduce->
+          (fn [state source-node]
+            (.reset source-map)
 
-      (-> state
-          (log-warnings cc result)
-          (util/reduce->
-            (fn [state source-node]
-              (.reset source-map)
+            (let [name
+                  (.getSourceFileName source-node)
 
-              (let [name
-                    (.getSourceFileName source-node)
+                  source-file
+                  (get source-files-by-name name)
 
-                    source-file
-                    (get source-files-by-name name)
+                  {:keys [resource-id output-name] :as rc}
+                  (get resource-by-name name)]
 
-                    {:keys [resource-id output-name] :as rc}
-                    (get resource-by-name name)]
+              (cond
+                (= polyfill-name name)
+                (let [js (ShadowAccess/nodeToJs cc source-map source-node)]
+                  ;; these are for development only
+                  (assoc state :polyfill-js js))
 
-                (cond
-                  (= polyfill-name name)
-                  (let [js (ShadowAccess/nodeToJs cc source-map source-node)]
-                    ;; these are for development only
-                    (assoc state :polyfill-js js))
+                ;; if package.json is not referenced in code we don't want to include the output
+                (and (nil? rc)
+                     (str/ends-with? name "package.json"))
+                state
 
-                  ;; if package.json is not referenced in code we don't want to include the output
-                  (and (nil? rc)
-                       (str/ends-with? name "package.json"))
-                  state
+                (nil? rc)
+                (throw (ex-info (format "closure input %s without resource?" name) {}))
 
-                  (nil? rc)
-                  (throw (ex-info (format "closure input %s without resource?" name) {}))
+                :else
+                (let [js
+                      (try
+                        (ShadowAccess/nodeToJs cc source-map source-node)
+                        (catch Exception e
+                          (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
 
-                  :else
-                  (let [js
-                        (try
-                          (ShadowAccess/nodeToJs cc source-map source-node)
-                          (catch Exception e
-                            (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                      sw
+                      (StringWriter.)
 
-                        sw
-                        (StringWriter.)
+                      ;; for sourcesContent
+                      _ (.addSourceFile source-map source-file)
+                      _ (.appendTo source-map sw output-name)
 
-                        ;; for sourcesContent
-                        _ (.addSourceFile source-map source-file)
-                        _ (.appendTo source-map sw output-name)
+                      sm-json
+                      (.toString sw)
 
-                        sm-json
-                        (.toString sw)
+                      output
+                      {:resource-id resource-id
+                       :js js
+                       :source (.getCode source-file)
+                       :source-map-json sm-json}]
 
-                        output
-                        {:resource-id resource-id
-                         :js js
-                         :source (.getCode source-file)
-                         :source-map-json sm-json}]
+                  (assoc-in state [:output resource-id] output)))))
 
-                    (assoc-in state [:output resource-id] output)))))
-
-            (->> (ShadowAccess/getJsRoot cc)
-                 (.children) ;; the inputs
-                 ))))))
+          (->> (ShadowAccess/getJsRoot cc)
+               (.children) ;; the inputs
+               )))))
 
 (defn require-replacement-map [{:keys [str->sym sym->id] :as state}]
   (reduce-kv
@@ -1294,173 +1291,171 @@
 (defn convert-sources-simple*
   "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
   [{:keys [project-dir js-options npm mode build-sources] :as state} sources]
-  (util/with-logged-time [state {:type ::convert
-                                 :num-sources (count sources)}]
+  (let [source-files
+        (->> (for [{:keys [resource-id resource-name ns file deps] :as src} sources]
+               (let [source (data/get-source-code state src)]
+                 (closure-source-file resource-name
+                   (str "shadow$provide[\"" ns "\"] = function(global,require,module,exports) {\n"
+                        (if (str/ends-with? resource-name ".json")
+                          (str "module.exports=(" source ");")
+                          source)
+                        "\n};"))))
+             #_(map #(do (println (.getCode %)) %))
+             (into []))
 
-    (let [source-files
-          (->> (for [{:keys [resource-id resource-name ns file deps] :as src} sources]
-                 (let [source (data/get-source-code state src)]
-                   (closure-source-file resource-name
-                     (str "shadow$provide[\"" ns "\"] = function(global,require,module,exports) {\n"
-                          (if (str/ends-with? resource-name ".json")
-                            (str "module.exports=(" source ");")
-                            source)
-                          "\n};"))))
-               #_(map #(do (println (.getCode %)) %))
-               (into []))
+        source-file-names
+        (into #{} (map #(.getName %)) source-files)
 
-          source-file-names
-          (into #{} (map #(.getName %)) source-files)
+        ;; this includes all files (sources + package.json files)
+        source-files-by-name
+        (->> source-files
+             (map (juxt #(.getName %) identity))
+             (into {}))
 
-          ;; this includes all files (sources + package.json files)
-          source-files-by-name
-          (->> source-files
-               (map (juxt #(.getName %) identity))
-               (into {}))
+        ;; this only includes resources we actually want output for
+        resource-by-name
+        (->> sources
+             (map (juxt :resource-name identity))
+             (into {}))
 
-          ;; this only includes resources we actually want output for
-          resource-by-name
-          (->> sources
-               (map (juxt :resource-name identity))
-               (into {}))
+        cc
+        (make-closure-compiler)
 
-          cc
-          (make-closure-compiler)
+        language-out
+        (get-in state [:compiler-options :language-out] :ecmascript3)
 
-          language-out
-          (get-in state [:compiler-options :language-out] :ecmascript3)
+        ;; FIXME: are there more options we should take from the user?
+        co-opts
+        {:source-map (:source-maps js-options true)
+         ;; FIXME: is there any reason to not always use :simple?
+         ;; source maps are pretty good so debugging should not be an issue
+         ;; :whitespace is about an order of magnitude faster though
+         ;; could use that in :dev but given that npm deps won't change that often
+         ;; that might not matter, should cache anyways
+         :optimizations (:optimizations js-options :simple) ;; FIXME: validate whitespace or simple
+         :pretty-print (:pretty-print js-options false)
+         :language-in :ecmascript5 ;; es6+ is transformed by babel first
+         :language-out language-out}
 
-          ;; FIXME: are there more options we should take from the user?
-          co-opts
-          {:source-map (:source-maps js-options true)
-           ;; FIXME: is there any reason to not always use :simple?
-           ;; source maps are pretty good so debugging should not be an issue
-           ;; :whitespace is about an order of magnitude faster though
-           ;; could use that in :dev but given that npm deps won't change that often
-           ;; that might not matter, should cache anyways
-           :optimizations (:optimizations js-options :simple) ;; FIXME: validate whitespace or simple
-           :pretty-print (:pretty-print js-options false)
-           :language-in :ecmascript5 ;; es6+ is transformed by babel first
-           :language-out language-out}
+        property-collector
+        (PropertyCollector. cc)
 
-          property-collector
-          (PropertyCollector. cc)
+        closure-opts
+        (doto (make-options)
+          (set-options co-opts)
+          (.resetWarningsGuard)
 
-          closure-opts
-          (doto (make-options)
-            (set-options co-opts)
-            (.resetWarningsGuard)
+          (.setStrictModeInput false)
 
-            (.setStrictModeInput false)
+          (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
+            (NodeEnvInlinePass. cc (if (= :release mode)
+                                     "production"
+                                     "development")))
 
-            (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
-              (NodeEnvInlinePass. cc (if (= :release mode)
-                                       "production"
-                                       "development")))
+          (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
+            (let [m (require-replacement-map state)]
+              (ReplaceRequirePass. cc m)))
 
-            (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
-              (let [m (require-replacement-map state)]
-                (ReplaceRequirePass. cc m)))
+          (.addCustomPass CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector)
 
-            (.addCustomPass CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector)
+          (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
+          (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
+          ;; node_modules/@firebase/util/dist/cjs/src/constants.ts:26: ERROR - @define variable  assignment must be global
+          (.setWarningLevel
+            (DiagnosticGroup.
+              (into-array [ShadowAccess/NON_GLOBAL_DEFINE_INIT_ERROR]))
+            CheckLevel/OFF)
+          ;; unreachable code in react
+          (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)
+          (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
 
-            (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
-            (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
-            ;; node_modules/@firebase/util/dist/cjs/src/constants.ts:26: ERROR - @define variable  assignment must be global
-            (.setWarningLevel
-              (DiagnosticGroup.
-                (into-array [ShadowAccess/NON_GLOBAL_DEFINE_INIT_ERROR]))
-              CheckLevel/OFF)
-            ;; unreachable code in react
-            (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)
-            (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
+        result
+        (try
+          (util/with-logged-time [state {:type ::convert
+                                         :num-sources (count source-files)}]
+            (.compile cc [] source-files closure-opts))
+          ;; catch internal closure errors
+          (catch Exception e
+            (throw (ex-info "failed to convert sources"
+                     {:tag ::convert-error
+                      :sources (into [] (map :resource-id) sources)}
+                     e))))
 
-          result
-          (try
-            (.compile cc [] source-files closure-opts)
-            ;; catch internal closure errors
-            (catch Exception e
-              (throw (ex-info "failed to convert sources"
-                       {:tag ::convert-error
-                        :sources (into [] (map :resource-id) sources)}
-                       e))))
+        _ (throw-errors! state cc result)
 
-          _ (throw-errors! state cc result)
+        source-map
+        (.getSourceMap cc)]
 
-          source-map
-          (.getSourceMap cc)]
+    (-> state
+        (log-warnings cc result)
+        (util/reduce->
+          (fn [state source-node]
+            (.reset source-map)
 
-      (-> state
-          (log-warnings cc result)
-          (util/reduce->
-            (fn [state source-node]
-              (.reset source-map)
+            (let [name
+                  (.getSourceFileName source-node)
 
-              (let [name
-                    (.getSourceFileName source-node)
+                  source-file
+                  (get source-files-by-name name)
 
-                    source-file
-                    (get source-files-by-name name)
+                  {:keys [resource-id ns output-name deps] :as rc}
+                  (get resource-by-name name)
 
-                    {:keys [resource-id ns output-name deps] :as rc}
-                    (get resource-by-name name)
+                  js
+                  (try
+                    (ShadowAccess/nodeToJs cc source-map source-node)
+                    (catch Exception e
+                      (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
 
-                    js
-                    (try
-                      (ShadowAccess/nodeToJs cc source-map source-node)
-                      (catch Exception e
-                        (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                  ;; the :simple optimization may remove conditional requires
+                  ;; the JS inspector is not smart enough to detect this without optimizing itself
+                  ;; so instead just check if the compiled JS still contains the module name
+                  ;; the name is unique enough so it shouldn't run into something the user actually typed
+                  ;; module$node_modules$react$cjs$react_production_min
+                  ;; it is not done as a compiler pass since I cannot figure out how to do it
+                  ;; the require("thing") is renamed to b("thing") so I can't check NodeUtil.isCallTo("require")
+                  ;; no idea if I can get the original name after renaming, its not always b so can't use that
+                  ;; anyways this should be good enough and fixes the react conditional require issue
+                  removed-requires
+                  (->> (get-in state [:str->sym ns])
+                       (vals)
+                       ;; test at least for ("module$thing")
+                       ;; so it doesn't conflict with module$thing$b
+                       (remove #(str/includes? js (str "(\"" % "\")")))
+                       (into #{}))
 
-                    ;; the :simple optimization may remove conditional requires
-                    ;; the JS inspector is not smart enough to detect this without optimizing itself
-                    ;; so instead just check if the compiled JS still contains the module name
-                    ;; the name is unique enough so it shouldn't run into something the user actually typed
-                    ;; module$node_modules$react$cjs$react_production_min
-                    ;; it is not done as a compiler pass since I cannot figure out how to do it
-                    ;; the require("thing") is renamed to b("thing") so I can't check NodeUtil.isCallTo("require")
-                    ;; no idea if I can get the original name after renaming, its not always b so can't use that
-                    ;; anyways this should be good enough and fixes the react conditional require issue
-                    removed-requires
-                    (->> (get-in state [:str->sym ns])
-                         (vals)
-                         ;; test at least for ("module$thing")
-                         ;; so it doesn't conflict with module$thing$b
-                         (remove #(str/includes? js (str "(\"" % "\")")))
-                         (into #{}))
+                  sw
+                  (StringWriter.)
 
-                    sw
-                    (StringWriter.)
+                  ;; for sourcesContent
+                  _ (.addSourceFile source-map source-file)
+                  _ (.appendTo source-map sw output-name)
 
-                    ;; for sourcesContent
-                    _ (.addSourceFile source-map source-file)
-                    _ (.appendTo source-map sw output-name)
+                  sm-json
+                  (.toString sw)
 
-                    sm-json
-                    (.toString sw)
+                  deps
+                  (data/deps->syms state rc)
 
-                    deps
-                    (data/deps->syms state rc)
+                  actual-requires
+                  (into #{} (remove removed-requires) deps)
 
-                    actual-requires
-                    (into #{} (remove removed-requires) deps)
+                  output
+                  {:resource-id resource-id
+                   :js js
+                   :source (.getCode source-file)
+                   :removed-requires removed-requires
+                   :actual-requires actual-requires
+                   :properties (into #{} (-> property-collector (.-properties) (.get name)))
+                   :compiled-at (System/currentTimeMillis)
+                   :source-map-json sm-json}]
 
-                    output
-                    {:resource-id resource-id
-                     :js js
-                     :source (.getCode source-file)
-                     :removed-requires removed-requires
-                     :actual-requires actual-requires
-                     :properties (into #{} (-> property-collector (.-properties) (.get name)))
-                     :compiled-at (System/currentTimeMillis)
-                     :source-map-json sm-json}]
+              (assoc-in state [:output resource-id] output)
+              ))
 
-                (assoc-in state [:output resource-id] output)
-                ))
-
-            (->> (ShadowAccess/getJsRoot cc)
-                 (.children) ;; the inputs
-                 ))))
-    ))
+          (->> (ShadowAccess/getJsRoot cc)
+               (.children) ;; the inputs
+               )))))
 
 (defmethod log/event->str ::cache-read
   [{:keys [num-files]}]

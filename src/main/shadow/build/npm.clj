@@ -835,7 +835,7 @@
      ;; so use the first thing that exists
      ;; FIXME: if a build ever needs to configure these we can't use the shared npm reference
      :extensions [".js" ".json"]
-     :main-keys [#_#_"module" "jsnext:main" "browser" "main"]
+     :main-keys ["module" "jsnext:main" "browser" "main"]
      }))
 
 (defn stop [{:keys [babel] :as npm}]

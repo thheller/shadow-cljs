@@ -596,12 +596,12 @@
 
                               (and data line column)
                               (assoc :source-excerpt
-                                     (warnings/get-source-excerpt
-                                       ;; FIXME: this is a bit ugly but compilation failed so the source is not in state
-                                       ;; but the warnings extractor wants to access it
-                                       (assoc-in state [:output resource-id] {:source source})
-                                       rc
-                                       {:line line :column column}))))]
+                                (warnings/get-source-excerpt
+                                  ;; FIXME: this is a bit ugly but compilation failed so the source is not in state
+                                  ;; but the warnings extractor wants to access it
+                                  (assoc-in state [:output resource-id] {:source source})
+                                  rc
+                                  {:line line :column column}))))]
 
                     (throw (ex-info (format "failed to compile resource: %s" resource-id) err-data e)))))]
 
@@ -801,13 +801,20 @@
     (convert-fn state npm)))
 
 (defn remove-dead-js-deps [{:keys [build-sources dead-js-deps] :as state}]
-  (assoc state
-         :build-sources
-         (->> build-sources
-              (remove (fn [src-id]
-                        (let [{:keys [ns]} (data/get-source-by-id state src-id)]
-                          (contains? dead-js-deps ns))))
-              (into []))))
+  (let [remove-fn
+        (fn [sources]
+          (->> sources
+               (remove (fn [src-id]
+                         (let [{:keys [ns]} (data/get-source-by-id state src-id)]
+                           (contains? dead-js-deps ns))))
+               (into [])))]
+    
+    (-> state
+        (update :build-sources remove-fn)
+        (update :build-modules (fn [mods]
+                                 (->> mods
+                                      (map #(update % :sources remove-fn))
+                                      (into [])))))))
 
 (defn compile-all
   ([{:keys [build-sources] :as state}]

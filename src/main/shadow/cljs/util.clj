@@ -17,7 +17,8 @@
 
 (defn build-state? [state]
   ;; not using shadow.build.data because of a cyclic dependency I need to clean up
-  (true? (:shadow.build.data/build-state state)))
+  (and (map? state)
+       (true? (:shadow.build.data/build-state state))))
 
 (defn foreign? [{:keys [type] :as src}]
   (= :foreign type))

@@ -57,7 +57,7 @@
              )))
        (into [])))
 
-(defn extract-build-info [{:keys [dead-js-deps] :as state}]
+(defn extract-build-info [state]
   (let [source->module
         (reduce
           (fn [index {:keys [sources module-id]}]
@@ -85,7 +85,6 @@
                        :module (get source->module src-id)
                        :warnings (enhance-warnings state rc)
                        :from-jar from-jar})))
-             (remove #(contains? dead-js-deps (:ns %)))
              (into []))]
 
     {:sources build-sources
