@@ -66,12 +66,7 @@
    stop might be async as several node APIs are async
    start is sync since we don't need to do anything after startup finishes"
   [sources]
-  (let [start-fn
-        (if-not (seq env/after-load)
-          (fn [state])
-          (js/goog.getObjectByName env/after-load js/$CLJS))
-
-        [stop-fn stop-label]
+  (let [[stop-fn stop-label]
         (cond
           (seq env/before-load)
           (let [stop-fn (js/goog.getObjectByName env/before-load js/$CLJS)]
@@ -95,7 +90,12 @@
         (do-js-load sources)
         (when (seq env/after-load)
           (devtools-msg "app start" env/after-load))
-        (start-fn state)
+
+        ;; must delay loading start-fn until here, otherwise we load the old version
+        (when-let [start-fn
+                   (when (seq env/after-load)
+                     (js/goog.getObjectByName env/after-load js/$CLJS))]
+          (start-fn state))
         ))))
 
 (defn load-sources [sources callback]

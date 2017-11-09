@@ -86,12 +86,7 @@
                (into []))]
 
       (when (seq files-to-require)
-        (let [start-fn
-              (if-not (seq env/after-load)
-                (fn [state])
-                (js/goog.getObjectByName env/after-load))
-
-              [stop-fn stop-label]
+        (let [[stop-fn stop-label]
               (cond
                 (seq env/before-load)
                 (let [stop-fn (js/goog.getObjectByName env/before-load)]
@@ -116,9 +111,11 @@
                 (closure-import src))
               (when (seq env/after-load)
                 (js/console.warn "DEVTOOLS: app start" env/after-load))
-              (start-fn state)
-              )))
-        ))))
+              (when-let [start-fn
+                         (when (seq env/after-load)
+                           (js/goog.getObjectByName env/after-load js/$CLJS))]
+                (start-fn state))
+              )))))))
 
 (defn process-message
   [{:keys [type] :as msg}]
