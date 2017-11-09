@@ -17,7 +17,28 @@
  {:port 8200}
 
  :nrepl
- {:port 8202}
+ {:port 8202
+  :middleware
+  [cider.nrepl/wrap-apropos
+   cider.nrepl/wrap-classpath
+   cider.nrepl/wrap-complete
+   cider.nrepl/wrap-debug
+   cider.nrepl/wrap-format
+   cider.nrepl/wrap-info
+   cider.nrepl/wrap-inspect
+   cider.nrepl/wrap-macroexpand
+   cider.nrepl/wrap-ns
+   cider.nrepl/wrap-spec
+   cider.nrepl/wrap-pprint
+   cider.nrepl/wrap-pprint-fn
+   cider.nrepl/wrap-refresh
+   cider.nrepl/wrap-resource
+   cider.nrepl/wrap-stacktrace
+   cider.nrepl/wrap-test
+   cider.nrepl/wrap-trace
+   cider.nrepl/wrap-out
+   cider.nrepl/wrap-undef
+   cider.nrepl/wrap-version]}
 
  ;; actually unused when using :lein
  :dependencies []

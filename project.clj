@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.65"
+(defproject thheller/shadow-cljs "2.0.66"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -73,6 +73,8 @@
     [[reagent "0.8.0-alpha1"
       :exclusions
       [cljsjs/create-react-class]]
+
+     [cider/cider-nrepl "0.16.0-SNAPSHOT"]
 
      [thi.ng/geom "0.0.908"]
      [re-view "0.4.6"]

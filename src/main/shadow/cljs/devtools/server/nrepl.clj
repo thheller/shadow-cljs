@@ -17,9 +17,20 @@
             [clojure.java.io :as io])
   (:import (java.io StringReader)))
 
-(defn send [req res]
-  (transport/send (:transport req)
-    (misc/response-for req res)))
+(defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
+  (let [res
+        (-> msg
+            (cond->
+              id
+              (assoc :id id)
+              session
+              (assoc :session (-> session meta :id))
+              (and (some? status)
+                   (not (coll? status)))
+              (assoc :status #{status})))]
+
+    (log/debug "nrepl-send" id (pr-str res))
+    (transport/send transport res)))
 
 (defn do-cljs-eval [{::keys [build-id worker] :keys [session code] :as msg}]
   (let [reader (StringReader. code)]
@@ -51,7 +62,7 @@
             ;; {:err string} prints to stderr
             :else
             (when-some [result (worker/repl-eval worker ::stdin read-result)]
-              ;; (prn [:result result])
+              (log/debug "nrepl-eval-result" (pr-str result))
               (case (:type result)
                 :repl/result
                 (let [repl-state (repl-impl/worker-repl-state worker)
@@ -185,12 +196,15 @@
   {:pre [(qualified-symbol? sym)]}
   (let [sym-ns (-> sym (namespace) (symbol))]
     (require sym-ns)
-    (find-var sym)
+    (or (find-var sym)
+        (println (format "nrepl middleware not found: %s" sym)))
     ))
 
 (defn make-middleware-stack [extra-middleware]
   (-> []
-      (into (map middleware-load) extra-middleware)
+      (into (->> extra-middleware
+                 (map middleware-load)
+                 (remove nil?)))
       (into [#'clojure.tools.nrepl.middleware/wrap-describe
              #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
              #'clojure.tools.nrepl.middleware.load-file/wrap-load-file
@@ -247,7 +261,9 @@
     (server/start-server
       :bind host
       :port port
-      :handler handler-fn)))
+      :handler (fn [msg]
+                 (log/debug "nrepl-receive" (pr-str (dissoc msg :transport :session)))
+                 (handler-fn msg)))))
 
 (comment
   (prn (server/default-handler)))
