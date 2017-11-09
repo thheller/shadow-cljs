@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.66"
+(defproject thheller/shadow-cljs "2.0.67"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -63,8 +63,7 @@
      "src/repl"]
 
     :dependencies
-    [#_[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
-     [org.slf4j/slf4j-log4j12 "1.7.25"]
+    [[org.slf4j/slf4j-log4j12 "1.7.25"]
      [log4j "1.2.17"]
      [org.clojure/tools.namespace "0.2.11"]]}
 
