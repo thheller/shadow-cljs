@@ -44,13 +44,6 @@
    ;; a set to keep track of symbols that should be strings since they will never be compiled
    :magic-syms #{}
 
-   ;; symbols provided by generated namespaces that do not have a file
-   :virtual-provides {}
-
-   ;; resource-id -> rc, will be copied to :sources when used
-   ;; extra map so it doesn't conflict with resolve results
-   :virtual-sources {}
-
    ;; set of namespaces that are actually in use after :simple optimizations
    ;; some condition requires are removed, eg. react v16 bundle style
    ;; and those should not be included in the final output
@@ -146,8 +139,7 @@
 
 (defn get-source-by-id [state id]
   {:pre [(rc/valid-resource-id? id)]}
-  (or (get-in state [:virtual-sources id])
-      (get-in state [:sources id])
+  (or (get-in state [:sources id])
       (throw (ex-info (format "no source by id: %s" id) {:id id}))))
 
 (defn get-source-by-name [state name]
@@ -158,8 +150,7 @@
 
 (defn get-source-id-by-provide [state provide]
   {:pre [(symbol? provide)]}
-  (or (get-in state [:virtual-provides provide])
-      (get-in state [:sym->id provide])
+  (or (get-in state [:sym->id provide])
       (throw (ex-info (format "no source by provide: %s" provide) {:provide provide}))))
 
 (defn get-source-by-provide [state provide]
@@ -183,13 +174,15 @@
         )))
 
 (defn remove-source-by-id [state resource-id]
-  (let [rc (get-source-by-id state resource-id)]
-    (-> state
-        (remove-provides rc)
-        (update :output dissoc resource-id)
-        (update :immediate-deps dissoc resource-id)
-        (update :sources dissoc resource-id)
-        )))
+  (let [rc (get-in state [:sources resource-id])]
+    (if-not rc
+      rc
+      (-> state
+          (remove-provides rc)
+          (update :output dissoc resource-id)
+          (update :immediate-deps dissoc resource-id)
+          (update :sources dissoc resource-id)
+          ))))
 
 (defn overwrite-source
   "adds a source to the build state, if the ns was provided previously the other is removed"
@@ -212,23 +205,6 @@
     state
     (add-source state rc)
     ))
-
-(defn merge-virtual-provides [current {:keys [resource-id provides] :as rc}]
-  (reduce
-    (fn [provide-map provide-sym]
-      ;; FIXME: what about strings?
-      (assert (symbol? provide-sym))
-
-      (let [conflict (get provide-map provide-sym)]
-        (when (and conflict (not= conflict resource-id))
-          (throw (ex-info (format "virtual provide %s by %s already provided by %s" provide-sym resource-id conflict)
-                   {:provide provide-sym
-                    :conflict-with conflict
-                    :resource-id resource-id})))
-
-        (assoc provide-map provide-sym resource-id)))
-    current
-    provides))
 
 (defn output-file [state name & names]
   (let [output-dir (get-in state [:build-options :output-dir])]
@@ -270,15 +246,6 @@
         ;; {:type :relative :path "src/main/foo"}
         (->> (str "./"))
         )))
-
-(defn add-virtual-resource
-  "dynamically generated resource that overrides anything from the classpath or npm"
-  [state {:keys [resource-id provides] :as rc}]
-  {:pre [(rc/valid-resource? rc)]}
-  (-> state
-      (update :virtual-sources assoc resource-id rc)
-      (update :virtual-provides merge-virtual-provides rc)
-      ))
 
 (defn js-names-accessed-from-cljs
   ([{:keys [build-sources] :as state}]

@@ -70,14 +70,7 @@
 (defn repl-error [e]
   (log/debug repl-error e)
   {:type :repl/error
-   :message (.getMessage e)
-   :data (ex-data e)
-   :causes
-   (loop [e (.getCause e)
-          causes []]
-     (if e
-       (recur (.getCause e) (conj causes (.getMessage e)))
-       causes))})
+   :ex e})
 
 (defn build-failure
   [{:keys [build-config] :as worker-state} e]

@@ -238,11 +238,13 @@
 (defn merge-require [ns-info merge-key sym ns]
   (let [conflict (get-in ns-info [merge-key sym])]
     (when (and conflict
-               (not= conflict ns))
+               (not= conflict ns)
+               (not (contains? (:ns-aliases ns-info) ns)))
 
       (throw
         (ex-info (format "conflict on \"%s\" by \"%s\" used by \"%s\"" sym ns conflict)
-          {:ns-info ns-info
+          {:tag ::require-conflict
+           :ns-info ns-info
            :merge-key merge-key
            :sym sym
            :ns ns}))))
@@ -524,7 +526,7 @@
                         (assoc alias target)
                         (cond->
                           alias-self?
-                          (assoc ns target))))))
+                          (assoc target target))))))
               ns-map
               ns-map))]
 
@@ -534,8 +536,10 @@
         :requires
         (rewrite-ns-map requires true)
         :uses
-        (rewrite-ns-map uses false))
-      )))
+        (rewrite-ns-map uses false)
+        :ns-aliases
+        ns-aliases
+        ))))
 
 (defn rewrite-js-deps
   "rewrites string requires based on the aliases they resolved to
@@ -554,7 +558,7 @@
             js-deps)
 
           ;; update :deps to make CLJS happy
-          ;; we are only :deps from the resource which remains unchanged
+          ;; we are only using :deps from the resource which remains unchanged
           deps
           (->> deps
                (map (fn [dep]

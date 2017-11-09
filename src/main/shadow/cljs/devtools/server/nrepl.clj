@@ -14,7 +14,8 @@
             [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
             [shadow.cljs.devtools.fake-piggieback :as fake-piggieback]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [shadow.cljs.devtools.errors :as errors])
   (:import (java.io StringReader)))
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
@@ -92,6 +93,10 @@
 
                 :repl/too-many-eval-clients
                 (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
+
+                :repl/error
+                (send msg {:err (with-out-str
+                                  (errors/user-friendly-error (:ex result)))})
 
                 :else
                 (send msg {:err (pr-str [:FIXME result])}))

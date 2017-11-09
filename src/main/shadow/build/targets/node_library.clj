@@ -97,7 +97,7 @@
 
     (-> state
         (assoc :node-config node-config)
-        (cljs/add-virtual-resource umd-helper)
+        (data/add-source umd-helper)
         (cljs/configure-modules
           {:main
            {:entries '[shadow.umd-helper]

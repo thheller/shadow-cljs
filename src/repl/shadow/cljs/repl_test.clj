@@ -5,7 +5,8 @@
             [shadow.cljs.repl :as repl]
             [shadow.build.api :as api]
             [shadow.build.npm :as npm]
-            [shadow.build.classpath :as cp]))
+            [shadow.build.classpath :as cp]
+            [shadow.cljs.devtools.errors :as errors]))
 
 (defn basic-repl-setup []
   (let [npm
@@ -58,3 +59,16 @@
 
     (pprint repl-state)
     ))
+
+(deftest test-repl-ns-repeated
+  (let [test-ns-str
+        "(ns demo.thing (:require [\"react\" :as r] [clojure.string :as str] [clojure.pprint]))"
+
+        {:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input test-ns-str)
+            (repl/process-input test-ns-str))]
+
+    (pprint repl-state))
+  )

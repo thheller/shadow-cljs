@@ -135,11 +135,6 @@
 (defn configure-modules [state modules]
   (modules/configure state modules))
 
-(defn add-virtual-resource
-  "dynamically generated resource that overrides anything from the classpath or npm"
-  [state rc]
-  (data/add-virtual-resource state rc))
-
 (defn analyze-modules
   "takes module config and resolves all sources needed to compile"
   [state]

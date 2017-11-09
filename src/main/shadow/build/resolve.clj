@@ -155,15 +155,10 @@
                                                                  :stack resolved-ids}))))))
 
 (defn find-resource-for-symbol
-  [{:keys [virtual-provides virtual-sources classpath sym->id] :as state} require-from require]
+  [{:keys [classpath sym->id] :as state} require-from require]
   ;; check if already registered by add-source
   (or (when-let [rc-id (get-in state [:sym->id require])]
         [(get-in state [:sources rc-id]) state])
-
-      ;; check if there is virtual resource that provides a symbol
-      (when-let [virtual-id (get virtual-provides require)]
-        (let [virtual-rc (get virtual-sources virtual-id)]
-          [virtual-rc state]))
 
       ;; otherwise check if the classpath provides a symbol
       (when-let [rc (cp/find-resource-for-provide classpath require)]
@@ -177,7 +172,6 @@
                   (symbol))]
 
           ;; auto alias clojure.core.async -> cljs.core.async if it exists
-          ;; FIXME: call self/find-resource-for-symbol with cljs-sym instead so virtuals can provide aliased ns?
           (when-let [rc (cp/find-resource-for-provide classpath cljs-sym)]
             [rc
              (-> state

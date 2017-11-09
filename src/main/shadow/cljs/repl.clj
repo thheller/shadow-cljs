@@ -32,19 +32,10 @@
 (defn repl-state? [x]
   (and (map? x) (::repl-state x)))
 
-(defn make-repl-resource [{:keys [compiler-env] :as state} [_ ns :as ns-form]]
-  ;; ns in the REPL is additive
-  (let [current-ns-info
-        (-> (get-in compiler-env [::ana/namespaces ns])
-            (dissoc :defs))
 
-        {:keys [name requires deps] :as ns-info}
-        (if current-ns-info
-          (ns-form/parse current-ns-info ns-form)
-          (ns-form/parse ns-form))
-
-        resource-name
-        (util/ns->cljs-filename name)
+(defn make-repl-resource* [ns ns-form]
+  (let [resource-name
+        (util/ns->cljs-filename ns)
 
         output-name
         (util/flat-js-name resource-name)]
@@ -53,18 +44,40 @@
      :resource-name resource-name
      :output-name output-name
      :type :cljs
-     :ns name
-     :ns-info ns-info
-     :source [ns-form]
-     :provides #{name}
-     :requires (into #{} (vals requires))
-     :macro-requires
-     (-> #{}
-         (into (-> ns-info :require-macros vals))
-         (into (-> ns-info :use-macros vals)))
-     :deps deps
-     :last-modified (System/currentTimeMillis)
-     :cache-key (System/currentTimeMillis)}))
+     :source [ns-form]}))
+
+(defn make-repl-resource [{:keys [compiler-env] :as state} [_ ns :as ns-form]]
+  ;; ns in the REPL is additive, if we have a resource loaded use that otherwise define pseudo rc
+  (let [rc-id
+        (get-in state [:sym->id ns])
+
+        rc
+        (if (nil? rc-id)
+          (make-repl-resource* ns ns-form)
+          (get-in state [:sources rc-id]))
+
+        current-ns-info
+        (-> (get-in compiler-env [::ana/namespaces ns])
+            (dissoc :defs))
+
+        {:keys [name requires deps] :as ns-info}
+        (if current-ns-info
+          (ns-form/parse current-ns-info ns-form)
+          (ns-form/parse ns-form))]
+
+    (assoc rc
+      :ns name
+      :ns-info ns-info
+      :provides #{name}
+      :requires (into #{} (vals requires))
+      :macro-requires
+      (-> #{}
+          (into (-> ns-info :require-macros vals))
+          (into (-> ns-info :use-macros vals)))
+      :deps deps
+      :last-modified (System/currentTimeMillis)
+      :cache-key (System/currentTimeMillis)
+      )))
 
 (defn setup [state]
   {:pre [(build-api/build-state? state)]}
@@ -78,7 +91,7 @@
 
         [repl-sources state]
         (-> state
-            (build-api/add-virtual-resource cljs-user)
+            (data/add-source cljs-user)
             (build-api/resolve-entries '[cljs.user]))
 
         ;; FIXME: proper ns-info for cljs.user, can use analyzer data because nothing was compiled yet
@@ -255,35 +268,36 @@
 
         [dep-sources state]
         (-> state
-            (build-api/add-virtual-resource ns-rc)
+            (data/overwrite-source ns-rc)
             (res/resolve-repl ns deps))
 
         {:keys [deps] :as ns-info}
         (-> ns-info
-            (ns-form/rewrite-js-deps state)
-            (ns-form/rewrite-ns-aliases state))
+            (ns-form/rewrite-ns-aliases state)
+            (ns-form/rewrite-js-deps state))
 
         state
         (cljs-bridge/with-compiler-env state
           (comp/post-analyze-ns ns-info state true)
           state)
 
-        state
+        {:keys [build-sources] :as state}
         (build-api/compile-sources state dep-sources)
 
         new-repl-current
-        ns-rc
+        (assoc ns-rc :ns-info ns-info)
 
         action
         {:type :repl/require
-         :sources dep-sources}
+         :sources build-sources}
 
         ns-provide
         {:type :repl/invoke
          :name "<eval>"
-         :js (str "goog.provide(\"" (cljc-comp/munge ns) "\")")}]
+         :js (with-out-str
+               (comp/shadow-emit state (assoc ns-info :op :ns)))}]
 
-    (output/flush-sources state dep-sources)
+    (output/flush-sources state build-sources)
 
     (-> state
         (assoc-in [:repl-state :current] new-repl-current)

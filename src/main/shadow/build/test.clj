@@ -1,6 +1,7 @@
 (ns shadow.build.test
   (:require [shadow.build.api :as build-api]
-            [shadow.build.node :as node]))
+            [shadow.build.node :as node]
+            [shadow.build.data :as data]))
 
 (defn setup-runner [state test-namespaces]
   (let [deps
@@ -40,7 +41,7 @@
          :cache-key cache-key}]
 
     (-> state
-        (build-api/add-virtual-resource test-runner-src)
+        (data/add-source test-runner-src)
         (node/configure {:main test-runner-ns
                          :output-to "target/shadow-test-runner.js"
                          :hashbang false}))))

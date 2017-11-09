@@ -87,7 +87,7 @@
 
         [deps state]
         (-> state
-            (util/reduce-> data/add-virtual-resource macro-resources)
+            (util/reduce-> data/add-source macro-resources)
             (resolve/resolve-entries all-entries))]
 
     (assoc state :build-sources deps)

@@ -182,7 +182,7 @@
 
         [resolved state]
         (-> (test-build)
-            (api/add-virtual-resource
+            (data/add-source
               {:resource-id [::macro "cljs/core.cljc"]
                :resource-name "cljs/core.cljc"
                :type :cljs
@@ -194,7 +194,7 @@
                :requires '#{cljs.core}
                :deps '[cljs.core]
                :source (slurp rc)})
-            (api/resolve-entries '[demo.selfhost cljs.core$macros]))
+            (api/resolve-entries '[demo.selfhost.simple cljs.core$macros]))
 
         {:keys [logger] :as compiled}
         (-> state
