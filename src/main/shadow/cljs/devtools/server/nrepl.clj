@@ -17,6 +17,12 @@
             [clojure.java.io :as io])
   (:import (java.io StringReader)))
 
+(def ^:private print-cause-trace
+  (delay
+   (do
+     (require 'clojure.stacktrace)
+     (resolve 'clojure.stacktrace/print-cause-trace))))
+
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
   (let [res
         (-> msg
@@ -93,7 +99,11 @@
                 :repl/too-many-eval-clients
                 (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
 
-                :else
+                :repl/error
+                (send msg {:ex (str (class (:ex result)))
+                           :err (with-out-str (@print-cause-trace (:ex result)))})
+
+                ;; Default
                 (send msg {:err (pr-str [:FIXME result])}))
 
               (recur))
