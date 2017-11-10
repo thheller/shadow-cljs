@@ -37,7 +37,7 @@
 
 (def ^:dynamic *cljs-warnings-ref* nil)
 
-(defn post-analyze-ns [{:keys [name js-aliases] :as ast} build-state merge?]
+(defn post-analyze-ns [{:keys [name] :as ast} build-state merge?]
   (let [ast
         (-> ast
             (macros/load-macros)
@@ -769,7 +769,7 @@
       (::closure/extern-properties state) ;; from CC externs
       )))
 
-(defn compile-cljs-sources [{:keys [executor js-properties] :as state} sources non-cljs-provides]
+(defn compile-cljs-sources [{:keys [executor] :as state} sources non-cljs-provides]
   (-> state
       (closure/load-extern-properties)
       (use-extern-properties)

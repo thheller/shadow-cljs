@@ -21,5 +21,6 @@
   expound {:mvn/version "0.3.1"}
   hiccup {:mvn/version "1.0.5"}
   aleph {:mvn/version "0.4.4"}
-  ring/ring-core {:mvn/version "1.6.2"}
+  ring/ring-core {:mvn/version "1.6.2"
+                  :exclusions [clj-time]}
   hawk {:mvn/version "0.2.11"}}}

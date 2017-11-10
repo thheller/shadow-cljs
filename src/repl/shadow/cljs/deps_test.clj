@@ -7,21 +7,22 @@
             [clojure.tools.deps.alpha.providers.local]
             [clojure.tools.deps.alpha.providers.maven]
             [clojure.tools.deps.alpha.providers :as providers]
-            [cemerick.pomegranate.aether :as pom])
+            #_ [cemerick.pomegranate.aether :as pom])
   (:import (clojure.lang PersistentQueue)))
 
 (deftest test-tools-deps
   (pprint (deps/resolve-deps
-            {:deps '{thheller/shadow-cljs {:mvn/version "2.0.59"}}
+            {:deps '{thheller/shadow-cljs {:mvn/version "2.0.70"}}
              :mvn/repos mvn-util/standard-repos}
             {})))
 
-(deftest test-pomegranate
+(comment
+  (deftest test-pomegranate
 
-  (pprint (pom/resolve-dependencies
-            :repositories
-            {"central" "https://repo1.maven.org/maven2/"
-             "clojars" "https://clojars.org/repo/"}
-            :coordinates
-            [['thheller/shadow-cljs "2.0.59"]])))
+    (pprint (pom/resolve-dependencies
+              :repositories
+              {"central" "https://repo1.maven.org/maven2/"
+               "clojars" "https://clojars.org/repo/"}
+              :coordinates
+              [['thheller/shadow-cljs "2.0.59"]]))))
 
