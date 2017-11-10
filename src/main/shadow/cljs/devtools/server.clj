@@ -20,13 +20,17 @@
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.cljs.devtools.server.nrepl :as nrepl]
-            [shadow.cljs.devtools.server.dev-http :as dev-http]))
+            [shadow.cljs.devtools.server.dev-http :as dev-http])
+  (:import (io.netty.handler.ssl SslContextBuilder)
+           (javax.net.ssl KeyManagerFactory)
+           (java.security KeyStore)
+           (java.io FileInputStream)))
 
 (defn app [config]
   (merge
     (common/app config)
     {:dev-http
-     {:depends-on [:executor :out]
+     {:depends-on [:ssl-context :executor :out]
       :start dev-http/start
       :stop dev-http/stop}
      :out
@@ -91,6 +95,32 @@
     {}
     ports))
 
+(defn setup-ssl [http-config ssl]
+  (let [key-manager
+        (KeyManagerFactory/getInstance
+          (KeyManagerFactory/getDefaultAlgorithm))
+
+        key-store
+        (KeyStore/getInstance
+          (KeyStore/getDefaultType))
+
+        pw
+        (.toCharArray (get ssl :password "shadow-cljs"))]
+
+    (with-open [fs (FileInputStream. (get ssl :keystore "ssl/keystore.jks"))]
+      (.load key-store fs pw))
+
+    (.init key-manager key-store pw)
+
+    (let [ssl-context
+          (-> (SslContextBuilder/forServer key-manager)
+              (.build))]
+
+      (assoc http-config
+        :ssl true
+        :ssl-context ssl-context)
+      )))
+
 (defn start-system
   [app {:keys [cache-root] :as config}]
   (let [app-promise
@@ -99,8 +129,15 @@
         ring
         (get-ring-handler config app-promise)
 
-        http-config
-        (merge {:port 0 :host "localhost"} (:http config))
+        {:keys [http ssl]}
+        config
+
+        {:keys [ssl-context] :as http-config}
+        (-> {:port 0 :host "localhost"}
+            (merge http)
+            (cond->
+              ssl
+              (setup-ssl ssl)))
 
         http
         (aleph/start-server ring http-config)
@@ -139,8 +176,10 @@
         app
         (-> {::started (System/currentTimeMillis)
              :config config
+             :ssl-context ssl-context
              :http {:port http-port
                     :host (:host http-config)
+                    :ssl (:ssl http-config)
                     :server http}
              :port-files port-files
              :nrepl nrepl

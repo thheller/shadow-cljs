@@ -23,7 +23,7 @@
 
 (defn repl-defines
   [{:keys [worker-info] :as state} build-config]
-  (let [{:keys [proc-id host port]}
+  (let [{:keys [proc-id ssl host port]}
         worker-info
 
         {:keys [build-id]}
@@ -46,6 +46,9 @@
 
      "shadow.cljs.devtools.client.env.repl_port"
      port
+
+     "shadow.cljs.devtools.client.env.ssl"
+     (true? ssl)
 
      "shadow.cljs.devtools.client.env.build_id"
      (name build-id)

@@ -26,9 +26,12 @@
           "expires" "0"))))
 
 (defn start-build-server
-  [executor out {:keys [build-id http-root http-port http-handler]
-                 :or {http-port 0}
-                 :as config}]
+  [ssl-context
+   executor
+   out
+   {:keys [build-id http-root http-port http-handler]
+    :or {http-port 0}
+    :as config}]
 
   (let [root-dir
         (io/file http-root)
@@ -45,8 +48,8 @@
             (fn [req]
               (-> req
                   (assoc :http-root root-dir
-                         :build-id build-id
-                         :devtools config)
+                    :build-id build-id
+                    :devtools config)
                   (http-handler-fn)))))]
 
     (when-not (.exists root-dir)
@@ -69,11 +72,16 @@
 
                 (disable-all-kinds-of-caching))
 
+            aleph-options
+            (-> {:port http-port
+                 :executor executor
+                 :shutdown-executor? false}
+                (cond->
+                  ssl-context
+                  (assoc :ssl-context ssl-context)))
+
             instance
-            (aleph/start-server http-handler
-              {:port http-port
-               :executor executor
-               :shutdown-executor? false})
+            (aleph/start-server http-handler aleph-options)
 
             port
             (netty/port instance)]
@@ -106,12 +114,12 @@
   (get-server-configs))
 
 ;; FIXME: use config watch to restart servers on config change
-(defn start [executor out]
+(defn start [ssl-context executor out]
   (let [configs
         (get-server-configs)
 
         servers
-        (into [] (map #(start-build-server executor out %)) configs)]
+        (into [] (map #(start-build-server ssl-context executor out %)) configs)]
 
     {:servers servers
      :configs configs}

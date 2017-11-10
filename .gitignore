@@ -23,6 +23,7 @@ pom.xml.asc
 .nrepl-*
 /doc/codox
 /tmp
+/ssl
 .DS_Store
 yarn.lock
 package-lock.json

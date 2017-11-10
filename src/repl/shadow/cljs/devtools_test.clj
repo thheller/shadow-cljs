@@ -22,7 +22,11 @@
     [shadow.cljs.devtools.errors :as errors]
     [shadow.build.data :as data]
     [clojure.string :as str])
-  (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)))
+  (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)
+           (io.netty.handler.ssl SslContextBuilder)
+           (javax.net.ssl KeyManagerFactory)
+           (java.io FileInputStream)
+           (java.security KeyStore)))
 
 
 (comment
@@ -219,6 +223,38 @@
 (deftest test-closure-release
   (api/release :closure))
 
+(deftest test-ssl-context
+  (let [cert-file (io/file "ssl" "cert.pem")
+        key-file (io/file "ssl" "key.pem")
+        context
+        (-> (SslContextBuilder/forServer cert-file key-file)
+            (.build))]
+
+    (prn [:context context])
+    ))
+
+(deftest test-ssl-setup
+  (let [key-manager
+        (KeyManagerFactory/getInstance
+          (KeyManagerFactory/getDefaultAlgorithm))
+
+        key-store
+        (KeyStore/getInstance
+          (KeyStore/getDefaultType))
+
+        pw
+        (.toCharArray "foobar")]
+
+    (with-open [fs (FileInputStream. "ssl/keystore.jks")]
+      (.load key-store fs pw))
+
+    (.init key-manager key-store pw)
+
+    (-> (SslContextBuilder/forServer key-manager)
+        (.build))
+    (prn [:x key-store])
+    ))
+
 (deftest test-infer-externs
   (try
     (let [{:keys [compiler-env] :as state}
@@ -387,14 +423,12 @@
               :devtools
               {:enabled false
                :console-support false}
-
               :js-options
               {:js-provider :shadow
                :pretty-print true}}
             {:debug true})]
 
-      (pprint (map second build-sources))
-      )
+      (pprint (map second build-sources)))
 
     (catch Exception ex
       (errors/user-friendly-error ex))))

@@ -96,7 +96,8 @@
     (let [worker-info
           {:proc-id proc-id
            :host (:host http)
-           :port (:port http)}
+           :port (:port http)
+           :ssl (:ssl http)}
 
           build-id
           (:build-id build-config)

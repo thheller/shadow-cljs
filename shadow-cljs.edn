@@ -13,6 +13,8 @@
 
  :open-file-command :idea
 
+ :ssl {}
+
  :http
  {:port 8200}
 
