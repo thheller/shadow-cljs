@@ -113,7 +113,7 @@
                 (js/console.warn "DEVTOOLS: app start" env/after-load))
               (when-let [start-fn
                          (when (seq env/after-load)
-                           (js/goog.getObjectByName env/after-load js/$CLJS))]
+                           (js/goog.getObjectByName env/after-load))]
                 (start-fn state))
               )))))))
 
