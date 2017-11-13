@@ -192,7 +192,7 @@
 (defn remove-source-by-id [state resource-id]
   (let [rc (get-in state [:sources resource-id])]
     (if-not rc
-      rc
+      state
       (-> state
           (remove-provides rc)
           (update :output dissoc resource-id)
