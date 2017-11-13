@@ -20,14 +20,14 @@
            (java.util.concurrent Executors ExecutorService)))
 
 
-(defn get-resource-info [resource-name content]
+(defn get-resource-info [resource-name content reader-features]
   {:pre [(string? content)]}
   (let [eof-sentinel (Object.)
         cljc? (util/is-cljc? resource-name)
         opts (merge
                {:eof eof-sentinel}
                (when cljc?
-                 {:read-cond :allow :features #{:cljs}}))
+                 {:read-cond :allow :features reader-features}))
         rdr (StringReader. content)
         in (readers/indexing-push-back-reader (PushbackReader. rdr) 1 resource-name)]
 

@@ -11,7 +11,8 @@
             [shadow.build.classpath :as cp]
             [shadow.build.npm :as npm]
             [shadow.build.data :as data]
-            [shadow.build.js-support :as js-support])
+            [shadow.build.js-support :as js-support]
+            [shadow.build.cljs-bridge :as cljs-bridge])
   (:import (java.io File)
            (java.net URL)))
 
@@ -196,10 +197,41 @@
       [nil state]
       ))
 
+(defn reinspect-cljc-rc
+  [state {:keys [url resource-name macros-ns] :as rc} reader-features]
+  (let [{:keys [name deps requires] :as ast}
+        (cljs-bridge/get-resource-info
+          resource-name
+          (or (:source rc) ;; nREPL load-file supplies source
+              (slurp url))
+          reader-features)
+
+        provide-name
+        (if-not macros-ns
+          name
+          (symbol (str name "$macros")))]
+
+    (prn [:reinspect name deps])
+
+    (-> rc
+        (assoc
+          :ns-info (dissoc ast :env)
+          :ns provide-name
+          :provides #{provide-name}
+          :requires (into #{} (vals requires))
+          :macro-requires
+          (-> #{}
+              (into (-> ast :require-macros vals))
+              (into (-> ast :use-macros vals)))
+          :deps deps)
+        (cond->
+          macros-ns
+          (assoc :macros-ns true)))))
+
 (defn resolve-symbol-require [state require-from require]
   {:pre [(data/build-state? state)]}
 
-  (let [[{:keys [resource-id] :as rc} state]
+  (let [[{:keys [resource-id resource-name type] :as rc} state]
         (find-resource-for-symbol state require-from require)]
 
     (when-not rc
@@ -213,18 +245,32 @@
            :require require
            :require-from (:resource-name require-from)})))
 
-    ;; react symbol may have resolved to a JS dependency
-    ;; CLJS/goog do not allow circular dependencies, JS does
-    (when (contains? #{:cljs :goog} (:type rc))
-      (ensure-non-circular! state resource-id))
+    (let [reader-features
+          (data/get-reader-features state)
 
-    (-> state
-        ;; in case of clojure->cljs aliases the rc may already be present
-        ;; if clojure.x and cljs.x are both used in sources, the resource is
-        ;; resolved twice but added once
-        (data/maybe-add-source rc)
-        (resolve-deps rc)
-        )))
+          ;; when using custom :reader-features we need to reinspect the resource
+          ;; just in case its requires are in some conditional we didn't cover before
+          ;; since the classpath only reads with :cljs
+          rc
+          (if (or (not= type :cljs)
+                  (not (str/ends-with? resource-name ".cljc"))
+                  (= reader-features #{:cljs}))
+            rc
+            (reinspect-cljc-rc state rc reader-features))]
+
+      ;; react symbol may have resolved to a JS dependency
+      ;; CLJS/goog do not allow circular dependencies, JS does
+      (when (contains? #{:cljs :goog} type)
+        (ensure-non-circular! state resource-id))
+
+
+      (-> state
+          ;; in case of clojure->cljs aliases the rc may already be present
+          ;; if clojure.x and cljs.x are both used in sources, the resource is
+          ;; resolved twice but added once
+          (data/maybe-add-source rc)
+          (resolve-deps rc)
+          ))))
 
 (defn resolve-require [state require-from require]
   {:pre [(data/build-state? state)]}

@@ -163,6 +163,22 @@
   (or (get-in state [:output resource-id])
       (throw (ex-info (format "no output for id: %s" resource-id) {:resource-id resource-id}))))
 
+(defn get-reader-features [state]
+  (set/union
+    (let [x (get-in state [:compiler-options :reader-features])]
+      ;; FIXME: should probably validate this before starting a compile
+      (cond
+        (nil? x)
+        #{}
+        (keyword? x)
+        #{x}
+        (and (set? x) (every? keyword? x))
+        x
+        :else
+        (throw (ex-info "invalid :reader-features" {:tag ::invalid-reader-features
+                                                    :x x}))))
+    #{:cljs}))
+
 (defn add-source [state {:keys [resource-id resource-name] :as rc}]
   {:pre [(rc/valid-resource? rc)]}
   (-> state

@@ -543,6 +543,30 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+(deftest test-build-read-cond
+  (try
+    (let [state
+          (api/compile*
+            '{:build-id :read-cond
+              :target :node-script
+
+              :output-to "target/test-build-read-cond.js"
+              :main demo.read-cond/main
+
+              :compiler-options
+              {:reader-features #{:cljs/ssr}}}
+            {})
+
+          rc
+          (data/get-source-by-provide state 'demo.read-cond)
+
+          out
+          (data/get-output! state rc)]
+
+      (println (:js out)))
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
 (comment
   (api/compile :browser))
 

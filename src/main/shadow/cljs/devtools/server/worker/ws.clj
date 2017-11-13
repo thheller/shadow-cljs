@@ -195,6 +195,7 @@
 
     ;; CORS sends OPTIONS first
     (case request-method
+
       :options
       {:status 200
        :headers headers
@@ -249,6 +250,10 @@
                         })))
               (into [])
               (pr-str))})
+
+      ;; bad requests
+      {:status 400
+       :body "Only POST or OPTIONS requests allowed."}
       )))
 
 (defn process

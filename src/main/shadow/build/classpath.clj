@@ -63,7 +63,10 @@
           (cljs-bridge/get-resource-info
             resource-name
             (or (:source rc) ;; nREPL load-file supplies source
-                (slurp url)))
+                (slurp url))
+            ;; since the classpath instance is shared we use the default
+            ;; on resolve the resource should be inspected again
+            #{:cljs})
           (catch Exception e
             (throw (ex-info
                      (if macros-ns

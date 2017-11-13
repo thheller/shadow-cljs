@@ -138,12 +138,12 @@
            (post-analyze state))))))
 
 (defn do-compile-cljs-string
-  [{:keys [resource-name cljc] :as init} reduce-fn cljs-source]
+  [{:keys [resource-name cljc reader-features] :as init} reduce-fn cljs-source]
   (let [eof-sentinel (Object.)
         opts (merge
                {:eof eof-sentinel}
                (when cljc
-                 {:read-cond :allow :features #{:cljs}}))
+                 {:read-cond :allow :features reader-features}))
         in (readers/indexing-push-back-reader (PushbackReader. (StringReader. cljs-source)) 1 resource-name)]
 
     (binding [comp/*source-map-data*
@@ -358,7 +358,8 @@
                    :source source
                    :ns 'cljs.user
                    :js ""
-                   :cljc (util/is-cljc? resource-name)}
+                   :cljc (util/is-cljc? resource-name)
+                   :reader-features (data/get-reader-features state)}
                   (cond->
                     (:macros-ns rc)
                     (assoc :macros-ns true)))
@@ -416,6 +417,7 @@
    [:compiler-options :source-map]
    [:compiler-options :fn-invoke-direct]
    [:compiler-options :elide-asserts]
+   [:compiler-options :reader-features]
    ;; doesn't affect output but affects compiler env
    [:compiler-options :infer-externs]
    ;; these should basically never be changed

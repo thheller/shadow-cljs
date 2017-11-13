@@ -99,6 +99,9 @@
         {::repl-state true
          :current cljs-user
 
+         :reader-features
+         (data/get-reader-features state)
+
          ;; the sources required to get the repl started
          :repl-sources
          repl-sources
@@ -419,7 +422,7 @@
         opts
         {:eof eof-sentinel
          :read-cond :allow
-         :features #{:cljs}}
+         :features (:reader-features repl-state)}
 
         in
         (readers/source-logging-push-back-reader
