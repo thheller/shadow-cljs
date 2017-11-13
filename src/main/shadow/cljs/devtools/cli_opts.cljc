@@ -53,6 +53,7 @@
    :cljs-repl
    :clj-repl
    :clj-eval
+   :clj-run
 
    :info
    :pom

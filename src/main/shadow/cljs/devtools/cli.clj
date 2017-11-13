@@ -87,12 +87,38 @@
         :prompt (fn [])))
     ))
 
+(defn do-clj-run [config {:keys [arguments options] :as opts}]
+  (let [[main & args]
+        arguments
+
+        main-sym
+        (symbol main)
+
+        main-ns
+        (namespace main-sym)]
+
+    (if-not main-ns
+      (println "please specify a namespaced fn")
+      (try
+        (require (symbol main-ns))
+
+        (let [main-fn (find-var main-sym)]
+          (if-not main-fn
+            (println (format "could not find %s" main-sym))
+            (apply main-fn args)))
+        (catch Exception e
+          (println (format "failed to load namespace: %s" main-ns))
+          (prn e))))))
+
 (defn blocking-action
   [config {:keys [action builds options] :as opts}]
   (binding [*in* *in*]
     (cond
       (= :clj-eval action)
       (do-clj-eval config opts)
+
+      (= :clj-run action)
+      (do-clj-run config opts)
 
       (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
       (server/from-cli action builds options)
@@ -135,7 +161,7 @@
       ;;
       ;; actions that may potentially block
       ;;
-      (contains? #{:watch :node-repl :cljs-repl :clj-repl :server :clj-eval} action)
+      (contains? #{:watch :node-repl :cljs-repl :clj-repl :server :clj-eval :clj-run} action)
       (blocking-action config opts)
 
       :else
