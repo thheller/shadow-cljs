@@ -579,11 +579,6 @@
                         (or (:column data) ;; cljs.analyzer
                             (:col data)) ;; tools.reader
 
-                        line ;; tools.reader is off by one?
-                        (if (= :reader-exception (:type data))
-                          (dec line)
-                          line)
-
                         err-data
                         (-> {:tag ::compile-cljs
                              :source-id resource-id
