@@ -22,7 +22,8 @@
         opts
         #js {:presets presets
              :plugins plugins
-             :babelrc true
+             ;; only allow babelrc processing for project files
+             :babelrc (not (str/includes? resource-name "node_modules"))
              :filename resource-name
              :highlightCode false
              :sourceMaps true}
