@@ -239,29 +239,7 @@
   (with-open [con (.openConnection url)]
     (.getLastModified con)))
 
-(defn relative-path-from-dir [output-dir src-file rel-path]
-  (let [output-dir
-        (-> output-dir
-            (.getCanonicalFile)
-            (.toPath))
 
-        src-file
-        (-> src-file
-            (.getParentFile))
-
-        rel-file
-        (-> (io/file src-file rel-path)
-            (.getCanonicalFile)
-            (.toPath))]
-
-    (-> (.relativize output-dir rel-file)
-        (.toString)
-        ;; FIXME: need to keep it relative
-        ;; should come up with a better representation, maybe a protocol?
-        ;; {:type :module :package "react-dom" :suffix "server"}
-        ;; {:type :relative :path "src/main/foo"}
-        (->> (str "./"))
-        )))
 
 (defn js-names-accessed-from-cljs
   ([{:keys [build-sources] :as state}]

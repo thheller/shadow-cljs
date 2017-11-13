@@ -567,6 +567,27 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+(deftest test-build-rel-require
+  (try
+    (let [state
+          (api/compile*
+            '{:build-id :rel-require
+              :target :node-script
+
+              :output-to "target/test-build-rel-require.js"
+              :main demo.rel-require/main}
+            {})
+
+          rc
+          (data/get-source-by-provide state 'demo.rel-require)
+
+          out
+          (data/get-output! state rc)]
+
+      (println (:js out)))
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
 (comment
   (api/compile :browser))
 

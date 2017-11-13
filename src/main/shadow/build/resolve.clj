@@ -92,13 +92,45 @@
     "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
 
 (defmethod find-resource-for-string :require
-  [{:keys [project-dir] :as state} require-from require]
+  [{:keys [project-dir] :as state} {:keys [file] :as require-from} require]
   (cond
-    (util/is-relative? require)
-    (throw (ex-info "tbd, relative require" {:require require}))
-
     (util/is-absolute? require)
     (throw (ex-info "tbd, absolute require" {:require require}))
+
+    ;; FIXME: I'm really not sure about this.
+    ;; its fine when just used in a project since we have a file but it breaks in
+    ;; jars since node can't look into them
+    (util/is-relative? require)
+    (do (when-not file
+          (throw (ex-info "rel require in CLJS only supported when file is present, ie. not in .jars" {:require require
+                                                                                                       :required-from (:url require-from)})))
+        (let [output-dir
+              (-> (get-in state [:build-options :output-dir])
+                  (.getCanonicalFile)
+                  (.toPath))
+
+              src-file
+              (-> file
+                  (.getParentFile))
+
+              rel-file
+              (-> (io/file src-file require)
+                  (.getCanonicalFile))
+
+              rel-name
+              (-> (.relativize (.toPath project-dir) (.toPath rel-file))
+                  (str))
+
+              rel-require
+              (-> (.relativize output-dir (.toPath rel-file))
+                  (.toString)
+                  ;; FIXME: need to keep it relative
+                  ;; should come up with a better representation, maybe a protocol?
+                  ;; {:type :module :package "react-dom" :suffix "server"}
+                  ;; {:type :relative :path "src/main/foo"}
+                  (->> (str "./")))]
+
+          (js-support/shim-require-resource rel-name require)))
 
     :else
     (let [js-packages
@@ -262,7 +294,6 @@
       ;; CLJS/goog do not allow circular dependencies, JS does
       (when (contains? #{:cljs :goog} type)
         (ensure-non-circular! state resource-id))
-
 
       (-> state
           ;; in case of clojure->cljs aliases the rc may already be present
