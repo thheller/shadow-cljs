@@ -41,6 +41,9 @@
     (super/get-worker supervisor id)
     ))
 
+(defn get-build-config [build-id]
+  (config/get-build build-id))
+
 (defn get-runtime []
   (or (runtime/get-instance)
 
