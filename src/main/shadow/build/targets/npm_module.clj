@@ -32,8 +32,7 @@
 
     (-> state
         (build-api/with-build-options
-          {:source-map-comment false
-           :module-format :js})
+          {:module-format :js})
         (build-api/with-js-options
           {:js-provider :require})
 

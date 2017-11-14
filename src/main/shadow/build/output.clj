@@ -6,7 +6,8 @@
             [cljs.compiler :as comp]
             [clojure.data.json :as json]
             [shadow.build.data :as data]
-            [clojure.set :as set])
+            [clojure.set :as set]
+            [shadow.build.resource :as rc])
   (:import (java.io StringReader BufferedReader File)
            (java.util Base64)))
 
@@ -138,6 +139,8 @@
    {:keys [source source-map source-map-json] :as output}
    js-file
    prepend]
+  {:pre [(rc/valid-resource? src)
+         (map? output)]}
   (when (or source-map source-map-json)
     (let [sm-text
           (str "\n//# sourceMappingURL=" output-name ".map\n")
@@ -540,7 +543,8 @@
 (defn flush-dev-js-modules
   [{::comp/keys [build-info] :as state} mode config]
 
-  (util/with-logged-time [state {:type :npm-flush}]
+  (util/with-logged-time [state {:type :npm-flush
+                                 :output-path (.getAbsolutePath (get-in state [:build-options :output-dir]))}]
 
     (let [env-file
           (data/output-file state "cljs_env.js")
@@ -583,7 +587,7 @@
                   (str prepend
                        js
                        (js-module-src-append state src)
-                       (generate-source-map state output src target prepend))]
+                       (generate-source-map state src output target prepend))]
 
               (spit target content)
               ))))))
