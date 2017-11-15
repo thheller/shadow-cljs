@@ -166,8 +166,6 @@
             (update :dependencies add-exclusions)
             (update :dependencies #(into [['thheller/shadow-cljs jar-version]] %)))
 
-        _ (prn classpath-config)
-
         ;; only need to rebuild the classpath if :dependencies
         ;; or the version changed
         updated?
