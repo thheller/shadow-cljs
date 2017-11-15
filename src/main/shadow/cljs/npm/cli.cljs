@@ -128,18 +128,54 @@
         (not= (:dependencies cp) (:dependencies config))
         )))
 
+;; these might cause trouble when using different versions
+;; than expected by shadow-cljs.
+(def unwanted-deps
+  '#{org.clojure/clojurescript ;; we will always be on the latest version
+     org.clojure/clojure ;; can't run on 1.8
+     clojure-future-spec ;; backported spec for clojure 1.8, we are 1.9
+     thheller/shadow-cljs ;; just in case, added later
+     })
+
+(defn drop-unwanted-deps [dependencies]
+  (->> dependencies
+       (remove (fn [[dep-id & _]]
+                 (contains? unwanted-deps dep-id)))
+       (into [])))
+
+(defn add-exclusions [dependencies]
+  (->> dependencies
+       (map (fn [[dep-id version & modifiers :as dep]]
+              (let [mods
+                    (-> (apply hash-map modifiers)
+                        (update :exclusions (fn [excl]
+                                              (->> excl
+                                                   (concat unwanted-deps)
+                                                   (distinct)
+                                                   (into [])))))]
+                (reduce-kv conj [dep-id version] mods))))
+       (into [])))
+
 (defn get-classpath [project-root {:keys [cache-root version] :as config}]
   (let [cp-file
         (path/resolve project-root cache-root "classpath.edn")
+
+        classpath-config
+        (-> config
+            (update :dependencies drop-unwanted-deps)
+            (update :dependencies add-exclusions)
+            (update :dependencies #(into [['thheller/shadow-cljs jar-version]] %)))
+
+        _ (prn classpath-config)
 
         ;; only need to rebuild the classpath if :dependencies
         ;; or the version changed
         updated?
         (when (or (not (fs/existsSync cp-file))
-                  (modified-dependencies? cp-file config))
+                  (modified-dependencies? cp-file classpath-config))
           ;; re-create classpath by running the java helper
           (let [jar (js/require "shadow-cljs-jar/path")]
-            (run-java project-root ["-jar" jar] {:input (pr-str config)
+            (run-java project-root ["-jar" jar] {:input (pr-str classpath-config)
                                                  :stdio [nil js/process.stdout js/process.stderr]})
             true))]
 
@@ -178,13 +214,8 @@
       (println "shadow-cljs - error" (.-message ex)))
     ))
 
-(defn check-dependencies! [{:keys [dependencies] :as config}]
-  (when (seq (filter #(= 'org.clojure/clojure (first %)) dependencies))
-    (throw (ex-info "Please remove org.clojure/clojure from your :dependencies." {}))))
-
 (defn run-standalone
   [project-root {:keys [cache-root source-paths jvm-opts] :as config} args]
-  (check-dependencies! config)
   (let [aot-path
         (path/resolve project-root cache-root "aot-classes")
 

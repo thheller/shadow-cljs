@@ -389,11 +389,11 @@
     (swap! env/*compiler* update-in [::namespaces ns :defs tsym]
       (fn [m]
         (-> (assoc m
-                   :name type-sym
-                   :type true
-                   :tag type-sym
-                   :num-fields (count fields)
-                   :record (= :defrecord* op))
+              :name type-sym
+              :type true
+              :tag type-sym
+              :num-fields (count fields)
+              :record (= :defrecord* op))
             (merge (source-info tsym env)))))
 
     {:op op :env env :form form :t type-sym :fields fields :pmasks pmasks
@@ -409,8 +409,8 @@
 
 (defn source-map-inc-line [{:keys [gen-line] :as m}]
   (assoc m
-         :gen-line (inc gen-line)
-         :gen-col 0))
+    :gen-line (inc gen-line)
+    :gen-col 0))
 
 ;; string? provides pretty decent boost
 (defn emit1 [x]

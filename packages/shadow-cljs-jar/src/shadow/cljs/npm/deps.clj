@@ -24,20 +24,15 @@
                 repositories {}
                 cache-root "target/shadow-cljs"}
            :as config}
-          (read *in*)
-
-          coords
-          (into [['thheller/shadow-cljs version]] dependencies)]
+          (read *in*)]
 
       (println "shadow-cljs - updating dependencies")
 
       ;; FIXME: resolve conflicts?
-      ;; the uberjar contains the dependencies listed in project.clj
-      ;; those should be excluded from everything
       (let [deps
             (aether/resolve-dependencies
               :coordinates
-              coords
+              dependencies
               :repositories
               (merge aether/maven-central {"clojars" "http://clojars.org/repo"} repositories)
               :transfer-listener
