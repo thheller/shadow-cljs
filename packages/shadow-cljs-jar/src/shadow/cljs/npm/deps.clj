@@ -34,7 +34,7 @@
               :coordinates
               dependencies
               :repositories
-              (merge aether/maven-central {"clojars" "http://clojars.org/repo"} repositories)
+              (merge aether/maven-central {"clojars" "https://clojars.org/repo"} repositories)
               :transfer-listener
               transfer-listener)
 
