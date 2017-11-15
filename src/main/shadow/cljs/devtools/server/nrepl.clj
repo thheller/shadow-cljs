@@ -206,11 +206,22 @@
         (println (format "nrepl middleware not found: %s" sym)))
     ))
 
+;; automatically add cider when on the classpath
+(defn get-cider-middleware []
+  (try
+    (require 'cider.nrepl)
+    (->> @(find-var 'cider.nrepl/cider-middleware)
+         (map find-var)
+         (into []))
+    (catch Exception e
+      [])))
+
 (defn make-middleware-stack [extra-middleware]
   (-> []
       (into (->> extra-middleware
                  (map middleware-load)
                  (remove nil?)))
+      (into (get-cider-middleware))
       (into [#'clojure.tools.nrepl.middleware/wrap-describe
              #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
              #'clojure.tools.nrepl.middleware.load-file/wrap-load-file
