@@ -55,7 +55,6 @@
     (do (swap! env/loaded-ref set/union provides)
         (swap! cljs/*loaded* set/union provides)
         (let [js (str text "\n//# sourceURL=" uri "\n")]
-          (js/console.log "load" js)
           (script-eval js)))))
 
 (defn queue-task! [task]
