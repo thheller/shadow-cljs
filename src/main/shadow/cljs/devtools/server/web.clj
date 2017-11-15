@@ -1,11 +1,11 @@
 (ns shadow.cljs.devtools.server.web
   (:require
-    [hiccup.core :refer (html)]
     [clojure.string :as str]
-    [shadow.cljs.devtools.server.web.common :as common]
-    [shadow.cljs.devtools.server.web.api :as web-api]
+    [hiccup.core :refer (html)]
     [shadow.http.router :as http]
     [shadow.server.assets :as assets]
+    [shadow.cljs.devtools.server.web.common :as common]
+    [shadow.cljs.devtools.server.web.api :as web-api]
     [shadow.cljs.devtools.server.worker.ws :as ws]))
 
 (defn index-page [req]

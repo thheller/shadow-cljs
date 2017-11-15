@@ -17,7 +17,6 @@
     [shadow.build.npm :as npm]
     [shadow.build.closure :as closure]
     [shadow.cljs.devtools.api :as api]
-    [shadow.cljs.devtools.embedded :as em]
     [shadow.cljs.devtools.server.util :as util]
     [shadow.cljs.devtools.errors :as errors]
     [shadow.build.data :as data]

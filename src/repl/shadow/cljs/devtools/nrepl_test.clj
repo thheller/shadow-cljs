@@ -3,7 +3,6 @@
             [clojure.pprint :refer (pprint)]
             [clojure.tools.nrepl :as client]
             [clojure.tools.nrepl.server :as server]
-            [shadow.cljs.devtools.embedded :as cljs]
             [shadow.cljs.devtools.nrepl :as dt-nrepl]
             [clojure.edn :as edn]))
 
