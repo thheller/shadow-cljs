@@ -70,7 +70,8 @@
 
                       repl-ns
                       (-> repl-state :current :ns)]
-                  (send msg (assoc result :ns (pr-str repl-ns)))) ;; :value is already a edn string
+                  (send msg {:value (:value result)
+                             :ns (pr-str repl-ns)}))
 
                 :repl/set-ns-complete
                 (let [repl-state (repl-impl/worker-repl-state worker)
