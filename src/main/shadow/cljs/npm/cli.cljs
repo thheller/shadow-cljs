@@ -369,6 +369,10 @@
 
                 (println (str "Running: " pkg-cmd " " (str/join " " pkg-args)))
 
+                ;; npm installs into wrong location if no package.json is present
+                (when-not (fs/existsSync package-json-file)
+                  (fs/writeFileSync package-json-file "{}"))
+
                 (cp/spawnSync pkg-cmd (into-array pkg-args) #js {:cwd project-root
                                                                  :stdio "inherit"})
                 true))))))
