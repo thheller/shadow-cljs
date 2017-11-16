@@ -15,7 +15,8 @@
             [shadow.build.resource :as rc]
             [clojure.tools.logging :as log]
             [clojure.set :as set]
-            [shadow.build.resolve :as resolve])
+            [shadow.build.resolve :as resolve]
+            [shadow.build.babel :as babel])
   (:import (java.io File)
            (java.util.concurrent ExecutorService)))
 
@@ -93,6 +94,10 @@
 (defn with-npm [state npm]
   {:pre [(npm/service? npm)]}
   (assoc state :npm npm))
+
+(defn with-babel [state babel]
+  {:pre [(babel/service? babel)]}
+  (assoc state :babel babel))
 
 (defn with-classpath
   ([state]

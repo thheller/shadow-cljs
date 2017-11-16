@@ -10,7 +10,8 @@
             [shadow.cljs.devtools.server.web.common :as common]
             [shadow.build.classpath :as cp]
             [shadow.build.npm :as npm]
-            [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch-hawk])
+            [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch-hawk]
+            [shadow.build.babel :as babel])
   (:import (java.util UUID)))
 
 (defn get-status [{:keys [status-ref] :as proc}]
@@ -94,11 +95,12 @@
 ;; SERVICE API
 
 (defn start
-  [system-bus executor cache-root http classpath npm {:keys [build-id] :as build-config}]
+  [system-bus executor cache-root http classpath npm babel {:keys [build-id] :as build-config}]
   {:pre [(map? http)
          (map? build-config)
          (cp/service? classpath)
          (npm/service? npm)
+         (babel/service? babel)
          (keyword? build-id)]}
 
   (let [proc-id
@@ -163,6 +165,7 @@
          :classpath classpath
          :cache-root cache-root
          :npm npm
+         :babel babel
          :proc-id proc-id
          :build-config build-config
          :status-ref status-ref

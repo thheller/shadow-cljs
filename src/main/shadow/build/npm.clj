@@ -5,7 +5,6 @@
             [cljs.compiler :as cljs-comp]
             [clojure.tools.logging :as log]
             [shadow.build.resource :as rc]
-            [shadow.build.babel :as babel]
             [shadow.build.log :as cljs-log]
             [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)])
   (:import (java.io File)
@@ -421,23 +420,6 @@
     dep
     (symbol (subs dep 5))))
 
-(defmethod cljs-log/event->str ::babel-transform
-  [{:keys [resource-name] :as event}]
-  (format "Babel transform: %s " resource-name))
-
-(defn babel-convert-source [{:keys [babel] :as npm} state source resource-name]
-  (util/with-logged-time [state {:type ::babel-transform
-                                 :resource-name resource-name}]
-
-    (let [{:keys [code] :as result}
-          (babel/transform babel {:code source
-                                  :resource-name resource-name})]
-      (when-not (seq code)
-        (throw (ex-info "babel failed?" (assoc result :resource-name resource-name))))
-
-      code
-      )))
-
 (def asset-exts
   #{"css"
     "png"
@@ -521,9 +503,6 @@
                   ;; SourceFile/fromFile seems to leak file descriptors
                   (SourceFile/fromCode (.getAbsolutePath file) source))
 
-                babel-rewrite?
-                (not (contains? #{"es3" "es5"} js-language))
-
                 js-deps
                 (->> (concat js-requires js-imports)
                      ;; FIXME: not sure I want to go down this road or how
@@ -555,19 +534,10 @@
                   :ns ns
                   :provides #{ns}
                   :requires #{}
-                  :source-fn
-                  (fn [state]
-                    (if-not babel-rewrite?
-                      source
-                      (babel-convert-source npm state source resource-name)))
+                  :source source
+                  :js-language js-language
                   :js-deps js-deps
-                  :deps
-                  (-> '[shadow.js]
-                      (cond->
-                        babel-rewrite?
-                        (conj 'shadow.js.babel))
-                      (into js-deps))
-                  ))))
+                  :deps js-deps))))
 
         (cond->
           package-name
@@ -818,16 +788,12 @@
 
         ;; FIXME: allow configuration of this
         node-modules-dir
-        (io/file project-dir "node_modules")
-
-        babel
-        (babel/start)]
+        (io/file project-dir "node_modules")]
 
     {::service true
      :index-ref index-ref
      :compiler cc
      :compiler-options co
-     :babel babel
      ;; JVM working dir always
      :project-dir project-dir
      :node-modules-dir node-modules-dir
@@ -838,5 +804,4 @@
      :main-keys [#_#_"module" "jsnext:main" "browser" "main"]
      }))
 
-(defn stop [{:keys [babel] :as npm}]
-  (babel/stop babel))
+(defn stop [npm])

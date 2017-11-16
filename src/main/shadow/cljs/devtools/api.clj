@@ -3,6 +3,7 @@
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.tools.logging :as log]
             [aleph.netty :as netty]
             [aleph.http :as aleph]
             [shadow.repl :as r]
@@ -11,6 +12,9 @@
             [shadow.build.api :as build-api]
             [shadow.build.test :as build-test]
             [shadow.build.node :as node]
+            [shadow.build.npm :as npm]
+            [shadow.build.classpath :as cp]
+            [shadow.build.babel :as babel]
             [shadow.cljs.util :as cljs-util]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.server.worker :as worker]
@@ -22,9 +26,7 @@
             [shadow.cljs.devtools.server.worker.ws :as ws]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-            [shadow.cljs.devtools.server.runtime :as runtime]
-            [shadow.build.npm :as npm]
-            [shadow.build.classpath :as cp])
+            [shadow.cljs.devtools.server.runtime :as runtime])
   (:import (java.io PushbackReader StringReader)
            (java.lang ProcessBuilder$Redirect)))
 
@@ -41,47 +43,54 @@
     (super/get-worker supervisor id)
     ))
 
+(defn make-runtime []
+  (let [config (config/load-cljs-edn!)]
+
+    (log/debug "starting runtime instance")
+
+    (-> {::started (System/currentTimeMillis)
+         :config config}
+        (rt/init common/app-config)
+        (rt/start-all)
+        )))
+
+(defmacro with-runtime [& body]
+  ;; not using binding since there should only ever be one runtime instance per JVM
+  `(let [body-fn#
+         (fn []
+           ~@body)]
+     (if (runtime/get-instance)
+       (body-fn#)
+
+       ;; start/stop instance when not running in server context
+       (let [runtime# (make-runtime)]
+         (try
+           (runtime/set-instance! runtime#)
+           (body-fn#)
+           (finally
+             (runtime/reset-instance!)
+             (rt/stop-all runtime#)))))))
+
 (defn get-build-config [build-id]
   (config/get-build build-id))
 
-(defn get-runtime []
-  (or (runtime/get-instance)
-
-      ;; FIXME: this should be done by shadow.cljs.devtools.cli
-      ;; shadow-cljs release multiple builds foo bar
-      ;; otherwise each build repeats this work since this is not shared
-      (let [{:keys [cache-root] :as config}
-            (config/load-cljs-edn!)
-
-            cache-root
-            (io/file cache-root)]
-
-        ;; FIXME: add executor but not sure where to call shutdown
-        {:cache-root
-         cache-root
-
-         :npm
-         (npm/start)
-
-         :classpath
-         (-> (cp/start (io/file cache-root "classpath-cache"))
-             (cp/index-classpath))})))
+(defn get-runtime! []
+  (runtime/get-instance!))
 
 (defn- new-build [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
-  (let [{:keys [npm classpath cache-root executor]}
-        (get-runtime)
+  (let [{:keys [npm classpath cache-root executor babel] :as runtime}
+        (get-runtime!)
 
         cache-dir
         (config/make-cache-dir cache-root build-id mode)]
 
     (-> (build-api/init)
         (build-api/with-npm npm)
+        (build-api/with-babel babel)
         (build-api/with-classpath classpath)
         (build-api/with-cache-dir cache-dir)
-        (assoc :mode mode)
-        (cond->
-          executor
-          (build-api/with-executor executor)))))
+        (build-api/with-executor executor)
+        (assoc :mode mode))))
 
 (defn get-or-start-worker [build-config opts]
   (let [{:keys [autobuild]}
@@ -156,6 +165,11 @@
 
 (defn build-finish [{::build/keys [build-info] :as state} config]
   (util/print-build-complete build-info config)
+  (let [rt (::runtime state)]
+    (when (::once rt)
+      (let [{:keys [babel npm]} rt]
+        (babel/stop babel)
+        (npm/stop npm))))
   state)
 
 (defn compile* [build-config opts]
@@ -236,7 +250,8 @@
       (build-api/enable-source-maps)
       (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
       (build/compile)
-      (build/check))
+      (build/check)
+      (build-finish build-config))
   :done)
 
 (defn check
@@ -312,7 +327,7 @@
       (println)))
 
 (defn find-resources-using-ns [ns]
-  (let [{:keys [classpath]} (get-runtime)]
+  (let [{:keys [classpath]} (get-runtime!)]
     (->> (cp/find-resources-using-ns classpath ns)
          (map :ns)
          (into #{}))))
@@ -345,7 +360,7 @@
 
 (defn test []
   (let [{:keys [npm classpath cache-root executor]}
-        (get-runtime)
+        (get-runtime!)
 
         mode
         :dev
@@ -368,7 +383,8 @@
             (build-test/setup-runner '[demo.app-test])
             (build-api/analyze-modules)
             (build-api/compile-sources)
-            (node/flush-unoptimized))]
+            (node/flush-unoptimized)
+            (build-finish {:build-id :test}))]
 
     (node-execute! [] (io/file "target" "shadow-test-runner.js"))
     ))

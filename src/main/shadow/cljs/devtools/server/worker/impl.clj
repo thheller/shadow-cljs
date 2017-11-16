@@ -83,7 +83,7 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config proc-id http executor npm classpath cache-root] :as worker-state}]
+  [{:keys [build-config proc-id http executor npm babel classpath cache-root] :as worker-state}]
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
@@ -106,6 +106,7 @@
           (-> (build-api/init)
               (build-api/with-classpath classpath)
               (build-api/with-npm npm)
+              (build-api/with-babel babel)
               (build-api/with-executor executor)
               (build-api/with-logger (util/async-logger (-> worker-state :channels :output)))
               (build-api/with-cache-dir (config/make-cache-dir cache-root build-id :dev))

@@ -1,145 +1,128 @@
 (ns shadow.cljs.devtools.server.common
-  (:require [shadow.cljs.devtools.server.fs-watch :as fs-watch]
-            [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch-hawk]
-            [shadow.cljs.devtools.server.js-watch :as js-watch]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
-            [shadow.cljs.devtools.server.reload-npm :as reload-npm]
-            [shadow.cljs.devtools.server.reload-macros :as reload-macros]
-            [cognitect.transit :as transit]
-            [clojure.edn :as edn]
-            [shadow.build]
-            [shadow.build.api :as cljs]
-            [shadow.build.classpath :as build-classpath]
-            [shadow.build.npm :as build-npm]
-            [clojure.java.io :as io]
-            [clojure.java.classpath :as cp]
-            [shadow.cljs.devtools.server.config-watch :as config-watch]
-            [shadow.cljs.devtools.server.supervisor :as super]
-            [shadow.cljs.devtools.server.system-bus :as system-bus])
+  (:require
+    [clojure.edn :as edn]
+    [clojure.java.io :as io]
+    [cognitect.transit :as transit]
+    #_ [shadow.cljs.devtools.server.fs-watch :as fs-watch]
+    [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch-hawk]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]
+    [shadow.cljs.devtools.server.system-msg :as sys-msg]
+    [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
+    [shadow.cljs.devtools.server.reload-npm :as reload-npm]
+    [shadow.cljs.devtools.server.reload-macros :as reload-macros]
+    [shadow.cljs.devtools.server.config-watch :as config-watch]
+    [shadow.cljs.devtools.server.supervisor :as super]
+    [shadow.cljs.devtools.server.system-bus :as system-bus]
+    [shadow.build]
+    [shadow.build.api :as cljs]
+    [shadow.build.classpath :as build-classpath]
+    [shadow.build.npm :as build-npm]
+    [shadow.build.babel :as babel])
   (:import (java.io ByteArrayOutputStream InputStream)
            (java.util.concurrent Executors)))
 
-;; FIXME: make config option
-(def classpath-excludes
-  [#"resources(/?)$"
-   #"classes(/?)$"
-   #"java(/?)$"])
+(def app-config
+  {:edn-reader
+   {:depends-on []
+    :start
+    (fn []
+      (fn [input]
+        (cond
+          (instance? String input)
+          (edn/read-string input)
+          (instance? InputStream input)
+          (edn/read input)
+          :else
+          (throw (ex-info "dunno how to read" {:input input})))))
+    :stop (fn [reader])}
 
-(defn get-classpath-directories []
-  (->> (cp/classpath)
-       ;; (remove #(cljs/should-exclude-classpath classpath-excludes %))
-       (filter #(.isDirectory %))
-       (map #(.getCanonicalFile %))
-       (distinct)
-       (into [])))
+   :cache-root
+   {:depends-on [:config]
+    :start (fn [{:keys [cache-root]}]
+             (io/file cache-root))
+    :stop (fn [cache-root])}
 
-(defn app [config]
-  (let [watch-mode
-        :clj #_(get config :watch true)]
+   :transit-str
+   {:depends-on []
+    :start
+    (fn []
+      (fn [data]
+        (let [out (ByteArrayOutputStream. 4096)
+              w (transit/writer out :json)]
+          (transit/write w data)
+          (.toString out)
+          )))
 
-    (-> {:edn-reader
-         {:depends-on []
-          :start
-          (fn []
-            (fn [input]
-              (cond
-                (instance? String input)
-                (edn/read-string input)
-                (instance? InputStream input)
-                (edn/read input)
-                :else
-                (throw (ex-info "dunno how to read" {:input input})))))
-          :stop (fn [reader])}
+    :stop (fn [x])}
 
-         :cache-root
-         {:depends-on [:config]
-          :start (fn [{:keys [cache-root]}]
-                   (io/file cache-root))
-          :stop (fn [cache-root])}
+   :executor
+   {:depends-on [:config]
+    :start
+    (fn [{:keys [compile-threads] :as config}]
+      (let [n-threads
+            (or compile-threads
+                (.. Runtime getRuntime availableProcessors))]
+        (Executors/newFixedThreadPool n-threads)))
+    :stop
+    (fn [ex]
+      (.shutdown ex))}
 
-         :transit-str
-         {:depends-on []
-          :start
-          (fn []
-            (fn [data]
-              (let [out (ByteArrayOutputStream. 4096)
-                    w (transit/writer out :json)]
-                (transit/write w data)
-                (.toString out)
-                )))
+   :system-bus
+   {:depends-on []
+    :start sys-bus/start
+    :stop sys-bus/stop}
 
-          :stop (fn [x])}
+   :config-watch
+   {:depends-on [:system-bus]
+    :start config-watch/start
+    :stop config-watch/stop}
 
-         :executor
-         {:depends-on []
-          :start
-          (fn []
-            (let [n-threads (.. Runtime getRuntime availableProcessors)]
-              (Executors/newFixedThreadPool n-threads)))
-          :stop
-          (fn [ex]
-            (.shutdown ex))}
+   :reload-classpath
+   {:depends-on [:system-bus :classpath]
+    :start reload-classpath/start
+    :stop reload-classpath/stop}
 
-         :system-bus
-         {:depends-on []
-          :start sys-bus/start
-          :stop sys-bus/stop}
+   :reload-npm
+   {:depends-on [:system-bus :npm]
+    :start reload-npm/start
+    :stop reload-npm/stop}
 
-         :config-watch
-         {:depends-on [:system-bus]
-          :start config-watch/start
-          :stop config-watch/stop}
+   :reload-macros
+   {:depends-on [:system-bus]
+    :start reload-macros/start
+    :stop reload-macros/stop}
 
-         :reload-classpath
-         {:depends-on [:system-bus :classpath]
-          :start reload-classpath/start
-          :stop reload-classpath/stop}
+   :supervisor
+   {:depends-on [:system-bus :executor :cache-root :http :classpath :npm :babel]
+    :start super/start
+    :stop super/stop}
 
-         :reload-npm
-         {:depends-on [:system-bus :npm]
-          :start reload-npm/start
-          :stop reload-npm/stop}
+   :classpath
+   {:depends-on [:cache-root]
+    :start (fn [cache-root]
+             (-> (build-classpath/start cache-root)
+                 (build-classpath/index-classpath)))
+    :stop build-classpath/stop}
 
-         :reload-macros
-         {:depends-on [:system-bus]
-          :start reload-macros/start
-          :stop reload-macros/stop}
+   :npm
+   {:depends-on []
+    :start build-npm/start
+    :stop build-npm/stop}
 
-         :supervisor
-         {:depends-on [:system-bus :executor :cache-root :http :classpath :npm]
-          :start super/start
-          :stop super/stop}
+   :babel
+   {:depends-on []
+    :start babel/start
+    :stop babel/stop}
 
-         :classpath
-         {:depends-on [:cache-root]
-          :start (fn [cache-root]
-                   (-> (build-classpath/start cache-root)
-                       (build-classpath/index-classpath)))
-          :stop build-classpath/stop}
-
-         :npm
-         {:depends-on []
-          :start build-npm/start
-          :stop build-npm/stop}}
-
-        (cond->
-          (= :js watch-mode)
-          (merge {:js-watch
-                  {:depends-on [:system-bus]
-                   :start js-watch/start
-                   :stop js-watch/stop}})
-
-          (= :clj watch-mode)
-          (merge {:cljs-watch
-                  {:depends-on [:system-bus]
-                   :start (fn [system-bus]
-                            (fs-watch-hawk/start
-                              (get-classpath-directories)
-                              ;; no longer watches .clj files, reload-macros directly looks at used macros
-                              ["cljs" "cljc" "js"]
-                              #(system-bus/publish! system-bus ::sys-msg/cljs-watch {:updates %})
-                              ))
-                   :stop fs-watch-hawk/stop}})
-          ))))
+   :cljs-watch
+   {:depends-on [:classpath :system-bus]
+    :start (fn [classpath system-bus]
+             (fs-watch-hawk/start
+               (->> (build-classpath/get-classpath-entries classpath)
+                    (filter #(.isDirectory %))
+                    (into []))
+               ;; no longer watches .clj files, reload-macros directly looks at used macros
+               ["cljs" "cljc" "js"]
+               #(system-bus/publish! system-bus ::sys-msg/cljs-watch {:updates %})
+               ))
+    :stop fs-watch-hawk/stop}})

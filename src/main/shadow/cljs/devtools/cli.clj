@@ -115,10 +115,12 @@
   (binding [*in* *in*]
     (cond
       (= :clj-eval action)
-      (do-clj-eval config opts)
+      (api/with-runtime
+        (do-clj-eval config opts))
 
       (= :clj-run action)
-      (do-clj-run config opts)
+      (api/with-runtime
+        (do-clj-run config opts))
 
       (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
       (server/from-cli action builds options)
@@ -134,6 +136,11 @@
     ;; always install since its a noop if everything is in package.json
     ;; and a server restart is not required for them to be picked up
     (npm-deps/main config opts)
+
+    ;; FIXME: need cleaner with-runtime logic
+    ;; don't like that some actions implicitely start a server
+    ;; while others don't
+    ;; I think server should be a dedicated action but that only makes sense once we have a UI
 
     (cond
       ;;
@@ -152,11 +159,13 @@
       (println "npm-deps done.")
 
       (contains? #{:compile :check :release} action)
-      (do-build-commands config opts builds)
+      (api/with-runtime
+        (do-build-commands config opts builds))
 
       ;; MVP, really not sure where to take this
       (= :test action)
-      (api/test)
+      (api/with-runtime
+        (api/test))
 
       ;;
       ;; actions that may potentially block

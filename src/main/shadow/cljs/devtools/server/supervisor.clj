@@ -21,13 +21,13 @@
     @workers-ref))
 
 (defn start-worker
-  [{:keys [system-bus state-ref workers-ref executor cache-root http classpath npm] :as svc} {:keys [build-id] :as build-config}]
+  [{:keys [system-bus state-ref workers-ref executor cache-root http classpath npm babel] :as svc} {:keys [build-id] :as build-config}]
   {:pre [(keyword? build-id)]}
   (when (get @workers-ref build-id)
     (throw (ex-info "already started" {:build-id build-id})))
 
   (let [{:keys [proc-stop] :as proc}
-        (worker/start system-bus executor cache-root http classpath npm build-config)]
+        (worker/start system-bus executor cache-root http classpath npm babel build-config)]
 
     (vswap! workers-ref assoc build-id proc)
 
@@ -43,13 +43,15 @@
   (when-some [proc (get @workers-ref id)]
     (worker/stop proc)))
 
-(defn start [system-bus executor cache-root http classpath npm]
+;; FIXME: too many args, use a map
+(defn start [system-bus executor cache-root http classpath npm babel]
   {:system-bus system-bus
    :executor executor
    :cache-root cache-root
    :http http
    :classpath classpath
    :npm npm
+   :babel babel
    :workers-ref (volatile! {})})
 
 (defn stop [{:keys [workers-ref] :as svc}]

@@ -12,7 +12,8 @@
             [shadow.build.npm :as npm]
             [shadow.build.data :as data]
             [shadow.build.js-support :as js-support]
-            [shadow.build.cljs-bridge :as cljs-bridge])
+            [shadow.build.cljs-bridge :as cljs-bridge]
+            [shadow.build.babel :as babel])
   (:import (java.io File)
            (java.net URL)))
 
@@ -73,16 +74,37 @@
   ;; since :closure mode should only be used in :browser that is fine for now
   (npm/find-resource (:npm state) file require
     (assoc js-options
-           :mode (:mode state)
-           :target :browser)))
+      :mode (:mode state)
+      :target :browser)))
 
 (defmethod find-resource-for-string :shadow
-  [{:keys [js-options] :as state} {:keys [file] :as require-from} require]
-  ;; FIXME: identical to :closure on this side, defmulti might not be best solution
-  (npm/find-resource (:npm state) file require
-    (assoc js-options
-           :mode (:mode state)
-           :target :browser)))
+  [{:keys [js-options babel] :as state} {:keys [file] :as require-from} require]
+
+  (when-let [{:keys [js-language deps resource-name source] :as rc}
+             (npm/find-resource (:npm state) file require
+               (assoc js-options
+                 :mode (:mode state)
+                 :target :browser))]
+
+    (let [babel-rewrite?
+          (not (contains? #{"es3" "es5"} js-language))
+
+          deps
+          (-> '[shadow.js]
+              (cond->
+                babel-rewrite?
+                (conj 'shadow.js.babel))
+              (into deps))]
+
+      (-> rc
+          (assoc :deps deps)
+          (cond->
+            babel-rewrite?
+            (-> (dissoc :source)
+                (assoc :source-fn
+                  (fn [state]
+                    (babel/convert-source babel state source resource-name)))
+                ))))))
 
 (def native-node-modules
   #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"

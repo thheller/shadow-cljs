@@ -26,18 +26,18 @@
            (java.security KeyStore)
            (java.io FileInputStream)))
 
-(defn app [config]
+(def app-config
   (merge
-    (common/app config)
+    common/app-config
     {:dev-http
      {:depends-on [:ssl-context :executor :out]
       :start dev-http/start
       :stop dev-http/stop}
      :out
-     {:depends-on []
-      :start #(util/stdout-dump (:verbose config))
-      :stop async/close!}
-     }))
+     {:depends-on [:config]
+      :start (fn [config]
+               (util/stdout-dump (:verbose config)))
+      :stop async/close!}}))
 
 (defn get-ring-handler
   [{:keys [dev-mode] :as config} app-promise]
@@ -211,9 +211,9 @@
 (defn start!
   ([]
    (let [config (load-config)]
-     (start! config (app config))))
+     (start! config app-config)))
   ([sys-config]
-   (start! sys-config (app sys-config)))
+   (start! sys-config app-config))
   ([sys-config app]
    (let [{:keys [http socket-repl nrepl config] :as app}
          (start-system app sys-config)]

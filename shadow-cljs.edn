@@ -4,16 +4,11 @@
  ;; target/shadow-cljs gets deleted by lein frequently which is rather annoying
  :cache-root ".shadow-cljs"
 
- ;;  :dev-mode true
  :verbose true
- :debug true
-
- :server
- {:autostart #{}}
 
  :open-file-command :idea
 
- :ssl {}
+ ;; :ssl {}
 
  :http
  {:port 8200}
@@ -265,10 +260,22 @@
               "test/react-dom.ext.js"]
     :closure-warnings {:global-this :off}}
    :js-options
-   {:js-provider :shadow}
+   {:js-provider :closure}
    :devtools
    {:http-root "out/demo-closure/public"
     :http-port 7810
+    :autoload true}}
+
+  :closure-es6
+  {:target :browser
+   :output-dir "out/demo-closure-es6/public/js"
+   :asset-path "/js"
+   :modules {:main {:entries [demo.closure]}}
+   :js-options
+   {:js-provider :closure}
+   :devtools
+   {:http-root "out/demo-closure-es6/public"
+    :http-port 7820
     :autoload true}}
 
   :script
