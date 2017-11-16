@@ -165,8 +165,9 @@
                         (assoc "sources" [resource-name])
                         )]
 
-                (json/write-str source-map-v3 :escape-slash false)
-                ))]
+                (json/write-str source-map-v3 :escape-slash false)))]
+
+      (io/make-parents src-map-file)
       (spit src-map-file source-map-json)
 
       sm-text)))
