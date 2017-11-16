@@ -1,24 +1,9 @@
-/**
- * Utitily namespace to provide common JS idioms for Closure
- */
-goog.provide("process");
-goog.provide("process.env");
-
-/**
- * @define {string}
- * FIXME: allow specifying env as a map in config and generate this file?
- */
-goog.define("process.env.NODE_ENV", "development");
-goog.exportSymbol("process.env.NODE_ENV", process.env.NODE_ENV);
-
-/**
- * @define {boolean}
- */
-goog.define("process.browser", false);
-
-goog.exportSymbol("process.browser", process.browser);
-
 goog.provide("shadow.js");
+goog.require("shadow.process");
+
+// since we only run JS through :simple we need to keep these as is.
+goog.exportSymbol("process.env.NODE_ENV", process.env.NODE_ENV);
+goog.exportSymbol("process.browser", process.browser);
 
 /**
  * @dict

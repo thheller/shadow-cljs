@@ -640,9 +640,9 @@
 
                         (and (= :npm type) (= :shadow js-provider))
                         (str ;; "shadow.js.exec(\"" ns "\");"
-                             (when (contains? required-js-names ns)
-                               (str "goog.provide(\"" ns "\");\n"
-                                    ns " = " (npm/shadow-js-require rc))))
+                          (when (contains? required-js-names ns)
+                            (str "goog.provide(\"" ns "\");\n"
+                                 ns " = " (npm/shadow-js-require rc))))
 
                         :else
                         js)]
@@ -806,9 +806,9 @@
       (.setRenamePrefixNamespace closure-opts "$CLJS"))
 
     (assoc state
-           ::externs (load-externs state true)
-           ::compiler cc
-           ::compiler-options closure-opts)))
+      ::externs (load-externs state true)
+      ::compiler cc
+      ::compiler-options closure-opts)))
 
 (defn load-extern-properties [{::keys [extern-properties] :as state}]
   (if extern-properties
@@ -971,8 +971,8 @@
              (into #{}))]
 
     (assoc state
-           ::dead-modules dead-modules
-           ::dead-sources dead-sources)))
+      ::dead-modules dead-modules
+      ::dead-sources dead-sources)))
 
 (defn log-warnings
   ([{::keys [compiler result] :as state}]
@@ -1097,14 +1097,55 @@
   [{:keys [num-sources] :as event}]
   (format "Converting %d JS sources" num-sources))
 
+(defn replace-file-references
+  "extremely hacky way to escape the mess that is NODE ModuleResolver
+   replacing all require/imports with absolute file paths so we can use BROWSER
+
+   this lets us use our resolve behavior and custom :resolve configs, no need to feed
+   package.json files to the compiler.
+
+   other option would be to file a proper PR to turn ModuleLoader into an interface
+   so we can control the lookup behavior.
+
+   could also do this as a compiler pass but there is no way to run a compiler pass
+   BEFORE the module stuff is resolved.
+
+   doing this via string replacement since parsing the ast and emitting JS would
+   require source maps twice, ie. way more work. JSInspector already recorded all the
+   locations we need."
+  [state {:keys [resource-name ns js-requires js-imports js-str-offsets] :as rc} source]
+  (let [aliases
+        (get-in state [:str->sym ns])]
+
+    (reduce
+      (fn [source {:keys [string offset] :as x}]
+        (let [alias (get aliases string)]
+          (if-not alias ;; goog:cljs.core is not aliased
+            source
+            (let [other-rc
+                  (data/get-source-by-provide state alias)
+
+                  abs-path
+                  (str "/" (:resource-name other-rc))]
+
+              (str (subs source 0 (inc offset))
+                   abs-path
+                   (subs source (+ 1 offset (count string))))
+              ))))
+      source
+      ;; must start at the end since we are inserting longer strings
+      (reverse js-str-offsets))))
+
 (defn convert-sources
   "takes a list of :npm sources and rewrites them to closure JS"
   [{:keys [project-dir npm] :as state} sources]
-  ;; cannot compile one file at a time with this approach
-  ;; CLJS does one at a time but that has other issues
+
   (let [source-files
         (for [{:keys [resource-name file] :as src} sources]
-          (let [source (data/get-source-code state src)]
+          (let [source
+                (data/get-source-code state src)
+                source
+                (replace-file-references state src source)]
             (closure-source-file resource-name source)))
 
         source-file-names
@@ -1115,32 +1156,7 @@
         ;; adding an empty placeholder ensures we can take them out easily
         (-> [(closure-source-file polyfill-name "")]
             ;; then add all resources
-            (into source-files)
-            ;; closure needs package.json files to properly resolve modules
-            ;; FIXME: pull request to GCC to allow configuration of packageJsonMainEntries
-            ;; currently it always computes those from entries but we already did that
-            (into (->> sources
-                       (map :package-name)
-                       (remove nil?)
-                       (distinct)
-                       (map #(npm/find-package npm %))
-                       ;; sometimes source reference the package.json
-                       ;; in that case we can't add it again here since closure
-                       ;; does not accept duplicate inputs
-                       (remove #(contains? source-file-names (:entry-file %)))
-                       (map (fn [{:keys [package-name entry]}]
-                              (let [filename
-                                    (str "node_modules/" package-name "/package.json")
-
-                                    package-json
-                                    (-> {:name package-name
-                                         :main entry}
-                                        (json/write-str))]
-
-                                ;; we don't feed the actual package.json file since closure may not recognize
-                                ;; some things we do, eg. "module" instead of "main"
-                                (SourceFile/fromCode filename package-json))
-                              )))))
+            (into source-files))
 
         ;; this includes all files (sources + package.json files)
         source-files-by-name
@@ -1200,7 +1216,7 @@
           (.setPreserveTypeAnnotations true)
 
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
-          (.setModuleResolutionMode ModuleLoader$ResolutionMode/NODE))
+          (.setModuleResolutionMode ModuleLoader$ResolutionMode/BROWSER))
 
         result
         (try
@@ -1569,7 +1585,7 @@
                   :dead-js-deps #{}}))]
 
       (assoc state
-             :js-properties js-properties
-             :dead-js-deps dead-js-deps
-             :live-js-deps live-js-deps)
+        :js-properties js-properties
+        :dead-js-deps dead-js-deps
+        :live-js-deps live-js-deps)
       )))

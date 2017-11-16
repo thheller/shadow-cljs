@@ -219,6 +219,9 @@
 (deftest test-closure
   (api/compile :closure))
 
+(deftest test-closure-es6
+  (api/compile :closure-es6))
+
 (deftest test-closure-release
   (api/release :closure))
 

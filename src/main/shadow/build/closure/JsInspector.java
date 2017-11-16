@@ -18,10 +18,14 @@ import java.util.List;
  */
 public class JsInspector {
 
+    public static final Keyword KW_STRING = RT.keyword(null, "string");
+    public static final Keyword KW_OFFSET = RT.keyword(null, "offset");
+
     public static class RequireCollector implements NodeTraversal.Callback {
         ITransientCollection requires = PersistentVector.EMPTY.asTransient();
         ITransientCollection invalidRequires = PersistentVector.EMPTY.asTransient();
         ITransientCollection imports = PersistentVector.EMPTY.asTransient();
+        ITransientCollection strOffsets = PersistentVector.EMPTY.asTransient();
 
         @Override
         public boolean shouldTraverse(NodeTraversal t, Node node, Node parent) {
@@ -42,13 +46,20 @@ public class JsInspector {
             return true;
         }
 
+        public void recordStrOffset(Node x) {
+            strOffsets = strOffsets.conj(RT.map(KW_STRING, x.getString(), KW_OFFSET, x.getSourceOffset()));
+        }
+
         @Override
         public void visit(NodeTraversal t, Node node, Node parent) {
             if (NodeUtil.isCallTo(node, "require")) {
                 Node requireString = node.getSecondChild();
 
+
                 if (requireString.isString()) {
-                    requires = requires.conj(requireString.getString());
+                    String require = requireString.getString();
+                    requires = requires.conj(require);
+                    recordStrOffset(requireString);
                 } else {
                     invalidRequires = invalidRequires.conj(
                             RT.map(
@@ -56,12 +67,11 @@ public class JsInspector {
                                 KW_COLUMN, node.getCharno()
                             ));
                 }
-            } else if (node.isImport()) {
-                String from =  node.getLastChild().getString();
+            } else if (node.isImport() || (node.isExport() && node.hasTwoChildren())) {
+                Node importString = node.getLastChild();
+                String from = importString.getString();
                 imports = imports.conj(from);
-            } else if (node.isExport() && node.hasTwoChildren()) {
-                String from = node.getLastChild().getString();
-                imports = imports.conj(from);
+                recordStrOffset(importString);
             }
         }
     }
@@ -95,6 +105,7 @@ public class JsInspector {
     public static final Keyword KW_ERRORS = RT.keyword(NS, "js-errors");
     public static final Keyword KW_WARNINGS = RT.keyword(NS, "js-warnings");
     public static final Keyword KW_LANGUAGE = RT.keyword(NS, "js-language");
+    public static final Keyword KW_STR_OFFSETS = RT.keyword(NS, "js-str-offsets");
 
     public static IPersistentMap getFileInfo(Compiler cc, SourceFile srcFile) {
         JsAst ast = new JsAst(srcFile);
@@ -112,7 +123,8 @@ public class JsInspector {
                 KW_REQUIRES, collector.requires.persistent(),
                 KW_IMPORTS, collector.imports.persistent(),
                 KW_INVALID_REQUIRES, collector.invalidRequires.persistent(),
-                KW_LANGUAGE, features.version()
+                KW_LANGUAGE, features.version(),
+                KW_STR_OFFSETS, collector.strOffsets.persistent()
         );
 
         if (result != null) {
