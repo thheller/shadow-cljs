@@ -325,6 +325,23 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+(deftest test-just-core
+  (api/release*
+    '{:build-id :just-core
+      :target :browser
+
+      :output-dir "target/test-just-core/js"
+      :asset-path "/js"
+
+      :compiler-options
+      {:language-in :ecmascript5}
+
+      :modules
+      {:base
+       {:entries [cljs.core]}}
+      }
+    {}))
+
 (deftest test-build-with-foreign
   (try
     (api/compile*

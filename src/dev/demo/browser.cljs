@@ -1,22 +1,23 @@
 (ns demo.browser
   (:require-macros [demo.browser :refer (test-macro)])
-  (:require ["react" :as react :refer (Component createElement)]
-            ["react-dom" :as rdom :refer (render)]
-            ["shortid" :as sid]
-            ["jquery" :as jq]
-            ["material-ui/RaisedButton" :as mui-btn :default btn]
-    ;; ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
-            ["babel-test" :as babel-test :default Shape]
-            ["@material/menu/simple/foundation" :default menu]
-            ["@material/menu/util" :as util]
-            ["d3" :as d3]
-            [clojure.pprint :refer (pprint)]
-            [cljsjs.react]
-            [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as gen]
-            [shadow.api :refer (ns-ready)]
-            ["./es6.js" :as es6]
-            ["circular-test" :as circ]))
+  (:require
+    ["react" :as react :refer (Component createElement)]
+    ["react-dom" :as rdom :refer (render)]
+    ["shortid" :as sid]
+    ["jquery" :as jq]
+    ["babel-test" :as babel-test :default Shape]
+    ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
+    ["@material/menu/simple/foundation" :default menu]
+    ["@material/menu/util" :as util]
+    ["d3" :as d3]
+    [clojure.pprint :refer (pprint)]
+    [cljsjs.react]
+    [clojure.spec.alpha :as s]
+    [clojure.spec.gen.alpha :as gen]
+    [shadow.api :refer (ns-ready)]
+    ["./es6.js" :as es6]
+    ["circular-test" :as circ]
+    ))
 
 (pprint [1 2 3])
 
@@ -45,8 +46,6 @@
 
 (js/console.log "jq" (-> (jq "body")
                          (.append "foo")))
-
-#_(js/console.log "mui-btn" mui-btn btn)
 
 (js/console.log "circular - not yet" (circ/test))
 (js/console.log "circular - actual" (circ/foo))

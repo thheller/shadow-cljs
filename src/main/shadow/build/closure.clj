@@ -7,14 +7,15 @@
             [shadow.cljs.util :as util]
             [shadow.build.output :as output]
             [shadow.build.warnings :as warnings]
-            [shadow.build.log :as log]
+            [shadow.build.log :as build-log]
             [shadow.build.data :as data]
             [shadow.build.npm :as npm]
             [clojure.set :as set]
             [cljs.source-map :as sm]
             [clojure.data.json :as json]
             [shadow.build.cache :as cache]
-            [cljs.compiler :as cljs-comp])
+            [cljs.compiler :as cljs-comp]
+            [clojure.tools.logging :as log])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
@@ -489,7 +490,7 @@
     (write-variable-map state "closure.property.map" (.-propertyMap result)))
   state)
 
-(defmethod log/event->str ::warnings
+(defmethod build-log/event->str ::warnings
   [{:keys [warnings]}]
   (warnings/print-warnings warnings))
 
@@ -812,7 +813,10 @@
   (if extern-properties
     state
     (let [cc (make-closure-compiler)
-          co (make-options)
+          co
+          (doto (make-options)
+            (set-options {:optimizations :simple
+                          :language-in :ecmascript5}))
 
           externs
           (load-externs state false)
@@ -1091,7 +1095,7 @@
 (def polyfill-name
   "SHADOW$POLYFILL.js")
 
-(defmethod log/event->str ::convert
+(defmethod build-log/event->str ::convert
   [{:keys [num-sources] :as event}]
   (format "Converting %d JS sources" num-sources))
 
@@ -1190,7 +1194,7 @@
         (make-closure-compiler)
 
         language-out
-        (get-in state [:compiler-options :language-out] :ecmascript3)
+        (get-in state [:compiler-options :language-out] :ecmascript5)
 
         rewrite-polyfills
         (get-in state [:compiler-options :rewrite-polyfills])
@@ -1480,11 +1484,11 @@
                (.children) ;; the inputs
                )))))
 
-(defmethod log/event->str ::cache-read
+(defmethod build-log/event->str ::cache-read
   [{:keys [num-files]}]
   (format "JS Cache read: %d JS files" num-files))
 
-(defmethod log/event->str ::cache-write
+(defmethod build-log/event->str ::cache-write
   [{:keys [num-files]}]
   (format "JS Cache write: %d JS files" num-files))
 

@@ -217,7 +217,9 @@
 
       (let [{:keys [ns type] :as rc} (data/get-source-by-provide state dep)]
         ;; we never need goog.require, just skip emitting it completely
-        #_(comp/emitln "goog.require('" (comp/munge dep) "');")
+        (when (or (= type :goog)
+                  (= type :cljs))
+          (comp/emitln "goog.require('" (comp/munge dep) "');"))
 
         ;; in dev mode each CLJS files shadow.js.require their own js dependencies
         ;; since they might be loaded by the REPL or code-reloading.
