@@ -199,7 +199,7 @@
 ;; most of it seems self-host related which we do not need
 ;; it also has a hard coded emit for cljs.core which would cause a double emit
 ;; since deps (correctly) contains cljs.core but not in CLJS
-(defmethod shadow-emit :ns [state {:keys [name deps] :as ast}]
+(defmethod shadow-emit :ns [{:keys [mode] :as state} {:keys [name deps] :as ast}]
   ;; FIXME: can't remove goog.require/goog.provide from goog sources easily
   ;; keeping them for CLJS for now although they are not needed in JS mode
   #_(when (= :goog (get-in state [:build-options :module-format])))
@@ -211,24 +211,19 @@
     ;; this saves downloading a bunch of data prematurely
     (comp/emitln "goog.provide(\"cljs.core$macros\");"))
 
-  (let [shadow-js?
-        (and (= :shadow (get-in state [:js-options :js-provider]))
-             (= :dev (:mode state)))]
-
+  (when (= :dev mode)
     (doseq [dep deps
             :when (not= 'goog dep)]
 
       (let [{:keys [ns type] :as rc} (data/get-source-by-provide state dep)]
-        ;; skip emitting a goog.require for non closure sources
-        ;; closure es6 conversion no longer emits goog.provide
-        (when (not= type :npm)
-          (comp/emitln "goog.require('" (comp/munge dep) "');"))
+        ;; we never need goog.require, just skip emitting it completely
+        #_(comp/emitln "goog.require('" (comp/munge dep) "');")
 
         ;; in dev mode each CLJS files shadow.js.require their own js dependencies
         ;; since they might be loaded by the REPL or code-reloading.
         ;; in release mode that will only be done once since the GCC will complain otherwise
         ;; and we don't need to deal with code-reloading or the REPL anyways
-        (when (and shadow-js? (= :npm type))
+        (when (= :shadow-js type)
           (comp/emitln "var " ns "=" (npm/shadow-js-require rc))
           )))))
 
@@ -806,7 +801,7 @@
                          (let [{:keys [ns]} (data/get-source-by-id state src-id)]
                            (contains? dead-js-deps ns))))
                (into [])))]
-    
+
     (-> state
         (update :build-sources remove-fn)
         (update :build-modules (fn [mods]
@@ -828,7 +823,7 @@
          sources
          (into [] (map #(data/get-source-by-id state %)) source-ids)
 
-         {:keys [cljs goog foreign npm] :as sources-by-type}
+         {:keys [cljs goog js shadow-js] :as sources-by-type}
          (group-by :type sources)
 
          ;; par compile needs to know which names are going to be provided
@@ -870,11 +865,11 @@
 
            ;; only convert for :none?
            #_(and (not optimizing?) (seq npm))
-           (and (= :closure js-provider) (seq npm))
-           (maybe-closure-convert npm closure/convert-sources)
+           (seq js)
+           (maybe-closure-convert js closure/convert-sources)
 
-           (and (= :shadow js-provider) (seq npm))
-           (maybe-closure-convert npm closure/convert-sources-simple)
+           (seq shadow-js)
+           (maybe-closure-convert shadow-js closure/convert-sources-simple)
 
            ;; do this last as it uses data from above
            (seq cljs)

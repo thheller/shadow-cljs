@@ -347,7 +347,7 @@
     {:resource-id [::empty "shadow$empty.js"]
      :resource-name "shadow$empty.js"
      :output-name "shadow$empty.js"
-     :type :npm
+     :type :js
      :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
      :last-modified 0
      :ns ns
@@ -478,7 +478,7 @@
            :resource-name resource-name
            :output-name (str ns ".js")
            :json true
-           :type :npm
+           :type :js
            :file file
            :last-modified last-modified
            :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP last-modified]
@@ -527,7 +527,7 @@
                   :resource-name resource-name
                   ;; not using flat-name since resource-name may contain @scoped/alias
                   :output-name (str ns ".js")
-                  :type :npm
+                  :type :js
                   :file file
                   :last-modified last-modified
                   :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP last-modified]
@@ -569,13 +569,13 @@
     {:resource-id [::global require]
      :resource-name (str "global$" ns ".js")
      :output-name (str ns ".js")
-     :type :npm
+     :type :js
      :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
      :last-modified 0
      :ns ns
      :provides #{ns}
-     :requires #{'shadow.js}
-     :deps ['shadow.js]
+     :requires #{}
+     :deps []
      :source (str "module.exports=(" global ");")}))
 
 (defn js-resource-for-file

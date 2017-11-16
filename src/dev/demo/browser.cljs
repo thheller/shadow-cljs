@@ -15,11 +15,14 @@
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen]
             [shadow.api :refer (ns-ready)]
+            ["./es6.js" :as es6]
             ["circular-test" :as circ]))
 
 (pprint [1 2 3])
 
 (assoc nil :foo 1)
+
+(js/console.log "es6" (es6/foo "es6"))
 
 (goog-define FOO "foo")
 

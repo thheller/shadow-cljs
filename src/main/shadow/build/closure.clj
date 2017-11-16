@@ -247,7 +247,7 @@
 (defn extern-props-from-js [state]
   (->> (:build-sources state)
        (map #(get-in state [:sources %]))
-       (filter #(= :npm (:type %)))
+       (filter #(= :shadow-js (:type %)))
        (map (fn [{:keys [file] :as src}]
               (let [{:keys [properties] :as output}
                     (data/get-output! state src)]
@@ -562,7 +562,7 @@
   (doseq [src-id build-sources
           :let [{:keys [resource-name type output-name] :as rc}
                 (data/get-source-by-id state src-id)]
-          :when (not= :npm type)]
+          :when (not= :shadow-js type)]
 
     (let [{:keys [source-map-json] :as output}
           (data/get-output! state rc)
@@ -638,11 +638,10 @@
                              js
                              goog-nodeGlobalRequire-fix)
 
-                        (and (= :npm type) (= :shadow js-provider))
-                        (str ;; "shadow.js.exec(\"" ns "\");"
-                          (when (contains? required-js-names ns)
-                            (str "goog.provide(\"" ns "\");\n"
-                                 ns " = " (npm/shadow-js-require rc))))
+                        (= :shadow-js type)
+                        (str (when (contains? required-js-names ns)
+                               (str "goog.provide(\"" ns "\");\n"
+                                    ns " = " (npm/shadow-js-require rc))))
 
                         :else
                         js)]
@@ -1137,7 +1136,7 @@
       (reverse js-str-offsets))))
 
 (defn convert-sources
-  "takes a list of :npm sources and rewrites them to closure JS"
+  "takes a list of :js sources and rewrites them to closure JS"
   [{:keys [project-dir npm] :as state} sources]
 
   (let [source-files
@@ -1148,6 +1147,19 @@
                 (replace-file-references state src source)]
             (closure-source-file resource-name source)))
 
+        required-shadow-js
+        (->> sources
+             (mapcat #(data/deps->syms state %))
+             (into #{}))
+
+        shadow-js-files
+        (->> required-shadow-js
+             (map #(data/get-source-by-provide state %))
+             (filter #(= :shadow-js (:type %)))
+             (map (fn [{:keys [resource-name ns] :as rc}]
+                    (closure-source-file resource-name (npm/shadow-js-require rc))))
+             (into []))
+
         source-file-names
         (into #{} (map #(.getName %)) source-files)
 
@@ -1156,6 +1168,7 @@
         ;; adding an empty placeholder ensures we can take them out easily
         (-> [(closure-source-file polyfill-name "")]
             ;; then add all resources
+            (into shadow-js-files)
             (into source-files))
 
         ;; this includes all files (sources + package.json files)
@@ -1256,13 +1269,8 @@
                   ;; these are for development only
                   (assoc state :polyfill-js js))
 
-                ;; if package.json is not referenced in code we don't want to include the output
-                (and (nil? rc)
-                     (str/ends-with? name "package.json"))
-                state
-
                 (nil? rc)
-                (throw (ex-info (format "closure input %s without resource?" name) {}))
+                state
 
                 :else
                 (let [js

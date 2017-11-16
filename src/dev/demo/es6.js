@@ -12,3 +12,5 @@ var foo = (x = "any old string") => {
 };
 
 export { foo };
+
+export default "defaultExport";

@@ -16,7 +16,7 @@
 (s/def ::resource-name string?)
 (s/def ::output-name string?)
 
-(s/def ::type #{:cljs :goog :npm :foreign})
+(s/def ::type #{:cljs :goog :js :shadow-js})
 
 (s/def ::file util/is-absolute-file?)
 (s/def ::url #(instance? URL %))

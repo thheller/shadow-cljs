@@ -249,7 +249,7 @@
          (->> (for [src-id build-sources
                     :let [{:keys [resource-id type] :as src}
                           (get-source-by-id state src-id)]
-                    :when (not= :npm type)
+                    :when (not= :shadow-js type)
                     :let [syms (deps->syms state src)]
                     sym syms]
                 sym)
@@ -258,7 +258,7 @@
      ;; filter out the names provided by npm deps
      (->> build-sources
           (map #(get-source-by-id state %))
-          (filter #(= :npm (:type %)))
+          (filter #(= :shadow-js (:type %)))
           (filter #(set/superset? all-names (:provides %)))
           (map :ns)
           (into js-entries)))))

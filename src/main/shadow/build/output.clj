@@ -247,7 +247,7 @@
                   (let [provides
                         (->> sources
                              (map #(data/get-source-by-id state %))
-                             (filter #(= :npm (:type %)))
+                             (filter #(= :shadow-js (:type %)))
                              (map #(data/get-output! state %))
                              (map :js)
                              (str/join ";\n"))]
@@ -291,27 +291,25 @@
                          :file output-name
                          :offset prepend-offset
                          :sections []}
-                        (cond->
-                          (= :shadow js-provider)
-                          (util/reduce->
-                            (fn [{:keys [offset] :as sm-index}
-                                 {:keys [js source-map-json] :as src}]
+                        (util/reduce->
+                          (fn [{:keys [offset] :as sm-index}
+                               {:keys [js source-map-json] :as src}]
 
-                              (let [sm
-                                    (json/read-str (or source-map-json "{}"))
+                            (let [sm
+                                  (json/read-str (or source-map-json "{}"))
 
-                                    lines
-                                    (line-count js)]
-                                (-> sm-index
-                                    (update :offset + lines)
-                                    (update :sections conj {:offset {:line offset :column 0}
-                                                            :map sm}))))
+                                  lines
+                                  (line-count js)]
+                              (-> sm-index
+                                  (update :offset + lines)
+                                  (update :sections conj {:offset {:line offset :column 0}
+                                                          :map sm}))))
 
-                            (->> sources
-                                 (map #(data/get-source-by-id state %))
-                                 (filter #(= :npm (:type %)))
-                                 (map #(data/get-output! state %)))
-                            )))
+                          (->> sources
+                               (map #(data/get-source-by-id state %))
+                               (filter #(= :shadow-js (:type %)))
+                               (map #(data/get-output! state %)))
+                          ))
 
                     sm
                     (json/read-str source-map-json)

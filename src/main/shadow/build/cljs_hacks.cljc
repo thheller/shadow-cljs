@@ -403,6 +403,51 @@
 
 (in-ns 'cljs.compiler)
 
+(defmethod emit* :var
+  [{:keys [info env form] :as ast}]
+  (if-let [const-expr (:const-expr ast)]
+    (emit (assoc const-expr :env env))
+    (let [{:keys [options] :as cenv} @env/*compiler*
+          var-name (:name info)]
+
+      ;; We need a way to write bindings out to source maps and javascript
+      ;; without getting wrapped in an emit-wrap calls, otherwise we get
+      ;; e.g. (function greet(return x, return y) {}).
+      (cond
+        ;; Emit the arg map so shadowing is properly handled when munging
+        ;; (prevents duplicate fn-param-names)
+        (:binding-form? ast)
+        (emits (munge ast))
+
+        ;; insufficient fix still rewriting unless es5+
+        ;; https://dev.clojure.org/jira/browse/CLJS-1620
+        ;; instead of munging it should just emit ["default"] instead of .default
+        ;; FIXME: this only covers .default when used with js/
+        ;; which _should_ be ok since all generated code should be munged properly
+        ;; just shadow-js and js compiled by goog is not munged but instead uses [] access
+        (and var-name (= (namespace var-name) "js"))
+        (let [[head & tail] (clojure.string/split (name var-name) #"\.")]
+          (emits (munge head))
+          (doseq [part tail]
+            (cond
+              (and (= "default" part)
+                   (es5>= (:language-out options)))
+              (emits ".default")
+
+              (contains? js-reserved part)
+              (emits "[\"" part "\"]")
+
+              :else
+              (emits "." (munge part)))))
+
+        :else
+        (when-not (= :statement (:context env))
+          (emit-wrap env
+            (emits
+              (cond-> info
+                (not= form 'js/-Infinity)
+                (munge)))))))))
+
 ;; no perf impact, just easier to read
 (defn source-map-inc-col [{:keys [gen-col] :as m} n]
   (assoc m :gen-col (+ gen-col n)))

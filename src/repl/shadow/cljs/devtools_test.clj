@@ -352,6 +352,43 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+(defn print-js [state provides]
+  (doseq [provide provides]
+    (let [rc
+          (data/get-source-by-provide state provide)
+
+          {:keys [js] :as output}
+          (data/get-output! state rc)]
+
+      (println js)
+      )))
+
+(deftest test-js-reserved-property-access
+  (let [state
+        (api/compile*
+          '{:build-id :dot-default
+            :target :browser
+
+            :output-dir "target/test-dot-default/js"
+            :asset-path "/js"
+
+            :build-options
+            {:cache-level :jars}
+
+            :modules
+            {:base {:entries [demo.closure]}}
+
+            :devtools
+            {:console-support false
+             :enabled false}}
+          {})]
+
+
+    (print-js state '[demo.closure
+                      module$src$dev$demo$es6])
+
+    ))
+
 (def polyfill-config
   '{:build-id :browser
     :target :browser

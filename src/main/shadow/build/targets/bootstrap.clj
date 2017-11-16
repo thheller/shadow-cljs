@@ -134,10 +134,11 @@
                       source-file
                       (data/output-file state "src" flat-name)
 
+                      ;; FIXME: I don't think this is required anymore, need to verify
                       js
                       (str js
                            ;; always expose all JS names, we don't know which the user is going to use
-                           (when (= :npm type)
+                           (when (= :shadow-js type)
                              (str "\ngoog.provide(\"" ns "\");"
                                   ;; FIXME: not safe to always require everything due to cyclic dependencies in JS
                                   "\ngoog.global. " ns "=" (npm/shadow-js-require src) "\n")))

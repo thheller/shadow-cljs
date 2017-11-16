@@ -86,25 +86,29 @@
                  :mode (:mode state)
                  :target :browser))]
 
-    (let [babel-rewrite?
-          (not (contains? #{"es3" "es5"} js-language))
+    ;; FIXME: only use shadow-js for node_modules?
+    (if-not (str/includes? resource-name "node_modules")
+      rc
+      (let [babel-rewrite?
+            (not (contains? #{"es3" "es5"} js-language))
 
-          deps
-          (-> '[shadow.js]
-              (cond->
-                babel-rewrite?
-                (conj 'shadow.js.babel))
-              (into deps))]
+            deps
+            (-> '[shadow.js]
+                (cond->
+                  babel-rewrite?
+                  (conj 'shadow.js.babel))
+                (into deps))]
 
-      (-> rc
-          (assoc :deps deps)
-          (cond->
-            babel-rewrite?
-            (-> (dissoc :source)
-                (assoc :source-fn
-                  (fn [state]
-                    (babel/convert-source babel state source resource-name)))
-                ))))))
+        (-> rc
+            (assoc :deps deps)
+            (assoc :type :shadow-js)
+            (cond->
+              babel-rewrite?
+              (-> (dissoc :source)
+                  (assoc :source-fn
+                    (fn [state]
+                      (babel/convert-source babel state source resource-name)))
+                  )))))))
 
 (def native-node-modules
   #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
