@@ -217,19 +217,20 @@
 
     (doseq [dep deps
             :when (not= 'goog dep)]
-      (comp/emitln "goog.require('" (comp/munge dep) "');")
 
-      ;; the goog.require for these deps only ensured that the shadow$provide is available
-      ;; the shadow$provide can't be called eagerly because of cyclic (and conditional) requires
-      ;; so we properly require them in the CLJS file.
-      ;; this is not done in release mode since optimized code will treat this differently
-      ;; as shadow.js.require should only be called once (since it exposes a global var)
-      ;; this is fine in :none but :advanced complains (when using :modules)
-      (when shadow-js?
-        (let [{:keys [ns type] :as rc} (data/get-source-by-provide state dep)]
-          (when (= :npm type)
-            (comp/emitln "var " ns "=" (npm/shadow-js-require rc))
-            ))))))
+      (let [{:keys [ns type] :as rc} (data/get-source-by-provide state dep)]
+        ;; skip emitting a goog.require for non closure sources
+        ;; closure es6 conversion no longer emits goog.provide
+        (when (not= type :npm)
+          (comp/emitln "goog.require('" (comp/munge dep) "');"))
+
+        ;; in dev mode each CLJS files shadow.js.require their own js dependencies
+        ;; since they might be loaded by the REPL or code-reloading.
+        ;; in release mode that will only be done once since the GCC will complain otherwise
+        ;; and we don't need to deal with code-reloading or the REPL anyways
+        (when (and shadow-js? (= :npm type))
+          (comp/emitln "var " ns "=" (npm/shadow-js-require rc))
+          )))))
 
 (defn default-compile-cljs
   [state compile-state form]

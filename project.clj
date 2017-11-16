@@ -70,18 +70,16 @@
    :cljs
    {:java-opts ^:replace []
     :dependencies
-    [[reagent "0.8.0-alpha1"
-      :exclusions
-      [cljsjs/create-react-class]]
+    [[reagent "0.8.0-alpha2"]
 
-     [cider/cider-nrepl "0.16.0-SNAPSHOT"]
+     #_ [cider/cider-nrepl "0.16.0-SNAPSHOT"]
 
      [thi.ng/geom "0.0.908"]
      [re-view "0.4.6"]
      [com.rpl/specter "1.0.4"]
      #_[com.cemerick/pomegranate "1.0.0"
         :exclusions [org.slf4j/jcl-over-slf4j]]
-     [org.clojure/tools.deps.alpha "0.2.173"
+     [org.clojure/tools.deps.alpha "0.2.183"
       :exclusions
       [org.slf4j/jcl-over-slf4j
        org.slf4j/slf4j-nop
