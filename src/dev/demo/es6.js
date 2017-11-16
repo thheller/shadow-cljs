@@ -1,8 +1,8 @@
-goog.require('cljs.core');
+import core from "goog:cljs.core";
 
 var foo = (x = "any old string") => {
   console.log(`Printing ${x} from cljs!`);
-  return cljs.core.assoc(nil, 1, 2);
+  return core.assoc(null, 1, 2);
 };
 
 export { foo };
