@@ -1,7 +1,5 @@
 (ns shadow.cljs.devtools.client.browser
-  (:require-macros [cljs.core.async.macros :refer (go alt!)])
   (:require [cljs.reader :as reader]
-            [cljs.core.async :as async]
             [clojure.string :as str]
             [goog.dom :as gdom]
             [goog.object :as gobj]

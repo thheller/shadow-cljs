@@ -20,7 +20,7 @@
    [com.cognitect/transit-clj "0.8.300"]
    [com.cognitect/transit-cljs "0.8.243"]
 
-   [org.clojure/core.async "0.3.443"]
+   [org.clojure/core.async "0.3.465"]
 
    #_[org.clojure/clojurescript "1.9.854"]
 

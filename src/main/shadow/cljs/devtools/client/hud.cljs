@@ -1,10 +1,10 @@
 (ns shadow.cljs.devtools.client.hud
-  (:require-macros [cljs.core.async.macros :refer (go)])
   (:require [shadow.dom :as dom]
             [shadow.xhr :as xhr]
             [shadow.cljs.devtools.client.env :as env]
             [shadow.cljs.devtools.client.browser :as browser]
             [cljs.tools.reader :as reader]
+            [cljs.core.async :refer (go)]
             [goog.string.format]
             [goog.string :refer (format)]
             [clojure.string :as str]))

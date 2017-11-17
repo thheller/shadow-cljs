@@ -15,18 +15,15 @@
     [clojure.spec.alpha :as s]
     [clojure.spec.gen.alpha :as gen]
     [shadow.api :refer (ns-ready)]
+    [cljs.core.async :as async :refer (go)]
     ["react-bootstrap-typeahead" :as rbt]
     ["./es6.js" :as es6]
     ["./foo" :as foo]
     ["circular-test" :as circ]
-    [promesa.core :as p]
     ))
 
-
-(-> (p/promise (fn [resolve reject]
-                 (resolve 1)))
-    (p/then (fn [x]
-              (js/console.log "promesa" x))))
+(go (<! (async/timeout 500))
+    (js/console.log "go!"))
 
 (pprint [1 2 3])
 

@@ -1,21 +1,21 @@
 (ns shadow.cljs.npm.cli
-  (:require-macros [cljs.core.async.macros :refer (go go-loop alt!)])
-  (:require ["path" :as path]
-            ["fs" :as fs]
-            ["child_process" :as cp]
-            ["readline-sync" :as rl-sync] ;; FIXME: drop this?
-            ["mkdirp" :as mkdirp]
-            [cljs.core.async :as async]
+  (:require
+    ["path" :as path]
+    ["fs" :as fs]
+    ["child_process" :as cp]
+    ["readline-sync" :as rl-sync] ;; FIXME: drop this?
+    ["mkdirp" :as mkdirp]
+    [cljs.core.async :as async :refer (go go-loop alt!)]
     #_[cljs.tools.reader :as reader]
-            [cljs.reader :as reader]
-            [clojure.string :as str]
-            [goog.object :as gobj]
-            [goog.string.format]
-            [goog.string :refer (format)]
-            [shadow.cljs.npm.util :as util]
-            [shadow.cljs.npm.client :as client]
-            [shadow.cljs.devtools.cli-opts :as opts]
-            ))
+    [cljs.reader :as reader]
+    [clojure.string :as str]
+    [goog.object :as gobj]
+    [goog.string.format]
+    [goog.string :refer (format)]
+    [shadow.cljs.npm.util :as util]
+    [shadow.cljs.npm.client :as client]
+    [shadow.cljs.devtools.cli-opts :as opts]
+    ))
 
 (def jar-version
   (-> (js/require "../../package.json")

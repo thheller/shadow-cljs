@@ -1,10 +1,11 @@
 (ns shadow.cljs.npm.transform
-  (:require-macros [cljs.core.async.macros :refer (go)])
-  (:require [cljs.core.async :as async]
-            ["babel-core" :as babel]
-            ["babel-preset-env" :as babel-preset-env]
-            [clojure.string :as str]
-            [cljs.reader :refer (read-string)]))
+  (:require
+    [clojure.string :as str]
+    [cljs.core.async :as async :refer (go)]
+    [cljs.reader :refer (read-string)]
+    ["babel-core" :as babel]
+    ["babel-preset-env" :as babel-preset-env]
+    ))
 
 ;; why is this a plugin and not a config option?
 (defn external-helpers-plugin [ref]
