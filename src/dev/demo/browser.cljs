@@ -16,6 +16,7 @@
     [clojure.spec.gen.alpha :as gen]
     [shadow.api :refer (ns-ready)]
     ["./es6.js" :as es6]
+    ["./foo" :as foo]
     ["circular-test" :as circ]
     ))
 
@@ -42,7 +43,7 @@
 
 (js/console.log "demo.browser" react rdom Component)
 
-(js/console.log "foo" FOO)
+(js/console.log "foo" FOO foo)
 
 (js/console.log "jq" (-> (jq "body")
                          (.append "foo")))

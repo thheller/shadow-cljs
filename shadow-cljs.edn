@@ -69,9 +69,6 @@
 
    :compiler-options
    {:infer-externs :auto
-    :closure-warnings
-    {:global-this :off}
-
     :closure-defines
     {demo.browser/FOO "bar"}}
 

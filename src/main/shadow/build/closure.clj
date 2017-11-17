@@ -1193,9 +1193,6 @@
         cc
         (make-closure-compiler)
 
-        language-out
-        (get-in state [:compiler-options :language-out] :ecmascript5)
-
         rewrite-polyfills
         (get-in state [:compiler-options :rewrite-polyfills])
 
@@ -1204,7 +1201,7 @@
         {:pretty-print true
          :source-map true
          :language-in :ecmascript-next
-         :language-out language-out}
+         :language-out :ecmascript5}
 
         co
         (doto (make-options)
@@ -1348,9 +1345,6 @@
         cc
         (make-closure-compiler)
 
-        language-out
-        (get-in state [:compiler-options :language-out] :ecmascript3)
-
         ;; FIXME: are there more options we should take from the user?
         co-opts
         {:source-map (:source-maps js-options true)
@@ -1362,7 +1356,7 @@
          :optimizations (:optimizations js-options :simple) ;; FIXME: validate whitespace or simple
          :pretty-print (:pretty-print js-options false)
          :language-in :ecmascript5 ;; es6+ is transformed by babel first
-         :language-out language-out}
+         :language-out :ecmascript5}
 
         property-collector
         (PropertyCollector. cc)
