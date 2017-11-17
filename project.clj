@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.86"
+(defproject thheller/shadow-cljs "2.0.87"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -45,7 +45,7 @@
 
    ;; experimental
    [hawk "0.2.11"]
-   [thheller/shadow-cljsjs "0.0.3"]]
+   [thheller/shadow-cljsjs "0.0.5"]]
 
   :source-paths
   ["src/main"]
@@ -71,6 +71,7 @@
    {:java-opts ^:replace []
     :dependencies
     [[reagent "0.8.0-alpha2"]
+     [funcool/promesa "1.9.0"]
 
      #_ [cider/cider-nrepl "0.16.0-SNAPSHOT"]
 
