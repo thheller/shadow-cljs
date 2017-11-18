@@ -26,15 +26,15 @@
   result)
 
 (defn node-eval [{:keys [js source-map-json] :as msg}]
-  (let [result (js/SHADOW_ENV.NODE_EVAL js source-map-json)]
+  (let [result (js/SHADOW_NODE_EVAL js source-map-json)]
     result))
 
 (defn is-loaded? [src]
-  (true? (gobj/get js/SHADOW_ENV.SHADOW_IMPORTED src)))
+  (true? (gobj/get js/SHADOW_IMPORTED src)))
 
 (defn closure-import [src]
   {:pre [(string? src)]}
-  (js/SHADOW_ENV.SHADOW_IMPORT src))
+  (js/SHADOW_IMPORT src))
 
 (defn repl-init
   [{:keys [id repl-state] :as msg}]

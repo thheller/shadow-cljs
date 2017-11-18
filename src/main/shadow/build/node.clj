@@ -45,10 +45,10 @@
 
         node-config
         (assoc opts
-               :main-ns (symbol main-ns)
-               :main-fn (symbol main-fn)
-               :main main
-               :output-to output-to)
+          :main-ns (symbol main-ns)
+          :main-fn (symbol main-fn)
+          :main main
+          :output-to output-to)
 
         main-call
         (-> node-config :main (make-main-call-js))
@@ -68,8 +68,8 @@
         (build-api/configure-modules
           {:main
            (assoc module-opts
-                  :entries [(symbol main-ns)]
-                  :depends-on #{})})
+             :entries [(symbol main-ns)]
+             :depends-on #{})})
         )))
 
 (defn compile [state]
@@ -82,8 +82,8 @@
 
 (defn closure-defines
   [state]
-  (str "\nSHADOW_ENV.CLOSURE_NO_DEPS = true;\n"
-       "\nSHADOW_ENV.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"))
+  (str "\nglobal.CLOSURE_NO_DEPS = true;\n"
+       "\nglobal.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"))
 
 (defn flush-unoptimized
   [{:keys [build-modules build-sources build-options compiler-options node-config] :as state}]
@@ -117,7 +117,6 @@
                     (-> (data/output-file state cljs-runtime-path)
                         (.getAbsolutePath))
                     "\";")
-               (str "var SHADOW_ENV = {};")
 
                (when source-map
                  (str "try {"
@@ -126,7 +125,6 @@
                       "console.warn('no \"source-map-support\" (run \"npm install source-map-support --save-dev\" to get it)');"
                       "}"))
 
-               ;; FIXME: these operate on SHADOW_ENV
                ;; this means they rely on goog.global = this AND fn.call(SHADOW_ENV, ...)
                ;; I eventually want to turn the "this" of shadow imports into the module
                ;; to match what node does.
@@ -135,30 +133,26 @@
                ;; provides SHADOW_IMPORT and other things
                (slurp (io/resource "shadow/cljs/node_bootstrap.txt"))
 
-
                ;; import all other sources
                (->> sources
                     (map #(get-in state [:sources %]))
                     (map (fn [{:keys [provides output-name] :as src}]
-                           (str "SHADOW_IMPORT(" (pr-str output-name) ");"
-                                (when (contains? provides 'goog)
-                                  (str "\ngoog.provide = SHADOW_PROVIDE;"
-                                       "\ngoog.require = SHADOW_REQUIRE;")))
-                           ))
+                           (if (contains? provides 'goog)
+                             (let [{:keys [js] :as out}
+                                   (data/get-output! state src)]
+                               (str (str/replace js #"goog.global = this;" "goog.global = global;")
+                                    "\ngoog.provide = SHADOW_PROVIDE;"
+                                    "\ngoog.require = SHADOW_REQUIRE;"))
+                             (str "SHADOW_IMPORT(" (pr-str output-name) ");"))))
                     (str/join "\n"))
 
-               ;; make these local always
-               ;; these are needed by node/configure :main and the umd exports
-               "var shadow = SHADOW_ENV.shadow || {};"
-               "var cljs = SHADOW_ENV.cljs || {};"
-
-               (when-some [main (:main node-config)]
-                 (let [root
-                       (-> (str main)
-                           (comp/munge))
-                       root
-                       (subs root 0 (str/index-of root "."))]
-                   (str "var " root " = SHADOW_ENV." root ";")))
+               #_(when-some [main (:main node-config)]
+                   (let [root
+                         (-> (str main)
+                             (comp/munge))
+                         root
+                         (subs root 0 (str/index-of root "."))]
+                     (str "var " root " = SHADOW_ENV." root ";")))
 
                append])]
 

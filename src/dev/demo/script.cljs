@@ -33,4 +33,4 @@
         (js/console.log "stop completed" err)
         (done)))))
 
-(js/goog.global.setTimeout (fn [] (js/console.log "foo")) 50)
+(js/console.log "__filename" js/__filename)

@@ -1,17 +1,7 @@
+var goog = global.goog = {};
+
 var SHADOW_ROOTS = ["goog"];
-
-var goog = SHADOW_ENV.goog = {};
-
-// SHADOW_ENV becomes goog.global which may access some of these
-SHADOW_ENV.setTimeout = global.setTimeout;
-SHADOW_ENV.clearTimeout = global.clearTimeout;
-SHADOW_ENV.setInterval = global.setInterval;
-SHADOW_ENV.clearInterval = global.clearInterval;
-SHADOW_ENV.setImmediate = global.setImmediate;
-SHADOW_ENV.clearImmediate = global.clearImmediate;
-
-SHADOW_ENV.SHADOW_IMPORTED = {};
-
+var SHADOW_IMPORTED = global.SHADOW_IMPORTED = {};
 var PATH = require("path");
 var VM = require("vm");
 var FS = require("fs");
@@ -33,14 +23,14 @@ var SHADOW_EXTRACT_ROOTS = function(js) {
     var root = provide.substring(1, end);
 
     if (!SHADOW_ROOTS.includes(root)) {
-      SHADOW_ENV[root] = {};
+      global[root] = {};
       SHADOW_ROOTS.push(root);
     }
   }
 };
 
 var SHADOW_PROVIDE = function(name) {
-  return goog.exportPath_(name, undefined, SHADOW_ENV);
+  return goog.exportPath_(name, undefined);
 };
 
 var SHADOW_REQUIRE = function(name) {
@@ -48,16 +38,10 @@ var SHADOW_REQUIRE = function(name) {
 };
 
 var SHADOW_WRAP = function(js) {
-  var code = "(function (require, module, __filename, __dirname, SHADOW_ENV) {\n";
+  var code = "(function (require, module, __filename, __dirname) {\n";
   // this is part of goog/base.js and for some reason the only global var not on goog or goog.global
   code += "var COMPILED = false;\n"
-
-  SHADOW_ROOTS.forEach(function(root) {
-    code += "var " + root + "=SHADOW_ENV." + root + ";\n";
-  });
-
   code += js;
-
   code += "\n});";
   return code;
 };
@@ -67,12 +51,12 @@ var SHADOW_WRAP_OFFSET = function() {
   return (2 + SHADOW_ROOTS.length) * -1;
 };
 
-var SHADOW_IMPORT = SHADOW_ENV.SHADOW_IMPORT = function(src) {
-  if (SHADOW_ENV.CLOSURE_DEFINES["shadow.debug"]) {
+var SHADOW_IMPORT = global.SHADOW_IMPORT = function(src) {
+  if (CLOSURE_DEFINES["shadow.debug"]) {
     console.info("SHADOW load:", src);
   }
 
-  SHADOW_ENV.SHADOW_IMPORTED[src] = true;
+  SHADOW_IMPORTED[src] = true;
 
   // NODE_INCLUDE_PATH points to an absolute path, injected by shadow/cljs/node.clj
   var filePath = SHADOW_IMPORT_PATH + '/' + src;
@@ -90,7 +74,7 @@ var SHADOW_IMPORT = SHADOW_ENV.SHADOW_IMPORT = function(src) {
 
   // the comment is for source-map-support which unfortunately shows the wrong piece of code but the stack is correct
   try {
-  /* ignore this, look at stacktrace */ fn.call(SHADOW_ENV, require, module, __filename, __dirname, SHADOW_ENV);
+  /* ignore this, look at stacktrace */ fn.call(global, require, module, __filename, __dirname);
   } catch (e) {
     console.error("SHADOW import error", filePath);
     throw e;
@@ -99,21 +83,18 @@ var SHADOW_IMPORT = SHADOW_ENV.SHADOW_IMPORT = function(src) {
   return true;
 };
 
-SHADOW_ENV.NODE_EVAL = function(js, smJson) {
-  var prefix = "return (";
-  var code = SHADOW_WRAP(prefix + js + ");");
+global.SHADOW_NODE_EVAL = function(js, smJson) {
+  SHADOW_EXTRACT_ROOTS(js);
+
   if (smJson) {
-    code += "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,";
-    code += new Buffer(smJson).toString('base64');
+    js += "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,";
+    js += new Buffer(smJson).toString('base64');
   }
 
-  // console.log(code);
+  // console.log(js);
 
-  var fn = VM.runInThisContext(code,
+  return VM.runInThisContext.call(global, js,
     {filename: "<eval>",
      lineOffset: SHADOW_WRAP_OFFSET(),
-     columnOffset: prefix.length,
-     displayErrors: true
-     });
-  return fn.call(SHADOW_ENV, require, module, __filename, __dirname, SHADOW_ENV);
+     displayErrors: true});
 };
