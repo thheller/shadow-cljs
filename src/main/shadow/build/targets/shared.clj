@@ -29,7 +29,7 @@
         {:keys [build-id]}
         build-config
 
-        {:keys [reload-with-state before-load before-load-async after-load autoload]}
+        {:keys [reload-with-state before-load before-load-async after-load autoload use-document-host]}
         (:devtools build-config)]
 
     {"shadow.cljs.devtools.client.env.enabled"
@@ -40,6 +40,9 @@
 
      "shadow.cljs.devtools.client.env.module_format"
      (name (get-in state [:build-options :module-format]))
+
+     "shadow.cljs.devtools.client.env.use_document_host"
+     (not (false? use-document-host))
 
      "shadow.cljs.devtools.client.env.repl_host"
      host

@@ -121,6 +121,7 @@
    :devtools
    {:http-root "out/demo-browser/public"
     :http-port 8600
+    :use-document-host false
     :async-require true
     :before-load-async demo.browser/stop
     :after-load demo.browser/start

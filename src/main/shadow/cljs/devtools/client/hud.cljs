@@ -142,7 +142,7 @@
 
 (defn ws-connect []
   (let [socket
-        (-> (env/ws-listener-url)
+        (-> (env/ws-listener-url :browser)
             (js/WebSocket.))]
 
     (vreset! socket-ref socket)

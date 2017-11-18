@@ -26,17 +26,24 @@
 
 (goog-define repl-port 8200)
 
+(goog-define use-document-host true)
+
 (goog-define ssl false)
 
-(defn ws-url
-  ([client-type]
-    (ws-url repl-host client-type))
-  ([host client-type]
-   {:pre [(keyword? client-type)]}
-   (str "ws" (when ssl "s") "://" host ":" repl-port "/worker/ws/" build-id "/" proc-id "/" client-id "/" (name client-type))))
+(defn ws-url [client-type]
+  {:pre [(keyword? client-type)]}
+  (let [host
+        (if (and (= :browser client-type) use-document-host)
+          js/document.location.hostname
+          repl-host)]
+    (str "ws" (when ssl "s") "://" host ":" repl-port "/worker/ws/" build-id "/" proc-id "/" client-id "/" (name client-type))))
 
-(defn ws-listener-url []
-  (str "ws" (when ssl "s") "://" repl-host ":" repl-port "/worker/listener-ws/" build-id "/" proc-id "/" client-id))
+(defn ws-listener-url [client-type]
+  (let [host
+        (if (and (= :browser client-type) use-document-host)
+          js/document.location.hostname
+          repl-host)]
+    (str "ws" (when ssl "s") "://" host ":" repl-port "/worker/listener-ws/" build-id "/" proc-id "/" client-id)))
 
 (defn files-url []
   (str "http" (when ssl "s") "://" repl-host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id))

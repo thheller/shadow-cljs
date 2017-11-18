@@ -273,7 +273,7 @@
         cljs.core/*print-fn*
 
         ws-url
-        (env/ws-url js/document.location.hostname :browser)
+        (env/ws-url :browser)
 
         socket
         (js/WebSocket. ws-url)]
