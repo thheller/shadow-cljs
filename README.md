@@ -106,6 +106,9 @@ shadow-cljs watch app
 
 # connect to REPL for the build (available while watch is running)
 shadow-cljs cljs-repl app
+
+# (if you are targeting node) connect to node-repl
+shadow-cljs node-repl
 ```
 
 ### Production/Release
