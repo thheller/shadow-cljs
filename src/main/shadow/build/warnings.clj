@@ -17,7 +17,7 @@
                      (line-seq)))
 
         excerpt-offset
-        5 ;; +/- lines to show
+        4 ;; +/- lines to show
 
         max-lines
         (count source-lines)
@@ -141,19 +141,22 @@
                 (str ":" column))))))
 
 (defn print-warning
-  [{:keys [resource-name file line column source-excerpt msg] :as warning}]
-  (println (coded-str [:bold] (sep-line (str " WARNING #" (::idx warning) " ") 6)))
+  [{::keys [idx] :keys [resource-name file line column source-excerpt msg] :as warning}]
+  (println (coded-str [:bold] (sep-line (str " WARNING #" idx " ") 6)))
   (println " File:" (name-with-loc (or file resource-name) line column))
 
-  (if-not source-excerpt
-    (do (println)
-        (println (str " " (coded-str [:yellow :bold] msg)))
+  (if (> idx 3)
+    (do (println (str " " (coded-str [:yellow :bold] msg)))
         (println (sep-line)))
+    (if-not source-excerpt
+      (do (println)
+          (println (str " " (coded-str [:yellow :bold] msg)))
+          (println (sep-line)))
 
-    (do (print-source-excerpt-header warning)
-        (println (str " " (coded-str [:yellow :bold] msg)))
-        (println (sep-line))
-        (print-source-excerpt-footer warning)))
+      (do (print-source-excerpt-header warning)
+          (println (str " " (coded-str [:yellow :bold] msg)))
+          (println (sep-line))
+          (print-source-excerpt-footer warning))))
   (println))
 
 (defn print-warnings
