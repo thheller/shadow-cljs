@@ -72,10 +72,14 @@
   [{:keys [js-options] :as state} {:keys [file] :as require-from} require]
   ;; FIXME: hard-coded browser target
   ;; since :closure mode should only be used in :browser that is fine for now
-  (npm/find-resource (:npm state) file require
-    (assoc js-options
-      :mode (:mode state)
-      :target :browser)))
+  (when-let [rc
+             (npm/find-resource (:npm state) file require
+               (assoc js-options
+                 :mode (:mode state)
+                 :target :browser))]
+
+    (update rc :deps #(into ['shadow.process] %))
+    ))
 
 (defmethod find-resource-for-string :shadow
   [{:keys [js-options babel] :as state} {:keys [file] :as require-from} require]
@@ -118,7 +122,7 @@
     "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
 
 (defmethod find-resource-for-string :require
-  [{:keys [project-dir] :as state} {:keys [file] :as require-from} require]
+  [{:keys [project-dir npm js-options] :as state} {:keys [file] :as require-from} require]
   (cond
     (util/is-absolute? require)
     (throw (ex-info "tbd, absolute require" {:require require}))
@@ -130,33 +134,11 @@
     (do (when-not file
           (throw (ex-info "rel require in CLJS only supported when file is present, ie. not in .jars" {:require require
                                                                                                        :required-from (:url require-from)})))
-        (let [output-dir
-              (-> (get-in state [:build-options :output-dir])
-                  (.getCanonicalFile)
-                  (.toPath))
-
-              src-file
-              (-> file
-                  (.getParentFile))
-
-              rel-file
-              (-> (io/file src-file require)
-                  (.getCanonicalFile))
-
-              rel-name
-              (-> (.relativize (.toPath project-dir) (.toPath rel-file))
-                  (str))
-
-              rel-require
-              (-> (.relativize output-dir (.toPath rel-file))
-                  (.toString)
-                  ;; FIXME: need to keep it relative
-                  ;; should come up with a better representation, maybe a protocol?
-                  ;; {:type :module :package "react-dom" :suffix "server"}
-                  ;; {:type :relative :path "src/main/foo"}
-                  (->> (str "./")))]
-
-          (js-support/shim-require-resource rel-name require)))
+        (when-let [{:keys [resource-name] :as rc}
+                   (npm/find-resource npm file require js-options)]
+          (assert (not (str/includes? resource-name "node_modules")))
+          rc
+          ))
 
     :else
     (let [js-packages

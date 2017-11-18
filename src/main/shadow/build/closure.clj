@@ -1124,14 +1124,19 @@
         (let [alias (get aliases string)]
           (if-not alias ;; goog:cljs.core is not aliased
             source
-            (let [other-rc
+            (let [{:keys [resource-name ns type] :as other-rc}
                   (data/get-source-by-provide state alias)
 
-                  abs-path
-                  (str "/" (:resource-name other-rc))]
+                  replacement
+                  (case type
+                    (:shadow-js :js)
+                    (str "/" resource-name)
+                    :goog
+                    (str "goog:" (cljs-comp/munge ns))
+                    (throw (ex-info (format "can't map require \"%s\" to resource %s of type %s" string resource-name type) {})))]
 
               (str (subs source 0 (inc offset))
-                   abs-path
+                   replacement
                    (subs source (+ 1 offset (count string))))
               ))))
       source
@@ -1140,7 +1145,7 @@
 
 (defn convert-sources
   "takes a list of :js sources and rewrites them to closure JS"
-  [{:keys [project-dir npm] :as state} sources]
+  [{:keys [project-dir npm mode] :as state} sources]
 
   (let [source-files
         (for [{:keys [resource-name file] :as src} sources]
@@ -1158,9 +1163,15 @@
         shadow-js-files
         (->> required-shadow-js
              (map #(data/get-source-by-provide state %))
-             (filter #(= :shadow-js (:type %)))
-             (map (fn [{:keys [resource-name ns] :as rc}]
-                    (closure-source-file resource-name (npm/shadow-js-require rc))))
+             (filter #(not= :js (:type %)))
+             (map (fn [{:keys [resource-name ns type] :as rc}]
+                    (closure-source-file resource-name
+                      (case type
+                        :shadow-js
+                        (npm/shadow-js-require rc)
+                        (:cljs :goog)
+                        (str "goog.provide(\"" (cljs-comp/munge ns) "\");")
+                        (throw (ex-info (format "whats this? %s type: %s" resource-name type) {}))))))
              (into []))
 
         source-file-names
@@ -1260,7 +1271,7 @@
                   source-file
                   (get source-files-by-name name)
 
-                  {:keys [resource-id output-name] :as rc}
+                  {:keys [resource-id output-name ns] :as rc}
                   (get resource-by-name name)]
 
               (cond
@@ -1291,7 +1302,13 @@
 
                       output
                       {:resource-id resource-id
-                       :js js
+                       :js (str js
+                                ;; closure only declares var module$src$dev$demo$es6 = {};
+                                ;; but since we are in separate files that var is not available globally
+                                ;; in node envs. this doesn't hurt the browser so its fine.
+                                ;; dont need it in release since everything is one file after
+                                (when (= :dev mode)
+                                  (str "\ngoog.global." ns "=" ns ";")))
                        :source (.getCode source-file)
                        :source-map-json sm-json}]
 

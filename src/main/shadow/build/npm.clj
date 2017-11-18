@@ -537,7 +537,7 @@
                   :source source
                   :js-language js-language
                   :js-deps js-deps
-                  :deps (into ['shadow.process] js-deps)))))
+                  :deps js-deps))))
 
         (cond->
           package-name
