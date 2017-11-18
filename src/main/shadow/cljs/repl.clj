@@ -43,7 +43,8 @@
      :resource-name resource-name
      :output-name output-name
      :type :cljs
-     :source [ns-form]}))
+     :source [ns-form]
+     :virtual true}))
 
 (defn make-repl-resource [{:keys [compiler-env] :as state} [_ ns :as ns-form]]
   ;; ns in the REPL is additive, if we have a resource loaded use that otherwise define pseudo rc

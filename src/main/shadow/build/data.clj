@@ -190,14 +190,20 @@
         )))
 
 (defn remove-source-by-id [state resource-id]
-  (let [rc (get-in state [:sources resource-id])]
+  (let [{:keys [virtual] :as rc} (get-in state [:sources resource-id])]
     (if-not rc
       state
       (-> state
-          (remove-provides rc)
           (update :output dissoc resource-id)
           (update :immediate-deps dissoc resource-id)
-          (update :sources dissoc resource-id)
+          ;; virtual resources are modified by code
+          ;; and can't be affected by filesystem changes
+          ;; so they never need to be removed, just their output
+          ;; since that may be affected by changes in other files
+          (cond->
+            (not virtual)
+            (-> (remove-provides rc)
+                (update :sources dissoc resource-id)))
           ))))
 
 (defn overwrite-source
@@ -243,7 +249,7 @@
 
 (defn js-names-accessed-from-cljs
   ([{:keys [build-sources] :as state}]
-    (js-names-accessed-from-cljs state build-sources))
+   (js-names-accessed-from-cljs state build-sources))
   ([{:keys [js-entries] :as state} build-sources]
    (let [all-names
          (->> (for [src-id build-sources

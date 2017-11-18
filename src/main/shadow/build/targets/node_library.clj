@@ -76,7 +76,8 @@
                      (:require ~@(mapv vector entries)))
                   `(defn ~(with-meta 'get-exports {:export true}) [] ~get-exports)]
          :cache-key (System/currentTimeMillis)
-         :last-modified (System/currentTimeMillis)}
+         :last-modified (System/currentTimeMillis)
+         :virtual true}
 
         output-to
         (io/file output-to)

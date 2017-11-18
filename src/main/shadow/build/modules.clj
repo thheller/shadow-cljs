@@ -180,7 +180,8 @@
          :provides #{provide}
          :requires #{}
          :deps []
-         :source js}]
+         :source js
+         :virtual true}]
 
     (-> state
         (data/add-source rc)

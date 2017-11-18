@@ -38,7 +38,8 @@
                        ~@(for [it test-namespaces]
                            `(quote ~it))))]
          :last-modified cache-key
-         :cache-key cache-key}]
+         :cache-key cache-key
+         :virtual true}]
 
     (-> state
         (data/add-source test-runner-src)
