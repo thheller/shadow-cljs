@@ -183,8 +183,9 @@
 (defn compile!
   "do not use at the REPL, will return big pile of build state, will blow up REPL by printing too much"
   [build opts]
-  (let [build-config (config/get-build! build)]
-    (compile* build-config opts)))
+  (with-runtime
+    (let [build-config (config/get-build! build)]
+      (compile* build-config opts))))
 
 (defn compile
   ([build]
@@ -226,8 +227,9 @@
    (release build {}))
   ([build opts]
    (try
-     (let [build-config (config/get-build! build)]
-       (release* build-config opts))
+     (with-runtime
+       (let [build-config (config/get-build! build)]
+         (release* build-config opts)))
      :done
      (catch Exception e
        (e/user-friendly-error e)))))
@@ -259,8 +261,9 @@
    (check build {}))
   ([build opts]
    (try
-     (let [build-config (config/get-build! build)]
-       (check* build-config opts))
+     (with-runtime
+       (let [build-config (config/get-build! build)]
+         (check* build-config opts)))
      (catch Exception e
        (e/user-friendly-error e)))))
 

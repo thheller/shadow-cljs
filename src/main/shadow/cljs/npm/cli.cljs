@@ -212,6 +212,20 @@
       (println "shadow-cljs - error" (.-message ex)))
     ))
 
+(defn logging-config [project-root {:keys [cache-root] :as config}]
+  (if (false? (:log config))
+    []
+    (let [log-config-path
+          (path/resolve project-root cache-root "logging.properties")]
+
+      (when-not (fs/existsSync log-config-path)
+        (fs/writeFileSync log-config-path
+          (str (util/slurp (path/resolve js/__dirname ".." "default-log.properties"))
+               "\njava.util.logging.FileHandler.pattern=" log-config-path "\n")))
+
+      [(str "-Djava.util.logging.config.file=" log-config-path)]
+      )))
+
 (defn run-standalone
   [project-root {:keys [cache-root source-paths jvm-opts] :as config} args]
   (let [aot-path
@@ -241,6 +255,7 @@
         cli-args
         (-> []
             (into jvm-opts)
+            (into (logging-config project-root config))
             (cond->
               aot-compile? ;; FIXME: maybe try direct linking?
               (into [(str "-Dclojure.compile.path=" aot-path)]))
