@@ -14,7 +14,7 @@
 
   (let [req
         (xhr/chan :POST
-          (str "http://" env/repl-host ":" env/repl-port "/api/open-file")
+          (str "http" (when env/ssl "s") "://" env/repl-host ":" env/repl-port "/api/open-file")
           {:file file
            :line line
            :column column}

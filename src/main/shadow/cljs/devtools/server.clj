@@ -215,11 +215,11 @@
   ([sys-config]
    (start! sys-config app-config))
   ([sys-config app]
-   (let [{:keys [http socket-repl nrepl config] :as app}
+   (let [{:keys [http ssl-context socket-repl nrepl config] :as app}
          (start-system app sys-config)]
 
      (when (get-in config [:http :port])
-       (println (str "shadow-cljs - server running at http://" (:host http) ":" (:port http))))
+       (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http))))
 
      (when (get-in config [:socket-repl :port])
        (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl))))

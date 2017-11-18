@@ -87,7 +87,7 @@
             (netty/port instance)]
 
         (>!! out {:type :println
-                  :msg (format "shadow-cljs - HTTP server for \"%s\" available at http://localhost:%s" build-id http-port)})
+                  :msg (format "shadow-cljs - HTTP server for \"%s\" available at http%s://%s:%s" build-id (if ssl-context "s" "") "localhost" http-port)})
         (log/debug ::http-serve {:http-port port :http-root http-root :build-id build-id})
 
         instance)
