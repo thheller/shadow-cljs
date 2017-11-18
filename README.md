@@ -108,7 +108,7 @@ shadow-cljs watch app
 shadow-cljs cljs-repl app
 
 # (if you are targeting node) connect to node-repl
-shadow-cljs node-repl app
+shadow-cljs node-repl
 ```
 
 ### Production/Release
