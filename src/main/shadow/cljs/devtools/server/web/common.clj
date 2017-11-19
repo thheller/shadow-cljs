@@ -6,7 +6,7 @@
 
 (defn not-found
   ([req]
-    (not-found "Not found."))
+    (not-found req "Not found."))
   ([req msg]
    {:status 404
     :headers {"content-type" "text/plain"}
