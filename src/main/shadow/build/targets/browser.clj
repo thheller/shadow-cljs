@@ -5,6 +5,9 @@
             [clojure.data.json :as json]
             [clojure.string :as str]
             [clojure.set :as set]
+            [clojure.java.shell :as sh]
+            [clojure.edn :as edn]
+            [clojure.pprint :refer (pprint)]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.util :as util]
             [shadow.build.api :as build-api]
@@ -14,8 +17,6 @@
             [shadow.build.output :as output]
             [shadow.build.closure :as closure]
             [shadow.build.data :as data]
-            [clojure.java.shell :as sh]
-            [clojure.edn :as edn]
             [shadow.build.log :as log]))
 
 (s/def ::entry
@@ -279,28 +280,42 @@
 
 (defn flush-manifest
   [{:keys [build-options] :as state} include-foreign?]
-  (spit
-    (data/output-file state (:manifest-name build-options "manifest.json"))
-    (let [data
-          (->> (or (::closure/modules state)
-                   (:build-modules state))
-               (map (fn [{:keys [module-id output-name entries depends-on sources foreign-files] :as mod}]
-                      {:module-id module-id
-                       :name module-id
-                       :output-name output-name
-                       ;; FIXME: this is old, should always use :output-name
-                       :js-name output-name
-                       :entries entries
-                       :depends-on depends-on
-                       :sources
-                       (->> sources
-                            (map #(get-in state [:sources %]))
-                            (map :resource-name)
-                            (into []))}
-                      )))]
-      (with-out-str
-        (json/pprint data :escape-slash false))))
+  (let [data
+        (->> (or (::closure/modules state)
+                 (:build-modules state))
+             (map (fn [{:keys [module-id output-name entries depends-on sources foreign-files] :as mod}]
+                    {:module-id module-id
+                     :name module-id
+                     :output-name output-name
+                     :entries entries
+                     :depends-on depends-on
+                     :sources
+                     (->> sources
+                          (map #(get-in state [:sources %]))
+                          (map :resource-name)
+                          (into []))}))
+             (into []))
 
+        manifest-name
+        (:manifest-name build-options "manifest.edn")
+
+        manifest-file
+        (data/output-file state manifest-name)
+
+        manifest
+        (cond
+          (str/ends-with? manifest-name ".edn")
+          (with-out-str
+            (pprint data))
+
+          (str/ends-with? manifest-name ".json")
+          (with-out-str
+            (json/pprint data :escape-slash false))
+
+          :else
+          (throw (ex-info (format "invalid manifest output format: %s" manifest-name) {:manifest-name manifest-name})))]
+
+    (spit manifest-file manifest))
   state)
 
 (defn hash-optimized-module [{:keys [output output-name] :as mod} module-hash-names]
