@@ -1,11 +1,15 @@
 (ns shadow.cljs.devtools.server.web.api
-  (:require [shadow.cljs.devtools.server.web.common :as common]
-            [shadow.http.router :as http]
-            [shadow.repl :as repl]
-            [clojure.edn :as edn]
-            [clojure.java.shell :as sh]
-            [shadow.cljs.devtools.server.util :as util]
-            [clojure.tools.logging :as log]))
+  (:require
+    [clojure.edn :as edn]
+    [clojure.java.shell :as sh]
+    [clojure.tools.logging :as log]
+    [shadow.cljs.devtools.server.web.common :as common]
+    [shadow.build.closure :as closure]
+    [shadow.http.router :as http]
+    [shadow.repl :as repl]
+    [shadow.cljs.devtools.server.util :as server-util]
+    [shadow.cljs.devtools.api :as api]
+    [shadow.cljs.util :as util]))
 
 (defn index-page [req]
   {:status 200
@@ -60,10 +64,10 @@
           {:exit 1
            :err "no :open-file-command"}
           (let [launch-args
-                (util/make-open-args data open-file-command)
+                (server-util/make-open-args data open-file-command)
 
                 result
-                (util/launch launch-args {})]
+                (server-util/launch launch-args {})]
             (log/debug ::open-file launch-args result)
             result))]
 
@@ -71,12 +75,22 @@
      :headers {"content-type" "application/edn; charset=utf-8"}
      :body (pr-str result)}))
 
+(defn get-size-report [req build-id]
+  (try
+    (let [report (api/generate-bundle-info build-id)]
+      (common/edn req report))
+
+    (catch Exception e
+      {:status 503
+       :body "Build failed."})))
+
 (defn root* [req]
   (http/route req
     (:GET "" index-page)
     (:GET "/repl" repl-roots)
     (:GET "/repl/{root-id:long}" repl-root root-id)
     (:GET "/repl/{root-id:long}/{level-id:long}" repl-level root-id level-id)
+    (:GET "/size-report/{build-id:keyword}" get-size-report build-id)
     (:POST "/open-file" open-file)
     common/not-found))
 

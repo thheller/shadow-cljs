@@ -318,6 +318,21 @@
     (spit manifest-file manifest))
   state)
 
+(defn flush-bundle-info [state]
+  (let [bundle-info
+        (output/generate-bundle-info state)
+
+        bundle-file
+        (data/cache-file state "bundle-info.edn")]
+
+    (io/make-parents bundle-file)
+
+    (spit bundle-file
+      (with-out-str
+        (pprint bundle-info))))
+
+  state)
+
 (defn hash-optimized-module [{:keys [output output-name] :as mod} module-hash-names]
   (let [signature
         (util/md5hex output)
@@ -359,6 +374,7 @@
               module-hash-names
               (hash-optimized-modules module-hash-names))
             (output/flush-optimized)
+            (flush-bundle-info)
             (flush-manifest true)))))
 
 (defn get-all-module-deps [{:keys [build-modules] :as state} {:keys [depends-on] :as mod}]

@@ -46,27 +46,21 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
 
             // System.out.format("Moving %s to %s (used in %d)\n", ref.fqn, targetModule.getName(), ref.usedIn.size());
 
-            CompilerInput cljsCore = null;
+            Node target = null;
 
             for (CompilerInput input : targetModule.getInputs()) {
-                if (input.getProvides().contains("cljs.core")) {
-                    cljsCore = input;
+                if (input.getName().startsWith("shadow.cljs.module.constants.")) {
+                    target = input.getAstRoot(compiler);
                     break;
                 }
             }
 
-            Node varNode = IR.var(IR.name(ref.name), ref.node);
-            Node target;
-
-            // if the module provides cljs.core we must append to that input
-            // otherwise prepend to first input of the module
-            if (cljsCore == null) {
-                target = targetModule.getInputs().get(0).getAstRoot(compiler);
-                target.addChildToFront(varNode);
-            } else {
-                target = cljsCore.getAstRoot(compiler);
-                target.addChildToBack(varNode);
+            if (target == null) {
+                throw new IllegalStateException(String.format("could not find where to put constant for module %s", targetModule.getName()));
             }
+
+            Node varNode = IR.var(IR.name(ref.name), ref.node);
+            target.addChildToBack(varNode);
 
             ShadowAccess.reportChangeToEnclosingScope(compiler, target);
         }

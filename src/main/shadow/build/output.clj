@@ -592,3 +592,49 @@
               ))))))
   state)
 
+(defn generate-bundle-info
+  [{:shadow.build.closure/keys [optimized-bytes modules] :keys [build-sources] :as state}]
+  (let [modules-info
+        (->> modules
+             (map (fn [{:keys [module-id sources depends-on] :as mod}]
+                    (let [constants-name
+                          (str "shadow.cljs.module.constants." (name module-id) ".js")]
+                      {:module-id module-id
+                       :sources sources
+                       :depends-on depends-on
+                       :constants-size (get optimized-bytes constants-name 0)})))
+             (into []))
+
+        src->mod
+        (->> (for [{:keys [module-id sources] :as mod} modules
+                   src sources]
+               [src module-id])
+             (into {}))
+
+        sources-info
+        (->> build-sources
+             (map (fn [src-id]
+                    (let [{:keys [resource-name output-name type] :as src}
+                          (data/get-source-by-id state src-id)
+
+                          {:keys [js source] :as output}
+                          (data/get-output! state src)]
+
+                      (-> {:resource-id src-id
+                           :resource-name resource-name
+                           :module-id (get src->mod src-id)
+                           :type type
+                           :output-name output-name
+                           :js-size (count js)}
+                          (cond->
+                            (string? source)
+                            (assoc :source-size (count source))
+
+                            ;; never optimized
+                            (not= :shadow-js type)
+                            (assoc :optimized-size (get optimized-bytes resource-name))
+                            )))))
+             (into []))]
+
+    {:build-modules modules-info
+     :build-sources sources-info}))

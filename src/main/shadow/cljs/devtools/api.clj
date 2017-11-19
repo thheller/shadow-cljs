@@ -15,6 +15,7 @@
             [shadow.build.npm :as npm]
             [shadow.build.classpath :as cp]
             [shadow.build.babel :as babel]
+            [shadow.build.closure :as closure]
             [shadow.cljs.util :as cljs-util]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.server.worker :as worker]
@@ -26,7 +27,9 @@
             [shadow.cljs.devtools.server.worker.ws :as ws]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-            [shadow.cljs.devtools.server.runtime :as runtime])
+            [shadow.cljs.devtools.server.runtime :as runtime]
+            [shadow.build.data :as data]
+            [shadow.build.output :as output])
   (:import (java.io PushbackReader StringReader)
            (java.lang ProcessBuilder$Redirect)))
 
@@ -391,6 +394,17 @@
 
     (node-execute! [] (io/file "target" "shadow-test-runner.js"))
     ))
+
+(defn generate-bundle-info [build-id]
+  (with-runtime
+    (let [build-config
+          (get-build-config build-id)
+
+          state
+          (release* build-config {})]
+
+      (output/generate-bundle-info state)
+      )))
 
 (comment
 

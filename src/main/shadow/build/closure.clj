@@ -381,15 +381,21 @@
                    {:keys [resource-name url] :as ext} externs]
                ;; FIXME: use url? deps-path is accurate enough for now
                (SourceFile/fromCode (str "EXTERNS:" deps-path "!/" resource-name) (slurp url)))
-             (into []))]
+             (into []))
 
-    (-> []
-        (into default-externs)
-        (into deps-externs)
-        (into manual-externs)
-        (cond->
-          generate?
-          (conj (generate-externs state))))))
+        all-externs
+        (-> []
+            (into default-externs)
+            (into deps-externs)
+            (into manual-externs)
+            (cond->
+              generate?
+              (conj (generate-externs state))))]
+
+    (doseq [^SourceFile ext all-externs]
+      (log/debug ::externs (.getName ext)))
+
+    all-externs))
 
 (defn register-cljs-protocol-properties
   "this is needed to make :check-types work
@@ -609,7 +615,25 @@
         js-mods
         (reduce
           (fn [js-mods {:keys [module-id output-name depends-on sources] :as mod}]
-            (let [js-mod (JSModule. output-name)]
+            (let [js-mod (JSModule. output-name)
+
+                  sources
+                  (->> sources
+                       (map #(data/get-source-by-id state %))
+                       (remove util/foreign?))
+
+                  mod-provides
+                  (->> sources
+                       (map :provides)
+                       (reduce set/union #{}))
+
+                  mod-deps
+                  (->> sources
+                       (mapcat #(data/deps->syms state %))
+                       (into #{}))
+
+                  mod-constants-file
+                  (closure-source-file (str "shadow.cljs.module.constants." (name module-id) ".js") "")]
 
               (doseq [other-mod-id depends-on
                       :when (not (contains? skip-mods other-mod-id))
@@ -624,10 +648,16 @@
 
                 (.addDependency js-mod other-mod))
 
+
+              ;; every module that does not contain cljs.core will get a .constants js files as its first input
+              ;; so the ReplaceCLJSConstants pass can write them into that file
+              ;; special case for cljs.core since we shouldn't create keywords before they are defined
+              (when (and (contains? mod-deps 'cljs.core)
+                         (not (contains? mod-provides 'cljs.core)))
+                (.add js-mod mod-constants-file))
+
               (doseq [{:keys [resource-id resource-name output-name ns type output] :as rc}
-                      (->> sources
-                           (map #(data/get-source-by-id state %))
-                           (remove util/foreign?))]
+                      sources]
                 (let [{:keys [js source] :as output}
                       (data/get-output! state rc)
 
@@ -646,7 +676,11 @@
                         :else
                         js)]
 
-                  (.add js-mod (closure-source-file resource-name js))))
+                  (.add js-mod (closure-source-file resource-name js))
+
+                  (when (= ns 'cljs.core)
+                    (.add js-mod mod-constants-file))
+                  ))
 
               (assoc js-mods module-id js-mod)))
           {}
@@ -891,6 +925,24 @@
   (doseq [src-file (source-map-sources state)]
     (.addSourceFile source-map src-file)))
 
+(defn generate-size-report [{::keys [compiler] :as state}]
+  (reduce
+    (fn [state input-node]
+      (let [size
+            (-> (ShadowAccess/nodeToJs compiler input-node)
+                (count))
+
+            name
+            (.getSourceFileName input-node)]
+
+        (when (pos? size)
+          (log/debug ::optimized-bytes name size))
+        (update state ::optimized-bytes assoc name size)))
+
+    (assoc state ::optimized-bytes {})
+    (->> (ShadowAccess/getJsRoot compiler)
+         (.children))))
+
 (defn compile-js-modules
   [{::keys [externs modules compiler compiler-options] :as state}]
   (let [js-mods
@@ -898,6 +950,8 @@
              (map :js-module)
              (remove nil?)
              (into []))
+
+        ;; _ (dump-js-modules js-mods)
 
         ^Result result
         (.compileModules
@@ -918,6 +972,7 @@
 
     (-> state
         (assoc ::result result)
+        (generate-size-report)
         (cond->
           success?
           (update ::modules

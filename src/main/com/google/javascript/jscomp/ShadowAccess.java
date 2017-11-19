@@ -45,6 +45,16 @@ public class ShadowAccess {
 
     }
 
+    // generate without source map info
+    public static String nodeToJs(AbstractCompiler comp, Node node) {
+        CodePrinter.Builder builder = new CodePrinter.Builder(node);
+        builder.setTypeRegistry(comp.getTypeRegistry());
+        builder.setCompilerOptions(comp.getOptions());
+        builder.setTagAsExterns(false);
+        builder.setTagAsStrict(false);
+        return builder.build();
+    }
+
     // access to package protected globals
     public static final DiagnosticType NON_GLOBAL_DEFINE_INIT_ERROR = ProcessDefines.NON_GLOBAL_DEFINE_INIT_ERROR;
 }
