@@ -925,7 +925,7 @@
   (doseq [src-file (source-map-sources state)]
     (.addSourceFile source-map src-file)))
 
-(defn generate-size-report [{::keys [compiler] :as state}]
+(defn collect-optimized-js-sizes [{::keys [compiler] :as state}]
   (reduce
     (fn [state input-node]
       (let [size
@@ -972,7 +972,7 @@
 
     (-> state
         (assoc ::result result)
-        (generate-size-report)
+        (collect-optimized-js-sizes)
         (cond->
           success?
           (update ::modules

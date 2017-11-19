@@ -8,11 +8,16 @@
     [shadow.cljs.devtools.server.web.api :as web-api]
     [shadow.cljs.devtools.server.worker.ws :as ws]))
 
-(defn index-page [req]
+(defn index-page [{:keys [dev-http] :as req}]
   (common/page-boilerplate req
     (html
       [:h1 "shadow-cljs"]
-      [:div#root "coming soon ..."]
+      [:h2 "HTTP Servers"]
+      [:ul
+       (for [{:keys [build-id port ssl] :as srv} (:servers dev-http)]
+         (let [url (str "http" (when ssl "s") "://localhost:" port)]
+           [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]
+
       ;; (assets/js-queue :none 'shadow.cljs.ui.app/init)
       )))
 

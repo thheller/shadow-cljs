@@ -9,7 +9,8 @@
     [shadow.repl :as repl]
     [shadow.cljs.devtools.server.util :as server-util]
     [shadow.cljs.devtools.api :as api]
-    [shadow.cljs.util :as util]))
+    [shadow.cljs.util :as util]
+    [clojure.java.io :as io]))
 
 (defn index-page [req]
   {:status 200
@@ -75,11 +76,17 @@
      :headers {"content-type" "application/edn; charset=utf-8"}
      :body (pr-str result)}))
 
-(defn get-size-report [req build-id]
+(defn get-bundle-info [{:keys [config] :as req} build-id]
   (try
-    (let [report (api/generate-bundle-info build-id)]
-      (common/edn req report))
+    (let [file (io/file (:cache-root config) "builds" (name build-id) "release" "bundle-info.edn")]
+      (if (.exists file)
+        {:status 200
+         :header {"content-type" "application/edn"}
+         :body (slurp file)}
 
+        ;; could generate this on-depend but that might take a long time
+        {:status 404
+         :body "Report not found. Run shadow-cljs release."}))
     (catch Exception e
       {:status 503
        :body "Build failed."})))
@@ -90,7 +97,7 @@
     (:GET "/repl" repl-roots)
     (:GET "/repl/{root-id:long}" repl-root root-id)
     (:GET "/repl/{root-id:long}/{level-id:long}" repl-level root-id level-id)
-    (:GET "/size-report/{build-id:keyword}" get-size-report build-id)
+    (:GET "/bundle-info/{build-id:keyword}" get-bundle-info build-id)
     (:POST "/open-file" open-file)
     common/not-found))
 

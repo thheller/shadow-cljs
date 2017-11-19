@@ -7,7 +7,7 @@
     [shadow.cljs.util :as util]
     [shadow.build.data :as data]))
 
-(deftest test-size-report
+(deftest test-bundle-info
 
   (let [report
         (api/generate-bundle-info :browser)]

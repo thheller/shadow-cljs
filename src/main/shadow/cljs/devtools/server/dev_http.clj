@@ -11,7 +11,8 @@
             [aleph.netty :as netty]
             [clojure.tools.logging :as log]
             [shadow.cljs.devtools.config :as config]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [shadow.cljs.devtools.server.ring-gzip :as ring-gzip])
   (:import (java.net BindException)))
 
 (defn disable-all-kinds-of-caching [handler]
@@ -70,6 +71,7 @@
                   ;; source maps
                   {"map" "application/json"})
 
+                (ring-gzip/wrap-gzip)
                 (disable-all-kinds-of-caching))
 
             aleph-options
@@ -90,7 +92,10 @@
                   :msg (format "shadow-cljs - HTTP server for \"%s\" available at http%s://%s:%s" build-id (if ssl-context "s" "") "localhost" http-port)})
         (log/debug ::http-serve {:http-port port :http-root http-root :build-id build-id})
 
-        instance)
+        {:build-id build-id
+         :port port
+         :instance instance
+         :ssl (boolean ssl-context)})
       (catch BindException e
         (>!! out {:type :println
                   :msg (format "[WARNING] shadow-cljs - HTTP server at port %s failed, port is in use." http-port)})
@@ -126,6 +131,6 @@
     ))
 
 (defn stop [{:keys [servers] :as svc}]
-  (doseq [srv servers
-          :when srv]
-    (.close srv)))
+  (doseq [{:keys [instance] :as srv} servers
+          :when instance]
+    (.close instance)))

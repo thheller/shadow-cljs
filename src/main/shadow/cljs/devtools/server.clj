@@ -20,7 +20,9 @@
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.cljs.devtools.server.nrepl :as nrepl]
-            [shadow.cljs.devtools.server.dev-http :as dev-http])
+            [shadow.cljs.devtools.server.dev-http :as dev-http]
+            [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
+            )
   (:import (io.netty.handler.ssl SslContextBuilder)
            (javax.net.ssl KeyManagerFactory)
            (java.security KeyStore)
@@ -40,22 +42,26 @@
       :stop async/close!}}))
 
 (defn get-ring-handler
-  [{:keys [dev-mode] :as config} app-promise]
-  (-> (fn [ring-map]
-        (let [app (deref app-promise 1000 ::timeout)]
-          (if (= app ::timeout)
-            {:status 501
-             :body "App not ready!"}
-            (-> app
-                (assoc :ring-request ring-map)
-                (http/prepare)
-                (web/root)))))
-      (cond->
-        dev-mode
-        (ring-file/wrap-file (io/file "target/shadow-cljs/ui/output")))
-      ;; (reload/wrap-reload {:dirs ["src/main"]})
-      (ring-params/wrap-params)
-      ))
+  [{:keys [dev-mode cache-root] :as config} app-promise]
+  (let [ui-root
+        (io/file cache-root "ui")]
+
+    (-> (fn [ring-map]
+          (let [app (deref app-promise 1000 ::timeout)]
+            (if (= app ::timeout)
+              {:status 501
+               :body "App not ready!"}
+              (-> app
+                  (assoc :ring-request ring-map)
+                  (http/prepare)
+                  (web/root)))))
+        (cond->
+          (.exists ui-root)
+          (ring-file/wrap-file ui-root))
+        ;; (reload/wrap-reload {:dirs ["src/main"]})
+        (ring-params/wrap-params)
+        (ring-gzip/wrap-gzip)
+        )))
 
 (defmacro do-shutdown [& body]
   `(try

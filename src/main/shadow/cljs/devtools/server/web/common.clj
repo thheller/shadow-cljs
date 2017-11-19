@@ -29,13 +29,11 @@
      {:lang "en"}
      [:head
       ;; lol preload for local dev
-      [:link {:as "script" :href "/js/bundle.js" :rel "preload"}]
       [:link {:as "script" :href "/js/ui.js" :rel "preload"}]
       [:title "shadow-cljs"]
       [:style "body { font-size: 12px; font-family: Menlo, monospace; padding: 10px; margin: 0;"]]
      [:body
       content
-      [:script {:src "/js/bundle.js"}]
       [:script {:src "/js/ui.js"}]
       ])})
 
