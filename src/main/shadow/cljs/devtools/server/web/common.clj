@@ -28,7 +28,6 @@
    :headers {"content-type" "text/html; charset=utf-8"}
    :body
    (html5
-
      {:lang "en"}
      [:head
       ;; lol preload for local dev
@@ -37,7 +36,7 @@
       [:style "body { font-size: 12px; font-family: Menlo, monospace; padding: 10px; margin: 0;"]]
      [:body
       content
-      [:script {:src "/js/ui.js"}]
+      [:script {:src "/js/ui.js" :defer true}]
       ])})
 
 (defn nav []
@@ -48,5 +47,4 @@
 (defn transit [{:keys [transit-str] :as req} obj]
   {:status 200
    :headers {"content-type" "application/transit+json; charset=utf-8"}
-   :body (transit-str obj)}
-  )
+   :body (transit-str obj)})

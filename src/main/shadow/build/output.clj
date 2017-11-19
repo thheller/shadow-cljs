@@ -7,10 +7,12 @@
             [clojure.data.json :as json]
             [shadow.build.data :as data]
             [clojure.set :as set]
-            [shadow.build.resource :as rc])
+            [shadow.build.resource :as rc]
+            [shadow.build.log :as build-log])
   (:import (java.io StringReader BufferedReader File ByteArrayOutputStream)
            (java.util Base64)
-           (java.util.zip GZIPOutputStream)))
+           (java.util.zip GZIPOutputStream)
+           (shadow.build.closure SourceMapReport)))
 
 (defn closure-defines-json [state]
   (let [closure-defines
@@ -593,84 +595,71 @@
               ))))))
   state)
 
+(defmethod build-log/event->str ::generate-bundle-info
+  [event]
+  "Generate bundle-info.edn")
+
 (defn generate-bundle-info
   [{:shadow.build.closure/keys [optimized-bytes modules] :keys [build-sources] :as state}]
-  (let [modules-info
-        (->> modules
-             (map (fn [{:keys [module-id sources depends-on goog-base prepend output append] :as mod}]
-                    (let [constants-name
-                          (str "shadow.cljs.module.constants." (name module-id) ".js")
+  (util/with-logged-time [state {:type ::generate-bundle-info}]
+    (let [modules-info
+          (->> modules
+               (map (fn [{:keys [module-id sources depends-on output-name goog-base prepend output append] :as mod}]
+                      (let [out-file
+                            (data/output-file state output-name)
 
-                          shadow-js-prepend
-                          (when (= :shadow (get-in state [:js-options :js-provider]))
-                            (let [provides
-                                  (->> sources
-                                       (map #(data/get-source-by-id state %))
-                                       (filter #(= :shadow-js (:type %)))
-                                       (map #(data/get-output! state %))
-                                       (map :js)
-                                       (str/join ";\n"))]
-                              (str (when goog-base
-                                     "var shadow$provide = {};\n")
-                                   provides
-                                   (when (seq provides)
-                                     ";\n"))))
+                            out-map-file
+                            (data/output-file state (str output-name ".map"))
 
-                          final-output
-                          (str prepend
-                               shadow-js-prepend
-                               output
-                               append)
+                            byte-map
+                            (SourceMapReport/getByteMap out-file out-map-file)
 
-                          bytes-out
-                          (ByteArrayOutputStream.)
+                            bytes-out
+                            (ByteArrayOutputStream.)
 
-                          zip-out
-                          (GZIPOutputStream. bytes-out)]
+                            zip-out
+                            (GZIPOutputStream. bytes-out)]
 
-                      (io/copy final-output zip-out)
-                      (.flush zip-out)
-                      (.close zip-out)
+                        (io/copy (slurp out-file) zip-out)
+                        (.flush zip-out)
+                        (.close zip-out)
 
-                      {:module-id module-id
-                       :sources sources
-                       :depends-on depends-on
-                       :constants-size (get optimized-bytes constants-name 0)
-                       :js-size (count final-output)
-                       :gzip-size (.size bytes-out)}
-                      )))
-             (into []))
+                        {:module-id module-id
+                         :sources sources
+                         :depends-on depends-on
+                         :source-bytes byte-map
+                         :js-size (.length out-file)
+                         :gzip-size (.size bytes-out)}
+                        )
+                      ))
+               (into []))
 
-        src->mod
-        (->> (for [{:keys [module-id sources] :as mod} modules
-                   src sources]
-               [src module-id])
-             (into {}))
+          src->mod
+          (->> (for [{:keys [module-id sources] :as mod} modules
+                     src sources]
+                 [src module-id])
+               (into {}))
 
-        sources-info
-        (->> build-sources
-             (map (fn [src-id]
-                    (let [{:keys [resource-name output-name type] :as src}
-                          (data/get-source-by-id state src-id)
+          sources-info
+          (->> build-sources
+               (map (fn [src-id]
+                      (let [{:keys [resource-name output-name type] :as src}
+                            (data/get-source-by-id state src-id)
 
-                          {:keys [js source] :as output}
-                          (data/get-output! state src)]
+                            {:keys [js source] :as output}
+                            (data/get-output! state src)]
 
-                      (-> {:resource-id src-id
-                           :resource-name resource-name
-                           :module-id (get src->mod src-id)
-                           :type type
-                           :output-name output-name
-                           :js-size (count js)}
-                          (cond->
-                            (string? source)
-                            (assoc :source-size (count source))
+                        (-> {:resource-id src-id
+                             :resource-name resource-name
+                             :module-id (get src->mod src-id)
+                             :type type
+                             :output-name output-name
+                             :js-size (count js)}
+                            (cond->
+                              (string? source)
+                              (assoc :source-size (count source))
+                              )))))
+               (into []))]
 
-                            ;; never optimized
-                            (not= :shadow-js type)
-                            (assoc :optimized-size (get optimized-bytes resource-name))
-                            )))))
-             (into []))]
-
-    {:build-modules modules-info
-     :build-sources sources-info}))
+      {:build-modules modules-info
+       :build-sources sources-info})))

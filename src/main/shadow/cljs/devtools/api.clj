@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.logging :as log]
+            [clojure.pprint :refer (pprint)]
             [aleph.netty :as netty]
             [aleph.http :as aleph]
             [shadow.repl :as r]
@@ -80,7 +81,7 @@
 (defn get-runtime! []
   (runtime/get-instance!))
 
-(defn- new-build [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
+(defn new-build [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
   (let [{:keys [npm classpath cache-root executor babel] :as runtime}
         (get-runtime!)
 
@@ -161,6 +162,11 @@
    (node-repl {}))
   ([opts]
    (repl-impl/node-repl* (runtime/get-instance!) opts)))
+
+(defn get-config []
+  (or (when-let [inst (runtime/get-instance)]
+        (:config inst))
+      (config/load-cljs-edn)))
 
 (defn get-build-config [id]
   {:pre [(keyword? id)]}
@@ -395,16 +401,55 @@
     (node-execute! [] (io/file "target" "shadow-test-runner.js"))
     ))
 
-(defn generate-bundle-info [build-id]
+(defn- clean-dir [dir]
+  (when (.exists dir)
+    (doseq [file (.listFiles dir)]
+      (.delete file)
+      )))
+
+(defn release-snapshot
+  [build-id {:keys [tag] :or {tag "latest"} :as opts}]
+  {:pre [(keyword? build-id)
+         (string? tag)
+         (seq tag)]}
   (with-runtime
-    (let [build-config
-          (get-build-config build-id)
+    (let [{:keys [cache-root]}
+          (get-config)
+
+          output-dir
+          (doto (io/file cache-root "release-snapshots" (name build-id) tag)
+            (clean-dir))
+
+          build-id-alias
+          (keyword (str (name build-id) "-release-snapshot"))
+
+          build-config
+          (-> (get-build-config build-id)
+              (assoc
+                :build-id build-id-alias
+                ;; not required, the files are never going to be used
+                :module-hash-names false))
 
           state
-          (release* build-config {})]
+          (-> (new-build build-config :release {})
+              (build/configure :release build-config)
+              (build-api/enable-source-maps)
+              (build-api/with-build-options
+                {:output-dir (io/file output-dir)})
+              (build/compile)
+              (build/optimize)
+              (build/flush))
 
-      (output/generate-bundle-info state)
-      )))
+          bundle-info
+          (output/generate-bundle-info state)]
+
+      (spit
+        (io/file output-dir "bundle-info.edn")
+        (with-out-str
+          (pprint bundle-info))))
+
+    :done
+    ))
 
 (comment
 

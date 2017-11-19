@@ -8,15 +8,12 @@
     [shadow.build.data :as data]
     [clojure.edn :as edn]
     [clojure.data.json :as json]
-    [clojure.java.io :as io]))
-
-(deftest test-bundle-info
-
-  (let [report
-        (api/generate-bundle-info :browser)]
-
-    (pprint report)))
-
+    [clojure.java.shell :refer (sh)]
+    [clojure.java.io :as io]
+    [shadow.build.output :as output]
+    [shadow.build :as build]
+    [shadow.build.api :as build-api])
+  (:import (java.io FileOutputStream)))
 
 (deftest test-convert-to-webpack-stats
   (let [{:keys [build-sources] :as data}
@@ -35,5 +32,23 @@
                     :size (or optimized-size js-size)
                     :reasons []}))
                (into []))}
-         (json/write-str )
+         (json/write-str)
          (spit (io/file "tmp/stats.json")))))
+
+(defn flush-bundle-info [state]
+  (let [bundle-info
+        (output/generate-bundle-info state)
+
+        bundle-file
+        (data/cache-file state "bundle-info.edn")]
+
+    (io/make-parents bundle-file)
+
+    (spit bundle-file
+      (with-out-str
+        (pprint bundle-info))))
+
+  state)
+
+(deftest test-release-info
+  (api/release-snapshot :browser {}))

@@ -634,7 +634,7 @@
                        (into #{}))
 
                   mod-constants-file
-                  (closure-source-file (str "shadow.cljs.module.constants." (name module-id) ".js") "")]
+                  (closure-source-file (str "shadow/cljs/constants/" (name module-id) ".js") "")]
 
               (doseq [other-mod-id depends-on
                       :when (not (contains? skip-mods other-mod-id))
@@ -926,24 +926,6 @@
   (doseq [src-file (source-map-sources state)]
     (.addSourceFile source-map src-file)))
 
-(defn collect-optimized-js-sizes [{::keys [compiler] :as state}]
-  (reduce
-    (fn [state input-node]
-      (let [size
-            (-> (ShadowAccess/nodeToJs compiler input-node)
-                (count))
-
-            name
-            (.getSourceFileName input-node)]
-
-        (when (pos? size)
-          (log/debug ::optimized-bytes name size))
-        (update state ::optimized-bytes assoc name size)))
-
-    (assoc state ::optimized-bytes {})
-    (->> (ShadowAccess/getJsRoot compiler)
-         (.children))))
-
 (defn compile-js-modules
   [{::keys [externs modules compiler compiler-options] :as state}]
   (let [js-mods
@@ -973,7 +955,6 @@
 
     (-> state
         (assoc ::result result)
-        (collect-optimized-js-sizes)
         (cond->
           success?
           (update ::modules

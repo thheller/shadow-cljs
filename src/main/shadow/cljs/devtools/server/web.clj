@@ -6,6 +6,7 @@
     [shadow.server.assets :as assets]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
+    [shadow.cljs.devtools.server.web.release-snapshots :as release-snapshots]
     [shadow.cljs.devtools.server.worker.ws :as ws]
     [clojure.java.io :as io]
     [clojure.edn :as edn]))
@@ -14,6 +15,8 @@
   (common/page-boilerplate req
     (html
       [:h1 "shadow-cljs"]
+      [:ul
+       [:li [:a {:href "/release-snapshots"} "Release Snapshots"]]]
       [:h2 "HTTP Servers"]
       [:ul
        (for [{:keys [build-id port ssl] :as srv} (:servers dev-http)]
@@ -40,6 +43,7 @@
   (http/route req
     (:GET "" index-page)
     (:GET "/bundle-info/{build-id:keyword}" bundle-info-page build-id)
+    (:ANY "^/release-snapshots" release-snapshots/root)
     (:ANY "^/api" web-api/root)
     (:ANY "^/worker" ws/process)
     common/not-found))
