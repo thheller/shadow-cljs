@@ -4,10 +4,13 @@
             [hiccup.core :refer (html)]
             [clojure.java.io :as io]))
 
-(defn not-found [req]
-  {:status 404
-   :headers {"content-type" "text/plain"}
-   :body "Not found."})
+(defn not-found
+  ([req]
+    (not-found "Not found."))
+  ([req msg]
+   {:status 404
+    :headers {"content-type" "text/plain"}
+    :body msg}))
 
 (defn unacceptable [_]
   {:status 406 ;; not-acceptable

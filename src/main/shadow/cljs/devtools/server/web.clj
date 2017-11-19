@@ -6,7 +6,9 @@
     [shadow.server.assets :as assets]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
-    [shadow.cljs.devtools.server.worker.ws :as ws]))
+    [shadow.cljs.devtools.server.worker.ws :as ws]
+    [clojure.java.io :as io]
+    [clojure.edn :as edn]))
 
 (defn index-page [{:keys [dev-http] :as req}]
   (common/page-boilerplate req
@@ -18,12 +20,26 @@
          (let [url (str "http" (when ssl "s") "://localhost:" port)]
            [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]
 
-      ;; (assets/js-queue :none 'shadow.cljs.ui.app/init)
+      [:div#root]
+      (assets/js-queue :none 'shadow.cljs.ui.app/init)
       )))
+
+(defn bundle-info-page [{:keys [config] :as req} build-id]
+  (let [file (io/file (:cache-root config) "builds" (name build-id) "release" "bundle-info.edn")]
+    (if-not (.exists file)
+      (common/not-found req "bundle-info.edn not found, please run shadow-cljs release")
+      (common/page-boilerplate req
+        (html
+          [:h1 "shadow-cljs - bundle info"]
+          [:div#root]
+          (assets/js-queue :none 'shadow.cljs.ui.bundle-info/init
+            (edn/read-string (slurp file)))
+          )))))
 
 (defn root [req]
   (http/route req
     (:GET "" index-page)
+    (:GET "/bundle-info/{build-id:keyword}" bundle-info-page build-id)
     (:ANY "^/api" web-api/root)
     (:ANY "^/worker" ws/process)
     common/not-found))

@@ -392,8 +392,9 @@
               generate?
               (conj (generate-externs state))))]
 
-    (doseq [^SourceFile ext all-externs]
-      (log/debug ::externs (.getName ext)))
+    ;; logs when loading externs for externs inference which is pretty annoying
+    #_(doseq [^SourceFile ext all-externs]
+        (log/debug ::externs (.getName ext)))
 
     all-externs))
 
