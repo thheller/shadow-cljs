@@ -48,7 +48,7 @@
         (seq? body)
         (instance? InputStream body)
         (and (instance? File body)
-             (re-seq #"(?i)\.(htm|html|css|js|json|xml)" (pr-str body))))))
+             (re-seq #"(?i)\.(htm|html|css|js|json|xml|map|edn)" (.getName ^File body))))))
 
 (def ^:private min-length 859)
 
