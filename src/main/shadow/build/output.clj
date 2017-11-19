@@ -8,8 +8,9 @@
             [shadow.build.data :as data]
             [clojure.set :as set]
             [shadow.build.resource :as rc])
-  (:import (java.io StringReader BufferedReader File)
-           (java.util Base64)))
+  (:import (java.io StringReader BufferedReader File ByteArrayOutputStream)
+           (java.util Base64)
+           (java.util.zip GZIPOutputStream)))
 
 (defn closure-defines-json [state]
   (let [closure-defines
@@ -596,13 +597,48 @@
   [{:shadow.build.closure/keys [optimized-bytes modules] :keys [build-sources] :as state}]
   (let [modules-info
         (->> modules
-             (map (fn [{:keys [module-id sources depends-on] :as mod}]
+             (map (fn [{:keys [module-id sources depends-on goog-base prepend output append] :as mod}]
                     (let [constants-name
-                          (str "shadow.cljs.module.constants." (name module-id) ".js")]
+                          (str "shadow.cljs.module.constants." (name module-id) ".js")
+
+                          shadow-js-prepend
+                          (when (= :shadow (get-in state [:js-options :js-provider]))
+                            (let [provides
+                                  (->> sources
+                                       (map #(data/get-source-by-id state %))
+                                       (filter #(= :shadow-js (:type %)))
+                                       (map #(data/get-output! state %))
+                                       (map :js)
+                                       (str/join ";\n"))]
+                              (str (when goog-base
+                                     "var shadow$provide = {};\n")
+                                   provides
+                                   (when (seq provides)
+                                     ";\n"))))
+
+                          final-output
+                          (str prepend
+                               shadow-js-prepend
+                               output
+                               append)
+
+                          bytes-out
+                          (ByteArrayOutputStream.)
+
+                          zip-out
+                          (GZIPOutputStream. bytes-out)]
+
+                      (io/copy final-output zip-out)
+                      (.flush zip-out)
+                      (.close zip-out)
+
                       {:module-id module-id
                        :sources sources
                        :depends-on depends-on
-                       :constants-size (get optimized-bytes constants-name 0)})))
+                       :constants-size (get optimized-bytes constants-name 0)
+                       :js-size (count final-output)
+                       :gzip-size (.size bytes-out)}
+                      )))
              (into []))
 
         src->mod
