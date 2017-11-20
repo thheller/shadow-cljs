@@ -49,13 +49,14 @@
    :modules
    {:ui
     {:entries
-     [shadow.cljs.ui.app]
+     [shadow.cljs.ui.app
+      shadow.cljs.ui.bundle-info]
      :depends-on
      #{}}}
 
    :devtools
-   {:before-load shadow.cljs.ui.app/stop
-    :after-load shadow.cljs.ui.app/start
+   {:before-load shadow.cljs.ui.bundle-info/stop
+    :after-load shadow.cljs.ui.bundle-info/start
     :async-require true}}
 
   ;; test builds

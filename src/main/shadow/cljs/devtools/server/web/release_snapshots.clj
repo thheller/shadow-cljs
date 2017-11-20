@@ -37,8 +37,22 @@
         info-file
         (io/file snapshot-dir "bundle-info.edn")]
 
-    {:status 200
-     :body info-file}
+    (common/page-boilerplate req
+      (html
+        [:h1 "shadow-cljs - release snapshot"]
+
+        ;; FIXME: setup proper css
+        [:style "body {\n  font-family: 'Open Sans', sans-serif;\n  font-size: 12px;\n  font-weight: 400;\n  background-color: #fff;\n  width: 960px;\n  height: 700px;\n  margin-top: 10px;\n}\n\n#main {\n  float: left;\n  width: 750px;\n}\n\n#sidebar {\n  float: right;\n  width: 100px;\n}\n\n#sequence {\n  width: 600px;\n  height: 70px;\n}\n\n#legend {\n  padding: 10px 0 0 3px;\n}\n\n#sequence text, #legend text {\n  font-weight: 600;\n  fill: #fff;\n}\n\n#chart {\n  position: relative;\n}\n\n#chart path {\n  stroke: #fff;\n}\n\n#explanation {\n  position: absolute;\n  top: 260px;\n  left: 305px;\n  width: 140px;\n  text-align: center;\n  color: #666;\n  z-index: -1;\n}\n\n#percentage {\n  font-size: 2.5em;\n}"]
+
+        [:div#sequence]
+        [:div#chart
+         [:div#explanation
+          {:style "visibility: hidden;"}
+          [:span#percentage]]]
+
+        (assets/js-queue :none 'shadow.cljs.ui.bundle-info/init
+          (-> (slurp info-file)
+              (edn/read-string)))))
     ))
 
 (defn root [req]

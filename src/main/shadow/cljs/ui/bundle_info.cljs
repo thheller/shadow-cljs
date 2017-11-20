@@ -1,12 +1,27 @@
 (ns shadow.cljs.ui.bundle-info
   (:require [clojure.string :as str]
             [shadow.api :refer (ns-ready)]
-            [shadow.dom :as dom]))
+            [shadow.dom :as dom]
+            ["./bundle_renderer" :as x]))
 
 (defonce state-ref (atom {}))
 
 (defn start []
-  (js/console.log "visualize-me please" @state-ref))
+  (js/console.log "visualize-me please" @state-ref)
+  (let [{:keys [build-modules]}
+        @state-ref
+
+        all
+        (->> (:build-modules @state-ref)
+             (map :source-bytes)
+             (reduce #(merge-with + %1 %2))
+             (remove #(str/includes? (first %) "synthetic:"))
+             (sort-by second)
+             (clj->js))]
+
+    (x/createVisualization all)
+    (js/console.log all)
+    ))
 
 (defn stop []
   (js/console.log "stop"))
