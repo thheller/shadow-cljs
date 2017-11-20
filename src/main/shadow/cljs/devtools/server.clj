@@ -22,7 +22,7 @@
             [shadow.cljs.devtools.server.nrepl :as nrepl]
             [shadow.cljs.devtools.server.dev-http :as dev-http]
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-            )
+            [ring.middleware.resource :as ring-resource])
   (:import (io.netty.handler.ssl SslContextBuilder)
            (javax.net.ssl KeyManagerFactory)
            (java.security KeyStore)
@@ -46,6 +46,8 @@
   (let [ui-root
         (io/file cache-root "ui")]
 
+
+
     (-> (fn [ring-map]
           (let [app (deref app-promise 1000 ::timeout)]
             (if (= app ::timeout)
@@ -57,7 +59,10 @@
                   (web/root)))))
         (cond->
           (.exists ui-root)
-          (ring-file/wrap-file ui-root))
+          (ring-file/wrap-file ui-root)
+
+          (not (.exists ui-root))
+          (ring-resource/wrap-resource "shadow/cljs/ui/dist"))
         ;; (reload/wrap-reload {:dirs ["src/main"]})
         (ring-params/wrap-params)
         (ring-gzip/wrap-gzip)

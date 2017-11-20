@@ -57,7 +57,10 @@
   ["src/main"]
 
   :profiles
-  {:dev
+  {:provided
+   {:source-paths
+    ["src/ui-release"]}
+   :dev
    {:source-paths
     ["src/dev"
      "src/repl"]

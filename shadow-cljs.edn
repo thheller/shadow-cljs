@@ -42,7 +42,8 @@
   :ui
   {:target :browser
 
-   :output-dir ".shadow-cljs/ui/js"
+   :output-dir "src/ui-release/shadow/cljs/ui/dist/js"
+   :dev {:output-dir ".shadow-cljs/ui/js"}
    :asset-path "/js"
 
    :modules
