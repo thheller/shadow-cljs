@@ -1322,12 +1322,33 @@
                         (catch Exception e
                           (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
 
+                      shadow-js-prefix
+                      (when (= :dev mode)
+                        (let [shadow-js-deps
+                              (->> (for [dep-sym (data/deps->syms state rc)
+                                         :let [{:keys [type ns] :as dep} (data/get-source-by-provide state dep-sym)]
+                                         :when (= :shadow-js type)]
+                                     dep)
+                                   (map (fn [{:keys [ns] :as rc}]
+                                          (str "var " ns " = " (npm/shadow-js-require rc))))
+                                   (str/join "\n"))]
+                          (when (seq shadow-js-deps)
+                            (str shadow-js-deps "\n"))))
+
                       sw
                       (StringWriter.)
 
-                      ;; for sourcesContent
-                      _ (.addSourceFile source-map source-file)
-                      _ (.appendTo source-map sw output-name)
+                      _
+                      (doto source-map
+                        ;; for sourcesContent
+                        (.addSourceFile source-file)
+                        (.setWrapperPrefix (or shadow-js-prefix ""))
+                        (.appendTo sw output-name))
+
+                      ;; must ensure that all shadow-js deps are properly required during dev
+                      ;; as closure just emits the reference directly
+                      js
+                      (str shadow-js-prefix js)
 
                       sm-json
                       (.toString sw)

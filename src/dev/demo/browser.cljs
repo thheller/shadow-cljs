@@ -16,7 +16,6 @@
     [clojure.spec.gen.alpha :as gen]
     [shadow.api :refer (ns-ready)]
     [cljs.core.async :as async :refer (go)]
-    ["react-bootstrap-typeahead" :as rbt]
     ["./es6.js" :as es6]
     ["./foo" :as foo]
     ["circular-test" :as circ]
