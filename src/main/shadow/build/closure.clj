@@ -596,7 +596,7 @@
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
 (defn make-js-modules
-  [{:keys [build-modules closure-configurators compiler-options build-sources] :as state}]
+  [{:keys [build-modules closure-configurators compiler-options build-sources polyfill-js] :as state}]
 
   ;; modules that only contain foreign sources must not be exposed to closure
   ;; since they technically do not depend on goog but closure only allows one root module
@@ -615,7 +615,7 @@
 
         js-mods
         (reduce
-          (fn [js-mods {:keys [module-id output-name depends-on sources] :as mod}]
+          (fn [js-mods {:keys [module-id output-name depends-on sources goog-base] :as mod}]
             (let [js-mod (JSModule. output-name)
 
                   sources
@@ -649,7 +649,6 @@
 
                 (.addDependency js-mod other-mod))
 
-
               ;; every module that does not contain cljs.core will get a .constants js files as its first input
               ;; so the ReplaceCLJSConstants pass can write them into that file
               ;; special case for cljs.core since we shouldn't create keywords before they are defined
@@ -666,6 +665,7 @@
                       (cond
                         (= "goog/base.js" resource-name)
                         (str (output/closure-defines state)
+                             polyfill-js
                              js
                              goog-nodeGlobalRequire-fix)
 
@@ -796,6 +796,10 @@
         (doto (make-options)
           (.resetWarningsGuard)
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
+
+          ;; all the required polyfills are handled when transpiling, stored in :polyfill-js
+          ;; must prevent injecting them again
+          (.setPreventLibraryInjection true)
 
           (.setWarningLevel DiagnosticGroups/CHECK_TYPES CheckLevel/OFF)
           ;; really only want the undefined variables warnings
@@ -1241,9 +1245,6 @@
         cc
         (make-closure-compiler)
 
-        rewrite-polyfills
-        (get-in state [:compiler-options :rewrite-polyfills])
-
         ;; FIXME: are there more options we should take from the user?
         co-opts
         {:pretty-print true
@@ -1255,20 +1256,15 @@
         (doto (make-options)
           (set-options co-opts))
 
-        ;; since we are not optimizing closure will not inject polyfills
-        ;; so we manually inject all
-        ;; FIXME: figure out if we can determine which are actually needed
-        _ (when rewrite-polyfills
-            (doto co
-              (.setRewritePolyfills true)
-              (.setPreventLibraryInjection false)
-              (.setForceLibraryInjection ["es6_runtime"])))
+        co
+        (if (false? (get-in state [:compiler-options :rewrite-polyfills]))
+          co
+          (doto co
+            (.setRewritePolyfills true)
+            (.setPreventLibraryInjection false)))
 
         co
         (doto co
-          ;; we only transpile, no optimizing or type checking
-          (.setSkipNonTranspilationPasses true)
-
           (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
 
           (.setProcessCommonJSModules true)
@@ -1283,7 +1279,7 @@
         (try
           (util/with-logged-time [state {:type ::convert
                                          :num-sources (count source-files)}]
-            (.compile cc [] source-files co))
+            (.compile cc default-externs source-files co))
           ;; catch internal closure errors
           (catch Exception e
             (throw (ex-info "failed to convert sources"
@@ -1291,10 +1287,10 @@
                       :sources (into [] (map :resource-id) sources)}
                      e))))
 
-        _ (throw-errors! state cc result)
-
         source-map
         (.getSourceMap cc)]
+
+    (throw-errors! state cc result)
 
     (-> state
         (log-warnings cc result)
@@ -1314,7 +1310,6 @@
               (cond
                 (= polyfill-name name)
                 (let [js (ShadowAccess/nodeToJs cc source-map source-node)]
-                  ;; these are for development only
                   (assoc state :polyfill-js js))
 
                 (nil? rc)

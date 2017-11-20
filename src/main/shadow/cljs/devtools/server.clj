@@ -226,30 +226,31 @@
   ([sys-config]
    (start! sys-config app-config))
   ([sys-config app]
-   (let [{:keys [http ssl-context socket-repl nrepl config] :as app}
-         (start-system app sys-config)]
+   (if (runtime/get-instance)
+     ::already-running
+     (let [{:keys [http ssl-context socket-repl nrepl config] :as app}
+           (start-system app sys-config)]
 
-     (when (get-in config [:http :port])
-       (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http))))
+       (when (get-in config [:http :port])
+         (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http))))
 
-     (when (get-in config [:socket-repl :port])
-       (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl))))
+       (when (get-in config [:socket-repl :port])
+         (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl))))
 
-     (when (get-in config [:nrepl :port])
-       (println (str "shadow-cljs - nrepl running at "
-                     (-> (:server-socket nrepl) (.getInetAddress))
-                     ":" (:port nrepl))))
+       (when (get-in config [:nrepl :port])
+         (println (str "shadow-cljs - nrepl running at "
+                       (-> (:server-socket nrepl) (.getInetAddress))
+                       ":" (:port nrepl))))
 
-     (runtime/set-instance! app)
-     ::started
-     )))
+       (runtime/set-instance! app)
+       ::started
+       ))))
 
-(defn stop!
-  ([]
-   (when @runtime/instance-ref
-     (shutdown-system @runtime/instance-ref)
-     (runtime/reset-instance!)
-     )))
+(defn stop! []
+  (when-let [inst @runtime/instance-ref]
+    (shutdown-system inst)
+    (runtime/reset-instance!)
+    ))
 
 (defn -main [& args]
   (start!)

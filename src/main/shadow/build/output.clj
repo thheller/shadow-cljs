@@ -413,6 +413,11 @@
                  "\nvar CLOSURE_IMPORT_SCRIPT = function(src) { importScripts(src); };\n")
                (when (get-in state [:devtools :async-require])
                  (str "\n" (slurp (io/resource "shadow/build/async-closure-import.js")) "\n"))
+
+               (let [{:keys [polyfill-js]} state]
+                 (when (and goog-base (seq polyfill-js))
+                   (str "\n" polyfill-js)))
+
                (closure-defines-and-base state)
                ;; create the $CLJS var so devtools can always use it
                ;; always exists for :module-format :js

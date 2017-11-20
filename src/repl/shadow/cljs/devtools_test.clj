@@ -413,11 +413,6 @@
     :output-dir "target/test-build-with-polyfill/js"
     :asset-path "/js"
 
-    :compiler-options
-    {:rewrite-polyfills true
-     :language-in :ecmascript6
-     :language-out :ecmascript3}
-
     :modules
     {:test {:entries ["/test/es6/polyfill.js"]}}
 
@@ -436,6 +431,9 @@
       #_(println "POLYFILL")
       #_(-> (get-in state [:polyfill-js])
             (println))
+
+      (println "POLYFILL")
+      (println (get-in state [:polyfill-js]))
 
       (println "CODE")
       (-> (get-in state [:output])

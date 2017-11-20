@@ -11,6 +11,10 @@ var foo = (x = "any old string") => {
   return bar(x);
 };
 
-export { foo };
+async function someAsyncFn(thing)  {
+  var value = await thing;
+  console.log("await value", value);
+}
 
+export { foo, someAsyncFn };
 export default "defaultExport";

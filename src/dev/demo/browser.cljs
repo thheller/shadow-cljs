@@ -25,6 +25,8 @@
 (go (<! (async/timeout 500))
     (js/console.log "go!"))
 
+(es6/someAsyncFn (js/fetch "/index.html"))
+
 (pprint [1 2 3])
 
 (assoc nil :foo 1)
