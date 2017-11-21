@@ -7,7 +7,8 @@
             [shadow.build.npm :as npm]
             [shadow.cljs.devtools.cli]
             [shadow.cljs.devtools.server]
-            ))
+            [clojure.string :as str])
+  (:import (java.io FileOutputStream)))
 
 (defn test-build []
   (let [npm
@@ -46,6 +47,38 @@
 
 (defn -main []
   (go 5))
+
+;; @cmal asked in #clojurescript clojurians whether
+;; the keyword construction could be optimized by removing the fqn
+;; since its identical to the name for unqualified keywords
+;; result: small difference after gzip, extra overhead at runtime
+;; this test also generates completely random keywords
+;; real world will have some more overlap which should improve gzip
+(deftest test-keyword-size-difference
+  (let [dict
+        (into [] "abcdefghijklmnopqrstuvwxyz1234567890")
+
+        max
+        (count dict)
+
+        with-fqn
+        #(str "new X(null, \"" % "\", \"" % "\", " (rand) ", null);")
+
+        without-fqn
+        #(str "new X(null, \"" % "\", " (rand) ", null);")]
+
+    (with-open [out1 (FileOutputStream. "tmp/keywords-fqn.txt")
+                out2 (FileOutputStream. "tmp/keywords-new.txt")]
+
+      (dotimes [x 500]
+        (let [gen-name
+              (->> (range (+ 3 (rand-int 12)))
+                   (map (fn [x] (nth dict (rand-int max))))
+                   (str/join ""))]
+
+          (.write out1 (.getBytes (with-fqn gen-name)))
+          (.write out2 (.getBytes (without-fqn gen-name)))
+          )))))
 
 (comment
   (go 1)
