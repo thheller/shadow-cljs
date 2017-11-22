@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.96"
+(defproject thheller/shadow-cljs "2.0.97"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -31,7 +31,7 @@
 
    [com.google.javascript/closure-compiler-unshaded "v20171023"]
 
-   [thheller/shadow-util "0.6.0"]
+   [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.1.0"]
 
    [aleph "0.4.4"]

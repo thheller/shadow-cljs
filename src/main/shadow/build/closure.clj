@@ -799,7 +799,7 @@
 
           ;; all the required polyfills are handled when transpiling, stored in :polyfill-js
           ;; must prevent injecting them again
-          (.setPreventLibraryInjection true)
+          (.setPreventLibraryInjection (boolean (seq (:polyfill-js state))))
 
           (.setWarningLevel DiagnosticGroups/CHECK_TYPES CheckLevel/OFF)
           ;; really only want the undefined variables warnings
