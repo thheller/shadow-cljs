@@ -128,13 +128,11 @@
     :preloads [shadow.cljs.devtools.client.hud]}}
 
   :test-dummy
-  {:target :browser
-   :output-dir "out/demo-test-dummy/public/js"
-   :modules {:test {:entries [shadow.test demo.app-test shadow.test.runner]}}
+  {:target :browser-test
+   :test-dir "out/demo-test-dummy"
    :devtools
-   {:after-load shadow.test.runner/start
-    :http-root "out/demo-test-dummy/public"
-    :http-port 8606}}
+   {:http-port 8606
+    :http-root "out/demo-test-dummy"}}
 
   :sm-test
   {:target :browser

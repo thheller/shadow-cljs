@@ -102,9 +102,9 @@
   namespace, with fixtures."
   [ns]
   (ct/run-block
-    (concat (test-all-vars-block ns)
-      [(fn []
-         (ct/report {:type :end-test-all-vars :ns ns}))])))
+    (-> (test-all-vars-block ns)
+        (conj (fn []
+                (ct/report {:type :end-test-all-vars :ns ns}))))))
 
 (defn test-ns-block
   "Like test-ns, but returns a block for further composition and

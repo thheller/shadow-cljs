@@ -12,7 +12,8 @@
     ;; FIXME: move these
             [shadow.cljs.devtools.cljs-specs]
             [shadow.build.data :as data]
-            [clojure.tools.logging :as log]))
+            [clojure.tools.logging :as log]
+            [shadow.build.log :as build-log]))
 
 (defn enhance-warnings
   "adds source excerpts to warnings if line information is available"
@@ -313,5 +314,11 @@
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
   (process-stage state :flush true))
+
+
+(defn log [state log-event]
+  {:pre [(build-api/build-state? state)]}
+  (build-log/log* (:logger state) state log-event)
+  state)
 
 

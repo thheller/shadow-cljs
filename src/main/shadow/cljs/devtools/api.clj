@@ -371,35 +371,7 @@
         exit-code))))
 
 (defn test []
-  (let [{:keys [npm classpath cache-root executor]}
-        (get-runtime!)
-
-        mode
-        :dev
-
-        cache-dir
-        (config/make-cache-dir cache-root :test mode)
-
-        build-state
-        (-> (build-api/init)
-            (build-api/with-npm npm)
-            (build-api/with-classpath classpath)
-            (build-api/with-cache-dir cache-dir)
-            (assoc :mode mode)
-            (build-api/with-build-options
-              {:output-dir (io/file "target" "test-out")})
-            (cond->
-              executor
-              (build-api/with-executor executor))
-
-            (build-test/setup-runner '[demo.app-test])
-            (build-api/analyze-modules)
-            (build-api/compile-sources)
-            (node/flush-unoptimized)
-            (build-finish {:build-id :test}))]
-
-    (node-execute! [] (io/file "target" "shadow-test-runner.js"))
-    ))
+  (println "TBD"))
 
 (defn- clean-dir [dir]
   (when (.exists dir)

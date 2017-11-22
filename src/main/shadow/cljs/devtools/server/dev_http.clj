@@ -12,7 +12,9 @@
             [clojure.tools.logging :as log]
             [shadow.cljs.devtools.config :as config]
             [clojure.string :as str]
-            [shadow.cljs.devtools.server.ring-gzip :as ring-gzip])
+            [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
+            [shadow.cljs.devtools.api :as api]
+            [shadow.build :as build])
   (:import (java.net BindException)))
 
 (defn disable-all-kinds-of-caching [handler]
@@ -30,12 +32,13 @@
   [ssl-context
    executor
    out
-   {:keys [build-id http-root http-port http-handler]
+   {:keys [build-id http-root http-port http-resource-root http-handler]
     :or {http-port 0}
     :as config}]
 
   (let [root-dir
-        (io/file http-root)
+        (when (seq http-root)
+          (io/file http-root))
 
         default-handler
         (if-not http-handler
@@ -53,7 +56,7 @@
                     :devtools config)
                   (http-handler-fn)))))]
 
-    (when-not (.exists root-dir)
+    (when (and root-dir (not (.exists root-dir)))
       (io/make-parents (io/file root-dir "index.html")))
 
     (try
@@ -65,8 +68,13 @@
                 ;; 404 chrome devtools show then no icon exists
                 (ring-resource/wrap-resource "shadow/cljs/devtools/server/dev_http")
                 (ring-content-type/wrap-content-type)
-                (ring-file/wrap-file root-dir {:allow-symlinks? true
-                                               :index-files? true})
+                (cond->
+                  (seq http-resource-root)
+                  (ring-resource/wrap-resource http-resource-root)
+
+                  root-dir
+                  (ring-file/wrap-file root-dir {:allow-symlinks? true
+                                                 :index-files? true}))
                 (ring-file-info/wrap-file-info
                   ;; source maps
                   {"map" "application/json"})

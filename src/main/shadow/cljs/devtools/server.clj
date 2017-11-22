@@ -46,8 +46,6 @@
   (let [ui-root
         (io/file cache-root "ui")]
 
-
-
     (-> (fn [ring-map]
           (let [app (deref app-promise 1000 ::timeout)]
             (if (= app ::timeout)

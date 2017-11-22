@@ -4,19 +4,19 @@
 (ct/use-fixtures :once
   {:before
    (fn []
-     (js/console.log "once before"))
+     (println "once before"))
    :after
    (fn []
-     (js/console.log "once after"))})
+     (println "once after"))})
 
 (ct/use-fixtures :each
   {:before
    (fn []
-     (js/console.log "each before"))
+     (println "each before"))
 
    :after
    (fn []
-     (js/console.log "each after"))})
+     (println "each after"))})
 
 (deftest a-failing-test
   (is (= 1 2)))

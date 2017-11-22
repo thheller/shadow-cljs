@@ -234,8 +234,7 @@
               (assoc :fs-watch
                      (let [watch-dir (io/file watch-dir)]
                        (when-not (.exists watch-dir)
-                         (throw (ex-info (format ":watch-dir \"%s\" does not exist" watch-dir)
-                                  {:watch-dir watch-dir})))
+                         (io/make-parents (io/file watch-dir "dummy.html")))
                        (fs-watch-hawk/start [watch-dir] watch-exts #(async/>!! asset-update %))))))]
 
     (sys-bus/sub system-bus ::sys-msg/resource-update resource-update)

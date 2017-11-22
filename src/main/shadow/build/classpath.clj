@@ -699,9 +699,16 @@
   {:pre [(symbol? ns-sym)]}
   (->> (:sources @index-ref)
        (vals)
-       (filter (fn [{:keys [requires]}]
-                 (contains? requires ns-sym)))
+       (filter (fn [{:keys [ns requires]}]
+                 (and (contains? requires ns-sym)
+                      ;; FIXME: this namespace should never be used anywhere
+                      (not= ns 'shadow.build.cljs-hacks))))
        (into #{})))
+
+(defn get-all-resources
+  [{:keys [index-ref] :as cp}]
+  (->> (:sources @index-ref)
+       (vals)))
 
 (comment
   ;; FIXME: implement correctly
