@@ -127,6 +127,15 @@
     :after-load demo.browser/start
     :preloads [shadow.cljs.devtools.client.hud]}}
 
+  :test-dummy
+  {:target :browser
+   :output-dir "out/demo-test-dummy/public/js"
+   :modules {:test {:entries [shadow.test demo.app-test shadow.test.runner]}}
+   :devtools
+   {:after-load shadow.test.runner/start
+    :http-root "out/demo-test-dummy/public"
+    :http-port 8606}}
+
   :sm-test
   {:target :browser
 
@@ -151,7 +160,6 @@
    :js-options
    {:js-provider :shadow
     :resolve
-    ;; FIXME: can't yet process the process.env.NODE_ENV based require react v16 does
     {"js-sm-test"
      {:target :file
       :file "test/cjs/js-sm-test.js"}}}

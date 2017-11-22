@@ -1,5 +1,25 @@
 (ns demo.app-test
-  (:require [cljs.test :refer (deftest is)]))
+  (:require [cljs.test :as ct :refer (deftest is)]))
 
-(deftest some-demo-test
+(ct/use-fixtures :once
+  {:before
+   (fn []
+     (js/console.log "once before"))
+   :after
+   (fn []
+     (js/console.log "once after"))})
+
+(ct/use-fixtures :each
+  {:before
+   (fn []
+     (js/console.log "each before"))
+
+   :after
+   (fn []
+     (js/console.log "each after"))})
+
+(deftest a-failing-test
   (is (= 1 2)))
+
+(deftest a-passing-test
+  (is (= 1 1)))
