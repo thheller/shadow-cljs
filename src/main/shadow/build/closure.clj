@@ -595,6 +595,10 @@
 (def goog-nodeGlobalRequire-fix
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
+(def constants-inject
+  (str "function shadow$keyword(name, hash) { console.log(name, hash); return new cljs.core.Keyword(null, name, name, hash); };\n"
+       "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
+
 (defn make-js-modules
   [{:keys [build-modules closure-configurators compiler-options build-sources polyfill-js] :as state}]
 
@@ -633,8 +637,8 @@
                        (mapcat #(data/deps->syms state %))
                        (into #{}))
 
-                  mod-constants-file
-                  (closure-source-file (str "shadow/cljs/constants/" (name module-id) ".js") "")]
+                  mod-constants-name
+                  (str "shadow/cljs/constants/" (name module-id) ".js")]
 
               (doseq [other-mod-id depends-on
                       :when (not (contains? skip-mods other-mod-id))
@@ -654,7 +658,7 @@
               ;; special case for cljs.core since we shouldn't create keywords before they are defined
               (when (and (contains? mod-deps 'cljs.core)
                          (not (contains? mod-provides 'cljs.core)))
-                (.add js-mod mod-constants-file))
+                (.add js-mod (closure-source-file mod-constants-name "")))
 
               (doseq [{:keys [resource-id resource-name output-name ns type output] :as rc}
                       sources]
@@ -680,7 +684,7 @@
                   (.add js-mod (closure-source-file resource-name js))
 
                   (when (= ns 'cljs.core)
-                    (.add js-mod mod-constants-file))
+                    (.add js-mod (closure-source-file mod-constants-name constants-inject)))
                   ))
 
               (assoc js-mods module-id js-mod)))
@@ -822,7 +826,8 @@
 
       (add-input-source-maps state cc))
 
-    (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS (ReplaceCLJSConstants. cc))
+    (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
+      (ReplaceCLJSConstants. cc (true? (get-in state [:compiler-options :shadow-keywords]))))
     (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
       (NodeEnvInlinePass. cc (if (= :release (:mode state))
                                "production"

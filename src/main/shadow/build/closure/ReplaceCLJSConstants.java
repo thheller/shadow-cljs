@@ -14,10 +14,12 @@ import java.util.*;
 public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callback {
 
     private final AbstractCompiler compiler;
+    private final boolean shadowKeywords;
     private final Map<String, ConstantRef> constants = new HashMap<>();
 
-    public ReplaceCLJSConstants(AbstractCompiler compiler) {
+    public ReplaceCLJSConstants(AbstractCompiler compiler, boolean shadowKeywords) {
         this.compiler = compiler;
+        this.shadowKeywords = shadowKeywords;
     }
 
     @Override
@@ -26,10 +28,9 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
             throw new IllegalStateException("can only run once");
         }
 
-        // traverse all inputs that require cljs.core + cljs.core itself
         for (CompilerInput input : ShadowAccess.getInputsInOrder(compiler)) {
-            // FIXME: this parses the inputs to get provides/requires
-            if (input.getRequires().contains("cljs.core") || input.getProvides().contains("cljs.core")) {
+            // clj/cljs/cljc files only, clj because of self-host macros
+            if (input.getName().indexOf(".clj") != -1) {
                 NodeTraversal.traverseEs6(compiler, input.getAstRoot(compiler), this);
             }
         }
@@ -59,7 +60,33 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                 throw new IllegalStateException(String.format("could not find where to put constant for module %s", targetModule.getName()));
             }
 
-            Node varNode = IR.var(IR.name(ref.name), ref.node);
+            Node constantNode;
+
+            // FIXME: need real life tests if this is actually better
+            // calling function + constructing fqn at runtime
+            // vs.
+            // just calling new with all args, but duplicate ns/name in fqn
+            if (shadowKeywords && ref.keyword) {
+                // simple keyword
+                if (ref.nsNode.isNull()) {
+                    constantNode = IR.call(
+                            IR.name("shadow$keyword"),
+                            ref.nameNode.detach(),
+                            ref.hashNode.detach()
+                    );
+                } else {
+                    constantNode = IR.call(
+                            IR.name("shadow$keyword_fqn"),
+                            ref.nsNode.detach(),
+                            ref.nameNode.detach(),
+                            ref.hashNode.detach()
+                    );
+                }
+            } else {
+                constantNode = ref.node;
+            }
+
+            Node varNode = IR.var(IR.name(ref.varName), constantNode);
             target.addChildToBack(varNode);
 
             ShadowAccess.reportChangeToEnclosingScope(compiler, target);
@@ -107,7 +134,7 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
 
                         ConstantRef ref = constants.get(constantName);
                         if (ref == null) {
-                            ref = new ConstantRef(constantName, fqn, n);
+                            ref = new ConstantRef(constantName, typeName.equals("cljs.core.Keyword"), n, nsNode, nameNode, hashNode);
                             constants.put(constantName, ref);
                         }
                         ref.usedIn.add(t.getModule());
@@ -123,16 +150,22 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
     }
 
     public class ConstantRef {
-        final String name;
-        final String fqn;
+        final String varName;
+        final boolean keyword;
         final Node node;
+        final Node nsNode;
+        final Node nameNode;
+        final Node hashNode;
         Set<JSModule> usedIn;
         BitSet usedInBits;
 
-        public ConstantRef(String name, String fqn, Node node) {
-            this.name = name;
-            this.fqn = fqn;
+        public ConstantRef(String varName, boolean keyword, Node node, Node nsNode, Node nameNode, Node hashNode) {
+            this.varName = varName;
+            this.keyword = keyword;
             this.node = node;
+            this.nsNode = nsNode;
+            this.nameNode = nameNode;
+            this.hashNode = hashNode;
             this.usedIn = new HashSet<>();
             this.usedInBits = new BitSet();
         }

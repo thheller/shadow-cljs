@@ -69,6 +69,7 @@
 
    :compiler-options
    {:infer-externs :auto
+    :shadow-keywords true
     :closure-defines
     {demo.browser/FOO "bar"}}
 
@@ -77,7 +78,7 @@
    :modules
    {:base
     {:entries
-     [cljs.core demo.sm-test-before]
+     [cljs.core demo.sm-before]
      :depends-on
      #{}}
 
@@ -107,9 +108,9 @@
    :js-options
    {:js-provider :shadow
     :resolve
-    {"d3"
-     {:target :npm
-      :require "d3/build/d3"}
+    {#_"d3"
+     #_{:target :npm
+        :require "d3/build/d3"}
      "circular-test"
      {:target :file
       :file "test/dummy/circular-a.js"}
