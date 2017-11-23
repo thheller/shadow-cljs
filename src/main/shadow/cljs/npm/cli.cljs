@@ -133,7 +133,6 @@
 (def unwanted-deps
   '#{org.clojure/clojurescript ;; we will always be on the latest version
      org.clojure/clojure ;; can't run on 1.8
-     clojure-future-spec ;; backported spec for clojure 1.8, we are 1.9
      thheller/shadow-cljs ;; just in case, added later
      })
 

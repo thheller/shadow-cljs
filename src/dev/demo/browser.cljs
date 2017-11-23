@@ -36,6 +36,7 @@
 
 #_(def mdc-checkbox (MDCCheckbox. (js/document.getElementById "material")))
 
+(js/console.log :foo)
 (prn :foo1 :bar)
 (prn :foo2 :bar)
 (prn :foo3 :bar)

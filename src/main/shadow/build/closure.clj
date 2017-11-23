@@ -596,7 +596,7 @@
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
 (def constants-inject
-  (str "function shadow$keyword(name, hash) { console.log(name, hash); return new cljs.core.Keyword(null, name, name, hash); };\n"
+  (str "function shadow$keyword(name, hash) { return new cljs.core.Keyword(null, name, name, hash); };\n"
        "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
 
 (defn make-js-modules
@@ -710,7 +710,7 @@
   (let [js-mods
         (reduce
           (fn [js-mods resource-id]
-            (let [{:keys [ns deps output-name] :as src}
+            (let [{:keys [ns deps type resource-name output-name] :as src}
                   (data/get-source-by-id state resource-id)
 
                   {:keys [js] :as output}
@@ -755,8 +755,12 @@
                          defs))
 
                   js-mod
-                  (doto (JSModule. (util/flat-filename output-name))
-                    (.add (closure-source-file output-name code)))]
+                  (JSModule. (util/flat-filename output-name))]
+
+              (when (= :cljs type)
+                (.add js-mod (closure-source-file (str "shadow/cljs/constants/" resource-name) "")))
+
+              (.add js-mod (closure-source-file resource-name code))
 
               (doseq [dep
                       (->> (data/deps->syms state src)
