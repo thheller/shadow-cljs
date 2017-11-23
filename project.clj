@@ -42,6 +42,7 @@
     [clj-time]]
 
    [expound "0.3.1"]
+   [fipp "0.6.12"]
 
    ;; experimental
    [hawk "0.2.11"]

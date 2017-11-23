@@ -35,6 +35,7 @@
     (-> state
         (update ::build/config assoc :output-dir (str test-dir "/js"))
         (assoc-in [::build/config :modules :test] {:entries []})
+        (assoc-in [::build/config :compiler-options :source-map] true) ;; always
         (assoc ::runner-ns runner-ns)
         (update-in [::build/config :devtools] merge
           ;; FIXME: can't yet dynamically inject the http-root config
@@ -67,7 +68,7 @@
                       :test-namespaces test-namespaces})
 
     (update-in state [::modules/config :test :entries]
-      #(-> '[shadow.test] ;; must be included before any deftest because of the cljs.test mod
+      #(-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
            (into %)
            (into test-namespaces)
            (conj runner-ns)))))

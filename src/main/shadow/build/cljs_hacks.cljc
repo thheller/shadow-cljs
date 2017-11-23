@@ -814,9 +814,9 @@
 
        (let [the-var# (var ~name)]
          (set! (.-cljs$lang$var ~name) the-var#)
-         (shadow.test/register-test (quote ~(symbol (str *ns*))) (quote ~name) the-var#)
+         (shadow.test.env/register-test (quote ~(symbol (str *ns*))) (quote ~name) the-var#)
          ))))
 
 (defmacro use-fixtures [type & fns]
   {:pre [(contains? #{:once :each} type)]}
-  `(shadow.test/register-fixtures (quote ~(symbol (str *ns*))) ~type [~@fns]))
+  `(shadow.test.env/register-fixtures (quote ~(symbol (str *ns*))) ~type [~@fns]))

@@ -231,7 +231,7 @@
 
 (defn normalize-config [config]
   (reduce-kv
-    (fn [m module-id mod]
+    (fn [m module-id {:keys [output-name] :as mod}]
       (assert (keyword? module-id))
       (assert (map? mod))
       (let [module-name
@@ -240,7 +240,7 @@
             mod (assoc mod
                   :module-id module-id
                   :module-name module-name
-                  :output-name module-name)]
+                  :output-name (or output-name module-name))]
         (assoc m module-id mod)))
     {}
     config))

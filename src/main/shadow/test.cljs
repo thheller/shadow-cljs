@@ -1,34 +1,8 @@
 (ns shadow.test
   "cljs.test just without all those damn macros
    requires the shadow.build.cljs-hacks deftest mod which calls shadow.test/register-test"
-  (:require [cljs.test :as ct]))
-
-;; this should be how cljs.test works out of the box IMHO
-;; all those macros don't compose and make writing testing utilities painful
-;; (eg. you have to recompile the namespace containing the macro to pick up new tests)
-;; only the macros were replaced, the functionality remains unchanged
-
-(defonce tests-ref (atom {}))
-
-(defn register-test [test-ns test-name test-var]
-  ;; register by name so reloading replaces the old test
-  (swap! tests-ref assoc-in [test-ns :vars test-name] test-var))
-
-(defn register-fixtures [test-ns type fix]
-  (swap! tests-ref assoc-in [test-ns :fixtures type] fix))
-
-(defn get-tests []
-  @tests-ref)
-
-(defn get-test-ns-info [ns]
-  {:pre [(symbol? ns)]}
-  (get @tests-ref ns))
-
-(defn get-test-namespaces
-  "returns all the registered test namespaces and symbols
-   use (get-test-ns-info the-sym) to get the details"
-  []
-  (keys @tests-ref))
+  (:require [cljs.test :as ct]
+            [shadow.test.env :as env]))
 
 (declare test-ns-block)
 
@@ -58,7 +32,7 @@
   ([]
    (run-tests (ct/empty-env)))
   ([env]
-   (run-tests env (get-test-namespaces)))
+   (run-tests env (env/get-test-namespaces)))
   ([env namespaces]
    (ct/run-block (run-tests-block env namespaces))))
 
@@ -67,11 +41,11 @@
   Optional argument is a regular expression; only namespaces with
   names matching the regular expression (with re-matches) will be
   tested."
-  ([] (run-all-tests nil (ct/empty-env)))
-  ([re] (run-all-tests re (ct/empty-env)))
-  ([re env]
+  ([] (run-all-tests (ct/empty-env) nil))
+  ([env] (run-all-tests env nil))
+  ([env re]
    (run-tests env
-     (->> (get-test-namespaces)
+     (->> (env/get-test-namespaces)
           (filter #(or (nil? re)
                        (re-matches re (str %))))
           (into [])))))
@@ -79,7 +53,7 @@
 (defn test-all-vars-block [ns]
   (let [env (ct/get-current-env)
         {:keys [fixtures each-fixtures vars] :as test-ns}
-        (get-test-ns-info ns)]
+        (env/get-test-ns-info ns)]
 
     (-> [(fn []
            (when (nil? env)
