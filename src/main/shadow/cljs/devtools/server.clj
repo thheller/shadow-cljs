@@ -26,7 +26,8 @@
   (:import (io.netty.handler.ssl SslContextBuilder)
            (javax.net.ssl KeyManagerFactory)
            (java.security KeyStore)
-           (java.io FileInputStream)))
+           (java.io FileInputStream)
+           (java.net BindException)))
 
 (def app-config
   (merge
@@ -130,6 +131,19 @@
         :ssl-context ssl-context)
       )))
 
+(defn start-http [ring {:keys [port strict] :as http-config}]
+  (loop [port (or port 9630)]
+    (let [srv
+          (try
+            (aleph/start-server ring (assoc http-config :port port))
+            (catch BindException e
+              (log/warnf "TCP Port %d in use." port)
+              (when strict
+                (throw e))))]
+
+      (or srv (recur (inc port)))
+      )))
+
 (defn start-system
   [app {:keys [cache-root] :as config}]
   (let [app-promise
@@ -142,14 +156,14 @@
         config
 
         {:keys [ssl-context] :as http-config}
-        (-> {:port 0 :host "localhost"}
+        (-> {:host "localhost"}
             (merge http)
             (cond->
               ssl
               (setup-ssl ssl)))
 
         http
-        (aleph/start-server ring http-config)
+        (start-http ring http-config)
 
         http-port
         (netty/port http)
@@ -229,8 +243,7 @@
      (let [{:keys [http ssl-context socket-repl nrepl config] :as app}
            (start-system app sys-config)]
 
-       (when (get-in config [:http :port])
-         (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http))))
+       (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http)))
 
        (when (get-in config [:socket-repl :port])
          (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl))))

@@ -1,0 +1,5 @@
+# bundle_renderer.js is JS and can't use infer-externs
+on
+dx
+dy
+

@@ -11,7 +11,7 @@
  ;; :ssl {}
 
  :http
- {:port 8200}
+ {}
 
  :nrepl
  {:port 8202

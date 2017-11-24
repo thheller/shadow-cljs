@@ -45,8 +45,6 @@ var arc = d3.svg.arc()
 function createVisualization(data) {
   var json = buildHierarchy(data);
 
-  console.log("json", json);
-
   // Basic setup of page elements.
   initializeBreadcrumbTrail();
 

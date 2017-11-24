@@ -15,13 +15,18 @@
   (common/page-boilerplate req
     (html
       [:h1 "shadow-cljs"]
+      [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
       [:ul
        [:li [:a {:href "/release-snapshots"} "Release Snapshots"]]]
-      [:h2 "HTTP Servers"]
-      [:ul
-       (for [{:keys [build-id port ssl] :as srv} (:servers dev-http)]
-         (let [url (str "http" (when ssl "s") "://localhost:" port)]
-           [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]
+
+      (let [{:keys [servers]} dev-http]
+        (when (seq servers)
+          (html
+            [:h2 "HTTP Servers"]
+            [:ul
+             (for [{:keys [build-id port ssl] :as srv} (:servers dev-http)]
+               (let [url (str "http" (when ssl "s") "://localhost:" port)]
+                 [:li [:a {:href url} (str url " - " (pr-str build-id))]]))])))
 
       [:div#root]
       (assets/js-queue :none 'shadow.cljs.ui.app/init)
