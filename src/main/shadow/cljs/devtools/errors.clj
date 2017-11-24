@@ -10,9 +10,10 @@
             [shadow.build.resolve :as resolve]
             [shadow.cljs.devtools.config :as config]
             [shadow.build.warnings :as w]
-            [expound.alpha :as expound])
+            [expound.alpha :as expound]
+            [clojure.tools.logging :as log])
   (:import (java.io StringWriter)
-           (clojure.lang ExceptionInfo)))
+           (clojure.lang ExceptionInfo ArityException)))
 
 (declare error-format)
 
@@ -20,7 +21,11 @@
   #{"clojure.lang.RestFn"
     "clojure.lang.AFn"})
 
-(defn ex-format [w e]
+(defmulti ex-format
+  (fn [w e]
+    (class e)))
+
+(defmethod ex-format :default [w e]
   ;; pretty similar to repl/pst
   (.write w (str (-> e class .getSimpleName) ": " (.getMessage e) "\n"))
   (let [stack
@@ -36,6 +41,9 @@
       (.write w "Caused by:\n")
       (error-format w cause)
       )))
+
+(defmethod ex-format ArityException [w e]
+  (.write w (.getMessage e)))
 
 (defn get-tag [data]
   (or (:tag data)
@@ -64,7 +72,7 @@
 (defmethod ex-data-format ::comp/get-target-fn
   [w e data]
   (write-msg w e)
-  (ex-format w (.getCause e)))
+  (error-format w (.getCause e)))
 
 (defn spec-explain [w {::s/keys [problems value spec] :as data}]
   ;; FIXME: meh, no idea how to make spec errors easier to read
@@ -85,7 +93,7 @@
 
   (.write w (with-out-str
               (expound/printer data)
-              #_ (s/explain-out (select-keys data [::s/problems])))))
+              #_(s/explain-out (select-keys data [::s/problems])))))
 
 (defmethod ex-data-format ::ns-form/invalid-ns
   [w e {:keys [config] :as data}]
@@ -243,6 +251,9 @@
        ))))
 
 (defn user-friendly-error [e]
-  (binding [*out* *err*]
-    (println (error-format e)))
+  (try
+    (binding [*out* *err*]
+      (println (error-format e)))
+    (catch Exception e
+      (log/warn "failed to format error" e)))
   :error)

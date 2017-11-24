@@ -1,4 +1,4 @@
 (ns demo.browser)
 
-(defmacro test-macro [& args]
+(defmacro test-macro [a b c]
   :foo)
