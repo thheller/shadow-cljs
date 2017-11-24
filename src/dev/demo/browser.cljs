@@ -19,7 +19,11 @@
     ["./es6.js" :as es6]
     ["./foo" :as foo]
     ["circular-test" :as circ]
+    [cljs.test :refer (deftest)]
     ))
+
+(deftest yo
+  (= 1 2))
 
 (go (<! (async/timeout 500))
     (js/console.log "go!"))

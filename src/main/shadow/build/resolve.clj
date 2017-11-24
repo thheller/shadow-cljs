@@ -251,8 +251,6 @@
           name
           (symbol (str name "$macros")))]
 
-    (prn [:reinspect name deps])
-
     (-> rc
         (assoc
           :ns-info (dissoc ast :env)
@@ -271,7 +269,7 @@
 (defn resolve-symbol-require [state require-from require]
   {:pre [(data/build-state? state)]}
 
-  (let [[{:keys [resource-id resource-name type] :as rc} state]
+  (let [[{:keys [resource-id ns resource-name type] :as rc} state]
         (find-resource-for-symbol state require-from require)]
 
     (when-not rc
@@ -296,7 +294,15 @@
                   (not (str/ends-with? resource-name ".cljc"))
                   (= reader-features #{:cljs}))
             rc
-            (reinspect-cljc-rc state rc reader-features))]
+            (reinspect-cljc-rc state rc reader-features))
+
+          rc
+          (if (not= ns 'cljs.test)
+            rc
+            ;; temp fix for the cljs.test deftest macro hack
+            ;; it calls shadow.test.env/register-test but cljs.test doesn't properly
+            ;; require shadow.test.env since its a hack
+            (update rc :deps #(into '[shadow.test.env] %)))]
 
       ;; react symbol may have resolved to a JS dependency
       ;; CLJS/goog do not allow circular dependencies, JS does
