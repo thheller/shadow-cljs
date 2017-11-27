@@ -927,7 +927,9 @@
                     {:keys [source]}
                     (data/get-output! state rc)]
 
-                (closure-source-file resource-name (or source "")))))
+                (when (string? source)
+                  (closure-source-file resource-name source)))))
+       (remove nil?)
        (into [])))
 
 (defn add-sources-to-source-map [state source-map]
