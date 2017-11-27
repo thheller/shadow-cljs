@@ -427,19 +427,20 @@
         ;; which _should_ be ok since all generated code should be munged properly
         ;; just shadow-js and js compiled by goog is not munged but instead uses [] access
         (and var-name (= (namespace var-name) "js"))
-        (let [[head & tail] (clojure.string/split (name var-name) #"\.")]
-          (emits (munge head))
-          (doseq [part tail]
-            (cond
-              (and (= "default" part)
-                   (es5>= (:language-out options)))
-              (emits ".default")
+        (emit-wrap env
+          (let [[head & tail] (clojure.string/split (name var-name) #"\.")]
+            (emits (munge head))
+            (doseq [part tail]
+              (cond
+                (and (= "default" part)
+                     (es5>= (:language-out options)))
+                (emits ".default")
 
-              (contains? js-reserved part)
-              (emits "[\"" part "\"]")
+                (contains? js-reserved part)
+                (emits "[\"" part "\"]")
 
-              :else
-              (emits "." (munge part)))))
+                :else
+                (emits "." (munge part))))))
 
         :else
         (when-not (= :statement (:context env))
