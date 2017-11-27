@@ -129,7 +129,7 @@
       :clause
       #{:import :import-macros}
       :imports
-      (s/+ ::import))))
+      (s/* ::import))))
 
 ;; :refer-clojure
 (s/def ::refer-clojure-opt

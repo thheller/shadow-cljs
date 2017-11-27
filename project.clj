@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.102"
+(defproject thheller/shadow-cljs "2.0.103"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -80,6 +80,7 @@
 
      #_ [cider/cider-nrepl "0.16.0-SNAPSHOT"]
 
+     [metosin/spec-tools "0.5.1"]
      [thi.ng/geom "0.0.908"]
      [re-view "0.4.6"]
      [com.rpl/specter "1.0.4"]

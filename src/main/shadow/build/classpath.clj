@@ -129,13 +129,20 @@
              (map (juxt :resource-name identity))
              (into {}))
 
+        data-readers
+        (get index "data_readers.cljc")
+
+        index
+        (dissoc index "data_readers.cljc")
+
         deps-cljs
         (get index "deps.cljs")]
 
     (if (nil? deps-cljs)
       {:foreign-libs []
        :externs []
-       :resources resources}
+       :resources (vec (vals index))
+       :data-readers data-readers}
 
       (let [{:keys [externs foreign-libs] :as deps-cljs}
             (-> (slurp (:url deps-cljs))
@@ -239,6 +246,7 @@
 
         {:resources (vec (vals index))
          :foreign-libs foreign-rcs
+         :data-readers data-readers
          :externs extern-rcs}
         ))))
 
