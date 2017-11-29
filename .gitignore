@@ -12,6 +12,7 @@ pom.xml
 pom.xml.asc
 *.iml
 *.jar
+*.js.map
 *.class
 .cpcache
 .cljs-cache

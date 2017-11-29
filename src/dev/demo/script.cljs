@@ -1,6 +1,5 @@
 (ns demo.script
-  (:require ["http" :as http]
-            ["./es6" :as es6]))
+  (:require ["http" :as http]))
 
 (defn request-handler [req res]
   (.end res "foo"))
@@ -35,4 +34,3 @@
         (done)))))
 
 (js/console.log "__filename" js/__filename)
-(js/console.log "es6" (es6/foo "bar"))

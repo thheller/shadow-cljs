@@ -176,11 +176,10 @@
       (when-not (seq modules)
         (throw (ex-info "flush before optimize?" {})))
 
-      (let [{:keys [prepend output append]} (first modules)]
-        (io/make-parents output-to)
-        (spit output-to (str prepend output append))
-        )))
-
+      (-> state
+          (assoc-in [:build-options :output-dir] (.getParentFile output-to))
+          (assoc-in [::closure/modules 0 :output-name] (.getName output-to))
+          (output/flush-optimized))))
 
   state)
 

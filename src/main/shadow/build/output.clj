@@ -245,18 +245,20 @@
                 source-map-name
                 (str output-name ".map")
 
+                shadow-js-output
+                (->> sources
+                     (map #(data/get-source-by-id state %))
+                     (filter #(= :shadow-js (:type %)))
+                     (map #(data/get-output! state %))
+                     (into []))
+
                 shadow-js-prepend
-                (when (= :shadow js-provider)
+                (when (seq shadow-js-output)
                   (let [provides
-                        (->> sources
-                             (map #(data/get-source-by-id state %))
-                             (filter #(= :shadow-js (:type %)))
-                             (map #(data/get-output! state %))
+                        (->> shadow-js-output
                              (map :js)
                              (str/join ";\n"))]
-                    (str (when goog-base
-                           "var shadow$provide = {};\n")
-                         provides
+                    (str provides
                          (when (seq provides)
                            ";\n"))))
 
@@ -265,6 +267,8 @@
                 ;; append is fine
                 final-output
                 (str prepend
+                     (when goog-base
+                       "var shadow$provide = {};\n")
                      shadow-js-prepend
                      output
                      append
@@ -286,8 +290,9 @@
                         (cond->
                           (seq prepend)
                           (+ (line-count prepend))
-                          (and (= :shadow js-provider) goog-base)
-                          (inc)))
+                          (and goog-base)
+                          (inc) ;; var shadow$provide ...
+                          ))
 
                     sm-index
                     (-> {:version 3
@@ -308,22 +313,21 @@
                                   (update :sections conj {:offset {:line offset :column 0}
                                                           :map sm}))))
 
-                          (->> sources
-                               (map #(data/get-source-by-id state %))
-                               (filter #(= :shadow-js (:type %)))
-                               (map #(data/get-output! state %)))
-                          ))
+                          shadow-js-output))
 
                     sm
                     (json/read-str source-map-json)
 
                     sm-index
-                    (update sm-index :sections conj {:offset {:line (:offset sm-index) :column 0} :map sm})
+                    (-> sm-index
+                        (update :sections conj {:offset {:line (:offset sm-index) :column 0} :map sm})
+                        (dissoc :offset))
 
                     target
                     (data/output-file state source-map-name)]
                 (spit target
-                  (json/write-str sm-index)))))))
+                  (json/write-str sm-index))))
+            )))
 
       ;; with-logged-time expects that we return the compiler-state
       state
