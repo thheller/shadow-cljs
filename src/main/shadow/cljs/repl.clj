@@ -281,7 +281,7 @@
 
         state
         (cljs-bridge/with-compiler-env state
-          (comp/post-analyze-ns ns-info state true)
+          (comp/post-analyze-ns ns-info state)
           state)
 
         {:keys [build-sources] :as state}

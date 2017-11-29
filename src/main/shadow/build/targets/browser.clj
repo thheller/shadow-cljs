@@ -89,9 +89,11 @@
 (defn json [obj]
   (json/write-str obj :escape-slash false))
 
-(defn inject-loader-setup
-  [{:keys [build-options] :as state} release?]
-  (let [{:keys [asset-path cljs-runtime-path]}
+(defn module-loader-data [{::build/keys [mode] :keys [build-options] :as state}]
+  (let [release?
+        (= :release mode)
+
+        {:keys [asset-path cljs-runtime-path]}
         build-options
 
         build-modules
@@ -131,18 +133,11 @@
           (fn [m {:keys [module-id depends-on]}]
             (assoc m module-id (disj depends-on (:module-id loader-module))))
           {}
-          modules)
+          modules)]
 
-        loader-append-rc
-        (-> loader-module :sources last)]
+    {:module-uris module-uris
+     :module-infos module-infos}))
 
-    (when-not (data/get-output! state {:resource-id loader-append-rc})
-      (throw (ex-info "no loader append rc" {:rc loader-append-rc})))
-
-    (update-in state [:output loader-append-rc :js]
-      ;; prepend so it is emitted called before the enable()
-      #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
-    ))
 
 (defn inject-repl-client
   [{:keys [entries] :as module-config} state build-config]
@@ -318,6 +313,23 @@
     (spit manifest-file manifest))
   state)
 
+(defn flush-module-data [state]
+  (let [module-data
+        (module-loader-data state)
+
+        json-file
+        (data/output-file state "module-loader.json")
+
+        edn-file
+        (data/output-file state "module-loader.edn")]
+
+
+    (spit json-file (json module-data))
+    (spit edn-file (pr-str module-data))
+
+    state
+    ))
+
 (defn hash-optimized-module [{:keys [output output-name] :as mod} module-hash-names]
   (let [signature
         (util/md5hex output)
@@ -343,23 +355,74 @@
            (map #(hash-optimized-module % module-hash-names))
            (into [])))))
 
+;; because of the debug loader we can't just append the loader setup
+;; instead inject it into the pseudo module append-js which is a separate file
+;; and can be loaded properly by the debug loader
+(defn inject-loader-setup-dev
+  [{:keys [build-options] :as state} {:keys [module-loader] :as config}]
+  (let [{:keys [module-uris module-infos]}
+        (module-loader-data state)
+
+        [loader-module & other-modules]
+        (or (::closure/modules state)
+            (:build-modules state))
+
+        loader-append-rc
+        (-> loader-module :sources last)]
+
+    (when-not (data/get-output! state {:resource-id loader-append-rc})
+      (throw (ex-info "no loader append rc" {:rc loader-append-rc})))
+
+    (update-in state [:output loader-append-rc :js]
+      ;; prepend so it is emitted called before the enable()
+      #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
+    ))
+
+;; in release just append to first (base) module
+(defn inject-loader-setup-release
+  [state {:keys [module-loader module-hash-names] :as config}]
+  (let [{:keys [module-uris module-infos]} (module-loader-data state)]
+
+    (update-in state [::closure/modules 0]
+      (fn [{:keys [module-id] :as mod}]
+        ;; since appending this text changes the md5 of the output
+        ;; we need to re-hash that module again
+        (-> mod
+            (update :output str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n")
+            (cond->
+              module-hash-names
+              ;; previous hash already changed the output-name, reset it back
+              (-> (assoc :output-name (str (name module-id) ".js"))
+                  (hash-optimized-module module-hash-names))))))))
+
 (defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
   (case mode
     :dev
     (-> state
+        (cond->
+          module-loader
+          (-> (inject-loader-setup-dev config)
+              (flush-module-data)))
         (output/flush-unoptimized)
         (flush-manifest false))
     :release
-    (do (when (and (true? module-loader)
-                   module-hash-names)
-          ;; FIXME: provide a way to export module config instead of appending it always.
-          (throw (ex-info ":module-loader true defeats purpose of :module-hash-names" {})))
-        (-> state
-            (cond->
-              module-hash-names
-              (hash-optimized-modules module-hash-names))
-            (output/flush-optimized)
-            (flush-manifest true)))))
+    (-> state
+        ;; must hash before adding loader since it needs to know the final uris of the modules
+        ;; it will change the uri of the base module after
+        (cond->
+          module-hash-names
+          (hash-optimized-modules module-hash-names)
+
+          ;; true to inject the loader data (which changes the signature)
+          ;; any other true-ish value still generates the module-loader.edn data files
+          ;; but does not inject (ie. change the signature)
+          (true? module-loader)
+          (inject-loader-setup-release config))
+        (output/flush-optimized)
+        (cond->
+          module-loader
+          (flush-module-data))
+        (flush-manifest true))))
 
 (defn get-all-module-deps [{:keys [build-modules] :as state} {:keys [depends-on] :as mod}]
   ;; FIXME: not exactly pretty, just abusing the fact that build-modules is already ordered
@@ -429,22 +492,31 @@
     state
     (:build-modules state)))
 
+(defn maybe-inject-cljs-loader-constants
+  [{:keys [sym->id] :as state} mode config]
+  (if-not (contains? sym->id 'cljs.loader)
+    state
+    (let [{:keys [module-uris module-infos] :as data}
+          (module-loader-data state)]
+      (assoc state :loader-constants {'cljs.core/MODULE_URIS module-uris
+                                      'cljs.core/MODULE_INFOS module-infos})
+      )))
+
 (defn process
   [{::build/keys [stage mode config] :as state}]
   (case stage
     :configure
     (configure state mode config)
 
+    :compile-prepare
+    (maybe-inject-cljs-loader-constants state mode config)
+
     :compile-finish
     (-> state
         (module-wrap)
         (cond->
           (bootstrap-host-build? state)
-          (bootstrap-host-info)
-
-          (:module-loader config)
-          (inject-loader-setup (= :release mode))
-          ))
+          (bootstrap-host-info)))
 
     :flush
     (flush state mode config)

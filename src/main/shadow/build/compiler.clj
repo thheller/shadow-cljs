@@ -37,7 +37,7 @@
 
 (def ^:dynamic *cljs-warnings-ref* nil)
 
-(defn post-analyze-ns [{:keys [name] :as ast} build-state merge?]
+(defn post-analyze-ns [{:keys [name] :as ast} build-state]
   (let [ast
         (-> ast
             (macros/load-macros)
@@ -48,15 +48,16 @@
     (cljs-bridge/check-uses! ast)
     (cljs-bridge/check-renames! ast)
 
-    (let [ana-info
-          (dissoc ast :env :op :form)]
-      ;; FIXME: nukes all defs when not merge?
-      ;; this is so ^:const doesn't fail when re-compiling
-      ;; but if a REPL is connected this may nuke a REPL def
-      ;; ns from the REPL will merge but autobuild will not, should be ok though
-      (if merge?
-        (swap! env/*compiler* update-in [::ana/namespaces name] merge ana-info)
-        (swap! env/*compiler* assoc-in [::ana/namespaces name] ana-info)))
+    (let [ana-info (dissoc ast :env :op :form)]
+      (swap! env/*compiler* update-in [::ana/namespaces name] merge ana-info))
+
+    ;; FIXME: cljs.loader is bad, really do not like the implementation
+    ;; special case for cljs.loader which requires some consts that aren't actually in the source
+    ;; normally cljs.loader is compiled in a special pass AFTER everything else
+    ;; we already know everything we need to know but this is still pretty bad
+    (when (= name 'cljs.loader)
+      (let [{:keys [loader-constants]} build-state]
+        (swap! env/*compiler* ana/add-consts loader-constants)))
 
     ;; FIXME: is this the correct location to do this?
     ;; FIXME: using alter instead of reset, to avoid completely removing meta
@@ -70,7 +71,7 @@
 (defn post-analyze [{:keys [op] :as ast} build-state]
   (case op
     :ns
-    (post-analyze-ns ast build-state false)
+    (post-analyze-ns ast build-state)
     :ns*
     (throw (ex-info "ns* not supported (require, require-macros, import, import-macros, ... must be part of your ns form)" ast))
     ast))
@@ -458,7 +459,7 @@
 
             ;; restore analysis data
             (let [ana-data (:analyzer cache-data)]
-              (swap! env/*compiler* assoc-in [::ana/namespaces (:ns cache-data)] ana-data)
+              (swap! env/*compiler* update-in [::ana/namespaces (:ns cache-data)] merge ana-data)
               (macros/load-macros ana-data))
 
             ;; restore specs
@@ -550,16 +551,17 @@
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
    make sure you are in with-compiler-env"
-  [{:keys [build-options] :as state} {:keys [resource-id from-jar file url] :as rc}]
+  [{:keys [build-options] :as state} {:keys [resource-id resource-name from-jar file url] :as rc}]
   (let [{:keys [cache-level]}
         build-options
 
         cache?
-        (or (and (= cache-level :all)
-                 ;; don't cache files with no actual backing url/file
-                 (or url file))
-            (and (= cache-level :jars)
-                 from-jar))]
+        (and (not= resource-name "cljs/loader.cljs") ;; can't be cached due to consts injection
+             (or (and (= cache-level :all)
+                      ;; don't cache files with no actual backing url/file
+                      (or url file))
+                 (and (= cache-level :jars)
+                      from-jar)))]
 
     (or (when cache?
           (load-cached-cljs-resource state rc))

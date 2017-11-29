@@ -20,10 +20,13 @@
     ["./foo" :as foo]
     ["circular-test" :as circ]
     [cljs.test :refer (deftest)]
+    [cljs.loader]
     ))
 
 (deftest yo
   (= 1 2))
+
+(js/console.log "or" (or nil js/document.body))
 
 (go (<! (async/timeout 500))
     (js/console.log "go!"))

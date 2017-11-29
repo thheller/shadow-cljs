@@ -44,18 +44,18 @@
   (cond-> state
     (nil? (:compiler-env state))
     (assoc :compiler-env
-           ;; cljs.env/default-compiler-env force initializes a :js-dependency-index we are never going to use
-           ;; this should always have the same structure
-           {:cljs.analyzer/namespaces {'cljs.user {:name 'cljs.user}}
-            :cljs.analyzer/constant-table {}
-            :cljs.analyzer/data-readers {}
-            :cljs.analyzer/externs nil
-            :js-module-index {}
-            :goog-names #{}
-            :shadow/js-properties #{}
-            :options (assoc (:compiler-options state)
-                            ;; leave loading core data to the shadow.cljs.bootstrap loader
-                            :dump-core false)})))
+      ;; cljs.env/default-compiler-env force initializes a :js-dependency-index we are never going to use
+      ;; this should always have the same structure
+      {:cljs.analyzer/namespaces {'cljs.user {:name 'cljs.user}}
+       :cljs.analyzer/constant-table {}
+       :cljs.analyzer/data-readers {}
+       :cljs.analyzer/externs nil
+       :js-module-index {}
+       :goog-names #{}
+       :shadow/js-properties #{}
+       :options (assoc (:compiler-options state)
+                  ;; leave loading core data to the shadow.cljs.bootstrap loader
+                  :dump-core false)})))
 
 (defn nested-vals [map]
   (for [[_ ns-map] map
@@ -99,6 +99,8 @@
 
     (assoc-in state [:compiler-env :goog-names] goog-names)))
 
+
+
 (def ^:dynamic *in-compiler-env* false)
 
 (defmacro with-compiler-env
@@ -111,10 +113,15 @@
   [state & body]
   `(do (when *in-compiler-env*
          (throw (ex-info "already in compiler env" {})))
-       (let [dyn-env# (atom (assoc (:compiler-env ~state) ::state ~state))
+       (let [before# (:compiler-env ~state)
+             dyn-env# (atom (assoc (:compiler-env ~state) ::state ~state))
              new-state# (binding [cljs-env/*compiler* dyn-env#
                                   *in-compiler-env* true]
                           ~@body)]
+
+         (when-not (identical? before# (:compiler-env new-state#))
+           (throw (ex-info "can't touch :compiler-env when in with-compiler-env" {})))
+
          (assoc new-state# :compiler-env (dissoc @dyn-env# ::state)))))
 
 (defn get-build-state []
@@ -149,9 +156,9 @@
       (ex-info msg
         (-> (ana/source-info env)
             (assoc :tag :cljs/analysis-error
-                   :error-type error-type
-                   :msg msg
-                   :extra error-data))))))
+              :error-type error-type
+              :msg msg
+              :extra error-data))))))
 
 (defn check-uses! [{:keys [env uses use-macros] :as ns-info}]
   (doseq [[sym lib] use-macros]

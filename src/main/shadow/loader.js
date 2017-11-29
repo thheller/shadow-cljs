@@ -51,6 +51,7 @@ shadow.loader.preload = function(id) {
 }
 
 // FIXME: not sure these should always be exported
+goog.exportSymbol("shadow.loader.setup", shadow.loader.setup);
 goog.exportSymbol("shadow.loader.with_module", shadow.loader.with_module);
 goog.exportSymbol("shadow.loader.load", shadow.loader.load);
 goog.exportSymbol("shadow.loader.load_multiple", shadow.loader.load_multiple);

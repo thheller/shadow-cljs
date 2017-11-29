@@ -52,6 +52,10 @@
    ;; set of dead js resource ids
    :dead-js-deps #{}
 
+   ;; cljs.loader support which requires consts that are constructed by the compiler
+   ;; AFTER compiling cljs.core
+   :loader-constants {}
+
    :js-entries #{}
 
    :mode :dev})

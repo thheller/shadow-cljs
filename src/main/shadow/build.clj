@@ -282,8 +282,8 @@
     ;; :modules based build
     (-> state
         (assoc ::build-info {})
-        (process-stage :compile-prepare true)
         (modules/analyze)
+        (process-stage :compile-prepare true)
         (update-build-info-from-modules)
         (build-api/compile-sources)
         (update-build-info-after-compile)

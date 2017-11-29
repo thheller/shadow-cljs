@@ -1176,7 +1176,7 @@
         (let [alias (get aliases string)]
           (if-not alias ;; goog:cljs.core is not aliased
             source
-            (let [{:keys [resource-name ns type] :as other-rc}
+            (let [{:keys [resource-name ns type js-require] :as other-rc}
                   (data/get-source-by-provide state alias)
 
                   replacement
