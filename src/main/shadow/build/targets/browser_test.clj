@@ -67,11 +67,14 @@
     (build/log state {:type ::test-namespaces
                       :test-namespaces test-namespaces})
 
-    (update-in state [::modules/config :test :entries]
-      #(-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
-           (into %)
-           (into test-namespaces)
-           (conj runner-ns)))))
+    (-> state
+        (update-in [::modules/config :test :entries]
+          #(-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
+               (into %)
+               (into test-namespaces)
+               (conj runner-ns)))
+        (modules/analyze)
+        )))
 
 (defn process
   [{::build/keys [stage] :as state}]
