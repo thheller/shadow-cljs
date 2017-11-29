@@ -62,7 +62,10 @@
                       :test-namespaces test-namespaces
                       :entries entries})
 
-    (assoc-in state [::modules/config :test :entries] entries)))
+    (-> state
+        (assoc-in [::modules/config :test :entries] entries)
+        ;; re-analyze modules since we modified the entries
+        (modules/analyze))))
 
 (defn flush-karma-test-file
   [{::keys [output-to] :keys [polyfill-js unoptimizable build-options build-sources] :as state} config]
