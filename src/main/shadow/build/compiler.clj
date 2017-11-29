@@ -627,65 +627,68 @@
   (assert (set? requires))
   (assert (set? provides))
 
-  (loop [idle-count 1]
-    (let [ready @ready-ref]
-      (cond
-        ;; skip work if errors occured
-        (seq @errors-ref)
-        src
+  (let [waiting-since (System/currentTimeMillis)]
+    (loop [idle-count 1]
+      (let [ready @ready-ref]
+        (cond
+          ;; skip work if errors occured
+          (seq @errors-ref)
+          src
 
-        ;; only compile once all dependencies are compiled
-        ;; FIXME: sleep is not great, cljs.core takes a couple of sec to compile
-        ;; this will spin a couple hundred times, doing additional work
-        ;; don't increase the sleep time since many files compile in the 5-10 range
-        (not (set/superset? ready requires))
-        (do (Thread/sleep 5)
-            ;; forcefully abort compilation when waiting longer than 30sec
-            ;; otherwise the compilation runs forever with no way to abort
-            (when (>= idle-count idle-count 5999) ;; so the 3000 below doesn't trigger
-              (let [pending (set/difference requires ready)]
+          ;; only compile once all dependencies are compiled
+          ;; FIXME: sleep is not great, cljs.core takes a couple of sec to compile
+          ;; this will spin a couple hundred times, doing additional work
+          ;; don't increase the sleep time since many files compile in the 5-10 range
+          (not (set/superset? ready requires))
+          (do (Thread/sleep 5)
 
-                (swap! errors-ref assoc resource-id
-                  (ex-info (format "aborted par-compile, %s still waiting for %s"
-                             resource-id
-                             pending)
-                    {:aborted resource-id
-                     :pending pending}))))
+              ;; diagnostic warning if we are still waiting for something to compile for 15+ sec
+              (when (zero? (mod idle-count 3000))
+                (let [pending (set/difference requires ready)]
+                  (log/warnf "%s waiting for %s" resource-id pending)))
 
-            ;; diagnostic warning if we are still waiting for something to compile for 15+ sec
-            (when (zero? (mod idle-count 3000))
-              (let [pending (set/difference requires ready)]
-                (log/warnf "%s waiting for %s" resource-id pending)))
+              ;; forcefully abort compilation when waiting longer than 60sec
+              ;; otherwise the compilation runs forever with no way to abort
+              (when (> (- (System/currentTimeMillis) waiting-since)
+                       60000)
+                (let [pending (set/difference requires ready)]
 
-            (recur (inc idle-count)))
+                  (swap! errors-ref assoc resource-id
+                    (ex-info (format "aborted par-compile, %s still waiting for %s"
+                               resource-id
+                               pending)
+                      {:aborted resource-id
+                       :pending pending}))))
 
-        :ready-to-compile
-        (try
-          (let [output (generate-output-for-source state src)
+              (recur (inc idle-count)))
 
-                ;; FIXME: this does not seem ideal
-                ;; maybe generate-output-for-source should expose the actual provides it generated
+          :ready-to-compile
+          (try
+            (let [output (generate-output-for-source state src)
 
-                ;; we need to mark aliases as ready as soon as a resource is ready
-                ;; cljs.spec.alpha also provides clojure.spec.alpha only
-                ;; if someone used the alias since that happened at resolve time
-                ;; the resource itself does not provide the alias
-                provides
-                (reduce
-                  (fn [provides provide]
-                    (if-let [alias (get-in state [:ns-aliases-reverse provide])]
-                      (conj provides alias)
-                      provides))
+                  ;; FIXME: this does not seem ideal
+                  ;; maybe generate-output-for-source should expose the actual provides it generated
+
+                  ;; we need to mark aliases as ready as soon as a resource is ready
+                  ;; cljs.spec.alpha also provides clojure.spec.alpha only
+                  ;; if someone used the alias since that happened at resolve time
+                  ;; the resource itself does not provide the alias
                   provides
-                  provides)]
+                  (reduce
+                    (fn [provides provide]
+                      (if-let [alias (get-in state [:ns-aliases-reverse provide])]
+                        (conj provides alias)
+                        provides))
+                    provides
+                    provides)]
 
-            (swap! ready-ref set/union provides)
-            output)
+              (swap! ready-ref set/union provides)
+              output)
 
-          (catch Throwable e ;; asserts not covered by Exception
-            (swap! errors-ref assoc resource-id e)
-            src
-            ))))))
+            (catch Throwable e ;; asserts not covered by Exception
+              (swap! errors-ref assoc resource-id e)
+              src
+              )))))))
 
 (def load-core-lock (Object.))
 
