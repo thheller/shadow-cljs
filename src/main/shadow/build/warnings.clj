@@ -41,7 +41,7 @@
     (->> (for [{:keys [line column] :as location} locations]
            (try
              (make-source-excerpt line column)
-             (catch Exception e
+             (catch Throwable e
                (log/warnf e
                  "failed to get source excerpt for %s at %s"
                  (or (:file rc)
