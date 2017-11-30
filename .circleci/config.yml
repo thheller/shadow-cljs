@@ -30,17 +30,4 @@ jobs:
             - ~/.m2
           key: v1-dependencies-{{ checksum "project.clj" }}
 
-  test:
-    <<: *defaults
-    steps:
-      # run tests!
       - run: lein test
-
-workflows:
-  version: 2
-  everything:
-    jobs:
-      - deps
-      - test:
-          requires:
-            - deps
