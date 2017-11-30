@@ -282,7 +282,6 @@
     (do (set! *nrepl-cljs* id)
         ;; required for prompt?
         ;; don't actually need to do this
-        (set! *ns* (create-ns 'cljs.user))
         (println "To quit, type: :repl/quit")
         [:selected id])))
 
