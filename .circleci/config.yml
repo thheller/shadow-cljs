@@ -13,7 +13,7 @@ defaults: &defaults
 
 version: 2
 jobs:
-  deps:
+  build:
     <<: *defaults
     steps:
       - checkout
