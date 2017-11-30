@@ -6,8 +6,7 @@ version: 2
 jobs:
   build:
     docker:
-      # specify the version you desire here
-      - image: circleci/clojure:lein-2.8.1
+      - image: thheller/cljs-dev:latest
 
     working_directory: ~/repo
 
@@ -19,11 +18,9 @@ jobs:
     steps:
       - checkout
 
-      # Download and cache dependencies
       - restore_cache:
           keys:
           - v1-dependencies-{{ checksum "project.clj" }}
-          # fallback to using the latest cache if no exact match is found
           - v1-dependencies-
 
       - run: lein deps
