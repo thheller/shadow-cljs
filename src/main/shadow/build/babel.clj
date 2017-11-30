@@ -2,7 +2,8 @@
   (:require [clojure.java.io :as io]
             [clojure.core.async :as async :refer (<!! >!!)]
             [shadow.build.log :as cljs-log]
-            [shadow.cljs.util :as util])
+            [shadow.cljs.util :as util]
+            [clojure.tools.logging :as log])
   (:import (java.io PushbackReader Writer InputStreamReader BufferedReader IOException)))
 
 (def worker-file
@@ -40,7 +41,8 @@
       ;; FIXME: errors need to go somewhere else, this is not reliable
       (.start (Thread. (bound-fn [] (pipe proc (.getErrorStream proc) *err*))))
 
-      (assoc state :proc proc
+      (assoc state
+        :proc proc
         :in (PushbackReader. (io/reader (.getInputStream proc)))
         :out (io/writer (.getOutputStream proc)))
       )))
@@ -63,7 +65,7 @@
         (>!! reply-to res))
       state)
     (catch Exception e
-      (prn [:error e])
+      (log/warnf e "babel-transform! failed")
       state)
     (finally
       (async/close! reply-to))))
@@ -83,7 +85,7 @@
 
 (defn start []
   (when-not (.exists (io/file worker-file))
-    (throw (ex-info (format "can't find %s, please install npm install --save-dev shadow-cljs." worker-file) {})))
+    (log/warnf "can't find %s, please install npm install --save-dev shadow-cljs." worker-file))
 
   (let [babel-in (async/chan 100)]
     {::service true
