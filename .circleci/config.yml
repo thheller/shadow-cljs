@@ -2,19 +2,19 @@
 #
 # Check https://circleci.com/docs/2.0/language-clojure/ for more details
 #
+defaults: &defaults
+  working_directory: ~/repo
+  docker:
+    - image: thheller/cljs-dev:latest
+  environment:
+    LEIN_ROOT: "true"
+    # Customize the JVM maximum heap limit
+    JVM_OPTS: -Xmx3200m
+
 version: 2
 jobs:
-  build:
-    docker:
-      - image: thheller/cljs-dev:latest
-
-    working_directory: ~/repo
-
-    environment:
-      LEIN_ROOT: "true"
-      # Customize the JVM maximum heap limit
-      JVM_OPTS: -Xmx3200m
-    
+  deps:
+    <<: *defaults
     steps:
       - checkout
 
@@ -29,6 +29,18 @@ jobs:
           paths:
             - ~/.m2
           key: v1-dependencies-{{ checksum "project.clj" }}
-        
+
+  test:
+    <<: *defaults
+    steps:
       # run tests!
       - run: lein test
+
+workflows:
+  version: 2
+  everything:
+    jobs:
+      - deps
+      - test:
+          requires:
+            - deps
