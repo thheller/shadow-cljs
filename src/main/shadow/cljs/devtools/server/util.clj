@@ -162,12 +162,11 @@
                               (try
                                 (handler state msg)
                                 (catch Throwable ex
-                                  (log/warn ex "failed to handle server msg" msg)
+                                  (log/warnf ex "failed to handle server msg: %s" msg)
                                   (if (ifn? on-error)
                                     (on-error state msg ex)
                                     ;; FIXME: silently dropping e if no on-error is defined is bad
-                                    (do (prn [:server-thread-ex ex])
-                                        state))))]
+                                    state)))]
                           (if (and (ifn? validate)
                                    (not (validate state-after)))
                             (validate-error state state-after msg)

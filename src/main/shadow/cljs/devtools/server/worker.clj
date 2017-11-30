@@ -200,8 +200,7 @@
              state-before)
            :on-error
            (fn [state-before msg ex]
-             ;; FIXME: handle this better
-             (prn [:worker-error msg ex])
+             ;; error already logged by server-thread fn
              state-before)
            :do-shutdown
            (fn [state]

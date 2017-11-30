@@ -220,7 +220,7 @@
       (when-not (fs/existsSync log-config-path)
         (fs/writeFileSync log-config-path
           (str (util/slurp (path/resolve js/__dirname ".." "default-log.properties"))
-               "\njava.util.logging.FileHandler.pattern=" log-config-path "\n")))
+               "\njava.util.logging.FileHandler.pattern=" (path/resolve cache-root "shadow-cljs.log") "\n")))
 
       [(str "-Djava.util.logging.config.file=" log-config-path)]
       )))
