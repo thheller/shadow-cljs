@@ -60,7 +60,7 @@ public class NodeEnvInlinePass extends NodeTraversal.AbstractPostOrderCallback i
         co.setPrettyPrint(true);
         cc.initOptions(co);
 
-        SourceFile srcFile = SourceFile.fromFile(new File("test/closure-inputs/node_env.js"), Charset.forName("UTF-8"));
+        SourceFile srcFile = SourceFile.fromFile("test/closure-inputs/node_env.js", Charset.forName("UTF-8"));
 
         System.out.println(cc.toSource(process(cc, srcFile)));
     }

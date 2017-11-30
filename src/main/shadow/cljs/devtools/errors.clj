@@ -251,9 +251,10 @@
        ))))
 
 (defn user-friendly-error [e]
-  (try
-    (binding [*out* *err*]
-      (println (error-format e)))
-    (catch Exception e
-      (log/warn "failed to format error" e)))
+  (binding [*out* *err*]
+    (try
+      (println (error-format e))
+      (catch Throwable e
+        (log/warn e "failed to format error")
+        (println (.getMessage e)))))
   :error)

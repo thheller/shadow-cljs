@@ -1,14 +1,10 @@
 package shadow.build.closure;
 
 import com.google.javascript.jscomp.*;
-import com.google.javascript.jscomp.Compiler;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback implements CompilerPass {
 
@@ -27,7 +23,7 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
             // guard against things like require('buf' + 'fer');
             // I have no idea what the purpose of that is but https://github.com/indutny/bn.js does it
             // apparently it doesn't matter anyways
-            if (requireString.isString()) {
+            if (requireString != null && requireString.isString()) {
                 String require = requireString.getString();
 
                 if (require.startsWith("goog:")) {
@@ -58,34 +54,4 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
         NodeTraversal.traverseEs6(compiler, root, this);
     }
 
-    public static Node process(Compiler cc, SourceFile srcFile) {
-        JsAst ast = new JsAst(srcFile);
-        Node node = ast.getAstRoot(cc);
-
-        JsAst.ParseResult result = (JsAst.ParseResult) node.getProp(Node.PARSE_RESULTS);
-
-        Map<String,Object> nested = new HashMap<>();
-        nested.put("test", "module$test");
-
-        Map outer = new HashMap();
-        outer.put("test.js", nested);
-
-        NodeTraversal.Callback pass = new ReplaceRequirePass(cc, outer);
-        NodeTraversal.traverseEs6(cc, node, pass);
-
-        return node;
-    }
-
-    public static void main(String... args) {
-        Compiler cc = new Compiler();
-
-        CompilerOptions co = new CompilerOptions();
-        co.setLanguageIn(CompilerOptions.LanguageMode.ECMASCRIPT_2017);
-        co.setPrettyPrint(true);
-        cc.initOptions(co);
-
-        SourceFile srcFile = SourceFile.fromCode("test.js", "require('test'); require('goog:goog.string');");
-
-        System.out.println(cc.toSource(process(cc, srcFile)));
-    }
 }

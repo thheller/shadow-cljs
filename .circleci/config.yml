@@ -20,14 +20,14 @@ jobs:
 
       - restore_cache:
           keys:
-          - v1-dependencies-{{ checksum "project.clj" }}
-          - v1-dependencies-
+          - m2-deps-{{ checksum "project.clj" }}
+          - m2-deps-
 
       - run: lein deps
 
       - save_cache:
           paths:
             - ~/.m2
-          key: v1-dependencies-{{ checksum "project.clj" }}
+          key: m2-deps-{{ checksum "project.clj" }}
 
       - run: lein test

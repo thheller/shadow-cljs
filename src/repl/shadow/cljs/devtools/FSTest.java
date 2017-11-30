@@ -6,6 +6,7 @@ import clojure.lang.RT;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -42,7 +43,10 @@ public class FSTest {
         File dontCare = new File("cljs-data/css/dont-care.txt");
         dontCare.deleteOnExit();
 
-        FileWatcher wd = FileWatcher.create(Paths.get("cljs-data", "css"), (List<String>) RT.list("scss"));
+        List<String> exts = new ArrayList<>();
+        exts.add("scss");
+
+        FileWatcher wd = FileWatcher.create(Paths.get("cljs-data", "css"), exts);
 
         File file = new File("cljs-data/css/includes/nested/deeper.scss");
         file.setLastModified(System.currentTimeMillis());

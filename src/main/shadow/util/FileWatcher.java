@@ -71,6 +71,7 @@ public class FileWatcher implements AutoCloseable {
         return pollForChanges(false);
     }
 
+    @SuppressWarnings("unchecked")
     IPersistentMap pollForChanges(boolean block) throws IOException, InterruptedException {
         ITransientMap changes = PersistentHashMap.EMPTY.asTransient();
 

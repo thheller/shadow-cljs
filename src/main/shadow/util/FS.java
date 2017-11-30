@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashSet;
 import java.util.List;
 
 import static java.nio.file.StandardWatchEventKinds.*;
@@ -74,7 +75,7 @@ public class FS {
                 return matcher.matches(path.getFileName()); // only matches the filename, path is ignored
             }
         };
-        Files.walkFileTree(root, PersistentHashSet.EMPTY, Integer.MAX_VALUE, visitor);
+        Files.walkFileTree(root, new HashSet<>(), Integer.MAX_VALUE, visitor);
         return visitor.getResult();
     }
 
@@ -86,7 +87,7 @@ public class FS {
                 return matcher.matches(path);
             }
         };
-        Files.walkFileTree(root, PersistentHashSet.EMPTY, Integer.MAX_VALUE, visitor);
+        Files.walkFileTree(root, new HashSet<>(), Integer.MAX_VALUE, visitor);
         return visitor.getResult();
     }
 
