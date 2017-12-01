@@ -14,16 +14,21 @@
   (let [summary
         (volatile!
           {:test 0 :pass 0 :fail 0 :error 0
-           :type :summary})]
+           :type :summary})
 
-    (-> [(fn []
-           (vswap!
-             summary
-             (partial merge-with +)
-             (:report-counters (ct/get-and-clear-env!))))]
-        (into (mapcat #(test-ns-block env %)) namespaces)
+        merge-counters
+        (fn []
+          (vswap!
+            summary
+            (partial merge-with +)
+            (:report-counters (ct/get-and-clear-env!))))]
+
+    (-> [(fn [] (ct/set-env! env))]
+        (into (->> namespaces
+                   (mapcat (fn [ns]
+                             (-> (test-ns-block env ns)
+                                 (conj merge-counters))))))
         (conj (fn []
-                (ct/set-env! env)
                 (ct/do-report @summary)
                 (ct/report (assoc @summary :type :end-run-tests))
                 (ct/clear-env!))))))
