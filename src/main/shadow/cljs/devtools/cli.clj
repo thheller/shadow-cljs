@@ -23,7 +23,8 @@
             [shadow.http.router :as http]
             [shadow.build.api :as cljs]
             [shadow.build.node :as node]
-            [shadow.cljs.devtools.server.socket-repl :as socket-repl])
+            [shadow.cljs.devtools.server.socket-repl :as socket-repl]
+            [shadow.cljs.devtools.server.env :as env])
   (:import (clojure.lang LineNumberingPushbackReader)
            (java.io StringReader)))
 
@@ -201,8 +202,11 @@
    disconnect instead of us forcibly dropping the connection"
   [complete-token error-token args]
   (try
-    (apply main "--via" "remote" args)
-    (print-token complete-token)
+    (if (env/restart-required?)
+      (do (println "SERVER INSTANCE OUT OF DATE!\nPlease restart.")
+          (print-token error-token))
+      (do (apply main "--via" "remote" args)
+          (print-token complete-token)))
     (catch Exception e
       (print-main-error e)
       (println error-token))))

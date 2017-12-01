@@ -1,5 +1,6 @@
 (ns shadow.cljs.devtools.server.config-watch
   (:require [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.server.env :as env]
             [clojure.java.io :as io]
             [clojure.core.async :as async :refer (thread <!!)]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
@@ -17,24 +18,27 @@
       (.lastModified file))))
 
 (defn watch-loop [stop-ref system-bus]
-  (loop [ts
-         (get-last-modified)
+  (let [{:keys [dependencies] :as config}
+        (config/load-cljs-edn)]
 
-         config
-         (config/load-cljs-edn)]
-    (if @stop-ref
-      ::stopped
-      (let [ts-test (get-last-modified)]
-        (if (= ts-test ts)
-          (do (Thread/sleep 1000)
-              (recur ts config))
-          (let [new-config (config/load-cljs-edn)]
-            (doseq [{:keys [id] :as new} (-> new-config :builds (vals))
-                    :when (not= new (get-in config [:builds id]))]
-              (sys-bus/publish! system-bus [::sys-msg/config-watch id] {:config new}))
+    (loop [ts (get-last-modified)
+           config config]
 
-            (recur ts-test new-config)
-            ))))))
+      (if @stop-ref
+        ::stopped
+        (let [ts-test (get-last-modified)]
+          (if (= ts-test ts)
+            (do (Thread/sleep 1000)
+                (recur ts config))
+            (let [new-config (config/load-cljs-edn)]
+              (doseq [{:keys [id] :as new} (-> new-config :builds (vals))
+                      :when (not= new (get-in config [:builds id]))]
+                (sys-bus/publish! system-bus [::sys-msg/config-watch id] {:config new}))
+
+              (reset! env/dependencies-modified-ref (not= dependencies (:dependencies new-config)))
+
+              (recur ts-test new-config)
+              )))))))
 
 (defn start [system-bus]
   (let [stop-ref
