@@ -176,6 +176,41 @@
                   ))))
         (md/catch common/unacceptable))))
 
+(defn compile-req
+  [{:keys [ring-request] :as ctx} worker-proc]
+  (let [{:keys [request-method body]}
+        ring-request
+
+        headers
+        {"Access-Control-Allow-Origin" "*"
+         "Access-Control-Allow-Headers"
+         (or (get-in ring-request [:headers "access-control-request-headers"])
+             "content-type")
+         "content-type" "application/edn; charset=utf-8"}]
+
+    ;; CORS sends OPTIONS first
+    (case request-method
+
+      :options
+      {:status 200
+       :headers headers
+       :body ""}
+
+      :post
+      (let [{:keys [input]}
+            (-> (slurp body)
+                (edn/read-string))
+
+            result (worker/repl-compile worker-proc input)]
+        {:status 200
+         :headers headers
+         :body (pr-str result)})
+
+      ;; bad requests
+      {:status 400
+       :body "Only POST or OPTIONS requests allowed."}
+      )))
+
 (defn files-req
   "a POST request from the REPL client asking for the compile JS for sources by name
    sends a {:sources [...]} structure with a vector of source names
@@ -292,6 +327,9 @@
 
         "listener-ws"
         (ws-listener-connect ctx worker-proc client-id)
+
+        "compile"
+        (compile-req ctx worker-proc)
 
         :else
         {:status 404

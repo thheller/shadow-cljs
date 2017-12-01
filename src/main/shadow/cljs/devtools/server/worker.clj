@@ -83,6 +83,11 @@
       (catch InterruptedException e
         {:type :repl/interrupt}))))
 
+(defn repl-compile [worker input]
+  (worker-request worker
+    {:type :repl-compile
+     :input input}))
+
 (defn repl-eval [worker client-id input]
   (worker-request worker
     {:type :repl-eval

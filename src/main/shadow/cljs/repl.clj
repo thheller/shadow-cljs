@@ -290,7 +290,7 @@
         new-repl-current
         (assoc ns-rc :ns-info ns-info)
 
-        action
+        ns-requires
         {:type :repl/require
          :sources build-sources}
 
@@ -298,14 +298,17 @@
         {:type :repl/invoke
          :name "<eval>"
          :js (with-out-str
-               (comp/shadow-emit state (assoc ns-info :op :ns)))}]
+               (comp/shadow-emit state (assoc ns-info :op :ns)))}
+
+        ns-set
+        {:type :repl/set-ns
+         :ns ns}]
 
     (output/flush-sources state build-sources)
 
     (-> state
         (assoc-in [:repl-state :current] new-repl-current)
-        (update-in [:repl-state :repl-actions] conj action)
-        (update-in [:repl-state :repl-actions] conj ns-provide))
+        (update-in [:repl-state :repl-actions] conj ns-requires ns-provide ns-set))
     ))
 
 (defn repl-in-ns

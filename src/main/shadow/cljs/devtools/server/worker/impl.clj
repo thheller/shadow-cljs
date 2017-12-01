@@ -229,7 +229,7 @@
   (assoc worker-state :autobuild false))
 
 (defmethod do-proc-control :load-file
-  [{:keys [build-state eval-clients pending-results] :as worker-state}
+  [{:keys [build-state eval-clients] :as worker-state}
    {:keys [result-chan input] :as msg}]
   (let [eval-count (count eval-clients)]
 
@@ -260,13 +260,10 @@
               new-actions
               (subvec (:repl-actions repl-state) start-idx)
 
-              pending-results
-              (reduce
-                (fn [pending [idx action]]
-                  (let [idx (+ idx start-idx)]
-                    (assoc pending idx (assoc action :reply-to result-chan))))
-                pending-results
-                (map-indexed vector new-actions))]
+              last-idx
+              (-> (get-in build-state [:repl-state :repl-actions])
+                  (count)
+                  (dec))]
 
           (doseq [[idx action] (map-indexed vector new-actions)
                   :let [idx (+ idx start-idx)
@@ -275,9 +272,9 @@
                                      :action action})
             (>!! eval-out (transform-repl-action build-state action)))
 
-          (assoc worker-state
-                 :build-state build-state
-                 :pending-results pending-results))
+          (-> worker-state
+              (assoc :build-state build-state)
+              (update :pending-results assoc last-idx result-chan)))
 
         (catch Exception e
           (let [msg (repl-error e)]
@@ -285,8 +282,32 @@
             (>!!output worker-state msg))
           worker-state)))))
 
+(defmethod do-proc-control :repl-compile
+  [{:keys [build-state] :as worker-state}
+   {:keys [result-chan input] :as msg}]
+  (try
+    (let [start-idx
+          (count (get-in build-state [:repl-state :repl-actions]))
+
+          {:keys [repl-state] :as build-state}
+          (if (string? input)
+            (repl/process-input build-state input)
+            (repl/process-read-result build-state input))
+
+          new-actions
+          (subvec (:repl-actions repl-state) start-idx)]
+
+      (>!! result-chan {:type :repl/actions
+                        :actions new-actions})
+
+      (assoc worker-state :build-state build-state))
+
+    (catch Exception e
+      (>!! result-chan {:type :repl/error :e e})
+      worker-state)))
+
 (defmethod do-proc-control :repl-eval
-  [{:keys [build-state eval-clients pending-results] :as worker-state}
+  [{:keys [build-state eval-clients] :as worker-state}
    {:keys [result-chan input] :as msg}]
   (let [eval-count (count eval-clients)]
 
@@ -319,13 +340,10 @@
               new-actions
               (subvec (:repl-actions repl-state) start-idx)
 
-              pending-results
-              (reduce
-                (fn [pending [idx action]]
-                  (let [idx (+ idx start-idx)]
-                    (assoc pending idx (assoc action :reply-to result-chan))))
-                pending-results
-                (map-indexed vector new-actions))]
+              last-idx
+              (-> (get-in build-state [:repl-state :repl-actions])
+                  (count)
+                  (dec))]
 
           (doseq [[idx action] (map-indexed vector new-actions)
                   :let [idx (+ idx start-idx)
@@ -334,9 +352,10 @@
                                      :action action})
             (>!! eval-out (transform-repl-action build-state action)))
 
-          (assoc worker-state
-            :build-state build-state
-            :pending-results pending-results))
+          (-> worker-state
+              (assoc :build-state build-state)
+              ;; FIXME: now dropping intermediate results since the REPL only expects one result
+              (update :pending-results assoc last-idx result-chan)))
 
         (catch Exception e
           (let [msg (repl-error e)]
@@ -354,13 +373,14 @@
   (let [{:keys [id]}
         result
 
-        {:keys [reply-to] :as waiting}
+        reply-to
         (get pending-results id)]
 
-    (if (nil? waiting)
+    (log/debug ::repl-result id (nil? reply-to) (pr-str result))
+
+    (if (nil? reply-to)
       worker-state
 
-      ;; FIXME: should the reply include the msg that triggered it?
       (do (>!! reply-to result)
           (update worker-state :pending-results dissoc id))
       )))

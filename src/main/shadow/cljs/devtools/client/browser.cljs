@@ -14,6 +14,8 @@
 (defonce active-modules-ref
   (volatile! #{}))
 
+(defonce repl-ns-ref (atom nil))
+
 (defn module-loaded [name]
   (vswap! active-modules-ref conj (keyword name)))
 
@@ -229,6 +231,7 @@
         ))))
 
 (defn repl-init [{:keys [repl-state id]}]
+  (reset! repl-ns-ref (get-in repl-state [:current :ns]))
   (load-sources
     ;; maybe need to load some missing files to init REPL
     (->> (:repl-sources repl-state)
@@ -240,7 +243,7 @@
       (devtools-msg "REPL init successful"))))
 
 (defn repl-set-ns [{:keys [id ns]}]
-  ;; (js/console.log "repl/set-ns" (str ns))
+  (reset! repl-ns-ref ns)
   (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
 
 ;; FIXME: core.async-ify this
@@ -267,6 +270,21 @@
 
     ;; default
     :ignored))
+
+(defn compile [text callback]
+  (xhr/send
+    (str "http" (when env/ssl "s") "://" env/repl-host ":" env/repl-port "/worker/compile/" env/build-id "/" env/proc-id "/browser")
+    (fn [res]
+      (this-as ^goog req
+        (let [actions
+              (-> req
+                  (.getResponseText)
+                  (reader/read-string))]
+          (when callback
+            (callback actions)))))
+    "POST"
+    (pr-str {:input text})
+    #js {"content-type" "application/edn; charset=utf-8"}))
 
 (defn ws-connect []
   (let [print-fn
