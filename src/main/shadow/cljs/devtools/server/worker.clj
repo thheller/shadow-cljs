@@ -58,11 +58,15 @@
   [proc client-id client-out]
   (impl/repl-eval-connect proc client-id client-out))
 
-(defn worker-request [{:keys [proc-control] :as worker} request]
+(defn worker-request [{:keys [proc-control state-ref] :as worker} request]
   {:pre [(impl/proc? worker)
          (map? request)
          (keyword? (:type request))]}
-  (let [result-chan (async/chan 1)]
+  (let [result-chan
+        (async/chan 1)
+
+        repl-timeout
+        (get-in @state-ref [:build-config :devtools :repl-timeout] 10000)]
 
     (>!! proc-control (assoc request :result-chan result-chan))
 
@@ -72,7 +76,7 @@
         ([x] x)
 
         ;; FIXME: things that actually take >10s will timeout and never show their result
-        (async/timeout 10000)
+        (async/timeout repl-timeout)
         ([_]
           {:type :repl/timeout}))
 
