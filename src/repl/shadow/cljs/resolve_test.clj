@@ -15,7 +15,7 @@
 (deftest test-resolve
 
   (let [npm
-        (npm/start)
+        (npm/start {})
 
         cache-root
         (io/file "target" "foo")
@@ -102,7 +102,7 @@
 
 (defn test-build []
   (let [npm
-        (npm/start)
+        (npm/start {})
 
         cache-root
         (io/file "target" "test-build")

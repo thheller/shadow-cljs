@@ -20,7 +20,6 @@
     ["./foo" :as foo]
     ["circular-test" :as circ]
     [cljs.test :refer (deftest)]
-    [cljs.loader]
     ))
 
 (deftest yo

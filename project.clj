@@ -33,7 +33,7 @@
    [com.google.javascript/closure-compiler-unshaded "v20171023"]
 
    [thheller/shadow-util "0.7.0"]
-   [thheller/shadow-client "1.1.0"]
+   [thheller/shadow-client "1.3.0"]
 
    [aleph "0.4.4"]
    [hiccup "1.0.5"]
@@ -77,6 +77,7 @@
     :dependencies
     [[reagent "0.8.0-alpha2"]
      [funcool/promesa "1.9.0"]
+     [fulcrologic/fulcro "2.0.0-beta2"]
 
      #_ [cider/cider-nrepl "0.16.0-SNAPSHOT"]
 

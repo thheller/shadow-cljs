@@ -1,4 +1,4 @@
-(ns shadow.build.targets.browser-test
+(ns shadow.build.targets.foo-test
   (:require [clojure.test :refer :all]
             [clojure.pprint :refer (pprint)]
             [shadow.build.targets.browser :as browser]))

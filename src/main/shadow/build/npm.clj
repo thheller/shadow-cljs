@@ -435,7 +435,7 @@
 
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
-  [{:keys [compiler project-dir] :as npm} ^File file]
+  [{:keys [compiler node-modules-dir project-dir] :as npm} ^File file]
   {:pre [(service? npm)
          (util/is-file-instance? file)
          (.isAbsolute file)]}
@@ -443,17 +443,29 @@
   (let [abs-path
         (.toPath project-dir)
 
+        node-modules-path
+        (.toPath node-modules-dir)
+
         file-path
         (.toPath file)
 
-        _ (when-not (.startsWith file-path abs-path)
+        npm-file?
+        (.startsWith file-path node-modules-path)
+
+        _ (when-not (or npm-file? (.startsWith file-path abs-path))
             (throw (ex-info (format "files outside the project are not allowed: %s" file-path)
                      {:file file})))
 
+        ;; normalize node_modules files since they may not be at the root of the project
         resource-name
-        (->> (.relativize abs-path file-path)
-             (str)
-             (rc/normalize-name))
+        (if npm-file?
+          (->> (.relativize node-modules-path file-path)
+               (str)
+               (rc/normalize-name)
+               (str "node_modules/"))
+          (->> (.relativize abs-path file-path)
+               (str)
+               (rc/normalize-name)))
 
         ns (-> (ModuleNames/fileToModuleName resource-name)
                ;; (cljs-comp/munge) ;; FIXME: the above already does basically the same, does it cover everything?
@@ -762,7 +774,7 @@
 
 ;; FIXME: allow configuration of :extensions :main-keys
 ;; maybe some closure opts
-(defn start []
+(defn start [{:keys [node-modules-dir] :as config}]
   (let [index-ref
         (atom {:files {}
                :packages {}
@@ -788,7 +800,10 @@
 
         ;; FIXME: allow configuration of this
         node-modules-dir
-        (io/file project-dir "node_modules")]
+        (if (seq node-modules-dir)
+          (-> (io/file node-modules-dir)
+              (.getAbsoluteFile))
+          (io/file project-dir "node_modules"))]
 
     {::service true
      :index-ref index-ref

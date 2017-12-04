@@ -105,7 +105,7 @@
     :stop build-classpath/stop}
 
    :npm
-   {:depends-on []
+   {:depends-on [:config]
     :start build-npm/start
     :stop build-npm/stop}
 

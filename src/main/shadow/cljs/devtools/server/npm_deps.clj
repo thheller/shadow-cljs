@@ -129,11 +129,11 @@
                             (assoc :url url))))
                  (into [])))]
 
-    (for [{:keys [url npm-deps]} deps
-          [dep-id dep-version] npm-deps]
-      {:id (dep->str dep-id)
-       :version dep-version
-       :url url})
+    (vec (for [{:keys [url npm-deps]} deps
+               [dep-id dep-version] npm-deps]
+           {:id (dep->str dep-id)
+            :version dep-version
+            :url url}))
     ))
 
 (defn read-package-json []

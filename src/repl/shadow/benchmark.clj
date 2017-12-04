@@ -12,7 +12,7 @@
 
 (defn test-build []
   (let [npm
-        (npm/start)
+        (npm/start {})
 
         cache-root
         (io/file "target" "test-build")

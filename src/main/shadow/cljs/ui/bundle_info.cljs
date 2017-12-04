@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [shadow.api :refer (ns-ready)]
             [shadow.dom :as dom]
-            ["./bundle_renderer" :as x]
+    #_["./bundle_renderer" :as x]
             [goog.format :as gf]
             [shadow.markup.react :as html :refer (defstyled)]
             ["react-dom" :as rdom]))
@@ -12,28 +12,28 @@
 
 (defonce root (dom/by-id "root"))
 
-(defn sunburst []
-  (let [{:keys [build-modules]}
-        @state-ref
+#_(defn sunburst []
+    (let [{:keys [build-modules]}
+          @state-ref
 
-        all
-        (->> (:build-modules @state-ref)
-             (map :source-bytes)
-             (reduce #(merge-with + %1 %2))
-             (remove #(str/includes? (first %) "synthetic:"))
-             (sort-by second)
-             (clj->js))]
+          all
+          (->> (:build-modules @state-ref)
+               (map :source-bytes)
+               (reduce #(merge-with + %1 %2))
+               (remove #(str/includes? (first %) "synthetic:"))
+               (sort-by second)
+               (clj->js))]
 
-    (dom/append root
-      [:div#container
-       [:div#sequence]
-       [:div#chart
-        [:div#explanation
-         {:style "visibility: hidden;"}
-         [:span#percentage]]]])
+      (dom/append root
+        [:div#container
+         [:div#sequence]
+         [:div#chart
+          [:div#explanation
+           {:style "visibility: hidden;"}
+           [:span#percentage]]]])
 
-    (x/createVisualization all)
-    ))
+      (x/createVisualization all)
+      ))
 
 (defn safe-add [x y]
   (if (nil? x)

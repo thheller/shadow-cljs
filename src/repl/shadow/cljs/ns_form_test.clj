@@ -34,6 +34,9 @@
              (:require-macros [that.macro :as m :refer (baz) :rename {baz zab}])
              (:require
                only-symbol
+               nil
+               nil
+               nil
                [some.ns :as alias :refer (foo x) :refer-macros (a-macro-from-some-ns) :rename {foo bar}]
                [another.ns :as x :include-macros true]
                :reload-all)

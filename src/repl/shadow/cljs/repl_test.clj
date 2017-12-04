@@ -10,7 +10,7 @@
 
 (defn basic-repl-setup []
   (let [npm
-        (npm/start)
+        (npm/start {})
 
         cache-root
         (io/file "target" "test-repl")
