@@ -30,23 +30,23 @@
 
 (goog-define ssl false)
 
+(defn get-repl-host [client-type]
+  (if (and (= :browser client-type) use-document-host)
+    js/document.location.hostname
+    repl-host))
+
 (defn ws-url [client-type]
   {:pre [(keyword? client-type)]}
-  (let [host
-        (if (and (= :browser client-type) use-document-host)
-          js/document.location.hostname
-          repl-host)]
+  (let [host (get-repl-host client-type)]
     (str "ws" (when ssl "s") "://" host ":" repl-port "/worker/ws/" build-id "/" proc-id "/" client-id "/" (name client-type))))
 
 (defn ws-listener-url [client-type]
-  (let [host
-        (if (and (= :browser client-type) use-document-host)
-          js/document.location.hostname
-          repl-host)]
+  (let [host (get-repl-host client-type)]
     (str "ws" (when ssl "s") "://" host ":" repl-port "/worker/listener-ws/" build-id "/" proc-id "/" client-id)))
 
 (defn files-url []
-  (str "http" (when ssl "s") "://" repl-host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id))
+  (let [host (get-repl-host :browser)]
+    (str "http" (when ssl "s") "://" host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id)))
 
 (def repl-print-fn pr-str)
 
