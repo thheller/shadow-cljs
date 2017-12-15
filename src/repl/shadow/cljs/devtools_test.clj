@@ -588,11 +588,12 @@
                           #_"foo"
                           #_cljs.tools.reader.reader-types
                           #_"react-vis"
-                          "@material/animation"
+                          #_ "@material/animation"
+                          "react-markdown"
                           ]}}
 
         :js-options
-        {:js-provider :closure}}
+        {:js-provider :shadow}}
       {:debug true})
     (catch Exception ex
       (errors/user-friendly-error ex))))

@@ -1,11 +1,11 @@
-(defproject thheller/shadow-cljs "2.0.115"
+(defproject thheller/shadow-cljs "2.0.116"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/clojure "1.9.0-beta4"]
+  [[org.clojure/clojure "1.9.0"]
 
    ;; [org.clojure/spec.alpha "0.1.108"]
    ;; [org.clojure/core.specs.alpha "0.1.10"]
@@ -33,16 +33,16 @@
    [com.google.javascript/closure-compiler-unshaded "v20171023"]
 
    [thheller/shadow-util "0.7.0"]
-   [thheller/shadow-client "1.3.0"]
+   [thheller/shadow-client "1.3.2"]
 
    [aleph "0.4.4"]
    [hiccup "1.0.5"]
-   [ring/ring-core "1.6.2"
+   [ring/ring-core "1.6.3"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [expound "0.3.1"]
+   [expound "0.3.4"]
    [fipp "0.6.12"]
 
    ;; experimental

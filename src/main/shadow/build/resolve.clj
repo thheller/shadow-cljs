@@ -84,7 +84,7 @@
 (defmethod find-resource-for-string :shadow
   [{:keys [js-options babel] :as state} {:keys [file] :as require-from} require]
 
-  (when-let [{:keys [js-language deps resource-name source] :as rc}
+  (when-let [{:keys [js-language json deps resource-name source] :as rc}
              (npm/find-resource (:npm state) file require
                (assoc js-options
                  :mode (:mode state)
@@ -94,7 +94,8 @@
     (if-not (str/includes? resource-name "node_modules")
       rc
       (let [babel-rewrite?
-            (not (contains? #{"es3" "es5"} js-language))
+            (and (not json)
+                 (not (contains? #{"es3" "es5"} js-language)))
 
             deps
             (-> '[shadow.js]
