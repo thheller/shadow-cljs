@@ -7,7 +7,7 @@
             [shadow.cljs.util :as util]))
 
 (defmacro with-npm [[sym config] & body]
-  `(let [~sym (npm/start (merge {:node-modules-dir "test-env/node_modules"} ~config))]
+  `(let [~sym (npm/start (merge {:node-modules-dir "test-env"} ~config))]
      (try
        ~@body
        (finally
