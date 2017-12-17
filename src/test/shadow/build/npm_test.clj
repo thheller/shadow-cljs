@@ -141,6 +141,32 @@
       (is (= "node_modules/pkg-a/index-browser.js" resource-name))
       )))
 
+
+(deftest test-require-file-over-dir
+  (with-npm [x {}]
+    (let [ctx {}
+
+          {:keys [resource-name] :as rc1}
+          (npm/find-resource x nil "file-over-dir/foo" ctx)]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/file-over-dir/foo.js" resource-name))
+      )))
+
+
+(deftest test-require-entry-dir-with-index
+  (with-npm [x {}]
+    (let [ctx {}
+
+          {:keys [resource-name] :as rc1}
+          (npm/find-resource x nil "entry-dir/foo" ctx)]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/entry-dir/foo/index.js" resource-name))
+      )))
+
 (comment
   ;; FIXME: write proper tests for these
 

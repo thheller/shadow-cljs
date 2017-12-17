@@ -221,20 +221,19 @@
 
       ;; "react-dom/server" -> react-dom/server.js
       ;; "core-js/library/fn-symbol" is a directory, need to resolve to index.js
+      ;; rxjs contains
+      ;; rxjs/observable/...
+      ;; rxjs/Observable.js
+      ;; must find file before dir
       :else
       (let [file-or-dir
-            (test-file package-dir suffix)
+            (or (test-file-exts npm package-dir suffix)
+                (test-file package-dir suffix))
 
             file
-            (cond
-              (not file-or-dir)
-              (test-file-exts npm package-dir suffix)
-
-              (and file-or-dir (.isDirectory file-or-dir))
-              (test-file-exts npm file-or-dir "index")
-
-              :else
-              file-or-dir)]
+            (if-not (and file-or-dir (.isDirectory file-or-dir))
+              file-or-dir
+              (test-file-exts npm file-or-dir "index"))]
 
         (when-not (and file (.isFile file))
           (throw (ex-info (format "could not find module-entry: %s" require)
