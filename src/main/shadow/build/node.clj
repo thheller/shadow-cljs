@@ -177,7 +177,9 @@
         (throw (ex-info "flush before optimize?" {})))
 
       (-> state
-          (assoc-in [:build-options :output-dir] (.getParentFile output-to))
+          (assoc-in [:build-options :output-dir] (-> output-to
+                                                     (.getCanonicalFile)
+                                                     (.getParentFile)))
           (assoc-in [::closure/modules 0 :output-name] (.getName output-to))
           (output/flush-optimized))))
 
