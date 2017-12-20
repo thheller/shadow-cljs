@@ -2,8 +2,19 @@ goog.provide("shadow.js");
 goog.require("shadow.process");
 
 // since we only run JS through :simple we need to keep these as is.
+// these are not in process.js since the :closure js provider will optimize
+// the JS fully and we don't need to export this since the renamed names
+// will be used
 goog.exportSymbol("process.env.NODE_ENV", process.env.NODE_ENV);
 goog.exportSymbol("process.browser", process.browser);
+goog.exportSymbol("process.title", process.title);
+goog.exportSymbol("process.argv", process.argv);
+goog.exportSymbol("process.env", process.env);
+goog.exportSymbol("process.cwd", process.cwd);
+goog.exportSymbol("process.on", process.on);
+goog.exportSymbol("process.umask", process.umask);
+goog.exportSymbol("process.once", process.once);
+goog.exportSymbol("process.off", process.off);
 
 /**
  * @dict

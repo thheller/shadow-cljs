@@ -20,6 +20,7 @@
     ["./foo" :as foo]
     ["circular-test" :as circ]
     [cljs.test :refer (deftest)]
+    ["react-markdown" :as rmd]
     ))
 
 (deftest yo
@@ -80,7 +81,9 @@
   :args (s/cat :foo ::foo))
 
 (defn foo [x]
-  (createElement "h1" nil (str "hello from react: " x)))
+  (createElement "div" nil
+    (createElement "h1" nil (str "hello from react: " x))
+    (createElement rmd #js {:source "## hello from rmd"})))
 
 (render (foo "foo") (js/document.getElementById "app"))
 
