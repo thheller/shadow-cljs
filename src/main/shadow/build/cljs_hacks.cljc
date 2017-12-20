@@ -120,6 +120,7 @@
    (let [locals (:locals env)
          current-ns (-> env :ns :name)
          sym-ns-str (namespace sym)]
+
      (if (= "js" sym-ns-str)
        (do (when (contains? locals (-> sym name symbol))
              (warning :js-shadowed-by-local env {:name sym}))
@@ -194,10 +195,9 @@
            (recur env (gets current-ns-info :imports sym) confirm)
 
            (some? (gets current-ns-info :defs sym))
-           (do
-             (when (some? confirm)
-               (confirm env current-ns sym))
-             (resolve-cljs-var current-ns sym))
+           (do (when (some? confirm)
+                 (confirm env current-ns sym))
+               (resolve-cljs-var current-ns sym))
 
            ;; https://dev.clojure.org/jira/browse/CLJS-2380
            ;; not sure if correct fix
@@ -207,10 +207,9 @@
              :ns cljs.core}
 
            (core-name? env sym)
-           (do
-             (when (some? confirm)
-               (confirm env 'cljs.core sym))
-             (resolve-cljs-var 'cljs.core sym))
+           (do (when (some? confirm)
+                 (confirm env 'cljs.core sym))
+               (resolve-cljs-var 'cljs.core sym))
 
            (invokeable-ns? s env)
            (resolve-invokeable-ns s current-ns env)

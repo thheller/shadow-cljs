@@ -256,8 +256,12 @@
   ;; we collect all warnings always since any warning should prevent caching
   ;; :infer-warnings however are very inaccurate so we filter those unless
   ;; explicitly enabled, mirroring what CLJS does more closely.
-  (when (or (not= :infer-warning warning-type)
-            (get ana/*cljs-warnings* :infer-warning))
+  (when (and (or (not= :infer-warning warning-type)
+                 (get ana/*cljs-warnings* :infer-warning))
+             ;; no-warn macro disables all warnings sometimes
+             ;; and we need to respect that, otherwise letfn complains
+             ;; since it is allowed to define/reference something out of order
+             (not (false? (get ana/*cljs-warnings* warning-type))))
 
     (let [{:keys [line column]}
           env
