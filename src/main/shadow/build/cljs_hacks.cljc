@@ -29,6 +29,10 @@
 
 (in-ns 'cljs.analyzer)
 
+;; noop load-core since its called a bajillion times otherwise and should only be called once
+;; also fixes the race condition in load-core
+(defn load-core [])
+
 (def conj-to-set (fnil conj #{}))
 
 (defn shadow-js-access-global [current-ns global]

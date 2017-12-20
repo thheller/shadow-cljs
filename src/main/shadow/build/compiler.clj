@@ -11,6 +11,7 @@
             [cljs.spec.alpha :as cljs-spec]
             [cljs.env :as env]
             [cljs.tagged-literals :as tags]
+            [cljs.core] ;; do not remove, need to ensure this is loaded before compiling anything
             [shadow.cljs.util :as util]
             [shadow.build.warnings :as warnings]
             [shadow.build.macros :as macros]
@@ -690,18 +691,10 @@
               src
               )))))))
 
-(def load-core-lock (Object.))
-
 (defn load-core []
-  ;; there is a race condition in cljs.analyzer/load-core
-  ;; it will check if the cljs.core macros have been loaded
-  ;; if not it will FIRST set the check to true then do the actual work
-  ;; another thread might call (load-core) will the first is still working
-  ;; since the flag is already set it won't do the work again but it will then
-  ;; intern a cljs.core macro namespace that might still be loading leading to very confusing errors
-  ;; so 50% of the macros might have been initialized but the rest might be missing
-  (locking load-core-lock
-    (cljs-ana/load-core)))
+  ;; cljs.core is already required and loaded when this is called
+  ;; this just interns the macros into the analyzer env
+  (cljs-ana/intern-macros 'cljs.core))
 
 (defn par-compile-cljs-sources
   "compile files in parallel, files MUST be in dependency order and ALL dependencies must be present
