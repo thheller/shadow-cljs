@@ -62,6 +62,7 @@
 
    :test
 
+   :aot
    :init
    :help
    :server])

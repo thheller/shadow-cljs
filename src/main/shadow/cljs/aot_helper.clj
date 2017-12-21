@@ -1,4 +1,5 @@
-(ns shadow.cljs.aot-helper)
+(ns shadow.cljs.aot-helper
+  (:gen-class))
 
-(compile 'shadow.cljs.devtools.server)
-
+(defn -main [& args]
+  (compile 'shadow.cljs.devtools.server))

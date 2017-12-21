@@ -44,7 +44,8 @@
             result
             {:dependencies dependencies
              :version version
-             :files files}
+             :files files
+             :deps deps}
 
             classpath-file
             (io/file cache-root "classpath.edn")]
