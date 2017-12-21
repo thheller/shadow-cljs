@@ -35,7 +35,8 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [aleph "0.4.4"]
+   [io.undertow/undertow-core "1.4.12.Final"]
+   
    [hiccup "1.0.5"]
    [ring/ring-core "1.6.3"
     :exclusions
@@ -79,7 +80,7 @@
      [funcool/promesa "1.9.0"]
      [fulcrologic/fulcro "2.0.0-beta2"]
 
-     #_ [cider/cider-nrepl "0.16.0-SNAPSHOT"]
+     #_[cider/cider-nrepl "0.16.0-SNAPSHOT"]
 
      [metosin/spec-tools "0.5.1"]
      [thi.ng/geom "0.0.908"]

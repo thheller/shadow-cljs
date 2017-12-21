@@ -1,9 +1,7 @@
 (ns shadow.cljs.devtools.server
-  (:require [aleph.http :as aleph]
-            [clojure.core.async :as async :refer (thread go <!)]
+  (:require [clojure.core.async :as async :refer (thread go <!)]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
-            [aleph.netty :as netty]
             [ring.middleware.file :as ring-file]
             [ring.middleware.params :as ring-params]
             [shadow.repl :as r]
@@ -22,18 +20,15 @@
             [shadow.cljs.devtools.server.nrepl :as nrepl]
             [shadow.cljs.devtools.server.dev-http :as dev-http]
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
+            [shadow.undertow :as undertow]
             [ring.middleware.resource :as ring-resource])
-  (:import (io.netty.handler.ssl SslContextBuilder)
-           (javax.net.ssl KeyManagerFactory)
-           (java.security KeyStore)
-           (java.io FileInputStream)
-           (java.net BindException)))
+  (:import(java.net BindException)))
 
 (def app-config
   (merge
     common/app-config
     {:dev-http
-     {:depends-on [:ssl-context :executor :out]
+     {:depends-on [:ssl-context :out]
       :start dev-http/start
       :stop dev-http/stop}
      :out
@@ -42,20 +37,23 @@
                (util/stdout-dump (:verbose config)))
       :stop async/close!}}))
 
-(defn get-ring-handler
-  [{:keys [dev-mode cache-root] :as config} app-promise]
+(defn get-ring-handler [app-promise]
+  (fn [ring-map]
+    (let [app (deref app-promise 1000 ::timeout)]
+      (if (= app ::timeout)
+        {:status 501
+         :body "App not ready!"}
+        (-> app
+            (assoc :ring-request ring-map)
+            (http/prepare)
+            (web/root))))))
+
+(defn get-ring-middleware
+  [{:keys [dev-mode cache-root] :as config} handler]
   (let [ui-root
         (io/file cache-root "ui")]
 
-    (-> (fn [ring-map]
-          (let [app (deref app-promise 1000 ::timeout)]
-            (if (= app ::timeout)
-              {:status 501
-               :body "App not ready!"}
-              (-> app
-                  (assoc :ring-request ring-map)
-                  (http/prepare)
-                  (web/root)))))
+    (-> handler
         (cond->
           (.exists ui-root)
           (ring-file/wrap-file ui-root)
@@ -83,10 +81,7 @@
   (do-shutdown (socket-repl/stop cli-repl))
   (when nrepl
     (do-shutdown (nrepl/stop nrepl)))
-  (let [netty (:server http)]
-    (do-shutdown
-      (.close netty)
-      (netty/wait-for-close netty)))
+  (do-shutdown (undertow/stop (:server http)))
 
   (println "shutdown complete."))
 
@@ -96,77 +91,50 @@
   (reduce-kv
     (fn [result key port]
       (assert (keyword? key))
-      (assert (pos-int? port))
-      (let [port-file
-            (doto (io/file cache-root (str (name key) ".port"))
-              (.deleteOnExit))]
-        (spit port-file (str port))
-        (assoc result key port-file)))
+      (if-not (pos-int? port)
+        result
+        (let [port-file
+              (doto (io/file cache-root (str (name key) ".port"))
+                (.deleteOnExit))]
+          (spit port-file (str port))
+          (assoc result key port-file))))
     {}
     ports))
 
-(defn setup-ssl [http-config ssl]
-  (let [key-manager
-        (KeyManagerFactory/getInstance
-          (KeyManagerFactory/getDefaultAlgorithm))
+(defn start-http [config {:keys [port strict] :as http-config} ring]
+  (let [middleware-fn #(get-ring-middleware config %)]
+    (loop [port (or port 9630)]
+      (let [srv
+            (try
+              (undertow/start (assoc http-config :port port) ring middleware-fn)
+              (catch BindException e
+                (log/warnf "TCP Port %d in use." port)
+                (when strict
+                  (throw e))))]
 
-        key-store
-        (KeyStore/getInstance
-          (KeyStore/getDefaultType))
-
-        pw
-        (.toCharArray (get ssl :password "shadow-cljs"))]
-
-    (with-open [fs (FileInputStream. (get ssl :keystore "ssl/keystore.jks"))]
-      (.load key-store fs pw))
-
-    (.init key-manager key-store pw)
-
-    (let [ssl-context
-          (-> (SslContextBuilder/forServer key-manager)
-              (.build))]
-
-      (assoc http-config
-        :ssl true
-        :ssl-context ssl-context)
-      )))
-
-(defn start-http [ring {:keys [port strict] :as http-config}]
-  (loop [port (or port 9630)]
-    (let [srv
-          (try
-            (aleph/start-server ring (assoc http-config :port port))
-            (catch BindException e
-              (log/warnf "TCP Port %d in use." port)
-              (when strict
-                (throw e))))]
-
-      (or srv (recur (inc port)))
-      )))
+        (or srv (recur (inc port)))
+        ))))
 
 (defn start-system
   [app {:keys [cache-root] :as config}]
   (let [app-promise
         (promise)
 
-        ring
-        (get-ring-handler config app-promise)
-
         {:keys [http ssl]}
         config
+
+        ring
+        (get-ring-handler app-promise)
 
         {:keys [ssl-context] :as http-config}
         (-> {:host "localhost"}
             (merge http)
             (cond->
               ssl
-              (setup-ssl ssl)))
+              (assoc :ssl-context (undertow/make-ssl-context ssl))))
 
-        http
-        (start-http ring http-config)
-
-        http-port
-        (netty/port http)
+        {:keys [http-port https-port] :as http}
+        (start-http config http-config ring)
 
         socket-repl-config
         (:socket-repl config)
@@ -194,15 +162,18 @@
           {:nrepl (:port nrepl)
            :socket-repl (:port socket-repl)
            :cli-repl (:port cli-repl)
-           :http http-port})
+           :http http-port
+           :https-port https-port})
 
         app
         (-> {::started (System/currentTimeMillis)
              :config config
              :ssl-context ssl-context
-             :http {:port http-port
+             :http {:port (or https-port http-port)
+                    :http-port http-port
+                    :https-port https-port
                     :host (:host http-config)
-                    :ssl (:ssl http-config)
+                    :ssl (boolean https-port)
                     :server http}
              :port-files port-files
              :nrepl nrepl
@@ -265,15 +236,14 @@
 
 (defn -main [& args]
   (start!)
-  (-> @runtime/instance-ref
-      (get-in [:http :server])
-      (netty/wait-for-close))
-  (shutdown-agents))
 
-(defn wait-for-http []
-  (-> @runtime/instance-ref
-      (get-in [:http :server])
-      (netty/wait-for-close)))
+  ;; idle until the instance if removed by other means
+  (loop []
+    (when (some? @runtime/instance-ref)
+      (Thread/sleep 250)
+      (recur)))
+
+  (shutdown-agents))
 
 (defn wait-for-eof! []
   (loop []

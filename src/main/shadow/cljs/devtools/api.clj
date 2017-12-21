@@ -2,37 +2,24 @@
   (:refer-clojure :exclude (compile test))
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [clojure.java.io :as io]
-            [clojure.string :as str]
             [clojure.tools.logging :as log]
             [clojure.pprint :refer (pprint)]
-            [aleph.netty :as netty]
-            [aleph.http :as aleph]
-            [shadow.repl :as r]
             [shadow.runtime.services :as rt]
             [shadow.build :as build]
             [shadow.build.api :as build-api]
-            [shadow.build.test :as build-test]
             [shadow.build.node :as node]
             [shadow.build.npm :as npm]
             [shadow.build.classpath :as cp]
             [shadow.build.babel :as babel]
-            [shadow.build.closure :as closure]
-            [shadow.cljs.util :as cljs-util]
-            [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.common :as common]
-            [shadow.cljs.devtools.server.web.common :as web-common]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as e]
-            [shadow.cljs.devtools.server.worker.ws :as ws]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
             [shadow.cljs.devtools.server.runtime :as runtime]
-            [shadow.build.data :as data]
-            [shadow.build.output :as output])
-  (:import (java.io PushbackReader StringReader)
-           (java.lang ProcessBuilder$Redirect)))
+            [shadow.build.output :as output]))
 
 ;; nREPL support
 

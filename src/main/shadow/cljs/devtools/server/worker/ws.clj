@@ -1,23 +1,17 @@
 (ns shadow.cljs.devtools.server.worker.ws
   "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
   (:require [clojure.core.async :as async :refer (go <! >! thread alt!! >!!)]
-            [clojure.string :as str]
-            [clojure.java.io :as io]
-            [aleph.http :as aleph]
-            [manifold.deferred :as md]
-            [manifold.stream :as ms]
             [clojure.edn :as edn]
             [shadow.build.output :as output]
-            [shadow.cljs.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.devtools.server.web.common :as common]
             [shadow.build :as comp]
             [shadow.http.router :as http]
             [shadow.build.data :as data]
-            [shadow.build.resource :as rc])
+            [shadow.build.resource :as rc]
+            [clojure.tools.logging :as log])
   (:import (java.util UUID)))
 
 (defn ws-loop!
@@ -60,16 +54,7 @@
   [{:keys [ring-request] :as ctx}
    {:keys [output] :as worker-proc} client-id client-type]
 
-  (let [client-in
-        (async/chan
-          1
-          (map edn/read-string))
-
-        ;; FIXME: n=10 is rather arbitrary
-        client-out
-        (async/chan
-          (async/sliding-buffer 10)
-          (map pr-str))
+  (let [{:keys [ws-in ws-out]} ring-request
 
         eval-out
         (-> (async/sliding-buffer 10)
@@ -98,39 +83,20 @@
         {:worker-proc worker-proc
          :client-id client-id
          :client-type client-type
-         :in client-in
-         :out client-out
+         :in ws-in
+         :out ws-out
          :eval-out eval-out
          :result-chan result-chan
          :watch-chan watch-chan}]
 
-    (-> (aleph/websocket-connection ring-request
-          {:headers
-           (let [proto (get-in ring-request [:headers "sec-websocket-protocol"])]
-             (if (seq proto)
-               {"sec-websocket-protocol" proto}
-               {}))})
-        (md/chain
-          (fn [socket]
-            (ms/connect socket client-in)
-            (ms/connect client-out socket)
-            socket))
-
-        ;; FIXME: why the second chain?
-        (md/chain
-          (fn [socket]
-            (thread (ws-loop! (assoc client-state :socket socket)))
-            ))
-        (md/catch common/unacceptable))))
+    (thread (ws-loop! client-state))
+    ))
 
 (defn ws-listener-connect
   [{:keys [ring-request] :as ctx}
    {:keys [output] :as worker-proc} client-id]
 
-  (let [client-out
-        (async/chan
-          (async/sliding-buffer 10)
-          (map pr-str))
+  (let [{:keys [ws-in ws-out]} ring-request
 
         ;; FIXME: let the client decide?
         watch-ignore
@@ -148,33 +114,25 @@
             (async/chan
               (remove #(contains? watch-ignore (:type %)))))]
 
-    (-> (aleph/websocket-connection ring-request
-          {:headers
-           (let [proto (get-in ring-request [:headers "sec-websocket-protocol"])]
-             (if (seq proto)
-               {"sec-websocket-protocol" proto}
-               {}))})
-        (md/chain
-          (fn [socket]
-            ;; FIXME: listen only or accept commands?
-            ;; (ms/connect socket client-in)
-            (ms/connect client-out socket)
-            socket))
-        (md/chain
-          (fn [socket]
-            (worker/watch worker-proc watch-chan true)
+    (worker/watch worker-proc watch-chan true)
 
-            (let [last-known-state
-                  (-> worker-proc :state-ref deref :build-state ::comp/build-info)]
-              (>!! client-out {:type :build-init
-                               :info last-known-state}))
+    (let [last-known-state
+          (-> worker-proc :state-ref deref :build-state ::comp/build-info)]
+      (>!! ws-out {:type :build-init
+                   :info last-known-state}))
 
-            (go (loop []
-                  (when-some [msg (<! watch-chan)]
-                    (>! client-out msg)
-                    (recur))
-                  ))))
-        (md/catch common/unacceptable))))
+    ;; close watch when websocket closes
+    (go (loop []
+          (when-some [msg (<! ws-in)]
+            (log/warn "ignored listener msg" msg)
+            (recur)))
+        (async/close! watch-chan))
+
+    (go (loop []
+          (when-some [msg (<! watch-chan)]
+            (>! ws-out msg)
+            (recur))
+          ))))
 
 (defn compile-req
   [{:keys [ring-request] :as ctx} worker-proc]
@@ -291,11 +249,12 @@
        :body "Only POST or OPTIONS requests allowed."}
       )))
 
-(defn process
+(defn process-req
   [{::http/keys [path-tokens] :keys [supervisor] :as ctx}]
 
   ;; "/worker/browser/430da920-ffe8-4021-be47-c9ca77c6defd/305de5d9-0272-408f-841e-479937512782/browser"
   ;; _ _ to drop / and worker
+
   (let [[action build-id proc-id client-id client-type :as x]
         path-tokens
 
@@ -322,12 +281,6 @@
         "files"
         (files-req ctx worker-proc)
 
-        "ws"
-        (ws-connect ctx worker-proc client-id client-type)
-
-        "listener-ws"
-        (ws-listener-connect ctx worker-proc client-id)
-
         "compile"
         (compile-req ctx worker-proc)
 
@@ -335,4 +288,43 @@
         {:status 404
          :headers {"content-type" "text/plain"}
          :body "Not found."}))))
+
+
+(defn process-ws
+  [{::http/keys [path-tokens] :keys [supervisor] :as ctx}]
+
+  ;; "/worker/browser/430da920-ffe8-4021-be47-c9ca77c6defd/305de5d9-0272-408f-841e-479937512782/browser"
+  ;; _ _ to drop / and worker
+  (let [[action build-id proc-id client-id client-type :as x]
+        path-tokens
+
+        build-id
+        (keyword build-id)
+
+        proc-id
+        (UUID/fromString proc-id)
+
+        worker-proc
+        (super/get-worker supervisor build-id)]
+
+    (cond
+      (nil? worker-proc)
+      (do (log/warn "stale websocket client, no worker for build" build-id)
+          nil)
+
+      (not= proc-id (:proc-id worker-proc))
+      (do (log/warn "stale websocket client, please reload client" build-id)
+          nil)
+
+      :else
+      (case action
+        "worker"
+        (ws-connect ctx worker-proc client-id client-type)
+
+        "listener"
+        (ws-listener-connect ctx worker-proc client-id)
+
+        :else
+        nil
+        ))))
 

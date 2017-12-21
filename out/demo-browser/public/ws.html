@@ -1,0 +1,17 @@
+<script>
+    var ws = new WebSocket("wss://" + document.location.host + "/ws/foo");
+
+    ws.onopen = function (event) {
+        console.log("ws opened", event);
+        ws.send("foo");
+    };
+
+    ws.onmessage = function(event) {
+        console.log("ws msg", event);
+    };
+
+    ws.onclose = function(event) {
+        console.log("ws closed", event);
+    };
+
+</script>

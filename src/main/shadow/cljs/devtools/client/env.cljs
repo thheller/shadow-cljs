@@ -38,11 +38,11 @@
 (defn ws-url [client-type]
   {:pre [(keyword? client-type)]}
   (let [host (get-repl-host client-type)]
-    (str "ws" (when ssl "s") "://" host ":" repl-port "/worker/ws/" build-id "/" proc-id "/" client-id "/" (name client-type))))
+    (str "ws" (when ssl "s") "://" host ":" repl-port "/ws/worker/" build-id "/" proc-id "/" client-id "/" (name client-type))))
 
 (defn ws-listener-url [client-type]
   (let [host (get-repl-host client-type)]
-    (str "ws" (when ssl "s") "://" host ":" repl-port "/worker/listener-ws/" build-id "/" proc-id "/" client-id)))
+    (str "ws" (when ssl "s") "://" host ":" repl-port "/ws/listener/" build-id "/" proc-id "/" client-id)))
 
 (defn files-url []
   (let [host (get-repl-host :browser)]

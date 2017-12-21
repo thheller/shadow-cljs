@@ -7,14 +7,10 @@
             [ring.middleware.file :as ring-file]
             [ring.middleware.file-info :as ring-file-info]
             [ring.middleware.content-type :as ring-content-type]
-            [aleph.http :as aleph]
-            [aleph.netty :as netty]
             [clojure.tools.logging :as log]
             [shadow.cljs.devtools.config :as config]
-            [clojure.string :as str]
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-            [shadow.cljs.devtools.api :as api]
-            [shadow.build :as build])
+            [shadow.undertow :as undertow])
   (:import (java.net BindException)))
 
 (defn disable-all-kinds-of-caching [handler]
@@ -30,7 +26,6 @@
 
 (defn start-build-server
   [ssl-context
-   executor
    out
    {:keys [build-id http-root http-port http-resource-root http-handler]
     :or {http-port 0}
@@ -40,7 +35,7 @@
         (when (seq http-root)
           (io/file http-root))
 
-        default-handler
+        http-handler
         (if-not http-handler
           common/not-found
 
@@ -60,50 +55,51 @@
       (io/make-parents (io/file root-dir "index.html")))
 
     (try
-      (let [http-handler
-            (-> default-handler
-                ;; some default resources, only used if no file exists
-                ;; currently only contains the CLJS logo as favicon.ico
-                ;; pretty much only doing this because of the annoying
-                ;; 404 chrome devtools show then no icon exists
-                (ring-resource/wrap-resource "shadow/cljs/devtools/server/dev_http")
-                (ring-content-type/wrap-content-type)
-                (cond->
-                  (seq http-resource-root)
-                  (ring-resource/wrap-resource http-resource-root)
+      (let [middleware-fn
+            #(-> %
+                 ;; some default resources, only used if no file exists
+                 ;; currently only contains the CLJS logo as favicon.ico
+                 ;; pretty much only doing this because of the annoying
+                 ;; 404 chrome devtools show then no icon exists
+                 (ring-resource/wrap-resource "shadow/cljs/devtools/server/dev_http")
+                 (ring-content-type/wrap-content-type)
+                 (cond->
+                   (seq http-resource-root)
+                   (ring-resource/wrap-resource http-resource-root)
 
-                  root-dir
-                  (ring-file/wrap-file root-dir {:allow-symlinks? true
-                                                 :index-files? true}))
-                (ring-file-info/wrap-file-info
-                  ;; source maps
-                  {"map" "application/json"})
+                   root-dir
+                   (ring-file/wrap-file root-dir {:allow-symlinks? true
+                                                  :index-files? true}))
+                 (ring-file-info/wrap-file-info
+                   ;; source maps
+                   {"map" "application/json"})
 
-                (ring-gzip/wrap-gzip)
-                (disable-all-kinds-of-caching))
+                 (ring-gzip/wrap-gzip)
+                 (disable-all-kinds-of-caching))
 
-            aleph-options
-            (-> {:port http-port
-                 :executor executor
-                 :shutdown-executor? false}
+            http-options
+            (-> {:port http-port}
                 (cond->
                   ssl-context
                   (assoc :ssl-context ssl-context)))
 
-            instance
-            (aleph/start-server http-handler aleph-options)
+            {:keys [http-port https-port] :as server}
+            (undertow/start http-options http-handler middleware-fn)]
 
-            port
-            (netty/port instance)]
+        (when https-port
+          (>!! out {:type :println
+                    :msg (format "shadow-cljs - HTTP server for \"%s\" available at https://%s:%s" build-id "localhost" https-port)}))
 
-        (>!! out {:type :println
-                  :msg (format "shadow-cljs - HTTP server for \"%s\" available at http%s://%s:%s" build-id (if ssl-context "s" "") "localhost" http-port)})
-        (log/debug ::http-serve {:http-port port :http-root http-root :build-id build-id})
+        (when http-port
+          (>!! out {:type :println
+                    :msg (format "shadow-cljs - HTTP server for \"%s\" available at http://%s:%s" build-id "localhost" http-port)}))
+
+        (log/debug ::http-serve (-> server
+                                    (dissoc :instance)
+                                    (assoc :build-id build-id)))
 
         {:build-id build-id
-         :port port
-         :instance instance
-         :ssl (boolean ssl-context)})
+         :instance server})
       (catch BindException e
         (>!! out {:type :println
                   :msg (format "[WARNING] shadow-cljs - HTTP server at port %s failed, port is in use." http-port)})
@@ -127,12 +123,12 @@
   (get-server-configs))
 
 ;; FIXME: use config watch to restart servers on config change
-(defn start [ssl-context executor out]
+(defn start [ssl-context out]
   (let [configs
         (get-server-configs)
 
         servers
-        (into [] (map #(start-build-server ssl-context executor out %)) configs)]
+        (into [] (map #(start-build-server ssl-context out %)) configs)]
 
     {:servers servers
      :configs configs}
@@ -141,4 +137,4 @@
 (defn stop [{:keys [servers] :as svc}]
   (doseq [{:keys [instance] :as srv} servers
           :when instance]
-    (.close instance)))
+    (undertow/stop instance)))

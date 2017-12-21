@@ -50,5 +50,6 @@
     (:GET "/bundle-info/{build-id:keyword}" bundle-info-page build-id)
     (:ANY "^/release-snapshots" release-snapshots/root)
     (:ANY "^/api" web-api/root)
-    (:ANY "^/worker" ws/process)
+    (:ANY "^/ws" ws/process-ws)
+    (:ANY "^/worker" ws/process-req)
     common/not-found))
