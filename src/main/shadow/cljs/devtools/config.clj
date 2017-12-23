@@ -78,6 +78,9 @@
          :target :npm-module
          :output-dir "node_modules/shadow-cljs"}})
 
+(defn- getenv [envname]
+  (System/getenv envname))
+
 ;; FIXME: memoize this!!! (should only repeat this if the config changes)
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
@@ -85,7 +88,7 @@
       default-config
       (-> file
           (slurp)
-          (edn/read-string)
+          (#(edn/read-string {:readers {'shadow/env getenv}} %))
           (normalize)
           (->> (merge default-config))
           (update :builds #(merge default-builds %))
