@@ -371,10 +371,13 @@
   (println "--- active handles")
   (prn (js/process._getActiveHandles)))
 
+(defn- getenv [envname]
+  (str (aget js/process.env envname)))
+
 (defn read-config [config-path opts]
   (try
     (-> (util/slurp config-path)
-        (reader/read-string)
+        (#(reader/read-string {:readers {'shadow/env getenv}} %))
         (merge-config-with-cli-opts opts))
     (catch :default ex
       ;; FIXME: missing tools.reader location information
