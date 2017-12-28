@@ -25,15 +25,19 @@
           "expires" "0"))))
 
 (defn start-build-server
-  [ssl-context
-   out
-   {:keys [build-id http-root http-port http-resource-root http-handler]
+  [config ssl-context out
+   {:keys [build-id http-root http-port http-host http-resource-root http-handler]
     :or {http-port 0}
     :as config}]
 
   (let [root-dir
         (when (seq http-root)
           (io/file http-root))
+
+        http-host
+        (or (and (seq http-host) http-host)
+            (get-in config [:http :host])
+            "0.0.0.0")
 
         http-handler
         (if-not http-handler
@@ -78,21 +82,25 @@
                  (disable-all-kinds-of-caching))
 
             http-options
-            (-> {:port http-port}
+            (-> {:port http-port
+                 :host http-host}
                 (cond->
                   ssl-context
                   (assoc :ssl-context ssl-context)))
 
             {:keys [http-port https-port] :as server}
-            (undertow/start http-options http-handler middleware-fn)]
+            (undertow/start http-options http-handler middleware-fn)
+
+            display-host
+            (if (= "0.0.0.0" http-host) "localhost" http-host)]
 
         (when https-port
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - HTTP server for \"%s\" available at https://%s:%s" build-id "localhost" https-port)}))
+                    :msg (format "shadow-cljs - HTTP server for \"%s\" available at https://%s:%s" build-id display-host https-port)}))
 
         (when http-port
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - HTTP server for \"%s\" available at http://%s:%s" build-id "localhost" http-port)}))
+                    :msg (format "shadow-cljs - HTTP server for \"%s\" available at http://%s:%s" build-id display-host http-port)}))
 
         (log/debug ::http-serve (-> server
                                     (dissoc :instance)
@@ -123,12 +131,12 @@
   (get-server-configs))
 
 ;; FIXME: use config watch to restart servers on config change
-(defn start [ssl-context out]
+(defn start [config ssl-context out]
   (let [configs
         (get-server-configs)
 
         servers
-        (into [] (map #(start-build-server ssl-context out %)) configs)]
+        (into [] (map #(start-build-server config ssl-context out %)) configs)]
 
     {:servers servers
      :configs configs}

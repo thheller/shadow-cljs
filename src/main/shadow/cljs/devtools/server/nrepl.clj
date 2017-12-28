@@ -265,7 +265,7 @@
 
 (defn start
   [{:keys [host port middleware]
-    :or {host "localhost"
+    :or {host "0.0.0.0"
          port 0}
     :as config}]
 

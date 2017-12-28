@@ -28,7 +28,7 @@
   (merge
     common/app-config
     {:dev-http
-     {:depends-on [:ssl-context :out]
+     {:depends-on [:config :ssl-context :out]
       :start dev-http/start
       :stop dev-http/stop}
      :out
@@ -127,7 +127,7 @@
         (get-ring-handler app-promise)
 
         {:keys [ssl-context] :as http-config}
-        (-> {:host "localhost"}
+        (-> {:host "0.0.0.0"}
             (merge http)
             (cond->
               ssl

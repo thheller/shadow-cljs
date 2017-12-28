@@ -115,7 +115,7 @@
 (defn start
   ([config req-handler]
     (start config req-handler identity))
-  ([{:keys [port host ssl-port ssl-context] :as config} req-handler ring-middleware]
+  ([{:keys [port host ssl-port ssl-context] :or {host "0.0.0.0"} :as config} req-handler ring-middleware]
    (let [ws-handler
          (websocket req-handler)
 
