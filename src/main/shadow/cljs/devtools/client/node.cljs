@@ -151,7 +151,7 @@
         (env/ws-url :node)
 
         client
-        (ws. url "foo")]
+        (ws. url [])]
 
     (.on client "open"
       (fn []
