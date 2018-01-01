@@ -24,7 +24,7 @@
     "node": ">=6.0.0"
   },
   "scripts": {
-    "install":"./cli/runner.js aot"
+    "install":"node ./cli/runner.js aot"
   },
   "dependencies": {
     "babel-core": "^6.26.0",
