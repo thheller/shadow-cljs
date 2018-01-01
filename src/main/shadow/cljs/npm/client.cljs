@@ -176,10 +176,9 @@
       (let [connect-listener
             (fn [err]
               (this-as socket
-                (when-not
-                  (if (get-in opts [:options :stdin])
-                    (socket-pipe socket args)
-                    (repl-client socket args)))))
+                (if (get-in opts [:options :stdin])
+                  (socket-pipe socket args)
+                  (repl-client socket args))))
 
             socket
             (node-net/connect

@@ -6,6 +6,7 @@
     ["child_process" :as cp]
     ["readline-sync" :as rl-sync] ;; FIXME: drop this?
     ["mkdirp" :as mkdirp]
+    ["net" :as node-net]
     [cljs.core.async :as async :refer (go go-loop alt!)]
     #_[cljs.tools.reader :as reader]
     [cljs.reader :as reader]
@@ -17,6 +18,9 @@
     [shadow.cljs.npm.client :as client]
     [shadow.cljs.devtools.cli-opts :as opts]
     ))
+
+(defn log [& args]
+  (js/process.stderr.write (str (->> args (map str) (str/join " ")) "\n")))
 
 (def jar-version
   (-> (js/require "../../package.json")
@@ -40,14 +44,14 @@
   (-> (fs/lstatSync path)
       (.isDirectory)))
 
-(defn run [project-root java-cmd java-args proc-opts]
+(defn run [project-root cmd args proc-opts]
   (let [spawn-opts
         (-> {:cwd project-root
              :stdio "inherit"}
             (merge proc-opts)
             (clj->js))]
 
-    (cp/spawnSync java-cmd (into-array java-args) spawn-opts)))
+    (cp/spawnSync cmd (into-array args) spawn-opts)))
 
 (defn run-java [project-root args opts]
   (let [^js result
@@ -64,28 +68,9 @@
       (throw (ex-info "java process exit with non-zero exit code" {:tag :java-exit :status status :result result}))
 
       (and (.-error result) (= "ENOENT" (.. result -error -errno)))
-      (do (js/console.log "shadow-cljs - java not found, please install a Java8 SDK. (OpenJDK or Oracle)")
+      (do (log "shadow-cljs - java not found, please install a Java8 SDK. (OpenJDK or Oracle)")
           (js/process.exit 1)
           ))))
-
-(defn run-lein [project-root {:keys [lein] :as config} args]
-  (let [{:keys [profile] :as lein-config}
-        (cond
-          (map? lein)
-          lein
-          (true? lein)
-          {})
-
-        lein-args
-        (->> (concat
-               (when profile
-                 ["with-profile" profile])
-               ["run" "-m" "shadow.cljs.devtools.cli" "--npm"]
-               args)
-             (into []))]
-
-    (println "shadow-cljs - running: lein" (str/join " " lein-args))
-    (run project-root "lein" lein-args {})))
 
 (def default-config-str
   (util/slurp (path/resolve js/__dirname ".." "default-config.edn")))
@@ -111,13 +96,13 @@
 
 (defn run-init [opts]
   (let [config (path/resolve "shadow-cljs.edn")]
-    (println "shadow-cljs - init")
-    (println (str "- " config))
+    (log "shadow-cljs - init")
+    (log (str "- " config))
 
     (when (rl-sync/keyInYN "Create?")
       ;; FIXME: ask for default source path, don't just use one
       (fs/writeFileSync config default-config-str)
-      (println "shadow-cljs - created default configuration")
+      (log "shadow-cljs - created default configuration")
       config
       )))
 
@@ -209,7 +194,7 @@
         (ex-data ex)]
 
     (when (not= tag :java-exit)
-      (println "shadow-cljs - error" (.-message ex)))
+      (log "shadow-cljs - error" (.-message ex)))
     ))
 
 (defn logging-config [project-root {:keys [cache-root] :as config}]
@@ -271,15 +256,14 @@
              "clojure.main"
              "-m" "shadow.cljs.aot-helper"]]
 
+        ;; println since this runs during npm install
         (println "shadow-cljs - aot compile")
         (run-java home-dir jvm-args {})
         (fs/writeFileSync aot-lock-file "true")
         (println "shadow-cljs - aot compilation finished")
         ))))
 
-(defn run-standalone [project-root {:keys [source-paths jvm-opts] :as config} args]
-  (aot-compile) ;; should be cached already
-
+(defn get-jvm-opts [project-root {:keys [source-paths jvm-opts] :as config}]
   (let [home-dir
         (get-shared-home)
 
@@ -293,19 +277,119 @@
         (->> (:files classpath)
              (concat [aot-path])
              (concat source-paths)
-             (str/join cp-separator))
+             (str/join cp-separator))]
 
-        cli-args
-        (-> []
-            (into jvm-opts)
-            (into (logging-config project-root config))
-            (into ["-cp" classpath-str "clojure.main"])
-            (into ["-m" "shadow.cljs.devtools.cli"
-                   "--npm"])
+    (-> []
+        (into jvm-opts)
+        (into (logging-config project-root config))
+        (conj "-cp" classpath-str)
+        )))
+
+(defn run-standalone [project-root config args opts]
+  (aot-compile) ;; should be cached already
+
+  (let [cli-args
+        (-> (get-jvm-opts project-root config)
+            (conj "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
-    (println "shadow-cljs - starting ...")
+    (log "shadow-cljs - starting ...")
     (run-java project-root cli-args {})))
+
+(defn get-lein-args [{:keys [lein] :as config}]
+  (let [{:keys [profile] :as lein-config}
+        (cond
+          (map? lein)
+          lein
+          (true? lein)
+          {})]
+
+    (-> []
+        (cond->
+          profile
+          (conj "with-profile" profile)
+          ))))
+
+(defn run-lein [project-root config args opts]
+  (let [lein-args
+        (-> (get-lein-args config)
+            (conj "run" "-m" "shadow.cljs.devtools.cli" "--npm")
+            (into args))]
+
+    (log "shadow-cljs - running: lein" (str/join " " lein-args))
+    (run project-root "lein" lein-args {})))
+
+(defn wait-for-server-start! [port-file ^js proc]
+  (if (fs/existsSync port-file)
+    (do (js/process.stderr.write " ready!\n")
+        (.unref proc))
+    (do (js/process.stderr.write ".")
+        (js/setTimeout #(wait-for-server-start! port-file proc) 250))
+    ))
+
+(defn server-start [project-root {:keys [lein cache-root] :as config} args opts]
+  (let [[server-cmd server-args]
+        (if-not lein
+          ["java"
+           (-> (get-jvm-opts project-root config)
+               (conj "clojure.main" "-m"))]
+          ["lein"
+           (-> (get-lein-args config)
+               (conj "run" "-m"))])
+
+        server-args
+        (conj server-args "shadow.cljs.devtools.cli" "--npm" "server")]
+
+    (js/process.stderr.write "shadow-cljs - server starting ")
+
+    (let [cache-dir
+          (path/resolve project-root cache-root)
+
+          out-path
+          (path/resolve cache-dir "server.stdout.log")
+
+          err-path
+          (path/resolve cache-dir "server.stderr.log")
+
+          out
+          (fs/openSync out-path "a")
+
+          err
+          (fs/openSync err-path "a")
+
+          pid-path
+          (path/resolve cache-dir "server.pid")
+
+          proc
+          (cp/spawn server-cmd (into-array server-args)
+            #js {:detached true
+                 :stdio #js ["ignore", out, err]})]
+
+      (fs/writeFileSync pid-path (str (.-pid proc)))
+
+      (wait-for-server-start! (path/resolve cache-dir "cli-repl.port") proc)
+
+      #_(.unref proc)
+      )))
+
+(defn server-stop [project-root config server-pid-file args opts]
+  (let [signal (async/chan)
+
+        cli-repl
+        (-> (util/slurp server-pid-file)
+            (js/parseInt 10))
+
+        socket
+        (node-net/connect
+          #js {:port cli-repl
+               :host "localhost"
+               :timeout 1000})]
+
+    (.on socket "connect" #(.write socket "(shadow.cljs.devtools.server/remote-stop!)\n:repl/quit\n"))
+    (.on socket "error" #(fs/unlinkSync server-pid-file))
+    (.on socket "close" #(async/close! signal))
+
+    signal))
 
 (def defaults
   {:cache-root "target/shadow-cljs"
@@ -362,14 +446,7 @@
         (doseq [file files]
           (println (prettier-m2-path file)))
         )))
-  (println)
-  )
-
-(defn dump-script-state []
-  (println "--- active requests")
-  (prn (js/process._getActiveRequests))
-  (println "--- active handles")
-  (prn (js/process._getActiveHandles)))
+  (println))
 
 (defn- getenv [envname]
   (str (aget js/process.env envname)))
@@ -402,8 +479,8 @@
                    (get-in pkg ["dependencies" "shadow-cljs"]))))
 
         ;; not installed
-        (do (println "shadow-cljs not installed in project.")
-            (println "")
+        (do (log "shadow-cljs not installed in project.")
+            (log "")
 
             (if-not (rl-sync/keyInYN "Add it now?")
               false
@@ -414,7 +491,7 @@
                       :npm
                       ["npm" ["install" "--save-dev" "shadow-cljs"]])]
 
-                (println (str "Running: " pkg-cmd " " (str/join " " pkg-args)))
+                (log (str "Running: " pkg-cmd " " (str/join " " pkg-args)))
 
                 ;; npm installs into wrong location if no package.json is present
                 (when-not (fs/existsSync package-json-file)
@@ -560,37 +637,49 @@
 
               (when (check-project-install! project-root config)
 
-                (if (not (map? config))
-                  (do (println "shadow-cljs - old config format no longer supported")
-                      (println config-path)
-                      (println "  previously a vector was used to define builds")
-                      (println "  now {:builds the-old-vector} is expected"))
+                (let [{:keys [cache-root version] :as config}
+                      (merge defaults config)
 
-                  (let [{:keys [cache-root version] :as config}
-                        (merge defaults config)
+                      server-pid
+                      (path/resolve project-root cache-root "cli-repl.port")
 
-                        server-pid
-                        (path/resolve project-root cache-root "cli-repl.port")]
+                      server-running?
+                      (fs/existsSync server-pid)]
 
-                    (println "shadow-cljs - config:" config-path "version:" version)
+                  (log "shadow-cljs - config:" config-path "version:" version)
 
-                    (cond
-                      (or (:cli-info options)
-                          (= :info action))
-                      (print-cli-info project-root config-path config opts)
+                  (cond
+                    (or (:cli-info options)
+                        (= :info action))
+                    (print-cli-info project-root config-path config opts)
 
-                      (= :pom action)
-                      (generate-pom project-root config-path config opts)
+                    (= :pom action)
+                    (generate-pom project-root config-path config opts)
 
-                      (fs/existsSync server-pid)
-                      (client/run project-root config server-pid opts args)
+                    (= :start action)
+                    (if server-running?
+                      (log "shadow-cljs - server already running")
+                      (server-start project-root config args opts))
 
-                      (:lein config)
-                      (run-lein project-root config args)
+                    (= :stop action)
+                    (if-not server-running?
+                      (log "shadow-cljs - server not running")
+                      (server-stop project-root config server-pid args opts))
 
-                      :else
-                      (run-standalone project-root config args)
-                      )))))))))
+                    (= :restart action)
+                    (go (when server-running?
+                          (<! (server-stop project-root config server-pid args opts)))
+                        (server-start project-root config args opts))
+
+                    server-running?
+                    (client/run project-root config server-pid opts args)
+
+                    (:lein config)
+                    (run-lein project-root config args opts)
+
+                    :else
+                    (run-standalone project-root config args opts)
+                    ))))))))
     (catch :default ex
       (print-error ex)
       (js/process.exit 1))))

@@ -65,7 +65,12 @@
    :aot
    :init
    :help
-   :server])
+   :server
+
+   :start
+   :stop
+   :restart
+   ])
 
 (defn help [{:keys [errors summary] :as opts}]
   (do (doseq [err errors]

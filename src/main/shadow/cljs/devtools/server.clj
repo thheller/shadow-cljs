@@ -65,14 +65,21 @@
         (ring-gzip/wrap-gzip)
         )))
 
+;; println may fail if the socket already disconnected
+;; just discard the print if it fails
+(defn discard-println [msg]
+  (try
+    (println msg)
+    (catch Exception ignored)))
+
 (defmacro do-shutdown [& body]
   `(try
      ~@body
      (catch Throwable t#
-       (println t# ~(str "shutdown failed: " (pr-str body))))))
+       (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
 (defn shutdown-system [{:keys [http port-files socket-repl cli-repl nrepl] :as app}]
-  (println "shutting down ...")
+  (discard-println "shutting down ...")
   (do-shutdown
     (doseq [port-file (vals port-files)]
       (.delete port-file)))
@@ -82,8 +89,7 @@
   (when nrepl
     (do-shutdown (nrepl/stop nrepl)))
   (do-shutdown (undertow/stop (:server http)))
-
-  (println "shutdown complete."))
+  (discard-println "shutdown complete."))
 
 (defn make-port-files [cache-root ports]
   (io/make-parents (io/file cache-root "foo.txt"))
@@ -234,15 +240,19 @@
     (runtime/reset-instance!)
     ))
 
-(defn -main [& args]
-  (start!)
+(defn remote-stop! []
+  (stop!)
+  (shutdown-agents))
 
-  ;; idle until the instance if removed by other means
+(defn wait-for-stop! []
   (loop []
     (when (some? @runtime/instance-ref)
       (Thread/sleep 250)
-      (recur)))
+      (recur))))
 
+(defn -main [& args]
+  (start!)
+  (wait-for-stop!)
   (shutdown-agents))
 
 (defn wait-for-eof! []
@@ -285,6 +295,14 @@
             )))
     ))
 
+(defn stdin-closed? []
+  (let [avail (.available System/in)]
+    (if (= -1 avail)
+      true
+      (do (let [buf (byte-array avail)]
+            (.read System/in buf))
+          false))))
+
 (defn from-cli [action builds {:keys [verbose] :as options}]
   (let [config
         (config/load-cljs-edn!)
@@ -316,12 +334,24 @@
             (let [before (api/active-builds)]
               (watch-builds config build-configs options)
 
-              (wait-for-eof!)
+              ;; run until either the instance is removed
+              ;; or all builds we started are stopped by other means
+              (loop []
+                (cond
+                  (not (some? @runtime/instance-ref))
+                  ::stopped
 
-              ;; stop only builds that weren't running before
-              (doseq [build builds
-                      :when (not (contains? before build))]
-                (api/stop-worker build)))
+                  (not (some #(api/get-worker (:build-id %)) build-configs))
+                  ::build-stopped
+
+                  ;; stop only builds that weren't running before
+                  (stdin-closed?)
+                  (doseq [build builds
+                          :when (not (contains? before build))]
+                    (api/stop-worker build))
+
+                  :else
+                  (recur))))
 
             :clj-repl
             (r/enter-root {}
@@ -372,7 +402,7 @@
             :server
             (if already-running?
               (println "server already running")
-              (wait-for-eof!)))
+              (wait-for-stop!)))
 
           (when-not already-running?
             (stop!))))))

@@ -255,6 +255,6 @@
     (try
       (println (error-format e))
       (catch Throwable e
-        (log/warn e "failed to format error")
+        (log/warn "failed to format error" (.getMessage e))
         (println (.getMessage e)))))
   :error)
