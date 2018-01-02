@@ -589,7 +589,8 @@
                           #_cljs.tools.reader.reader-types
                           #_"react-vis"
                           #_ "@material/animation"
-                          "react-markdown"
+                          ;; "react-markdown"
+                          "pixi.js"
                           ]}}
 
         :js-options

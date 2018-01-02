@@ -24,7 +24,7 @@ shadow.js.files = {};
 /**
  * @return {ShadowJS}
  */
-shadow.js.require = function(name, opts) {
+shadow.js.jsRequire = function(name, opts) {
   var exports = shadow.js.files[name];
   if (exports === undefined) {
     exports = shadow.js.files[name] = {};
@@ -48,24 +48,13 @@ shadow.js.require = function(name, opts) {
     // which should match node? not entirely sure how others do it.
 
     try {
-      moduleFn.call(module, goog.global, shadow.js.require, module, module["exports"]);
+      moduleFn.call(module, goog.global, shadow.js.jsRequire, module, module["exports"]);
     } catch (e) {
       console.warn("shadow-cljs - failed to load", name);
       throw e;
     }
 
     exports = module["exports"];
-
-    // FIXME: working around the impl of CLJS-1620
-    // https://dev.clojure.org/jira/browse/CLJS-1620
-    // not exactly certain why it doesnt work but sometimes
-    // CLJS continues to rewrite thing.default to thing.default$
-    //
-    // this is a pattern done by babel when converted from ES6
-    // so its very isolated and should be reliable enough
-    if (typeof(exports) == 'object' && exports["__esModule"] === true) {
-      exports["default$"] = exports["default"];
-    }
 
     shadow.js.files[name] = exports;
 
@@ -79,6 +68,24 @@ shadow.js.require = function(name, opts) {
     }
   }
 
+  return exports;
+};
+
+// cljs compatibility require, should minimize exposure to the "default$"
+// I think this can be removed entire but need to verify all cases first
+shadow.js.require = function(name, opts) {
+  var exports = shadow.js.jsRequire(name, opts);
+
+  // FIXME: working around the impl of CLJS-1620
+  // https://dev.clojure.org/jira/browse/CLJS-1620
+  // not exactly certain why it doesnt work but sometimes
+  // CLJS continues to rewrite thing.default to thing.default$
+  //
+  // this is a pattern done by babel when converted from ES6
+  // so its very isolated and should be reliable enough
+  if (typeof(exports) == 'object' && exports["default"] && exports["__esModule"] === true) {
+    exports["default$"] = exports["default"];
+  }
   return exports;
 };
 
