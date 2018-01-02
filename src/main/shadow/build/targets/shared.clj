@@ -9,6 +9,14 @@
             [shadow.build.modules :as modules]
             ))
 
+(defn unquoted-qualified-symbol? [sym]
+  (and (qualified-symbol? sym)
+       (not (str/starts-with? (str sym) "'"))))
+
+(defn unquoted-simple-symbol? [sym]
+  (and (simple-symbol? sym)
+       (not (str/starts-with? (str sym) "'"))))
+
 (defn non-empty-string? [x]
   (and (string? x)
        (not (str/blank? x))))

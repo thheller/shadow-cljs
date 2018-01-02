@@ -16,12 +16,12 @@
 (s/def ::exports
   (s/or
     :fn
-    qualified-symbol?
+    shared/unquoted-qualified-symbol?
 
     :map
     (s/map-of
       keyword?
-      qualified-symbol?)))
+      shared/unquoted-qualified-symbol?)))
 
 (s/def ::target
   (s/keys

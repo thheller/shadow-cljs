@@ -20,7 +20,7 @@
             [shadow.build.log :as log]))
 
 (s/def ::entry
-  (s/or :sym simple-symbol?
+  (s/or :sym shared/unquoted-simple-symbol?
         :str string?))
 
 (s/def ::entries

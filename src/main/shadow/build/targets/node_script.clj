@@ -12,7 +12,7 @@
             [shadow.build.api :as cljs]
             ))
 
-(s/def ::main qualified-symbol?)
+(s/def ::main shared/unquoted-qualified-symbol?)
 
 (s/def ::target
   (s/keys
