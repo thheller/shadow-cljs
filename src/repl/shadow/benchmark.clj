@@ -10,6 +10,12 @@
             [clojure.string :as str])
   (:import (java.io FileOutputStream)))
 
+(defn foo []
+  (throw (ex-info "foo" {})))
+
+(defn bar []
+  1)
+
 (defn test-build []
   (let [npm
         (npm/start {})

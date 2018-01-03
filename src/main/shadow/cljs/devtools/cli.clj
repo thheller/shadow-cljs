@@ -87,16 +87,26 @@
 
     (if-not main-ns
       (println "please specify a namespaced fn")
-      (try
-        (require (symbol main-ns))
+      (do (try
+            (require (symbol main-ns))
+            (catch Exception e
+              (throw (ex-info
+                       (format "failed to load namespace: %s" main-ns)
+                       {:tag ::clj-run-load
+                        :main-ns main-ns
+                        :main-sym main-sym} e))))
 
-        (let [main-fn (find-var main-sym)]
-          (if-not main-fn
-            (println (format "could not find %s" main-sym))
-            (apply main-fn args)))
-        (catch Exception e
-          (println (format "failed to load namespace: %s" main-ns))
-          (prn e))))))
+          (let [main-fn (find-var main-sym)]
+            (if-not main-fn
+              (println (format "could not find %s" main-sym))
+              (try
+                (apply main-fn args)
+                (catch Exception e
+                  (throw (ex-info
+                           (format "failed to run function: %s" main-sym)
+                           {:tag ::clj-run
+                            :main-sym main-sym}
+                           e))))))))))
 
 (defn blocking-action
   [config {:keys [action builds options] :as opts}]
