@@ -3,11 +3,14 @@
             [clojure.pprint :refer (pprint)]
             [clojure.main :as m]
             [clojure.string :as str]
-            [clojure.core.server :as srv])
+            [clojure.core.server :as srv]
+            [clojure.tools.logging :as log])
   (:import java.net.ServerSocket
            (java.io StringReader PushbackReader PrintStream BufferedWriter OutputStreamWriter InputStreamReader)
            (java.net InetAddress SocketException)
            (clojure.lang LineNumberingPushbackReader)))
+
+(def ^:dynamic *socket* nil)
 
 (defn repl-prompt []
   ;; FIXME: inf-clojure checks when there is a space between \n and =>
@@ -128,14 +131,13 @@
       (try
         (binding [*in* in
                   *out* out
-                  *err* out]
+                  *err* out
+                  *socket* socket]
 
           (repl/enter-root
             {::repl/type :remote
              ::socket socket}
             (repl config)))
-
-        (catch SocketException ex)
 
         (finally
           (.close socket))))))

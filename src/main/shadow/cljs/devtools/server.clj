@@ -22,7 +22,7 @@
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
             [shadow.undertow :as undertow]
             [ring.middleware.resource :as ring-resource])
-  (:import(java.net BindException)))
+  (:import (java.net BindException SocketException)))
 
 (def app-config
   (merge
@@ -331,8 +331,45 @@
 
           (case action
             :watch
-            (let [before (api/active-builds)]
+            (let [before (api/active-builds)
+
+                  stop-builds!
+                  (fn []
+                    (doseq [build builds
+                            :when (not (contains? before build))]
+                      (api/stop-worker build)))]
+
               (watch-builds config build-configs options)
+
+              ;; start threads to wait for exit condition
+              ;; not doing this in the main thread since reading from a socket blocks and can't be interrupted properly
+              ;; FIXME: write proper remote API, doing this on top of the REPL is annoying
+              (if socket-repl/*socket*
+                (future
+                  ;; when remote socket is active read until eof as watch does not expect any other input
+                  ;; but should not exit if something is entered accidentally
+                  (loop []
+                    (let [x (try
+                              (read *in* false ::eof)
+                              (catch Exception e
+                                (log/warn e "read socket ex")
+                                ::eof))]
+                      (if (not= x ::eof)
+                        (recur)
+                        (stop-builds!)
+                        ))))
+                (future
+                  ;; wait till stdin is closed
+                  ;; stop all builds so the other loop can initiate the shutdown
+                  ;; done in separate loop since we cannot reliably do a non-blocking read from a blocking socket
+                  ;; sort of hacking that as it is when looking at System/in directly
+                  (loop []
+                    (when-not (stdin-closed?)
+                      (Thread/sleep 100)
+                      (recur)))
+
+                  (stop-builds!)
+                  ))
 
               ;; run until either the instance is removed
               ;; or all builds we started are stopped by other means
@@ -342,16 +379,16 @@
                   ::stopped
 
                   (not (some #(api/get-worker (:build-id %)) build-configs))
-                  ::build-stopped
-
-                  ;; stop only builds that weren't running before
-                  (stdin-closed?)
-                  (doseq [build builds
-                          :when (not (contains? before build))]
-                    (api/stop-worker build))
+                  ::stopped
 
                   :else
-                  (recur))))
+                  (do (Thread/sleep 100)
+                      (recur))))
+
+              ;; if the builds were stopped by any other means the connected client should exit
+              ;; since it is stuck in a blocking read thread above it we need to close the socket
+              (when-let [s socket-repl/*socket*]
+                (.close s)))
 
             :clj-repl
             (r/enter-root {}
