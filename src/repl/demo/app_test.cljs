@@ -1,5 +1,6 @@
 (ns demo.app-test
-  (:require [cljs.test :as ct :refer (deftest is)]))
+  (:require [cljs.test :as ct :refer (deftest is)]
+            ["react" :as react]))
 
 (ct/use-fixtures :once
   {:before

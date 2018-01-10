@@ -13,7 +13,7 @@
             [shadow.build.output :as output]
             [shadow.build.data :as data]))
 
-(defn configure [state mode {:keys [runner-ns output-to] :or {runner-ns 'shadow.test.karma} :as config}]
+(defn configure [state mode {:keys [runner-ns output-to js-options] :or {runner-ns 'shadow.test.karma} :as config}]
   (let [output-to
         (io/file output-to)
 
@@ -30,6 +30,10 @@
           {:source-map true})
         (build-api/with-build-options
           {:output-dir output-dir})
+        (cond->
+          (not js-options)
+          (build-api/with-js-options
+            {:js-provider :shadow}))
         (build-api/configure-modules {:test {:entries []
                                              :output-name (.getName output-to)}})
 
