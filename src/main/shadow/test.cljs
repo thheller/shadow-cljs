@@ -21,7 +21,7 @@
           (vswap!
             summary
             (partial merge-with +)
-            (:report-counters (ct/get-and-clear-env!))))]
+            (:report-counters (ct/get-current-env))))]
 
     (-> [(fn [] (ct/set-env! env))]
         (into (->> namespaces
@@ -29,8 +29,8 @@
                              (-> (test-ns-block env ns)
                                  (conj merge-counters))))))
         (conj (fn []
-                (ct/do-report @summary)
-                (ct/report (assoc @summary :type :end-run-tests))
+                (ct/report @summary)
+                (ct/report {:type :end-run-tests})
                 (ct/clear-env!))))))
 
 (defn run-tests
@@ -72,9 +72,9 @@
                 (->> vars ;; vars is {test-name test-var}
                      (vals)
                      (sort-by #(-> % meta :line)))))
-        (conj (fn []
-                (when (nil? env)
-                  (ct/clear-env!)))))))
+        #_(conj (fn []
+                  (when (nil? env)
+                    (ct/clear-env!)))))))
 
 (defn test-all-vars
   "Calls test-vars on every var with :test metadata interned in the
