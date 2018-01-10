@@ -153,13 +153,21 @@
     (assoc module-config :entries entries)))
 
 (defn inject-devtools-console [{:keys [entries] :as module-config} state build-config]
-  (if (or (false? (get-in build-config [:devtools :console-support]))
-          (->> (get-in build-config [:devtools :preloads])
-               ;; automatically back off if cljs-devtools is used
-               (filter #(str/starts-with? (str %) "devtools."))
-               (seq)))
+  (cond
+    (or (false? (get-in build-config [:devtools :console-support]))
+        (->> (get-in build-config [:devtools :preloads])
+             ;; automatically back off if cljs-devtools is used manually
+             (filter #(str/starts-with? (str %) "devtools."))
+             (seq)))
     module-config
-    (assoc module-config :entries (into '[shadow.cljs.devtools.client.console] entries))))
+
+    ;; automatically inject `cljs-devtools` when found on the classpath
+    (io/resource "devtools/preload.cljs")
+    (assoc module-config :entries (into '[devtools.preload] entries))
+
+    :else
+    (assoc module-config :entries (into '[shadow.cljs.devtools.client.console] entries))
+    ))
 
 (defn inject-preloads [{:keys [entries] :as module-config} state build-config]
   (let [preloads (get-in build-config [:devtools :preloads])]
