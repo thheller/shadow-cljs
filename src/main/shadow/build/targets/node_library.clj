@@ -20,7 +20,7 @@
 
     :map
     (s/map-of
-      keyword?
+      simple-keyword?
       shared/unquoted-qualified-symbol?)))
 
 (s/def ::target
