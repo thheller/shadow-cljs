@@ -188,13 +188,19 @@
 
 (defn ensure-non-circular!
   [{:keys [resolved-stack] :as state} resource-id]
-  (let [resolved-ids (map :resource-id resolved-stack)]
+  (let [resolved-ids (into [] (map :resource-id) resolved-stack)]
     (when (some #(= resource-id %) resolved-ids)
       (let [path (->> (conj resolved-ids resource-id)
                       (drop-while #(not= resource-id %))
-                      (str/join " -> "))]
-        (throw (ex-info (format "circular dependency: %s" path) {:resource-id resource-id
-                                                                 :stack resolved-ids}))))))
+                      (map (fn [rc-id]
+                             (let [{:keys [ns resource-name]} (data/get-source-by-id state rc-id)]
+                               (or ns resource-name))))
+                      (into []))]
+        (throw (ex-info (format "Circular dependency detected: %s" (str/join " -> " path))
+                 {:tag ::circular-dependency
+                  :resource-id resource-id
+                  :path path
+                  :stack resolved-ids}))))))
 
 (defn find-resource-for-symbol
   [{:keys [classpath sym->id] :as state} require-from require]

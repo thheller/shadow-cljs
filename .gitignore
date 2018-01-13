@@ -8,6 +8,7 @@ js/
 css/
 /public/assets
 /wiki
+/book
 pom.xml
 pom.xml.asc
 *.iml

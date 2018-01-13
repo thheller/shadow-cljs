@@ -296,6 +296,24 @@
       (errors/user-friendly-error ex))))
 
 
+(deftest test-circular-dependency
+  (try
+    (api/compile*
+      '{:build-id :circle-detection
+        :target :browser
+
+        :output-dir "target/test-circular/js"
+        :asset-path "/js"
+
+        :modules
+        {:base
+         {:entries [circular.main]}}}
+      {})
+
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
+
 (deftest test-build-with-reagent
   (try
     (api/compile*

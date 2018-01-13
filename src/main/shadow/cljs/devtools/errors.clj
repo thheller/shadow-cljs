@@ -113,6 +113,10 @@
   [w e data]
   (write-msg w e))
 
+(defmethod ex-data-format ::resolve/circular-dependency
+  [w e data]
+  (write-msg w e))
+
 (defmethod ex-data-format :shadow.build.classpath/inspect-cljs
   [w e data]
   (write-msg w e)
