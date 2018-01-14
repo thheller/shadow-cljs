@@ -608,7 +608,8 @@
                           #_"react-vis"
                           #_ "@material/animation"
                           ;; "react-markdown"
-                          "pixi.js"
+                          #_ "pixi.js"
+                          "viz.js"
                           ]}}
 
         :js-options

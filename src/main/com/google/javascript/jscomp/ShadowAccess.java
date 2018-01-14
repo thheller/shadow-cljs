@@ -55,6 +55,7 @@ public class ShadowAccess {
         return builder.build();
     }
 
-    // access to package protected globals
+    // package-protected by default and not accessible in shadow.build.closure otherwise
     public static final DiagnosticType NON_GLOBAL_DEFINE_INIT_ERROR = ProcessDefines.NON_GLOBAL_DEFINE_INIT_ERROR;
+    public static final DiagnosticType DUPLICATE_OBJECT_KEY = StrictModeCheck.DUPLICATE_OBJECT_KEY;
 }

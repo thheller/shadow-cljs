@@ -21,7 +21,7 @@
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          SourceMap$LocationMapping BasicErrorManager Result ShadowAccess
-                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal)
+                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck)
            (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode ModuleNames)
            (com.google.javascript.jscomp.parsing.parser FeatureSet)
@@ -1465,7 +1465,11 @@
           ;; node_modules/@firebase/util/dist/cjs/src/constants.ts:26: ERROR - @define variable  assignment must be global
           (.setWarningLevel
             (DiagnosticGroup.
-              (into-array [ShadowAccess/NON_GLOBAL_DEFINE_INIT_ERROR]))
+              (into-array [ShadowAccess/NON_GLOBAL_DEFINE_INIT_ERROR
+                           ;; viz.js -- Object literal contains illegal duplicate key "stackAlloc", disallowed in strict mode
+                           ;; it never uses "use strict" but closure runs it through strict mode
+                           ;; although we already disabled it above
+                           ShadowAccess/DUPLICATE_OBJECT_KEY]))
             CheckLevel/OFF)
           ;; unreachable code in react
           (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)
