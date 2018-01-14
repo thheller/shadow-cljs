@@ -24,8 +24,9 @@
           (html
             [:h2 "HTTP Servers"]
             [:ul
-             (for [{:keys [build-id port ssl] :as srv} (:servers dev-http)]
-               (let [url (str "http" (when ssl "s") "://localhost:" port)]
+             (for [{:keys [build-id instance] :as srv} (:servers dev-http)
+                   :let [{:keys [http-port https-port]} instance]]
+               (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
                  [:li [:a {:href url} (str url " - " (pr-str build-id))]]))])))
 
       [:div#root]
