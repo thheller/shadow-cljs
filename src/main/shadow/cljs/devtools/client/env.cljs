@@ -50,6 +50,14 @@
 
 (def repl-print-fn pr-str)
 
+(defn repl-error [result e]
+  (-> result
+      (assoc :error (.-message e)
+             :ex-data (ex-data e))
+      (cond->
+        (.hasOwnProperty e "stack")
+        (assoc :stack (.-stack e)))))
+
 (defn repl-call [repl-expr repl-error]
   (let [result {:type :repl/result}]
     (try

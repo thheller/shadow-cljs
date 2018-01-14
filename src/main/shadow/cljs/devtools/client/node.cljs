@@ -22,8 +22,7 @@
     ))
 
 (defn repl-error [result e]
-  (js/console.error "eval error" e)
-  result)
+  (env/repl-error result e))
 
 (defn node-eval [{:keys [js source-map-json] :as msg}]
   (let [result (js/SHADOW_NODE_EVAL js source-map-json)]

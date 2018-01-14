@@ -194,13 +194,10 @@
 
 (defn repl-error [result e]
   (js/console.error "repl/invoke error" e)
-  (assoc result
-         :ua-product (get-ua-product)
-         :error (str e)
-         :asset-root (get-asset-root)
-         :stacktrace (if (.hasOwnProperty e "stack")
-                       (.-stack e)
-                       "No stacktrace available.")))
+  (-> result
+      (env/repl-error e)
+      (assoc :ua-product  (get-ua-product)
+             :asset-root (get-asset-root))))
 
 (defn repl-invoke [{:keys [id js]}]
   (let [result (env/repl-call #(js/eval js) repl-error)]
