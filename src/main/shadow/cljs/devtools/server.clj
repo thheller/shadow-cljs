@@ -113,10 +113,17 @@
       (let [srv
             (try
               (undertow/start (assoc http-config :port port) ring middleware-fn)
-              (catch BindException e
-                (log/warnf "TCP Port %d in use." port)
-                (when strict
-                  (throw e))))]
+              (catch Exception e
+                (cond
+                  strict
+                  (throw e)
+
+                  (instance? BindException (.getCause e))
+                  (log/warnf "TCP Port %d in use." port)
+
+                  :else
+                  (log/warnf e "HTTP startup failed")
+                  )))]
 
         (or srv (recur (inc port)))
         ))))
