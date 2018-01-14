@@ -16,6 +16,11 @@
 
 ![overview-img](https://user-images.githubusercontent.com/116838/28730426-d32dc74a-7395-11e7-9cec-54275af35345.png)
 
+
+## Documentation
+
+Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.html). (Work in Progress)
+
 ## Guides
 
 - [EN] [A beginner guide to compile ClojureScript with shadow-cljs](https://medium.com/@jiyinyiyong/a-beginner-guide-to-compile-clojurescript-with-shadow-cljs-26369190b786)
