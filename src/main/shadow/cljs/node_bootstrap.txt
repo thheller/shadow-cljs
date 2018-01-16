@@ -1,33 +1,9 @@
 var goog = global.goog = {};
 
-var SHADOW_ROOTS = ["goog"];
 var SHADOW_IMPORTED = global.SHADOW_IMPORTED = {};
 var PATH = require("path");
 var VM = require("vm");
 var FS = require("fs");
-
-// extract [root] for all goog.provide('[root].something');
-// we need to pull them into local scope for every eval
-var SHADOW_EXTRACT_ROOTS = function(js) {
-  var re = /goog.provide\(([^)]+)\);/g
-  var match = null;
-  while (match = re.exec(js)) {
-    var provide = match[1];
-    var end = provide.indexOf('.');
-    if (end == -1) {
-      end = provide.length - 1;
-    }
-
-    // skip first char as match will be "cljs.core" or 'cljs.core' but always with quotes
-    // end at either the first dot or end of provide-1 for one-segement namespaces
-    var root = provide.substring(1, end);
-
-    if (!SHADOW_ROOTS.includes(root)) {
-      global[root] = {};
-      SHADOW_ROOTS.push(root);
-    }
-  }
-};
 
 var SHADOW_PROVIDE = function(name) {
   return goog.exportPath_(name, undefined);
@@ -46,11 +22,6 @@ var SHADOW_WRAP = function(js) {
   return code;
 };
 
-var SHADOW_WRAP_OFFSET = function() {
-  // -1 because we have one more lines than original (the wrapper above)
-  return (2 + SHADOW_ROOTS.length) * -1;
-};
-
 var SHADOW_IMPORT = global.SHADOW_IMPORT = function(src) {
   if (CLOSURE_DEFINES["shadow.debug"]) {
     console.info("SHADOW load:", src);
@@ -63,12 +34,11 @@ var SHADOW_IMPORT = global.SHADOW_IMPORT = function(src) {
 
   var js = FS.readFileSync(filePath);
 
-  SHADOW_EXTRACT_ROOTS(js);
   var code = SHADOW_WRAP(js);
 
   var fn = VM.runInThisContext(code,
     {filename: filePath,
-     lineOffset: SHADOW_WRAP_OFFSET(),
+     lineOffset: -2, // see SHADOW_WRAP, adds 2 lines
      displayErrors: true
      });
 
@@ -84,8 +54,6 @@ var SHADOW_IMPORT = global.SHADOW_IMPORT = function(src) {
 };
 
 global.SHADOW_NODE_EVAL = function(js, smJson) {
-  SHADOW_EXTRACT_ROOTS(js);
-
   if (smJson) {
     js += "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,";
     js += new Buffer(smJson).toString('base64');
@@ -95,6 +63,6 @@ global.SHADOW_NODE_EVAL = function(js, smJson) {
 
   return VM.runInThisContext.call(global, js,
     {filename: "<eval>",
-     lineOffset: SHADOW_WRAP_OFFSET(),
+     lineOffset: 0,
      displayErrors: true});
 };
