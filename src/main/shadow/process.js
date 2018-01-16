@@ -5,8 +5,7 @@ if (goog.global["process"]) {
 }
 
 goog.provide("process");
-goog.provide("process.browser");
-goog.provide("process.env.NODE_ENV");
+goog.provide("process.env");
 
 /**
  * @define {string}

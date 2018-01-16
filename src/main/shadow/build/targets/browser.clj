@@ -256,7 +256,6 @@
 
     (-> state
         (assoc ::build/config config) ;; so the merged defaults don't get lost
-        (assoc-in [:compiler-options :closure-defines 'process.browser] true)
         (cond->
           asset-path
           (build-api/merge-build-options {:asset-path asset-path})
@@ -525,6 +524,14 @@
         (cond->
           (bootstrap-host-build? state)
           (bootstrap-host-info)))
+
+    :optimize-prepare
+    (-> state
+        (cond->
+          ;; could set this unconditionally since currently only :browser uses :shadow js
+          (get-in state [:sym->id 'shadow.process])
+          (assoc-in [:compiler-options :closure-defines 'process.browser] true)
+          ))
 
     :flush
     (flush state mode config)
