@@ -286,7 +286,6 @@
                     )))))))
 
     (catch ZipException e
-      ;; node-jre contains a weird .jar that isn't actually a jar, just pretend its empty
       (log/debug "filtered bad jar" file e)
       {})
 
