@@ -16,12 +16,12 @@
    [org.clojure/tools.logging "0.4.0"]
    [org.clojure/tools.cli "0.3.5"]
    [org.clojure/tools.nrepl "0.2.13"]
-   [org.clojure/tools.reader "1.1.1"]
+   [org.clojure/tools.reader "1.1.2"]
 
    [com.cognitect/transit-clj "0.8.300"]
    [com.cognitect/transit-cljs "0.8.243"]
 
-   [org.clojure/core.async "0.3.465"]
+   [org.clojure/core.async "0.4.474"]
 
    #_[org.clojure/clojurescript "1.9.854"]
 
@@ -43,7 +43,7 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [expound "0.3.4"]
+   [expound "0.4.0"]
    [fipp "0.6.12"]
 
    ;; experimental
@@ -80,24 +80,24 @@
    {:java-opts ^:replace []
     :dependencies
     [[reagent "0.8.0-alpha2"]
-     [funcool/promesa "1.9.0"]
-     [fulcrologic/fulcro "2.0.0-beta2"]
+     #_[funcool/promesa "1.9.0"]
+     [fulcrologic/fulcro "2.1.1"]
 
      #_[cider/cider-nrepl "0.16.0-SNAPSHOT"]
 
      [metosin/spec-tools "0.5.1"]
-     [thi.ng/geom "0.0.908"]
-     [re-view "0.4.6"]
-     [com.rpl/specter "1.0.4"]
+     #_[thi.ng/geom "0.0.908"]
+     #_[re-view "0.4.6"]
+     #_[com.rpl/specter "1.1.0"]
      #_[com.cemerick/pomegranate "1.0.0"
         :exclusions [org.slf4j/jcl-over-slf4j]]
-     [org.clojure/tools.deps.alpha "0.2.183"
+     [org.clojure/tools.deps.alpha "0.4.295"
       :exclusions
       [org.slf4j/jcl-over-slf4j
        org.slf4j/slf4j-nop
        ch.qos.logback/logback-classic
        commons-logging]]
-     [binaryage/devtools "0.9.4"]]
+     #_ [binaryage/devtools "0.9.4"]]
     :source-paths
     ["src/dev"
      "src/test"]
