@@ -175,8 +175,14 @@
         (try
           (require target-ns)
           (catch Exception e
-            (throw (ex-info (format "failed to require :target %s for build %s" target build-id)
-                     {:tag ::get-target-fn :target target} e)))))
+            (throw (ex-info
+                     (format "failed to require :target %s for build %s" target build-id)
+                     {:tag ::get-target-fn
+                      :build-id build-id
+                      :target target
+                      :target-ns target-ns
+                      :target-fn-sym target-fn-sym}
+                     e)))))
 
       (let [fn (ns-resolve target-ns target-fn-sym)]
         (when-not fn

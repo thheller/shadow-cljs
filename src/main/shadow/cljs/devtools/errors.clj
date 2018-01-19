@@ -12,7 +12,7 @@
             [shadow.build.warnings :as w]
             [expound.alpha :as expound]
             [clojure.tools.logging :as log])
-  (:import (java.io StringWriter)
+  (:import (java.io StringWriter FileNotFoundException)
            (clojure.lang ExceptionInfo ArityException)))
 
 (declare error-format)
@@ -70,9 +70,26 @@
   (.write w (str (str/trim (.getMessage e)) "\n")))
 
 (defmethod ex-data-format ::comp/get-target-fn
-  [w e data]
-  (write-msg w e)
-  (error-format w (.getCause e)))
+  [w e {:keys [target build-id] :as data}]
+
+  (if (instance? FileNotFoundException (.getCause e))
+    ;; misspelled target
+    (.write w (str "Target \"" (pr-str target) "\" was not found. The built-in targets are:\n"
+                   (->> [:browser
+                         :browser-test
+                         :node-script
+                         :node-library
+                         :npm-module
+                         :karma
+                         :bootstrap]
+                        (map #(str "  - " %))
+                        (str/join "\n"))))
+
+
+    ;; print any other exception as is
+    (do (write-msg w e)
+        (error-format w (.getCause e)))
+    ))
 
 (defn spec-explain [w {::s/keys [problems value spec] :as data}]
   ;; FIXME: meh, no idea how to make spec errors easier to read
