@@ -74,7 +74,7 @@
 
   (if (instance? FileNotFoundException (.getCause e))
     ;; misspelled target
-    (.write w (str "Target \"" (pr-str target) "\" was not found. The built-in targets are:\n"
+    (.write w (str "Target \"" (pr-str target) "\" for build " build-id " was not found. The built-in targets are:\n"
                    (->> [:browser
                          :browser-test
                          :node-script
