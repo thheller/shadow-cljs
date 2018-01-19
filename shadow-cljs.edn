@@ -62,7 +62,7 @@
   ;; test builds
 
   :browser
-  {:target :browserx
+  {:target :browser
 
    :output-dir "out/demo-browser/public/js"
    :asset-path "/js"
