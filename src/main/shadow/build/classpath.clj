@@ -594,7 +594,9 @@
            #"^goog/demos/"
            #".aot.js$"
            #"^goog/(.+)_test.js$"
-           #"^public/"}
+           #"^public/"
+           ;; just in case the :output-dir of a dev build is on the classpath
+           #"/cljs-runtime/"}
 
          :classpath-excludes
          [#"resources(/?)$"
