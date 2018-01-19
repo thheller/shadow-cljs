@@ -4,6 +4,8 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
+  :java-opts ["--add-modules" "java.xml.bind"]
+
   :dependencies
   [[org.clojure/clojure "1.9.0"]
 
@@ -77,7 +79,7 @@
    {:aot [repl]}
 
    :cljs
-   {:java-opts ^:replace []
+   {:java-opts ^:replace ["--add-modules" "java.xml.bind"]
     :dependencies
     [[reagent "0.8.0-alpha2"]
      #_[funcool/promesa "1.9.0"]

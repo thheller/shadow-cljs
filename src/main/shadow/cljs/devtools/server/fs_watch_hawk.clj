@@ -1,9 +1,11 @@
 (ns shadow.cljs.devtools.server.fs-watch-hawk
   (:require [clojure.core.async :as async :refer (thread alt!!)]
-            [hawk.core :as hawk]
+
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [clojure.tools.logging :as log]))
+            [clojure.tools.logging :as log]
+            [hawk.core :as hawk]
+            [shadow.cljs.devtools.server.fs-watch :as fs-watch]))
 
 (defn buffer-loop [hawk-in publish-fn]
   ;; this loop buffers all hawk watch events so they can be processed in batch
@@ -24,11 +26,11 @@
         (recur [])
         ))))
 
-(defn start [directories file-exts publish-fn]
+(defn start* [directories file-exts publish-fn]
   (let [hawk-in
         (-> (async/sliding-buffer 100)
             (async/chan))
-        
+
         buffer-thread
         (thread (buffer-loop hawk-in publish-fn))
 
@@ -78,13 +80,23 @@
 
                            ctx)})))
                (into [])))]
-    
+
     {:hawk-in hawk-in
      :buffer-thread buffer-thread
      :hawk hawk}))
 
+(defn start [directories file-exts publish-fn]
+  (try
+    (start* directories file-exts publish-fn)
+    (catch Exception e
+      (log/warn e "failed to start hawk file watcher, falling back to normal watch.")
+      (fs-watch/start directories file-exts publish-fn)
+      )))
+
 (defn stop [{:keys [hawk-in hawk buffer-thread] :as x}]
-  (hawk/stop! hawk)
-  (async/close! hawk-in)
-  (async/<!! buffer-thread))
+  (if-not hawk
+    (fs-watch/stop x)
+    (do (hawk/stop! hawk)
+        (async/close! hawk-in)
+        (async/<!! buffer-thread))))
 
