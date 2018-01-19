@@ -4,7 +4,9 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
-  :java-opts ["--add-modules" "java.xml.bind"]
+  :java-opts ~(if (-> (System/getProperty "java.version") (.startsWith "9."))
+                ["--add-modules" "java.xml.bind"]
+                [])
 
   :dependencies
   [[org.clojure/clojure "1.9.0"]
@@ -38,7 +40,7 @@
    [thheller/shadow-client "1.3.2"]
 
    [io.undertow/undertow-core "1.4.12.Final"]
-   
+
    [hiccup "1.0.5"]
    [ring/ring-core "1.6.3"
     :exclusions
@@ -99,7 +101,7 @@
        org.slf4j/slf4j-nop
        ch.qos.logback/logback-classic
        commons-logging]]
-     #_ [binaryage/devtools "0.9.4"]]
+     #_[binaryage/devtools "0.9.4"]]
     :source-paths
     ["src/dev"
      "src/test"]
