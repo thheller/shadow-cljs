@@ -1,6 +1,5 @@
 (ns shadow.cljs.devtools.server.fs-watch-hawk
   (:require [clojure.core.async :as async :refer (thread alt!!)]
-
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
@@ -89,7 +88,7 @@
   (try
     (start* directories file-exts publish-fn)
     (catch Exception e
-      (log/warn e "failed to start hawk file watcher, falling back to normal watch.")
+      (log/warn "failed to start hawk file watcher, falling back to normal watch.")
       (fs-watch/start directories file-exts publish-fn)
       )))
 
