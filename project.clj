@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.136"
+(defproject thheller/shadow-cljs "2.0.137"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -8,7 +8,9 @@
                 ["--add-modules" "java.xml.bind"]
                 [])
 
-  :javac-opts ["-target" "1.8"]
+  :javac-options
+  ["-target" "1.8"
+   "-source" "1.8"]
 
   :dependencies
   [[org.clojure/clojure "1.9.0"]
