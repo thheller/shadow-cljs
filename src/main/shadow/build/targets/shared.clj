@@ -37,7 +37,7 @@
         {:keys [build-id]}
         build-config
 
-        {:keys [reload-with-state before-load before-load-async after-load autoload use-document-host]}
+        {:keys [reload-with-state devtools-url before-load before-load-async after-load autoload use-document-host]}
         (:devtools build-config)]
 
     {"shadow.cljs.devtools.client.env.enabled"
@@ -66,6 +66,9 @@
 
      "shadow.cljs.devtools.client.env.proc_id"
      (str proc-id)
+
+     "shadow.cljs.devtools.client.env.devtools_url"
+     (or devtools-url "")
 
      "shadow.cljs.devtools.client.env.before_load"
      (when before-load

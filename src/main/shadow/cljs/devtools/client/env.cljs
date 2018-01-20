@@ -1,6 +1,7 @@
 (ns shadow.cljs.devtools.client.env
   (:require [goog.object :as gobj]
-            [cljs.tools.reader :as reader]))
+            [cljs.tools.reader :as reader]
+            [clojure.string :as str]))
 
 (defonce client-id (random-uuid))
 
@@ -28,25 +29,33 @@
 
 (goog-define use-document-host true)
 
+(goog-define devtools-url "")
+
 (goog-define ssl false)
 
-(defn get-repl-host [client-type]
-  (if (and (= :browser client-type) use-document-host)
+(defn get-repl-host []
+  (if (and use-document-host js/goog.global.document)
     js/document.location.hostname
     repl-host))
 
+(defn get-url-base []
+  (if (seq devtools-url)
+    devtools-url
+    (str "http" (when ssl "s") "://" (get-repl-host) ":" repl-port)))
+
+(defn get-ws-url-base []
+  (-> (get-url-base)
+      (str/replace #"^http" "ws")))
+
 (defn ws-url [client-type]
   {:pre [(keyword? client-type)]}
-  (let [host (get-repl-host client-type)]
-    (str "ws" (when ssl "s") "://" host ":" repl-port "/ws/worker/" build-id "/" proc-id "/" client-id "/" (name client-type))))
+  (str (get-ws-url-base) "/ws/worker/" build-id "/" proc-id "/" client-id "/" (name client-type)))
 
 (defn ws-listener-url [client-type]
-  (let [host (get-repl-host client-type)]
-    (str "ws" (when ssl "s") "://" host ":" repl-port "/ws/listener/" build-id "/" proc-id "/" client-id)))
+  (str (get-ws-url-base) "/ws/listener/" build-id "/" proc-id "/" client-id))
 
 (defn files-url []
-  (let [host (get-repl-host :browser)]
-    (str "http" (when ssl "s") "://" host ":" repl-port "/worker/files/" build-id "/" proc-id "/" client-id)))
+  (str (get-url-base) "/worker/files/" build-id "/" proc-id "/" client-id))
 
 (def repl-print-fn pr-str)
 
