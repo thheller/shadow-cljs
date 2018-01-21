@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.137"
+(defproject thheller/shadow-cljs "2.0.138"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -14,6 +14,7 @@
 
   :dependencies
   [[org.clojure/clojure "1.9.0"]
+   [javax.xml.bind/jaxb-api "2.3.0"]
 
    ;; [org.clojure/spec.alpha "0.1.108"]
    ;; [org.clojure/core.specs.alpha "0.1.10"]
@@ -85,7 +86,7 @@
    {:aot [repl]}
 
    :cljs
-   {:java-opts ^:replace ["--add-modules" "java.xml.bind"]
+   {:java-opts ^:replace []
     :dependencies
     [[reagent "0.8.0-alpha2"]
      #_[funcool/promesa "1.9.0"]
