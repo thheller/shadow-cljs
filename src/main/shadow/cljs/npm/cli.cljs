@@ -201,12 +201,14 @@
   (if (false? (:log config))
     []
     (let [log-config-path
-          (path/resolve project-root cache-root "logging.properties")]
+          (path/join cache-root "logging.properties")]
 
       (when-not (fs/existsSync log-config-path)
         (fs/writeFileSync log-config-path
           (str (util/slurp (path/resolve js/__dirname ".." "default-log.properties"))
-               "\njava.util.logging.FileHandler.pattern=" (path/resolve cache-root "shadow-cljs.log") "\n")))
+               "\njava.util.logging.FileHandler.pattern="
+               (path/join cache-root "shadow-cljs.log")
+               "\n")))
 
       [(str "-Djava.util.logging.config.file=" log-config-path)]
       )))
