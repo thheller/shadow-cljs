@@ -40,8 +40,8 @@ jobs:
           - npm-deps-
 
       - run: npm install ./packages/shadow-cljs-jar
-      
-      - run: cd packages/shadow-cljs-jar; lein uberjar
+
+      - run: cd packages/shadow-cljs-jar; mkdir bin; lein uberjar
 
       - run: npm install ./packages/shadow-cljs
 
