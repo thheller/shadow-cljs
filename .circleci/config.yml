@@ -32,6 +32,25 @@ jobs:
 
       - run: lein test
 
+      - run: npm init -y
+
+      - restore_cache:
+          keys:
+          - npm-deps-{{ checksum "package.json" }}
+          - npm-deps-
+
+      - run: npm install ./packages/shadow-cljs-jar
+      
+      - run: cd packages/shadow-cljs-jar; lein uberjar
+
       - run: npm install ./packages/shadow-cljs
 
+      - save_cache:
+          paths:
+            - ~/repo/node_modules
+          key: npm-deps-{{ checksum "package.json" }}
+
       - run: lein run -m shadow.cljs.devtools.cli release cli
+
+      - run: npx shadow-cljs --cli-info
+
