@@ -95,8 +95,10 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
 
 
     public String munge(String sym) {
+        // :phone_number and :phone-number munge to the same output
+        // replace - first so it doesn't get munged to _
         // needs to replace dots as well
-        return clojure.lang.Compiler.munge(sym).replaceAll("\\.", "_DOT_");
+        return clojure.lang.Compiler.munge(sym.replaceAll("-", "_DASH_")).replaceAll("\\.", "_DOT_");
     }
 
     @Override
