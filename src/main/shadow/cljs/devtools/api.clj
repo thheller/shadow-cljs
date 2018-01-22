@@ -19,7 +19,8 @@
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
             [shadow.cljs.devtools.server.runtime :as runtime]
-            [shadow.build.output :as output]))
+            [shadow.build.output :as output]
+            [shadow.build.log :as build-log]))
 
 ;; nREPL support
 
@@ -68,8 +69,15 @@
 (defn get-runtime! []
   (runtime/get-instance!))
 
+(def silent-log
+  (reify build-log/BuildLog
+    (log* [_ state {::build-log/keys [level] :as evt}]
+      (when (not= level :info)
+        (build-log/log* build-log/stdout state evt)
+        ))))
+
 (defn new-build [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
-  (let [{:keys [npm classpath cache-root executor babel] :as runtime}
+  (let [{:keys [npm classpath cache-root executor babel config] :as runtime}
         (get-runtime!)
 
         cache-dir
@@ -81,6 +89,12 @@
         (build-api/with-classpath classpath)
         (build-api/with-cache-dir cache-dir)
         (build-api/with-executor executor)
+        ;; default logger logs everything
+        ;; if not verbose replace with one that only logs warnings/errors
+        (cond->
+          (not (or (:verbose opts)
+                   (:verbose config)))
+          (build-api/with-logger silent-log))
         (assoc :mode mode))))
 
 (defn get-or-start-worker [build-config opts]

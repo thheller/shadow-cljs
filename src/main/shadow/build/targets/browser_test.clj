@@ -64,8 +64,8 @@
                        (re-find (re-pattern ns-regexp) (str ns))))
              (into []))]
 
-    (build/log state {:type ::test-namespaces
-                      :test-namespaces test-namespaces})
+    #_(build/log state {:type ::test-namespaces
+                        :test-namespaces test-namespaces})
 
     (-> state
         (update-in [::modules/config :test :entries]

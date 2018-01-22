@@ -113,10 +113,10 @@
 
                         ;; only warn when a file is moved to a module it wouldn't be in naturally
                         (when-not (contains? deps target-mod)
-                          (util/log state {:type :module-move
-                                           :src src
-                                           :deps deps
-                                           :moved-to target-mod}))
+                          (util/warn state {:type :module-move
+                                            :src src
+                                            :deps deps
+                                            :moved-to target-mod}))
                         target-mod))]
 
                 (update final target-mod util/vec-conj src)))

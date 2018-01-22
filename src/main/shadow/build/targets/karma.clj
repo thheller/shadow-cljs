@@ -62,9 +62,9 @@
             (into test-namespaces)
             (conj runner-ns))]
 
-    (build/log state {:type ::test-namespaces
-                      :test-namespaces test-namespaces
-                      :entries entries})
+    #_(build/log state {:type ::test-namespaces
+                        :test-namespaces test-namespaces
+                        :entries entries})
 
     (-> state
         (assoc-in [::modules/config :test :entries] entries)

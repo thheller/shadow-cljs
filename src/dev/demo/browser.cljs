@@ -1,17 +1,8 @@
 (ns demo.browser
   (:require-macros [demo.browser :refer (test-macro)])
   (:require
-    ["react" :as react :refer (Component createElement)]
-    ["react-dom" :as rdom :refer (render)]
-    ["shortid" :as sid]
-    ["jquery" :as jq]
     ["babel-test" :as babel-test :default Shape]
-    ["@material/checkbox" :refer (MDCCheckbox MDCCheckboxFoundation)]
-    ["@material/menu/simple/foundation" :default menu]
-    ["@material/menu/util" :as util]
-    ["d3" :as d3]
     [clojure.pprint :refer (pprint)]
-    [cljsjs.react]
     [clojure.spec.alpha :as s]
     [clojure.spec.gen.alpha :as gen]
     [shadow.api :refer (ns-ready)]
@@ -20,7 +11,6 @@
     ["./foo" :as foo]
     ["circular-test" :as circ]
     [cljs.test :refer (deftest)]
-    ["react-markdown" :as rmd]
     ))
 
 (deftest yo
@@ -41,8 +31,6 @@
 
 (goog-define FOO "foo")
 
-#_(def mdc-checkbox (MDCCheckbox. (js/document.getElementById "material")))
-
 (js/console.log :foo)
 (prn :foo1 :bar)
 (prn :foo2 :bar)
@@ -55,21 +43,9 @@
 (prn :foo9 :bar)
 (prn :foo0 :bar)
 
-(js/console.log "menu" menu)
-(js/console.log "util" util)
-
 (js/console.log "babel-test" babel-test (Shape. 1 1))
 
-(js/console.log "shortid" (sid))
-
-(js/console.log "react cljsjs" (identical? js/React react))
-
-(js/console.log "demo.browser" react rdom Component)
-
 (js/console.log "foo" FOO foo)
-
-(js/console.log "jq" (-> (jq "body")
-                         (.append "foo")))
 
 (js/console.log "circular - not yet" (circ/test))
 (js/console.log "circular - actual" (circ/foo))
@@ -78,13 +54,6 @@
 
 (s/fdef foo
   :args (s/cat :foo ::foo))
-
-(defn foo [x]
-  (createElement "div" nil
-    (createElement "h1" nil (str "hello from react: " x))
-    (createElement rmd #js {:source "## hello from rmd"})))
-
-(render (foo "foo") (js/document.getElementById "app"))
 
 (defn ^:export start []
   (js/console.log "browser-start"))

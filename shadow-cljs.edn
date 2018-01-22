@@ -82,16 +82,11 @@
      :depends-on
      #{}}
 
-    :react
-    {:entries ["react" "react-dom"]
-     :depends-on #{:base}}
-
     :demo
     {:entries
      [demo.browser]
      :depends-on
-     #{:base
-       :react}}
+     #{:base}}
 
     :extra
     {:entries

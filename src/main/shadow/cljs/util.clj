@@ -166,10 +166,20 @@
       (deref [_]
         @entries))))
 
-(defn log [state log-event]
+(defn log [state {::log/keys [level] :as log-event}]
   {:pre [(build-state? state)]}
-  (log/log* (:logger state) state log-event)
+  (log/log* (:logger state) state
+    (-> log-event
+        (cond->
+          (not level)
+          (assoc ::log/level :info))))
   state)
+
+(defn error [state log-event]
+  (log state (assoc log-event ::log/level :error)))
+
+(defn warn [state log-event]
+  (log state (assoc log-event ::log/level :warn)))
 
 (def ^{:dynamic true} *time-depth* 0)
 

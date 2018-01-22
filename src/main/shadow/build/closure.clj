@@ -370,7 +370,7 @@
                                      (when (.exists file)
                                        file)))]
                      (SourceFile/fromCode (str "EXTERNS:" ext) (slurp rc))
-                     (do (util/log state {:type :missing-externs :extern ext})
+                     (do (util/warn state {:type :missing-externs :extern ext})
                          nil))))
                (remove nil?)
                ;; just to force the logging
@@ -459,7 +459,7 @@
       (try
         (VariableMap/load (.getAbsolutePath map-file))
         (catch Exception e
-          (util/log state {:type ::map-load-error :file map-file :ex e})
+          (util/error state {:type ::map-load-error :file map-file :ex e})
           nil)))))
 
 (defn use-variable-maps? [state]
@@ -1034,8 +1034,8 @@
   ([state compiler result]
    (let [warnings (into [] (js-error-xf state compiler) (.warnings result))]
      (when (seq warnings)
-       (util/log state {:type ::warnings
-                        :warnings warnings})))
+       (util/warn state {:type ::warnings
+                         :warnings warnings})))
 
    state))
 

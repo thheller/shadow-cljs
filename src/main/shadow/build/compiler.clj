@@ -478,11 +478,11 @@
             (assoc (:output cache-data) :cached true))))
 
       (catch Exception e
-        (util/log state {:type :cache-error
-                         :action :read
-                         :ns ns
-                         :id resource-id
-                         :error e})
+        (util/warn state {:type :cache-error
+                          :action :read
+                          :ns ns
+                          :id resource-id
+                          :error e})
         nil))))
 
 (defn write-cached-cljs-resource
@@ -545,11 +545,11 @@
             (util/log state {:type :cache-write :resource-id resource-id :resource-name resource-name :ns ns})
             true)
           (catch Exception e
-            (util/log state {:type :cache-error
-                             :action :write
-                             :ns ns
-                             :id resource-id
-                             :error e})
+            (util/warn state {:type :cache-error
+                              :action :write
+                              :ns ns
+                              :id resource-id
+                              :error e})
             nil)
           )))))
 
