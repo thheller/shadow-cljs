@@ -31,3 +31,5 @@ jobs:
           key: m2-deps-{{ checksum "project.clj" }}
 
       - run: lein test
+
+      - run: lein run -m shadow.cljs.devtools.cli/release cli
