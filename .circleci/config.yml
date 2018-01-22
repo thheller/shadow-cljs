@@ -32,4 +32,4 @@ jobs:
 
       - run: lein test
 
-      - run: lein run -m shadow.cljs.devtools.cli/release cli
+      - run: lein run -m shadow.cljs.devtools.cli release cli
