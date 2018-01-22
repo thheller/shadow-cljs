@@ -32,4 +32,6 @@ jobs:
 
       - run: lein test
 
+      - run: npm install ./packages/shadow-cljs
+
       - run: lein run -m shadow.cljs.devtools.cli release cli
