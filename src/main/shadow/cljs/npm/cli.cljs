@@ -167,28 +167,6 @@
         (reader/read-string)
         (assoc :updated? updated?))))
 
-(defn remove-class-files [path]
-  (when (fs/existsSync path)
-    ;; shadow-cljs - error ENOENT: no such file or directory, unlink '...'
-    ;; I have no idea how readdir can find a file but then not find it when
-    ;; trying to delete it?
-    (doseq [file (into [] (fs/readdirSync path))
-            :let [file (path/resolve path file)]]
-      (cond
-        (str/ends-with? file ".class")
-        (when (fs/existsSync file)
-          (try
-            (fs/unlinkSync file)
-            (catch :default e
-              (prn [:failed-to-delete file]))))
-
-        (is-directory? file)
-        (remove-class-files file)
-
-        :else
-        nil
-        ))))
-
 (defn print-error [ex]
   (let [{:keys [tag] :as data}
         (ex-data ex)]
@@ -216,68 +194,12 @@
 (defn get-shared-home []
   (path/resolve (os/homedir) ".shadow-cljs" jar-version))
 
-(defn aot-compile []
-  (let [home-dir
-        (get-shared-home)
-
-        cp-file
-        (path/resolve home-dir "classpath.edn")
-
-        aot-lock-file
-        (path/resolve home-dir "aot.edn")
-
-        aot-classes
-        (path/resolve home-dir "aot")
-
-        aot-config
-        {:cache-root home-dir
-         :version jar-version
-         :dependencies [['thheller/shadow-cljs jar-version]]}]
-
-    (when (not (fs/existsSync cp-file))
-      ;; re-create classpath by running the java helper
-      (let [jar (js/require "shadow-cljs-jar/path")]
-        (mkdirp/sync home-dir)
-        (run-java home-dir ["-jar" jar] {:input (pr-str aot-config)
-                                         :stdio [nil js/process.stdout js/process.stderr]})
-        true))
-
-    ;; FIXME: should actually treat this as a lockfile but there should not be 2 separate instances doing this at the same time
-    ;; FIXME: could probably rework so that the jar downloader also builds AOT
-
-    (when (not (fs/existsSync aot-lock-file))
-      (mkdirp/sync aot-classes)
-
-      (let [{:keys [files] :as classpath-config}
-            (-> (util/slurp cp-file)
-                (reader/read-string))
-
-            jvm-args
-            ["-cp" (str/join cp-separator files)
-             (str "-Dclojure.compile.path=" aot-classes)
-             "clojure.main"
-             "-m" "shadow.cljs.aot-helper"]]
-
-        ;; println since this runs during npm install
-        (println "shadow-cljs - aot compile")
-        (run-java home-dir jvm-args {})
-        (fs/writeFileSync aot-lock-file "true")
-        (println "shadow-cljs - aot compilation finished")
-        ))))
-
 (defn get-jvm-opts [project-root {:keys [source-paths jvm-opts] :as config}]
-  (let [home-dir
-        (get-shared-home)
-
-        aot-path
-        (path/resolve home-dir "aot")
-
-        classpath
+  (let [classpath
         (get-classpath project-root config)
 
         classpath-str
         (->> (:files classpath)
-             (concat [aot-path])
              (concat source-paths)
              (str/join cp-separator))]
 
@@ -288,8 +210,6 @@
         )))
 
 (defn run-standalone [project-root config args opts]
-  (aot-compile) ;; should be cached already
-
   (let [cli-args
         (-> (get-jvm-opts project-root config)
             (conj "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm")
@@ -614,12 +534,6 @@
 
         (= action :init)
         (run-init opts)
-
-        (= action :aot)
-        (try
-          (aot-compile)
-          (catch :default e
-            (println "shadow-cljs - aot compilation failed")))
 
         :else
         (let [config-path (ensure-config)]
