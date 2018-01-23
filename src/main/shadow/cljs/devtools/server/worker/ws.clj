@@ -234,7 +234,7 @@
                                 (output/js-module-src-prepend build-state src false)
 
                                 append
-                                (output/js-module-src-append build-state src)
+                                "" #_ (output/js-module-src-append build-state src)
 
                                 sm-text
                                 (output/generate-source-map-inline build-state src output prepend)]

@@ -275,7 +275,7 @@
 
           (and (= :dev mode) (:worker-info state))
           (-> (repl/setup)
-              (update-in [:compiler-options :closure-defines] merge (shared/repl-defines state config))))
+              (shared/merge-repl-defines config)))
 
         (configure-modules mode config)
         )))

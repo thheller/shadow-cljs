@@ -43,7 +43,8 @@
           (build-api/with-build-options {:output-dir (io/file output-dir)})
 
           (= :dev mode)
-          (repl/setup)
+          (-> (repl/setup)
+              (shared/merge-repl-defines config))
 
           ;; FIXME: do the rewriting like above for :browser
           (and (:worker-info state) (= :dev mode) (= :node runtime))

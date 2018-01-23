@@ -86,6 +86,8 @@
      (boolean reload-with-state)
      }))
 
+(defn merge-repl-defines [state config]
+  (update-in state [:compiler-options :closure-defines] merge (repl-defines state config)))
 
 (defn inject-node-repl
   [state {:keys [devtools] :as config}]
