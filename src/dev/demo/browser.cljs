@@ -31,6 +31,8 @@
 
 (goog-define FOO "foo")
 
+;; (defn x 1)
+
 (js/console.log :foo)
 (prn :foo1 :bar)
 (prn :foo2 :bar)
@@ -54,6 +56,7 @@
 
 (s/fdef foo
   :args (s/cat :foo ::foo))
+
 
 (defn ^:export start []
   (js/console.log "browser-start"))

@@ -4,6 +4,8 @@
             [clojure.tools.logging :as log])
   (:import (java.io BufferedReader StringReader)))
 
+(def ^:dynamic *color* true)
+
 (defn get-source-excerpts
   "adds source excerpts to warnings if line information is available"
   [state {:keys [file] :as rc} locations]
@@ -79,7 +81,9 @@
 
     ;; FIXME: cursive doesn't support some ANSI codes
     ;; always reset to 0 sucks if there are nested styles
-    (str (ansi-seq open) s (ansi-seq [0]))))
+    (if-not *color*
+      s
+      (str (ansi-seq open) s (ansi-seq [0])))))
 
 ;; all this was pretty rushed and should be rewritten propely
 ;; long lines are really ugly and should maybe do some kind of word wrap

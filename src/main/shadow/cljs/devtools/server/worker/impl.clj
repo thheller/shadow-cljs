@@ -12,7 +12,9 @@
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [shadow.cljs.devtools.config :as config]))
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.errors :as errors]
+            [shadow.build.warnings :as warnings]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -79,7 +81,11 @@
   (>!!output worker-state
     {:type :build-failure
      :build-config build-config
-     :e e}))
+     :report
+     (binding [warnings/*color* false]
+       (errors/error-format e))
+     :e e
+     }))
 
 (defn build-configure
   "configure the build according to build-config in state"

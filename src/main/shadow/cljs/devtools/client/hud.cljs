@@ -1,13 +1,15 @@
 (ns shadow.cljs.devtools.client.hud
-  (:require [shadow.dom :as dom]
-            [shadow.xhr :as xhr]
-            [shadow.cljs.devtools.client.env :as env]
-            [shadow.cljs.devtools.client.browser :as browser]
-            [cljs.tools.reader :as reader]
-            [cljs.core.async :refer (go)]
-            [goog.string.format]
-            [goog.string :refer (format)]
-            [clojure.string :as str]))
+  (:require
+    [shadow.dom :as dom]
+    [shadow.xhr :as xhr]
+    [shadow.animate :as anim]
+    [shadow.cljs.devtools.client.env :as env]
+    [shadow.cljs.devtools.client.browser :as browser]
+    [cljs.tools.reader :as reader]
+    [cljs.core.async :refer (go)]
+    [goog.string.format]
+    [goog.string :refer (format)]
+    [clojure.string :as str]))
 
 (defn open-file [file line column]
   (js/console.log "opening file" file line column)
@@ -27,12 +29,61 @@
 
 (defonce socket-ref (volatile! nil))
 
-(defonce dom-ref (volatile! nil))
+(defn dom-insert
+  ([node]
+   (dom-insert js/document.body node))
+  ([where node]
+   (let [el (dom/dom-node node)
+         id (.-id el)]
+     (assert (seq id))
+     (when-some [x (dom/by-id id)]
+       (dom/remove x))
+     (dom/append where el)
+     )))
+
+;; loader anim from http://tobiasahlin.com/spinkit/
+(dom-insert
+  js/document.head
+  [:style#shadow-cljs-anim-style "@keyframes shadow-cljs-load-anim {\n  0%, 80%, 100% { \n    -webkit-transform: scale(0);\n    transform: scale(0);\n  } 40% { \n    -webkit-transform: scale(1.0);\n    transform: scale(1.0);\n  }\n}"])
+
+(def hud-id "shadow-hud-container")
+
+(def load-id "shadow-hud-loading-container")
+
+(def load-div-style
+  {:width "18px"
+   :height "18px"
+   :margin "0 2px"
+   :background-color "#333"
+   :border-radius "100%"
+   :display "inline-block"
+   :animation "shadow-cljs-load-anim 1.4s infinite ease-in-out both"})
+
+(defn load-start []
+  (dom-insert
+    [:div {:id load-id
+           :style {:position "absolute"
+                   :left "0px"
+                   :bottom "25px"
+                   :right "0px"
+                   :overflow "hidden"
+                   :text-align "center"}}
+
+     [:div {:style {:margin "0 auto"
+                    :width "70px"
+                    :text-align "center"}}
+
+      [:div {:style (assoc load-div-style :animation-delay "-0.32s")}]
+      [:div {:style (assoc load-div-style :animation-delay "-0.16s")}]
+      [:div {:style load-div-style}]]]))
+
+(defn load-end []
+  (when-some [el (dom/by-id load-id)]
+    (dom/remove el)))
 
 (defn hud-hide []
-  (when-some [d @dom-ref]
-    (dom/remove d)
-    (vreset! dom-ref nil)))
+  (when-some [d (dom/by-id hud-id)]
+    (dom/remove d)))
 
 (def source-line-styles
   {:padding "0"
@@ -100,7 +151,7 @@
         (source-line-html (+ start-idx (count before) 1) after source-line-styles)]
        ))])
 
-(defn maybe-display-hud [{:keys [info] :as msg}]
+(defn hud-warnings [{:keys [type info] :as msg}]
   (let [{:keys [sources]}
         info
 
@@ -110,32 +161,59 @@
              (into []))]
 
     (when (seq sources-with-warnings)
-      (let [el
-            (dom/append
-              [:div#shadow-hud__container
-               {:style {:position "absolute"
-                        :left "0px"
-                        :bottom "0px"
-                        :right "0px"
-                        :padding "10px 10px 0 10px"
-                        :overflow "auto"
-                        :font-family "monospace"
-                        :font-size "12px"}}
-               (for [{:keys [warnings] :as src} sources-with-warnings
-                     warning warnings]
-                 (html-for-warning warning))])]
-        (vreset! dom-ref el)))))
+      (dom-insert
+        [:div
+         {:id hud-id
+          :style {:position "absolute"
+                  :left "0px"
+                  :bottom "0px"
+                  :right "0px"
+                  :padding "10px 10px 0 10px"
+                  :overflow "auto"
+                  :font-family "monospace"
+                  :font-size "12px"}}
+         (for [{:keys [warnings] :as src} sources-with-warnings
+               warning warnings]
+           (html-for-warning warning))])
+      )))
+
+(defn hud-error [{:keys [report] :as msg}]
+  (dom-insert
+    [:div
+     {:id hud-id
+      :style {:position "absolute"
+              :left "0px"
+              :top "0px"
+              :bottom "0px"
+              :right "0px"
+              :color "#000"
+              :background-color "#fff"
+              :border "5px solid red"
+              :z-index "100"
+              :padding "20px"
+              :overflow "auto"
+              :font-family "monospace"
+              :font-size "12px"}}
+     [:div {:style "color: red; margin-bottom: 10px; font-size: 2em;"} "Compilation failed!"]
+     [:pre report]]))
 
 (defn handle-message [msg]
+  ;; (js/console.log "hud msg" msg)
   (case (:type msg)
     :build-complete
-    (maybe-display-hud msg)
+    (do (load-end)
+        (hud-warnings msg))
+
+    :build-failure
+    (do (load-end)
+        (hud-error msg))
 
     :build-init
-    (maybe-display-hud msg)
+    (hud-warnings msg)
 
     :build-start
-    (hud-hide)
+    (do (hud-hide)
+        (load-start))
 
     ;; default
     :ignored))
@@ -174,5 +252,4 @@
     (set! (.-onclose s) (fn [e]))
     (.close s))
 
-  (hud-hide)
   (ws-connect))
