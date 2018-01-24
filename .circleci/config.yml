@@ -58,6 +58,8 @@ jobs:
           command: npx shadow-cljs server
           background: true
 
+      - run: ./wait-for-server.sh
+
       - run: npx shadow-cljs clj-run demo.runnable/foo
 
       - run: npx compile browser

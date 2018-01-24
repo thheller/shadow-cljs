@@ -14,7 +14,8 @@
 
   :dependencies
   [[org.clojure/clojure "1.9.0"]
-   [javax.xml.bind/jaxb-api "2.3.0"]
+   ;; java9, not required for java8
+   ;; [javax.xml.bind/jaxb-api "2.3.0"]
 
    ;; [org.clojure/spec.alpha "0.1.108"]
    ;; [org.clojure/core.specs.alpha "0.1.10"]
