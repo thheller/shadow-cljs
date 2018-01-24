@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.0.142"
+(defproject thheller/shadow-cljs "2.0.143"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -45,6 +45,8 @@
    [thheller/shadow-client "1.3.2"]
 
    [io.undertow/undertow-core "1.4.22.Final"]
+   ;; tools.deps won't include runtime deps properly
+   [org.jboss.xnio/xnio-nio "3.3.8.Final"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.6.3"
