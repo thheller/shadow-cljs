@@ -8,19 +8,23 @@
   org.clojure/data.json {:mvn/version "0.2.6"}
   org.clojure/tools.logging {:mvn/version "0.4.0"}
   org.clojure/java.classpath {:mvn/version "0.2.3"}
-  org.clojure/core.async {:mvn/version "0.3.443"}
+  org.clojure/core.async {:mvn/version "0.4.474"}
   org.clojure/tools.nrepl {:mvn/version "0.2.13"}
   org.clojure/tools.cli {:mvn/version "0.3.5"}
 
   com.cognitect/transit-clj {:mvn/version "0.8.300"}
   com.cognitect/transit-cljs {:mvn/version "0.8.243"}
 
-  thheller/shadow-client {:mvn/version "1.3.0"}
-  thheller/shadow-util {:mvn/version "0.5.1"}
+  thheller/shadow-client {:mvn/version "1.3.2"}
+  thheller/shadow-util {:mvn/version "0.7.0"}
 
-  expound {:mvn/version "0.3.1"}
+  expound {:mvn/version "0.4.0"}
   hiccup {:mvn/version "1.0.5"}
-  aleph {:mvn/version "0.4.4"}
-  ring/ring-core {:mvn/version "1.6.2"
-                  :exclusions [clj-time]}
-  hawk {:mvn/version "0.2.11"}}}
+
+  ring/ring-core {:mvn/version "1.6.2" :exclusions [clj-time]}
+  hawk {:mvn/version "0.2.11"}
+
+  io.undertow/undertow-core {:mvn/version "1.4.22.Final"}
+  ;; :scope "runtime" deps not included by tools.deps
+  org.jboss.xnio/xnio-nio {:mvn/version "3.3.8.Final"}
+  }}

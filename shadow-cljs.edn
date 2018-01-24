@@ -13,12 +13,7 @@
  :http
  {}
 
- :nrepl
- {:port 8202
-  :middleware []}
-
- ;; actually unused when using :lein
- :dependencies []
+ ;; :nrepl {:port 8202 :middleware []}
 
  :source-paths
  ["src/dev"

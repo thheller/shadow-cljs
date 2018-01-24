@@ -241,6 +241,42 @@
     (log "shadow-cljs - running: lein" (str/join " " lein-args))
     (run project-root "lein" lein-args {})))
 
+(defn get-clojure-args [project-root config]
+  (let [{:keys [aliases inject]} (:deps config)
+
+        inject?
+        (not (false? inject))
+
+        aliases
+        (if-not inject?
+          aliases
+          (conj aliases :shadow-cljs-inject))]
+
+    (-> []
+        (into (map #(str "-J" %)) (logging-config project-root config))
+        (cond->
+          (seq aliases)
+          (conj (str "-C" (->> aliases (map pr-str) (str/join "")))
+                (str "-R" (->> aliases (map pr-str) (str/join ""))))
+
+          inject?
+          (conj "-Sdeps" (pr-str {:aliases
+                                  {:shadow-cljs-inject
+                                   {;; :extra-paths ["target/shadow-cljs/aot"]
+                                    :extra-deps
+                                    {'thheller/shadow-cljs {:mvn/version jar-version}}}}})
+                )))))
+
+(defn run-clojure [project-root config args opts]
+  (let [clojure-args
+        (-> (get-clojure-args project-root config)
+            (conj "-m" "shadow.cljs.devtools.cli" "--npm")
+            (into args))]
+
+    (log "shadow-cljs - starting via \"clojure\"")
+    (run project-root "clojure" clojure-args {})
+    ))
+
 (defn wait-for-server-start! [port-file ^js proc]
   (if (fs/existsSync port-file)
     (do (js/process.stderr.write " ready!\n")
@@ -249,15 +285,23 @@
         (js/setTimeout #(wait-for-server-start! port-file proc) 250))
     ))
 
-(defn server-start [project-root {:keys [lein cache-root] :as config} args opts]
+(defn server-start [project-root {:keys [lein deps dependencies cache-root] :as config} args opts]
   (let [[server-cmd server-args]
-        (if-not lein
-          ["java"
-           (-> (get-jvm-opts project-root config)
-               (conj "clojure.main" "-m"))]
+        (cond
+          deps
+          ["clojure"
+           (-> (get-clojure-args project-root config)
+               (conj "-m"))]
+
+          lein
           ["lein"
            (-> (get-lein-args config)
-               (conj "run" "-m"))])
+               (conj "run" "-m"))]
+
+          :else
+          ["java"
+           (-> (get-jvm-opts project-root config)
+               (conj "clojure.main" "-m"))])
 
         server-args
         (conj server-args "shadow.cljs.devtools.cli" "--npm" "server")]
@@ -589,6 +633,9 @@
 
                     server-running?
                     (client/run project-root config server-pid opts args)
+
+                    (:deps config)
+                    (run-clojure project-root config args opts)
 
                     (:lein config)
                     (run-lein project-root config args opts)
