@@ -183,16 +183,13 @@
             socket
             (node-net/connect
               #js {:port cli-repl
-                   :host "localhost"
+                   :host "127.0.0.1"
                    :timeout 1000}
               connect-listener)]
 
         (.on socket "error"
           (fn [err]
             (println "shadow-cljs - socket connect failed, server process dead?")
-            (fs/unlinkSync server-pid-file)
-            ;; FIXME: should do this automatically?
-            (println "deleted pid file, please retry command to start new server")
             (js/process.exit 1)))
         ))))
 

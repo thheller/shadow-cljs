@@ -23,7 +23,7 @@ jobs:
           - m2-deps-{{ checksum "project.clj" }}
           - m2-deps-
 
-      - run: lein deps
+      - run: lein with-profile +cljs deps
 
       - run: cd packages/shadow-cljs-jar; mkdir bin; lein uberjar
 
