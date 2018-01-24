@@ -55,13 +55,12 @@ jobs:
       - run: npx shadow-cljs --cli-info
 
       - run:
-        command: npx shadow-cljs server
-        background: true
+          command: npx shadow-cljs server
+          background: true
 
-      - run:
-        command: |
-          npx shadow-cljs clj-run demo.runnable/foo
-          npx compile browser
+      - run: npx shadow-cljs clj-run demo.runnable/foo
+
+      - run: npx compile browser
 
       - run: npx shadow-cljs stop
 
