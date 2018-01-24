@@ -62,7 +62,7 @@ jobs:
 
       - run: npx shadow-cljs clj-run demo.runnable/foo
 
-      - run: npx compile browser
+      - run: npx shadow-cljs compile browser
 
       - run: npx shadow-cljs stop
 
