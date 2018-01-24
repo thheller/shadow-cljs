@@ -25,6 +25,8 @@ jobs:
 
       - run: lein deps
 
+      - run: cd packages/shadow-cljs-jar; mkdir bin; lein uberjar
+
       - save_cache:
           paths:
             - ~/.m2
@@ -41,8 +43,6 @@ jobs:
 
       - run: npm install ./packages/shadow-cljs-jar
 
-      - run: cd packages/shadow-cljs-jar; mkdir bin; lein uberjar
-
       - run: npm install ./packages/shadow-cljs
 
       - save_cache:
@@ -55,9 +55,13 @@ jobs:
       - run: npx shadow-cljs --cli-info
 
       - run:
+        command: npx shadow-cljs server
+        background: true
+
+      - run:
         command: |
-          npx shadow-cljs start
           npx shadow-cljs clj-run demo.runnable/foo
           npx compile browser
-          npx shadow-cljs stop
+
+      - run: npx shadow-cljs stop
 
