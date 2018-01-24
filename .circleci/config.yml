@@ -54,11 +54,9 @@ jobs:
 
       - run: npx shadow-cljs --cli-info
 
-      - run:
-          command: npx shadow-cljs server
-          background: true
+      - run: npx shadow-cljs start
 
-      - run: ./wait-for-server.sh
+      - run: curl -v http://localhost:9630
 
       - run: npx shadow-cljs clj-run demo.runnable/foo
 
