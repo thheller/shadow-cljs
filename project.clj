@@ -1,8 +1,12 @@
-(defproject thheller/shadow-cljs "2.0.144"
+(defproject thheller/shadow-cljs "2.0.145"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
+
+  :repositories
+  {"clojars" {:url "https://clojars.org/repo"
+              :sign-releases false}}
 
   :java-opts ~(if (-> (System/getProperty "java.version") (.startsWith "9."))
                 ["--add-modules" "java.xml.bind"]
