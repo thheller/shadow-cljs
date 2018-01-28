@@ -25,6 +25,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 
 - [EN] [A beginner guide to compile ClojureScript with shadow-cljs](https://medium.com/@jiyinyiyong/a-beginner-guide-to-compile-clojurescript-with-shadow-cljs-26369190b786)
 - [CN] [shadow-cljs 2.x 使用教程](https://segmentfault.com/a/1190000011499210)
+- [EN] [ClojureScript with Middleman via Shadow-CLJS](http://bobnadler.com/articles/2018/01/28/clojurescript-with-middleman-via-shadow-cljs.html)
 - More coming soon ...
 
 ## Installation
