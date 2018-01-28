@@ -280,7 +280,9 @@
 (defn wait-for-server-start! [port-file ^js proc]
   (if (fs/existsSync port-file)
     (do (js/process.stderr.write " ready!\n")
-        (.unref proc))
+        ;; give the server some time to settle before we release it
+        ;; hopefully fixes some circleci issues
+        (js/setTimeout #(.unref proc) 500))
     (do (js/process.stderr.write ".")
         (js/setTimeout #(wait-for-server-start! port-file proc) 250))
     ))
@@ -334,8 +336,6 @@
       (fs/writeFileSync pid-path (str (.-pid proc)))
 
       (wait-for-server-start! (path/resolve cache-dir "cli-repl.port") proc)
-
-      #_(.unref proc)
       )))
 
 (defn server-stop [project-root config server-pid-file args opts]

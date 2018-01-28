@@ -44,9 +44,9 @@
         {:status 501
          :body "App not ready!"}
         (-> app
-            (assoc :ring-request ring-map)
-            (http/prepare)
-            (web/root))))))
+          (assoc :ring-request ring-map)
+          (http/prepare)
+          (web/root))))))
 
 (defn get-ring-middleware
   [{:keys [dev-mode cache-root] :as config} handler]
@@ -54,16 +54,16 @@
         (io/file cache-root "ui")]
 
     (-> handler
-        (cond->
-          (.exists ui-root)
-          (ring-file/wrap-file ui-root)
+      (cond->
+        (.exists ui-root)
+        (ring-file/wrap-file ui-root)
 
-          (not (.exists ui-root))
-          (ring-resource/wrap-resource "shadow/cljs/ui/dist"))
-        ;; (reload/wrap-reload {:dirs ["src/main"]})
-        (ring-params/wrap-params)
-        (ring-gzip/wrap-gzip)
-        )))
+        (not (.exists ui-root))
+        (ring-resource/wrap-resource "shadow/cljs/ui/dist"))
+      ;; (reload/wrap-reload {:dirs ["src/main"]})
+      (ring-params/wrap-params)
+      (ring-gzip/wrap-gzip)
+      )))
 
 ;; println may fail if the socket already disconnected
 ;; just discard the print if it fails
@@ -78,10 +78,10 @@
      (catch Throwable t#
        (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [http port-files socket-repl cli-repl nrepl] :as app}]
+(defn shutdown-system [{:keys [http port-files-ref socket-repl cli-repl nrepl] :as app}]
   (discard-println "shutting down ...")
   (do-shutdown
-    (doseq [port-file (vals port-files)]
+    (doseq [port-file (vals @port-files-ref)]
       (.delete port-file)))
   (do-shutdown (rt/stop-all app))
   (do-shutdown (socket-repl/stop socket-repl))
@@ -141,10 +141,10 @@
 
         {:keys [ssl-context] :as http-config}
         (-> {:host "0.0.0.0"}
-            (merge http)
-            (cond->
-              ssl
-              (assoc :ssl-context (undertow/make-ssl-context ssl))))
+          (merge http)
+          (cond->
+            ssl
+            (assoc :ssl-context (undertow/make-ssl-context ssl))))
 
         {:keys [http-port https-port] :as http}
         (start-http config http-config ring)
@@ -156,7 +156,7 @@
         (socket-repl/start socket-repl-config app-promise)
 
         cli-repl-config
-        {:port 0 ;; random port, not for humans
+        {:port 0                                                                                    ;; random port, not for humans
          :prompt false
          :print false}
 
@@ -169,14 +169,8 @@
         nrepl
         (nrepl/start (:nrepl config))
 
-        ;; FIXME: should refuse to start if a pid already exists
-        port-files
-        (make-port-files cache-root
-          {:nrepl (:port nrepl)
-           :socket-repl (:port socket-repl)
-           :cli-repl (:port cli-repl)
-           :http http-port
-           :https-port https-port})
+        port-files-ref
+        (atom nil)
 
         app
         (-> {::started (System/currentTimeMillis)
@@ -188,32 +182,31 @@
                     :host (:host http-config)
                     :ssl (boolean https-port)
                     :server http}
-             :port-files port-files
+             :port-files-ref port-files-ref
              :nrepl nrepl
              :socket-repl socket-repl
              :cli-repl cli-repl}
-            (rt/init app)
-            (rt/start-all))]
+          (rt/init app)
+          (rt/start-all))]
 
     (deliver app-promise app)
 
-    ;; autostart is not cool?
-    #_(future
-        ;; OCD because I want to print the shadow-cljs info of start!
-        ;; before any build output
-        (Thread/sleep 100)
-        (when-let [{:keys [autostart] :as srv-config} (:server config)]
-          (doseq [build-id autostart]
-            (super/start-worker (:supervisor app) build-id)
-            )))
+    ;; do this as the very last setup to maybe fix circleci timing issue?
+    (reset! port-files-ref
+      (make-port-files cache-root
+        {:nrepl (:port nrepl)
+         :socket-repl (:port socket-repl)
+         :cli-repl (:port cli-repl)
+         :http http-port
+         :https-port https-port}))
 
     app
     ))
 
 (defn load-config []
   (-> (config/load-cljs-edn)
-      ;; system config doesn't need build infos
-      (dissoc :builds)))
+    ;; system config doesn't need build infos
+    (dissoc :builds)))
 
 (defn start!
   ([]
@@ -234,8 +227,8 @@
 
        (when (get-in config [:nrepl :port])
          (println (str "shadow-cljs - nrepl running at "
-                       (-> (:server-socket nrepl) (.getInetAddress))
-                       ":" (:port nrepl))))
+                    (-> (:server-socket nrepl) (.getInetAddress))
+                    ":" (:port nrepl))))
 
        (runtime/set-instance! app)
        ::started
@@ -277,11 +270,11 @@
 
         out-chan
         (-> (async/sliding-buffer 100)
-            (async/chan))
+          (async/chan))
 
         verbose
         (or (:verbose options)
-            (:verbose config))
+          (:verbose config))
 
         {:keys [supervisor] :as app}
         @runtime/instance-ref]
@@ -289,8 +282,8 @@
     (doseq [{:keys [build-id] :as build-config} build-configs]
       (println "shadow-cljs - watching build" build-id)
       (-> (api/get-or-start-worker build-config options)
-          (worker/watch out-chan false)
-          (worker/start-autobuild)))
+        (worker/watch out-chan false)
+        (worker/start-autobuild)))
 
     (go (loop []
           (when-some [msg (<! out-chan)]
@@ -316,21 +309,21 @@
 
         build-configs
         (->> builds
-             (map (fn [build-id]
-                    (let [build-config (get-in config [:builds build-id])]
-                      (when-not build-config
-                        (println (str "No config for build \"" (name build-id) "\" found.")))
+          (map (fn [build-id]
+                 (let [build-config (get-in config [:builds build-id])]
+                   (when-not build-config
+                     (println (str "No config for build \"" (name build-id) "\" found.")))
 
-                      build-config
-                      )))
-             (remove nil?)
-             (into []))
+                   build-config
+                   )))
+          (remove nil?)
+          (into []))
 
         already-running?
         (some? @runtime/instance-ref)]
 
     (if (and (contains? #{:watch :cljs-repl} action)
-             (empty? build-configs))
+          (empty? build-configs))
       (println "Build id required.")
 
       (do (when-not already-running?
@@ -418,10 +411,10 @@
 
                       worker
                       (-> (or worker
-                              (-> (super/start-worker supervisor build-config)
-                                  (worker/compile)))
-                          ;; need to sync in case it is still compiling
-                          (worker/sync!))]
+                            (-> (super/start-worker supervisor build-config)
+                              (worker/compile)))
+                        ;; need to sync in case it is still compiling
+                        (worker/sync!))]
 
                   (api/repl build-id)
 

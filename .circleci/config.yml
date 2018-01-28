@@ -56,8 +56,6 @@ jobs:
 
       - run: npx shadow-cljs start
 
-      - run: ./wait-for-server.sh
-
       - run: npx shadow-cljs clj-run demo.runnable/foo
 
       - run: npx shadow-cljs compile browser
