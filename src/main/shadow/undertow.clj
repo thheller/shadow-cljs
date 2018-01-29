@@ -14,7 +14,8 @@
            (io.undertow.websockets.core WebSockets)
            (javax.net.ssl SSLContext KeyManagerFactory)
            (java.io FileInputStream)
-           (java.security KeyStore)))
+           (java.security KeyStore)
+           [org.xnio ChannelListener]))
 
 (defn ring* [handler-fn]
   (reify
@@ -65,8 +66,15 @@
                     (if-not (some? msg)
                       (async/close! ws-in)
                       ;; FIXME: don't hardcode edn, should use transit
-                      (async/put! ws-in (edn/read-string msg))))]
+                      (async/put! ws-in (edn/read-string msg))))
 
+                  close-task
+                  (reify ChannelListener
+                    (handleEvent [this ignored-event]
+                      (async/close! ws-in)
+                      (async/close! ws-out)))]
+
+              (.. channel (addCloseTask close-task))
               (.. channel (getReceiveSetter) (set (WsTextReceiver. handler-fn)))
               (.. channel (resumeReceives))
 
