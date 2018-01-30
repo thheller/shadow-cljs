@@ -91,7 +91,9 @@
                  :target :browser))]
 
     ;; FIXME: only use shadow-js for node_modules?
-    (if-not (str/includes? resource-name "node_modules")
+    (if (and (not (str/includes? resource-name "node_modules"))
+             ;; :target :global files are not in node_modules but should be treated as :shadow-js
+             (not (:global-ref rc)))
       rc
       (let [babel-rewrite?
             (and (not json)

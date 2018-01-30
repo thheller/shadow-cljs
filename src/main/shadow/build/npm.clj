@@ -580,6 +580,7 @@
     {:resource-id [::global require]
      :resource-name (str "global$" ns ".js")
      :output-name (str ns ".js")
+     :global-ref true
      :type :js
      :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
      :last-modified 0
