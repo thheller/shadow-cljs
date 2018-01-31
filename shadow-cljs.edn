@@ -6,8 +6,6 @@
 
  :verbose true
 
- :open-file-command :idea
-
  ;; :ssl {}
 
  :http
@@ -114,8 +112,7 @@
     :http-port 8600
     :async-require true
     :before-load-async demo.browser/stop
-    :after-load demo.browser/start
-    :preloads [shadow.cljs.devtools.client.hud]}}
+    :after-load demo.browser/start}}
 
   :test-dummy
   {:target :browser-test

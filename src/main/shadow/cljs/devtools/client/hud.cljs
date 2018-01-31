@@ -16,7 +16,7 @@
 
   (let [req
         (xhr/chan :POST
-          (str "http" (when env/ssl "s") "://" env/repl-host ":" env/repl-port "/api/open-file")
+          (str (env/get-url-base) "/api/open-file")
           {:file file
            :line line
            :column column}
@@ -41,45 +41,40 @@
      (dom/append where el)
      )))
 
-;; loader anim from http://tobiasahlin.com/spinkit/
-(dom-insert
-  js/document.head
-  [:style#shadow-cljs-anim-style "@keyframes shadow-cljs-load-anim {\n  0%, 80%, 100% { \n    -webkit-transform: scale(0);\n    transform: scale(0);\n  } 40% { \n    -webkit-transform: scale(1.0);\n    transform: scale(1.0);\n  }\n}"])
-
 (def hud-id "shadow-hud-container")
 
 (def load-id "shadow-hud-loading-container")
 
-(def load-div-style
-  {:width "18px"
-   :height "18px"
-   :margin "0 2px"
-   :background-color "#333"
-   :border-radius "100%"
-   :display "inline-block"
-   :animation "shadow-cljs-load-anim 1.4s infinite ease-in-out both"})
+(def logo-url (str (env/get-url-base) "/img/shadow-cljs.png"))
 
 (defn load-start []
   (dom-insert
     [:div {:id load-id
            :style {:position "absolute"
+                   :background "#eee"
+                   :pointer-events "none"
                    :left "0px"
-                   :bottom "25px"
-                   :right "0px"
-                   :overflow "hidden"
-                   :text-align "center"}}
+                   :bottom "20px"
+                   :border-top-right-radius "40px"
+                   :border-bottom-right-radius "40px"
+                   :padding "10px"}}
 
-     [:div {:style {:margin "0 auto"
-                    :width "70px"
-                    :text-align "center"}}
 
-      [:div {:style (assoc load-div-style :animation-delay "-0.32s")}]
-      [:div {:style (assoc load-div-style :animation-delay "-0.16s")}]
-      [:div {:style load-div-style}]]]))
+     [:img {:style {:display "block"}
+            :src logo-url
+            :width 60}]]))
+
+(defn load-end-success []
+  (when-some [el (dom/by-id load-id)]
+    (go (<! (anim/start 250 {el (anim/transition :background "#eee" "#b0c975")}))
+        (<! (anim/start 250 {el (anim/transition :opacity "1" "0")}))
+        (dom/remove el)
+        )))
 
 (defn load-end []
   (when-some [el (dom/by-id load-id)]
-    (dom/remove el)))
+    (dom/remove el)
+    ))
 
 (defn hud-hide []
   (when-some [d (dom/by-id hud-id)]
@@ -129,11 +124,12 @@
 
 (defn html-for-warning [{:keys [resource-name msg file line column source-excerpt] :as warning}]
   [:div {:style {:border "2px solid #ccc"
-                 :background-color "#fadb64"
-                 :padding "10px"
+
                  :margin-bottom "10px"}}
 
    [:div {:style {:line-height "16px"
+                  :background-color "#fadb64"
+                  :padding "10px"
                   :font-size "1.2em"
                   :font-weight "bold"}}
     [:span "WARNING in "]
@@ -141,7 +137,9 @@
 
    (when source-excerpt
      (let [{:keys [start-idx before line after]} source-excerpt]
-       [:div {:style {:padding "10px 0"}}
+       [:div {:style {:padding "10px 10px"
+                      :background-color "#fff"
+                      :border-top "2px solid #ccc"}}
         (source-line-html start-idx before source-line-styles)
         (source-line-html (+ start-idx (count before)) [line] source-highlight-styles)
         (let [arrow-idx (+ 6 (or column 1))]
@@ -160,21 +158,24 @@
              (filter #(seq (:warnings %)))
              (into []))]
 
-    (when (seq sources-with-warnings)
-      (dom-insert
-        [:div
-         {:id hud-id
-          :style {:position "absolute"
-                  :left "0px"
-                  :bottom "0px"
-                  :right "0px"
-                  :padding "10px 10px 0 10px"
-                  :overflow "auto"
-                  :font-family "monospace"
-                  :font-size "12px"}}
-         (for [{:keys [warnings] :as src} sources-with-warnings
-               warning warnings]
-           (html-for-warning warning))])
+    (if-not (seq sources-with-warnings)
+      (load-end-success)
+      ;; TODO: fancy transition from logo to warnings
+      (do (load-end)
+          (dom-insert
+            [:div
+             {:id hud-id
+              :style {:position "absolute"
+                      :left "0px"
+                      :bottom "0px"
+                      :right "0px"
+                      :padding "10px 10px 0 10px"
+                      :overflow "auto"
+                      :font-family "monospace"
+                      :font-size "12px"}}
+             (for [{:keys [warnings] :as src} sources-with-warnings
+                   warning warnings]
+               (html-for-warning warning))]))
       )))
 
 (defn hud-error [{:keys [report] :as msg}]
@@ -201,8 +202,7 @@
   ;; (js/console.log "hud msg" msg)
   (case (:type msg)
     :build-complete
-    (do (load-end)
-        (hud-warnings msg))
+    (hud-warnings msg)
 
     :build-failure
     (do (load-end)

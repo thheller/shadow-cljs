@@ -141,13 +141,18 @@
 
 (defn inject-repl-client
   [{:keys [entries] :as module-config} state build-config]
-  (let [{:keys [enabled]}
+  (let [{:keys [enabled hud]}
         (:devtools build-config)
         entries
         (-> []
             (cond->
               (not (false? enabled))
-              (into '[cljs.user shadow.cljs.devtools.client.browser]))
+              (into '[cljs.user shadow.cljs.devtools.client.browser])
+
+              (and (not (false? enabled))
+                   (not (false? hud)))
+              (conj 'shadow.cljs.devtools.client.hud))
+
             (into entries))]
 
     (assoc module-config :entries entries)))

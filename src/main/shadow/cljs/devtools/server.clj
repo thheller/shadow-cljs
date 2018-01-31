@@ -44,9 +44,9 @@
         {:status 501
          :body "App not ready!"}
         (-> app
-          (assoc :ring-request ring-map)
-          (http/prepare)
-          (web/root))))))
+            (assoc :ring-request ring-map)
+            (http/prepare)
+            (web/root))))))
 
 (defn get-ring-middleware
   [{:keys [dev-mode cache-root] :as config} handler]
@@ -54,16 +54,17 @@
         (io/file cache-root "ui")]
 
     (-> handler
-      (cond->
-        (.exists ui-root)
-        (ring-file/wrap-file ui-root)
+        (cond->
+          (.exists ui-root)
+          (ring-file/wrap-file ui-root)
 
-        (not (.exists ui-root))
-        (ring-resource/wrap-resource "shadow/cljs/ui/dist"))
-      ;; (reload/wrap-reload {:dirs ["src/main"]})
-      (ring-params/wrap-params)
-      (ring-gzip/wrap-gzip)
-      )))
+          (not (.exists ui-root))
+          (ring-resource/wrap-resource "shadow/cljs/ui/dist"))
+        (ring-resource/wrap-resource "shadow/cljs/devtools/server/web/resources")
+        ;; (reload/wrap-reload {:dirs ["src/main"]})
+        (ring-params/wrap-params)
+        (ring-gzip/wrap-gzip)
+        )))
 
 ;; println may fail if the socket already disconnected
 ;; just discard the print if it fails
@@ -141,10 +142,10 @@
 
         {:keys [ssl-context] :as http-config}
         (-> {:host "0.0.0.0"}
-          (merge http)
-          (cond->
-            ssl
-            (assoc :ssl-context (undertow/make-ssl-context ssl))))
+            (merge http)
+            (cond->
+              ssl
+              (assoc :ssl-context (undertow/make-ssl-context ssl))))
 
         {:keys [http-port https-port] :as http}
         (start-http config http-config ring)
@@ -186,8 +187,8 @@
              :nrepl nrepl
              :socket-repl socket-repl
              :cli-repl cli-repl}
-          (rt/init app)
-          (rt/start-all))]
+            (rt/init app)
+            (rt/start-all))]
 
     (deliver app-promise app)
 
@@ -205,8 +206,8 @@
 
 (defn load-config []
   (-> (config/load-cljs-edn)
-    ;; system config doesn't need build infos
-    (dissoc :builds)))
+      ;; system config doesn't need build infos
+      (dissoc :builds)))
 
 (defn start!
   ([]
@@ -270,11 +271,11 @@
 
         out-chan
         (-> (async/sliding-buffer 100)
-          (async/chan))
+            (async/chan))
 
         verbose
         (or (:verbose options)
-          (:verbose config))
+            (:verbose config))
 
         {:keys [supervisor] :as app}
         @runtime/instance-ref]
@@ -282,8 +283,8 @@
     (doseq [{:keys [build-id] :as build-config} build-configs]
       (println "shadow-cljs - watching build" build-id)
       (-> (api/get-or-start-worker build-config options)
-        (worker/watch out-chan false)
-        (worker/start-autobuild)))
+          (worker/watch out-chan false)
+          (worker/start-autobuild)))
 
     (go (loop []
           (when-some [msg (<! out-chan)]
@@ -309,21 +310,21 @@
 
         build-configs
         (->> builds
-          (map (fn [build-id]
-                 (let [build-config (get-in config [:builds build-id])]
-                   (when-not build-config
-                     (println (str "No config for build \"" (name build-id) "\" found.")))
+             (map (fn [build-id]
+                    (let [build-config (get-in config [:builds build-id])]
+                      (when-not build-config
+                        (println (str "No config for build \"" (name build-id) "\" found.")))
 
-                   build-config
-                   )))
-          (remove nil?)
-          (into []))
+                      build-config
+                      )))
+             (remove nil?)
+             (into []))
 
         already-running?
         (some? @runtime/instance-ref)]
 
     (if (and (contains? #{:watch :cljs-repl} action)
-          (empty? build-configs))
+             (empty? build-configs))
       (println "Build id required.")
 
       (do (when-not already-running?
@@ -411,10 +412,10 @@
 
                       worker
                       (-> (or worker
-                            (-> (super/start-worker supervisor build-config)
-                              (worker/compile)))
-                        ;; need to sync in case it is still compiling
-                        (worker/sync!))]
+                              (-> (super/start-worker supervisor build-config)
+                                  (worker/compile)))
+                          ;; need to sync in case it is still compiling
+                          (worker/sync!))]
 
                   (api/repl build-id)
 

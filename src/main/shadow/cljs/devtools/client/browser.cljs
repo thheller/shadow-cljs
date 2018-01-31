@@ -265,6 +265,9 @@
     :build-complete
     (handle-build-complete msg)
 
+    :pong
+    nil
+
     ;; default
     :ignored))
 
@@ -282,6 +285,11 @@
     "POST"
     (pr-str {:input text})
     #js {"content-type" "application/edn; charset=utf-8"}))
+
+(defn heartbeat! []
+  (when-let [s @socket-ref]
+    (.send s (pr-str {:type :ping :v (js/Date.now)}))
+    (js/setTimeout heartbeat! 30000)))
 
 (defn ws-connect []
   (let [print-fn
@@ -324,6 +332,8 @@
 
     (set! (.-onerror socket)
       (fn [e]))
+
+    (js/setTimeout heartbeat! 30000)
     ))
 
 (when ^boolean env/enabled

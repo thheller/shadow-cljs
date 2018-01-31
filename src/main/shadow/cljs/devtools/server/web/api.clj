@@ -51,6 +51,7 @@
         (transform-level))))
 
 (defn open-file [{:keys [config ring-request] :as req}]
+
   (let [data
         (-> req
             (get-in [:ring-request :body])
@@ -61,16 +62,22 @@
         config
 
         result
-        (if-not open-file-command
-          {:exit 1
-           :err "no :open-file-command"}
-          (let [launch-args
-                (server-util/make-open-args data open-file-command)
+        (try
+          (if-not open-file-command
+            {:exit 1
+             :err "no :open-file-command"}
+            (let [launch-args
+                  (server-util/make-open-args data open-file-command)
 
-                result
-                (server-util/launch launch-args {})]
-            (log/debug ::open-file launch-args result)
-            result))]
+                  result
+                  (server-util/launch launch-args {})]
+
+              (log/debug ::open-file launch-args result)
+              result))
+          (catch Exception e
+            {:type :error
+             :ex-msg (.getMessage e)
+             :ex-data (ex-data e)}))]
 
     {:status 200
      :headers {"content-type" "application/edn; charset=utf-8"}

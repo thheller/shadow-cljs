@@ -128,7 +128,7 @@
       (assoc worker-state :build-state build-state))
     (catch Exception e
       (-> worker-state
-          (dissoc :build-state) ;; just in case there is an old one
+          (dissoc :build-state)                                                                     ;; just in case there is an old one
           (build-failure e)))))
 
 (defn build-compile
@@ -159,10 +159,28 @@
         (update-status! worker-state :complete {:build-info build-info})
 
         (assoc worker-state
-               :build-state build-state
-               :last-build-sources build-sources))
+          :build-state build-state
+          :last-build-sources build-sources))
       (catch Exception e
         (build-failure worker-state e)))))
+
+(defn process-repl-result
+  [{:keys [pending-results] :as worker-state} {:keys [id] :as result}]
+
+  ;; forward everything to out as well
+  (>!!output worker-state {:type :repl/result :result result})
+
+  (let [reply-to
+        (get pending-results id)]
+
+    (log/debug ::repl-result id (nil? reply-to) (pr-str result))
+
+    (if (nil? reply-to)
+      worker-state
+
+      (do (>!! reply-to result)
+          (update worker-state :pending-results dissoc id))
+      )))
 
 (defmulti do-proc-control
   (fn [worker-state {:keys [type] :as msg}]
@@ -200,6 +218,27 @@
   [worker-state {:keys [id]}]
   (>!!output worker-state {:type :repl/client-stop :id id})
   (update worker-state :repl-clients dissoc id))
+
+;; messages sent by the loop started in repl-eval-connect
+(defmethod do-proc-control :client-msg
+  [{:keys [pending-results] :as worker-state}
+   {:keys [msg client-out] :as envelope}]
+
+  (case (:type msg)
+    :repl/result
+    (process-repl-result worker-state msg)
+
+    :repl/init-complete
+    worker-state
+
+    :ping
+    (do (>!! client-out {:type :pong :v (:v msg)})
+        worker-state)
+
+    ;; unknown message
+    (do (log/warn "client sent unknown msg" msg)
+        worker-state)
+    ))
 
 (defmethod do-proc-control :start-autobuild
   [{:keys [build-config autobuild] :as worker-state} msg]
@@ -369,27 +408,9 @@
             (>!!output worker-state msg))
           worker-state)))))
 
-(defmethod do-proc-control :repl/result
-  [{:keys [pending-results] :as worker-state}
-   {:keys [result] :as msg}]
 
-  ;; forward everything to out as well
-  (>!!output worker-state msg)
 
-  (let [{:keys [id]}
-        result
 
-        reply-to
-        (get pending-results id)]
-
-    (log/debug ::repl-result id (nil? reply-to) (pr-str result))
-
-    (if (nil? reply-to)
-      worker-state
-
-      (do (>!! reply-to result)
-          (update worker-state :pending-results dissoc id))
-      )))
 
 (defn do-macro-update
   [{:keys [build-state autobuild] :as worker-state} {:keys [macro-namespaces] :as msg}]
@@ -478,19 +499,18 @@
 (defn repl-eval-connect
   [{:keys [proc-stop proc-control] :as proc} client-id client-out]
   {:pre [(proc? proc)]}
-  ;; result-chan
-  ;; creating a new chan here instead of just handing out repl-result
-  ;; closing it is currently the only way to a eval-client can signal a disconnect
-  ;; we will however just pipe messages through as we have nothing useful to do with them
 
-  ;; eval-out
-  ;; FIXME: just piping through but could just talk to client-out directly?
-  (let [result-chan
+  ;; client-in - messages received from the client are put into client-in
+  ;; client-out - direct line to client
+  ;; eval-out - bridge to client-out so we can properly should down this loop
+  (let [client-in
         (async/chan)
 
         eval-out
         (async/chan)]
 
+    ;; each ws gets it own connection loop which just forwards to the main worker
+    ;; to ensure everything is executed in the worker thread.
     (go (>! proc-control {:type :eval-start
                           :client-id client-id
                           :eval-out eval-out})
@@ -500,11 +520,14 @@
             proc-stop
             ([_] nil)
 
-            result-chan
+            client-in
             ([msg]
               (when-not (nil? msg)
-                (>! proc-control {:type :repl/result
-                                  :result msg})
+                (>! proc-control {:type :client-msg
+                                  :client-id client-id
+                                  :client-out client-out
+                                  :eval-out eval-out
+                                  :msg msg})
                 (recur)))
 
             eval-out
@@ -518,9 +541,9 @@
                           :client-id client-id})
 
         (async/close! eval-out)
-        (async/close! result-chan))
+        (async/close! client-in))
 
-    result-chan))
+    client-in))
 
 ;; FIXME: remove these ... just make worker do the stuff directly, this is nonsense
 

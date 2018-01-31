@@ -3,7 +3,8 @@
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [shadow.build.config :as build-config]
-            [shadow.cljs.util :as cljs-util]))
+            [shadow.cljs.util :as cljs-util]
+            [clojure.tools.logging :as log]))
 
 (s/def ::builds (s/map-of keyword? ::build-config/build))
 
@@ -81,18 +82,30 @@
 (defn- getenv [envname]
   (System/getenv envname))
 
-;; FIXME: memoize this!!! (should only repeat this if the config changes)
+(defn read-config [file]
+  (-> file
+      (slurp)
+      (#(edn/read-string {:readers {'shadow/env getenv}} %))
+      ))
+
+(defn load-system-config []
+  (let [file (io/file (System/getProperty "user.home") ".shadow-cljs" "config.edn")]
+    (if-not (.exists file)
+      {}
+      (read-config file)
+      )))
+
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
     (if-not (.exists file)
       default-config
-      (-> file
-          (slurp)
-          (#(edn/read-string {:readers {'shadow/env getenv}} %))
-          (normalize)
-          (->> (merge default-config))
-          (update :builds #(merge default-builds %))
-          ))))
+      (merge
+        (load-system-config)
+        (-> (read-config file)
+            (normalize)
+            (->> (merge default-config))
+            (update :builds #(merge default-builds %))
+            )))))
 
 (defn load-cljs-edn! []
   (let [config (load-cljs-edn)]
