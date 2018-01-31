@@ -6,7 +6,7 @@
     [shadow.cljs.devtools.client.env :as env]
     [shadow.cljs.devtools.client.browser :as browser]
     [cljs.tools.reader :as reader]
-    [cljs.core.async :refer (go)]
+    [cljs.core.async :as async :refer (go)]
     [goog.string.format]
     [goog.string :refer (format)]
     [clojure.string :as str]))
@@ -45,7 +45,55 @@
 
 (def load-id "shadow-hud-loading-container")
 
-(def logo-url (str (env/get-url-base) "/img/shadow-cljs.png"))
+(def logo-svg
+  (let [s-path
+        "M247.183941,141.416413 C247.183941,74.7839971 148.383423,78.9723529 148.383423,141.416413 C148.383423,203.860473 265.090698,171.864644 265.090698,248.900057 C265.090698,325.93547 135,325.851749 135,251.708304"]
+    (dom/svg
+      {:id "shadow-cljs-logo"
+       :version "1.1"
+       :viewBox "0 0 400 400"
+       :style {:display "block"}
+       :height "60px"
+       :width "60px"}
+      [:title "shadow-cljs"]
+      [:defs
+       [:mask#shadow-cljs-logo-mask {:fill "#fff"}
+        [:circle {:r "200" :cy "200" :cx "200"}]]]
+      [:g
+       {:fill-rule "evenodd"
+        :fill "none"
+        :stroke-width "0"
+        :stroke "none"
+        :mask "url(#shadow-cljs-logo-mask)"}
+
+       [:g.circles
+        [:circle.blue {:r "200" :cy "200" :cx "200" :fill "#4F80DF"}]
+        [:circle.light-blue {:r "71.5" :cy "200" :cx "370" :fill "#89B4FF"}]
+        [:circle.dark-green {:r "180" :cy "360" :cx "60" :fill "#40B400"}]
+        [:circle.light-green {:r "129" :cy "320" :cx "280" :fill "#76E013"}]
+        [:animateTransform
+         {:attributeType "xml"
+          :attributeName "transform"
+          :type "rotate"
+          :from "0 200 200"
+          :to "360 200 200"
+          :dur "3s"
+          :repeatCount "indefinite"}]]
+
+       ;; S shadow
+       [:g {:transform "translate(10,10)"}
+        [:path
+         {:stroke-linecap "square"
+          :stroke-width "16"
+          :stroke "#aaa"
+          :d s-path}]]
+       ;; S
+       [:path
+        {:stroke-linecap "square"
+         :stroke-width "16"
+         :stroke "#FFFFFF"
+         :d s-path}]
+       ])))
 
 (defn load-start []
   (dom-insert
@@ -58,16 +106,13 @@
                    :border-top-right-radius "40px"
                    :border-bottom-right-radius "40px"
                    :padding "10px"}}
-
-
-     [:img {:style {:display "block"}
-            :src logo-url
-            :width 60}]]))
+     logo-svg]))
 
 (defn load-end-success []
   (when-some [el (dom/by-id load-id)]
-    (go (<! (anim/start 250 {el (anim/transition :background "#eee" "#b0c975")}))
-        (<! (anim/start 250 {el (anim/transition :opacity "1" "0")}))
+    (anim/start 500 {el (anim/transition :background "#eee" "#40B400" "ease-out")})
+    (go (<! (async/timeout 250))
+        (<! (anim/start 250 {el (anim/transition :opacity "1" "0" "ease-in")}))
         (dom/remove el)
         )))
 
@@ -86,7 +131,7 @@
 
 (def source-highlight-styles
   (assoc source-line-styles
-         :font-weight "bold"))
+    :font-weight "bold"))
 
 (defn source-line-html
   [start-idx lines styles]
