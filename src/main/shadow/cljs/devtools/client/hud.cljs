@@ -99,22 +99,25 @@
   (dom-insert
     [:div {:id load-id
            :style {:position "absolute"
-                   :background "#eee"
                    :pointer-events "none"
                    :left "0px"
-                   :bottom "20px"
-                   :border-top-right-radius "40px"
-                   :border-bottom-right-radius "40px"
-                   :padding "10px"}}
-     logo-svg]))
+                   :bottom "20px"}}
+     [:div {:style {:background "#eee"
+                    :border-top-right-radius "40px"
+                    :border-bottom-right-radius "40px"
+                    :box-shadow "2px 2px 10px #aaa"
+                    :padding "10px"}}
+      logo-svg]]))
 
 (defn load-end-success []
-  (when-some [el (dom/by-id load-id)]
-    (anim/start 500 {el (anim/transition :background "#eee" "#40B400" "ease-out")})
-    (go (<! (async/timeout 250))
-        (<! (anim/start 250 {el (anim/transition :opacity "1" "0" "ease-in")}))
-        (dom/remove el)
-        )))
+  (when-some [container-el (dom/by-id load-id)]
+    (let [el (.-firstChild container-el)]
+      (anim/start 500 {el (anim/transition :background "#eee" "#40B400" "ease-out")})
+      (go (<! (async/timeout 250))
+          (<! (anim/start 250 {el (anim/transition :opacity "1" "0" "ease-in")}))
+          (dom/remove container-el)
+
+          ))))
 
 (defn load-end []
   (when-some [el (dom/by-id load-id)]
