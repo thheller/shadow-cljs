@@ -417,8 +417,7 @@
 
       (spit
         (io/file output-dir "bundle-info.edn")
-        (with-out-str
-          (pprint bundle-info))))
+        (pr-str bundle-info)))
 
     :done
     ))
