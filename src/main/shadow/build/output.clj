@@ -530,7 +530,7 @@
 (defn js-module-env
   [state {:keys [runtime] :or {runtime :node} :as config}]
   (str "var $CLJS = {};\n"
-       "var CLJS_GLOBAL = process.browser ? window : global;\n"
+       "var CLJS_GLOBAL = process.browser ? (typeof(window) != 'undefined' ? window : self) : global;\n"
        ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
        "var CLOSURE_DEFINES = $CLJS.CLOSURE_DEFINES = " (closure-defines-json state) ";\n"
        "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
