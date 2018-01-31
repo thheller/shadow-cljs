@@ -781,6 +781,16 @@
     (prn (util/make-open-args data ["emacsclient" ["%s:%s:%s" :file :line :column]]))
     ))
 
+(deftest test-open-file-command-wsl
+  (let [data
+        {:file "/mnt/c/Users/someone/code/foo/bar.cljs"
+         :line 123
+         :column 3}]
+
+    (prn (util/make-open-args data ["idea" :wsl-pwd :wsl-file "--line" :line]))
+
+    ))
+
 (deftest test-build-info
   (let [{info :shadow.build/build-info :as x}
         (api/compile*

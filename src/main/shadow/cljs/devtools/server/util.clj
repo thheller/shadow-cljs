@@ -195,6 +195,11 @@
               (.printStackTrace e *err*))))
         (recur buf)))))
 
+(defn wsl-ify [path]
+  (-> path
+      (str/replace "/mnt/c/" "C:\\")
+      (str/replace "/" "\\")))
+
 (defn make-open-arg
   [{:keys [file line column] :as data} opt]
   (cond
@@ -212,6 +217,14 @@
     (= opt :pwd)
     (-> (io/file "")
         (.getAbsolutePath))
+
+    (= opt :wsl-pwd)
+    (-> (io/file "")
+        (.getAbsolutePath)
+        (wsl-ify))
+
+    (= opt :wsl-file)
+    (wsl-ify file)
 
     (= opt :file)
     file
