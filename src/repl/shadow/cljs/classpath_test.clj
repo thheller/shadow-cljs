@@ -39,7 +39,7 @@
 
     (is (= 1 (count externs)))
     (is (= 1 (count foreign-libs)))
-    (is (= 2 (count resources)))
+    (is (= 6 (count resources)))
     (pprint resources)
     ))
 
@@ -90,11 +90,16 @@
     ))
 
 (deftest test-all
-  (let [x (-> (cp/start (io/file "target" "classpath-test"))
-              (cp/index-classpath))]
-    (doseq [[path externs] (cp/get-deps-externs x)
-            {:keys [resource-name url] :as ext} externs]
-      (prn [:ext resource-name url]))
+  (let [{:keys [index-ref] :as x}
+        (-> (cp/start (io/file "target" "classpath-test"))
+              (cp/index-classpath))
+
+        y
+        (get-in @index-ref [:sources "shadow/js.js"])]
+    (pprint y)
+    #_(doseq [[path externs] (cp/get-deps-externs x)
+              {:keys [resource-name url] :as ext} externs]
+        (prn [:ext resource-name url]))
     ))
 
 

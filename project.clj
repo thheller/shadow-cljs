@@ -8,9 +8,11 @@
   {"clojars" {:url "https://clojars.org/repo"
               :sign-releases false}}
 
-  :java-opts ~(if (-> (System/getProperty "java.version") (.startsWith "9."))
-                ["--add-modules" "java.xml.bind"]
-                [])
+  :java-opts
+  ~(-> ["-Dfile.encoding=UTF-8"]
+     (cond->
+       (-> (System/getProperty "java.version") (.startsWith "9."))
+       (conj "--add-modules" "java.xml.bind")))
 
   :javac-options
   ["-target" "1.8"
@@ -98,4 +100,5 @@
     []
     :source-paths
     ["src/dev"
+     "src/gen"
      "src/test"]}})

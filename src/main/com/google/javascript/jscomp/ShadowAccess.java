@@ -42,7 +42,10 @@ public class ShadowAccess {
         // FIXME: should it?
         builder.setTagAsStrict(false);
         return builder.build();
+    }
 
+    public static void ensureLibraryInjected(AbstractCompiler comp, String name) {
+        comp.ensureLibraryInjected(name, true);
     }
 
     // generate without source map info

@@ -3,8 +3,7 @@
     [clojure.edn :as edn]
     [clojure.java.io :as io]
     [cognitect.transit :as transit]
-    #_ [shadow.cljs.devtools.server.fs-watch :as fs-watch]
-    [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch-hawk]
+    [shadow.cljs.devtools.server.fs-watch :as fs-watch]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.server.system-msg :as sys-msg]
     [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
@@ -117,7 +116,7 @@
    :cljs-watch
    {:depends-on [:classpath :system-bus]
     :start (fn [classpath system-bus]
-             (fs-watch-hawk/start
+             (fs-watch/start
                (->> (build-classpath/get-classpath-entries classpath)
                     (filter #(.isDirectory %))
                     (into []))
@@ -125,4 +124,4 @@
                ["cljs" "cljc" "js"]
                #(system-bus/publish! system-bus ::sys-msg/cljs-watch {:updates %})
                ))
-    :stop fs-watch-hawk/stop}})
+    :stop fs-watch/stop}})

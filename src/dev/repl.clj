@@ -1,5 +1,6 @@
 (ns repl
   (:require [shadow.cljs.devtools.server :as server]
+            [shadow.cljs.devtools.api :as cljs]
             [shadow.cljs.devtools.cli]))
 
 (defn start []
@@ -8,7 +9,7 @@
   (server/start!)
   ;; (server/start-worker :cli)
   ;; (server/start-worker :ui)
-  ;; (server/start-worker :browser)
+  ;; (cljs/watch :browser {:verbose true})
   ::started)
 
 (defn stop []

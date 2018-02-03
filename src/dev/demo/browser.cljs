@@ -10,6 +10,7 @@
     ["./es6.js" :as es6]
     ["./foo" :as foo]
     ["circular-test" :as circ]
+    ["/demo/myComponent" :refer (myComponent)]
     [cljs.test :refer (deftest)]
     ))
 
@@ -23,13 +24,13 @@
 
 (es6/someAsyncFn (js/fetch "/index.html"))
 
+(js/console.log "JSX" (myComponent))
+
 (pprint [1 2 3])
 
 (assoc nil :foo 1)
 
 (js/console.log "es6" (es6/foo "es6"))
-
-(goog-define FOO "foo")
 
 ;; (defn x 1)
 
@@ -47,7 +48,7 @@
 
 (js/console.log "babel-test" babel-test (Shape. 1 1))
 
-(js/console.log "foo" FOO foo)
+(js/console.log "foo" foo)
 
 (js/console.log "circular - not yet" (circ/test))
 (js/console.log "circular - actual" (circ/foo))

@@ -1,84 +1,27 @@
 (ns shadow.cljs.devtools.server.fs-watch
-  (:require [shadow.build.api :as cljs]
-            [clojure.core.async :as async :refer (alt!! thread >!!)]
-            [shadow.cljs.devtools.server.util :as util]
-            [shadow.cljs.devtools.server.system-bus :as system-bus]
-            [shadow.cljs.devtools.server.system-msg :as system-msg]
-            [clojure.java.io :as io]
-            [clojure.string :as str])
-  (:import (shadow.util FileWatcher)
-           (java.io File)))
+  (:require [clojure.tools.logging :as log]
+            [clojure.string :as str]))
 
-
-(defn service? [x]
-  (and (map? x)
-       (::service x)))
-
-(defn poll-changes [{:keys [dir watcher]}]
-  (let [changes (.pollForChanges watcher)]
-    (when (seq changes)
-      (->> changes
-           (map (fn [[name event]]
-                  {:dir dir
-                   :name name
-                   :ext (when-let [x (str/index-of name ".")]
-                          (subs name (inc x)))
-                   :file (io/file dir name)
-                   :event event}))
-           ;; ignore empty files
-           (remove (fn [{:keys [file]}]
-                     (zero? (.length file))))
-           ))))
-
-(defn watch-loop
-  [watch-dirs control publish-fn]
-
-  (loop []
-    (alt!!
-      control
-      ([_]
-        :terminated)
-
-      (async/timeout 500)
-      ([_]
-        (let [fs-updates
-              (->> watch-dirs
-                   (mapcat poll-changes)
-                   (into []))]
-
-          (when (seq fs-updates)
-            (publish-fn fs-updates))
-
-          (recur)))))
-
-  ;; shut down watchers when loop ends
-  (doseq [{:keys [watcher]} watch-dirs]
-    (.close watcher))
-
-  ::shutdown-complete)
+(def os-name (System/getProperty "os.name"))
 
 (defn start [directories file-exts publish-fn]
-  {:pre [(every? #(instance? File %) directories)
-         (coll? file-exts)
-         (every? string? file-exts)]}
-  (let [control
-        (async/chan)
+  (let [ns-sym
+        (if (str/includes? os-name "Windows")
+          ;; jvm on windows supports watch fine
+          'shadow.cljs.devtools.server.fs-watch-jvm
+          ;; macOS doesn't have native support so it uses polling
+          ;; which means 2sec delay, hawk does the native stuff
+          ;; so its a lot faster but doesn't properly support delete
+          'shadow.cljs.devtools.server.fs-watch-hawk)]
 
-        watch-dirs
-        (->> directories
-             (map (fn [dir]
-                    {:dir dir
-                     :watcher (FileWatcher/create dir (vec file-exts))}))
-             (into []))]
+    (log/debugf "fs-watch using %s" ns-sym)
 
-    {::service true
-     :control control
-     :watch-dirs watch-dirs
-     :thread (thread (watch-loop watch-dirs control publish-fn))}))
+    (require ns-sym)
 
-(defn stop [{:keys [control thread] :as svc}]
-  {:pre [(service? svc)]}
-  (async/close! control)
-  (async/<!! thread))
+    (let [start-var (ns-resolve ns-sym 'start)]
+      (-> (start-var directories file-exts publish-fn)
+          (assoc ::ns ns-sym)))))
 
-
+(defn stop [{::keys [ns] :as svc}]
+  (let [stop-var (ns-resolve ns 'stop)]
+    (stop-var svc)))

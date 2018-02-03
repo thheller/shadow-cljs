@@ -358,18 +358,12 @@
 (defn find-file
   [{:keys [project-dir] :as npm} ^File require-from ^String require]
   (cond
-    ;; absolute is relative to the project, no outside dependencies are allowed
     (util/is-absolute? require)
-    (let [file (io/file project-dir (subs require 1))]
-      (when-not (and (.exists file)
-                     (.isFile file))
-        (throw (ex-info "absolute require not found"
-                 {:tag ::not-found
-                  :require-from require-from
-                  :require require
-                  :file file})))
-
-      file)
+    (throw (ex-info "absolute require not allowed for node_modules files"
+             {:tag ::absolute-path
+              :require-from require-from
+              :require require}
+             ))
 
     (util/is-relative? require)
     (find-relative npm require-from require)
@@ -780,6 +774,7 @@
                :packages {}
                :package-json-cache {}})
 
+        ;; FIXME: share this with classpath
         co
         (doto (CompilerOptions.)
           ;; FIXME: good idea to disable ALL warnings?

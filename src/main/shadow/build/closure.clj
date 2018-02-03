@@ -327,18 +327,18 @@
 
         content
         (str "/** @constructor */\nfunction ShadowJS() {};\n"
-             (->> js-globals
-                  (remove known-js-globals)
-                  (map cljs-comp/munge)
-                  (sort)
-                  (map #(str "/** @const {ShadowJS} */ var " % ";"))
-                  (str/join "\n"))
-             "\n"
-             (->> js-props
-                  (sort)
-                  (map cljs-comp/munge)
-                  (map #(str "ShadowJS.prototype." % ";"))
-                  (str/join "\n")))]
+          (->> js-globals
+               (remove known-js-globals)
+               (map cljs-comp/munge)
+               (sort)
+               (map #(str "/** @const {ShadowJS} */ var " % ";"))
+               (str/join "\n"))
+          "\n"
+          (->> js-props
+               (sort)
+               (map cljs-comp/munge)
+               (map #(str "ShadowJS.prototype." % ";"))
+               (str/join "\n")))]
 
     ;; not actually required but makes it easier to verify
     (let [file (data/cache-file state "externs.shadow.js")]
@@ -597,7 +597,7 @@
 
 (def constants-inject
   (str "function shadow$keyword(name, hash) { return new cljs.core.Keyword(null, name, name, hash); };\n"
-       "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
+    "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
 
 (defn make-js-modules
   [{:keys [build-modules closure-configurators compiler-options build-sources polyfill-js] :as state}]
@@ -669,14 +669,14 @@
                       (cond
                         (= "goog/base.js" resource-name)
                         (str (output/closure-defines state)
-                             polyfill-js
-                             js
-                             goog-nodeGlobalRequire-fix)
+                          polyfill-js
+                          js
+                          goog-nodeGlobalRequire-fix)
 
                         (= :shadow-js type)
                         (str (when (contains? required-js-names ns)
                                (str "goog.provide(\"" ns "\");\n"
-                                    ns " = " (npm/shadow-js-require rc))))
+                                 ns " = " (npm/shadow-js-require rc))))
 
                         :else
                         js)]
@@ -746,13 +746,13 @@
                   code
                   (str (when base?
                          (output/closure-defines state))
-                       js
-                       (when base?
-                         (str goog-nodeGlobalRequire-fix
-                              "\ngoog.global = global;"))
-                       ;; FIXME: module.exports will become window.module.exports, rewritten later
-                       (when (seq defs)
-                         defs))
+                    js
+                    (when base?
+                      (str goog-nodeGlobalRequire-fix
+                        "\ngoog.global = global;"))
+                    ;; FIXME: module.exports will become window.module.exports, rewritten later
+                    (when (seq defs)
+                      defs))
 
                   js-mod
                   (JSModule. (util/flat-filename output-name))]
@@ -907,13 +907,13 @@
       (str (format "--module %s:%d"
              (.getName js-mod)
              (count (.getInputs js-mod)))
-           (let [deps (.getDependencies js-mod)]
-             (when (seq deps)
-               (format ":%s" (->> deps
-                                  (map #(.getName %))
-                                  (str/join ",")))))
-           " \\"
-           ))
+        (let [deps (.getDependencies js-mod)]
+          (when (seq deps)
+            (format ":%s" (->> deps
+                               (map #(.getName %))
+                               (str/join ",")))))
+        " \\"
+        ))
 
     (doseq [input (.getInputs js-mod)]
       (println (format "--js %s \\" (.getName input))))))
@@ -1147,9 +1147,13 @@
 (def polyfill-name
   "SHADOW$POLYFILL.js")
 
-(defmethod build-log/event->str ::convert
+(defmethod build-log/event->str ::closure-convert
   [{:keys [num-sources] :as event}]
-  (format "Converting %d JS sources" num-sources))
+  (format "Closure JS converting %d JS sources" num-sources))
+
+(defmethod build-log/event->str ::shadow-convert
+  [{:keys [num-sources] :as event}]
+  (format "Shadow JS converting %d JS sources" num-sources))
 
 (defn replace-file-references
   "extremely hacky way to escape the mess that is NODE ModuleResolver
@@ -1188,16 +1192,24 @@
                     (throw (ex-info (format "can't map require \"%s\" to resource %s of type %s" string resource-name type) {})))]
 
               (str (subs source 0 (inc offset))
-                   replacement
-                   (subs source (+ 1 offset (count string))))
+                replacement
+                (subs source (+ 1 offset (count string))))
               ))))
       source
       ;; must start at the end since we are inserting longer strings
       (reverse js-str-offsets))))
 
-(defn convert-sources
-  "takes a list of :js sources and rewrites them to closure JS"
-  [{:keys [project-dir npm mode] :as state} sources]
+(def injected-libraries-field
+  (doto (-> (make-closure-compiler)
+            (.getClass)
+            (.getDeclaredField "injectedLibraries"))
+    (.setAccessible true)))
+
+(defn convert-sources*
+  "takes a list of :js sources and rewrites them to using closure
+   partial compiles must supply the cached sources so closure doesn't complain about things
+   it cannot resolve"
+  [{:keys [project-dir npm mode] :as state} sources cached-sources]
 
   (let [source-files
         (for [{:keys [resource-name file] :as src} sources]
@@ -1229,12 +1241,18 @@
         source-file-names
         (into #{} (map #(.getName %)) source-files)
 
+        cached-source-files
+        (for [{:keys [resource-name] :as src} cached-sources
+              :let [{:keys [js] :as output} (data/get-output! state src)]]
+          (closure-source-file resource-name js))
+
         source-files
         ;; closure prepends polyfills to the first resource
         ;; adding an empty placeholder ensures we can take them out easily
         (-> [(closure-source-file polyfill-name "")]
             ;; then add all resources
             (into shadow-js-files)
+            (into cached-source-files)
             (into source-files))
 
         ;; this includes all files (sources + package.json files)
@@ -1288,9 +1306,33 @@
 
         result
         (try
-          (util/with-logged-time [state {:type ::convert
-                                         :num-sources (count source-files)}]
-            (.compile cc default-externs source-files co))
+          (util/with-logged-time [state {:type ::closure-convert
+                                         :num-sources (count sources)}]
+
+            ;; replicating the .compile method since we need to
+            ;; ensure the proper polyfills are re-injected from cache
+            ;; so they don't get lost
+            (try
+              (.init cc default-externs source-files co)
+              (when-not (.hasErrors cc)
+                (.parseForCompilation cc)
+
+                (when-not (.hasErrors cc)
+
+                  ;; re-injected polyfills even if they are only
+                  ;; used by the cached sources as we take them out
+                  ;; in one chunk to ensure they are ordered correctly
+                  (doseq [lib (::injected-libs state)]
+                    (ShadowAccess/ensureLibraryInjected cc lib))
+
+                  (.stage1Passes cc)
+                  (when-not (.hasErrors cc)
+                    (.stage2Passes cc))
+                  (.performPostCompilationTasks cc)))
+              (finally
+                (.generateReport cc)))
+
+            (.getResult cc))
           ;; catch internal closure errors
           (catch Exception e
             (throw (ex-info "failed to convert sources"
@@ -1299,12 +1341,18 @@
                      e))))
 
         source-map
-        (.getSourceMap cc)]
+        (.getSourceMap cc)
+
+        injected-libs
+        (-> (.get injected-libraries-field cc)
+            (keys)
+            (into #{}))]
 
     (throw-errors! state cc result)
 
     (-> state
         (log-warnings cc result)
+        (assoc ::injected-libs injected-libs)
         (util/reduce->
           (fn [state source-node]
             (.reset source-map)
@@ -1340,8 +1388,13 @@
                                          :let [{:keys [type ns] :as dep} (data/get-source-by-provide state dep-sym)]
                                          :when (= :shadow-js type)]
                                      dep)
-                                   (map (fn [{:keys [ns] :as rc}]
-                                          (str "var " ns " = " (npm/shadow-js-require rc))))
+                                   (map (fn [{:keys [ns] :as require-rc}]
+                                          (str "var " ns " = "
+                                            ;; if the source file is ES6 closure will rewrite import
+                                            ;; to .default access
+                                            (if (seq (:js-imports rc))
+                                              (str "shadow.js.requireModule(\"" ns "\");")
+                                              (npm/shadow-js-require require-rc)))))
                                    (str/join "\n"))]
                           (when (seq shadow-js-deps)
                             (str shadow-js-deps "\n"))))
@@ -1366,13 +1419,14 @@
 
                       output
                       {:resource-id resource-id
+                       :compiled-at (System/currentTimeMillis)
                        :js (str js
-                                ;; closure only declares var module$src$dev$demo$es6 = {};
-                                ;; but since we are in separate files that var is not available globally
-                                ;; in node envs. this doesn't hurt the browser so its fine.
-                                ;; dont need it in release since everything is one file after
-                                (when (= :dev mode)
-                                  (str "\ngoog.global." ns "=" ns ";")))
+                             ;; closure only declares var module$src$dev$demo$es6 = {};
+                             ;; but since we are in separate files that var is not available globally
+                             ;; in node envs. this doesn't hurt the browser so its fine.
+                             ;; dont need it in release since everything is one file after
+                             (when (= :dev mode)
+                               (str "\ngoog.global." ns "=" ns ";")))
                        :source (.getCode source-file)
                        :source-map-json sm-json}]
 
@@ -1381,6 +1435,106 @@
           (->> (ShadowAccess/getJsRoot cc)
                (.children) ;; the inputs
                )))))
+
+;; unfortunately we can't do caching for this since the closure compiler
+;; doesn't do incremental compiles well. it will attempt to resolve
+;; deps which is a problem when we don't pass in everything.
+;; if we pass in the compiled code and only recompile what is needed
+;; the polyfills won't match up and since we only get them as a complete
+;; string...
+(defn convert-sources
+  "convert and caches closure js sources"
+  [state sources]
+  (let [cache-index-file
+        (data/cache-file state "closure-js" "index.json.transit")
+
+        cache-index
+        (or (::closure-js-cache state)
+            ;; read from disk
+            (and (.exists cache-index-file)
+                 (cache/read-cache cache-index-file))
+            ;; ensure that at least the directoy exists so we can write files into it later
+            (do (io/make-parents cache-index-file)
+                {}))
+
+        cache-files
+        (if (not= SHADOW-TIMESTAMP (:SHADOW-TIMESTAMP cache-index))
+          ;; invalidate all cache when the timestamp of this file has changed
+          []
+          ;; compare each cache key
+          (->> (for [{:keys [resource-id cache-key] :as src} sources
+                     :when (= cache-key (get cache-index resource-id))]
+                 src)
+               ;; need to preserve order for later
+               (into [])))
+
+        cache-files-set
+        (into #{} (map :resource-id) cache-files)
+
+        recompile-sources
+        (->> sources
+             (remove #(contains? cache-files-set (:resource-id %)))
+             (into []))
+
+        need-compile?
+        (boolean (seq recompile-sources))
+
+        ;; restore cached output so the convert can use it
+        state
+        (if-not (seq cache-files)
+          state
+          (util/with-logged-time [state {:type ::closure-cache-read
+                                         :num-files (count sources)}]
+            (-> state
+                (assoc ::injected-libs (:injected-libs cache-index)
+                       :polyfill-js (:polyfill-js cache-index))
+                (util/reduce->
+                  (fn [state {:keys [resource-id output-name] :as cached-rc}]
+                    (if (get-in state [:output resource-id])
+                      state
+                      (let [cache-file
+                            (data/cache-file state "closure-js" output-name)
+
+                            {:keys [actual-requires] :as cached-output}
+                            (-> (cache/read-cache cache-file)
+                                (assoc :cached true))]
+
+                        (assoc-in state [:output resource-id] cached-output)
+                        )))
+                  cache-files))))
+
+        state
+        (if-not need-compile?
+          state
+          (convert-sources* state recompile-sources cache-files))
+
+        cache-index-updated
+        (if-not need-compile?
+          cache-index
+          (util/with-logged-time [state {:type ::closure-cache-write
+                                         :num-files (count recompile-sources)}]
+            (-> cache-index
+                (assoc :SHADOW-TIMESTAMP SHADOW-TIMESTAMP
+                       :polyfill-js (:polyfill-js state)
+                       :injected-libs (::injected-libs state))
+                (util/reduce->
+                  (fn [idx {:keys [cache-key resource-id output-name] :as compiled-src}]
+                    (let [output
+                          (data/get-output! state compiled-src)
+
+                          cache-file
+                          (data/cache-file state "closure-js" output-name)]
+
+                      (cache/write-file cache-file output)
+
+                      (assoc idx resource-id cache-key)))
+                  recompile-sources))))]
+
+    (when need-compile?
+      (cache/write-file cache-index-file cache-index-updated))
+
+    (assoc state ::closure-js-cache cache-index-updated)
+    ))
 
 (defn require-replacement-map [{:keys [str->sym sym->id] :as state}]
   (reduce-kv
@@ -1401,10 +1555,10 @@
                (let [source (data/get-source-code state src)]
                  (closure-source-file resource-name
                    (str "shadow$provide[\"" ns "\"] = function(global,require,module,exports) {\n"
-                        (if (str/ends-with? resource-name ".json")
-                          (str "module.exports=(" source ");")
-                          source)
-                        "\n};"))))
+                     (if (str/ends-with? resource-name ".json")
+                       (str "module.exports=(" source ");")
+                       source)
+                     "\n};"))))
              #_(map #(do (println (.getCode %)) %))
              (into []))
 
@@ -1477,8 +1631,8 @@
 
         result
         (try
-          (util/with-logged-time [state {:type ::convert
-                                         :num-sources (count source-files)}]
+          (util/with-logged-time [state {:type ::shadow-convert
+                                         :num-sources (count sources)}]
             (.compile cc [] source-files closure-opts))
           ;; catch internal closure errors
           (catch Exception e
@@ -1563,13 +1717,21 @@
                (.children) ;; the inputs
                )))))
 
-(defmethod build-log/event->str ::cache-read
+(defmethod build-log/event->str ::closure-cache-read
   [{:keys [num-files]}]
-  (format "JS Cache read: %d JS files" num-files))
+  (format "Closure JS Cache read: %d JS files" num-files))
 
-(defmethod build-log/event->str ::cache-write
+(defmethod build-log/event->str ::closure-cache-write
   [{:keys [num-files]}]
-  (format "JS Cache write: %d JS files" num-files))
+  (format "Closure JS Cache write: %d JS files" num-files))
+
+(defmethod build-log/event->str ::shadow-cache-read
+  [{:keys [num-files]}]
+  (format "Shadow JS Cache read: %d JS files" num-files))
+
+(defmethod build-log/event->str ::shadow-cache-write
+  [{:keys [num-files]}]
+  (format "Shadow JS Cache write: %d JS files" num-files))
 
 (defn convert-sources-simple
   "convert and caches"
@@ -1578,21 +1740,27 @@
         (data/cache-file state "shadow-js" "index.json.transit")
 
         cache-index
-        (if (.exists cache-index-file)
-          (cache/read-cache cache-index-file)
-          ;; ensure that at least the directoy exists so we can write files into it later
-          (do (io/make-parents cache-index-file)
-              {}))
+        (or (::shadow-js-cache state)
+            ;; read from disk
+            (and (.exists cache-index-file)
+                 (cache/read-cache cache-index-file))
+            ;; ensure that at least the directoy exists so we can write files into it later
+            (do (io/make-parents cache-index-file)
+                {}))
 
         cache-files
-        (->> (for [{:keys [resource-id cache-key] :as src} sources
-                   ;; FIXME: this should probably check if the file exists
-                   ;; never should delete individual cached files without also removing the index though
-                   :when (and (= SHADOW-TIMESTAMP (:SHADOW-TIMESTAMP cache-index))
-                              (= cache-key (get cache-index resource-id)))]
-               src)
-             ;; need to preserve order for later
-             (into []))
+        (if (not= SHADOW-TIMESTAMP (:SHADOW-TIMESTAMP cache-index))
+          ;; invalidate all cache when the timestamp of this file has changed
+          []
+          ;; compare each cache key
+          (->> (for [{:keys [resource-id cache-key] :as src} sources
+                     ;; FIXME: this should probably check if the file exists
+                     ;; never should delete individual cached files without also removing the index though
+                     :let [_ (log/debug resource-id (= cache-key (get cache-index resource-id)))]
+                     :when (= cache-key (get cache-index resource-id))]
+                 src)
+               ;; need to preserve order for later
+               (into [])))
 
         cache-files-set
         (into #{} (map :resource-id) cache-files)
@@ -1613,7 +1781,7 @@
         cache-index-updated
         (if-not need-compile?
           cache-index
-          (util/with-logged-time [state {:type ::cache-write
+          (util/with-logged-time [state {:type ::shadow-cache-write
                                          :num-files (count recompile-sources)}]
             (reduce
               (fn [idx {:keys [cache-key resource-id output-name] :as compiled-src}]
@@ -1635,7 +1803,7 @@
     (let [state
           (if-not (seq cache-files)
             state
-            (util/with-logged-time [state {:type ::cache-read
+            (util/with-logged-time [state {:type ::shadow-cache-read
                                            :num-files (count cache-files)}]
               (reduce
                 (fn [state {:keys [resource-id output-name] :as cached-rc}]
@@ -1675,6 +1843,7 @@
                   :dead-js-deps #{}}))]
 
       (assoc state
+        ::shadow-js-cache cache-index-updated
         :js-properties js-properties
         :dead-js-deps dead-js-deps
         :live-js-deps live-js-deps)

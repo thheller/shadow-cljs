@@ -10,7 +10,7 @@
             [shadow.cljs.devtools.server.web.common :as common]
             [shadow.build.classpath :as cp]
             [shadow.build.npm :as npm]
-            [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch-hawk]
+            [shadow.cljs.devtools.server.fs-watch :as fs-watch]
             [shadow.build.babel :as babel])
   (:import (java.util UUID)))
 
@@ -243,7 +243,7 @@
                      (let [watch-dir (io/file watch-dir)]
                        (when-not (.exists watch-dir)
                          (io/make-parents (io/file watch-dir "dummy.html")))
-                       (fs-watch-hawk/start [watch-dir] watch-exts #(async/>!! asset-update %))))))]
+                       (fs-watch/start [watch-dir] watch-exts #(async/>!! asset-update %))))))]
 
     (sys-bus/sub system-bus ::sys-msg/resource-update resource-update)
     (sys-bus/sub system-bus ::sys-msg/macro-update macro-update)
@@ -263,6 +263,6 @@
 (defn stop [{:keys [fs-watch] :as proc}]
   {:pre [(impl/proc? proc)]}
   (when fs-watch
-    (fs-watch-hawk/stop fs-watch))
+    (fs-watch/stop fs-watch))
   (async/close! (:proc-stop proc))
   (<!! (:thread-ref proc)))

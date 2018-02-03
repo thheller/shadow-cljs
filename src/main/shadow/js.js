@@ -89,3 +89,9 @@ shadow.js.require = function(name, opts) {
   return exports;
 };
 
+shadow.js.requireModule = function(name) {
+  return {
+    "default": shadow.js.require(name, {})
+  };
+}
+

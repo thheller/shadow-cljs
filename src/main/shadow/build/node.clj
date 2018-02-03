@@ -113,10 +113,11 @@
               [prepend
 
                ;; this is here and not in boostrap since defines already accesses them
-               (str "var SHADOW_IMPORT_PATH = \""
+               (str "var SHADOW_IMPORT_PATH = "
                     (-> (data/output-file state cljs-runtime-path)
-                        (.getAbsolutePath))
-                    "\";")
+                        (.getAbsolutePath)
+                        (pr-str))
+                    ";")
 
                (when source-map
                  (str "try {"

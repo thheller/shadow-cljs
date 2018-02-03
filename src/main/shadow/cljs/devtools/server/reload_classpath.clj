@@ -21,7 +21,7 @@
 (defn process-update
   [{:keys [classpath] :as state} {:keys [event name file dir ext] :as fs-update}]
   (try
-    (log/debugf "classpath update %s" file)
+    (log/debugf "classpath update [%s] %s" event file)
 
     (case event
       :mod
@@ -52,6 +52,7 @@
              ;; may have been filtered out
              (remove nil?)
              (map :resource-id)
+             (distinct)
              (into []))]
 
     (sys-bus/publish! system-bus ::sys-msg/resource-update {:resources resources})

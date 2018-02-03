@@ -16,43 +16,136 @@
             [shadow.build.ns-form :as ns-form]
             [shadow.build.config :as config]
             [shadow.build.cljs-bridge :as cljs-bridge]
-            )
-  (:import (com.google.javascript.jscomp.deps JsFileParser)
-           (java.io StringReader PushbackReader File)
+            [shadow.build.npm :as npm])
+  (:import (java.io StringReader PushbackReader File)
            (java.util.jar JarFile JarEntry)
            (java.net URL)
            (java.util.zip ZipException)
-           (shadow.build.closure ErrorCollector)))
+           (shadow.build.closure ErrorCollector JsInspector)
+           [java.nio.file Paths]
+           [com.google.javascript.jscomp CompilerOptions$LanguageMode CompilerOptions SourceFile]
+           [com.google.javascript.jscomp.deps ModuleNames]))
 
 (def CACHE-TIMESTAMP (System/currentTimeMillis))
 
 (defn service? [x]
   (and (map? x) (::service x)))
 
-(defn inspect-goog [state {:keys [resource-name url] :as rc}]
-  (let [errors-ref
-        (ErrorCollector.)
+#_(defn inspect-goog [state {:keys [resource-name url] :as rc}]
+    (let [errors-ref
+          (ErrorCollector.)
 
-        deps-info
-        (-> (doto (JsFileParser. errors-ref)
-              (.setIncludeGoogBase true))
-            (.parseFile resource-name resource-name (slurp url)))
+          deps-info
+          (-> (doto (JsFileParser. errors-ref)
+                (.setIncludeGoogBase true))
+              (.parseFile resource-name resource-name (slurp url)))
 
-        ;; will be "es6" if it finds import/export, we filter those later
-        module-type
-        (-> deps-info (.getLoadFlags) (.get "module"))
+          ;; will be "es6" if it finds import/export, we filter those later
+          module-type
+          (-> deps-info (.getLoadFlags) (.get "module"))
 
-        deps
-        (into [] (map util/munge-goog-ns) (.getRequires deps-info))
+          deps
+          (into [] (map util/munge-goog-ns) (.getRequires deps-info))
 
-        provides
-        (into #{} (map util/munge-goog-ns) (.getProvides deps-info))]
+          provides
+          (into #{} (map util/munge-goog-ns) (.getProvides deps-info))]
 
-    (assoc rc
-      :deps deps
-      :requires (into #{} deps)
-      :provides provides
-      :module-type (or module-type "goog"))))
+      (assoc rc
+        :deps deps
+        :requires (into #{} deps)
+        :provides provides
+        :module-type (or module-type "goog"))))
+
+(defn inspect-js [{:keys [compiler] :as state} {:keys [resource-name url] :as rc}]
+  (let [source
+        (slurp url)
+
+        ;; all requires are collected into
+        ;; :js-requires ["foo" "bar/thing" "./baz]
+        ;; all imports are collected into
+        ;; :js-imports ["react"]
+        {:keys [js-requires
+                js-imports
+                js-errors
+                js-warnings
+                js-invalid-requires
+                js-language
+                js-str-offsets
+                goog-module
+                goog-requires
+                goog-provides]
+         :as info}
+        (JsInspector/getFileInfo
+          compiler
+          ;; SourceFile/fromFile seems to leak file descriptors
+          (SourceFile/fromCode resource-name source))
+        ]
+
+    (cond
+      (seq js-errors)
+      (do (log/warn (str "failed to parse javascript file: " url "\n"
+                         (pr-str js-errors)))
+          nil)
+
+      ;; goog.provide('thing')
+      ;; goog.require('foo')
+      ;; goog.module('some.thing')
+      (or (seq goog-module)
+          (seq goog-provides)
+          (seq goog-requires)
+          (= resource-name "goog/base.js"))
+      ;; FIXME: support require/import in ClosureJS
+      (let [deps
+            (-> []
+                (cond->
+                  (not= resource-name "goog/base.js")
+                  (conj 'goog))
+                (into (map util/munge-goog-ns) goog-requires))]
+        (-> rc
+            (assoc :type :goog
+                   :requires (into #{} deps)
+                   :provides (into #{} (map util/munge-goog-ns) goog-provides)
+                   :deps deps)
+            (cond->
+              (seq goog-module)
+              (-> (assoc :goog-module true)
+                  (update :provides conj (util/munge-goog-ns goog-module)))
+
+              (= resource-name "goog/base.js")
+              (update :provides conj 'goog)
+              )))
+
+      ;; require("foo")
+      ;; import ... from "foo"
+      ;; might be no require/import/exports
+      ;; externs files will hit this
+      :else
+      (let [js-deps
+            (->> (concat js-requires js-imports)
+                 ;; FIXME: not sure I want to go down this road or how
+                 ;; require("./some.css") should not break the build though
+                 (remove npm/asset-require?)
+                 (distinct)
+                 (map npm/maybe-convert-goog)
+                 (into []))
+
+            ns (-> (ModuleNames/fileToModuleName resource-name)
+                   (symbol))]
+
+        (assoc rc
+          :source source
+          :js-language js-language
+          :type :js
+          :classpath true
+          :ns ns
+          :provides #{ns}
+          :requires #{}
+          :js-requires js-requires
+          :js-imports js-imports
+          :js-deps js-deps
+          :js-str-offsets js-str-offsets
+          :deps js-deps))
+      )))
 
 (defn inspect-cljs
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
@@ -100,8 +193,7 @@
   [state {:keys [resource-name url] :as rc}]
   (cond
     (util/is-js-file? resource-name)
-    (->> (assoc rc :type :goog)
-         (inspect-goog state))
+    (inspect-js state rc)
 
     (util/is-cljs-file? resource-name)
     (->> (assoc rc :type :cljs)
@@ -293,30 +385,34 @@
       (throw (ex-info (str "failed to generate jar manifest for file: " file) {:file file} e)))
     ))
 
-(defn set-output-name [{:keys [resource-name] :as rc}]
-  (assoc rc :output-name (util/flat-js-name resource-name)))
+(defn set-output-name [{:keys [type ns resource-name] :as rc}]
+  (assoc rc
+    :output-name
+    (case type
+      :goog
+      (util/flat-filename resource-name)
+      :cljs
+      (util/flat-js-name resource-name)
+      :js
+      (str ns ".js")
+      )))
 
 (defn inspect-resources [cp {:keys [resources] :as contents}]
   (assoc contents :resources
-    (->> resources
-         (map set-output-name)
-         (map (fn [src]
-                (try
-                  (inspect-resource cp src)
-                  (catch Exception e
-                    (log/warnf e "failed to inspect resource \"%s\", it will not be available."
-                      (or (:file src)
-                          (:url src)
-                          (:resource-name src)))
-                    nil))))
-         (remove nil?)
-         (remove (fn [{:keys [type module-type]}]
-                   ;; only want goog resources here
-                   ;; es6 and others will be done by shadow.build.npm
-                   (and (= :goog type) (not= "goog" module-type))))
-         (remove #(empty? (:provides %)))
-         (into [])
-         )))
+                  (->> resources
+                       (map (fn [src]
+                              (try
+                                (inspect-resource cp src)
+                                (catch Exception e
+                                  (log/warnf e "failed to inspect resource \"%s\", it will not be available."
+                                    (or (:file src)
+                                        (:url src)
+                                        (:resource-name src)))
+                                  nil))))
+                       (remove nil?)
+                       (map set-output-name)
+                       (into [])
+                       )))
 
 (defn process-root-contents [cp source-path root-contents]
   {:pre [(sequential? root-contents)
@@ -367,19 +463,19 @@
   (let [root-path (.getCanonicalPath root)
         root-len (inc (count root-path))]
     (into []
-          (for [^File file (file-seq root)
-                :when (and (.isFile file)
-                           (not (.isHidden file))
-                           (util/is-cljs-resource? (.getName file)))
-                :let [file (.getCanonicalFile file)
-                      abs-path (.getCanonicalPath file)
-                      name (-> abs-path
-                               (.substring root-len)
-                               (rc/normalize-name))]
-                :when (not (should-ignore-resource? cp name))]
+      (for [^File file (file-seq root)
+            :when (and (.isFile file)
+                       (not (.isHidden file))
+                       (util/is-cljs-resource? (.getName file)))
+            :let [file (.getCanonicalFile file)
+                  abs-path (.getCanonicalPath file)
+                  name (-> abs-path
+                           (.substring root-len)
+                           (rc/normalize-name))]
+            :when (not (should-ignore-resource? cp name))]
 
-            (make-fs-resource file name)
-            ))))
+        (make-fs-resource file name)
+        ))))
 
 (defn find-fs-resources [cp ^File root]
   (->> (find-fs-resources* cp root)
@@ -442,12 +538,32 @@
         file
         (assoc-in [:file->name file] resource-name))))
 
+(defn index-rc-merge-js
+  [index {:keys [type ns resource-name provides url file] :as rc}]
+  (cond
+    ;; do not merge files that are already present from a different source path
+    ;; same rules as other sources
+    (when-let [existing (get-in index [:sources resource-name])]
+      (not (is-same-resource? rc existing)))
+    (let [conflict (get-in index [:sources resource-name])]
+      (when-not (and (:from-jar rc)
+                     (not (:from-jar conflict)))
+        ;; only warn when jar conflicts with jar, fs is allowed to override files in jars
+        (log/infof "duplicate resource %s on classpath, using %s over %s" resource-name (:url conflict) (:url rc)))
+      index)
+
+    :no-conflict
+    (index-rc-add index rc)))
+
 (defn index-rc-merge
   [index {:keys [type ns resource-name provides url] :as rc}]
   (cond
     ;; sanity check for development
     (not (rc/valid-resource? rc))
     (throw (ex-info "invalid resource" {}))
+
+    (= :js type)
+    (index-rc-merge-js index rc)
 
     ;; ignore process/env.cljs shim, we have our own
     (and (= :cljs type)
@@ -511,7 +627,7 @@
 
           lookup-xf
           (comp (map #(get-in index [:provide->source %]))
-                (remove nil?))
+            (remove nil?))
 
           existing-provides
           (into #{} lookup-xf provides)
@@ -598,7 +714,21 @@
       )))
 
 (defn start [cache-root]
-  (let [index
+  (let [co
+        (doto (CompilerOptions.)
+          ;; FIXME: good idea to disable ALL warnings?
+          ;; I think its fine since we are just looking for require anyways
+          ;; if the code has any other problems we'll get to it when importing
+          (.resetWarningsGuard)
+          ;; should be the highest possible option, since we can't tell before parsing
+          (.setLanguageIn CompilerOptions$LanguageMode/ECMASCRIPT_NEXT))
+
+        cc ;; FIXME: error reports still prints to stdout
+        (doto (com.google.javascript.jscomp.Compiler.)
+          (.disableThreads)
+          (.initOptions co))
+
+        index
         {:ignore-patterns
          #{#"^node_modules/"
            #"^goog/demos/"
@@ -626,6 +756,9 @@
 
          :deps-externs {}
 
+         :compiler cc
+         :compiler-options co
+
          ;; resource-name -> resource
          :sources {}}]
 
@@ -635,6 +768,8 @@
      ;; they only read so retries are fine but maybe agent would be good too
      ;; they are however annoying to coordinate and I typically want to
      ;; wait before moving on
+     :compiler-options co
+     :compiler cc
      :index-ref (atom index)}))
 
 (defn stop [cp])
@@ -728,6 +863,31 @@
   [{:keys [index-ref] :as cp}]
   (->> (:sources @index-ref)
        (vals)))
+
+(defn find-js-resource
+  ;; absolute require "/some/foo/bar.js" or "/some/foo/bar"
+  ([{:keys [index-ref] :as cp} ^String require]
+   (let [index @index-ref
+         require (cond-> require (str/starts-with? require "/") (subs 1))]
+     (or (get-in index [:sources require])
+         (get-in index [:sources (str require ".js")])
+         )))
+
+  ;; relative require "./foo.js" from another rc
+  ([cp {:keys [resource-name] :as require-from} require]
+   (when-not require-from
+     (throw (ex-info "relative requires only allowed in files" {:require require})))
+
+   (let [path
+         (-> (Paths/get resource-name (into-array String []))
+             (.getParent)
+             (.resolve require)
+             (.normalize)
+             (.toString)
+             (rc/normalize-name))]
+
+     (find-js-resource cp path)
+     )))
 
 (comment
   ;; FIXME: implement correctly

@@ -1,1 +1,3 @@
-module.exports = "demo/foo";
+var es6 = require("./es6");
+
+module.exports = es6;

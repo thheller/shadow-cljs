@@ -606,9 +606,9 @@
                           #_"foo"
                           #_cljs.tools.reader.reader-types
                           #_"react-vis"
-                          #_ "@material/animation"
+                          #_"@material/animation"
                           ;; "react-markdown"
-                          #_ "pixi.js"
+                          #_"pixi.js"
                           "viz.js"
                           ]}}
 
@@ -647,10 +647,14 @@
     (let [state
           (api/compile*
             '{:build-id :rel-require
-              :target :node-script
+              :target :browser
+              :output-dir "target/test-build-rel-require/js"
+              :modules {:main {:entries [demo.rel-require]}}}
+            #_'{:build-id :rel-require
+                :target :node-script
 
-              :output-to "target/test-build-rel-require.js"
-              :main demo.rel-require/main}
+                :output-to "target/test-build-rel-require.js"
+                :main demo.rel-require/main}
             {})
 
           rc

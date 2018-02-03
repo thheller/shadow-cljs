@@ -9,6 +9,7 @@ css/
 /public/assets
 /wiki
 /book
+/src/gen
 pom.xml
 pom.xml.asc
 *.iml

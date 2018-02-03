@@ -15,7 +15,8 @@
             [shadow.build.cljs-bridge :as cljs-bridge]
             [shadow.build.babel :as babel])
   (:import (java.io File)
-           (java.net URL)))
+           (java.net URL)
+           [java.nio.file Paths]))
 
 (defmulti resolve-deps*
   (fn [state {:keys [type]}]
@@ -81,41 +82,68 @@
     (update rc :deps #(into ['shadow.process] %))
     ))
 
-(defmethod find-resource-for-string :shadow
-  [{:keys [js-options babel] :as state} {:keys [file] :as require-from} require]
+(defn classpath-resource? [{:keys [type classpath] :as rc}]
+  (or classpath
+      ;; only :js and :shadow-js are allowed to go off classpath
+      (not (contains? #{:js :shadow-js} type))))
 
-  (when-let [{:keys [js-language json deps resource-name source] :as rc}
-             (npm/find-resource (:npm state) file require
-               (assoc js-options
-                 :mode (:mode state)
-                 :target :browser))]
+(defn as-shadow-js
+  [{:keys [babel] :as state}
+   {:keys [js-language json deps resource-name source] :as rc}]
 
-    ;; FIXME: only use shadow-js for node_modules?
-    (if (and (not (str/includes? resource-name "node_modules"))
-             ;; :target :global files are not in node_modules but should be treated as :shadow-js
-             (not (:global-ref rc)))
-      rc
-      (let [babel-rewrite?
-            (and (not json)
-                 (not (contains? #{"es3" "es5"} js-language)))
+  (let [babel-rewrite?
+        (and (not json)
+             (not (contains? #{"es3" "es5"} js-language)))
 
-            deps
-            (-> '[shadow.js]
-                (cond->
-                  babel-rewrite?
-                  (conj 'shadow.js.babel))
-                (into deps))]
-
-        (-> rc
-            (assoc :deps deps)
-            (assoc :type :shadow-js)
+        deps
+        (-> '[shadow.js]
             (cond->
               babel-rewrite?
-              (-> (dissoc :source)
-                  (assoc :source-fn
-                    (fn [state]
-                      (babel/convert-source babel state source resource-name)))
-                  )))))))
+              (conj 'shadow.js.babel))
+            (into deps))]
+
+    (-> rc
+        (assoc :deps deps)
+        (assoc :type :shadow-js)
+        (cond->
+          babel-rewrite?
+          (-> (dissoc :source)
+              (assoc :source-fn
+                     (fn [state]
+                       (babel/convert-source babel state source resource-name)))
+              ))))
+  )
+
+(defmethod find-resource-for-string :shadow
+  [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require]
+
+  (let [abs? (util/is-absolute? require)
+        rel? (util/is-relative? require)
+        cp-rc? (when require-from
+                 (classpath-resource? require-from))]
+
+    (cond
+      ;; requires from non classpath resources go directly to npm resolve
+      ;; as do ambiguous requires, eg "react" not "./foo"
+      (or (not cp-rc?)
+          (and (not abs?)
+               (not rel?)))
+      (some->>
+        (npm/find-resource (:npm state) file require
+          (assoc js-options
+            :mode (:mode state)
+            :target :browser))
+        (as-shadow-js state))
+
+      (util/is-absolute? require)
+      (cp/find-js-resource classpath require)
+
+      (util/is-relative? require)
+      (cp/find-js-resource classpath require-from require)
+
+      :else
+      (throw (ex-info "unsupported require" {:require require}))
+      )))
 
 (def native-node-modules
   #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
@@ -125,41 +153,36 @@
     "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
 
 (defmethod find-resource-for-string :require
-  [{:keys [project-dir npm js-options] :as state} {:keys [file] :as require-from} require]
-  (cond
-    (util/is-absolute? require)
-    (throw (ex-info "tbd, absolute require" {:require require}))
+  [{:keys [project-dir npm js-options classpath] :as state} {:keys [resource-name] :as require-from} require]
+  (let [cp-rc? (when require-from
+                 (classpath-resource? require-from))]
 
-    ;; FIXME: I'm really not sure about this.
-    ;; its fine when just used in a project since we have a file but it breaks in
-    ;; jars since node can't look into them
-    (util/is-relative? require)
-    (do (when-not file
-          (throw (ex-info "rel require in CLJS only supported when file is present, ie. not in .jars" {:require require
-                                                                                                       :required-from (:url require-from)})))
-        (when-let [{:keys [resource-name] :as rc}
-                   (npm/find-resource npm file require js-options)]
-          (assert (not (str/includes? resource-name "node_modules")))
-          rc
-          ))
+    (cond
+      (util/is-absolute? require)
+      (if-not cp-rc?
+        (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
+        (cp/find-js-resource classpath require))
 
-    :else
-    (let [js-packages
-          (get-in state [:js-options :packages])
+      (util/is-relative? require)
+      (cp/find-js-resource classpath require-from require)
 
-          ;; require might be react-dom or react-dom/server
-          ;; we need to check the package name only
-          [package-name suffix]
-          (npm/split-package-require require)]
+      :else
+      (let [js-packages
+            (get-in state [:js-options :packages])
 
-      ;; I hate magic symbols buts its the way chosen by CLJS
-      ;; so if the package is configured or exists in node_modules we allow it
-      ;; FIXME: actually use configuration from :packages to use globals and such
-      (when (or (contains? native-node-modules package-name)
-                (contains? js-packages package-name)
-                (npm/find-package (:npm state) package-name))
-        (js-support/shim-require-resource require))
-      )))
+            ;; require might be react-dom or react-dom/server
+            ;; we need to check the package name only
+            [package-name suffix]
+            (npm/split-package-require require)]
+
+        ;; I hate magic symbols buts its the way chosen by CLJS
+        ;; so if the package is configured or exists in node_modules we allow it
+        ;; FIXME: actually use configuration from :packages to use globals and such
+        (when (or (contains? native-node-modules package-name)
+                  (contains? js-packages package-name)
+                  (npm/find-package (:npm state) package-name))
+          (js-support/shim-require-resource require))
+        ))))
 
 (defn resolve-string-require
   [state {require-from-ns :ns :as require-from} require]

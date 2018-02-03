@@ -22,10 +22,13 @@ public class JsInspector {
     public static final Keyword KW_OFFSET = RT.keyword(null, "offset");
 
     public static class RequireCollector implements NodeTraversal.Callback {
+        ITransientCollection googRequires = PersistentVector.EMPTY.asTransient();
+        ITransientCollection googProvides = PersistentVector.EMPTY.asTransient();
         ITransientCollection requires = PersistentVector.EMPTY.asTransient();
         ITransientCollection invalidRequires = PersistentVector.EMPTY.asTransient();
         ITransientCollection imports = PersistentVector.EMPTY.asTransient();
         ITransientCollection strOffsets = PersistentVector.EMPTY.asTransient();
+        String googModule = null;
 
         @Override
         public boolean shouldTraverse(NodeTraversal t, Node node, Node parent) {
@@ -72,6 +75,14 @@ public class JsInspector {
                 String from = importString.getString();
                 imports = imports.conj(from);
                 recordStrOffset(importString);
+            } else if (NodeUtil.isCallTo(node, "goog.require")) {
+                String x = node.getLastChild().getString();
+                googRequires = googRequires.conj(x);
+            } else if (NodeUtil.isCallTo(node, "goog.provide")) {
+                String x = node.getLastChild().getString();
+                googProvides = googProvides.conj(x);
+            } else if (NodeUtil.isCallTo(node, "goog.module")) {
+                googModule = node.getLastChild().getString();
             }
         }
     }
@@ -106,6 +117,9 @@ public class JsInspector {
     public static final Keyword KW_WARNINGS = RT.keyword(NS, "js-warnings");
     public static final Keyword KW_LANGUAGE = RT.keyword(NS, "js-language");
     public static final Keyword KW_STR_OFFSETS = RT.keyword(NS, "js-str-offsets");
+    public static final Keyword KW_GOOG_PROVIDES = RT.keyword(NS, "goog-provides");
+    public static final Keyword KW_GOOG_REQUIRES = RT.keyword(NS, "goog-requires");
+    public static final Keyword KW_GOOG_MODULE = RT.keyword(NS, "goog-module");
 
     public static IPersistentMap getFileInfo(Compiler cc, SourceFile srcFile) {
         JsAst ast = new JsAst(srcFile);
@@ -122,6 +136,9 @@ public class JsInspector {
         IPersistentMap map = RT.map(
                 KW_REQUIRES, collector.requires.persistent(),
                 KW_IMPORTS, collector.imports.persistent(),
+                KW_GOOG_PROVIDES, collector.googProvides.persistent(),
+                KW_GOOG_REQUIRES, collector.googRequires.persistent(),
+                KW_GOOG_MODULE, collector.googModule,
                 KW_INVALID_REQUIRES, collector.invalidRequires.persistent(),
                 KW_LANGUAGE, features.version(),
                 KW_STR_OFFSETS, collector.strOffsets.persistent()
@@ -143,17 +160,20 @@ public class JsInspector {
         cc.initOptions(co);
 
         SourceFile srcFile = SourceFile.fromCode("foo.js", "var x = function(require) { require('DONT'); }; require('react'); require('./foo'); import 'foo'; import { x } from 'bar';");
-        System.out.println(getFileInfo(cc, srcFile));
+        //System.out.println(getFileInfo(cc, srcFile));
 
         SourceFile exportFrom = SourceFile.fromCode("foo.js", "export * from './foo';");
-        System.out.println(getFileInfo(cc, exportFrom));
+        //System.out.println(getFileInfo(cc, exportFrom));
+
+        SourceFile goog = SourceFile.fromCode("foo.js", "goog.provide('foo'); goog.require('thing');");
+        System.out.println(getFileInfo(cc, goog));
 
         SourceFile jsxFile = SourceFile.fromCode(
                 "jsx.js",
                 "var x = require('foo'); function render() { return <div>foo</div> };"
         );
 
-        System.out.println(getFileInfo(cc, jsxFile));
+        //System.out.println(getFileInfo(cc, jsxFile));
 
 
         long start = System.currentTimeMillis();
@@ -162,7 +182,7 @@ public class JsInspector {
         getFileInfo(cc, srcFile);
 
         long runtime = System.currentTimeMillis() - start;
-        System.out.println(getFileInfo(cc, srcFile));
+        //System.out.println(getFileInfo(cc, srcFile));
 
         System.out.format("runtime:%d%n", runtime);
     }
