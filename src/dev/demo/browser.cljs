@@ -10,7 +10,7 @@
     ["./es6.js" :as es6]
     ["./foo" :as foo]
     ["circular-test" :as circ]
-    ["/demo/myComponent" :refer (myComponent)]
+    #_ ["/demo/myComponent" :refer (myComponent)]
     [cljs.test :refer (deftest)]
     ))
 
@@ -24,7 +24,7 @@
 
 (es6/someAsyncFn (js/fetch "/index.html"))
 
-(js/console.log "JSX" (myComponent))
+#_ (js/console.log "JSX" (myComponent))
 
 (pprint [1 2 3])
 
