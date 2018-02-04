@@ -308,7 +308,8 @@
   :npm
   {:target :npm-module
    :output-dir "out/demo-npm/lib"
-   :entries [demo.npm]}
+   :entries [demo.npm
+             demo.rel-require]}
 
   :npm-web
   {:target :npm-module

@@ -8,7 +8,7 @@
   {"clojars" {:url "https://clojars.org/repo"
               :sign-releases false}}
 
-  :java-opts
+  :jvm-opts
   ~(-> ["-Dfile.encoding=UTF-8"]
      (cond->
        (-> (System/getProperty "java.version") (.startsWith "9."))

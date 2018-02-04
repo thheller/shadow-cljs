@@ -480,7 +480,8 @@
         (into #{"goog"} (map js-module-root) dep-syms)]
 
     (str (when require?
-           "var $CLJS = require(\"./cljs_env\");\n")
+           (str "var $CLJS = require(\"./cljs_env\");\n"
+                "var $jscomp = $CLJS.$jscomp;\n"))
          ;; the only actually global var goog sometimes uses that is not on goog.global
          ;; actually only: goog/promise/thenable.js goog/proto2/util.js?
          (when (str/starts-with? resource-name "goog")
@@ -528,7 +529,7 @@
     (str "\nmodule.exports = " export ";\n")))
 
 (defn js-module-env
-  [state {:keys [runtime] :or {runtime :node} :as config}]
+  [{:keys [polyfill-js] :as state} {:keys [runtime] :or {runtime :node} :as config}]
   (str "var $CLJS = {};\n"
        "var CLJS_GLOBAL = process.browser ? (typeof(window) != 'undefined' ? window : self) : global;\n"
        ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
@@ -543,6 +544,11 @@
        (-> (data/get-output! state {:resource-id goog-base-id})
            (get :js)
            (str/replace "goog.global = this;" "goog.global = $CLJS;"))
+
+       (if (seq polyfill-js)
+         (str "\n" polyfill-js
+              "\n$CLJS.$jscomp = $jscomp;")
+         (str "\n$CLJS.$jscomp = {};"))
 
        ;; set global back to actual global so things like setTimeout work
        "\ngoog.global = CLJS_GLOBAL;"

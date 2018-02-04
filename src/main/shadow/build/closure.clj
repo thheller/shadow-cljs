@@ -1426,7 +1426,7 @@
                              ;; in node envs. this doesn't hurt the browser so its fine.
                              ;; dont need it in release since everything is one file after
                              (when (= :dev mode)
-                               (str "\ngoog.global." ns "=" ns ";")))
+                               (str "\n$CLJS." ns "=" ns ";")))
                        :source (.getCode source-file)
                        :source-map-json sm-json}]
 
