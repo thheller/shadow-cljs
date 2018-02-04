@@ -57,6 +57,8 @@
         :module-type (or module-type "goog"))))
 
 (defn inspect-js [{:keys [compiler] :as state} {:keys [resource-name url] :as rc}]
+
+  (prn [:js resource-name])
   (let [source
         (slurp url)
 
@@ -736,11 +738,21 @@
 
         index
         {:ignore-patterns
-         #{#"^node_modules/"
+         #{#"node_modules/"
+           ;; cljs.core aot
+           #"\.aot\.js$"
+           ;; closure library test files
            #"^goog/demos/"
-           #".aot.js$"
-           #"^goog/(.+)_test.js$"
+           #"^goog/(.+)_test\.js$"
+           ;; closure compiler support and test files
+           #"^com/google/javascript"
+           ;; way too many jars contain a public folder
            #"^public/"
+           ;; these files fail to parse correctly but we don't need them anyways
+           #"^jdk/nashorn/*"
+           #"goog/transpile\.js"
+           ;; don't need to parse cljsjs files, not going to use them
+           #"^cljsjs(.+)\.js"
            ;; just in case the :output-dir of a dev build is on the classpath
            #"/cljs-runtime/"}
 
