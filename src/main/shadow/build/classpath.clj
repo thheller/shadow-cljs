@@ -57,8 +57,6 @@
         :module-type (or module-type "goog"))))
 
 (defn inspect-js [{:keys [compiler] :as state} {:keys [resource-name url] :as rc}]
-
-  (prn [:js resource-name])
   (let [source
         (slurp url)
 
@@ -80,8 +78,7 @@
         (JsInspector/getFileInfo
           compiler
           ;; SourceFile/fromFile seems to leak file descriptors
-          (SourceFile/fromCode resource-name source))
-        ]
+          (SourceFile/fromCode resource-name source))]
 
     (cond
       (seq js-errors)
