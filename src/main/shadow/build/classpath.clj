@@ -57,94 +57,97 @@
         :module-type (or module-type "goog"))))
 
 (defn inspect-js [{:keys [compiler] :as state} {:keys [resource-name url] :as rc}]
-  (let [source
-        (slurp url)
+  ;; avoid parsing cljsjs files since they are standalone bundles
+  ;; and can never require/import anything, we don't want to ever include them anyways
+  (when-not (str/starts-with? resource-name "cljsjs/")
+    (let [source
+          (slurp url)
 
-        ;; all requires are collected into
-        ;; :js-requires ["foo" "bar/thing" "./baz]
-        ;; all imports are collected into
-        ;; :js-imports ["react"]
-        {:keys [js-requires
-                js-imports
-                js-errors
-                js-warnings
-                js-invalid-requires
-                js-language
-                js-str-offsets
-                goog-module
-                goog-requires
-                goog-provides]
-         :as info}
-        (JsInspector/getFileInfo
-          compiler
-          ;; SourceFile/fromFile seems to leak file descriptors
-          (SourceFile/fromCode resource-name source))]
+          ;; all requires are collected into
+          ;; :js-requires ["foo" "bar/thing" "./baz]
+          ;; all imports are collected into
+          ;; :js-imports ["react"]
+          {:keys [js-requires
+                  js-imports
+                  js-errors
+                  js-warnings
+                  js-invalid-requires
+                  js-language
+                  js-str-offsets
+                  goog-module
+                  goog-requires
+                  goog-provides]
+           :as info}
+          (JsInspector/getFileInfo
+            compiler
+            ;; SourceFile/fromFile seems to leak file descriptors
+            (SourceFile/fromCode resource-name source))
 
-    (cond
-      (seq js-errors)
-      (do (log/warn (str "failed to parse javascript file: " url "\n"
-                         (pr-str js-errors)))
-          nil)
+          ns (-> (ModuleNames/fileToModuleName resource-name)
+                 (symbol))]
 
-      ;; goog.provide('thing')
-      ;; goog.require('foo')
-      ;; goog.module('some.thing')
-      (or (seq goog-module)
-          (seq goog-provides)
-          (seq goog-requires)
-          (= resource-name "goog/base.js"))
-      ;; FIXME: support require/import in ClosureJS
-      (let [deps
-            (-> []
-                (cond->
-                  (not= resource-name "goog/base.js")
-                  (conj 'goog))
-                (into (map util/munge-goog-ns) goog-requires))]
-        (-> rc
-            (assoc :type :goog
-                   :requires (into #{} deps)
-                   :provides (into #{} (map util/munge-goog-ns) goog-provides)
-                   :deps deps)
-            (cond->
-              (seq goog-module)
-              (-> (assoc :goog-module true)
-                  (update :provides conj (util/munge-goog-ns goog-module)))
+      (cond
+        (seq js-errors)
+        (do (log/warn (str "failed to parse javascript file: " url "\n"
+                           (pr-str js-errors)))
+            nil)
 
-              (= resource-name "goog/base.js")
-              (update :provides conj 'goog)
-              )))
+        ;; goog.provide('thing')
+        ;; goog.require('foo')
+        ;; goog.module('some.thing')
+        (or (seq goog-module)
+            (seq goog-provides)
+            (seq goog-requires)
+            (= resource-name "goog/base.js"))
+        ;; FIXME: support require/import in ClosureJS
+        (let [deps
+              (-> []
+                  (cond->
+                    (not= resource-name "goog/base.js")
+                    (conj 'goog))
+                  (into (map util/munge-goog-ns) goog-requires))]
+          (-> rc
+              (assoc :type :goog
+                     :requires (into #{} deps)
+                     :provides (into #{} (map util/munge-goog-ns) goog-provides)
+                     :deps deps)
+              (cond->
+                (seq goog-module)
+                (-> (assoc :goog-module true)
+                    (update :provides conj (util/munge-goog-ns goog-module)))
 
-      ;; require("foo")
-      ;; import ... from "foo"
-      ;; might be no require/import/exports
-      ;; externs files will hit this
-      :else
-      (let [js-deps
-            (->> (concat js-requires js-imports)
-                 ;; FIXME: not sure I want to go down this road or how
-                 ;; require("./some.css") should not break the build though
-                 (remove npm/asset-require?)
-                 (distinct)
-                 (map npm/maybe-convert-goog)
-                 (into []))
+                (= resource-name "goog/base.js")
+                (update :provides conj 'goog)
+                )))
 
-            ns (-> (ModuleNames/fileToModuleName resource-name)
-                   (symbol))]
+        ;; require("foo")
+        ;; import ... from "foo"
+        ;; might be no require/import/exports
+        ;; externs files will hit this
+        :else
+        (let [js-deps
+              (->> (concat js-requires js-imports)
+                   ;; FIXME: not sure I want to go down this road or how
+                   ;; require("./some.css") should not break the build though
+                   (remove npm/asset-require?)
+                   (distinct)
+                   (map npm/maybe-convert-goog)
+                   (into []))]
 
-        (assoc rc
-          :source source
-          :js-language js-language
-          :type :js
-          :classpath true
-          :ns ns
-          :provides #{ns}
-          :requires #{}
-          :js-requires js-requires
-          :js-imports js-imports
-          :js-deps js-deps
-          :js-str-offsets js-str-offsets
-          :deps js-deps))
-      )))
+          (assoc rc
+            :source source
+            :js-language js-language
+            :type :js
+            :classpath true
+            :ns ns
+            :provides #{ns}
+            :requires #{}
+            :js-requires js-requires
+            :js-imports js-imports
+            :js-deps js-deps
+            :js-str-offsets js-str-offsets
+            :deps js-deps))
+        ))))
 
 (defn inspect-cljs
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
