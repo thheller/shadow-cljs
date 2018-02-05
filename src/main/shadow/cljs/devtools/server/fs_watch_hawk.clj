@@ -4,7 +4,7 @@
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
             [hawk.core :as hawk]
-            [shadow.cljs.devtools.server.fs-watch :as fs-watch]))
+            [shadow.cljs.devtools.server.fs-watch-jvm :as fs-watch]))
 
 (defn buffer-loop [hawk-in publish-fn]
   ;; this loop buffers all hawk watch events so they can be processed in batch

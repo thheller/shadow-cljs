@@ -748,8 +748,6 @@
            ;; these files fail to parse correctly but we don't need them anyways
            #"^jdk/nashorn/*"
            #"goog/transpile\.js"
-           ;; don't need to parse cljsjs files, not going to use them
-           #"^cljsjs(.+)\.js"
            ;; just in case the :output-dir of a dev build is on the classpath
            #"/cljs-runtime/"}
 
