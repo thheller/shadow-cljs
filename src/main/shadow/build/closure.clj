@@ -1756,7 +1756,6 @@
           (->> (for [{:keys [resource-id cache-key] :as src} sources
                      ;; FIXME: this should probably check if the file exists
                      ;; never should delete individual cached files without also removing the index though
-                     :let [_ (log/debug resource-id (= cache-key (get cache-index resource-id)))]
                      :when (= cache-key (get cache-index resource-id))]
                  src)
                ;; need to preserve order for later
