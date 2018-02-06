@@ -30,7 +30,7 @@
                                  (conj merge-counters))))))
         (conj (fn []
                 (ct/report @summary)
-                (ct/report {:type :end-run-tests})
+                (ct/report (assoc @summary :type :end-run-tests))
                 (ct/clear-env!))))))
 
 (defn run-tests

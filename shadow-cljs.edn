@@ -122,6 +122,10 @@
    {:http-port 8606
     :http-root "out/demo-test-dummy"}}
 
+  :test-node
+  {:target :node-test
+   :output-to "out/demo-test-node/script.js"}
+
   :test-karma
   {:target :karma
    :output-to "out/demo-karma/test.js"}

@@ -9,7 +9,8 @@
             [shadow.build.output :as output]
             [shadow.build.closure :as closure]
             [shadow.cljs.util :as util]
-            [shadow.build.data :as data])
+            [shadow.build.data :as data]
+            [shadow.build.resource :as rc])
   (:import (java.lang ProcessBuilder$Redirect)))
 
 (defmethod log/event->str ::flush-unoptimized
@@ -108,16 +109,21 @@
       (let [{:keys [prepend append sources]}
             (first build-modules)
 
+            rel-path
+            (-> output-to
+                (.getParentFile)
+                (.toPath)
+                (.relativize (-> (data/output-file state cljs-runtime-path)
+                                 (.toPath)))
+                (.toString)
+                (rc/normalize-name))
+
             out
             (str/join "\n"
               [prepend
 
                ;; this is here and not in boostrap since defines already accesses them
-               (str "var SHADOW_IMPORT_PATH = "
-                    (-> (data/output-file state cljs-runtime-path)
-                        (.getAbsolutePath)
-                        (pr-str))
-                    ";")
+               (str "var SHADOW_IMPORT_PATH = " (pr-str rel-path) ";")
 
                (when source-map
                  (str "try {"
