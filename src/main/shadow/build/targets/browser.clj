@@ -73,7 +73,8 @@
      ::output-dir
      ::asset-path
      ::public-dir
-     ::public-path]
+     ::public-path
+     ::shared/devtools]
     ))
 
 (defmethod config/target-spec :browser [_]

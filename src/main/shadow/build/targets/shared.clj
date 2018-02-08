@@ -25,6 +25,40 @@
 
 (s/def ::output-to non-empty-string?)
 
+(s/def ::http-root non-empty-string?)
+
+(s/def ::http-port pos-int?)
+
+(s/def ::http-handler unquoted-qualified-symbol?)
+
+(s/def ::enabled boolean?)
+
+(s/def ::autoload boolean?)
+
+(s/def ::after-load unquoted-qualified-symbol?)
+
+(s/def ::before-load unquoted-qualified-symbol?)
+
+(s/def ::before-load-async unquoted-qualified-symbol?)
+
+(s/def ::devtools-url non-empty-string?)
+
+(s/def ::use-document-host boolean?)
+
+(s/def ::devtools
+  (s/keys
+    :opt-un
+    [::http-root
+     ::http-port
+     ::http-handler
+     ::enabled
+     ::autoload
+     ::after-load
+     ::before-load
+     ::before-load-async
+     ::use-document-host
+     ::devtools-url]))
+
 (defn prepend [tail head]
   {:pre [(vector? head)]}
   (into head tail))
