@@ -66,26 +66,50 @@
     (get-in state [:js-options :js-provider]))
   :default ::default)
 
-(defmethod find-resource-for-string ::default [_ _ _]
-  (throw (ex-info "invalid [:js-options :js-provider] config" {})))
-
-(defmethod find-resource-for-string :closure
-  [{:keys [js-options] :as state} {:keys [file] :as require-from} require]
-  ;; FIXME: hard-coded browser target
-  ;; since :closure mode should only be used in :browser that is fine for now
-  (when-let [rc
-             (npm/find-resource (:npm state) file require
-               (assoc js-options
-                 :mode (:mode state)
-                 :target :browser))]
-
-    (update rc :deps #(into ['shadow.process] %))
-    ))
-
 (defn classpath-resource? [{:keys [type classpath] :as rc}]
   (or classpath
       ;; only :js and :shadow-js are allowed to go off classpath
       (not (contains? #{:js :shadow-js} type))))
+
+(defmethod find-resource-for-string ::default [_ _ _]
+  (throw (ex-info "invalid [:js-options :js-provider] config" {})))
+
+;; FIXME: this is now a near duplicate of :shadow, should refactor and remove dupes
+(defmethod find-resource-for-string :closure
+  [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require]
+
+  (let [abs? (util/is-absolute? require)
+        rel? (util/is-relative? require)
+        cp-rc? (when require-from
+                 (classpath-resource? require-from))]
+
+    (cond
+      ;; entry requires must always be absolute
+      (and (nil? require-from) abs?)
+      (cp/find-js-resource classpath require)
+
+      ;; requires from non classpath resources go directly to npm resolve
+      ;; as do ambiguous requires, eg "react" not "./foo"
+      (or (not cp-rc?)
+          (and (not abs?)
+               (not rel?)))
+      (when-let [rc (npm/find-resource (:npm state) file require
+                      (assoc js-options
+                        :mode (:mode state)
+                        :target :browser))]
+        (update rc :deps #(into ['shadow.process] %)))
+
+      (util/is-absolute? require)
+      (cp/find-js-resource classpath require)
+
+      (util/is-relative? require)
+      (cp/find-js-resource classpath require-from require)
+
+      :else
+      (throw (ex-info "unsupported require" {:require require}))
+      )))
+
+
 
 (defn as-shadow-js
   [{:keys [babel] :as state}
@@ -123,6 +147,10 @@
                  (classpath-resource? require-from))]
 
     (cond
+      ;; entry requires must always be absolute
+      (and (nil? require-from) abs?)
+      (cp/find-js-resource classpath require)
+
       ;; requires from non classpath resources go directly to npm resolve
       ;; as do ambiguous requires, eg "react" not "./foo"
       (or (not cp-rc?)

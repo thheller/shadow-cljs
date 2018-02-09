@@ -48,7 +48,7 @@ shadow.js.jsRequire = function(name, opts) {
     // which should match node? not entirely sure how others do it.
 
     try {
-      moduleFn.call(module, goog.global, shadow.js.jsRequire, module, module["exports"]);
+      moduleFn.call(module, goog.global, shadow.js.jsRequire, module, module["exports"], goog.global);
     } catch (e) {
       console.warn("shadow-cljs - failed to load", name);
       throw e;
@@ -90,8 +90,13 @@ shadow.js.require = function(name, opts) {
 };
 
 shadow.js.requireModule = function(name) {
-  return {
-    "default": shadow.js.require(name, {})
-  };
+  var mod = shadow.js.require(name, {});
+  if (mod["__esModule"]) {
+    return mod;
+  } else {
+      return {
+        "default": shadow.js.require(name, {})
+      };
+  }
 }
 

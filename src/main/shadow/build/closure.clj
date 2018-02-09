@@ -1421,12 +1421,17 @@
                       {:resource-id resource-id
                        :compiled-at (System/currentTimeMillis)
                        :js (str js
-                             ;; closure only declares var module$src$dev$demo$es6 = {};
-                             ;; but since we are in separate files that var is not available globally
-                             ;; in node envs. this doesn't hurt the browser so its fine.
-                             ;; dont need it in release since everything is one file after
-                             (when (= :dev mode)
-                               (str "\n$CLJS." ns "=" ns ";")))
+                                ;; closure only declares var module$src$dev$demo$es6 = {};
+                                ;; but since we are in separate files that var is not available globally
+                                ;; in node envs. this doesn't hurt the browser so its fine.
+                                ;; dont need it in release since everything is one file after
+                                (when (and (= :dev mode)
+                                           ;; closure won't generate the alias for files without exports
+                                           ;; looking for this pattern
+                                           ;; var module$demo$reducers$profile = {};
+                                           ;; FIXME: not sure if it will always emit this exact pattern
+                                           (str/includes? js (str "var " ns " = {};")))
+                                  (str "\n$CLJS." ns "=" ns ";")))
                        :source (.getCode source-file)
                        :source-map-json sm-json}]
 

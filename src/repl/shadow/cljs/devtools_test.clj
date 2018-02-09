@@ -667,6 +667,21 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+(deftest test-build-js-entry
+  (try
+    (let [{:keys [build-sources] :as state}
+          (api/compile*
+            '{:build-id :js-entry
+              :target :browser
+              :output-dir "target/js-entry/js"
+              :modules {:main {:entries ["/demo/foo.js"]}}}
+            {})]
+
+      (pprint build-sources)
+      )
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
 (comment
   (api/compile :browser))
 

@@ -887,6 +887,8 @@
          require (cond-> require (str/starts-with? require "/") (subs 1))]
      (or (get-in index [:sources require])
          (get-in index [:sources (str require ".js")])
+         ;; FIXME: I'm not sure this is a good idea
+         (get-in index [:sources (str require "/index.js")])
          )))
 
   ;; relative require "./foo.js" from another rc

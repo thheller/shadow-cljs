@@ -228,7 +228,7 @@
                     (and default? (= :dev mode))
                     (inject-devtools-console state config)
 
-                    (and worker-info (not web-worker))
+                    (and worker-info (not web-worker) (not (false? (get-in config [:devtools :enabled]))))
                     (update :append-js str "\nshadow.cljs.devtools.client.browser.module_loaded('" (name module-id) "');\n")
 
                     ;; MODULE-LOADER
