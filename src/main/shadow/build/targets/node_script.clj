@@ -41,6 +41,7 @@
 
       ;; node builds should never attempt to import libs through closure
       (assoc-in [:js-options :js-provider] :require)
+      (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
 
       (cond->
         (:worker-info state)

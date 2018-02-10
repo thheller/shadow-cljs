@@ -15,6 +15,7 @@
 
 (defn configure [{::build/keys [config mode] :as state}]
   (-> state
+      (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
       ;; FIXME: allow custom :runner-ns?
       (update ::build/config merge {:main 'shadow.test.node/main})
       (update-in [::build/config :devtools] assoc :enabled false)))
