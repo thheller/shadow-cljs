@@ -105,17 +105,9 @@
            :port (:port http)
            :ssl (:ssl http)}
 
-          build-id
-          (:build-id build-config)
-
           build-state
-          (-> (build-api/init)
-              (build-api/with-classpath classpath)
-              (build-api/with-npm npm)
-              (build-api/with-babel babel)
-              (build-api/with-executor executor)
+          (-> (util/new-build build-config :dev {})
               (build-api/with-logger (util/async-logger (-> worker-state :channels :output)))
-              (build-api/with-cache-dir (config/make-cache-dir cache-root build-id :dev))
               (assoc
                 :worker-info worker-info
                 :mode :dev

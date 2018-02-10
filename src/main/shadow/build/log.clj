@@ -142,10 +142,17 @@
          "\n\tProvided: " source-path "/" name
          )))
 
-
 (defmethod event->str :cache-error
   [{:keys [action ns error]}]
   (format "Failed %s cache for %s: %s" (case action :read "reading" :write "writing") ns (.getMessage error)))
+
+(defmethod event->str :cache-skip
+  [{:keys [ns]}]
+  (format "Cache skipped due to warnings: %s" ns))
+
+(defmethod event->str :cache-block
+  [{:keys [ns block-reasons]}]
+  (format "Cache blocked \"%s\" due to %s" ns block-reasons))
 
 (defmethod event->str :npm-flush
   [{:keys [output-path]}]

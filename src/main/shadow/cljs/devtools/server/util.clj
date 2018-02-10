@@ -5,8 +5,12 @@
             [clojure.tools.logging :as log]
             [shadow.build.log :as build-log]
             [shadow.build.api :as cljs]
+            [shadow.build.warnings :as warnings]
+            [shadow.build.api :as build-api]
             [shadow.cljs.devtools.errors :as errors]
-            [shadow.build.warnings :as warnings])
+            [shadow.cljs.devtools.config :as config]
+            [shadow.cljs.devtools.server.runtime :as runtime]
+            [clojure.set :as set])
   (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream)))
 
 (defn async-logger [ch]
@@ -21,6 +25,43 @@
   (reify
     build-log/BuildLog
     (log* [_ state msg])))
+
+(def silent-log
+  (reify build-log/BuildLog
+    (log* [_ state {::build-log/keys [level] :as evt}]
+      (when (not= level :info)
+        (build-log/log* build-log/stdout state evt)
+        ))))
+
+(defn new-build
+  [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
+  (let [{:keys [npm classpath cache-root executor babel config] :as runtime}
+        (runtime/get-instance!)
+
+        {:keys [cache-blockers]}
+        config
+
+        cache-dir
+        (config/make-cache-dir cache-root build-id mode)]
+
+    (-> (build-api/init)
+        (build-api/with-npm npm)
+        (build-api/with-babel babel)
+        (build-api/with-classpath classpath)
+        (build-api/with-cache-dir cache-dir)
+        (build-api/with-executor executor)
+        ;; default logger logs everything
+        ;; if not verbose replace with one that only logs warnings/errors
+        (cond->
+          (not (or (:verbose opts)
+                   (:verbose config)))
+          (build-api/with-logger silent-log)
+
+          ;; allow :cache-blockers to be defined globally in addition to the build itself
+          (set? cache-blockers)
+          (update-in [:build-options :cache-blockers] set/union cache-blockers))
+
+        (assoc :mode mode))))
 
 (defn print-warnings [warnings]
   (doseq [{:keys [msg line column source-name] :as w} warnings]

@@ -430,6 +430,15 @@
    [:compiler-options :emit-constants]
    ])
 
+(defn is-cache-blocked? [state {:keys [ns requires macro-requires] :as rc}]
+  (let [cache-blockers (get-in state [:build-options :cache-blockers])]
+    ;; cache-blockers should be a set of namespace symbols or nil
+    (when (set? cache-blockers)
+      ;; block if the ns itself is blocked or when it requires blocked namespaces directly
+      (or (contains? cache-blockers ns)
+          (some cache-blockers requires)
+          (some cache-blockers macro-requires)))))
+
 (defn load-cached-cljs-resource
   [{:keys [build-options] :as state}
    {:keys [ns output-name resource-id resource-name] :as rc}]
@@ -486,72 +495,88 @@
         nil))))
 
 (defn write-cached-cljs-resource
-  [{:keys [build-options] :as state}
-   {:keys [ns resource-id resource-name output-name] :as rc}
+  [state
+   {:keys [ns requires resource-id resource-name] :as rc}
    {:keys [warnings] :as output}]
   {:pre [(rc/valid-output? output)]}
 
-  (let [{:keys [cljs-runtime-path]} build-options]
+  (cond
+    ;; don't cache files with warnings
+    (seq warnings)
+    (do (util/log state {:type :cache-skip
+                         :ns ns
+                         :id resource-id})
+        nil)
 
-    ;; only cache files that don't have warnings!
-    (when-not (seq warnings)
-      (let [cache-file (get-cache-file-for-rc state rc)]
+    (is-cache-blocked? state rc)
+    (do (util/log state {:type :cache-block
+                         :ns ns
+                         :id resource-id
+                         :block-reasons
+                         (let [cache-blockers (get-in state [:build-options :cache-blockers])]
+                           (->> (conj requires ns)
+                                (filter #(contains? cache-blockers %))
+                                (into #{}))
+                           )})
+        nil)
 
-        (try
-          (let [cache-compiler-options
-                (reduce
-                  (fn [cache-options option-path]
-                    (assoc cache-options option-path (get-in state option-path)))
-                  {}
-                  cache-affecting-options)
+    :else
+    (let [cache-file (get-cache-file-for-rc state rc)]
+      (try
+        (let [cache-compiler-options
+              (reduce
+                (fn [cache-options option-path]
+                  (assoc cache-options option-path (get-in state option-path)))
+                {}
+                cache-affecting-options)
 
-                ns-str
-                (str ns)
+              ns-str
+              (str ns)
 
-                spec-filter-fn
-                #(= ns-str (namespace %))
+              spec-filter-fn
+              #(= ns-str (namespace %))
 
-                ns-specs
-                (reduce-kv
-                  (fn [m k v]
-                    (if-not (spec-filter-fn k)
-                      m
-                      (assoc m k v)))
-                  {}
-                  ;; this is {spec-kw|sym raw-spec-form}
-                  @cljs-spec/registry-ref)
+              ns-specs
+              (reduce-kv
+                (fn [m k v]
+                  (if-not (spec-filter-fn k)
+                    m
+                    (assoc m k v)))
+                {}
+                ;; this is {spec-kw|sym raw-spec-form}
+                @cljs-spec/registry-ref)
 
-                ;; this is a #{fqn-var-sym ...}
-                ns-speced-vars
-                (->> (cljs-spec/speced-vars)
-                     (filter spec-filter-fn)
-                     (into []))
+              ;; this is a #{fqn-var-sym ...}
+              ns-speced-vars
+              (->> (cljs-spec/speced-vars)
+                   (filter spec-filter-fn)
+                   (into []))
 
-                ana-data
-                (get-in @env/*compiler* [::ana/namespaces ns])
+              ana-data
+              (get-in @env/*compiler* [::ana/namespaces ns])
 
-                cache-data
-                {:output output
-                 :cache-keys (make-cache-key-map state rc)
-                 :analyzer ana-data
-                 :ns ns
-                 :ns-specs ns-specs
-                 :ns-speced-vars ns-speced-vars
-                 :compiler-options cache-compiler-options}]
+              cache-data
+              {:output output
+               :cache-keys (make-cache-key-map state rc)
+               :analyzer ana-data
+               :ns ns
+               :ns-specs ns-specs
+               :ns-speced-vars ns-speced-vars
+               :compiler-options cache-compiler-options}]
 
-            (io/make-parents cache-file)
-            (cache/write-file cache-file cache-data)
+          (io/make-parents cache-file)
+          (cache/write-file cache-file cache-data)
 
-            (util/log state {:type :cache-write :resource-id resource-id :resource-name resource-name :ns ns})
-            true)
-          (catch Exception e
-            (util/warn state {:type :cache-error
-                              :action :write
-                              :ns ns
-                              :id resource-id
-                              :error e})
-            nil)
-          )))))
+          (util/log state {:type :cache-write :resource-id resource-id :resource-name resource-name :ns ns})
+          true)
+        (catch Exception e
+          (util/warn state {:type :cache-error
+                            :action :write
+                            :ns ns
+                            :id resource-id
+                            :error e})
+          nil)
+        ))))
 
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
@@ -568,7 +593,7 @@
                  (and (= cache-level :jars)
                       from-jar)))]
 
-    (or (when cache?
+    (or (when (and cache? (not (is-cache-blocked? state rc)))
           (load-cached-cljs-resource state rc))
         (let [source
               (data/get-source-code state rc)

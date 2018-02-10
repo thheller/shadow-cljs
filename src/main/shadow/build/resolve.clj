@@ -109,8 +109,6 @@
       (throw (ex-info "unsupported require" {:require require}))
       )))
 
-
-
 (defn as-shadow-js
   [{:keys [babel] :as state}
    {:keys [js-language json deps resource-name source] :as rc}]
@@ -135,8 +133,7 @@
               (assoc :source-fn
                      (fn [state]
                        (babel/convert-source babel state source resource-name)))
-              ))))
-  )
+              )))))
 
 (defmethod find-resource-for-string :shadow
   [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require]

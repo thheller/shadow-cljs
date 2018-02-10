@@ -20,7 +20,8 @@
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.build.output :as output]
-            [shadow.build.log :as build-log]))
+            [shadow.build.log :as build-log]
+            [clojure.set :as set]))
 
 ;; nREPL support
 
@@ -68,34 +69,6 @@
 
 (defn get-runtime! []
   (runtime/get-instance!))
-
-(def silent-log
-  (reify build-log/BuildLog
-    (log* [_ state {::build-log/keys [level] :as evt}]
-      (when (not= level :info)
-        (build-log/log* build-log/stdout state evt)
-        ))))
-
-(defn new-build [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
-  (let [{:keys [npm classpath cache-root executor babel config] :as runtime}
-        (get-runtime!)
-
-        cache-dir
-        (config/make-cache-dir cache-root build-id mode)]
-
-    (-> (build-api/init)
-        (build-api/with-npm npm)
-        (build-api/with-babel babel)
-        (build-api/with-classpath classpath)
-        (build-api/with-cache-dir cache-dir)
-        (build-api/with-executor executor)
-        ;; default logger logs everything
-        ;; if not verbose replace with one that only logs warnings/errors
-        (cond->
-          (not (or (:verbose opts)
-                   (:verbose config)))
-          (build-api/with-logger silent-log))
-        (assoc :mode mode))))
 
 (defn get-or-start-worker [build-config opts]
   (let [{:keys [autobuild]}
@@ -184,7 +157,7 @@
 
 (defn compile* [build-config opts]
   (util/print-build-start build-config)
-  (-> (new-build build-config :dev opts)
+  (-> (util/new-build build-config :dev opts)
       (build/configure :dev build-config)
       (build/compile)
       (build/flush)
@@ -217,7 +190,7 @@
 (defn release*
   [build-config {:keys [debug source-maps pseudo-names] :as opts}]
   (util/print-build-start build-config)
-  (-> (new-build build-config :release opts)
+  (-> (util/new-build build-config :release opts)
       (build/configure :release build-config)
       (cond->
         (or debug source-maps)
@@ -247,7 +220,7 @@
 (defn check* [{:keys [id] :as build-config} opts]
   ;; FIXME: pretend release mode so targets don't need to account for extra mode
   ;; in most cases we want exactly :release but not sure that is true for everything?
-  (-> (new-build build-config :release opts)
+  (-> (util/new-build build-config :release opts)
       (build/configure :release build-config)
       ;; using another dir because of source maps
       ;; not sure :release builds want to enable source maps by default
@@ -403,7 +376,7 @@
                 :module-hash-names false))
 
           state
-          (-> (new-build build-config :release {})
+          (-> (util/new-build build-config :release {})
               (build/configure :release build-config)
               (build-api/enable-source-maps)
               (build-api/with-build-options

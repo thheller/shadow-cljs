@@ -58,6 +58,14 @@
    :cljs-runtime-path "cljs-runtime"
 
    :cache-level :all
+
+   ;; namespaces that are known to rely on macro side-effects during compilation
+   ;; they will not be cached themselves
+   ;; and files that require them directly won't be cached to ensure that all
+   ;; the expected side-effects can still occur.
+   :cache-blockers
+   '#{clara.rules
+      clara.macros}
    })
 
 (def default-js-options
