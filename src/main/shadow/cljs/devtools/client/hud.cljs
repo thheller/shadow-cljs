@@ -214,6 +214,7 @@
             [:div
              {:id hud-id
               :style {:position "absolute"
+                      :z-index "10000"
                       :left "0px"
                       :bottom "0px"
                       :right "0px"
