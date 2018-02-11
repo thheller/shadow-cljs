@@ -111,11 +111,10 @@
 
 (defn as-shadow-js
   [{:keys [babel] :as state}
-   {:keys [js-language json deps resource-name source] :as rc}]
+   {:keys [js-esm deps resource-name source] :as rc}]
 
   (let [babel-rewrite?
-        (and (not json)
-             (not (contains? #{"es3" "es5"} js-language)))
+        js-esm
 
         deps
         (-> '[shadow.js]
@@ -130,7 +129,9 @@
         (cond->
           babel-rewrite?
           (-> (dissoc :source)
-              (assoc :source-fn
+              ;; babel turns it into commonjs
+              (assoc :js-esm false
+                     :source-fn
                      (fn [state]
                        (babel/convert-source babel state source resource-name)))
               )))))

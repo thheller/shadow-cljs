@@ -1,4 +1,4 @@
-(ns demo.app-test
+(ns demo.test-dummy
   (:require [cljs.test :as ct :refer (deftest is)]
             ["react" :as react]))
 

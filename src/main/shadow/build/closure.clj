@@ -327,18 +327,18 @@
 
         content
         (str "/** @constructor */\nfunction ShadowJS() {};\n"
-          (->> js-globals
-               (remove known-js-globals)
-               (map cljs-comp/munge)
-               (sort)
-               (map #(str "/** @const {ShadowJS} */ var " % ";"))
-               (str/join "\n"))
-          "\n"
-          (->> js-props
-               (sort)
-               (map cljs-comp/munge)
-               (map #(str "ShadowJS.prototype." % ";"))
-               (str/join "\n")))]
+             (->> js-globals
+                  (remove known-js-globals)
+                  (map cljs-comp/munge)
+                  (sort)
+                  (map #(str "/** @const {ShadowJS} */ var " % ";"))
+                  (str/join "\n"))
+             "\n"
+             (->> js-props
+                  (sort)
+                  (map cljs-comp/munge)
+                  (map #(str "ShadowJS.prototype." % ";"))
+                  (str/join "\n")))]
 
     ;; not actually required but makes it easier to verify
     (let [file (data/cache-file state "externs.shadow.js")]
@@ -597,7 +597,7 @@
 
 (def constants-inject
   (str "function shadow$keyword(name, hash) { return new cljs.core.Keyword(null, name, name, hash); };\n"
-    "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
+       "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
 
 (defn make-js-modules
   [{:keys [build-modules closure-configurators compiler-options build-sources polyfill-js] :as state}]
@@ -669,14 +669,14 @@
                       (cond
                         (= "goog/base.js" resource-name)
                         (str (output/closure-defines state)
-                          polyfill-js
-                          js
-                          goog-nodeGlobalRequire-fix)
+                             polyfill-js
+                             js
+                             goog-nodeGlobalRequire-fix)
 
                         (= :shadow-js type)
                         (str (when (contains? required-js-names ns)
                                (str "goog.provide(\"" ns "\");\n"
-                                 ns " = " (npm/shadow-js-require rc))))
+                                    ns " = " (npm/shadow-js-require rc))))
 
                         :else
                         js)]
@@ -746,13 +746,13 @@
                   code
                   (str (when base?
                          (output/closure-defines state))
-                    js
-                    (when base?
-                      (str goog-nodeGlobalRequire-fix
-                        "\ngoog.global = global;"))
-                    ;; FIXME: module.exports will become window.module.exports, rewritten later
-                    (when (seq defs)
-                      defs))
+                       js
+                       (when base?
+                         (str goog-nodeGlobalRequire-fix
+                              "\ngoog.global = global;"))
+                       ;; FIXME: module.exports will become window.module.exports, rewritten later
+                       (when (seq defs)
+                         defs))
 
                   js-mod
                   (JSModule. (util/flat-filename output-name))]
@@ -907,13 +907,13 @@
       (str (format "--module %s:%d"
              (.getName js-mod)
              (count (.getInputs js-mod)))
-        (let [deps (.getDependencies js-mod)]
-          (when (seq deps)
-            (format ":%s" (->> deps
-                               (map #(.getName %))
-                               (str/join ",")))))
-        " \\"
-        ))
+           (let [deps (.getDependencies js-mod)]
+             (when (seq deps)
+               (format ":%s" (->> deps
+                                  (map #(.getName %))
+                                  (str/join ",")))))
+           " \\"
+           ))
 
     (doseq [input (.getInputs js-mod)]
       (println (format "--js %s \\" (.getName input))))))
@@ -1192,8 +1192,8 @@
                     (throw (ex-info (format "can't map require \"%s\" to resource %s of type %s" string resource-name type) {})))]
 
               (str (subs source 0 (inc offset))
-                replacement
-                (subs source (+ 1 offset (count string))))
+                   replacement
+                   (subs source (+ 1 offset (count string))))
               ))))
       source
       ;; must start at the end since we are inserting longer strings
@@ -1390,11 +1390,7 @@
                                      dep)
                                    (map (fn [{:keys [ns] :as require-rc}]
                                           (str "var " ns " = "
-                                            ;; if the source file is ES6 closure will rewrite import
-                                            ;; to .default access
-                                            (if (seq (:js-imports rc))
-                                              (str "shadow.js.requireModule(\"" ns "\");")
-                                              (npm/shadow-js-require require-rc)))))
+                                               (npm/shadow-js-require require-rc))))
                                    (str/join "\n"))]
                           (when (seq shadow-js-deps)
                             (str shadow-js-deps "\n"))))
@@ -1428,9 +1424,9 @@
                                 (when (and (= :dev mode)
                                            ;; closure won't generate the alias for files without exports
                                            ;; looking for this pattern
-                                           ;; var module$demo$reducers$profile = {};
+                                           ;; var module$demo$reducers$profile = ...
                                            ;; FIXME: not sure if it will always emit this exact pattern
-                                           (str/includes? js (str "var " ns " = {};")))
+                                           (str/includes? js (str "var " ns " =")))
                                   (str "\n$CLJS." ns "=" ns ";")))
                        :source (.getCode source-file)
                        :source-map-json sm-json}]
@@ -1560,10 +1556,10 @@
                (let [source (data/get-source-code state src)]
                  (closure-source-file resource-name
                    (str "shadow$provide[\"" ns "\"] = function(global,require,module,exports) {\n"
-                     (if (str/ends-with? resource-name ".json")
-                       (str "module.exports=(" source ");")
-                       source)
-                     "\n};"))))
+                        (if (str/ends-with? resource-name ".json")
+                          (str "module.exports=(" source ");")
+                          source)
+                        "\n};"))))
              #_(map #(do (println (.getCode %)) %))
              (into []))
 

@@ -14,12 +14,12 @@ import java.util.List;
  *
  * takes a SourceFile and extracts all require/import names
  * similar to "detective" from node
- *
  */
 public class JsInspector {
 
     public static final Keyword KW_STRING = RT.keyword(null, "string");
     public static final Keyword KW_OFFSET = RT.keyword(null, "offset");
+    public static final Keyword KW_IMPORT = RT.keyword(null, "import");
 
     public static class RequireCollector implements NodeTraversal.Callback {
         ITransientCollection googRequires = PersistentVector.EMPTY.asTransient();
@@ -28,6 +28,8 @@ public class JsInspector {
         ITransientCollection invalidRequires = PersistentVector.EMPTY.asTransient();
         ITransientCollection imports = PersistentVector.EMPTY.asTransient();
         ITransientCollection strOffsets = PersistentVector.EMPTY.asTransient();
+
+        boolean esm = false;
         String googModule = null;
 
         @Override
@@ -49,12 +51,23 @@ public class JsInspector {
             return true;
         }
 
-        public void recordStrOffset(Node x) {
-            strOffsets = strOffsets.conj(RT.map(KW_STRING, x.getString(), KW_OFFSET, x.getSourceOffset()));
+        public void recordStrOffset(Node x, boolean isImport) {
+            strOffsets = strOffsets.conj(
+                    RT.map(
+                            KW_STRING, x.getString(),
+                            KW_OFFSET, x.getSourceOffset(),
+                            KW_IMPORT, isImport
+                    )
+            );
         }
 
         @Override
         public void visit(NodeTraversal t, Node node, Node parent) {
+            // closure treats all files that have import or export as ESM
+            if (node.isImport() || node.isExport()) {
+                esm = true;
+            }
+
             if (NodeUtil.isCallTo(node, "require")) {
                 Node requireString = node.getSecondChild();
 
@@ -62,19 +75,19 @@ public class JsInspector {
                 if (requireString.isString()) {
                     String require = requireString.getString();
                     requires = requires.conj(require);
-                    recordStrOffset(requireString);
+                    recordStrOffset(requireString, false);
                 } else {
                     invalidRequires = invalidRequires.conj(
                             RT.map(
-                                KW_LINE, node.getLineno(),
-                                KW_COLUMN, node.getCharno()
+                                    KW_LINE, node.getLineno(),
+                                    KW_COLUMN, node.getCharno()
                             ));
                 }
             } else if (node.isImport() || (node.isExport() && node.hasTwoChildren())) {
                 Node importString = node.getLastChild();
                 String from = importString.getString();
                 imports = imports.conj(from);
-                recordStrOffset(importString);
+                recordStrOffset(importString, true);
             } else if (NodeUtil.isCallTo(node, "goog.require")) {
                 String x = node.getLastChild().getString();
                 googRequires = googRequires.conj(x);
@@ -92,7 +105,7 @@ public class JsInspector {
     public static final Keyword KW_MESSAGE = RT.keyword(null, "message");
 
     public static IPersistentVector errorsAsData(List errors) {
-       ITransientCollection result = PersistentVector.EMPTY.asTransient();
+        ITransientCollection result = PersistentVector.EMPTY.asTransient();
 
         for (int i = 0; i < errors.size(); i++) {
             JsAst.RhinoError error = (JsAst.RhinoError) errors.get(i);
@@ -106,7 +119,7 @@ public class JsInspector {
             result = result.conj(data);
         }
 
-       return (IPersistentVector) result.persistent();
+        return (IPersistentVector) result.persistent();
     }
 
     public static final String NS = null;
@@ -116,6 +129,7 @@ public class JsInspector {
     public static final Keyword KW_ERRORS = RT.keyword(NS, "js-errors");
     public static final Keyword KW_WARNINGS = RT.keyword(NS, "js-warnings");
     public static final Keyword KW_LANGUAGE = RT.keyword(NS, "js-language");
+    public static final Keyword KW_ESM = RT.keyword(NS, "js-esm");
     public static final Keyword KW_STR_OFFSETS = RT.keyword(NS, "js-str-offsets");
     public static final Keyword KW_GOOG_PROVIDES = RT.keyword(NS, "goog-provides");
     public static final Keyword KW_GOOG_REQUIRES = RT.keyword(NS, "goog-requires");
@@ -136,6 +150,7 @@ public class JsInspector {
         IPersistentMap map = RT.map(
                 KW_REQUIRES, collector.requires.persistent(),
                 KW_IMPORTS, collector.imports.persistent(),
+                KW_ESM, collector.esm,
                 KW_GOOG_PROVIDES, collector.googProvides.persistent(),
                 KW_GOOG_REQUIRES, collector.googRequires.persistent(),
                 KW_GOOG_MODULE, collector.googModule,

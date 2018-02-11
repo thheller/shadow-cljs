@@ -15,7 +15,8 @@
     [cljs.env :as cljs-env]
     [shadow.cljs.util :as util]
     [shadow.build.ns-form :as ns-form]
-    [shadow.build.cljs-hacks])
+    [shadow.build.cljs-hacks]
+    [shadow.build.data :as data])
   (:import (java.io PushbackReader StringReader)
            (java.util.concurrent Executors ExecutorService)))
 
@@ -80,9 +81,20 @@
                   (assoc idx (str alias) {:name alias
                                           :module-type :js}))))
             js-mod-index
-            aliases))]
+            aliases))
+
+        js-ns-idx
+        (->> (:build-sources state)
+             (map #(data/get-source-by-id state %))
+             (remove #(= :cljs (:type %)))
+             (reduce
+               (fn [idx {:keys [ns] :as rc}]
+                 (assoc idx ns (select-keys rc [:ns :js-esm :resource-id])))
+               {})
+             (doall))]
 
     (-> state
+        (assoc-in [:compiler-env :shadow/js-namespaces] js-ns-idx)
         ;; FIXME: this includes clojure.* -> cljs.* aliases which should not be in js-module-index
         (update-in [:compiler-env :js-module-index] add-aliases-fn (vals ns-aliases))
         ;; str->sym maps all string requires to their symbol name
@@ -98,8 +110,6 @@
              (reduce set/union #{}))]
 
     (assoc-in state [:compiler-env :goog-names] goog-names)))
-
-
 
 (def ^:dynamic *in-compiler-env* false)
 

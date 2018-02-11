@@ -46,7 +46,7 @@
     :exclusions
     [com.google.javascript/closure-compiler-unshaded]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20171023"]
+   [com.google.javascript/closure-compiler-unshaded "v20180204"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]

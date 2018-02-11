@@ -1,8 +1,10 @@
 (ns shadow.build.cljs-hacks
-  (:require [cljs.analyzer]
-            [cljs.compiler]
-            [cljs.core]
-            [cljs.test]))
+  (:require
+    [cljs.analyzer]
+    [cljs.compiler]
+    [cljs.core]
+    [cljs.test]
+    [shadow.build.cljs-closure]))
 
 ;; these things to some slight modifications to cljs.analyzer
 ;; there are some odd checks related to JS integration
@@ -52,8 +54,22 @@
   ;; quick hack to record all accesses to any JS mod
   ;; (:require ["react" :as r :refer (foo]) (r/bar ...)
   ;; will record foo+bar
-  (let [prop (name sym)
-        qname (symbol "js" (str ns "." prop))]
+
+  (let [esm? (get-in @env/*compiler* [:shadow/js-namespaces ns :js-esm])
+        prop (name sym)
+        qname
+        (if (and (not esm?) (not= "default" prop))
+          ;; port of https://github.com/clojure/clojurescript/commit/72e2ab6e63b3341aa26abcbdd72dc291cbd0c462
+          ;; closure rewrites all commonjs access to use .default
+          ;; import Foo from "commonjs"
+          ;; Foo = module$commonjs.default
+          ;; cljs require :as should continue to work and not require :default
+          ;; (:require ["commonjs" :as Foo :default Bar])
+          ;; Foo = module$commonjs.default
+          ;; :default should be preserved
+          ;; Bar = module$commonjs.default
+          (symbol "js" (str ns ".default." prop))
+          (symbol "js" (str ns "." prop)))]
     (shadow-js-access-property current-ns prop)
 
     {:name qname
@@ -69,12 +85,12 @@
 ;; FIXME: report JIRA issue
 (defn js-module-exists? [module]
   {:pre [(symbol? module)]}
-  (some? (get-in @env/*compiler* [:js-module-index (name module)])))
+  (some? (get-in @env/*compiler* [:shadow/js-namespaces module])))
 
 (defn resolve-cljs-var [ns sym]
   (merge (gets @env/*compiler* ::namespaces ns :defs sym)
-         {:name (symbol (str ns) (str sym))
-          :ns ns}))
+    {:name (symbol (str ns) (str sym))
+     :ns ns}))
 
 (defn resolve-ns-var [ns sym current-ns]
   (cond
@@ -175,11 +191,11 @@
                  {:name (symbol (str full-ns) suffix)}
                  (if-some [info (gets current-ns-info :defs prefix)]
                    (merge info
-                          {:name (symbol (str current-ns) (str sym))
-                           :ns current-ns})
+                     {:name (symbol (str current-ns) (str sym))
+                      :ns current-ns})
                    (merge (gets @env/*compiler* ::namespaces prefix :defs (symbol suffix))
-                          {:name (if (= "" prefix) (symbol suffix) (symbol (str prefix) suffix))
-                           :ns prefix})))))
+                     {:name (if (= "" prefix) (symbol suffix) (symbol (str prefix) suffix))
+                      :ns prefix})))))
 
            (some? (gets current-ns-info :uses sym))
            (let [full-ns (gets current-ns-info :uses sym)]

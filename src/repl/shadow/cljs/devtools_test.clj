@@ -682,6 +682,24 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+(deftest test-closure-es6-import
+  (try
+    (let [{:keys [build-sources] :as state}
+          (api/compile*
+            '{:build-id :js-entry
+              :target :browser
+              :output-dir "target/closure-es6/js"
+              :compiler-options
+              {:pretty-print true
+               :pseudo-names true}
+              :modules {:main {:entries [test.js-interop]}}
+              :devtools {:enabled false :console-support false}}
+            {})]
+
+      )
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
 (comment
   (api/compile :browser))
 

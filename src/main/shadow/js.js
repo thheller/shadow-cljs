@@ -71,32 +71,26 @@ shadow.js.jsRequire = function(name, opts) {
   return exports;
 };
 
-// cljs compatibility require, should minimize exposure to the "default$"
-// I think this can be removed entire but need to verify all cases first
+/**
+ * @dict
+ */
+shadow.js.modules = {};
+
+
 shadow.js.require = function(name, opts) {
-  var exports = shadow.js.jsRequire(name, opts);
+  var mod = shadow.js.modules[name];
 
-  // FIXME: working around the impl of CLJS-1620
-  // https://dev.clojure.org/jira/browse/CLJS-1620
-  // not exactly certain why it doesnt work but sometimes
-  // CLJS continues to rewrite thing.default to thing.default$
-  //
-  // this is a pattern done by babel when converted from ES6
-  // so its very isolated and should be reliable enough
-  if (typeof(exports) == 'object' && exports["default"] && exports["__esModule"] === true) {
-    exports["default$"] = exports["default"];
+  if (typeof(mod) == 'undefined') {
+    var exports = shadow.js.jsRequire(name, opts);
+
+    if (exports && exports["__esModule"]) {
+        mod = exports;
+    } else {
+        mod = {"default":exports};
+    }
+
+    shadow.js.modules[name] = mod;
   }
-  return exports;
+
+  return mod;
 };
-
-shadow.js.requireModule = function(name) {
-  var mod = shadow.js.require(name, {});
-  if (mod["__esModule"]) {
-    return mod;
-  } else {
-      return {
-        "default": shadow.js.require(name, {})
-      };
-  }
-}
-

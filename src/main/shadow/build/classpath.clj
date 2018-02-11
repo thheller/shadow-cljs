@@ -72,6 +72,7 @@
                   js-errors
                   js-warnings
                   js-invalid-requires
+                  js-esm
                   js-language
                   js-str-offsets
                   goog-module
@@ -137,6 +138,7 @@
           (assoc rc
             :source source
             :js-language js-language
+            :js-esm js-esm
             :type :js
             :classpath true
             :ns ns

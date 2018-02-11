@@ -125,6 +125,8 @@
                ;; this is here and not in boostrap since defines already accesses them
                (str "var SHADOW_IMPORT_PATH = " (pr-str rel-path) ";")
 
+               "global.$CLJS = global;"
+
                (when source-map
                  (str "try {"
                       "require('source-map-support').install();"

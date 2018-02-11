@@ -114,13 +114,12 @@
     :before-load-async demo.browser/stop
     :after-load demo.browser/start}}
 
-  :test-dummy
+  :test-browser
   {:target :browser-test
-   :test-dir "out/demo-test-dummy"
-   :ns-regexp "demo.react-"
+   :test-dir "out/demo-test-browser"
    :devtools
    {:http-port 8606
-    :http-root "out/demo-test-dummy"}}
+    :http-root "out/demo-test-browser"}}
 
   :test-node
   {:target :node-test
