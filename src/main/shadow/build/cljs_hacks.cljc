@@ -55,10 +55,13 @@
   ;; (:require ["react" :as r :refer (foo]) (r/bar ...)
   ;; will record foo+bar
 
-  (let [esm? (get-in @env/*compiler* [:shadow/js-namespaces ns :js-esm])
-        prop (name sym)
+  (let [prop (name sym)
+
+        {:keys [js-esm type]}
+        (get-in @env/*compiler* [:shadow/js-namespaces ns])
+
         qname
-        (if (and (not esm?) (not= "default" prop))
+        (if (and (not= type :goog) (not js-esm) (not= "default" prop))
           ;; port of https://github.com/clojure/clojurescript/commit/72e2ab6e63b3341aa26abcbdd72dc291cbd0c462
           ;; closure rewrites all commonjs access to use .default
           ;; import Foo from "commonjs"

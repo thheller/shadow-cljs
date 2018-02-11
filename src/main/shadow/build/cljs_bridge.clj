@@ -89,7 +89,7 @@
              (remove #(= :cljs (:type %)))
              (reduce
                (fn [idx {:keys [ns] :as rc}]
-                 (assoc idx ns (select-keys rc [:ns :js-esm :resource-id])))
+                 (assoc idx ns (select-keys rc [:ns :js-esm :type :resource-id])))
                {})
              (doall))]
 
