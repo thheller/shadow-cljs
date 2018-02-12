@@ -271,11 +271,12 @@
               {:infer-externs :auto}
 
               :build-options
-              {:cache-level :jars}
+              {:cache-blockers #{shadow.dom
+                                 demo.browser}}
 
               :modules
               {:base
-               {:entries [shadow.dom demo.native]}}
+               {:entries [demo.browser]}}
 
               :js-options
               {}}
@@ -284,7 +285,7 @@
 
       #_(pprint (->> (get-in compiler-env [:shadow/js-properties])))
 
-      (doseq [ns-info (->> '[demo.protocol demo.native]
+      (doseq [ns-info (->> '[demo.browser]
                            (map #(get-in compiler-env [:cljs.analyzer/namespaces %])))]
         (prn (:name ns-info))
         (pprint (-> ns-info

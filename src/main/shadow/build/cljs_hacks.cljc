@@ -46,7 +46,8 @@
 (defn shadow-js-access-property [current-ns prop]
   {:pre [(symbol? current-ns)
          (string? prop)]}
-  (when-not (string/starts-with? prop "cljs$")
+  (when-not (or (= prop "prototype")
+                (string/starts-with? prop "cljs$"))
     (swap! env/*compiler* update-in
       [::namespaces current-ns :shadow/js-access-properties] conj-to-set prop)))
 
@@ -73,7 +74,13 @@
           ;; Bar = module$commonjs.default
           (symbol "js" (str ns ".default." prop))
           (symbol "js" (str ns "." prop)))]
-    (shadow-js-access-property current-ns prop)
+
+    ;; only generate externs for js access to shadow-js compiled files
+    ;; :goog and closure-transformed :js should not generate externs
+    ;; :goog shim files for :require should always generate though
+    (when (or (= :shadow-js type)
+              (clojure.string/starts-with? (str ns) "shadow.js.shim"))
+      (shadow-js-access-property current-ns prop))
 
     {:name qname
      :tag 'js
@@ -120,8 +127,19 @@
     (js-module-exists? ns)))
 
 (defn resolve-invokeable-ns [alias current-ns env]
-  (let [ns (resolve-ns-alias env alias)]
-    {:name ns
+  (let [ns
+        (resolve-ns-alias env alias)
+
+        {:keys [js-esm type]}
+        (get-in @env/*compiler* [:shadow/js-namespaces ns])
+
+        name
+        (if (and (not= type :goog) (not js-esm))
+          ;; must emit .default access for CJS, see resolve-js-var
+          (symbol "js" (str ns ".default"))
+          (symbol "js" ns))]
+
+    {:name name
      :tag 'js
      :ret-tag 'js
      :ns 'js}))
@@ -129,7 +147,8 @@
 (def known-safe-js-globals
   "symbols known to be closureJS compliant namespaces"
   #{"cljs"
-    "goog"})
+    "goog"
+    "console"})
 
 (defn resolve-var
   "Resolve a var. Accepts a side-effecting confirm fn for producing
@@ -253,41 +272,42 @@
           shadow-object-fn
           (:shadow/object-fn form-meta)]
 
-      ;; simplified *warn-on-infer* warnings since we do not care about them being typed
-      ;; we just need ^js not ^js/Foo.Bar
-      (when (and (:infer-warning *cljs-warnings*) ;; skip all checks if the warning is ignored anyways
-                 (not= "prototype" sprop)
-                 (not= "constructor" sprop)
-                 ;; defrecord
-                 (not= "getBasis" sprop)
-                 (not (string/starts-with? sprop "cljs$"))
-                 (or (nil? tag) (= 'any tag))
-                 (or (nil? target-tag) (= 'any target-tag))
-                 ;; properties from externs and JS deps
-                 (not (contains? (:shadow/js-properties @env/*compiler*) sprop))
-                 ;; protocol fns, never need externs for those
-                 (not (string/includes? sprop "$arity$"))
-                 ;; set in cljs.core/extend-prefix hack below
-                 (not (some-> prop meta :shadow/protocol-prop))
-                 (not shadow-object-fn)
-                 ;; no immediate ideas how to annotate these so it doesn't warn
-                 (not= form '(. cljs.core/List -EMPTY))
-                 (not= form '(. cljs.core/PersistentVector -EMPTY-NODE)))
+      ;; never need to record externs for any prop we already have externs for
+      (when-not (contains? (:shadow/js-properties @env/*compiler*) sprop)
 
-        (warning :infer-warning env {:warn-type :target :form form}))
+        ;; simplified *warn-on-infer* warnings since we do not care about them being typed
+        ;; we just need ^js not ^js/Foo.Bar
+        (when (and (:infer-warning *cljs-warnings*) ;; skip all checks if the warning is ignored anyways
+                   (not= "prototype" sprop)
+                   (not= "constructor" sprop)
+                   ;; defrecord
+                   (not= "getBasis" sprop)
+                   (not (string/starts-with? sprop "cljs$"))
+                   (or (nil? tag) (= 'any tag))
+                   (or (nil? target-tag) (= 'any target-tag))
+                   ;; protocol fns, never need externs for those
+                   (not (string/includes? sprop "$arity$"))
+                   ;; set in cljs.core/extend-prefix hack below
+                   (not (some-> prop meta :shadow/protocol-prop))
+                   (not shadow-object-fn)
+                   ;; no immediate ideas how to annotate these so it doesn't warn
+                   (not= form '(. cljs.core/List -EMPTY))
+                   (not= form '(. cljs.core/PersistentVector -EMPTY-NODE)))
 
-      (when (and shadow-object-fn
-                 (let [tag (-> shadow-object-fn meta :tag)]
-                   (or (nil? tag) (= 'js tag))))
-        (shadow-js-access-property
-          (-> env :ns :name)
-          (str shadow-object-fn)))
+          (warning :infer-warning env {:warn-type :target :form form}))
 
-      (when (js-tag? tag)
-        (shadow-js-access-property
-          (-> env :ns :name)
-          sprop
-          )))))
+        (when (and shadow-object-fn
+                   (let [tag (-> shadow-object-fn meta :tag)]
+                     (or (nil? tag) (= 'js tag))))
+          (shadow-js-access-property
+            (-> env :ns :name)
+            (str shadow-object-fn)))
+
+        (when (js-tag? tag)
+          (shadow-js-access-property
+            (-> env :ns :name)
+            sprop
+            ))))))
 
 (defn analyze-dot [env target member member+ form opts]
   (when (nil? target)

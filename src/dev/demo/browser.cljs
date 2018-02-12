@@ -1,7 +1,7 @@
 (ns demo.browser
   (:require-macros [demo.browser :refer (test-macro)])
   (:require
-    ["babel-test" :as babel-test :default Shape]
+    #_ ["babel-test" :as babel-test :default Shape]
     [clojure.pprint :refer (pprint)]
     [clojure.spec.alpha :as s]
     [clojure.spec.gen.alpha :as gen]
@@ -9,7 +9,7 @@
     [cljs.core.async :as async :refer (go)]
     ["./es6.js" :as es6]
     ["./foo" :as foo]
-    ["circular-test" :as circ]
+    #_ ["circular-test" :as circ]
     #_ ["/demo/myComponent" :refer (myComponent)]
     [cljs.test :refer (deftest)]
     ))
@@ -46,12 +46,12 @@
 (prn :foo9 :bar)
 (prn :foo0 :bar)
 
-(js/console.log "babel-test" babel-test (Shape. 1 1))
+#_ (js/console.log "babel-test" babel-test (Shape. 1 1))
 
 (js/console.log "foo" foo)
 
-(js/console.log "circular - not yet" (circ/test))
-(js/console.log "circular - actual" (circ/foo))
+#_ (js/console.log "circular - not yet" (circ/test))
+#_ (js/console.log "circular - actual" (circ/foo))
 
 (s/def ::foo string?)
 
