@@ -139,8 +139,16 @@
              ::socket socket}
             (repl config)))
 
+        (catch SocketException se
+          ;; writing to lost connection throws se
+          nil)
+
+        (catch Exception e
+          (log/warn e "socket-repl exception"))
+
         (finally
-          (.close socket))))))
+          ;; try to close but ignore all errors
+          (try (.close socket) (catch Throwable t)))))))
 
 (defn start
   ;; FIXME: could probably just use that, it provides all the required hooks
