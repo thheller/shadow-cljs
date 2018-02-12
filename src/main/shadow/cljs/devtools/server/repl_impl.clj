@@ -9,7 +9,7 @@
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.build.log :as build-log]
             [clojure.tools.logging :as log])
-  (:import (java.io StringReader PushbackReader)))
+  (:import (java.io StringReader PushbackReader File)))
 
 (defn print-result [result]
   (locking build-log/stdout-lock
@@ -130,7 +130,7 @@
                 (recur)))))))))
 
 (defn node-repl*
-  [{:keys [supervisor] :as app}
+  [{:keys [supervisor config] :as app}
    {:keys [via
            verbose
            node-args
@@ -140,7 +140,7 @@
          node-command "node"}
     :as opts}]
   (let [script-name
-        "target/shadow-node-repl.js"
+        (str (:cache-root config "target/shadow-cljs") File/separatorChar "shadow-node-repl.js")
 
         build-config
         {:build-id :node-repl

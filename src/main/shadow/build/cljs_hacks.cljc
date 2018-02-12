@@ -137,7 +137,7 @@
         (if (and (not= type :goog) (not js-esm))
           ;; must emit .default access for CJS, see resolve-js-var
           (symbol "js" (str ns ".default"))
-          (symbol "js" ns))]
+          (symbol "js" (str ns)))]
 
     {:name name
      :tag 'js

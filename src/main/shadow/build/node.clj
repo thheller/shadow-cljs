@@ -109,13 +109,9 @@
       (let [{:keys [prepend append sources]}
             (first build-modules)
 
-            rel-path
-            (-> output-to
-                (.getParentFile)
-                (.toPath)
-                (.relativize (-> (data/output-file state cljs-runtime-path)
-                                 (.toPath)))
-                (.toString)
+            abs-path
+            (-> (data/output-file state cljs-runtime-path)
+                (.getAbsolutePath)
                 (rc/normalize-name))
 
             out
@@ -123,7 +119,7 @@
               [prepend
 
                ;; this is here and not in boostrap since defines already accesses them
-               (str "var SHADOW_IMPORT_PATH = " (pr-str rel-path) ";")
+               (str "var SHADOW_IMPORT_PATH = " (pr-str abs-path) ";")
 
                "global.$CLJS = global;"
 

@@ -29,8 +29,8 @@ var SHADOW_IMPORT = global.SHADOW_IMPORT = function(src) {
 
   SHADOW_IMPORTED[src] = true;
 
-  // SHADOW_IMPORT_PATH is the path to the runtime files relative to this one
-  var filePath = PATH.resolve(__dirname, SHADOW_IMPORT_PATH, src);
+  // SHADOW_IMPORT_PATH is an absolute path
+  var filePath = PATH.resolve(SHADOW_IMPORT_PATH, src);
 
   var js = FS.readFileSync(filePath);
 
