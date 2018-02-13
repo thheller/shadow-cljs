@@ -20,22 +20,26 @@
     {}
     @workers-ref))
 
+(defonce super-lock (Object.))
+
 (defn start-worker
   [{:keys [system-bus state-ref workers-ref executor cache-root http classpath npm babel] :as svc} {:keys [build-id] :as build-config}]
   {:pre [(keyword? build-id)]}
-  (when (get @workers-ref build-id)
-    (throw (ex-info "already started" {:build-id build-id})))
+  ;; locking to prevent 2 threads starting the same build at the same time (unlikely but still)
+  (locking super-lock
+    (when (get @workers-ref build-id)
+      (throw (ex-info "already started" {:build-id build-id})))
 
-  (let [{:keys [proc-stop] :as proc}
-        (worker/start system-bus executor cache-root http classpath npm babel build-config)]
+    (let [{:keys [proc-stop] :as proc}
+          (worker/start system-bus executor cache-root http classpath npm babel build-config)]
 
-    (vswap! workers-ref assoc build-id proc)
+      (vswap! workers-ref assoc build-id proc)
 
-    (go (<! proc-stop)
-        (vswap! workers-ref dissoc build-id))
+      (go (<! proc-stop)
+          (vswap! workers-ref dissoc build-id))
 
-    proc
-    ))
+      proc
+      )))
 
 (defn stop-worker
   [{:keys [workers-ref] :as svc} id]
