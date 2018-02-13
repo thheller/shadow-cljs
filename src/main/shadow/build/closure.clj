@@ -1591,7 +1591,10 @@
          ;; that might not matter, should cache anyways
          :optimizations (:optimizations js-options :simple) ;; FIXME: validate whitespace or simple
          :pretty-print (:pretty-print js-options false)
-         :language-in :ecmascript5 ;; es6+ is transformed by babel first
+         ;; es6+ is transformed by babel first
+         ;; but closure got real picky and complains about some things being es6 that aren't
+         ;; doesn't really impact much here anyways
+         :language-in :ecmascript-next
          :language-out :ecmascript5}
 
         property-collector
@@ -1634,7 +1637,7 @@
         (try
           (util/with-logged-time [state {:type ::shadow-convert
                                          :num-sources (count sources)}]
-            (.compile cc [] source-files closure-opts))
+            (.compile cc default-externs source-files closure-opts))
           ;; catch internal closure errors
           (catch Exception e
             (throw (ex-info "failed to convert sources"
