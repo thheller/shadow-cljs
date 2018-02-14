@@ -69,9 +69,19 @@
                 (let [repl-state (repl-impl/worker-repl-state worker)
 
                       repl-ns
-                      (-> repl-state :current :ns)]
-                  (send msg {:value (:value result)
-                             :ns (pr-str repl-ns)}))
+                      (-> repl-state :current :ns)
+
+                      {:keys [value]}
+                      result]
+                  (try
+                    (send msg {:value (if-not (string? value)
+                                        value
+                                        (edn/read-string value))
+                               :ns (pr-str repl-ns)})
+                    (catch Exception e
+                      (send msg {:err (str "Failed to parse client result: " (.getMessage e) "\n")})
+                      (send msg {:value value
+                                 :ns (pr-str repl-ns)}))))
 
                 :repl/set-ns-complete
                 (let [repl-state (repl-impl/worker-repl-state worker)
