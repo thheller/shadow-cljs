@@ -110,14 +110,11 @@ public class JsInspector {
             } else if (NodeUtil.isCallTo(node, "goog.module")) {
                 googModule = node.getLastChild().getString();
             } else if (NodeUtil.isCallTo(node, "Object.defineProperty")) {
-                Node propNode = node.getChildAtIndex(2);
-
-                // detect this pattern
-
                 // Object.defineProperty(exports, "__esModule", {
                 //  value: true
                 //});
 
+                Node propNode = node.getChildAtIndex(2);
                 if (propNode != null && propNode.isString() && propNode.getString().equals("__esModule")) {
                     Node objNode = node.getChildAtIndex(1);
                     // FIXME: check that it is defining on exports and value: true
@@ -131,6 +128,8 @@ public class JsInspector {
                     babelEsm = true;
                 }
             } else if (node.isAssign() && node.getChildAtIndex(0).matchesQualifiedName("module.exports")) {
+                // module.exports = { "default": __webpack_require__(270), __esModule: true };
+
                 Node objectLit = node.getChildAtIndex(1);
                 if (objectLit.isObjectLit()) {
                     Node key = objectLit.getFirstChild();
