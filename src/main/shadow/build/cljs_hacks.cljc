@@ -58,11 +58,11 @@
 
   (let [prop (name sym)
 
-        {:keys [js-esm type]}
+        {:keys [js-commonjs type]}
         (get-in @env/*compiler* [:shadow/js-namespaces ns])
 
         qname
-        (if (and (not= type :goog) (not js-esm) (not= "default" prop))
+        (if (and (not= type :goog) js-commonjs (not= "default" prop))
           ;; port of https://github.com/clojure/clojurescript/commit/72e2ab6e63b3341aa26abcbdd72dc291cbd0c462
           ;; closure rewrites all commonjs access to use .default
           ;; import Foo from "commonjs"
@@ -130,11 +130,11 @@
   (let [ns
         (resolve-ns-alias env alias)
 
-        {:keys [js-esm type]}
+        {:keys [js-commonjs type]}
         (get-in @env/*compiler* [:shadow/js-namespaces ns])
 
         name
-        (if (and (not= type :goog) (not js-esm))
+        (if (and (not= type :goog) js-commonjs)
           ;; must emit .default access for CJS, see resolve-js-var
           (symbol "js" (str ns ".default"))
           (symbol "js" (str ns)))]

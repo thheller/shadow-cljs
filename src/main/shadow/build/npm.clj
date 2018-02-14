@@ -503,7 +503,7 @@
                 ;; all imports are collected into
                 ;; :js-imports ["react"]
                 {:keys [js-requires js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
-                (JsInspector/getFileInfo
+                (JsInspector/getFileInfoMap
                   compiler
                   ;; SourceFile/fromFile seems to leak file descriptors
                   (SourceFile/fromCode (.getAbsolutePath file) source))

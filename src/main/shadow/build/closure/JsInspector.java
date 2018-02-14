@@ -7,6 +7,9 @@ import com.google.javascript.jscomp.Compiler;
 import com.google.javascript.jscomp.parsing.parser.FeatureSet;
 import com.google.javascript.rhino.Node;
 
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 
 /**
@@ -21,7 +24,15 @@ public class JsInspector {
     public static final Keyword KW_OFFSET = RT.keyword(null, "offset");
     public static final Keyword KW_IMPORT = RT.keyword(null, "import");
 
-    public static class RequireCollector implements NodeTraversal.Callback {
+    public static class FileInfo implements NodeTraversal.Callback {
+        JsAst.ParseResult parseResult;
+        final FeatureSet features;
+
+        public FileInfo(JsAst.ParseResult parseResult, FeatureSet features) {
+            this.parseResult = parseResult;
+            this.features = features;
+        }
+
         ITransientCollection googRequires = PersistentVector.EMPTY.asTransient();
         ITransientCollection googProvides = PersistentVector.EMPTY.asTransient();
         ITransientCollection requires = PersistentVector.EMPTY.asTransient();
@@ -30,6 +41,8 @@ public class JsInspector {
         ITransientCollection strOffsets = PersistentVector.EMPTY.asTransient();
 
         boolean esm = false;
+        boolean babelEsm = false;
+
         String googModule = null;
 
         @Override
@@ -96,6 +109,40 @@ public class JsInspector {
                 googProvides = googProvides.conj(x);
             } else if (NodeUtil.isCallTo(node, "goog.module")) {
                 googModule = node.getLastChild().getString();
+            } else if (NodeUtil.isCallTo(node, "Object.defineProperty")) {
+                Node propNode = node.getChildAtIndex(2);
+
+                // detect this pattern
+
+                // Object.defineProperty(exports, "__esModule", {
+                //  value: true
+                //});
+
+                if (propNode != null && propNode.isString() && propNode.getString().equals("__esModule")) {
+                    Node objNode = node.getChildAtIndex(1);
+                    // FIXME: check that it is defining on exports and value: true
+                    babelEsm = true;
+                }
+            } else if (node.isAssign() && node.getChildAtIndex(1).isTrue()) {
+                // exports.__esModule = true;
+
+                String qname = node.getChildAtIndex(0).getQualifiedName();
+                if ("exports.__esModule".equals(qname) || "module.exports.__esModule".equals(qname)) {
+                    babelEsm = true;
+                }
+            } else if (node.isAssign() && node.getChildAtIndex(0).matchesQualifiedName("module.exports")) {
+                Node objectLit = node.getChildAtIndex(1);
+                if (objectLit.isObjectLit()) {
+                    Node key = objectLit.getFirstChild();
+
+                    while (key != null) {
+                        if (key.isStringKey() && key.getString().equals("__esModule") && key.getFirstChild().isTrue()) {
+                           babelEsm = true;
+                           break;
+                        }
+                        key = key.getNext();
+                    }
+                }
             }
         }
     }
@@ -130,12 +177,14 @@ public class JsInspector {
     public static final Keyword KW_WARNINGS = RT.keyword(NS, "js-warnings");
     public static final Keyword KW_LANGUAGE = RT.keyword(NS, "js-language");
     public static final Keyword KW_ESM = RT.keyword(NS, "js-esm");
+    public static final Keyword KW_BABEL_ESM = RT.keyword(NS, "js-babel-esm");
+    public static final Keyword KW_COMMONJS = RT.keyword(NS, "js-commonjs");
     public static final Keyword KW_STR_OFFSETS = RT.keyword(NS, "js-str-offsets");
     public static final Keyword KW_GOOG_PROVIDES = RT.keyword(NS, "goog-provides");
     public static final Keyword KW_GOOG_REQUIRES = RT.keyword(NS, "goog-requires");
     public static final Keyword KW_GOOG_MODULE = RT.keyword(NS, "goog-module");
 
-    public static IPersistentMap getFileInfo(Compiler cc, SourceFile srcFile) {
+    public static FileInfo getFileInfo(Compiler cc, SourceFile srcFile) {
         JsAst ast = new JsAst(srcFile);
         Node node = ast.getAstRoot(cc);
 
@@ -144,30 +193,42 @@ public class JsInspector {
         FeatureSet features = ast.getFeatures(cc);
 
         // FIXME: don't do this if result has errors?
-        RequireCollector collector = new RequireCollector();
-        NodeTraversal.traverseEs6(cc, node, collector);
+        FileInfo fileInfo = new FileInfo(result, features);
+        NodeTraversal.traverseEs6(cc, node, fileInfo);
 
+        return fileInfo;
+    }
+
+    public static IPersistentMap getFileInfoMap(Compiler cc, SourceFile srcFile) {
+        FileInfo fileInfo = getFileInfo(cc, srcFile);
+
+        return asMap(fileInfo);
+    }
+
+    public static IPersistentMap asMap(FileInfo fileInfo) {
         IPersistentMap map = RT.map(
-                KW_REQUIRES, collector.requires.persistent(),
-                KW_IMPORTS, collector.imports.persistent(),
-                KW_ESM, collector.esm,
-                KW_GOOG_PROVIDES, collector.googProvides.persistent(),
-                KW_GOOG_REQUIRES, collector.googRequires.persistent(),
-                KW_GOOG_MODULE, collector.googModule,
-                KW_INVALID_REQUIRES, collector.invalidRequires.persistent(),
-                KW_LANGUAGE, features.version(),
-                KW_STR_OFFSETS, collector.strOffsets.persistent()
+                KW_REQUIRES, fileInfo.requires.persistent(),
+                KW_IMPORTS, fileInfo.imports.persistent(),
+                KW_ESM, fileInfo.esm,
+                KW_BABEL_ESM, fileInfo.babelEsm,
+                KW_COMMONJS, (!fileInfo.esm && !fileInfo.babelEsm),
+                KW_GOOG_PROVIDES, fileInfo.googProvides.persistent(),
+                KW_GOOG_REQUIRES, fileInfo.googRequires.persistent(),
+                KW_GOOG_MODULE, fileInfo.googModule,
+                KW_INVALID_REQUIRES, fileInfo.invalidRequires.persistent(),
+                KW_LANGUAGE, fileInfo.features.version(),
+                KW_STR_OFFSETS, fileInfo.strOffsets.persistent()
         );
 
-        if (result != null) {
-            map = map.assoc(KW_ERRORS, errorsAsData(result.errors)).assoc(KW_WARNINGS, errorsAsData(result.warnings));
+        if (fileInfo.parseResult != null) {
+            map = map.assoc(KW_ERRORS, errorsAsData(fileInfo.parseResult.errors)).assoc(KW_WARNINGS, errorsAsData(fileInfo.parseResult.warnings));
         }
 
         return map;
     }
 
 
-    public static void main(String... args) {
+    public static void main(String... args) throws IOException {
         Compiler cc = new Compiler();
 
         CompilerOptions co = new CompilerOptions();
@@ -175,29 +236,68 @@ public class JsInspector {
         cc.initOptions(co);
 
         SourceFile srcFile = SourceFile.fromCode("foo.js", "var x = function(require) { require('DONT'); }; require('react'); require('./foo'); import 'foo'; import { x } from 'bar';");
-        //System.out.println(getFileInfo(cc, srcFile));
+        //System.out.println(getFileInfoMap(cc, srcFile));
 
         SourceFile exportFrom = SourceFile.fromCode("foo.js", "export * from './foo';");
-        //System.out.println(getFileInfo(cc, exportFrom));
+        //System.out.println(getFileInfoMap(cc, exportFrom));
 
         SourceFile goog = SourceFile.fromCode("foo.js", "goog.provide('foo'); goog.require('thing');");
-        System.out.println(getFileInfo(cc, goog));
+        System.out.println(getFileInfoMap(cc, goog));
 
         SourceFile jsxFile = SourceFile.fromCode(
                 "jsx.js",
                 "var x = require('foo'); function render() { return <div>foo</div> };"
         );
 
-        //System.out.println(getFileInfo(cc, jsxFile));
+        //System.out.println(getFileInfoMap(cc, jsxFile));
 
+        // babel es6 conversion pattern
+        SourceFile esm1 = SourceFile.fromCode(
+                "esm.js",
+                "Object.defineProperty(exports, \"__esModule\", {\n" +
+                        "  value: true\n" +
+                        "});"
+        );
+
+        System.out.println(getFileInfoMap(cc, esm1));
+
+        // other es6 conversion pattern
+        SourceFile esm2 = SourceFile.fromCode( "esm2.js", "exports.__esModule = true;");
+
+        System.out.println(getFileInfoMap(cc, esm2));
+
+        SourceFile esm3 = SourceFile.fromCode( "esm3.js", "module.exports = { \"default\": __webpack_require__(270), __esModule: true };");
+        System.out.println(getFileInfoMap(cc, esm3));
 
         long start = System.currentTimeMillis();
-        getFileInfo(cc, srcFile);
-        getFileInfo(cc, srcFile);
-        getFileInfo(cc, srcFile);
+        getFileInfoMap(cc, srcFile);
+        getFileInfoMap(cc, srcFile);
+        getFileInfoMap(cc, srcFile);
 
         long runtime = System.currentTimeMillis() - start;
-        //System.out.println(getFileInfo(cc, srcFile));
+        //System.out.println(getFileInfoMap(cc, srcFile));
+
+        if (false) {
+            Files.walkFileTree(Paths.get("node_modules"), new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.getFileName().toString().endsWith(".js")) {
+                        String content = new String(Files.readAllBytes(file));
+
+                        if (content.contains("__esModule")) {
+                            SourceFile test = SourceFile.fromCode("esm.js", content);
+                            FileInfo fi = getFileInfo(cc, test);
+
+                            if (!fi.esm && !fi.babelEsm) {
+                                System.out.println(file);
+                                System.out.println(asMap(fi));
+                            }
+                        }
+                    }
+                    return super.visitFile(file, attrs);
+                }
+            });
+        }
 
         System.out.format("runtime:%d%n", runtime);
     }

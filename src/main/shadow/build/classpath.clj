@@ -79,7 +79,7 @@
                   goog-requires
                   goog-provides]
            :as info}
-          (JsInspector/getFileInfo
+          (JsInspector/getFileInfoMap
             compiler
             ;; SourceFile/fromFile seems to leak file descriptors
             (SourceFile/fromCode resource-name source))
@@ -135,20 +135,15 @@
                    (map npm/maybe-convert-goog)
                    (into []))]
 
-          (assoc rc
-            :source source
-            :js-language js-language
-            :js-esm js-esm
-            :type :js
-            :classpath true
-            :ns ns
-            :provides #{ns}
-            :requires #{}
-            :js-requires js-requires
-            :js-imports js-imports
-            :js-deps js-deps
-            :js-str-offsets js-str-offsets
-            :deps js-deps))
+          (-> info
+              (merge rc)
+              (assoc :source source
+                     :type :js
+                     :classpath true
+                     :ns ns
+                     :provides #{ns}
+                     :requires #{}
+                     :deps js-deps)))
         ))))
 
 (defn inspect-cljs
