@@ -130,8 +130,7 @@
           babel-rewrite?
           (-> (dissoc :source)
               ;; babel turns it into commonjs
-              (assoc :js-esm false
-                     :source-fn
+              (assoc :source-fn
                      (fn [state]
                        (babel/convert-source babel state source resource-name)))
               )))))
