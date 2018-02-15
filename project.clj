@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.1.11"
+(defproject thheller/shadow-cljs "2.1.12"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -38,8 +38,6 @@
    [com.cognitect/transit-cljs "0.8.243"]
 
    [org.clojure/core.async "0.4.474"]
-
-   #_[org.clojure/clojurescript "1.9.854"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.9.946"

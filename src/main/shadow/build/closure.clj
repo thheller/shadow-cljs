@@ -1231,8 +1231,11 @@
              (map (fn [{:keys [resource-name ns type] :as rc}]
                     (closure-source-file resource-name
                       (case type
+                        ;; don't need sources for shadow-js
+                        ;; only need the file to exist so closure doesn't complain
                         :shadow-js
-                        (npm/shadow-js-require rc)
+                        ""
+                        ;; just in case we add the goog.provide for cljs/closure namespaces
                         (:cljs :goog)
                         (str "goog.provide(\"" (cljs-comp/munge ns) "\");")
                         (throw (ex-info (format "whats this? %s type: %s" resource-name type) {}))))))

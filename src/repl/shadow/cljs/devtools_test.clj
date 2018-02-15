@@ -693,7 +693,7 @@
               :compiler-options
               {:pretty-print true
                :pseudo-names true}
-              :modules {:main {:entries [test.js-interop]}}
+              :modules {:main {:entries [goog "/test/es6"]}}
               :devtools {:enabled false :console-support false}}
             {})]
 

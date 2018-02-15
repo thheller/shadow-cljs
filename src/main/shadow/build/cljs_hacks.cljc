@@ -58,22 +58,11 @@
 
   (let [prop (name sym)
 
-        {:keys [js-commonjs type]}
+        {:keys [js-esm type]}
         (get-in @env/*compiler* [:shadow/js-namespaces ns])
 
         qname
-        (if (and (not= type :goog) js-commonjs (not= "default" prop))
-          ;; port of https://github.com/clojure/clojurescript/commit/72e2ab6e63b3341aa26abcbdd72dc291cbd0c462
-          ;; closure rewrites all commonjs access to use .default
-          ;; import Foo from "commonjs"
-          ;; Foo = module$commonjs.default
-          ;; cljs require :as should continue to work and not require :default
-          ;; (:require ["commonjs" :as Foo :default Bar])
-          ;; Foo = module$commonjs.default
-          ;; :default should be preserved
-          ;; Bar = module$commonjs.default
-          (symbol "js" (str ns ".default." prop))
-          (symbol "js" (str ns "." prop)))]
+        (symbol "js" (str ns "." prop))]
 
     ;; only generate externs for js access to shadow-js compiled files
     ;; :goog and closure-transformed :js should not generate externs

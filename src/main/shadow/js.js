@@ -78,6 +78,8 @@ shadow.js.modules = {};
 
 
 shadow.js.require = function(name, opts) {
+  return shadow.js.jsRequire(name, opts);
+  /*
   var mod = shadow.js.modules[name];
 
   if (typeof(mod) == 'undefined') {
@@ -93,4 +95,5 @@ shadow.js.require = function(name, opts) {
   }
 
   return mod;
+  */
 };

@@ -41,7 +41,6 @@ public class JsInspector {
         ITransientCollection strOffsets = PersistentVector.EMPTY.asTransient();
 
         boolean esm = false;
-        boolean babelEsm = false;
 
         String googModule = null;
 
@@ -109,39 +108,6 @@ public class JsInspector {
                 googProvides = googProvides.conj(x);
             } else if (NodeUtil.isCallTo(node, "goog.module")) {
                 googModule = node.getLastChild().getString();
-            } else if (NodeUtil.isCallTo(node, "Object.defineProperty")) {
-                // Object.defineProperty(exports, "__esModule", {
-                //  value: true
-                //});
-
-                Node propNode = node.getChildAtIndex(2);
-                if (propNode != null && propNode.isString() && propNode.getString().equals("__esModule")) {
-                    Node objNode = node.getChildAtIndex(1);
-                    // FIXME: check that it is defining on exports and value: true
-                    babelEsm = true;
-                }
-            } else if (node.isAssign() && node.getChildAtIndex(1).isTrue()) {
-                // exports.__esModule = true;
-
-                String qname = node.getChildAtIndex(0).getQualifiedName();
-                if ("exports.__esModule".equals(qname) || "module.exports.__esModule".equals(qname)) {
-                    babelEsm = true;
-                }
-            } else if (node.isAssign() && node.getChildAtIndex(0).matchesQualifiedName("module.exports")) {
-                // module.exports = { "default": __webpack_require__(270), __esModule: true };
-
-                Node objectLit = node.getChildAtIndex(1);
-                if (objectLit.isObjectLit()) {
-                    Node key = objectLit.getFirstChild();
-
-                    while (key != null) {
-                        if (key.isStringKey() && key.getString().equals("__esModule") && key.getFirstChild().isTrue()) {
-                           babelEsm = true;
-                           break;
-                        }
-                        key = key.getNext();
-                    }
-                }
             }
         }
     }
@@ -176,8 +142,6 @@ public class JsInspector {
     public static final Keyword KW_WARNINGS = RT.keyword(NS, "js-warnings");
     public static final Keyword KW_LANGUAGE = RT.keyword(NS, "js-language");
     public static final Keyword KW_ESM = RT.keyword(NS, "js-esm");
-    public static final Keyword KW_BABEL_ESM = RT.keyword(NS, "js-babel-esm");
-    public static final Keyword KW_COMMONJS = RT.keyword(NS, "js-commonjs");
     public static final Keyword KW_STR_OFFSETS = RT.keyword(NS, "js-str-offsets");
     public static final Keyword KW_GOOG_PROVIDES = RT.keyword(NS, "goog-provides");
     public static final Keyword KW_GOOG_REQUIRES = RT.keyword(NS, "goog-requires");
@@ -209,8 +173,6 @@ public class JsInspector {
                 KW_REQUIRES, fileInfo.requires.persistent(),
                 KW_IMPORTS, fileInfo.imports.persistent(),
                 KW_ESM, fileInfo.esm,
-                KW_BABEL_ESM, fileInfo.babelEsm,
-                KW_COMMONJS, (!fileInfo.esm && !fileInfo.babelEsm),
                 KW_GOOG_PROVIDES, fileInfo.googProvides.persistent(),
                 KW_GOOG_REQUIRES, fileInfo.googRequires.persistent(),
                 KW_GOOG_MODULE, fileInfo.googModule,
@@ -287,10 +249,8 @@ public class JsInspector {
                             SourceFile test = SourceFile.fromCode("esm.js", content);
                             FileInfo fi = getFileInfo(cc, test);
 
-                            if (!fi.esm && !fi.babelEsm) {
                                 System.out.println(file);
                                 System.out.println(asMap(fi));
-                            }
                         }
                     }
                     return super.visitFile(file, attrs);
