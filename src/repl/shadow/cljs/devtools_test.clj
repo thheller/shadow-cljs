@@ -701,6 +701,23 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+(deftest test-closure-es6-interop
+  (try
+    (let [{:keys [build-sources] :as state}
+          (api/compile*
+            '{:build-id :js-interop
+              :target :node-test
+              :ns-regexp "test.js-interop-test"
+              :output-to "target/js-interop/test.js"
+              :compiler-options
+              {:pretty-print true
+               :pseudo-names true}}
+            {})]
+
+      )
+    (catch Exception ex
+      (errors/user-friendly-error ex))))
+
 (comment
   (api/compile :browser))
 
