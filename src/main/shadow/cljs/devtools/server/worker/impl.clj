@@ -14,7 +14,8 @@
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as errors]
-            [shadow.build.warnings :as warnings]))
+            [shadow.build.warnings :as warnings]
+            [shadow.debug :as dbg]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -51,18 +52,6 @@
     (>!! output msg)
     worker-state))
 
-(defn update-status!
-  [{:keys [system-bus status-ref build-config] :as worker-state} status-id status-info]
-  (let [status
-        {:build-id (:build-id build-config)
-         :status status-id
-         :info status-info}]
-    (vreset! status-ref status)
-    ;; yuck, can't properly alias
-    (sys-bus/publish! system-bus :shadow.cljs.devtools.server.worker/update status))
-
-  worker-state)
-
 (defn build-msg
   [worker-state msg]
   (>!!output worker-state
@@ -76,8 +65,6 @@
 
 (defn build-failure
   [{:keys [build-config] :as worker-state} e]
-  (update-status! worker-state :error {:error e})
-
   (>!!output worker-state
     {:type :build-failure
      :build-config build-config
@@ -93,8 +80,6 @@
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
-
-  (update-status! worker-state :configure {})
 
   (try
     ;; FIXME: allow the target-fn read-only access to worker-state? not just worker-info?
@@ -114,8 +99,6 @@
                 ::compile-attempt 0)
               (build/configure :dev build-config))]
 
-      (update-status! worker-state :configured {})
-
       ;; FIXME: should maybe cleanup old :build-state if there is one (re-configure)
       (assoc worker-state :build-state build-state))
     (catch Exception e
@@ -132,9 +115,7 @@
   (if (nil? build-state)
     worker-state
     (try
-      (update-status! worker-state :started {})
-
-      (let [{::build/keys [build-info] :keys [build-sources] :as build-state}
+      (let [{::build/keys [build-info] :keys [build-sources build-macros] :as build-state}
             (-> build-state
                 (build/compile)
                 (build/flush)
@@ -148,11 +129,10 @@
            :info
            build-info})
 
-        (update-status! worker-state :complete {:build-info build-info})
-
         (assoc worker-state
           :build-state build-state
-          :last-build-sources build-sources))
+          :last-build-sources build-sources
+          :last-build-macros build-macros))
       (catch Exception e
         (build-failure worker-state e)))))
 
@@ -213,15 +193,11 @@
 
 ;; messages sent by the loop started in repl-eval-connect
 (defmethod do-proc-control :client-msg
-  [{:keys [pending-results] :as worker-state}
-   {:keys [msg client-out] :as envelope}]
+  [worker-state {:keys [msg client-out] :as envelope}]
 
   (case (:type msg)
-    :repl/result
+    (:repl/result :repl/init-complete :repl/set-ns-complete :repl/require-complete)
     (process-repl-result worker-state msg)
-
-    :repl/init-complete
-    worker-state
 
     :ping
     (do (>!! client-out {:type :pong :v (:v msg)})
@@ -400,19 +376,26 @@
             (>!!output worker-state msg))
           worker-state)))))
 
-
-
-
-
 (defn do-macro-update
-  [{:keys [build-state autobuild] :as worker-state} {:keys [macro-namespaces] :as msg}]
+  [{:keys [build-state last-build-macros autobuild] :as worker-state} {:keys [macro-namespaces] :as msg}]
+
+  (dbg/tap> {:tag :inspect/value
+             :id ::macro-update
+             :value
+             {:build-state (nil? build-state)
+              :affected (build-api/build-affected-by-macros? build-state macro-namespaces)
+              :macro-namespaces macro-namespaces
+              :last-build-macros last-build-macros
+              :autobuild autobuild
+              }})
+
   (cond
     (not build-state)
     worker-state
 
     ;; the updated macro may not be used by this build
     ;; so we can skip the rebuild
-    (build-api/build-affected-by-macros? build-state macro-namespaces)
+    (and (seq last-build-macros) (some last-build-macros macro-namespaces))
     (-> worker-state
         (update :build-state build-api/reset-resources-using-macros macro-namespaces)
         (cond->
@@ -420,7 +403,8 @@
           (build-compile)))
 
     :do-nothing
-    worker-state))
+    (do (log/debug "build not affected by macros" macro-namespaces (get-in build-state [:build-config :build-id]))
+        worker-state)))
 
 (defn do-resource-update
   [{:keys [autobuild build-state] :as worker-state}

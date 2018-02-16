@@ -10,7 +10,8 @@
             [shadow.cljs.devtools.errors :as errors]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.server.runtime :as runtime]
-            [clojure.set :as set])
+            [clojure.set :as set]
+            [shadow.debug :as dbg])
   (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream)))
 
 (defn async-logger [ch]
@@ -179,14 +180,18 @@
   :do-shutdown (fn [last-state])"
 
   [state-ref init-state dispatch-table
-   {:keys [validate validate-error on-error do-shutdown] :as options}]
+   {:keys [server-id validate validate-error on-error do-shutdown] :as options}]
   (let [chans
         (into [] (keys dispatch-table))]
 
     (thread
       (let [last-state
-            (loop [state
-                   init-state]
+            (loop [state init-state]
+              (when server-id
+                (dbg/tap> {:tag :inspect/value
+                           :id [::state server-id]
+                           :value state}))
+
               (vreset! state-ref state)
 
               (let [[msg ch]
@@ -194,6 +199,12 @@
 
                     handler
                     (get dispatch-table ch)]
+
+                (when server-id
+                  (dbg/tap> {:tag :inspect/log
+                             :id [::last-msg server-id]
+                             :value msg
+                             :keep 10}))
 
                 (if (nil? handler)
                   state

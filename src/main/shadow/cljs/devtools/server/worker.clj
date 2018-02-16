@@ -14,9 +14,6 @@
             [shadow.build.babel :as babel])
   (:import (java.util UUID)))
 
-(defn get-status [{:keys [status-ref] :as proc}]
-  @status-ref)
-
 (defn compile
   "triggers an async compilation, use watch to receive notification about worker state"
   [proc]
@@ -165,9 +162,6 @@
          :asset-update asset-update
          :config-watch config-watch}
 
-        status-ref
-        (volatile! {:status :started})
-
         thread-state
         {::impl/worker-state true
          :http http
@@ -177,7 +171,6 @@
          :babel babel
          :proc-id proc-id
          :build-config build-config
-         :status-ref status-ref
          :autobuild false
          :eval-clients {}
          :repl-clients {}
@@ -200,7 +193,8 @@
            asset-update impl/do-asset-update
            macro-update impl/do-macro-update
            config-watch impl/do-config-watch}
-          {:validate
+          {:server-id [::worker build-id]
+           :validate
            impl/worker-state?
            :validate-error
            (fn [state-before state-after msg]
@@ -235,8 +229,7 @@
              :output output
              :output-mult output-mult
              :thread-ref thread-ref
-             :state-ref state-ref
-             :status-ref status-ref}
+             :state-ref state-ref}
             (cond->
               (seq watch-dir)
               (assoc :fs-watch

@@ -1,12 +1,18 @@
 (ns repl
-  (:require [shadow.cljs.devtools.server :as server]
-            [shadow.cljs.devtools.api :as cljs]
-            [shadow.cljs.devtools.cli]))
+  (:require
+    [shadow.cljs.devtools.server :as server]
+    [shadow.cljs.devtools.api :as cljs]
+    [shadow.cljs.devtools.cli]
+    [shadow.debug :as dbg]
+    [shadow.debug.server :as dbg-srv]))
 
 (defn start []
   ;; (cljs/start! {:verbose true})
   ;; (cljs/start-worker :ui)
+
   (server/start!)
+  (dbg-srv/start! {:http-root "tmp"
+                   :http-port 9660})
   ;; (server/start-worker :cli)
   ;; (server/start-worker :ui)
   ;; (cljs/watch :browser {:verbose true})
@@ -14,6 +20,7 @@
 
 (defn stop []
   ;; (cljs/stop!)
+  (dbg-srv/stop!)
   (server/stop!)
   ::stopped)
 
@@ -32,3 +39,4 @@
   (start)
   (read)
   (stop))
+

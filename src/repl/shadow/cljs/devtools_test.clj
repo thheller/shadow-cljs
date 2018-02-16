@@ -361,6 +361,27 @@
       }
     {}))
 
+
+(deftest test-single-entry
+  (let [{:keys [build-sources build-macros] :as state}
+        (api/compile*
+          '{:build-id :single-entry
+            :target :browser
+
+            :output-dir "target/test-single-entry/js"
+            :asset-path "/js"
+
+            :modules
+            {:base
+             {:entries [demo.browser]}}}
+          {})]
+    ;; (prn :build-sources)
+    ;; (pprint build-sources)
+
+    (prn :build-macros)
+    (pprint build-macros)
+    ))
+
 (deftest test-build-with-foreign
   (try
     (api/compile*

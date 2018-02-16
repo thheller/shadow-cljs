@@ -13,7 +13,8 @@
             [shadow.cljs.devtools.cljs-specs]
             [shadow.build.data :as data]
             [clojure.tools.logging :as log]
-            [shadow.build.log :as build-log]))
+            [shadow.build.log :as build-log]
+            [clojure.set :as set]))
 
 (defn enhance-warnings
   "adds source excerpts to warnings if line information is available"
@@ -271,6 +272,15 @@
             (assoc-in [:compiler-options :optimizations] :none))
           ))))
 
+(defn- extract-build-macros [{:keys [build-sources] :as state}]
+  (let [build-macros
+        (->> build-sources
+             (map #(data/get-source-by-id state %))
+             (filter #(= :cljs (:type %)))
+             (map :macro-requires)
+             (reduce set/union #{}))]
+    (assoc state :build-macros build-macros)
+    ))
 
 (defn compile
   [{::keys [mode] :as state}]
@@ -281,6 +291,7 @@
     (-> state
         (assoc ::build-info {})
         (process-stage :resolve false)
+        (extract-build-macros)
         (process-stage :compile-prepare true)
         (build-api/compile-sources)
         (update-build-info-after-compile)
@@ -289,6 +300,7 @@
     (-> state
         (assoc ::build-info {})
         (modules/analyze)
+        (extract-build-macros)
         (process-stage :compile-prepare true)
         (update-build-info-from-modules)
         (build-api/compile-sources)

@@ -13,13 +13,6 @@
        (keys)
        (into #{})))
 
-(defn get-status [{:keys [workers-ref] :as svc}]
-  (reduce-kv
-    (fn [status worker-id worker-proc]
-      (assoc status worker-id (worker/get-status worker-proc)))
-    {}
-    @workers-ref))
-
 (defonce super-lock (Object.))
 
 (defn start-worker
