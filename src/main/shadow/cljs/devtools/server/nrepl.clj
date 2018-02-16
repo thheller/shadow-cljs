@@ -33,9 +33,6 @@
     (log/debug "nrepl-send" id (pr-str res))
     (transport/send transport res)))
 
-(defn with-ns [msg worker]
-  )
-
 (defn do-cljs-eval [{::keys [build-id worker] :keys [session code] :as msg}]
   (let [reader (StringReader. code)]
 

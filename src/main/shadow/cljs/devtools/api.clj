@@ -256,7 +256,7 @@
     (do (set! *nrepl-cljs* id)
         ;; required for prompt?
         ;; don't actually need to do this
-        (println "To quit, type: :repl/quit")
+        (println "To quit, type: :cljs/quit")
         [:selected id])))
 
 (defn repl [build-id]

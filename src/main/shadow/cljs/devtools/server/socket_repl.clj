@@ -28,7 +28,8 @@
   ;; just doing that does refer-clojure, ns seems to work
 
   (when-not (false? print)
-    (println "shadow-cljs - REPL - see (help), :repl/quit to exit")))
+    (println "shadow-cljs - REPL - see (help)")
+    (println "To quit, type: :cljs/quit")))
 
 (defn repl [{:keys [print prompt] :as config}]
   (let [loop-bindings
