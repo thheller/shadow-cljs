@@ -52,11 +52,13 @@
 
             (= :repl/quit form)
             (do (swap! session dissoc #'api/*nrepl-cljs*)
-                (send msg {:value ":repl/quit" :ns (-> *ns* ns-name str)}))
+                (send msg {:value :repl/quit
+                           :ns (-> *ns* ns-name str)}))
 
             (= :cljs/quit form)
             (do (swap! session dissoc #'api/*nrepl-cljs*)
-                (send msg {:value ":cljs/quit" :ns (-> *ns* ns-name str)}))
+                (send msg {:value :cljs/quit
+                           :ns (-> *ns* ns-name str)}))
 
             ;; Cursive supports
             ;; {:status :eval-error :ex <exception name/message> :root-ex <root exception name/message>}
@@ -67,28 +69,19 @@
               (case (:type result)
                 :repl/result
                 (let [repl-state (repl-impl/worker-repl-state worker)
+                      repl-ns (-> repl-state :current :ns)]
 
-                      repl-ns
-                      (-> repl-state :current :ns)
-
-                      {:keys [value]}
-                      result]
-                  (try
-                    (send msg {:value (if-not (string? value)
-                                        value
-                                        (edn/read-string value))
-                               :ns (pr-str repl-ns)})
-                    (catch Exception e
-                      (send msg {:err (str "Failed to parse client result: " (.getMessage e) "\n")})
-                      (send msg {:value value
-                                 :ns (pr-str repl-ns)}))))
+                  (send msg {:value (:value result)
+                             :printed-value true
+                             :ns (pr-str repl-ns)}))
 
                 :repl/set-ns-complete
                 (let [repl-state (repl-impl/worker-repl-state worker)
+                      repl-ns (-> repl-state :current :ns)]
 
-                      repl-ns
-                      (-> repl-state :current :ns)]
-                  (send msg {:value (pr-str repl-ns) :ns (pr-str repl-ns)}))
+                  (send msg {:value (pr-str repl-ns)
+                             :printed-value true
+                             :ns (pr-str repl-ns)}))
 
                 :repl/require-complete
                 nil
