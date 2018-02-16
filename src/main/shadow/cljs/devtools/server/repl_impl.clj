@@ -31,6 +31,10 @@
             (println "==============================================")
             )))
 
+      :repl/invoke-error
+      (println (or (:stack result)
+                   (:message result)))
+
       :repl/set-ns-complete
       nil
 

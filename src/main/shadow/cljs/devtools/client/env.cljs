@@ -59,32 +59,34 @@
 
 (def repl-print-fn pr-str)
 
-(defn repl-error [result e]
-  (-> result
-      (assoc :error (.-message e)
-             :ex-data (ex-data e))
+(defn repl-error [e]
+  (-> {:type :repl/invoke-error
+       ;; FIXME: may contain non-printable things and would break the client read
+       ;; :ex-data (ex-data e)
+       :error (.-message e)}
       (cond->
         (.hasOwnProperty e "stack")
         (assoc :stack (.-stack e)))))
 
 (defn repl-call [repl-expr repl-error]
-  (let [result {:type :repl/result}]
-    (try
-      (let [ret (repl-expr)]
-        (set! *3 *2)
-        (set! *2 *1)
-        (set! *1 ret)
+  (try
+    (let [result {:type :repl/result}
+          ret (repl-expr)]
+      (set! *3 *2)
+      (set! *2 *1)
+      (set! *1 ret)
 
-        (try
-          (assoc result
-            :value (repl-print-fn ret))
-          (catch :default e
-            (js/console.log "encoding of result failed" e ret)
-            (assoc result :error "ENCODING FAILED"))))
-      (catch :default e
-        (set! *e e)
-        (repl-error result e)
-        ))))
+      (try
+
+        (assoc result
+          :value (repl-print-fn ret))
+        (catch :default e
+          (js/console.log "encoding of result failed" e ret)
+          (assoc result :error "ENCODING FAILED"))))
+    (catch :default e
+      (set! *e e)
+      (repl-error e)
+      )))
 
 (defn process-ws-msg [e handler]
   (binding [reader/*default-data-reader-fn*

@@ -33,6 +33,9 @@
     (log/debug "nrepl-send" id (pr-str res))
     (transport/send transport res)))
 
+(defn with-ns [msg worker]
+  )
+
 (defn do-cljs-eval [{::keys [build-id worker] :keys [session code] :as msg}]
   (let [reader (StringReader. code)]
 
@@ -72,7 +75,7 @@
                       repl-ns (-> repl-state :current :ns)]
 
                   (send msg {:value (:value result)
-                             :printed-value true
+                             :printed-value 1
                              :ns (pr-str repl-ns)}))
 
                 :repl/set-ns-complete
@@ -80,8 +83,12 @@
                       repl-ns (-> repl-state :current :ns)]
 
                   (send msg {:value (pr-str repl-ns)
-                             :printed-value true
+                             :printed-value 1
                              :ns (pr-str repl-ns)}))
+
+                :repl/invoke-error
+                (send msg {:err (or (:stack result)
+                                    (:error result))})
 
                 :repl/require-complete
                 nil

@@ -192,10 +192,9 @@
     (str/replace s #"^file:/" "file:///")
     ))
 
-(defn repl-error [result e]
+(defn repl-error [e]
   (js/console.error "repl/invoke error" e)
-  (-> result
-      (env/repl-error e)
+  (-> (env/repl-error e)
       (assoc :ua-product  (get-ua-product)
              :asset-root (get-asset-root))))
 
