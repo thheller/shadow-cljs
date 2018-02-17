@@ -110,12 +110,19 @@
           (-> rc
               (assoc :type :goog
                      :requires (into #{} deps)
-                     :provides (into #{} (map util/munge-goog-ns) goog-provides)
+                     :provides
+                     (-> #{}
+                         ;; for goog files make both namespaces available
+                         ;; to match cljs behaviour where _ is always converted to -
+                         ;; goog.i18n.DateTimeSymbols_en
+                         (into (map symbol) goog-provides)
+                         ;; goog.i18n.DateTimeSymbols-en
+                         (into (map util/munge-goog-ns) goog-provides))
                      :deps deps)
               (cond->
                 (seq goog-module)
                 (-> (assoc :goog-module true)
-                    (update :provides conj (util/munge-goog-ns goog-module)))
+                    (update :provides conj (util/munge-goog-ns goog-module) (symbol goog-module)))
 
                 (= resource-name "goog/base.js")
                 (update :provides conj 'goog)
