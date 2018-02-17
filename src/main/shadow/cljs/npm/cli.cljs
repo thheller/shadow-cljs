@@ -185,7 +185,9 @@
         (fs/writeFileSync log-config-path
           (str (util/slurp (path/resolve js/__dirname ".." "default-log.properties"))
                "\njava.util.logging.FileHandler.pattern="
-               (path/join cache-root "shadow-cljs.log")
+               (-> (path/join cache-root "shadow-cljs.log")
+                   ;; don't generate windows paths \ will be treated as escape
+                   (str/replace "\\" "/"))
                "\n")))
 
       [(str "-Djava.util.logging.config.file=" log-config-path)]
