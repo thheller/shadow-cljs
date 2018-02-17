@@ -86,7 +86,7 @@
         js-ns-idx
         (->> (:build-sources state)
              (map #(data/get-source-by-id state %))
-             (remove #(= :cljs (:type %)))
+             (filter #(contains? #{:js :shadow-js} (:type %)))
              (reduce
                (fn [idx {:keys [ns] :as rc}]
                  (assoc idx ns (select-keys rc [:ns :js-esm :js-commonjs :js-babel-esm :type :resource-id])))

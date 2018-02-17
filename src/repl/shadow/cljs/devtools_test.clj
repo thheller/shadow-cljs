@@ -1,6 +1,7 @@
 (ns shadow.cljs.devtools_test
   (:require
     [clojure.java.io :as io]
+    [clojure.java.shell :refer (sh)]
     [clojure.data.json :as json]
     [clojure.pprint :refer (pprint)]
     [clojure.test :refer :all]
@@ -750,6 +751,14 @@
 
 (deftest test-foreign
   (api/release :foreign {:source-maps true}))
+
+(deftest test-node-test
+  (api/compile :test-node)
+  (let [{:keys [exit out err] :as result}
+        (sh "node" "out/demo-test-node/script.js")]
+    (println out)
+    (println err)
+    (is (zero? exit))) )
 
 (comment
   (defn load-from-disk [{:keys [public-dir build-sources] :as state}]

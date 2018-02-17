@@ -116,19 +116,8 @@
     (js-module-exists? ns)))
 
 (defn resolve-invokeable-ns [alias current-ns env]
-  (let [ns
-        (resolve-ns-alias env alias)
-
-        {:keys [js-commonjs type]}
-        (get-in @env/*compiler* [:shadow/js-namespaces ns])
-
-        name
-        (if (and (not= type :goog) js-commonjs)
-          ;; must emit .default access for CJS, see resolve-js-var
-          (symbol "js" (str ns ".default"))
-          (symbol "js" (str ns)))]
-
-    {:name name
+  (let [ns (resolve-ns-alias env alias)]
+    {:name (symbol "js" (str ns))
      :tag 'js
      :ret-tag 'js
      :ns 'js}))
