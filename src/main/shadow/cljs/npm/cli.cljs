@@ -615,7 +615,7 @@
                       server-running?
                       (fs/existsSync server-pid)]
 
-                  (mkdirp (path/resolve project-root cache-root))
+                  (mkdirp/sync (path/resolve project-root cache-root))
 
                   (log "shadow-cljs - config:" config-path "version:" version)
 
