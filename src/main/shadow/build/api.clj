@@ -28,7 +28,7 @@
    :static-fns true
    :elide-asserts false
    :closure-configurators []
-   :infer-externs :auto
+   :infer-externs true
    :language-in :ecmascript5
 
    :closure-warnings
