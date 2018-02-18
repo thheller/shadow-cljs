@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.server.dev-http
   "provides a basic static http server per build"
   (:require [clojure.java.io :as io]
-            [clojure.core.async :as async :refer (>!!)]
+            [clojure.core.async :as async :refer (>!! <!!)]
             [shadow.cljs.devtools.server.web.common :as common]
             [ring.middleware.resource :as ring-resource]
             [ring.middleware.file :as ring-file]
@@ -10,8 +10,9 @@
             [clojure.tools.logging :as log]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-            [shadow.undertow :as undertow])
-  (:import (java.net BindException)))
+            [shadow.cljs.devtools.server.system-bus :as sys-bus]
+            [shadow.cljs.devtools.server.system-msg :as sys-msg]
+            [shadow.undertow :as undertow]))
 
 (defn disable-all-kinds-of-caching [handler]
   ;; this is strictly a dev server and caching is not wanted for anything
@@ -51,8 +52,8 @@
             (fn [req]
               (-> req
                   (assoc :http-root root-dir
-                    :build-id build-id
-                    :devtools config)
+                         :build-id build-id
+                         :devtools config)
                   (http-handler-fn)))))]
 
     (when (and root-dir (not (.exists root-dir)))
@@ -89,18 +90,34 @@
                   (assoc :ssl-context ssl-context)))
 
             {:keys [http-port https-port] :as server}
-            (undertow/start http-options http-handler middleware-fn)
+            (loop [{:keys [port] :as http-options} http-options
+                   fails 0]
+              (let [srv (try
+                          (undertow/start http-options http-handler middleware-fn)
+                          (catch Exception e
+                            (log/warnf "failed to start %s dev-http:%d reason: %s" build-id (:port http-options) (.getMessage e))
+                            nil))]
+                (cond
+                  (some? srv)
+                  srv
+
+                  (or (zero? port) (> fails 3))
+                  (throw (ex-info "gave up trying to start server" {}))
+
+                  :else
+                  (recur (update http-options :port inc) (inc fails))
+                  )))
 
             display-host
             (if (= "0.0.0.0" http-host) "localhost" http-host)]
 
         (when https-port
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - HTTP server for \"%s\" available at https://%s:%s" build-id display-host https-port)}))
+                    :msg (format "shadow-cljs - HTTP server for %s available at https://%s:%s" build-id display-host https-port)}))
 
         (when http-port
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - HTTP server for \"%s\" available at http://%s:%s" build-id display-host http-port)}))
+                    :msg (format "shadow-cljs - HTTP server for %s available at http://%s:%s" build-id display-host http-port)}))
 
         (log/debug ::http-serve (-> server
                                     (dissoc :instance)
@@ -108,10 +125,7 @@
 
         {:build-id build-id
          :instance server})
-      (catch BindException e
-        (>!! out {:type :println
-                  :msg (format "[WARNING] shadow-cljs - HTTP server at port %s failed, port is in use." http-port)})
-        nil)
+
       (catch Exception e
         (log/warn ::start-error http-root http-port e)
         nil))))
@@ -130,8 +144,7 @@
 (comment
   (get-server-configs))
 
-;; FIXME: use config watch to restart servers on config change
-(defn start [config ssl-context out]
+(defn start-servers [config ssl-context out]
   (let [configs
         (get-server-configs)
 
@@ -142,7 +155,49 @@
      :configs configs}
     ))
 
-(defn stop [{:keys [servers] :as svc}]
+(defn stop-servers [{:keys [servers] :as state}]
   (doseq [{:keys [instance] :as srv} servers
           :when instance]
-    (undertow/stop instance)))
+    (undertow/stop instance))
+  (dissoc state :server :configs))
+
+(defn start [sys-bus config ssl-context out]
+  (let [sub-chan
+        (-> (async/sliding-buffer 1)
+            (async/chan))
+
+        sub
+        (sys-bus/sub sys-bus ::sys-msg/config-watch sub-chan true)
+
+        state-ref
+        (-> (start-servers config ssl-context out)
+            (assoc :ssl-context ssl-context
+                   :sub sub
+                   :sub-chan sub-chan
+                   :out out)
+            (atom))
+
+        loop-chan
+        (async/thread
+          (loop [config config]
+            (when-some [new-config (<!! sub-chan)]
+              (let [configs (get-server-configs)]
+                (when (not= configs (:configs @state-ref))
+                  (log/debug "dev http change, restarting servers")
+                  (>!! out {:type :println
+                            :msg "shadow-cljs - dev http config change, restarting servers"})
+                  (swap! state-ref stop-servers)
+                  (swap! state-ref merge (start-servers new-config ssl-context out))))
+              (recur new-config))))]
+
+    (swap! state-ref assoc :loop-chan loop-chan)
+
+    state-ref
+    ))
+
+(defn stop [state-ref]
+  (let [{:keys [sub-chan loop-chan] :as state} @state-ref]
+    (async/close! sub-chan)
+    (stop-servers state)
+    (async/<!! loop-chan)
+    ))

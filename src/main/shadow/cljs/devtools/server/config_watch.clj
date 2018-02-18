@@ -5,7 +5,7 @@
             [clojure.core.async :as async :refer (thread <!!)]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            ))
+            [clojure.tools.logging :as log]))
 
 (defn- service? [x]
   (and (map? x)
@@ -31,8 +31,15 @@
             (do (Thread/sleep 1000)
                 (recur ts config))
             (let [new-config (config/load-cljs-edn)]
+              (log/debug "config-watch trigger")
+
+              (when (not= new-config config)
+                (log/debug "config-watch update global")
+                (sys-bus/publish! system-bus ::sys-msg/config-watch {:config new-config}))
+
               (doseq [{:keys [id] :as new} (-> new-config :builds (vals))
                       :when (not= new (get-in config [:builds id]))]
+                (log/debugf "config-watch update %s" id)
                 (sys-bus/publish! system-bus [::sys-msg/config-watch id] {:config new}))
 
               (reset! env/dependencies-modified-ref (not= dependencies (:dependencies new-config)))

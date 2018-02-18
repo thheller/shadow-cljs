@@ -28,7 +28,7 @@
   (merge
     common/app-config
     {:dev-http
-     {:depends-on [:config :ssl-context :out]
+     {:depends-on [:system-bus :config :ssl-context :out]
       :start dev-http/start
       :stop dev-http/stop}
      :out
@@ -77,6 +77,7 @@
   `(try
      ~@body
      (catch Throwable t#
+       (log/warn t# "shutdown failed" ~(pr-str body))
        (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
 (defn shutdown-system [{:keys [http port-files-ref socket-repl cli-repl nrepl] :as app}]
@@ -85,7 +86,8 @@
     (doseq [port-file (vals @port-files-ref)]
       (.delete port-file)))
   (do-shutdown (rt/stop-all app))
-  (do-shutdown (socket-repl/stop socket-repl))
+  (when socket-repl
+    (do-shutdown (socket-repl/stop socket-repl)))
   (do-shutdown (socket-repl/stop cli-repl))
   (when nrepl
     (do-shutdown (nrepl/stop nrepl)))
@@ -154,10 +156,15 @@
         (:socket-repl config)
 
         socket-repl
-        (socket-repl/start socket-repl-config app-promise)
+        (try
+          (socket-repl/start socket-repl-config app-promise)
+          (catch Exception e
+            (log/warn "failed to start socket-repl" (.getMessage e))
+            nil
+            ))
 
         cli-repl-config
-        {:port 0                                                                                    ;; random port, not for humans
+        {:port 0 ;; random port, not for humans
          :prompt false
          :print false}
 
@@ -168,7 +175,11 @@
         (socket-repl/start cli-repl-config app-promise)
 
         nrepl
-        (nrepl/start (:nrepl config))
+        (try
+          (nrepl/start (:nrepl config))
+          (catch Exception e
+            (log/warn "failed to start nrepl server" (.getMessage e))
+            nil))
 
         port-files-ref
         (atom nil)
@@ -184,9 +195,12 @@
                     :ssl (boolean https-port)
                     :server http}
              :port-files-ref port-files-ref
-             :nrepl nrepl
-             :socket-repl socket-repl
              :cli-repl cli-repl}
+            (cond->
+              socket-repl
+              (assoc :socket-repl socket-repl)
+              nrepl
+              (assoc :nrepl nrepl))
             (rt/init app)
             (rt/start-all))]
 
@@ -195,14 +209,16 @@
     ;; do this as the very last setup to maybe fix circleci timing issue?
     (reset! port-files-ref
       (make-port-files cache-root
-        {:nrepl (:port nrepl)
-         :socket-repl (:port socket-repl)
-         :cli-repl (:port cli-repl)
-         :http http-port
-         :https-port https-port}))
-
-    app
-    ))
+        (-> {:cli-repl (:port cli-repl)
+             :http http-port
+             :https-port https-port}
+            (cond->
+              nrepl
+              (assoc :nrepl (:port nrepl))
+              socket-repl
+              (assoc :socket-repl (:port socket-repl)))
+            )))
+    app))
 
 (defn load-config []
   (-> (config/load-cljs-edn)
@@ -228,8 +244,8 @@
 
        (when (get-in config [:nrepl :port])
          (println (str "shadow-cljs - nrepl running at "
-                    (-> (:server-socket nrepl) (.getInetAddress))
-                    ":" (:port nrepl))))
+                       (-> (:server-socket nrepl) (.getInetAddress))
+                       ":" (:port nrepl))))
 
        (runtime/set-instance! app)
        ::started
