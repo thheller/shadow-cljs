@@ -746,6 +746,9 @@
 (deftest test-npm-check
   (api/check :npm))
 
+(deftest test-cli-check
+  (api/check :cli))
+
 (deftest test-npm-module
   (api/compile :npm-module))
 

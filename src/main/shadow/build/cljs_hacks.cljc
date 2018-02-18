@@ -51,6 +51,9 @@
     (swap! env/*compiler* update-in
       [::namespaces current-ns :shadow/js-access-properties] conj-to-set prop)))
 
+(defn is-shadow-shim? [ns]
+  (clojure.string/starts-with? (str ns) "shadow.js.shim"))
+
 (defn resolve-js-var [ns sym current-ns]
   ;; quick hack to record all accesses to any JS mod
   ;; (:require ["react" :as r :refer (foo]) (r/bar ...)
@@ -68,7 +71,7 @@
     ;; :goog and closure-transformed :js should not generate externs
     ;; :goog shim files for :require should always generate though
     (when (or (= :shadow-js type)
-              (clojure.string/starts-with? (str ns) "shadow.js.shim"))
+              (is-shadow-shim? ns))
       (shadow-js-access-property current-ns prop))
 
     {:name qname
@@ -97,7 +100,8 @@
     (contains? (:cljs.analyzer/namespaces @env/*compiler*) ns)
     (resolve-cljs-var ns sym)
 
-    (js-module-exists? ns)
+    (or (js-module-exists? ns)
+        (is-shadow-shim? ns))
     (resolve-js-var ns sym current-ns)
 
     (contains? (:goog-names @env/*compiler*) ns)
@@ -113,7 +117,9 @@
    might be invokeable as a function."
   [alias env]
   (when-let [ns (resolve-ns-alias env alias nil)]
-    (js-module-exists? ns)))
+    (or (js-module-exists? ns)
+        (is-shadow-shim? ns)
+        )))
 
 (defn resolve-invokeable-ns [alias current-ns env]
   (let [ns (resolve-ns-alias env alias)]
