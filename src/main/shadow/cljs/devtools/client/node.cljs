@@ -21,9 +21,6 @@
           (js/console.error "REPL msg send failed" err))))
     ))
 
-(defn repl-error [result e]
-  (env/repl-error result e))
-
 (defn node-eval [{:keys [js source-map-json] :as msg}]
   (let [result (js/SHADOW_NODE_EVAL js source-map-json)]
     result))
@@ -48,7 +45,7 @@
 
 (defn repl-invoke [{:keys [id] :as msg}]
   (let [result
-        (-> (env/repl-call #(node-eval msg) repl-error)
+        (-> (env/repl-call #(node-eval msg) env/repl-error)
             (assoc :id id))]
 
     (ws-msg result)))
