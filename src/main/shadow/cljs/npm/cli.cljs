@@ -615,6 +615,8 @@
                       server-running?
                       (fs/existsSync server-pid)]
 
+                  (mkdirp (fs/resolve project-root cache-root))
+
                   (log "shadow-cljs - config:" config-path "version:" version)
 
                   (cond
