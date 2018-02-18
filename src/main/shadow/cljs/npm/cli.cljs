@@ -243,11 +243,14 @@
     (log "shadow-cljs - running: lein" (str/join " " lein-args))
     (run project-root "lein" lein-args {})))
 
-(defn get-clojure-args [project-root config]
+(defn get-clojure-args [project-root config opts]
   (let [{:keys [aliases inject]} (:deps config)
 
         inject?
         (not (false? inject))
+
+        opt-aliases
+        (get-in opts [:options :aliases])
 
         aliases
         (if-not inject?
@@ -257,21 +260,25 @@
     (-> []
         (into (map #(str "-J" %)) (logging-config project-root config))
         (cond->
-          (seq aliases)
-          (conj (str "-C" (->> aliases (map pr-str) (str/join "")))
-                (str "-R" (->> aliases (map pr-str) (str/join ""))))
-
           inject?
-          (conj "-Sdeps" (pr-str {:aliases
-                                  {:shadow-cljs-inject
-                                   {;; :extra-paths ["target/shadow-cljs/aot"]
-                                    :extra-deps
-                                    {'thheller/shadow-cljs {:mvn/version jar-version}}}}})
-                )))))
+          (conj
+            "-Sdeps"
+            (pr-str {:aliases
+                     {:shadow-cljs-inject
+                      {;; :extra-paths ["target/shadow-cljs/aot"]
+                       :extra-deps
+                       {'thheller/shadow-cljs {:mvn/version jar-version}}}}}))
+
+          (seq aliases)
+          (conj (str "-A" (->> aliases (map pr-str) (str/join ""))))
+
+          (seq opt-aliases)
+          (conj (str "-A" opt-aliases))
+          ))))
 
 (defn run-clojure [project-root config args opts]
   (let [clojure-args
-        (-> (get-clojure-args project-root config)
+        (-> (get-clojure-args project-root config opts)
             (conj "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
@@ -294,7 +301,7 @@
         (cond
           deps
           ["clojure"
-           (-> (get-clojure-args project-root config)
+           (-> (get-clojure-args project-root config opts)
                (conj "-m"))]
 
           lein

@@ -46,3 +46,13 @@
     (is (empty? errors))
     (is (= '[[foo/bar "1.2.3"]] (:dependencies options)))
     ))
+
+(deftest test-aliases
+  (let [args ["-A:foo:bar:test" "compile" "cli"]
+
+        {:keys [arguments options summary errors action builds] :as parsed}
+        (cli-opts/parse args)]
+
+    (is (empty? errors))
+    (is (= ":foo:bar:test" (:aliases options)))
+    ))

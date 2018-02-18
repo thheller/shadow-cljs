@@ -30,6 +30,7 @@
     (fn [opts k v]
       (update opts :dependencies conj-vec v))]
    ;; generic
+   ["-A" "--aliases ALIASES" "adds aliases for use with clj, only effective when using deps.edn"]
    [nil "--source-maps" "temporarily enable source-maps for release debugging"]
    [nil "--pseudo-names" "temporarily enable pseudo-names for release debugging. DO NOT SHIP THIS CODE!"]
    [nil "--debug" "enable source-maps + pseudo-names. DO NOT SHIP THIS CODE!"]
