@@ -12,6 +12,7 @@
     #_ ["circular-test" :as circ]
     #_ ["/demo/myComponent" :refer (myComponent)]
     [cljs.test :refer (deftest)]
+    ["something"]
     ))
 
 (deftest yo

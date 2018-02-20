@@ -55,6 +55,10 @@
 (defn is-absolute? [entry]
   (str/starts-with? entry "/"))
 
+(defn is-package-require? [require]
+  (and (not (is-relative? require))
+       (not (is-absolute? require))))
+
 (defn is-jar? [^String name]
   (.endsWith (str/lower-case name) ".jar"))
 

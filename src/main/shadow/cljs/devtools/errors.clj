@@ -11,7 +11,8 @@
             [shadow.cljs.devtools.config :as config]
             [shadow.build.warnings :as w]
             [expound.alpha :as expound]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [shadow.cljs.util :as util])
   (:import (java.io StringWriter FileNotFoundException)
            (clojure.lang ExceptionInfo ArityException)))
 
@@ -129,8 +130,15 @@
   (write-msg w e))
 
 (defmethod ex-data-format ::resolve/missing-js
-  [w e data]
-  (write-msg w e))
+  [w e {:keys [require] :as data}]
+  (write-msg w e)
+  (when (util/is-package-require? require)
+    (.write w (str "\n"
+                   "You probably need to run:\n"
+                   "  npm install " require "\n"
+                   "\n"
+                   "See: https://shadow-cljs.github.io/docs/UsersGuide.html#npm-install\n"
+                   ))))
 
 (defmethod ex-data-format ::resolve/circular-dependency
   [w e data]
