@@ -121,7 +121,7 @@
     :seq
     (s/cat
       :lib ::lib
-      :names (s/+ simple-symbol?))))
+      :names (s/* simple-symbol?))))
 
 (s/def ::ns-import
   (s/spec
