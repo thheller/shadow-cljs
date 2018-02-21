@@ -111,7 +111,7 @@
      (.setDaemon ~daemon)
      (.start)))
 
-(defn connection-loop [config app-promise socket]
+(defn connection-loop [config app-ref socket]
   (let [in
         (-> (.getInputStream socket)
             (InputStreamReader.)
@@ -123,7 +123,13 @@
             (BufferedWriter.))
 
         app
-        (deref app-promise 1000 ::timeout)]
+        (or @app-ref
+            (loop [x 0]
+              (Thread/sleep 100)
+              (or @app-ref
+                  (if (> x 10)
+                    ::timeout
+                    (recur (inc x))))))]
 
     (if (= ::timeout app)
       (do (.write out "APP TIMEOUT")
@@ -157,7 +163,7 @@
   [{:keys [host port]
     :or {host "localhost"
          port 0}
-    :as config} app-promise]
+    :as config} app-ref]
   (let [addr
         (InetAddress/getByName host) ;; nil returns loopback
 
@@ -178,7 +184,7 @@
                     (vswap! sockets-ref conj conn)
                     (thread
                       (str "shadow-cljs:socket-repl-client") false
-                      (connection-loop config app-promise conn)
+                      (connection-loop config app-ref conn)
                       (vswap! sockets-ref disj conn)))
                   (catch SocketException _disconnect))
                 (recur)))))]

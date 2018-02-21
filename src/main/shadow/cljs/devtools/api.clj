@@ -317,32 +317,6 @@
          (map :ns)
          (into #{}))))
 
-(defn node-execute! [node-args file]
-  (let [script-args
-        ["node"]
-
-        pb
-        (doto (ProcessBuilder. script-args)
-          (.directory nil))]
-
-
-    ;; not using this because we only get output once it is done
-    ;; I prefer to see progress
-    ;; (prn (apply shell/sh script-args))
-
-    (let [node-proc (.start pb)]
-
-      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
-
-      (let [out (.getOutputStream node-proc)]
-        (io/copy (io/file file) out)
-        (.close out))
-
-      ;; FIXME: what if this doesn't terminate?
-      (let [exit-code (.waitFor node-proc)]
-        exit-code))))
-
 (defn test []
   (println "TBD"))
 
@@ -397,7 +371,31 @@
 
 (comment
 
+  (defn node-execute! [node-args file]
+    (let [script-args
+          ["node"]
 
+          pb
+          (doto (ProcessBuilder. script-args)
+            (.directory nil))]
+
+
+      ;; not using this because we only get output once it is done
+      ;; I prefer to see progress
+      ;; (prn (apply shell/sh script-args))
+
+      (let [node-proc (.start pb)]
+
+        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
+        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
+
+        (let [out (.getOutputStream node-proc)]
+          (io/copy (io/file file) out)
+          (.close out))
+
+        ;; FIXME: what if this doesn't terminate?
+        (let [exit-code (.waitFor node-proc)]
+          exit-code))))
 
 
   (defn test-all []

@@ -37,9 +37,18 @@
                (util/stdout-dump (:verbose config)))
       :stop async/close!}}))
 
-(defn get-ring-handler [app-promise]
+(defn wait-for [app-ref]
+  (or @app-ref
+      (loop [x 0]
+        (Thread/sleep 100)
+        (or @app-ref
+            (if (> x 10)
+              ::timeout
+              (recur (inc x)))))))
+
+(defn get-ring-handler [app-ref]
   (fn [ring-map]
-    (let [app (deref app-promise 1000 ::timeout)]
+    (let [app (wait-for app-ref)]
       (if (= app ::timeout)
         {:status 501
          :body "App not ready!"}
@@ -85,13 +94,18 @@
   (do-shutdown
     (doseq [port-file (vals @port-files-ref)]
       (.delete port-file)))
-  (do-shutdown (rt/stop-all app))
   (when socket-repl
     (do-shutdown (socket-repl/stop socket-repl)))
+
   (do-shutdown (socket-repl/stop cli-repl))
+
   (when nrepl
     (do-shutdown (nrepl/stop nrepl)))
+
   (do-shutdown (undertow/stop (:server http)))
+
+  (do-shutdown (rt/stop-all app))
+
   (discard-println "shutdown complete."))
 
 (defn make-port-files [cache-root ports]
@@ -132,15 +146,15 @@
         ))))
 
 (defn start-system
-  [app {:keys [cache-root] :as config}]
-  (let [app-promise
-        (promise)
+  [app-ref app-config {:keys [cache-root] :as config}]
+  (when @app-ref
+    (throw (ex-info "app-ref not nil" {:app-ref app-ref})))
 
-        {:keys [http ssl]}
+  (let [{:keys [http ssl]}
         config
 
         ring
-        (get-ring-handler app-promise)
+        (get-ring-handler app-ref)
 
         {:keys [ssl-context] :as http-config}
         (-> {:host "0.0.0.0"}
@@ -157,7 +171,7 @@
 
         socket-repl
         (try
-          (socket-repl/start socket-repl-config app-promise)
+          (socket-repl/start socket-repl-config app-ref)
           (catch Exception e
             (log/warn "failed to start socket-repl" (.getMessage e))
             nil
@@ -172,7 +186,7 @@
         ;; and waits for the socket to close, not using the normal socket REPL
         ;; because that prints/prompts for humans
         cli-repl
-        (socket-repl/start cli-repl-config app-promise)
+        (socket-repl/start cli-repl-config app-ref)
 
         nrepl
         (try
@@ -201,10 +215,10 @@
               (assoc :socket-repl socket-repl)
               nrepl
               (assoc :nrepl nrepl))
-            (rt/init app)
+            (rt/init app-config)
             (rt/start-all))]
 
-    (deliver app-promise app)
+    (vreset! app-ref app)
 
     ;; do this as the very last setup to maybe fix circleci timing issue?
     (reset! port-files-ref
@@ -218,7 +232,8 @@
               socket-repl
               (assoc :socket-repl (:port socket-repl)))
             )))
-    app))
+
+    app-ref))
 
 (defn load-config []
   (-> (config/load-cljs-edn)
@@ -234,8 +249,11 @@
   ([sys-config app]
    (if (runtime/get-instance)
      ::already-running
-     (let [{:keys [http ssl-context socket-repl nrepl config] :as app}
-           (start-system app sys-config)]
+     (let [app-ref
+           (start-system runtime/instance-ref app sys-config)
+
+           {:keys [http ssl-context socket-repl nrepl config] :as app}
+           @app-ref]
 
        (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http)))
 
@@ -247,7 +265,6 @@
                        (-> (:server-socket nrepl) (.getInetAddress))
                        ":" (:port nrepl))))
 
-       (runtime/set-instance! app)
        ::started
        ))))
 
@@ -256,6 +273,17 @@
     (shutdown-system inst)
     (runtime/reset-instance!)
     ))
+
+(defn reload! []
+  (when-let [inst @runtime/instance-ref]
+    (let [new-inst
+          (-> inst
+              (rt/stop-all)
+              (rt/start-all))]
+
+      (vreset! runtime/instance-ref new-inst)
+      ::restarted
+      )))
 
 (defn remote-stop! []
   (stop!)
