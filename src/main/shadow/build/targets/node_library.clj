@@ -110,7 +110,10 @@
   [{:keys [compiler-env] :as state}
    {:keys [exports] :as config}]
 
-  (doseq [[export-name export-sym] exports]
+  (doseq [[export-name export-sym]
+          (if (map? exports)
+            exports
+            {:module.exports exports})]
     (let [export-ns (symbol (namespace export-sym))
           export-fn (symbol (name export-sym))]
 
