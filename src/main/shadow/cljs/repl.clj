@@ -389,7 +389,9 @@
                                    :gen-col 0
                                    :gen-line 0})
 
-                            ]
+                            ;; cljs-oops sets this in macros
+                            ana/*cljs-warnings*
+                            ana/*cljs-warnings*]
 
                     (let [ast
                           (comp/analyze state (:current repl-state) form true)
