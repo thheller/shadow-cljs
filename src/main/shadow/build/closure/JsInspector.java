@@ -59,6 +59,8 @@ public class JsInspector {
                     }
                     param = param.getNext();
                 }
+            } else if (NodeUtil.isCallTo(node, "require.ensure")) {
+                return false;
             }
             return true;
         }

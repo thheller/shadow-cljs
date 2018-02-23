@@ -199,19 +199,23 @@
     ))
 
 (deftest test-resolve-as-shadow
+  (try
 
-  (let [build-state
-        (-> (test-build)
-            (api/with-js-options
-              {:js-provider :shadow}))
+    (let [build-state
+          (-> (test-build)
+              (api/with-js-options
+                {:js-provider :shadow}))
 
-        [resolved resolved-state]
-        (api/resolve-entries build-state '["firebase/app"])
+          [resolved resolved-state]
+          (api/resolve-entries build-state '["pdfjs-dist"])
 
-        {:keys [str->sym]}
-        resolved-state]
+          {:keys [str->sym]}
+          resolved-state]
 
-    (pprint (map second resolved))
-    (pprint str->sym)
-    #_(-> resolved-state :npm :index-ref deref :package-json-cache (pprint))
-    ))
+      (doseq [x resolved]
+        (prn x))
+      #_ (pprint (map second resolved))
+      #_(pprint str->sym)
+      #_(-> resolved-state :npm :index-ref deref :package-json-cache (pprint)))
+    (catch Exception e
+      (prn (ex-data e)))))

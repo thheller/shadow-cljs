@@ -519,7 +519,9 @@
 
             (when (seq js-errors)
               (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
-                       (assoc info :tag ::errors))))
+                       (assoc info
+                         :resource-name resource-name
+                         :tag ::errors))))
 
             ;; moment.js has require('./locale/' + name); inside a function
             ;; it shouldn't otherwise hurt though
