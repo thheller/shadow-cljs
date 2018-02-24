@@ -19,7 +19,7 @@
 
 (defn -main []
   (try
-    (let [{:keys [cache-root repositories dependencies version]
+    (let [{:keys [cache-root repositories proxy local-repo dependencies mirrors version]
            :or {dependencies []
                 repositories {}
                 cache-root "target/shadow-cljs"}
@@ -29,14 +29,24 @@
       (println "shadow-cljs - updating dependencies")
 
       ;; FIXME: resolve conflicts?
-      (let [deps
-            (aether/resolve-dependencies
-              :coordinates
-              dependencies
-              :repositories
-              (merge aether/maven-central {"clojars" "https://clojars.org/repo"} repositories)
-              :transfer-listener
-              transfer-listener)
+      (let [resolve-args
+            (-> {:coordinates
+                 dependencies
+                 :repositories
+                 (merge aether/maven-central {"clojars" "https://clojars.org/repo"} repositories)
+                 :transfer-listener
+                 transfer-listener}
+                (cond->
+                  mirrors
+                  (assoc :mirrors mirrors)
+                  proxy
+                  (assoc :proxy proxy)
+                  local-repo
+                  (assoc :local-repo local-repo)
+                  ))
+
+            deps
+            (apply aether/resolve-dependencies (into [] (mapcat identity) resolve-args))
 
             files
             (into [] (map #(.getAbsolutePath %)) (aether/dependency-files deps))
