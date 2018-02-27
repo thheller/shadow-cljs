@@ -1,4 +1,5 @@
 /ssl
+/out/ReactNativeDemo
 target/
 node_modules/
 classes/
