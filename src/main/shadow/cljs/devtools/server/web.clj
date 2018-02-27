@@ -9,7 +9,9 @@
     [shadow.cljs.devtools.server.web.release-snapshots :as release-snapshots]
     [shadow.cljs.devtools.server.worker.ws :as ws]
     [clojure.java.io :as io]
-    [clojure.edn :as edn]))
+    [clojure.edn :as edn]
+    [ring.middleware.file :as ring-file]
+    [ring.middleware.file-info :as ring-file-info]))
 
 (defn index-page [{:keys [dev-http] :as req}]
   (common/page-boilerplate req
@@ -45,6 +47,20 @@
             (edn/read-string (slurp file)))
           )))))
 
+(defn serve-cache-file
+  [{:keys [config ring-request] :as req}]
+  (let [root (io/file (:cache-root config "target/shadow-cljs") "builds")
+        ring-req
+        (update ring-request :uri str/replace #"^/cache" "/")]
+    (or (some->
+          (ring-file/file-request ring-req root {})
+          (ring-file-info/file-info-response ring-req {"transit" "application/json"})
+          (update-in [:headers] assoc
+            "cache-control" "max-age=0, no-cache, no-store, must-revalidate"
+            "pragma" "no-cache"
+            "expires" "0"))
+        (common/not-found req))))
+
 (defn root [req]
   (http/route req
     (:GET "" index-page)
@@ -53,4 +69,5 @@
     (:ANY "^/api" web-api/root)
     (:ANY "^/ws" ws/process-ws)
     (:ANY "^/worker" ws/process-req)
+    (:GET "^/cache" serve-cache-file)
     common/not-found))
