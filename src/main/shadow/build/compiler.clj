@@ -845,7 +845,7 @@
 (defn compile-all
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
-  ([{:keys [executor] :as state} source-ids]
+  ([{:keys [executor last-progress-ref] :as state} source-ids]
    "compile a list of sources by id,
     requires that the ids are in dependency order
     requires that ALL of the dependencies NOT listed are already compiled
@@ -874,6 +874,9 @@
          (let [x (get-in state [:compiler-options :optimizations])]
            (or (nil? x)
                (not= x :none)))]
+
+     ;; bump when starting a compile so watch doesn't cause timeouts
+     (swap! last-progress-ref progress-bump)
 
      (-> state
          (assoc :compile-start (System/currentTimeMillis))
