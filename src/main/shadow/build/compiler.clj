@@ -231,14 +231,20 @@
           (comp/emitln "var " ns "=" (npm/shadow-js-require rc))
           )))))
 
+(defn- progress-bump [x]
+  (Math/max x (System/currentTimeMillis)))
+
 (defn default-compile-cljs
-  [state compile-state form]
+  [{:keys [last-progress-ref] :as state} compile-state form]
   (let [{:keys [op] :as ast}
         (analyze state compile-state form)
 
         js
         (with-out-str
           (shadow-emit state ast))]
+
+    ;; bump for every compiled form might be overkill
+    (swap! last-progress-ref progress-bump)
 
     (-> compile-state
         (update-in [:js] str js)
@@ -652,73 +658,71 @@
       )))
 
 (defn par-compile-one
-  [state ready-ref errors-ref {:keys [resource-id type requires provides] :as src}]
+  [{:keys [last-progress-ref] :as state}
+   ready-ref
+   errors-ref
+   {:keys [resource-id type requires provides] :as src}]
   (assert (= :cljs type))
   (assert (set? requires))
   (assert (set? provides))
 
-  (let [waiting-since (System/currentTimeMillis)]
-    (loop [idle-count 1]
-      (let [ready @ready-ref]
-        (cond
-          ;; skip work if errors occured
-          (seq @errors-ref)
-          src
+  (loop [idle-count 1]
+    (let [ready @ready-ref]
+      (cond
+        ;; skip work if errors occured
+        (seq @errors-ref)
+        src
 
-          ;; only compile once all dependencies are compiled
-          ;; FIXME: sleep is not great, cljs.core takes a couple of sec to compile
-          ;; this will spin a couple hundred times, doing additional work
-          ;; don't increase the sleep time since many files compile in the 5-10 range
-          (not (set/superset? ready requires))
-          (do (Thread/sleep 5)
+        ;; only compile once all dependencies are compiled
+        ;; FIXME: sleep is not great, cljs.core takes a couple of sec to compile
+        ;; this will spin a couple hundred times, doing additional work
+        ;; don't increase the sleep time since many files compile in the 5-10 range
+        (not (set/superset? ready requires))
+        (do (Thread/sleep 5)
 
-              ;; diagnostic warning if we are still waiting for something to compile for 15+ sec
-              (when (zero? (mod idle-count 3000))
-                (let [pending (set/difference requires ready)]
-                  (log/warnf "%s waiting for %s" resource-id pending)))
+            ;; forcefully abort compilation when no progress was made for a long time
+            ;; progress is measured by bumping last-progress-ref in default-compile-cljs
+            ;; otherwise the compilation runs forever with no way to abort in case of bugs
+            (when (> (- (System/currentTimeMillis) @last-progress-ref)
+                     (get-in state [:build-options :par-timeout] 60000))
+              (let [pending (set/difference requires ready)]
 
-              ;; forcefully abort compilation when waiting longer than 60sec
-              ;; otherwise the compilation runs forever with no way to abort
-              (when (> (- (System/currentTimeMillis) waiting-since)
-                       60000)
-                (let [pending (set/difference requires ready)]
+                (swap! errors-ref assoc resource-id
+                  (ex-info (format "aborted par-compile, %s still waiting for %s"
+                             resource-id
+                             pending)
+                    {:aborted resource-id
+                     :pending pending}))))
 
-                  (swap! errors-ref assoc resource-id
-                    (ex-info (format "aborted par-compile, %s still waiting for %s"
-                               resource-id
-                               pending)
-                      {:aborted resource-id
-                       :pending pending}))))
+            (recur (inc idle-count)))
 
-              (recur (inc idle-count)))
+        :ready-to-compile
+        (try
+          (let [output (generate-output-for-source state src)
 
-          :ready-to-compile
-          (try
-            (let [output (generate-output-for-source state src)
+                ;; FIXME: this does not seem ideal
+                ;; maybe generate-output-for-source should expose the actual provides it generated
 
-                  ;; FIXME: this does not seem ideal
-                  ;; maybe generate-output-for-source should expose the actual provides it generated
-
-                  ;; we need to mark aliases as ready as soon as a resource is ready
-                  ;; cljs.spec.alpha also provides clojure.spec.alpha only
-                  ;; if someone used the alias since that happened at resolve time
-                  ;; the resource itself does not provide the alias
+                ;; we need to mark aliases as ready as soon as a resource is ready
+                ;; cljs.spec.alpha also provides clojure.spec.alpha only
+                ;; if someone used the alias since that happened at resolve time
+                ;; the resource itself does not provide the alias
+                provides
+                (reduce
+                  (fn [provides provide]
+                    (if-let [alias (get-in state [:ns-aliases-reverse provide])]
+                      (conj provides alias)
+                      provides))
                   provides
-                  (reduce
-                    (fn [provides provide]
-                      (if-let [alias (get-in state [:ns-aliases-reverse provide])]
-                        (conj provides alias)
-                        provides))
-                    provides
-                    provides)]
+                  provides)]
 
-              (swap! ready-ref set/union provides)
-              output)
+            (swap! ready-ref set/union provides)
+            output)
 
-            (catch Throwable e ;; asserts not covered by Exception
-              (swap! errors-ref assoc resource-id e)
-              src
-              )))))))
+          (catch Throwable e ;; asserts not covered by Exception
+            (swap! errors-ref assoc resource-id e)
+            src
+            ))))))
 
 (defn load-core []
   ;; cljs.core is already required and loaded when this is called

@@ -59,6 +59,8 @@
 
    :cache-level :all
 
+   :par-timeout 60000
+
    ;; namespaces that are known to rely on macro side-effects during compilation
    ;; they will not be cached themselves
    ;; and files that require them directly won't be cached to ensure that all
@@ -93,6 +95,9 @@
 
        :js-options
        default-js-options
+
+       :last-progress-ref
+       (atom (System/currentTimeMillis))
 
        ;; FIXME: should these ever be configurable?
        :analyzer-passes
