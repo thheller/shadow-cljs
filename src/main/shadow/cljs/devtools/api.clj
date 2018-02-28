@@ -295,7 +295,7 @@
          :output-dir (str (:cache-root config) "/builds/browser-repl/js")
          :asset-path "/cache/browser-repl/js"
          :modules
-         {:repl {:entries '[cljs.core]}}
+         {:repl {:entries '[shadow.cljs.devtools.client.browser-repl]}}
          :devtools
          {:autoload false
           :async-require true}}]

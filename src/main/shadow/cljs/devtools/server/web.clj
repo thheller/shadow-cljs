@@ -77,9 +77,8 @@
        {:id "shadow-cljs-logo"
         :version "1.1"
         :viewBox "0 0 400 400"
-        :style {:display "block"}
-        :height "200px"
-        :width "200px"}
+        :height "40px"
+        :width "40px"}
        [:title "shadow-cljs"]
        [:defs
         [:mask#shadow-cljs-logo-mask {:fill "#fff"}
@@ -144,18 +143,15 @@
            {:lang "en"}
            [:head [:title "shadow-cljs browser-repl"]]
            [:body {:style "font-family: monospace; font-size: 14px;"}
-
             [:div#app]
             [:div#root]
-            [:div {:style "padding-top: 20px; margin: 0 auto; width: 300px;"}
-             [:div {:style "text-align: center;"}
-              [:h1 "shadow-cljs"]
-              logo-svg]
 
-             [:p "Code entered in a browser-repl prompt will be evaluated here."]
+            [:div
+             [:div {:style "float: left; padding-right: 10px;"} logo-svg]
+             [:h1 {:style "line-height: 40px;"} "shadow-cljs"]
+             [:p "Code entered in a browser-repl prompt will be evaluated here."]]
 
-             [:pre {:style "display: block; padding: 10px; border: 1px solid #ccc; background-color: #eee;"}
-              "shadow-cljs browser-repl"]]
+            [:pre#log]
 
             [:script {:src "/cache/browser-repl/js/repl.js" :defer true}]])})
         (no-cache!))))
