@@ -229,7 +229,8 @@
             (rt/start-all))
 
         pid-file
-        (io/file cache-root "server.pid")]
+        (doto (io/file cache-root "server.pid")
+          (.deleteOnExit))]
 
     (vreset! app-ref app)
 
