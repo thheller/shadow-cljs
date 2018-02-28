@@ -1,27 +1,29 @@
 (ns shadow.cljs.devtools.api
   (:refer-clojure :exclude (compile test))
-  (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
-            [clojure.java.io :as io]
-            [clojure.tools.logging :as log]
-            [clojure.pprint :refer (pprint)]
-            [shadow.runtime.services :as rt]
-            [shadow.build :as build]
-            [shadow.build.api :as build-api]
-            [shadow.build.node :as node]
-            [shadow.build.npm :as npm]
-            [shadow.build.classpath :as cp]
-            [shadow.build.babel :as babel]
-            [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.devtools.server.util :as util]
-            [shadow.cljs.devtools.server.common :as common]
-            [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.errors :as e]
-            [shadow.cljs.devtools.server.supervisor :as super]
-            [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-            [shadow.cljs.devtools.server.runtime :as runtime]
-            [shadow.build.output :as output]
-            [shadow.build.log :as build-log]
-            [clojure.set :as set]))
+  (:require
+    [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
+    [clojure.java.io :as io]
+    [clojure.tools.logging :as log]
+    [clojure.pprint :refer (pprint)]
+    [clojure.java.browse :refer (browse-url)]
+    [clojure.set :as set]
+    [shadow.runtime.services :as rt]
+    [shadow.build :as build]
+    [shadow.build.api :as build-api]
+    [shadow.build.node :as node]
+    [shadow.build.npm :as npm]
+    [shadow.build.classpath :as cp]
+    [shadow.build.babel :as babel]
+    [shadow.cljs.devtools.server.worker :as worker]
+    [shadow.cljs.devtools.server.util :as util]
+    [shadow.cljs.devtools.server.common :as common]
+    [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.errors :as e]
+    [shadow.cljs.devtools.server.supervisor :as super]
+    [shadow.cljs.devtools.server.repl-impl :as repl-impl]
+    [shadow.cljs.devtools.server.runtime :as runtime]
+    [shadow.build.output :as output]
+    [shadow.build.log :as build-log]))
 
 ;; nREPL support
 
@@ -255,7 +257,7 @@
 
 (defn repl
   ([build-id]
-    (repl build-id {}))
+   (repl build-id {}))
   ([build-id {:keys [stop-on-eof] :as opts}]
    (if *nrepl-active*
      (nrepl-select build-id)
@@ -270,6 +272,7 @@
              (when stop-on-eof
                (super/stop-worker supervisor build-id))))))))
 
+;; FIXME: should maybe allow multiple instances
 (defn node-repl
   ([]
    (node-repl {}))
@@ -281,7 +284,56 @@
          (or (super/get-worker supervisor :node-repl)
              (repl-impl/node-repl* app opts))]
 
-     (repl :node-repl {:stop-on-eof true})
+     (repl :node-repl)
+     )))
+
+;; FIXME: should maybe allow multiple instances
+(defn start-browser-repl* [{:keys [config supervisor] :as app}]
+  (let [cfg
+        {:build-id :browser-repl
+         :target :browser
+         :output-dir (str (:cache-root config) "/builds/browser-repl/js")
+         :asset-path "/cache/browser-repl/js"
+         :modules
+         {:repl {:entries '[cljs.core]}}
+         :devtools
+         {:autoload false
+          :async-require true}}]
+
+    (super/start-worker supervisor cfg)))
+
+(defn browser-repl
+  ([]
+   (browser-repl {}))
+  ([{:keys [verbose open] :as opts}]
+   (let [{:keys [supervisor config http] :as app}
+         (runtime/get-instance!)
+
+         worker
+         (or (super/get-worker supervisor :browser-repl)
+             (let [worker
+                   (start-browser-repl* app)
+
+                   out-chan
+                   (-> (async/sliding-buffer 10)
+                       (async/chan))]
+
+               (go (loop []
+                     (when-some [msg (<! out-chan)]
+                       (try
+                         (util/print-worker-out msg verbose)
+                         (catch Exception e
+                           (prn [:print-worker-out-error e])))
+                       (recur)
+                       )))
+
+               (worker/watch worker out-chan)
+               (worker/compile! worker)
+
+               (browse-url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/browser-repl-js"))
+               worker))]
+
+     (repl :browser-repl)
      )))
 
 (defn dev*

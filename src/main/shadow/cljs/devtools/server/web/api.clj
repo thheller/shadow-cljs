@@ -10,6 +10,7 @@
     [shadow.cljs.devtools.server.util :as server-util]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.util :as util]
+    [hiccup.page :refer (html5)]
     [clojure.java.io :as io]))
 
 (defn index-page [req]

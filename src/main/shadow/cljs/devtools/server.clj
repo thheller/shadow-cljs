@@ -484,6 +484,9 @@
             :node-repl
             (api/node-repl options)
 
+            :browser-repl
+            (api/browser-repl options)
+
             ;; makes this a noop if server is already running
             :server
             (if already-running?

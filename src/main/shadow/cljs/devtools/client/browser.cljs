@@ -343,4 +343,13 @@
     (set! (.-onclose s) (fn [e]))
     (.close s)
     (vreset! socket-ref nil))
+
+  ;; for /browser-repl in case the page is reloaded
+  ;; otherwise the browser seems to still have the websocket open
+  ;; when doing the reload
+  (js/window.addEventListener "beforeunload"
+    (fn []
+      (when-let [s @socket-ref]
+        (.close s))))
+
   (ws-connect))

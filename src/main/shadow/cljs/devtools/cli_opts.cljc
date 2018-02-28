@@ -51,6 +51,8 @@
    :release
 
    :node-repl
+   :browser-repl
+
    :cljs-repl
    :clj-repl
    :clj-eval

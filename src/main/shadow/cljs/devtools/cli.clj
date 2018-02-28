@@ -120,7 +120,7 @@
       (api/with-runtime
         (do-clj-run config opts))
 
-      (contains? #{:watch :node-repl :cljs-repl :clj-repl :server} action)
+      (contains? #{:watch :node-repl :browser-repl :cljs-repl :clj-repl :server} action)
       (server/from-cli action builds options)
       )))
 
@@ -168,7 +168,7 @@
       ;;
       ;; actions that may potentially block
       ;;
-      (contains? #{:watch :node-repl :cljs-repl :clj-repl :server :clj-eval :clj-run} action)
+      (contains? #{:watch :node-repl :browser-repl :cljs-repl :clj-repl :server :clj-eval :clj-run} action)
       (blocking-action config opts)
 
       :else
