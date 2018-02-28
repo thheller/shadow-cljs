@@ -16,7 +16,7 @@
 (defonce super-lock (Object.))
 
 (defn start-worker
-  [{:keys [system-bus state-ref workers-ref executor cache-root http classpath npm babel] :as svc} {:keys [build-id] :as build-config}]
+  [{:keys [system-bus state-ref workers-ref executor cache-root http classpath npm babel config] :as svc} {:keys [build-id] :as build-config}]
   {:pre [(keyword? build-id)]}
   ;; locking to prevent 2 threads starting the same build at the same time (unlikely but still)
   (locking super-lock
@@ -24,7 +24,7 @@
       (throw (ex-info "already started" {:build-id build-id})))
 
     (let [{:keys [proc-stop] :as proc}
-          (worker/start system-bus executor cache-root http classpath npm babel build-config)]
+          (worker/start config system-bus executor cache-root http classpath npm babel build-config)]
 
       (vswap! workers-ref assoc build-id proc)
 
@@ -41,8 +41,9 @@
     (worker/stop proc)))
 
 ;; FIXME: too many args, use a map
-(defn start [system-bus executor cache-root http classpath npm babel]
+(defn start [config system-bus executor cache-root http classpath npm babel]
   {:system-bus system-bus
+   :config config
    :executor executor
    :cache-root cache-root
    :http http

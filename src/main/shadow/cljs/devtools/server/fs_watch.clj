@@ -2,9 +2,13 @@
   (:require [clojure.tools.logging :as log]
             [clojure.string :as str]))
 
+
+;; hawk already uses the jvm watcher on win/linux
+;; not much benefit doing this again
+
 (def os-name (System/getProperty "os.name"))
 
-(defn start [directories file-exts publish-fn]
+(defn start [config directories file-exts publish-fn]
   (let [ns-sym
         (if (str/includes? os-name "Windows")
           ;; jvm on windows supports watch fine
@@ -19,7 +23,7 @@
     (require ns-sym)
 
     (let [start-var (ns-resolve ns-sym 'start)]
-      (-> (start-var directories file-exts publish-fn)
+      (-> (start-var config directories file-exts publish-fn)
           (assoc ::ns ns-sym)))))
 
 (defn stop [{::keys [ns] :as svc}]

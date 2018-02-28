@@ -10,7 +10,7 @@
             [shadow.cljs.devtools.server.web.common :as common]
             [shadow.build.classpath :as cp]
             [shadow.build.npm :as npm]
-            [shadow.cljs.devtools.server.fs-watch :as fs-watch]
+            [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch]
             [shadow.build.babel :as babel])
   (:import (java.util UUID)))
 
@@ -101,7 +101,7 @@
 ;; SERVICE API
 
 (defn start
-  [system-bus executor cache-root http classpath npm babel {:keys [build-id] :as build-config}]
+  [config system-bus executor cache-root http classpath npm babel {:keys [build-id] :as build-config}]
   {:pre [(map? http)
          (map? build-config)
          (cp/service? classpath)
@@ -236,7 +236,7 @@
                      (let [watch-dir (io/file watch-dir)]
                        (when-not (.exists watch-dir)
                          (io/make-parents (io/file watch-dir "dummy.html")))
-                       (fs-watch/start [watch-dir] watch-exts #(async/>!! asset-update %))))))]
+                       (fs-watch/start (:fs-watch config) [watch-dir] watch-exts #(async/>!! asset-update %))))))]
 
     (sys-bus/sub system-bus ::sys-msg/resource-update resource-update)
     (sys-bus/sub system-bus ::sys-msg/macro-update macro-update)

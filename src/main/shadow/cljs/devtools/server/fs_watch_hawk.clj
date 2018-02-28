@@ -25,7 +25,7 @@
         (recur [])
         ))))
 
-(defn start* [directories file-exts publish-fn]
+(defn start* [config directories file-exts publish-fn]
   (let [hawk-in
         (-> (async/sliding-buffer 100)
             (async/chan))
@@ -38,6 +38,7 @@
 
         hawk
         (hawk/watch!
+          config
           (->> directories
                (map (fn [root]
                       (let [root-prefix (.getAbsolutePath root)
@@ -84,12 +85,12 @@
      :buffer-thread buffer-thread
      :hawk hawk}))
 
-(defn start [directories file-exts publish-fn]
+(defn start [config directories file-exts publish-fn]
   (try
-    (start* directories file-exts publish-fn)
+    (start* config directories file-exts publish-fn)
     (catch Exception e
       (log/warn "failed to start hawk file watcher, falling back to normal watch.")
-      (fs-watch/start directories file-exts publish-fn)
+      (fs-watch/start config directories file-exts publish-fn)
       )))
 
 (defn stop [{:keys [hawk-in hawk buffer-thread] :as x}]

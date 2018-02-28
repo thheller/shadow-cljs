@@ -57,7 +57,7 @@
 
   ::shutdown-complete)
 
-(defn start [directories file-exts publish-fn]
+(defn start [config directories file-exts publish-fn]
   {:pre [(every? #(instance? File %) directories)
          (coll? file-exts)
          (every? string? file-exts)]}
