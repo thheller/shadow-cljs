@@ -482,18 +482,7 @@
                     (super/stop-worker supervisor build-id)))))
 
             :node-repl
-            (let [{:keys [supervisor] :as app} @runtime/instance-ref
-
-                  worker
-                  (super/get-worker supervisor :node-repl)]
-              ;; FIXME: connect to if already running or launch another one?
-              (if-not worker
-                (do (println "shadow-cljs - starting node-repl")
-                    (api/node-repl options))
-
-                (do (println "shadow-cljs - connecting to running node-repl")
-                    (api/repl :node-repl))
-                ))
+            (api/node-repl options)
 
             ;; makes this a noop if server is already running
             :server

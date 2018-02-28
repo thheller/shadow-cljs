@@ -131,12 +131,6 @@
     (super/stop-worker supervisor build-id)
     :stopped))
 
-(defn node-repl
-  ([]
-   (node-repl {}))
-  ([opts]
-   (repl-impl/node-repl* (runtime/get-instance!) opts)))
-
 (defn get-config []
   (or (when-let [inst (runtime/get-instance)]
         (:config inst))
@@ -259,17 +253,36 @@
         (println "To quit, type: :cljs/quit")
         [:selected id])))
 
-(defn repl [build-id]
-  (if *nrepl-active*
-    (nrepl-select build-id)
-    (let [{:keys [supervisor] :as app}
-          (runtime/get-instance!)
+(defn repl
+  ([build-id]
+    (repl build-id {}))
+  ([build-id {:keys [stop-on-eof] :as opts}]
+   (if *nrepl-active*
+     (nrepl-select build-id)
+     (let [{:keys [supervisor] :as app}
+           (runtime/get-instance!)
 
-          worker
-          (super/get-worker supervisor build-id)]
-      (if-not worker
-        :no-worker
-        (repl-impl/stdin-takeover! worker app)))))
+           worker
+           (super/get-worker supervisor build-id)]
+       (if-not worker
+         :no-worker
+         (do (repl-impl/stdin-takeover! worker app)
+             (when stop-on-eof
+               (super/stop-worker supervisor build-id))))))))
+
+(defn node-repl
+  ([]
+   (node-repl {}))
+  ([opts]
+   (let [{:keys [supervisor] :as app}
+         (runtime/get-instance!)
+
+         worker
+         (or (super/get-worker supervisor :node-repl)
+             (repl-impl/node-repl* app opts))]
+
+     (repl :node-repl {:stop-on-eof true})
+     )))
 
 (defn dev*
   [build-config {:keys [autobuild verbose] :as opts}]
