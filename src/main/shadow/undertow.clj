@@ -15,7 +15,8 @@
            (javax.net.ssl SSLContext KeyManagerFactory)
            (java.io FileInputStream)
            (java.security KeyStore)
-           [org.xnio ChannelListener]))
+           [org.xnio ChannelListener]
+           [java.nio.channels ClosedChannelException]))
 
 (defn ring* [handler-fn]
   (reify
@@ -80,7 +81,12 @@
 
               (go (loop []
                     (when-some [msg (<! ws-out)]
-                      (WebSockets/sendTextBlocking (pr-str msg) channel)
+                      (try
+                        (WebSockets/sendTextBlocking (pr-str msg) channel)
+                        ;; just ignore sending to a closed channel
+                        (catch ClosedChannelException e
+                          (async/close! ws-in)
+                          (async/close! ws-out)))
                       (recur)))
                   ;; when out closes, also close in
                   (async/close! ws-in))
