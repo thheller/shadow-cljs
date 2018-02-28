@@ -166,13 +166,13 @@
         (js/process.stdin.removeListener "close" stop!)
         ))))
 
-(defn run [project-root config server-pid-file opts args]
+(defn run [project-root config server-port-file opts args]
   (let [cli-repl
-        (-> (util/slurp server-pid-file)
+        (-> (util/slurp server-port-file)
             (js/parseInt 10))]
 
     (if-not (pos-int? cli-repl)
-      (prn [:no-socket-repl-port server-pid-file cli-repl])
+      (prn [:no-socket-repl-port server-port-file cli-repl])
       (let [connect-listener
             (fn [err]
               (this-as socket

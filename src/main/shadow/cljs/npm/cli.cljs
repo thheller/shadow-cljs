@@ -1,4 +1,5 @@
 (ns shadow.cljs.npm.cli
+  (:refer-clojure :exclude (run!))
   (:require
     ["path" :as path]
     ["fs" :as fs]
@@ -52,6 +53,13 @@
             (clj->js))]
 
     (cp/spawnSync cmd (into-array args) spawn-opts)))
+
+;; same as run! but preserves the exit code of the process
+;; must be run as the last step since it will kill the node process after
+(defn run! [project-root cmd args proc-opts]
+  (let [^js res (run project-root cmd args proc-opts)]
+    (js/process.exit (.-status res))
+    ))
 
 (defn run-java [project-root args opts]
   (let [^js result
@@ -218,7 +226,7 @@
             (into args))]
 
     (log "shadow-cljs - starting ...")
-    (run-java project-root cli-args {})))
+    (run! project-root "java" cli-args {})))
 
 (defn get-lein-args [{:keys [lein] :as config}]
   (let [{:keys [profile] :as lein-config}
@@ -241,7 +249,7 @@
             (into args))]
 
     (log "shadow-cljs - running: lein" (str/join " " lein-args))
-    (run project-root "lein" lein-args {})))
+    (run! project-root "lein" lein-args {})))
 
 (defn get-clojure-args [project-root config opts]
   (let [{:keys [aliases inject]} (:deps config)
@@ -283,7 +291,7 @@
             (into args))]
 
     (log "shadow-cljs - starting via \"clojure\"")
-    (run project-root "clojure" clojure-args {})
+    (run! project-root "clojure" clojure-args {})
     ))
 
 (defn wait-for-server-start! [port-file ^js proc]
@@ -296,7 +304,7 @@
         (js/setTimeout #(wait-for-server-start! port-file proc) 250))
     ))
 
-(defn server-start [project-root {:keys [lein deps dependencies cache-root] :as config} args opts]
+(defn server-start [project-root {:keys [lein deps cache-root] :as config} args opts]
   (let [[server-cmd server-args]
         (cond
           deps
@@ -334,24 +342,19 @@
           err
           (fs/openSync err-path "a")
 
-          pid-path
-          (path/resolve cache-dir "server.pid")
-
           proc
           (cp/spawn server-cmd (into-array server-args)
             #js {:detached true
                  :stdio #js ["ignore", out, err]})]
 
-      (fs/writeFileSync pid-path (str (.-pid proc)))
-
       (wait-for-server-start! (path/resolve cache-dir "cli-repl.port") proc)
       )))
 
-(defn server-stop [project-root config server-pid-file args opts]
+(defn server-stop [project-root config server-port-file server-pid-file args opts]
   (let [signal (async/chan)
 
         cli-repl
-        (-> (util/slurp server-pid-file)
+        (-> (util/slurp server-port-file)
             (js/parseInt 10))
 
         socket
@@ -361,13 +364,15 @@
                :timeout 1000})]
 
     (.on socket "connect" #(.write socket "(shadow.cljs.devtools.server/remote-stop!)\n:repl/quit\n"))
-    (.on socket "error" #(fs/unlinkSync server-pid-file))
+    (.on socket "error" (fn [err]
+                          (fs/unlinkSync server-port-file)
+                          (fs/unlinkSync server-pid-file)))
     (.on socket "close" #(async/close! signal))
 
     signal))
 
 (def defaults
-  {:cache-root "target/shadow-cljs"
+  {:cache-root ".shadow-cljs"
    :version jar-version
    :dependencies []})
 
@@ -566,6 +571,22 @@
                                                [:source path]))
                                         (into [:sources]))]]]]])))])))))))
 
+;; can't do this because running the server on windows
+;; but running shadow-cljs via WSL won't find the PID
+;; and think that the server is dead
+(defn is-server-running? [server-pid]
+  (and (fs/existsSync server-pid)
+       (let [pid (-> (util/slurp server-pid)
+                     (js/parseInt 10))]
+         (try
+           ;; returns true if signal succeeded
+           (js/process.kill pid 0)
+           (catch :default e
+             ;; throws ESRCH or other errors if signal failed
+             ;; meaning the server isn't reachable
+             false
+             )))))
+
 (defn ^:export main [args]
 
   ;; https://github.com/tapjs/signal-exit
@@ -577,7 +598,7 @@
     (onExit (fn [code signal])))
 
   (try
-    (let [{:keys [action builds options summary errors] :as opts}
+    (let [{:keys [action options] :as opts}
           (opts/parse args)]
 
       (cond
@@ -609,13 +630,21 @@
                 (let [{:keys [cache-root version] :as config}
                       (merge defaults config)
 
-                      server-pid
+                      server-port-file
                       (path/resolve project-root cache-root "cli-repl.port")
 
+                      server-pid-file
+                      (path/resolve project-root cache-root "server.pid")
+
                       server-running?
-                      (fs/existsSync server-pid)]
+                      (and (fs/existsSync server-port-file)
+                           (fs/existsSync server-pid-file))]
 
                   (mkdirp/sync (path/resolve project-root cache-root))
+
+                  (when (and (not server-running?) (fs/existsSync server-pid-file))
+                    (log "shadow-cljs - server pid exists but server appears to be dead, proceeding without server.")
+                    (fs/unlinkSync server-pid-file))
 
                   (log "shadow-cljs - config:" config-path "version:" version)
 
@@ -635,15 +664,15 @@
                     (= :stop action)
                     (if-not server-running?
                       (log "shadow-cljs - server not running")
-                      (server-stop project-root config server-pid args opts))
+                      (server-stop project-root config server-port-file server-pid-file args opts))
 
                     (= :restart action)
                     (go (when server-running?
-                          (<! (server-stop project-root config server-pid args opts)))
+                          (<! (server-stop project-root config server-port-file server-pid-file args opts)))
                         (server-start project-root config args opts))
 
                     server-running?
-                    (client/run project-root config server-pid opts args)
+                    (client/run project-root config server-port-file opts args)
 
                     (:deps config)
                     (run-clojure project-root config args opts)

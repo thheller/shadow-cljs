@@ -71,7 +71,7 @@
     ))
 
 (def default-config
-  {:cache-root "target/shadow-cljs"
+  {:cache-root ".shadow-cljs"
    :builds {}})
 
 (def default-builds

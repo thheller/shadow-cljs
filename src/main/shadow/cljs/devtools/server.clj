@@ -21,8 +21,10 @@
             [shadow.cljs.devtools.server.dev-http :as dev-http]
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
             [shadow.undertow :as undertow]
-            [ring.middleware.resource :as ring-resource])
-  (:import (java.net BindException SocketException)))
+            [ring.middleware.resource :as ring-resource]
+            [clojure.string :as str])
+  (:import (java.net BindException SocketException)
+           [java.lang.management ManagementFactory]))
 
 (def app-config
   (merge
@@ -153,6 +155,13 @@
   (let [{:keys [http ssl]}
         config
 
+        pid
+        (-> (ManagementFactory/getRuntimeMXBean)
+            (.getName)
+            (str/split #"@")
+            (first)
+            (Long/valueOf))
+
         ring
         (get-ring-handler app-ref)
 
@@ -200,6 +209,7 @@
 
         app
         (-> {::started (System/currentTimeMillis)
+             :server-pid pid
              :config config
              :ssl-context ssl-context
              :http {:port (or https-port http-port)
@@ -216,7 +226,10 @@
               nrepl
               (assoc :nrepl nrepl))
             (rt/init app-config)
-            (rt/start-all))]
+            (rt/start-all))
+
+        pid-file
+        (io/file cache-root "server.pid")]
 
     (vreset! app-ref app)
 
@@ -232,6 +245,8 @@
               socket-repl
               (assoc :socket-repl (:port socket-repl)))
             )))
+
+    (spit pid-file pid)
 
     app-ref))
 
