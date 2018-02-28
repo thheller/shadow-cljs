@@ -48,6 +48,7 @@
 (defn run [project-root cmd args proc-opts]
   (let [spawn-opts
         (-> {:cwd project-root
+             :shell true
              :stdio "inherit"}
             (merge proc-opts)
             (clj->js))]
