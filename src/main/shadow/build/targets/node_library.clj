@@ -23,13 +23,16 @@
       simple-keyword?
       shared/unquoted-qualified-symbol?)))
 
+(s/def ::umd-root-name shared/non-empty-string?)
+
 (s/def ::target
   (s/keys
     :req-un
     [::exports
      ::shared/output-to]
     :opt-un
-    [::shared/output-dir]
+    [::shared/output-dir
+     ::umd-root-name]
     ))
 
 (defmethod config/target-spec :node-library [_]
@@ -38,7 +41,7 @@
 (defmethod config/target-spec `process [_]
   (s/spec ::target))
 
-(defn create-module [state {:keys [exports output-to] :as config}]
+(defn create-module [state {:keys [exports output-to umd-root-name] :as config}]
   {:pre [(data/build-state? state)
          (map? config)
          (or (qualified-symbol? exports)
@@ -94,7 +97,12 @@
         ;; based on https://github.com/umdjs/umd/blob/master/templates/returnExports.js
         [prepend append]
         (-> (slurp (io/resource "shadow/build/targets/umd_exports.txt"))
-            (str/split #"//CLJS-HERE"))]
+            (str/split #"//CLJS-HERE"))
+
+        prepend
+        (cond-> prepend
+          umd-root-name
+          (str/replace #"root.returnExports" (str "root." umd-root-name)))]
 
     (-> state
         (assoc :node-config node-config)
