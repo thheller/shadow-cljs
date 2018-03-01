@@ -93,11 +93,10 @@
       (or (not cp-rc?)
           (and (not abs?)
                (not rel?)))
-      (when-let [rc (npm/find-resource (:npm state) file require
-                      (assoc js-options
-                        :mode (:mode state)
-                        :target :browser))]
-        (update rc :deps #(into ['shadow.process] %)))
+      (npm/find-resource (:npm state) file require
+        (assoc js-options
+          :mode (:mode state)
+          :target :browser))
 
       (util/is-absolute? require)
       (cp/find-js-resource classpath require)

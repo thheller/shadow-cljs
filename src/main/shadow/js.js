@@ -1,25 +1,60 @@
 goog.provide("shadow.js");
-goog.require("shadow.process");
-
-// since we only run JS through :simple we need to keep these as is.
-// these are not in process.js since the :closure js provider will optimize
-// the JS fully and we don't need to export this since the renamed names
-// will be used
-goog.exportSymbol("process.env.NODE_ENV", process.env.NODE_ENV);
-goog.exportSymbol("process.browser", process.browser);
-goog.exportSymbol("process.title", process.title);
-goog.exportSymbol("process.argv", process.argv);
-goog.exportSymbol("process.env", process.env);
-goog.exportSymbol("process.cwd", process.cwd);
-goog.exportSymbol("process.on", process.on);
-goog.exportSymbol("process.umask", process.umask);
-goog.exportSymbol("process.once", process.once);
-goog.exportSymbol("process.off", process.off);
 
 /**
  * @dict
  */
 shadow.js.files = {};
+
+/**
+ * @nocollapse
+ */
+shadow.js.process = {};
+
+/**
+ * @define {string}
+ * all occurences should be removed by NodeEnvInline but for safety we keep it arround
+ */
+goog.define("shadow.js.NODE_ENV", "development");
+
+/**
+ * @define {boolean}
+ */
+goog.define("shadow.js.process.browser", false);
+
+
+// https://github.com/defunctzombie/node-process/blob/master/browser.js
+
+shadow.js.process["title"] = "browser";
+shadow.js.process["argv"] = [];
+shadow.js.process["cwd"] = function() { return '/'; };
+
+shadow.js.process["version"] = ''; // empty string to avoid regexp issues
+shadow.js.process["versions"] = {};
+shadow.js.process["env"] = {"NODE_ENV":shadow.js.NODE_ENV};
+
+shadow.js.process_noop = function() {}
+
+shadow.js.process["on"] = shadow.js.process_noop;
+shadow.js.process["addListener"] = shadow.js.process_noop;
+shadow.js.process["once"] = shadow.js.process_noop;
+shadow.js.process["off"] = shadow.js.process_noop;
+shadow.js.process["removeListener"] = shadow.js.process_noop;
+shadow.js.process["removeAllListeners"] = shadow.js.process_noop;
+shadow.js.process["emit"] = shadow.js.process_noop;
+shadow.js.process["prependListener"] = shadow.js.process_noop;
+shadow.js.process["prependOnceListener"] = shadow.js.process_noop;
+
+shadow.js.process["listeners"] = function (name) { return [] }
+
+shadow.js.process["binding"] = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+shadow.js.process["cwd"] = function () { return '/' };
+shadow.js.process["chdir"] = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+shadow.js.process["umask"] = function() { return 0; };
 
 /**
  * @return {ShadowJS}
@@ -47,8 +82,10 @@ shadow.js.jsRequire = function(name, opts) {
     // FIXME: is the call necessary? only ensures that this equals the module
     // which should match node? not entirely sure how others do it.
 
+    var process = goog.global.process || shadow.js.process;
+
     try {
-      moduleFn.call(module, goog.global, shadow.js.jsRequire, module, module["exports"], goog.global);
+      moduleFn.call(module, goog.global, process, shadow.js.jsRequire, module, module["exports"], goog.global);
     } catch (e) {
       console.warn("shadow-cljs - failed to load", name);
       throw e;

@@ -1558,7 +1558,7 @@
         (->> (for [{:keys [resource-id resource-name ns file deps] :as src} sources]
                (let [source (data/get-source-code state src)]
                  (closure-source-file resource-name
-                   (str "shadow$provide[\"" ns "\"] = function(global,require,module,exports) {\n"
+                   (str "shadow$provide[\"" ns "\"] = function(global,process,require,module,exports) {\n"
                         (if (str/ends-with? resource-name ".json")
                           (str "module.exports=(" source ");")
                           source)

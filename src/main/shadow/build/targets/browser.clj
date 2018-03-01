@@ -533,11 +533,7 @@
 
     :optimize-prepare
     (-> state
-        (cond->
-          ;; could set this unconditionally since currently only :browser uses :shadow js
-          (get-in state [:sym->id 'shadow.process])
-          (assoc-in [:compiler-options :closure-defines 'process.browser] true)
-          ))
+        (assoc-in [:compiler-options :closure-defines 'shadow.js.process.browser] true))
 
     :flush
     (flush state mode config)

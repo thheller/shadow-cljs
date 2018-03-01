@@ -2076,7 +2076,7 @@
                (-> (update-in [:preloads] (fnil conj []) 'process.env)
                  (cond->
                    (not= :none optimizations)
-                   (update-in [:closure-defines 'process.env/NODE_ENV] (fnil str "production"))))
+                   (update-in [:closure-defines 'shadow.js.NODE_ENV] (fnil str "production"))))
 
                (or (:closure-defines opts) (shim-process? opts))
                (update :closure-defines
