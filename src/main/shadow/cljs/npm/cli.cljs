@@ -45,11 +45,20 @@
   (-> (fs/lstatSync path)
       (.isDirectory)))
 
+(defn is-windows? []
+  (str/includes? js/process.platform "win32"))
+
 (defn run [project-root cmd args proc-opts]
   (let [spawn-opts
         (-> {:cwd project-root
-             :shell true
              :stdio "inherit"}
+            (cond->
+              ;; can't figure out why lein won't work without this in windows cmd
+              ;; probably similar issue with tools.deps but that doesn't exist for windows yet
+              ;; need to verify first
+              (and (= "lein" cmd) (is-windows?))
+              (assoc :shell true
+                     :windowsVerbatimArguments true))
             (merge proc-opts)
             (clj->js))]
 
