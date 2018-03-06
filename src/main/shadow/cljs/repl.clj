@@ -389,6 +389,12 @@
                                    :gen-col 0
                                    :gen-line 0})
 
+                            ana/*unchecked-if*
+                            ana/*unchecked-if*
+
+                            ana/*unchecked-arrays*
+                            ana/*unchecked-arrays*
+
                             ;; cljs-oops sets this in macros
                             ana/*cljs-warnings*
                             ana/*cljs-warnings*]
