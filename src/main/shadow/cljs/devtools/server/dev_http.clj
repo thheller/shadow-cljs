@@ -12,7 +12,8 @@
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [shadow.undertow :as undertow]))
+            [shadow.undertow :as undertow]
+            [shadow.http.push-state :as push-state]))
 
 (defn disable-all-kinds-of-caching [handler]
   ;; this is strictly a dev server and caching is not wanted for anything
@@ -40,21 +41,21 @@
             (get-in config [:http :host])
             "0.0.0.0")
 
-        http-handler
+        http-handler-fn
         (if-not http-handler
-          common/not-found
+          push-state/handle
 
           (let [http-handler-ns
-                (require (symbol (namespace http-handler)))
-                http-handler-fn
-                @(find-var http-handler)]
+                (require (symbol (namespace http-handler)))]
+            @(find-var http-handler)))
 
-            (fn [req]
-              (-> req
-                  (assoc :http-root root-dir
-                         :build-id build-id
-                         :devtools config)
-                  (http-handler-fn)))))]
+        http-handler
+        (fn [req]
+          (-> req
+              (assoc :http-root root-dir
+                     :build-id build-id
+                     :devtools config)
+              (http-handler-fn)))]
 
     (when (and root-dir (not (.exists root-dir)))
       (io/make-parents (io/file root-dir "index.html")))
