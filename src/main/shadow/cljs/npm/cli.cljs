@@ -197,7 +197,7 @@
   (if (false? (:log config))
     []
     (let [log-config-path
-          (path/join cache-root "logging.properties")]
+          (path/join project-root cache-root "logging.properties")]
 
       (when-not (fs/existsSync log-config-path)
         (fs/writeFileSync log-config-path
