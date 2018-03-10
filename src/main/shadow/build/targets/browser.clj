@@ -258,7 +258,10 @@
 (defn configure
   [state mode config]
   (let [{:keys [output-dir asset-path public-dir public-path] :as config}
-        (merge default-browser-config config)]
+        (-> (merge default-browser-config config)
+            (cond->
+              (not (false? (get-in config [:devtools :autoload])))
+              (assoc-in [:devtools :autoload] true)))]
 
     (-> state
         (assoc ::build/config config) ;; so the merged defaults don't get lost
