@@ -70,5 +70,13 @@
             (repl/process-input test-ns-str)
             (repl/process-input test-ns-str))]
 
-    (pprint repl-state))
-  )
+    (pprint repl-state)))
+
+(deftest test-repl-require-in-ns
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(require 'demo.script)")
+            (repl/process-input "(in-ns 'demo.script)"))]
+
+    (pprint repl-state)))

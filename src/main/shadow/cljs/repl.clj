@@ -29,6 +29,16 @@
      :repl-sources list-of-source-names-required-on-repl-init
      :repl-actions list-of-repl-actions-and-the-input-that-created-them}))
 
+;; rc attrs saved into the repl state
+;; they are transmitted to the client to they must print/read properly
+;; cannot send :url or :file
+(def repl-current-attrs
+  [:resource-id
+   :resource-name
+   :type
+   :ns
+   :ns-info])
+
 (defn repl-state? [x]
   (and (map? x) (::repl-state x)))
 
@@ -98,7 +108,7 @@
 
         repl-state
         {::repl-state true
-         :current cljs-user
+         :current (select-keys cljs-user repl-current-attrs)
 
          :reader-features
          (data/get-reader-features state)
@@ -319,13 +329,14 @@
       ;; FIXME: create empty ns and switch to it
       (do (prn [:did-not-find ns])
           state)
-      (let [{:keys [name ns-info] :as rc}
-            (data/get-source-by-provide state ns)
+      (let [{:keys [resource-name] :as rc}
+            (-> (data/get-source-by-provide state ns)
+                (select-keys repl-current-attrs))
 
             set-ns-action
             {:type :repl/set-ns
              :ns ns
-             :name name}]
+             :resource-name resource-name}]
         (-> state
             ;; FIXME: do we need to ensure that the ns is compiled?
             (assoc-in [:repl-state :current] rc)
