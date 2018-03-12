@@ -152,6 +152,27 @@
     (pprint ast)
     (pprint ast-resolved)))
 
+(deftest test-parse-and-rewrite-rename
+  (let [test
+        '(ns something
+           (:require [react-dnd-html5-backend :rename {default HTML5Backend}]))
+
+        ast
+        (ns-form/parse test)
+
+        ast-resolved
+        (ns-form/rewrite-ns-aliases ast
+          {:ns-aliases
+           '{react-dnd-html5-backend alias$react-dnd-html5-backend}})]
+
+    (is (= 'alias$react-dnd-html5-backend (get-in ast-resolved [:requires 'react-dnd-html5-backend])))
+    (is (= '[goog cljs.core alias$react-dnd-html5-backend] (:deps ast-resolved)))
+    (is (= 'alias$react-dnd-html5-backend/default (get-in ast-resolved [:renames 'HTML5Backend])))
+    (pprint ast)
+    (pprint ast-resolved)))
+
+
+
 (deftest test-parse-repl-require
   (let [test-ns
         '(ns cljs.user)

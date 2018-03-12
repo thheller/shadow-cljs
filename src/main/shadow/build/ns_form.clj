@@ -506,7 +506,7 @@
       )))
 
 (defn rewrite-ns-aliases
-  [{:keys [requires uses deps] :as ast}
+  [{:keys [requires uses deps renames] :as ast}
    {:keys [ns-aliases] :as state}]
 
   (if-not (seq ns-aliases)
@@ -537,6 +537,16 @@
         (rewrite-ns-map requires true)
         :uses
         (rewrite-ns-map uses false)
+        :renames
+        (reduce-kv
+          (fn [renames var fqn-name]
+            (let [ns (symbol (namespace fqn-name))
+                  alias-ns (get ns-aliases ns)]
+              (if-not alias-ns
+                renames
+                (assoc renames var (symbol (str alias-ns) (name fqn-name))))))
+          renames
+          renames)
         :ns-aliases
         ns-aliases
         ))))
