@@ -4,8 +4,8 @@
             [shadow.build.macros :as m]
             [clojure.java.io :as io]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            ))
+            [shadow.cljs.devtools.server.system-msg :as sys-msg])
+  (:import [java.net URLConnection]))
 
 (defn root-resource [lib]
   (.. (name lib) (replace \- \_) (replace \. \/)))
@@ -29,10 +29,8 @@
       false
 
       :else
-      (let [rc-mod
-            (-> (.openConnection rc-url)
-                (.getLastModified))]
-        (> rc-mod last-loaded))
+      (let [^URLConnection rc-con (.openConnection rc-url)]
+        (> (.getLastModified rc-con) last-loaded))
       )))
 
 (defn check-macros! [system-bus]

@@ -16,9 +16,8 @@
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
-  (-> (io/resource "shadow/build/npm.clj")
-      (.openConnection)
-      (.getLastModified)))
+  (util/resource-last-modified "shadow/build/npm.clj")
+  )
 
 (def CLOSURE-TIMESTAMP
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
@@ -27,9 +26,7 @@
   ;; this is bit ugly but since files are re-compiled by the shadow.build.closure
   ;; namespace (which depends on this one) we need it to properly invalidate
   ;; the cache
-  (-> (io/resource "shadow/build/closure.clj")
-      (.openConnection)
-      (.getLastModified)))
+  (util/resource-last-modified "shadow/build/closure.clj"))
 
 (defn service? [x]
   (and (map? x) (::service x)))

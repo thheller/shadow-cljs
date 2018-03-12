@@ -6,7 +6,7 @@
             [shadow.cljs.util :as util]
             [shadow.build.classpath :as cp])
   (:import (clojure.lang Namespace)
-           (java.net URL)))
+           (java.net URL URLConnection)))
 
 ;; this is a global since required macros are global as well
 ;; once a macro is "activated" by requiring it from a build it
@@ -155,7 +155,7 @@
        (map (fn [{:keys [url] :as info}]
               (if (nil? url)
                 info
-                (let [con (.openConnection url)]
+                (let [^URLConnection con (.openConnection url)]
                   (assoc info :cache-key (.getLastModified con)))
                 )))
        ;; get file (if not in jar)

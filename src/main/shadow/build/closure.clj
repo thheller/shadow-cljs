@@ -32,9 +32,7 @@
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
-  (-> (io/resource "shadow/build/closure.clj")
-      (.openConnection)
-      (.getLastModified)))
+  (util/resource-last-modified "shadow/build/closure.clj"))
 
 (defn noop-error-manager []
   (proxy [BasicErrorManager] []

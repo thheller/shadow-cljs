@@ -16,7 +16,8 @@
             [cljs.compiler :as comp]
             [clojure.string :as str]
             [shadow.build.npm :as npm]
-            [shadow.build.output :as output]))
+            [shadow.build.output :as output])
+  (:import [java.net URLConnection]))
 
 (defn make-macro-resource [macro-ns]
   (let [path
@@ -27,9 +28,8 @@
             (io/resource (str path ".cljc")))
 
         last-mod
-        (-> rc-url
-            (.openConnection)
-            (.getLastModified))
+        (let [^URLConnection con (.openConnection rc-url)]
+          (.getLastModified con))
 
         rc
         (->> {:resource-id [::macro macro-ns]

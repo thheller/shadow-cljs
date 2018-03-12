@@ -32,9 +32,9 @@
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
-  (-> (io/resource "shadow/build/compiler.clj")
-      (.openConnection)
-      (.getLastModified)))
+  [(util/resource-last-modified "shadow/build/compiler.clj")
+   ;; check a cljs file as well in case the user uses a different cljs version directly
+   (util/resource-last-modified "cljs/analyzer.cljc")])
 
 (def ^:dynamic *cljs-warnings-ref* nil)
 
@@ -540,7 +540,9 @@
               (str ns)
 
               spec-filter-fn
-              #(= ns-str (namespace %))
+              (fn [v]
+                (or (= ns-str (namespace v))
+                    (= ns (-> v meta :fdef-ns))))
 
               ns-specs
               (reduce-kv

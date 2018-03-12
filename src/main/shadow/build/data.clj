@@ -5,7 +5,7 @@
             [clojure.tools.logging :as log]
             [clojure.string :as str]
             [clojure.set :as set])
-  (:import (java.net URL)))
+  (:import (java.net URL URLConnection)))
 
 ;; FIXME: there are still lots of places that work directly with the map
 ;; that is ok for most things but makes it really annoying to change the structure of the data
@@ -246,10 +246,8 @@
   (apply io/file cache-dir name names))
 
 (defn url-last-modified [^URL url]
-  (with-open [con (.openConnection url)]
+  (let [^URLConnection con (.openConnection url)]
     (.getLastModified con)))
-
-
 
 (defn js-names-accessed-from-cljs
   ([{:keys [build-sources] :as state}]

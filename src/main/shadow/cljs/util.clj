@@ -12,8 +12,8 @@
   (:import (clojure.lang Namespace IDeref)
            (java.io File StringWriter ByteArrayOutputStream)
            (java.security MessageDigest)
-           (javax.xml.bind DatatypeConverter)
-           (java.nio.charset Charset)))
+           (java.nio.charset Charset)
+           [java.net URLConnection]))
 
 (defn build-state? [state]
   ;; not using shadow.build.data because of a cyclic dependency I need to clean up
@@ -156,8 +156,11 @@
         sig
         (.digest md)]
 
-    (DatatypeConverter/printHexBinary sig)
-    ))
+    (reduce
+      (fn [s b]
+        (str s (format "%02X" b)))
+      ""
+      sig)))
 
 (defn log-collector []
   (let [entries (atom [])]
@@ -194,9 +197,9 @@
 
          evt#
          (assoc msg#
-                :timing :enter
-                :start start#
-                :depth *time-depth*)]
+           :timing :enter
+           :start start#
+           :depth *time-depth*)]
      (log ~state evt#)
      (let [result#
            (binding [*time-depth* (inc *time-depth*)]
@@ -207,10 +210,10 @@
 
            evt#
            (assoc msg#
-                  :timing :exit
-                  :depth *time-depth*
-                  :stop stop#
-                  :duration (- stop# start#))]
+             :timing :exit
+             :depth *time-depth*
+             :stop stop#
+             :duration (- stop# start#))]
        (log (if (build-state? result#) result# ~state) evt#)
        result#)
      ))
@@ -272,3 +275,10 @@
             err (future (stream-to-string stderr))
             exit-code (.waitFor proc)]
         {:exit exit-code :out @out :err @err}))))
+
+(defn resource-last-modified [path]
+  {:pre [(string? path)]}
+  (let [^URLConnection con
+        (-> (io/resource path)
+            (.openConnection))]
+    (.getLastModified con)))
