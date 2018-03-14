@@ -235,24 +235,32 @@
   (Math/max x (System/currentTimeMillis)))
 
 (defn default-compile-cljs
-  [{:keys [last-progress-ref] :as state} compile-state form]
-  (let [{:keys [op] :as ast}
-        (analyze state compile-state form)
+  [{:keys [last-progress-ref] :as state} {:keys [ns macros-ns] :as compile-state} form]
+  ;; ignore (defmacro ...) in normal cljs compilation since they otherwise end
+  ;; up as normal vars and can be called as fns. compile as usual when compiling as macro ns
+  ;; FIXME: could use a better warning than "Use of undeclared Var demo.browser/dummy-macro"
+  (if (and (not macros-ns)
+           (list? form)
+           (= 'defmacro (first form)))
+    compile-state
 
-        js
-        (with-out-str
-          (shadow-emit state ast))]
+    (let [{:keys [op] :as ast}
+          (analyze state compile-state form)
 
-    ;; bump for every compiled form might be overkill
-    (swap! last-progress-ref progress-bump)
+          js
+          (with-out-str
+            (shadow-emit state ast))]
 
-    (-> compile-state
-        (update-in [:js] str js)
-        (cond->
-          (= op :ns)
-          (assoc
-            :ns (:name ast)
-            :ns-info (dissoc ast :env))))))
+      ;; bump for every compiled form might be overkill
+      (swap! last-progress-ref progress-bump)
+
+      (-> compile-state
+          (update-in [:js] str js)
+          (cond->
+            (= op :ns)
+            (assoc
+              :ns (:name ast)
+              :ns-info (dissoc ast :env)))))))
 
 (defn warning-collector [build-env warnings warning-type env extra]
   ;; FIXME: currently there is no way to turn off :infer-externs
