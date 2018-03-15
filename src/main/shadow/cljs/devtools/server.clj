@@ -91,11 +91,14 @@
        (log/warn t# "shutdown failed" ~(pr-str body))
        (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [http port-files-ref socket-repl cli-repl nrepl] :as app}]
+(defn shutdown-system [{:keys [shutdown-hook http port-files-ref socket-repl cli-repl nrepl] :as app}]
   (discard-println "shutting down ...")
+  (. (Runtime/getRuntime) (removeShutdownHook shutdown-hook))
+
   (do-shutdown
     (doseq [port-file (vals @port-files-ref)]
       (.delete port-file)))
+
   (when socket-repl
     (do-shutdown (socket-repl/stop socket-repl)))
 
@@ -146,6 +149,8 @@
 
         (or srv (recur (inc port)))
         ))))
+
+(declare stop!)
 
 (defn start-system
   [app-ref app-config {:keys [cache-root] :as config}]
@@ -207,10 +212,14 @@
         port-files-ref
         (atom nil)
 
+        shutdown-hook
+        (Thread. stop!)
+
         app
         (-> {::started (System/currentTimeMillis)
              :server-pid pid
              :config config
+             :shutdown-hook shutdown-hook
              :ssl-context ssl-context
              :http {:port (or https-port http-port)
                     :http-port http-port
@@ -246,6 +255,14 @@
               socket-repl
               (assoc :socket-repl (:port socket-repl)))
             )))
+
+    (let [nrepl-port-file (io/file ".nrepl-port")]
+      (when-not (.exists nrepl-port-file)
+        (spit nrepl-port-file (str (:port nrepl)))
+        (swap! port-files-ref assoc :nrepl-port nrepl-port-file)
+        (.deleteOnExit nrepl-port-file)))
+
+    (. (Runtime/getRuntime) (addShutdownHook shutdown-hook))
 
     (spit pid-file pid)
 
