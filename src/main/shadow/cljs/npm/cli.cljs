@@ -261,7 +261,7 @@
     (log "shadow-cljs - running: lein" (str/join " " lein-args))
     (run! project-root "lein" lein-args {})))
 
-(defn get-clojure-args [project-root config opts]
+(defn get-clojure-args [project-root {:keys [jvm-opts] :as config} opts]
   (let [{:keys [aliases inject]} (:deps config)
 
         inject?
@@ -283,9 +283,13 @@
             "-Sdeps"
             (pr-str {:aliases
                      {:shadow-cljs-inject
-                      {;; :extra-paths ["target/shadow-cljs/aot"]
-                       :extra-deps
-                       {'thheller/shadow-cljs {:mvn/version jar-version}}}}}))
+                      ;; :extra-paths ["target/shadow-cljs/aot"]
+                      (-> {:extra-deps
+                           {'thheller/shadow-cljs {:mvn/version jar-version}}}
+                          (cond->
+                            (seq jvm-opts)
+                            (assoc :jvm-opts jvm-opts))
+                          )}}))
 
           (seq aliases)
           (conj (str "-A" (->> aliases (map pr-str) (str/join ""))))
