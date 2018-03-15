@@ -41,10 +41,10 @@
 
 (defn ^com.google.javascript.jscomp.Compiler make-closure-compiler
   ([]
-   (doto (com.google.javascript.jscomp.Compiler.)
+   (doto (com.google.javascript.jscomp.ShadowCompiler.)
      (.disableThreads)))
   ([out-or-error-manager]
-   (doto (com.google.javascript.jscomp.Compiler. out-or-error-manager)
+   (doto (com.google.javascript.jscomp.ShadowCompiler. out-or-error-manager)
      (.disableThreads))))
 
 ;;;
@@ -1198,8 +1198,7 @@
       (reverse js-str-offsets))))
 
 (def injected-libraries-field
-  (doto (-> (make-closure-compiler)
-            (.getClass)
+  (doto (-> (Class/forName "com.google.javascript.jscomp.Compiler")
             (.getDeclaredField "injectedLibraries"))
     (.setAccessible true)))
 
