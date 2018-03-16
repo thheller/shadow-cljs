@@ -177,8 +177,8 @@
 
                               reader/*alias-map*
                               (merge reader/*alias-map*
-                                     (:requires ns-info)
-                                     (:require-macros ns-info))]
+                                (:requires ns-info)
+                                (:require-macros ns-info))]
                       (reader/read opts in))]
 
                 (if (identical? form eof-sentinel)
@@ -436,6 +436,11 @@
    [:compiler-options :fn-invoke-direct]
    [:compiler-options :elide-asserts]
    [:compiler-options :reader-features]
+   ;; some community macros seem to use this
+   ;; hard to track side-effecting macros but even more annoying to run into caching bugs
+   ;; so just let any change invalidate everything for safety reasons
+   [:compiler-options :tooling-config]
+   [:compiler-options :external-config]
    ;; doesn't affect output but affects compiler env
    [:compiler-options :infer-externs]
    ;; these should basically never be changed
@@ -480,7 +485,7 @@
           (when (and (= cache-key-map (:cache-keys cache-data))
                      (every?
                        #(= (get-in state %)
-                           (get-in cache-data [:compiler-options %]))
+                          (get-in cache-data [:compiler-options %]))
                        cache-affecting-options))
 
             (util/log state {:type :cache-read :resource-id resource-id :resource-name resource-name})
@@ -639,12 +644,12 @@
 
                               (and data line column)
                               (assoc :source-excerpt
-                                (warnings/get-source-excerpt
-                                  ;; FIXME: this is a bit ugly but compilation failed so the source is not in state
-                                  ;; but the warnings extractor wants to access it
-                                  (assoc-in state [:output resource-id] {:source source})
-                                  rc
-                                  {:line line :column column}))))]
+                                     (warnings/get-source-excerpt
+                                       ;; FIXME: this is a bit ugly but compilation failed so the source is not in state
+                                       ;; but the warnings extractor wants to access it
+                                       (assoc-in state [:output resource-id] {:source source})
+                                       rc
+                                       {:line line :column column}))))]
 
                     (throw (ex-info (format "failed to compile resource: %s" resource-id) err-data e)))))]
 
