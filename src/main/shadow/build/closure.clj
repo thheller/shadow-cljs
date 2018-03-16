@@ -1174,7 +1174,7 @@
         (get-in state [:str->sym ns])]
 
     (reduce
-      (fn [source {:keys [string offset] :as x}]
+      (fn [source {:keys [string offset] :as require-loc}]
         (let [alias (get aliases string)]
           (if-not alias ;; goog:cljs.core is not aliased
             source
@@ -1182,12 +1182,11 @@
                   (data/get-source-by-provide state alias)
 
                   replacement
-                  (case type
-                    (:shadow-js :js)
-                    (str "/" resource-name)
-                    :goog
+                  (if (and (:import require-loc) (= :goog type))
+                    ;; goog supports import ... from "goog:cljs.core" in ES6 files
+                    ;; but not for commonjs require
                     (str "goog:" (cljs-comp/munge ns))
-                    (throw (ex-info (format "can't map require \"%s\" to resource %s of type %s" string resource-name type) {})))]
+                    (str "/" resource-name))]
 
               (str (subs source 0 (inc offset))
                    replacement

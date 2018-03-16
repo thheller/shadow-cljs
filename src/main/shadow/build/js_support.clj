@@ -15,6 +15,11 @@
              (->> (str "shadow.js.shim."))
              (symbol))
 
+         ;; since we can't stop closure from rewriting require("react") even when it shouldn't
+         ;; we create a second alias var that it replaces the require with a var we actually created
+         commonjs-ns
+         (ModuleNames/fileToModuleName (str js-ns-alias))
+
          name
          (str js-ns-alias ".js")]
 
@@ -26,7 +31,7 @@
       :last-modified 0
       :js-require js-require
       :ns js-ns-alias
-      :provides #{js-ns-alias}
+      :provides #{js-ns-alias commonjs-ns}
       :requires #{}
       :deps '[goog]
       ;; for :npm-module support since we don't have a property to export
@@ -35,5 +40,9 @@
       ;; we emit this as a goog.provide so it the same code can be used for :advanced
       ;; as it won't touch the require call unless specifically told to
       :source (str "goog.provide(\"" js-ns-alias "\");\n"
-                   (str js-ns-alias " = require(\"" js-require "\");\n"))}
+                   "goog.provide(\"" commonjs-ns "\");\n"
+                   js-ns-alias " = require(\"" js-require "\");\n"
+                   ;; FIXME: this default business is annoying
+                   commonjs-ns ".default = " js-ns-alias ";\n"
+                   )}
      )))
