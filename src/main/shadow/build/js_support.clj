@@ -18,7 +18,7 @@
          ;; since we can't stop closure from rewriting require("react") even when it shouldn't
          ;; we create a second alias var that it replaces the require with a var we actually created
          commonjs-ns
-         (ModuleNames/fileToModuleName (str js-ns-alias))
+         (symbol (ModuleNames/fileToModuleName (str js-ns-alias)))
 
          name
          (str js-ns-alias ".js")]
