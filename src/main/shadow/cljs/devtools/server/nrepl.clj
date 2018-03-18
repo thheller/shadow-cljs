@@ -117,11 +117,25 @@
 
 (defn cljs-select [next]
   (fn [{:keys [session op] :as msg}]
+    (swap! session assoc #'api/*nrepl-active* true)
+
     (let [repl-var #'api/*nrepl-cljs*]
       (when-not (contains? @session repl-var)
-        (swap! session assoc repl-var nil))
+        (swap! session assoc repl-var nil)
 
-      (swap! session assoc #'api/*nrepl-active* true)
+        ;; always set the piggieback compiler env binding to a IDeref
+        ;; so its immediately derefable when the nrepl-cljs binding is set
+        ;; if we only add the binding on message in it isn't available
+        ;; for some cider-nrepl middleware that already uses it on message-out
+        (swap! session assoc #'cemerick.piggieback/*cljs-compiler-env*
+          ;; FIXME: cider seems to use this in places and bind cljs.env/*compiler* with it
+          ;; if something tries to write to it this will fail?
+          (reify
+            clojure.lang.IDeref
+            (deref [_]
+              (when-let [build-id @repl-var]
+                (when-let [worker (api/get-worker build-id)]
+                  (-> worker :state-ref deref :build-state :compiler-env)))))))
 
       (let [build-id
             (get @session repl-var)
@@ -136,10 +150,6 @@
             (println (:code msg))
             (println)
             (flush))
-
-        (if worker
-          (swap! session assoc #'cemerick.piggieback/*cljs-compiler-env* (-> worker :state-ref deref :build-state :compiler-env))
-          (swap! session dissoc #'cemerick.piggieback/*cljs-compiler-env*))
 
         (-> msg
             (cond->
