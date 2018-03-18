@@ -152,6 +152,17 @@
     (pprint ast)
     (pprint ast-resolved)))
 
+(deftest test-parse-and-with-meta-on-name
+  (let [test
+        '(ns ^:dev/never-load something)
+
+        ast
+        (ns-form/parse test)]
+
+    (is (get-in ast [:meta :dev/never-load]))
+    (is (-> ast :name meta :dev/never-load))
+    ))
+
 (deftest test-parse-and-rewrite-rename
   (let [test
         '(ns something

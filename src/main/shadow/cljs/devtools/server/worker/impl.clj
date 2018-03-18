@@ -5,8 +5,10 @@
             [clojure.core.async :as async :refer (go >! <! >!! <!! alt!)]
             [clojure.tools.logging :as log]
             [cljs.compiler :as cljs-comp]
+            [cljs.analyzer :as cljs-ana]
             [shadow.build.api :as cljs]
             [shadow.cljs.repl :as repl]
+            [shadow.cljs.util :refer (reduce->)]
             [shadow.build :as build]
             [shadow.build.api :as build-api]
             [shadow.cljs.devtools.server.util :as util]
@@ -15,7 +17,8 @@
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as errors]
             [shadow.build.warnings :as warnings]
-            [shadow.debug :as dbg]))
+            [shadow.debug :as dbg]
+            [shadow.build.data :as data]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -103,31 +106,86 @@
       (assoc worker-state :build-state build-state))
     (catch Exception e
       (-> worker-state
-          (dissoc :build-state)                                                                     ;; just in case there is an old one
+          (dissoc :build-state) ;; just in case there is an old one
           (build-failure e)))))
 
-(defn build-compile
-  [{:keys [build-state build-config] :as worker-state}]
-  (>!!output worker-state {:type :build-start
-                           :build-config build-config})
+(defn reduce-kv-> [init reduce-fn coll]
+  (reduce-kv reduce-fn init coll))
 
+(defn extract-reload-info
+  "for every cljs build source collect all defs that are marked with special metadata"
+  [{::build/keys [config] :keys [compiler-env build-sources] :as build-state}]
+  (let [{:keys [after-load after-load-async before-load before-load-async] :as devtools-config}
+        (get-in build-state [::build/config :devtools])
+
+        add-entry
+        (fn [entries fn-sym & extra-attrs]
+          (conj entries
+            (-> {:fn-sym fn-sym
+                 :fn-str (cljs-comp/munge (str fn-sym))}
+                (cond->
+                  (seq extra-attrs)
+                  (merge (apply array-map extra-attrs))))))]
+
+    (-> {:never-load #{}
+         :after-load []
+         :before-load []}
+        (reduce->
+          (fn [info {:keys [name meta defs] :as ns-info}]
+            (-> info
+                (cond->
+                  (or (:dev/never-load meta)
+                      (:dev/once meta) ;; can't decide on which meta to use
+                      (:figwheel-noload meta))
+                  (update :never-load conj name))
+
+                (reduce-kv->
+                  (fn [info def-sym {:keys [name meta] :as def-info}]
+                    (cond-> info
+                      (or (:dev/before-load meta)
+                          (= name before-load))
+                      (update :before-load add-entry name)
+
+                      (or (:dev/before-load-async meta)
+                          (= name before-load-async))
+                      (update :before-load add-entry name :async true)
+
+                      (or (:dev/after-load meta)
+                          (= name after-load))
+                      (update :after-load add-entry name)
+
+                      (or (:dev/after-load-async meta)
+                          (= name after-load-async))
+                      (update :after-load add-entry name :async true)
+                      ))
+                  defs)))
+          (->> build-sources
+               (map #(data/get-source-by-id build-state %))
+               (filter #(= :cljs (:type %)))
+               (map :ns)
+               (map #(get-in compiler-env [::cljs-ana/namespaces %]))))
+        )))
+
+(defn build-compile
+  [{:keys [build-state] :as worker-state}]
   ;; this may be nil if configure failed, just silently do nothing for now
   (if (nil? build-state)
     worker-state
     (try
-      (let [{::build/keys [build-info] :keys [build-sources build-macros] :as build-state}
+      (>!!output worker-state {:type :build-start
+                               :build-config (::build/config build-state)})
+
+      (let [{:keys [build-sources build-macros] :as build-state}
             (-> build-state
                 (build/compile)
                 (build/flush)
                 (update ::compile-attempt inc))]
 
         (>!!output worker-state
-          {:type
-           :build-complete
-           :build-config
-           build-config
-           :info
-           build-info})
+          {:type :build-complete
+           :build-config (::build/config build-state)
+           :info (::build/build-info build-state)
+           :reload-info (extract-reload-info build-state)})
 
         (assoc worker-state
           :build-state build-state

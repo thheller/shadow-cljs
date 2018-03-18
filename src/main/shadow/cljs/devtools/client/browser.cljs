@@ -1,15 +1,17 @@
 (ns shadow.cljs.devtools.client.browser
-  (:require [cljs.reader :as reader]
-            [clojure.string :as str]
-            [goog.dom :as gdom]
-            [goog.object :as gobj]
-            [goog.net.jsloader :as loader]
-            [goog.userAgent.product :as product]
-            [goog.Uri]
-            [goog.net.XhrIo :as xhr]
-            [shadow.cljs.devtools.client.env :as env]
-            [shadow.cljs.devtools.client.console]
-            ))
+  (:require
+    [cljs.reader :as reader]
+    [clojure.string :as str]
+    [goog.dom :as gdom]
+    [goog.object :as gobj]
+    [goog.net.jsloader :as loader]
+    [goog.userAgent.product :as product]
+    [goog.Uri]
+    [goog.net.XhrIo :as xhr]
+    [shadow.cljs.devtools.client.env :as env]
+    [shadow.cljs.devtools.client.console]
+    [shadow.cljs.devtools.client.hud :as hud]
+    ))
 
 (defonce active-modules-ref
   (volatile! #{}))
@@ -61,42 +63,20 @@
     (devtools-msg "load JS" resource-name)
     (script-eval (str js "\n//# sourceURL=" resource-name))))
 
-(defn do-js-reload
-  "stops the running app, loads sources, starts app
-   stop might be async as several node APIs are async
-   start is sync since we don't need to do anything after startup finishes"
-  [sources]
-  (let [[stop-fn stop-label]
-        (cond
-          (seq env/before-load)
-          (let [stop-fn (js/goog.getObjectByName env/before-load js/$CLJS)]
-            [(fn [done]
-               (stop-fn)
-               (done))
-             env/before-load])
-
-          (seq env/before-load-async)
-          [(js/goog.getObjectByName env/before-load-async js/$CLJS)
-           env/before-load-async]
-
-          :else
-          [(fn [done] (done))
-           nil])]
-
-    (when stop-label
-      (devtools-msg "app shutdown" stop-label))
-    (stop-fn
-      (fn [state]
-        (do-js-load sources)
-        (when (seq env/after-load)
-          (devtools-msg "app start" env/after-load))
-
-        ;; must delay loading start-fn until here, otherwise we load the old version
-        (when-let [start-fn
-                   (when (seq env/after-load)
-                     (js/goog.getObjectByName env/after-load js/$CLJS))]
-          (start-fn state))
-        ))))
+(defn do-js-reload [msg sources complete-fn]
+  (env/do-js-reload
+    (assoc msg
+      :log-missing-fn
+      (fn [fn-sym]
+        (devtools-msg (str "can't find fn " fn-sym)))
+      :log-call-async
+      (fn [fn-sym]
+        (devtools-msg (str "call async " fn-sym)))
+      :log-call
+      (fn [fn-sym]
+        (devtools-msg (str "call " fn-sym))))
+    #(do-js-load sources)
+    complete-fn))
 
 (defn load-sources [sources callback]
   (if (empty? sources)
@@ -116,7 +96,7 @@
                :sources (into [] (map :resource-id) sources)})
       #js {"content-type" "application/edn; charset=utf-8"})))
 
-(defn handle-build-complete [{:keys [info] :as msg}]
+(defn handle-build-complete [{:keys [info reload-info] :as msg}]
   (let [{:keys [sources compiled]}
         info
 
@@ -131,7 +111,8 @@
     (doseq [{:keys [msg line column resource-name] :as w} warnings]
       (js/console.warn (str "BUILD-WARNING in " resource-name " at [" line ":" column "]\n\t" msg)))
 
-    (when env/autoload
+    (if-not env/autoload
+      (hud/load-end-success)
       ;; load all files for current build:
       ;; of modules that are active
       ;; and are either not loaded yet
@@ -142,9 +123,13 @@
                    (fn [{:keys [module] :as rc}]
                      (or (= "js" env/module-format)
                          (module-is-active? module))))
+                 ;; don't reload namespaces that have ^:dev/never-reload meta
+                 (remove (fn [{:keys [ns]}]
+                           (contains? (:never-load reload-info) ns)))
                  (filter
-                   (fn [{:keys [output-name resource-id] :as src}]
-                     (or (not (src-is-loaded? src))
+                   (fn [{:keys [ns resource-id] :as src}]
+                     (or (contains? (:always-load reload-info) ns)
+                         (not (src-is-loaded? src))
                          (and (contains? compiled resource-id)
                               ;; never reload files from jar
                               ;; they can't be hot-swapped so the only way they get re-compiled
@@ -156,7 +141,7 @@
         ;; FIXME: should allow reload with warnings
         (when (and (empty? warnings)
                    (seq sources-to-get))
-          (load-sources sources-to-get do-js-reload)
+          (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success))
           )))))
 
 (defn handle-asset-watch [{:keys [updates] :as msg}]
@@ -195,7 +180,7 @@
 (defn repl-error [e]
   (js/console.error "repl/invoke error" e)
   (-> (env/repl-error e)
-      (assoc :ua-product  (get-ua-product)
+      (assoc :ua-product (get-ua-product)
              :asset-root (get-asset-root))))
 
 (defn repl-invoke [{:keys [id js]}]
@@ -262,7 +247,19 @@
     (repl-init msg)
 
     :build-complete
-    (handle-build-complete msg)
+    (do (hud/hud-warnings msg)
+        (handle-build-complete msg))
+
+    :build-failure
+    (do (hud/load-end)
+        (hud/hud-error msg))
+
+    :build-init
+    (hud/hud-warnings msg)
+
+    :build-start
+    (do (hud/hud-hide)
+        (hud/load-start))
 
     :pong
     nil

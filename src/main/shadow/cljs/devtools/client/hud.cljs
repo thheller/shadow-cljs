@@ -4,8 +4,6 @@
     [shadow.xhr :as xhr]
     [shadow.animate :as anim]
     [shadow.cljs.devtools.client.env :as env]
-    [shadow.cljs.devtools.client.browser :as browser]
-    [cljs.tools.reader :as reader]
     [cljs.core.async :as async :refer (go)]
     [goog.string.format]
     [goog.string :refer (format)]
@@ -26,8 +24,6 @@
           (when-not (zero? exit)
             (js/console.warn "file open failed" result))
           ))))
-
-(defonce socket-ref (volatile! nil))
 
 (defn dom-insert
   ([node]
@@ -206,25 +202,24 @@
              (filter #(seq (:warnings %)))
              (into []))]
 
-    (if-not (seq sources-with-warnings)
-      (load-end-success)
+    (when (seq sources-with-warnings)
       ;; TODO: fancy transition from logo to warnings
-      (do (load-end)
-          (dom-insert
-            [:div
-             {:id hud-id
-              :style {:position "absolute"
-                      :z-index "10000"
-                      :left "0px"
-                      :bottom "0px"
-                      :right "0px"
-                      :padding "10px 10px 0 10px"
-                      :overflow "auto"
-                      :font-family "monospace"
-                      :font-size "12px"}}
-             (for [{:keys [warnings] :as src} sources-with-warnings
-                   warning warnings]
-               (html-for-warning warning))]))
+      (load-end)
+      (dom-insert
+        [:div
+         {:id hud-id
+          :style {:position "absolute"
+                  :z-index "10000"
+                  :left "0px"
+                  :bottom "0px"
+                  :right "0px"
+                  :padding "10px 10px 0 10px"
+                  :overflow "auto"
+                  :font-family "monospace"
+                  :font-size "12px"}}
+         (for [{:keys [warnings] :as src} sources-with-warnings
+               warning warnings]
+           (html-for-warning warning))])
       )))
 
 (defn hud-error [{:keys [report] :as msg}]
@@ -246,59 +241,3 @@
               :font-size "12px"}}
      [:div {:style "color: red; margin-bottom: 10px; font-size: 2em;"} "Compilation failed!"]
      [:pre report]]))
-
-(defn handle-message [msg]
-  ;; (js/console.log "hud msg" msg)
-  (case (:type msg)
-    :build-complete
-    (hud-warnings msg)
-
-    :build-failure
-    (do (load-end)
-        (hud-error msg))
-
-    :build-init
-    (hud-warnings msg)
-
-    :build-start
-    (do (hud-hide)
-        (load-start))
-
-    ;; default
-    :ignored))
-
-(defn ws-connect []
-  (let [socket
-        (-> (env/ws-listener-url :browser)
-            (js/WebSocket.))]
-
-    (vreset! socket-ref socket)
-
-    (set! (.-onmessage socket)
-      (fn [e]
-        (env/process-ws-msg e handle-message)))
-
-    (set! (.-onopen socket)
-      (fn [e]
-        ;; do something on connect
-        ))
-
-    (set! (.-onclose socket)
-      (fn [e]
-        ;; cleanup on close
-        (vreset! socket-ref nil)
-        ))
-
-    (set! (.-onerror socket)
-      (fn [e]
-        ))
-    ))
-
-(when ^boolean env/enabled
-  ;; disconnect an already connected socket, happens if this file is reloaded
-  ;; pretty much only for me while working on this file
-  (when-let [s @socket-ref]
-    (set! (.-onclose s) (fn [e]))
-    (.close s))
-
-  (ws-connect))

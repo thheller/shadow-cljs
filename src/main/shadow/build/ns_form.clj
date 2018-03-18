@@ -457,10 +457,16 @@
      (let [{:keys [name docstring meta clauses] :or {meta {}}}
            conformed
 
+           name-meta
+           (clojure.core/meta name)
+
            meta
            (cond-> meta
              docstring
-             (update :doc str docstring))
+             (update :doc str docstring)
+
+             (seq name-meta)
+             (merge name-meta))
 
            ns-info
            (assoc ns-info

@@ -111,8 +111,8 @@
    {:http-root "out/demo-browser/public"
     :http-port 8600
     :async-require true
-    :before-load-async demo.browser/stop
-    :after-load demo.browser/start}}
+    :before-load-async demo.browser/stop-from-config
+    :after-load demo.browser/start-from-config}}
 
   :test-browser
   {:target :browser-test

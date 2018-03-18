@@ -446,8 +446,7 @@
    ;; these should basically never be changed
    [:compiler-options :static-fns]
    [:compiler-options :optimize-constants]
-   [:compiler-options :emit-constants]
-   ])
+   [:compiler-options :emit-constants]])
 
 (defn is-cache-blocked? [state {:keys [ns requires macro-requires] :as rc}]
   (let [cache-blockers (get-in state [:build-options :cache-blockers])]

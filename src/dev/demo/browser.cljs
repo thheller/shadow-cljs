@@ -12,6 +12,7 @@
     #_ ["circular-test" :as circ]
     #_ ["/demo/myComponent" :refer (myComponent)]
     [cljs.test :refer (deftest)]
+    [demo.never-load]
     ))
 
 (deftest yo
@@ -58,17 +59,34 @@
 (s/fdef foo
   :args (s/cat :foo ::foo))
 
-
-(defn ^:export start []
+(defn ^:dev/after-load start []
   (js/console.log "browser-start"))
 
-(defn stop [done]
+(defn start-from-config []
+  (js/console.log "browser-start-from-config"))
+
+(defn ^:export init []
+  (js/console.log "browser-init")
+  (start))
+
+(defn ^:dev/before-load stop-sync []
+  (js/console.log "browser-stop-sync"))
+
+(defn ^:dev/before-load-async stop [done]
   (js/console.log "browser-stop async")
   (js/setTimeout
     (fn []
       (js/console.log "browser-stop async complete")
       (done))
-    500))
+    250))
+
+(defn stop-from-config [done]
+  (js/console.log "browser-stop-from-config async")
+  (js/setTimeout
+    (fn []
+      (js/console.log "browser-stop-from-config async complete")
+      (done))
+    250))
 
 (defrecord Foo [a b])
 

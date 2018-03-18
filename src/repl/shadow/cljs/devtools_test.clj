@@ -20,6 +20,7 @@
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.util :as util]
     [shadow.cljs.devtools.errors :as errors]
+    [shadow.cljs.devtools.server.worker.impl :as worker]
     [shadow.build.data :as data]
     [clojure.string :as str])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)
@@ -224,6 +225,12 @@
 
 (deftest test-closure-release
   (api/release :closure))
+
+(deftest test-extract-reload-info
+  (let [build-state
+        (api/compile* (api/get-build-config :browser) {})]
+    (prn (worker/extract-reload-info build-state))
+    ))
 
 (comment
   (deftest test-ssl-context

@@ -11,12 +11,6 @@
 
 (goog-define module-format "goog")
 
-(goog-define before-load "")
-
-(goog-define before-load-async "")
-
-(goog-define after-load "")
-
 (goog-define reload-with-state false)
 
 (goog-define build-id "")
@@ -104,3 +98,50 @@
         (handler msg))
       )))
 
+(defn make-task-fn [{:keys [log-missing-fn log-call-async log-call]} {:keys [fn-sym fn-str async]}]
+  (fn [next]
+    (let [fn-obj (js/goog.getObjectByName fn-str js/$CLJS)]
+      (cond
+        (nil? fn-obj)
+        (do (when log-missing-fn
+              (log-missing-fn fn-sym))
+            (next))
+
+        async
+        (do (when log-call-async
+              (log-call-async fn-sym))
+            (fn-obj next))
+
+        :else
+        (do (when log-call
+              (log-call fn-sym))
+            (fn-obj)
+            (next))))))
+
+(defn do-js-reload* [[task & remaining-tasks]]
+  (when task
+    (task #(do-js-reload* remaining-tasks))))
+
+(defn do-js-reload
+  "should pass the :build-complete message and an additional callback
+   which performs the actual loading of the code (sync)
+   will call all before/after callbacks in order"
+  ([msg load-code-fn]
+    (do-js-reload msg load-code-fn (fn [])))
+  ([{:keys [reload-info] :as msg} load-code-fn complete-fn]
+   (let [load-tasks
+         (-> []
+             ;; unload is FILO
+             (into (->> (:before-load reload-info)
+                        (map #(make-task-fn msg %))
+                        (reverse)))
+             (conj (fn [next]
+                     (load-code-fn)
+                     (next)))
+             ;; load is FIFO
+             (into (map #(make-task-fn msg %)) (:after-load reload-info))
+             (conj (fn [next]
+                     (complete-fn)
+                     (next))))]
+
+     (do-js-reload* load-tasks))))

@@ -68,7 +68,7 @@
       )))
 
 (defn build-complete
-  [{:keys [info] :as msg}]
+  [{:keys [info reload-info] :as msg}]
 
   (when env/autoload
     (let [{:keys [sources compiled]}
@@ -76,42 +76,20 @@
 
           files-to-require
           (->> sources
-               (filter (fn [{:keys [resource-id]}]
-                         (contains? compiled resource-id)))
+               (remove (fn [{:keys [ns]}]
+                         (contains? (:never-load reload-info) ns)))
+               (filter (fn [{:keys [ns resource-id]}]
+                         (or (contains? compiled resource-id)
+                             (contains? (:always-load reload-info) ns))))
                (map :output-name)
                (into []))]
 
       (when (seq files-to-require)
-        (let [[stop-fn stop-label]
-              (cond
-                (seq env/before-load)
-                (let [stop-fn (js/goog.getObjectByName env/before-load)]
-                  [(fn [done]
-                     (stop-fn)
-                     (done))
-                   env/before-load])
-
-                (seq env/before-load-async)
-                [(js/goog.getObjectByName env/before-load-async)
-                 env/before-load-async]
-
-                :else
-                [(fn [done] (done))
-                 nil])]
-
-          (when stop-label
-            (js/console.warn "DEVTOOLS: app shutdown" stop-label))
-          (stop-fn
-            (fn [state]
-              (doseq [src files-to-require]
-                (closure-import src))
-              (when (seq env/after-load)
-                (js/console.warn "DEVTOOLS: app start" env/after-load))
-              (when-let [start-fn
-                         (when (seq env/after-load)
-                           (js/goog.getObjectByName env/after-load))]
-                (start-fn state))
-              )))))))
+        (env/do-js-reload
+          msg
+          #(doseq [src files-to-require]
+            (closure-import src))
+          )))))
 
 (defn process-message
   [{:keys [type] :as msg}]

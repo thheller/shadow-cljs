@@ -78,7 +78,7 @@
      true
 
      "shadow.cljs.devtools.client.env.autoload"
-     (or autoload (some? before-load) (some? after-load))
+     (or autoload (some? before-load) (some? after-load) (some? before-load-async))
 
      "shadow.cljs.devtools.client.env.module_format"
      (name (get-in state [:build-options :module-format]))
@@ -103,18 +103,6 @@
 
      "shadow.cljs.devtools.client.env.devtools_url"
      (or devtools-url "")
-
-     "shadow.cljs.devtools.client.env.before_load"
-     (when before-load
-       (str (cljs-comp/munge before-load)))
-
-     "shadow.cljs.devtools.client.env.before_load_async"
-     (when before-load-async
-       (str (cljs-comp/munge before-load-async)))
-
-     "shadow.cljs.devtools.client.env.after_load"
-     (when after-load
-       (str (cljs-comp/munge after-load)))
 
      "shadow.cljs.devtools.client.env.reload_with_state"
      (boolean reload-with-state)
