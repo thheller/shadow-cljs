@@ -51,12 +51,18 @@
             (recur)
 
             (= :repl/quit form)
-            (do (swap! session dissoc #'api/*nrepl-cljs*)
+            (do (swap! session assoc
+                  #'*ns* (get @session #'api/*nrepl-clj-ns*)
+                  #'api/*nrepl-cljs* nil
+                  #'cemerick.piggieback/*cljs-compiler-env* nil)
                 (send msg {:value :repl/quit
                            :ns (-> *ns* ns-name str)}))
 
             (= :cljs/quit form)
-            (do (swap! session dissoc #'api/*nrepl-cljs*)
+            (do (swap! session assoc
+                  #'*ns* (get @session #'api/*nrepl-clj-ns*)
+                  #'api/*nrepl-cljs* nil
+                  #'cemerick.piggieback/*cljs-compiler-env* nil)
                 (send msg {:value :cljs/quit
                            :ns (-> *ns* ns-name str)}))
 
@@ -117,25 +123,13 @@
 
 (defn cljs-select [next]
   (fn [{:keys [session op] :as msg}]
-    (swap! session assoc #'api/*nrepl-active* true)
 
     (let [repl-var #'api/*nrepl-cljs*]
       (when-not (contains? @session repl-var)
-        (swap! session assoc repl-var nil)
-
-        ;; always set the piggieback compiler env binding to a IDeref
-        ;; so its immediately derefable when the nrepl-cljs binding is set
-        ;; if we only add the binding on message in it isn't available
-        ;; for some cider-nrepl middleware that already uses it on message-out
-        (swap! session assoc #'cemerick.piggieback/*cljs-compiler-env*
-          ;; FIXME: cider seems to use this in places and bind cljs.env/*compiler* with it
-          ;; if something tries to write to it this will fail?
-          (reify
-            clojure.lang.IDeref
-            (deref [_]
-              (when-let [build-id @repl-var]
-                (when-let [worker (api/get-worker build-id)]
-                  (-> worker :state-ref deref :build-state :compiler-env)))))))
+        (swap! session assoc
+          repl-var nil
+          #'api/*nrepl-active* true
+          #'api/*nrepl-clj-ns* nil))
 
       (let [build-id
             (get @session repl-var)

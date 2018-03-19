@@ -28,6 +28,7 @@
 ;; nREPL support
 
 (def ^:dynamic *nrepl-cljs* nil)
+(def ^:dynamic *nrepl-clj-ns* nil)
 (def ^:dynamic *nrepl-active* false)
 
 (defn get-worker
@@ -247,13 +248,28 @@
        (e/user-friendly-error e)))))
 
 (defn nrepl-select [id]
-  (if-not (get-worker id)
-    [:no-worker id]
-    (do (set! *nrepl-cljs* id)
-        ;; required for prompt?
-        ;; don't actually need to do this
-        (println "To quit, type: :cljs/quit")
-        [:selected id])))
+  (let [worker (get-worker id)]
+    (if-not worker
+      [:no-worker id]
+      (do (set! *nrepl-cljs* id)
+
+          ;; doing this to make cider prompt not show "user" as prompt after calling this
+          (set! *nrepl-clj-ns* *ns*)
+          (set! *ns* (create-ns 'cljs.user))
+
+          ;; need to set the var immediately since some cider middleware needs it to
+          ;; switch REPL type to cljs. can't get to the nrepl session from here.
+          (when-let [pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
+            (.set pvar
+              (reify
+                clojure.lang.IDeref
+                (deref [_]
+                  (when-let [worker (get-worker id)]
+                    (-> worker :state-ref deref :build-state :compiler-env))))))
+
+          ;; Cursive uses this to switch repl type to cljs
+          (println "To quit, type: :cljs/quit")
+          [:selected id]))))
 
 (defn repl
   ([build-id]
