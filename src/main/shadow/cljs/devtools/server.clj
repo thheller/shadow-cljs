@@ -93,7 +93,11 @@
 
 (defn shutdown-system [{:keys [shutdown-hook http port-files-ref socket-repl cli-repl nrepl] :as app}]
   (discard-println "shutting down ...")
-  (. (Runtime/getRuntime) (removeShutdownHook shutdown-hook))
+  (try
+    (. (Runtime/getRuntime) (removeShutdownHook shutdown-hook))
+    (catch IllegalStateException e
+      ;; can't remove the hook while running the hook
+      ))
 
   (do-shutdown
     (doseq [port-file (vals @port-files-ref)]
