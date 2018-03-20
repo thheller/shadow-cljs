@@ -28,11 +28,13 @@
            (java.nio.charset Charset)
            (java.util Base64)))
 
-(def SHADOW-TIMESTAMP
+(def SHADOW-CACHE-KEY
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
-  (util/resource-last-modified "shadow/build/closure.clj"))
+  [(util/resource-last-modified "shadow/build/closure.clj")
+   ;; in case someone sets a specific closure dependency
+   (util/resource-last-modified "com/google/javascript/jscomp/Compiler.class")])
 
 (defn noop-error-manager []
   (proxy [BasicErrorManager] []
@@ -1458,7 +1460,7 @@
                 {}))
 
         cache-files
-        (if (not= SHADOW-TIMESTAMP (:SHADOW-TIMESTAMP cache-index))
+        (if (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
           ;; invalidate all cache when the timestamp of this file has changed
           []
           ;; compare each cache key
@@ -1514,7 +1516,7 @@
           (util/with-logged-time [state {:type ::closure-cache-write
                                          :num-files (count recompile-sources)}]
             (-> cache-index
-                (assoc :SHADOW-TIMESTAMP SHADOW-TIMESTAMP
+                (assoc :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
                        :polyfill-js (:polyfill-js state)
                        :injected-libs (::injected-libs state))
                 (util/reduce->
@@ -1752,7 +1754,7 @@
                 {}))
 
         cache-files
-        (if (not= SHADOW-TIMESTAMP (:SHADOW-TIMESTAMP cache-index))
+        (if (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
           ;; invalidate all cache when the timestamp of this file has changed
           []
           ;; compare each cache key
@@ -1796,7 +1798,7 @@
                   (cache/write-file cache-file output)
 
                   (assoc idx resource-id cache-key)))
-              (assoc cache-index :SHADOW-TIMESTAMP SHADOW-TIMESTAMP)
+              (assoc cache-index :SHADOW-CACHE-KEY SHADOW-CACHE-KEY)
               recompile-sources)))]
 
     (when need-compile?
