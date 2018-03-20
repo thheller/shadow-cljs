@@ -339,6 +339,7 @@
         edn-file
         (data/output-file state "module-loader.edn")]
 
+    (io/make-parents json-file)
 
     (spit json-file (json module-data))
     (spit edn-file (pr-str module-data))
