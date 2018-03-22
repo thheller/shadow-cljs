@@ -12,7 +12,8 @@
             [shadow.build.warnings :as w]
             [expound.alpha :as expound]
             [clojure.tools.logging :as log]
-            [shadow.cljs.util :as util])
+            [shadow.cljs.util :as util]
+            [clojure.java.io :as io])
   (:import (java.io StringWriter FileNotFoundException)
            (clojure.lang ExceptionInfo ArityException)))
 
@@ -126,8 +127,12 @@
   (spec-explain w data))
 
 (defmethod ex-data-format ::resolve/missing-ns
-  [w e data]
-  (write-msg w e))
+  [w e {:keys [require] :as data}]
+  (write-msg w e)
+  (let [filename (str (util/ns->path require) ".clj")]
+    (when-let [rc (io/resource filename)]
+      (.write w (str "\"" filename "\" was found on the classpath. Should this be a .cljs file?\n"))
+      )))
 
 (defmethod ex-data-format ::resolve/missing-js
   [w e {:keys [require] :as data}]
