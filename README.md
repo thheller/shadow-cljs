@@ -26,7 +26,16 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [EN] [A beginner guide to compile ClojureScript with shadow-cljs](https://medium.com/@jiyinyiyong/a-beginner-guide-to-compile-clojurescript-with-shadow-cljs-26369190b786)
 - [CN] [shadow-cljs 2.x 使用教程](https://segmentfault.com/a/1190000011499210)
 - [EN] [ClojureScript with Middleman via Shadow-CLJS](http://bobnadler.com/articles/2018/01/28/clojurescript-with-middleman-via-shadow-cljs.html)
-- More coming soon ...
+- ... please let me know if you created something to include here
+
+## Examples
+
+- [Official Browser Example](https://github.com/shadow-cljs/quickstart-browser)
+- [mhuebert/shadow-re-frame](https://github.com/mhuebert/shadow-re-frame) - Usage of [re-frame](https://github.com/Day8/re-frame), [re-frame-trace](https://github.com/Day8/re-frame-trace), and the [shadow-cljs](https://github.com/thheller/shadow-cljs/) build tool. **[Live Demo](https://mhuebert.github.io/shadow-re-frame/)**
+- [jacekschae/shadow-reagent](https://github.com/jacekschae/shadow-reagent) - shadow-cljs, proto-repl, reagent template
+- [jacekschae/shadow-firebase](https://github.com/jacekschae/shadow-firebase) - shadow-cljs + firebase
+- [ahonn/shadow-electron-starter](https://github.com/ahonn/shadow-electorn-starter) - ClojureScript + Shadow-cljs + Electron + Reagent
+- ... please let me know if you created something to include here
 
 ## License
 
