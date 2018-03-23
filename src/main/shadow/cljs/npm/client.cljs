@@ -166,7 +166,9 @@
         (js/process.stdin.removeListener "close" stop!)
         ))))
 
-(defn run [project-root config server-port-file opts args]
+(defn run
+  "attempts to connect to running server. if the connect fails calls callback"
+  [project-root config server-port-file opts args fallback]
   (let [cli-repl
         (-> (util/slurp server-port-file)
             (js/parseInt 10))]
@@ -190,6 +192,6 @@
         (.on socket "error"
           (fn [err]
             (println "shadow-cljs - socket connect failed, server process dead?")
-            (js/process.exit 1)))
-        ))))
+            (fallback err)
+            ))))))
 

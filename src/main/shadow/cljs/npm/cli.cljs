@@ -601,6 +601,17 @@
              false
              )))))
 
+(defn do-start [project-root config args opts]
+  (cond
+    (:deps config)
+    (run-clojure project-root config args opts)
+
+    (:lein config)
+    (run-lein project-root config args opts)
+
+    :else
+    (run-standalone project-root config args opts)))
+
 (defn ^:export main [args]
 
   ;; https://github.com/tapjs/signal-exit
@@ -686,16 +697,11 @@
                         (server-start project-root config args opts))
 
                     server-running?
-                    (client/run project-root config server-port-file opts args)
-
-                    (:deps config)
-                    (run-clojure project-root config args opts)
-
-                    (:lein config)
-                    (run-lein project-root config args opts)
+                    (client/run project-root config server-port-file opts args
+                      #(do-start project-root config args opts))
 
                     :else
-                    (run-standalone project-root config args opts)
+                    (do-start project-root config args opts)
                     ))))))))
     (catch :default ex
       (print-error ex)
