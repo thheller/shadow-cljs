@@ -37,7 +37,7 @@
               :type :cljs
               :url rc-url
               :last-modified last-mod
-              :cache-key last-mod
+              :cache-key [last-mod]
               :macros-ns true
               :output-name (str macro-ns "$macros.js")
               :source (slurp rc-url)}

@@ -46,7 +46,8 @@
 ;; this is more reliable to use for cljs caching since some inputs
 ;; may have more than one files they reference (ie. :foreign)
 ;; they must invalidate the cache for every entry not just one
-(s/def ::cache-key some?)
+(s/def ::cache-key-entry some?)
+(s/def ::cache-key (s/coll-of ::cache-key-entry :kind vector?))
 
 (s/def ::resource
   (s/keys

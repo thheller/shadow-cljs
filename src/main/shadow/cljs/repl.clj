@@ -86,7 +86,7 @@
           (into (-> ns-info :use-macros vals)))
       :deps deps
       :last-modified (System/currentTimeMillis)
-      :cache-key (System/currentTimeMillis)
+      :cache-key [(System/currentTimeMillis)]
       )))
 
 (defn setup [state]

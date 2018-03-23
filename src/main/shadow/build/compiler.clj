@@ -856,16 +856,43 @@
                                       (map #(update % :sources remove-fn))
                                       (into [])))))))
 
+;; when requiring a JS dependency the chosen ns symbol might change because it is based on the filename
+;; but cache would still have the old name so we need to ensure that a changed dep will also
+;; invalidate the cache
+
+;; For CLJS this was already ensured but the caching for JS is much less strict so it wouldn't recompiled
+;; when a custom :resolve config was used. doing this here now so it works for every source
+
+;;   import ... from \"react\"
+;; would result in something like
+;;   module$node_modules$react$index
+;; being chosen as the variable name
+;;   :resolve {\"react\" {:target :npm :require \"preact\"}}
+;; would result in
+;;   module$node_modules$preact$dist$index
+;; but the cache wouldn't invalidate because the file itself didn't change
+
+(defn ensure-cache-invalidation-on-resolve-changes
+  "populates :cache-key of the resource with the resolved symbols of its deps
+   to ensure recompilation when their names change"
+  [state resource-id]
+  (let [rc (data/get-source-by-id state resource-id)
+        deps-syms (data/deps->syms state rc)]
+    (update-in state [:sources resource-id :cache-key] into deps-syms)))
+
 (defn compile-all
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
   ([{:keys [executor last-progress-ref] :as state} source-ids]
-   "compile a list of sources by id,
-    requires that the ids are in dependency order
-    requires that ALL of the dependencies NOT listed are already compiled
-    eg. you cannot just compile clojure.string as it requires other files to be compiled first"
+   " compile a list of sources by id,
+requires that the ids are in dependency order
+requires that ALL of the dependencies NOT listed are already compiled
+eg. you cannot just compile clojure.string as it requires other files to be compiled first "
    (let [js-provider
          (get-in state [:js-options :js-provider])
+
+         state
+         (reduce ensure-cache-invalidation-on-resolve-changes state source-ids)
 
          sources
          (into [] (map #(data/get-source-by-id state %)) source-ids)

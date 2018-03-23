@@ -156,7 +156,7 @@
               (if (nil? url)
                 info
                 (let [^URLConnection con (.openConnection url)]
-                  (assoc info :cache-key (.getLastModified con)))
+                  (assoc info :cache-key [(.getLastModified con)]))
                 )))
        ;; get file (if not in jar)
        (map (fn [{:keys [^URL url] :as info}]

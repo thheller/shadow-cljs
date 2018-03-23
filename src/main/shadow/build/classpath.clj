@@ -376,7 +376,7 @@
                 (-> result
                     (conj! {:resource-id [::resource name]
                             :resource-name (rc/normalize-name name)
-                            :cache-key last-modified
+                            :cache-key [last-modified]
                             :last-modified last-modified
                             :url url
                             :from-jar true})

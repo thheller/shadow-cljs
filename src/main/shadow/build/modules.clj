@@ -172,7 +172,7 @@
         rc
         {:resource-id resource-id
          :type :goog
-         :cache-key resource-id
+         :cache-key [resource-id]
          :last-modified 0
          :resource-name resource-name
          :output-name (util/flat-filename resource-name)
