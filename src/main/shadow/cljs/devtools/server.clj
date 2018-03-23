@@ -293,7 +293,7 @@
            @app-ref]
 
        (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http)))
-       (println (str "shadow-cljs - socket repl running at " (:host soch ket-repl) ":" (:port socket-repl)))
+       (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl)))
        (println (str "shadow-cljs - nREPL server started on port " (:port nrepl)))
 
        ::started
