@@ -51,11 +51,19 @@
                                       (not (.isHidden file)))
                              (try
                                (let [abs-name (.getAbsolutePath file)]
-                                 (assert (str/starts-with? abs-name root-prefix))
 
                                  ;; special case hack when watching the public dir
                                  ;; we don't want to watch the files we write
-                                 (when-not (str/includes? abs-name "cljs-runtime")
+                                 (when (and (not (str/includes? abs-name "cljs-runtime"))
+                                            ;; for some reason on windows abs-name starts with
+                                            ;; C:\\Users...
+                                            ;; but root-prefix starts with
+                                            ;; c:\\Users...
+                                            ;; yet both used .getAbsolutePath, not sure why these differ
+                                            ;; this is just a sanity check so just compare the lower-case versions
+                                            (str/starts-with?
+                                              (str/lower-case abs-name)
+                                              (str/lower-case root-prefix)))
                                    (let [name
                                          (subs abs-name root-prefix-len)
 
