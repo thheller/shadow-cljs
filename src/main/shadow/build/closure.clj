@@ -59,62 +59,15 @@
    :off CheckLevel/OFF})
 
 (def warning-types
-  {:access-controls DiagnosticGroups/ACCESS_CONTROLS
-   :ambiguous-function-decl DiagnosticGroups/AMBIGUOUS_FUNCTION_DECL
-   :analyzer-checks DiagnosticGroups/ANALYZER_CHECKS
-   :check-eventful-object-disposal DiagnosticGroups/CHECK_EVENTFUL_OBJECT_DISPOSAL
-   :check-regexp DiagnosticGroups/CHECK_REGEXP
-   :check-types DiagnosticGroups/CHECK_TYPES
-   :check-useless-code DiagnosticGroups/CHECK_USELESS_CODE
-   :check-variables DiagnosticGroups/CHECK_VARIABLES
-   :closure-dep-method-usage-checks DiagnosticGroups/CLOSURE_DEP_METHOD_USAGE_CHECKS
-   :conformance-violations DiagnosticGroups/CONFORMANCE_VIOLATIONS
-   :const DiagnosticGroups/CONST
-   :constant-property DiagnosticGroups/CONSTANT_PROPERTY
-   :debugger-statement-present DiagnosticGroups/DEBUGGER_STATEMENT_PRESENT
-   :deprecated DiagnosticGroups/DEPRECATED
-   :deprecated-annotations DiagnosticGroups/DEPRECATED_ANNOTATIONS
-   :duplicate-message DiagnosticGroups/DUPLICATE_MESSAGE
-   :duplicate-vars DiagnosticGroups/DUPLICATE_VARS
-   :es3 DiagnosticGroups/ES3
-   :es5-strict DiagnosticGroups/ES5_STRICT
-   :externs-validation DiagnosticGroups/EXTERNS_VALIDATION
-   :extra-require DiagnosticGroups/EXTRA_REQUIRE
-   :fileoverview-jsdoc DiagnosticGroups/FILEOVERVIEW_JSDOC
-   :function-params DiagnosticGroups/FUNCTION_PARAMS
-   :global-this DiagnosticGroups/GLOBAL_THIS
-   ;; :inferred-const-checks DiagnosticGroups/INFERRED_CONST_CHECKS
-   :internet-explorer-checks DiagnosticGroups/INTERNET_EXPLORER_CHECKS
-   :invalid-casts DiagnosticGroups/INVALID_CASTS
-   :j2cl-checks DiagnosticGroups/J2CL_CHECKS
-   :late-provide DiagnosticGroups/LATE_PROVIDE
-   :lint-checks DiagnosticGroups/LINT_CHECKS
-   :message-descriptions DiagnosticGroups/MESSAGE_DESCRIPTIONS
-   :misplaced-type-annotation DiagnosticGroups/MISPLACED_TYPE_ANNOTATION
-   :missing-getcssname DiagnosticGroups/MISSING_GETCSSNAME
-   :missing-override DiagnosticGroups/MISSING_OVERRIDE
-   :missing-polyfill DiagnosticGroups/MISSING_POLYFILL
-   :missing-properties DiagnosticGroups/MISSING_PROPERTIES
-   :missing-provide DiagnosticGroups/MISSING_PROVIDE
-   :missing-require DiagnosticGroups/MISSING_REQUIRE
-   :missing-return DiagnosticGroups/MISSING_RETURN
-   :non-standard-jsdoc DiagnosticGroups/NON_STANDARD_JSDOC
-   :report-unknown-types DiagnosticGroups/REPORT_UNKNOWN_TYPES
-   :strict-missing-require DiagnosticGroups/STRICT_MISSING_REQUIRE
-   :strict-module-dep-check DiagnosticGroups/STRICT_MODULE_DEP_CHECK
-   :strict-requires DiagnosticGroups/STRICT_REQUIRES
-   :suspicious-code DiagnosticGroups/SUSPICIOUS_CODE
-   :tweaks DiagnosticGroups/TWEAKS
-   :type-invalidation DiagnosticGroups/TYPE_INVALIDATION
-   :undefined-names DiagnosticGroups/UNDEFINED_NAMES
-   :undefined-variables DiagnosticGroups/UNDEFINED_VARIABLES
-   :underscore DiagnosticGroups/UNDERSCORE
-   :unknown-defines DiagnosticGroups/UNKNOWN_DEFINES
-   :unused-local-variable DiagnosticGroups/UNUSED_LOCAL_VARIABLE
-   :unused-private-property DiagnosticGroups/UNUSED_PRIVATE_PROPERTY
-   :use-of-goog-base DiagnosticGroups/USE_OF_GOOG_BASE
-   :violated-module-dep DiagnosticGroups/VIOLATED_MODULE_DEP
-   :visiblity DiagnosticGroups/VISIBILITY})
+  (reduce
+    (fn [warnings [registered-name group]]
+      (let [kw (-> registered-name
+                   (str/replace #"[A-Z]" #(str "-" (str/lower-case %)))
+                   keyword)]
+        (assoc warnings kw group)))
+    {}
+    (-> (DiagnosticGroups.)
+        (.getRegisteredGroups))))
 
 (defn ^CompilerOptions$LanguageMode lang-key->lang-mode [key]
   (case (keyword (str/replace (name key) #"^es" "ecmascript"))
@@ -131,7 +84,7 @@
     :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT))
 
 (defn set-options
-  [^CompilerOptions closure-opts opts]
+  [^CompilerOptions closure-opts opts state]
 
   (when-let [level
              (case (:optimizations opts)
@@ -176,7 +129,11 @@
 
   (when (contains? opts :closure-warnings)
     (doseq [[type level] (:closure-warnings opts)]
-      (. closure-opts (setWarningLevel (get warning-types type) (get check-levels level)))))
+      (let [group (get warning-types type)
+            check-level (get check-levels level)]
+        (if-not (and group check-level)
+          (util/warn state {:type ::invalid-closure-warning :key type :level level})
+          (. closure-opts (setWarningLevel group check-level))))))
 
   (when (contains? opts :closure-extra-annotations)
     (. closure-opts (setExtraAnnotationNames (map name (:closure-extra-annotations opts)))))
@@ -817,7 +774,7 @@
           ;; (js/React...) will otherwise just work without externs
           (.setWarningLevel DiagnosticGroups/UNDEFINED_VARIABLES CheckLevel/WARNING))]
 
-    (set-options closure-opts compiler-options)
+    (set-options closure-opts compiler-options state)
 
     (when source-map?
       ;; FIXME: path is not used at all but needs to be set
@@ -863,8 +820,10 @@
     (let [cc (make-closure-compiler)
           co
           (doto (make-options)
-            (set-options {:optimizations :simple
-                          :language-in :ecmascript5}))
+            (set-options
+              {:optimizations :simple
+               :language-in :ecmascript5}
+              state))
 
           externs
           (load-externs state false)
@@ -1284,7 +1243,7 @@
 
         co
         (doto (make-options)
-          (set-options co-opts))
+          (set-options co-opts state))
 
         co
         (if (false? (get-in state [:compiler-options :rewrite-polyfills]))
@@ -1603,7 +1562,7 @@
 
         closure-opts
         (doto (make-options)
-          (set-options co-opts)
+          (set-options co-opts state)
           (.resetWarningsGuard)
 
           (.setStrictModeInput false)
