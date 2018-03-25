@@ -32,9 +32,10 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 
 - [Official Browser Example](https://github.com/shadow-cljs/quickstart-browser)
 - [mhuebert/shadow-re-frame](https://github.com/mhuebert/shadow-re-frame) - Usage of [re-frame](https://github.com/Day8/re-frame), [re-frame-trace](https://github.com/Day8/re-frame-trace), and the [shadow-cljs](https://github.com/thheller/shadow-cljs/) build tool. **[Live Demo](https://mhuebert.github.io/shadow-re-frame/)**
-- [jacekschae/shadow-reagent](https://github.com/jacekschae/shadow-reagent) - shadow-cljs, proto-repl, reagent template
+- [jacekschae/shadow-reagent](https://github.com/jacekschae/shadow-reagent) - shadow-cljs + proto-repl + reagent
 - [jacekschae/shadow-firebase](https://github.com/jacekschae/shadow-firebase) - shadow-cljs + firebase
 - [ahonn/shadow-electron-starter](https://github.com/ahonn/shadow-electorn-starter) - ClojureScript + Shadow-cljs + Electron + Reagent
+- [jacekschae/conduit](https://github.com/jacekschae/conduit) - Real world application built with shadow-cljs + re-frame + re-frame-10x <br> [Demo](https://jacekschae.github.io/conduit-re-frame-demo/) | [Demo with re-frame-10x](https://jacekschae.github.io/conduit-re-frame-10x-demo/)
 - ... please let me know if you created something to include here
 
 ## License
