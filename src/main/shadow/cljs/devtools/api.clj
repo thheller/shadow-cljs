@@ -247,10 +247,19 @@
      (catch Exception e
        (e/user-friendly-error e)))))
 
+(defn repl-client-connected? [worker]
+  (not (empty? (-> worker :state-ref deref :eval-clients))))
+
 (defn nrepl-select [id]
   (let [worker (get-worker id)]
-    (if-not worker
+    (cond
+      (nil? worker)
       [:no-worker id]
+
+      (not (repl-client-connected? worker))
+      [:no-client id "Please load your JS to connect to the REPL."]
+
+      :else
       (do (set! *nrepl-cljs* id)
 
           ;; doing this to make cider prompt not show "user" as prompt after calling this
