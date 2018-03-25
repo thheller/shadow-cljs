@@ -80,3 +80,13 @@
             (repl/process-input "(in-ns 'demo.script)"))]
 
     (pprint repl-state)))
+
+
+(deftest test-repl-string-require
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(require '[\"auth0-js\" :as x])")
+            (repl/process-input "x"))]
+
+    (pprint repl-state)))

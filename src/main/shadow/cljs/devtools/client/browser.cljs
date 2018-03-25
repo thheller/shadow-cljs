@@ -78,6 +78,14 @@
     #(do-js-load sources)
     complete-fn))
 
+(defn do-js-requires
+  "when (require '[\"some-str\" :as x]) is done at the REPL we need to manually call the shadow.js.require for it
+   since the file only adds the shadow$provide. only need to do this for shadow-js."
+  [js-requires]
+  (doseq [js-ns js-requires]
+    (let [require-str (str "var " js-ns " = shadow.js.require(\"" js-ns "\");")]
+      (script-eval require-str))))
+
 (defn load-sources [sources callback]
   (if (empty? sources)
     (callback [])
@@ -189,7 +197,7 @@
         (assoc :id id)
         (ws-msg))))
 
-(defn repl-require [{:keys [id sources reload] :as msg}]
+(defn repl-require [{:keys [id sources reload js-requires] :as msg}]
   (let [sources-to-load
         (cond
           (= :reload reload)
@@ -208,6 +216,8 @@
       sources-to-load
       (fn [sources]
         (do-js-load sources)
+        (when (seq js-requires)
+          (do-js-requires js-requires))
         (ws-msg {:type :repl/require-complete :id id})
         ))))
 

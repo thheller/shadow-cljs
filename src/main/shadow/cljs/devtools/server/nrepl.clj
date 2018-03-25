@@ -72,48 +72,47 @@
             :else
             (when-some [result (worker/repl-eval worker ::stdin read-result)]
               (log/debug "nrepl-eval-result" (pr-str result))
-              (case (:type result)
-                :repl/result
-                (let [repl-state (repl-impl/worker-repl-state worker)
-                      repl-ns (-> repl-state :current :ns)]
+              (let [repl-state (repl-impl/worker-repl-state worker)
+                    repl-ns (-> repl-state :current :ns)]
 
+                (case (:type result)
+                  :repl/result
                   (send msg {:value (:value result)
                              :printed-value 1
-                             :ns (pr-str repl-ns)}))
+                             :ns (pr-str repl-ns)})
 
-                :repl/set-ns-complete
-                (let [repl-state (repl-impl/worker-repl-state worker)
-                      repl-ns (-> repl-state :current :ns)]
-
+                  :repl/set-ns-complete
                   (send msg {:value (pr-str repl-ns)
                              :printed-value 1
-                             :ns (pr-str repl-ns)}))
+                             :ns (pr-str repl-ns)})
 
-                :repl/invoke-error
-                (send msg {:err (or (:stack result)
-                                    (:error result))})
+                  :repl/invoke-error
+                  (send msg {:err (or (:stack result)
+                                      (:error result))})
 
-                :repl/require-complete
-                nil
+                  :repl/require-complete
+                  (send msg {:value "nil"
+                             :printed-value 1
+                             :ns (pr-str repl-ns)})
 
-                :repl/interrupt
-                nil
+                  :repl/interrupt
+                  nil
 
-                :repl/timeout
-                (send msg {:err "REPL command timed out.\n"})
+                  :repl/timeout
+                  (send msg {:err "REPL command timed out.\n"})
 
-                :repl/no-eval-target
-                (send msg {:err "There is no connected JS runtime.\n"})
+                  :repl/no-eval-target
+                  (send msg {:err "There is no connected JS runtime.\n"})
 
-                :repl/too-many-eval-clients
-                (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
+                  :repl/too-many-eval-clients
+                  (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
 
-                :repl/error
-                (send msg {:err (with-out-str
-                                  (errors/user-friendly-error (:ex result)))})
+                  :repl/error
+                  (send msg {:err (with-out-str
+                                    (errors/user-friendly-error (:ex result)))})
 
-                :else
-                (send msg {:err (pr-str [:FIXME result])}))
+                  :else
+                  (send msg {:err (pr-str [:FIXME result])})))
 
               (recur))
             ))))

@@ -196,9 +196,15 @@
             (load-macros-and-set-ns-info new-ns-info))
 
         action
-        {:type :repl/require
-         :sources new-sources
-         :flags (:flags new-ns-info)}]
+        (-> {:type :repl/require
+           :sources new-sources
+           :flags (:flags new-ns-info)}
+            (cond->
+              (= :shadow (get-in state [:js-options :js-provider]))
+              (assoc :js-requires (->> new-deps
+                                       (filter string?)
+                                       (map #(get-in state [:str->sym (:name new-ns-info) %]))
+                                       (into [])))))]
 
     (output/flush-sources state new-sources)
 
