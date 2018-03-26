@@ -102,7 +102,7 @@
                   (send msg {:err "REPL command timed out.\n"})
 
                   :repl/no-eval-target
-                  (send msg {:err "There is no connected JS runtime.\n"})
+                  (send msg {:err "No application has connected to the REPL server. Make sure your JS environment has loaded your compiled ClojureScript code.\n"})
 
                   :repl/too-many-eval-clients
                   (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})

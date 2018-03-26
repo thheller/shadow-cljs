@@ -48,7 +48,7 @@
       (println "Timeout while waiting for REPL result.")
 
       :repl/no-eval-target
-      (println "There is no connected JS runtime.")
+      (println "No application has connected to the REPL server. Make sure your JS environment has loaded your compiled ClojureScript code.")
 
       :repl/too-many-eval-clients
       (println "There are too many connected processes.")
