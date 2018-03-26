@@ -241,3 +241,29 @@
               :font-size "12px"}}
      [:div {:style "color: red; margin-bottom: 10px; font-size: 2em;"} "Compilation failed!"]
      [:pre report]]))
+
+(def connection-error-id "shadow-connection-error")
+
+(defn connection-error-clear! []
+  (when-some [x (dom/by-id connection-error-id)]
+    (dom/remove x)))
+
+(defn connection-error [msg]
+  (dom-insert
+    [:div {:id connection-error-id
+           :style {:position "absolute"
+                   :pointer-events "none"
+                   :left "0px"
+                   :bottom "20px"}}
+     [:div {:style {:background "#c00"
+                    :border-top-right-radius "40px"
+                    :border-bottom-right-radius "40px"
+                    :box-shadow "2px 2px 10px #aaa"
+                    :padding "10px"
+                    :font-family "monospace"
+                    :font-size "14px"
+                    :font-weight "bold"
+                    :color "#fff"}}
+      (str "shadow-cljs - " msg)
+      ]])
+  )

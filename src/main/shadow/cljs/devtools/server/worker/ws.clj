@@ -304,17 +304,23 @@
         proc-id
         (UUID/fromString proc-id)
 
+        ws-out
+        (get-in ctx [:ring-request :ws-out])
+
         worker-proc
         (super/get-worker supervisor build-id)]
 
     (cond
       (nil? worker-proc)
-      (do (log/warn "stale websocket client, no worker for build" build-id)
-          nil)
+      (go (>! ws-out {:type :client/no-worker}))
+      ;; can't send {:status 404 :body "no worker"}
+      ;; as there appears to be no way to access either the status code or body
+      ;; on the client via the WebSocket API to know why a websocket connection failed
+      ;; onerror returns nothing useful only that it failed
+      ;; so instead we pretend to handshake properly, send one message and disconnect
 
       (not= proc-id (:proc-id worker-proc))
-      (do (log/warn "stale websocket client, please reload client" build-id)
-          nil)
+      (go (>! ws-out {:type :client/stale}))
 
       :else
       (case action

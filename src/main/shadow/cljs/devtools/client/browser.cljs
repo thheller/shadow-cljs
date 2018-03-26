@@ -24,7 +24,7 @@
 (defonce socket-ref (volatile! nil))
 
 (defn devtools-msg [msg & args]
-  (.apply (.-log js/console) nil (into-array (into [(str "%cDEVTOOLS: " msg) "color: blue;"] args))))
+  (.apply (.-log js/console) nil (into-array (into [(str "%cshadow-cljs: " msg) "color: blue;"] args))))
 
 (defn ws-msg [msg]
   (if-let [s @socket-ref]
@@ -237,6 +237,8 @@
   (reset! repl-ns-ref ns)
   (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
 
+(def close-reason-ref (volatile! nil))
+
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]
   ;; (js/console.log "ws-msg" msg)
@@ -273,6 +275,12 @@
 
     :pong
     nil
+
+    :client/stale
+    (vreset! close-reason-ref "Stale Client! You are not using the latest compilation output!")
+
+    :client/no-worker
+    (vreset! close-reason-ref (str "watch for build \"" env/build-id "\" not running"))
 
     ;; default
     :ignored))
@@ -321,23 +329,28 @@
 
     (set! (.-onopen socket)
       (fn [e]
+        (hud/connection-error-clear!)
+        (vreset! close-reason-ref nil)
         ;; :module-format :js already patches provide
         (when (= "goog" env/module-format)
           ;; patch away the already declared exception
           (set! (.-provide js/goog) js/goog.constructNamespace_))
-        (devtools-msg "connected!")
+        (devtools-msg "WebSocket connected!")
         ))
 
     (set! (.-onclose socket)
       (fn [e]
         ;; not a big fan of reconnecting automatically since a disconnect
         ;; may signal a change of config, safer to just reload the page
-        (devtools-msg "disconnected!")
+        (devtools-msg "WebSocket disconnected!")
+        (hud/connection-error (or @close-reason-ref "Connection closed!"))
         (vreset! socket-ref nil)
         ))
 
     (set! (.-onerror socket)
-      (fn [e]))
+      (fn [e]
+        (hud/connection-error "Connection failed!")
+        (devtools-msg "websocket error" e)))
 
     (js/setTimeout heartbeat! 30000)
     ))
