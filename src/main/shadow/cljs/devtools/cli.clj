@@ -135,8 +135,8 @@
       (api/with-runtime
         (do-clj-eval config opts))
 
-      (= :clj-run action)
-      (= :run action)
+      (or (= :clj-run action)
+          (= :run action))
       (do-clj-run config opts)
 
       (contains? #{:watch :node-repl :browser-repl :cljs-repl :clj-repl :server} action)
