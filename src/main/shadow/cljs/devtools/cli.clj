@@ -11,7 +11,8 @@
             [shadow.build.api :as cljs]
             [shadow.build.node :as node]
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
-            [shadow.cljs.devtools.server.env :as env])
+            [shadow.cljs.devtools.server.env :as env]
+            [shadow.cljs.devtools.server.runtime :as runtime])
   (:import (clojure.lang LineNumberingPushbackReader)
            (java.io StringReader)))
 
@@ -82,31 +83,49 @@
         main-sym
         (symbol main)
 
+        main-sym
+        (if (nil? (namespace main-sym))
+          (symbol main "-main")
+          main-sym)
+
         main-ns
         (namespace main-sym)]
 
-    (if-not main-ns
-      (println "please specify a namespaced fn")
-      (do (try
-            (require (symbol main-ns))
+    (try
+      (require (symbol main-ns))
+      (catch Exception e
+        (throw (ex-info
+                 (format "failed to load namespace: %s" main-ns)
+                 {:tag ::clj-run-load
+                  :main-ns main-ns
+                  :main-sym main-sym} e))))
+
+    (let [main-var (find-var main-sym)]
+      (if-not main-var
+        (println (format "could not find %s" main-sym))
+        (let [main-meta (meta main-var)]
+          (try
+            (cond
+              ;; running in server
+              (runtime/get-instance)
+              (apply main-var args)
+
+              ;; new jvm. task fn wants to run watch
+              (:shadow/requires-server main-meta)
+              (do (server/start!)
+                  (apply main-var args)
+                  (server/wait-for-stop!))
+
+              ;; new jvm. task fn doesn't need watch
+              :else
+              (api/with-runtime
+                (apply main-var args)))
             (catch Exception e
               (throw (ex-info
-                       (format "failed to load namespace: %s" main-ns)
-                       {:tag ::clj-run-load
-                        :main-ns main-ns
-                        :main-sym main-sym} e))))
-
-          (let [main-fn (find-var main-sym)]
-            (if-not main-fn
-              (println (format "could not find %s" main-sym))
-              (try
-                (apply main-fn args)
-                (catch Exception e
-                  (throw (ex-info
-                           (format "failed to run function: %s" main-sym)
-                           {:tag ::clj-run
-                            :main-sym main-sym}
-                           e))))))))))
+                       (format "failed to run function: %s" main-sym)
+                       {:tag ::clj-run
+                        :main-sym main-sym}
+                       e)))))))))
 
 (defn blocking-action
   [config {:keys [action builds options] :as opts}]
@@ -117,8 +136,8 @@
         (do-clj-eval config opts))
 
       (= :clj-run action)
-      (api/with-runtime
-        (do-clj-run config opts))
+      (= :run action)
+      (do-clj-run config opts)
 
       (contains? #{:watch :node-repl :browser-repl :cljs-repl :clj-repl :server} action)
       (server/from-cli action builds options)
@@ -168,7 +187,7 @@
       ;;
       ;; actions that may potentially block
       ;;
-      (contains? #{:watch :node-repl :browser-repl :cljs-repl :clj-repl :server :clj-eval :clj-run} action)
+      (contains? #{:watch :node-repl :browser-repl :cljs-repl :clj-repl :server :clj-eval :clj-run :run} action)
       (blocking-action config opts)
 
       :else

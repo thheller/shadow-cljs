@@ -57,6 +57,7 @@
    :clj-repl
    :clj-eval
    :clj-run
+   :run
 
    :info
    :pom
