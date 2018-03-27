@@ -15,6 +15,7 @@
     [cljs.env :as cljs-env]
     [shadow.cljs.util :as util]
     [shadow.build.ns-form :as ns-form]
+    [shadow.build.cljs-closure]
     [shadow.build.cljs-hacks]
     [shadow.build.data :as data])
   (:import (java.io PushbackReader StringReader)
