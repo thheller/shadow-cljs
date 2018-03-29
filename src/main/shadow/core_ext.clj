@@ -5,7 +5,7 @@
   [x]
   (binding [*print-length* nil
             *print-level* nil
-            *print-namespaced-maps* nil
+            *print-namespace-maps* nil
             *print-meta* nil]
     (pr-str x)
     ))
