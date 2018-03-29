@@ -29,7 +29,7 @@
 
   (when-not (false? print)
     (println "shadow-cljs - REPL - see (help)")
-    (println "To quit, type: :cljs/quit")))
+    (println "To quit, type: :repl/quit")))
 
 (defn repl [{:keys [print prompt] :as config}]
   (let [loop-bindings
