@@ -163,17 +163,18 @@
         ns-info
         (:ns-info current)
 
-        new-ns-info
-        (-> (dissoc ns-info :flags)
-            (ns-form/merge-repl-require require-form))
+        {:keys [reload-deps] :as new-ns-info}
+        (ns-form/merge-repl-require ns-info require-form)
 
         known-deps
-        (set (concat
-               (:deps ns-info)
-               ;; :deps already had the string aliased
-               ;; need to remember which strings we aliased
-               ;; so we don't reimport the whole thing again
-               (keys (:js-deps ns-info))))
+        (-> #{}
+            (into (:deps ns-info))
+            ;; :deps already had the string aliased
+            ;; need to remember which strings we aliased
+            ;; so we don't reimport the whole thing again
+            (into (keys (:js-deps ns-info)))
+            ;; (require 'the.thing :reload)
+            (util/reduce-> disj reload-deps))
 
         new-deps
         (->> (:deps new-ns-info)
@@ -197,8 +198,9 @@
 
         action
         (-> {:type :repl/require
-           :sources new-sources
-           :flags (:flags new-ns-info)}
+             :sources new-sources
+             :reload-namespaces (into #{} reload-deps)
+             :flags (:flags new-ns-info)}
             (cond->
               (= :shadow (get-in state [:js-options :js-provider]))
               (assoc :js-requires (->> new-deps
@@ -479,8 +481,8 @@
 
                   reader/*alias-map*
                   (merge reader/*alias-map*
-                         (:requires ns-info)
-                         (:require-macros ns-info))]
+                    (:requires ns-info)
+                    (:require-macros ns-info))]
 
           (reader/read opts in))
 
@@ -491,13 +493,13 @@
         (cond->
           (not eof?)
           (assoc :form form
-            :source
-            ;; FIXME: poking at the internals of SourceLoggingPushbackReader
-            ;; not using (-> form meta :source) which log-source provides
-            ;; since there are things that do not support IMeta, still want the source though
-            (-> @(.-source-log-frames in)
-                (:buffer)
-                (str)))))
+                 :source
+                 ;; FIXME: poking at the internals of SourceLoggingPushbackReader
+                 ;; not using (-> form meta :source) which log-source provides
+                 ;; since there are things that do not support IMeta, still want the source though
+                 (-> @(.-source-log-frames in)
+                     (:buffer)
+                     (str)))))
     ))
 
 (defn process-input

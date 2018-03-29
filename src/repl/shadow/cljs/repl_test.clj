@@ -90,3 +90,12 @@
             (repl/process-input "x"))]
 
     (pprint repl-state)))
+
+(deftest test-repl-reload
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(require 'demo.script 'clojure.string)")
+            (repl/process-input "(require 'demo.script :reload)"))]
+
+    (pprint repl-state)))

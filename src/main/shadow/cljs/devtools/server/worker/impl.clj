@@ -33,7 +33,7 @@
   (->> source-ids
        (map (fn [src-id]
               (let [src (get-in state [:sources src-id])]
-                (select-keys src [:resource-id :type :resource-name :output-name :from-jar]))))
+                (select-keys src [:resource-id :type :resource-name :output-name :from-jar :provides]))))
        (into [])))
 
 (defmulti transform-repl-action

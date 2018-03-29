@@ -55,10 +55,11 @@
   (ws-msg {:type :repl/set-ns-complete :id id}))
 
 (defn repl-require
-  [{:keys [id sources reload] :as msg}]
+  [{:keys [id sources reload-namespaces] :as msg}]
   (try
-    (doseq [{:keys [output-name] :as src} sources]
-      (when (or reload (not (is-loaded? output-name)))
+    (doseq [{:keys [provides output-name] :as src} sources]
+      (when (or (not (is-loaded? output-name))
+                (some reload-namespaces provides))
         (closure-import output-name)))
     (ws-msg {:type :repl/require-complete :id id})
 

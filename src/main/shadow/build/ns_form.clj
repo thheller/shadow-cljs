@@ -105,8 +105,8 @@
     :clause
     '#{require}
 
-    :quoted-require
-    ::quoted-require
+    :quoted-requires
+    (s/+ ::quoted-require)
 
     :flags
     (s/* ::require-flag)
@@ -257,12 +257,18 @@
   (fn [ns-info rename-to rename-from]
     (update ns-info merge-key assoc rename-from (symbol (str ns) (str rename-to)))))
 
-(defn add-dep [ns-info sym]
-  (update ns-info :deps
-    (fn [deps]
-      (->> (conj deps sym)
-           (distinct)
-           (into [])))))
+(defn conj-distinct [deps sym]
+  (->> (conj deps sym)
+       (distinct)
+       (into [])))
+
+(defn add-dep [{:keys [flags] :as ns-info} sym]
+  (-> ns-info
+      (update :deps conj-distinct sym)
+      (cond->
+        (contains? flags :reload)
+        (update :reload-deps conj-distinct sym)
+        )))
 
 (defn process-string-require [ns-info lib {:keys [as refer only rename] :as opts}]
   ;; FIXME: should warn on refer-macros or include-macros
@@ -499,17 +505,16 @@
                (assoc (s/explain-data ::repl-require require-args)
                  :tag ::invalid-require))))
 
-    (let [require
-          (get-in conformed [:quoted-require :require])
+    (let [{:keys [flags quoted-requires]}
+          conformed]
 
-          {:keys [flags]}
-          conformed
-
-          {:keys [deps] :as ns-info}
-          (reduce-require ns-info require)]
-
-      (assoc ns-info :flags (into #{} flags))
-      )))
+      (-> ns-info
+          (assoc :flags (into #{} flags)
+                 :reload-deps [])
+          (reduce->
+            reduce-require
+            (map :require quoted-requires)
+            )))))
 
 (defn rewrite-ns-aliases
   [{:keys [requires uses deps renames] :as ast}

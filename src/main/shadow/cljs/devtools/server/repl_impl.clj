@@ -36,10 +36,10 @@
                    (:message result)))
 
       :repl/set-ns-complete
-      nil
+      (println "nil")
 
       :repl/require-complete
-      nil
+      (println "nil")
 
       :repl/interrupt
       nil

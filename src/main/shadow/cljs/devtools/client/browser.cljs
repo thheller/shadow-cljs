@@ -197,20 +197,13 @@
         (assoc :id id)
         (ws-msg))))
 
-(defn repl-require [{:keys [id sources reload js-requires] :as msg}]
+(defn repl-require [{:keys [id sources reload-namespaces js-requires] :as msg}]
   (let [sources-to-load
-        (cond
-          (= :reload reload)
-          (let [all (butlast sources)
-                self (last sources)]
-            (-> (into [] (remove src-is-loaded?) all)
-                (conj self)))
-
-          (= :reload-all reload)
-          sources
-
-          :else
-          (remove src-is-loaded? sources))]
+        (->> sources
+             (remove (fn [{:keys [provides] :as src}]
+                       (and (src-is-loaded? src)
+                            (not (some reload-namespaces provides)))))
+             (into []))]
 
     (load-sources
       sources-to-load
