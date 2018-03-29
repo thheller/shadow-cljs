@@ -15,7 +15,8 @@
             [clojure.data.json :as json]
             [shadow.build.cache :as cache]
             [cljs.compiler :as cljs-comp]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [shadow.core-ext :as core-ext])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
@@ -689,7 +690,7 @@
                          (map :name)
                          (map (fn [def]
                                 (let [export-name
-                                      (-> def name str comp/munge pr-str)]
+                                      (-> def name str comp/munge core-ext/safe-pr-str)]
                                   (str export-name ":" (comp/munge def)))))
                          (str/join ",")
                          (as-module-exports))

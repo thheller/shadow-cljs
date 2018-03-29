@@ -11,7 +11,8 @@
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.util :as util]
     [hiccup.page :refer (html5)]
-    [clojure.java.io :as io]))
+    [clojure.java.io :as io]
+    [shadow.core-ext :as core-ext]))
 
 (defn index-page [req]
   {:status 200
@@ -82,7 +83,7 @@
 
     {:status 200
      :headers {"content-type" "application/edn; charset=utf-8"}
-     :body (pr-str result)}))
+     :body (core-ext/safe-pr-str result)}))
 
 (defn get-bundle-info [{:keys [config] :as req} build-id]
   (try

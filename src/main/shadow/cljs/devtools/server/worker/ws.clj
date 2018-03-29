@@ -11,7 +11,8 @@
             [shadow.http.router :as http]
             [shadow.build.data :as data]
             [shadow.build.resource :as rc]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [shadow.core-ext :as core-ext])
   (:import (java.util UUID)))
 
 (defn ws-loop!
@@ -162,7 +163,7 @@
             result (worker/repl-compile worker-proc input)]
         {:status 200
          :headers headers
-         :body (pr-str result)})
+         :body (core-ext/safe-pr-str result)})
 
       ;; bad requests
       {:status 400
@@ -242,7 +243,7 @@
                             (str prepend js append sm-text)))
                         })))
               (into [])
-              (pr-str))})
+              (core-ext/safe-pr-str))})
 
       ;; bad requests
       {:status 400

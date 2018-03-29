@@ -3,6 +3,7 @@
             [clojure.core.async :as async :refer (<!! >!!)]
             [shadow.build.log :as cljs-log]
             [shadow.cljs.util :as util]
+            [shadow.core-ext :as core-ext]
             [clojure.tools.logging :as log])
   (:import (java.io PushbackReader Writer InputStreamReader BufferedReader IOException)))
 
@@ -54,7 +55,7 @@
       (let [line
             (-> req
                 (dissoc ::reply-to)
-                (pr-str)
+                (core-ext/safe-pr-str)
                 (str "\n"))]
         (doto out
           (.write line)

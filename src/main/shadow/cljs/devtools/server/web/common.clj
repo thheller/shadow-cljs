@@ -2,7 +2,8 @@
   (:require [shadow.server.assets :as assets]
             [hiccup.page :refer (html5)]
             [hiccup.core :refer (html)]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [shadow.core-ext :as core-ext]))
 
 (defn not-found
   ([req]
@@ -20,7 +21,7 @@
 (defn edn [req data]
   {:status 200
    :header {"content-type" "application/edn"}
-   :body (pr-str data)})
+   :body (core-ext/safe-pr-str data)})
 
 (defn page-boilerplate
   [req ^String content]

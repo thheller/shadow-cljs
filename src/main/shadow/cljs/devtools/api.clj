@@ -23,7 +23,8 @@
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.server.runtime :as runtime]
     [shadow.build.output :as output]
-    [shadow.build.log :as build-log]))
+    [shadow.build.log :as build-log]
+    [shadow.core-ext :as core-ext]))
 
 ;; nREPL support
 
@@ -454,7 +455,7 @@
 
       (spit
         (io/file output-dir "bundle-info.edn")
-        (pr-str bundle-info)))
+        (core-ext/safe-pr-str bundle-info)))
 
     :done
     ))

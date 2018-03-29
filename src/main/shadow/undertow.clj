@@ -5,7 +5,8 @@
             [clojure.core.async.impl.protocols :as async-prot]
             [clojure.tools.logging :as log]
             [shadow.undertow.impl :as impl]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [shadow.core-ext :as core-ext])
   (:import (io.undertow Undertow Handlers UndertowOptions)
            (io.undertow.websockets WebSocketConnectionCallback)
            (io.undertow.server.handlers ResponseCodeHandler BlockingHandler)
@@ -91,7 +92,7 @@
                             (async/close! ws-in)
                             ;; try to send message, close everything if that fails
                             (do (try
-                                  (WebSockets/sendTextBlocking (pr-str msg) channel)
+                                  (WebSockets/sendTextBlocking (core-ext/safe-pr-str msg) channel)
                                   ;; just ignore sending to a closed channel
                                   (catch ClosedChannelException e
                                     (async/close! ws-in)

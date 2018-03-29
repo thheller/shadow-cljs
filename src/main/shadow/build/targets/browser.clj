@@ -17,7 +17,8 @@
             [shadow.build.output :as output]
             [shadow.build.closure :as closure]
             [shadow.build.data :as data]
-            [shadow.build.log :as log]))
+            [shadow.build.log :as log]
+            [shadow.core-ext :as core-ext]))
 
 (s/def ::entry
   (s/or :sym shared/unquoted-simple-symbol?
@@ -342,7 +343,7 @@
     (io/make-parents json-file)
 
     (spit json-file (json module-data))
-    (spit edn-file (pr-str module-data))
+    (spit edn-file (core-ext/safe-pr-str module-data))
 
     state
     ))
