@@ -104,7 +104,7 @@
         (flush)
 
         ;; need the repl state to properly support reading ::alias/foo
-        (let [{:keys [eof? form] :as read-result}
+        (let [{:keys [eof? error? ex form] :as read-result}
               (repl/read-one repl-state *in* {})]
 
           (log/debug :repl/read-result read-result)
@@ -112,6 +112,10 @@
           (cond
             eof?
             :eof
+
+            error?
+            (do (println (str "Failed to read: " ex))
+                (recur))
 
             (nil? form)
             (recur)

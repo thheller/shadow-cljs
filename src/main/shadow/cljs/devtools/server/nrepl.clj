@@ -40,12 +40,16 @@
       (when-let [repl-state (repl-impl/worker-repl-state worker)]
 
         ;; need the repl state to properly support reading ::alias/foo
-        (let [{:keys [eof? form] :as read-result}
+        (let [{:keys [eof? error? ex form] :as read-result}
               (repl/read-one repl-state reader {})]
 
           (cond
             eof?
             :eof
+
+            error?
+            (do (send msg {:err (str "Failed to read input: " ex)})
+                (recur))
 
             (nil? form)
             (recur)

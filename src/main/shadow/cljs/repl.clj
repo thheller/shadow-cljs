@@ -447,60 +447,63 @@
 (defn read-one
   [repl-state reader {:keys [filename] :or {filename "repl-input.cljs"} :as opts}]
   {:pre [(repl-state? repl-state)]}
-  (let [eof-sentinel
-        (Object.)
+  (try
+    (let [eof-sentinel
+          (Object.)
 
-        opts
-        {:eof eof-sentinel
-         :read-cond :allow
-         :features (:reader-features repl-state)}
+          opts
+          {:eof eof-sentinel
+           :read-cond :allow
+           :features (:reader-features repl-state)}
 
-        in
-        (readers/source-logging-push-back-reader
-          reader ;; (PushbackReader. reader (object-array buf-len) buf-len buf-len)
-          1
-          filename)
+          in
+          (readers/source-logging-push-back-reader
+            reader ;; (PushbackReader. reader (object-array buf-len) buf-len buf-len)
+            1
+            filename)
 
-        {:keys [ns ns-info] :as repl-rc}
-        (:current repl-state)
+          {:keys [ns ns-info] :as repl-rc}
+          (:current repl-state)
 
-        _ (assert (symbol? ns))
+          _ (assert (symbol? ns))
 
-        form
-        (binding [*ns*
-                  (create-ns ns)
+          form
+          (binding [*ns*
+                    (create-ns ns)
 
-                  ana/*cljs-ns*
-                  ns
+                    ana/*cljs-ns*
+                    ns
 
-                  ana/*cljs-file*
-                  name
+                    ana/*cljs-file*
+                    name
 
-                  reader/*data-readers*
-                  tags/*cljs-data-readers*
+                    reader/*data-readers*
+                    tags/*cljs-data-readers*
 
-                  reader/*alias-map*
-                  (merge reader/*alias-map*
-                    (:requires ns-info)
-                    (:require-macros ns-info))]
+                    reader/*alias-map*
+                    (merge reader/*alias-map*
+                      (:requires ns-info)
+                      (:require-macros ns-info))]
 
-          (reader/read opts in))
+            (reader/read opts in))
 
-        eof?
-        (identical? form eof-sentinel)]
+          eof?
+          (identical? form eof-sentinel)]
 
-    (-> {:eof? eof?}
-        (cond->
-          (not eof?)
-          (assoc :form form
-                 :source
-                 ;; FIXME: poking at the internals of SourceLoggingPushbackReader
-                 ;; not using (-> form meta :source) which log-source provides
-                 ;; since there are things that do not support IMeta, still want the source though
-                 (-> @(.-source-log-frames in)
-                     (:buffer)
-                     (str)))))
-    ))
+      (-> {:eof? eof?}
+          (cond->
+            (not eof?)
+            (assoc :form form
+                   :source
+                   ;; FIXME: poking at the internals of SourceLoggingPushbackReader
+                   ;; not using (-> form meta :source) which log-source provides
+                   ;; since there are things that do not support IMeta, still want the source though
+                   (-> @(.-source-log-frames in)
+                       (:buffer)
+                       (str))))))
+    (catch Exception ex
+      {:error? true
+       :ex ex})))
 
 (defn process-input
   "processes a string of forms, may read multiple forms"
