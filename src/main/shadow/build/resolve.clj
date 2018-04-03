@@ -215,27 +215,35 @@
   {:pre [(data/build-state? state)
          (string? require)]}
 
-  (let [{:keys [resource-id ns] :as rc}
-        (find-resource-for-string state require-from require)]
+  (let [resolved-sym (get-in state [:str->sym require-from-ns require])]
+    ;; in a watch recompile cycle strings may already be resolved so we can re-use those
+    ;; resolve is a bit costly since it has to do a bunch of FS interop
+    (if resolved-sym
+      (let [rc (data/get-source-by-provide state resolved-sym)]
+        (resolve-deps state rc))
 
-    (when-not rc
-      (throw (ex-info
-               (if require-from
-                 (format "The required JS dependency \"%s\" is not available, it was required by \"%s\"." require (:resource-name require-from))
-                 (format "The required JS dependency \"%s\" is not available." require))
-               {:tag ::missing-js
-                :require require
-                :require-from (:resource-name require-from)})))
+      ;; fresh resolve
+      (let [{:keys [resource-id ns] :as rc}
+            (find-resource-for-string state require-from require)]
 
-    (-> state
-        (data/maybe-add-source rc)
-        (cond->
-          require-from-ns
-          (data/add-string-lookup require-from-ns require ns)
-          (nil? require-from)
-          (update :js-entries conj ns))
-        (resolve-deps rc)
-        )))
+        (when-not rc
+          (throw (ex-info
+                   (if require-from
+                     (format "The required JS dependency \"%s\" is not available, it was required by \"%s\"." require (:resource-name require-from))
+                     (format "The required JS dependency \"%s\" is not available." require))
+                   {:tag ::missing-js
+                    :require require
+                    :require-from (:resource-name require-from)})))
+
+        (-> state
+            (data/maybe-add-source rc)
+            (cond->
+              require-from-ns
+              (data/add-string-lookup require-from-ns require ns)
+              (nil? require-from)
+              (update :js-entries conj ns))
+            (resolve-deps rc)
+            )))))
 
 (defn ensure-non-circular!
   [{:keys [resolved-stack] :as state} resource-id]
