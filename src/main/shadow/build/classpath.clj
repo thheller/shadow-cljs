@@ -416,7 +416,13 @@
                               (try
                                 (inspect-resource cp src)
                                 (catch Exception e
-                                  (log/warnf e "failed to inspect resource \"%s\", it will not be available."
+                                  ;; don't warn with stacktrace
+                                  (log/warnf "failed to inspect resource \"%s\", it will not be available."
+                                    (or (:file src)
+                                        (:url src)
+                                        (:resource-name src)))
+                                  ;; debug log should contain stacktrace
+                                  (log/debugf e "failed to inspect resource \"%s\", it will not be available."
                                     (or (:file src)
                                         (:url src)
                                         (:resource-name src)))
