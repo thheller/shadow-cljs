@@ -214,12 +214,14 @@
   {:pre [(data/build-state? state)
          (string? require)]}
 
-  (let [resolved-sym (get-in state [:str->sym require-from-ns require])]
-    ;; in a watch recompile cycle strings may already be resolved so we can re-use those
-    ;; resolve is a bit costly since it has to do a bunch of FS interop
-    (if resolved-sym
-      (let [rc (data/get-source-by-provide state resolved-sym)]
-        (resolve-deps state rc))
+  ;; in a watch recompile cycle strings may already be resolved so we can re-use those
+  ;; resolve is a bit costly since it has to do a bunch of FS interop
+  ;; FIXME: properly cleanup :str->sym, should not be possible to get some ns here but nil for rc
+  (let [rc
+        (when-let [resolved-sym (get-in state [:str->sym require-from-ns require])]
+          (data/get-source-by-provide state resolved-sym))]
+    (if rc
+      (resolve-deps state rc)
 
       ;; fresh resolve
       (let [{:keys [resource-id ns] :as rc}
