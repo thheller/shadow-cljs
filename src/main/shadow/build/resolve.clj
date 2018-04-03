@@ -39,8 +39,7 @@
 
 (defn resolve-deps
   [{:keys [resolved-stack] :as state} {:keys [resource-id deps] :as rc}]
-  {:pre [(data/build-state? state)
-         (rc/valid-resource? rc)]}
+  {:pre [(data/build-state? state)]}
   (let [head-idx
         (when (seq resolved-stack)
           (-> resolved-stack count dec))]
