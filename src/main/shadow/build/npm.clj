@@ -770,6 +770,7 @@
 (defn start [{:keys [node-modules-dir] :as config}]
   (let [index-ref
         (atom {:files {}
+               :require-cache {}
                :packages {}
                :package-json-cache {}})
 

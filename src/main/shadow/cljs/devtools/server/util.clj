@@ -86,9 +86,9 @@
                (count sources)
                (count compiled)
                (count warnings)
-               (-> (- (or (get-in build-info [:timings :flush :exit])
-                          (get-in build-info [:timings :compile-finish :exit]))
-                      (get-in build-info [:timings :compile-prepare :enter]))
+               (-> (- (or (get build-info :flush-complete)
+                          (get build-info :compile-complete))
+                      (get build-info :compile-start))
                    (double)
                    (/ 1000))))
 

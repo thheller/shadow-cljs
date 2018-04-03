@@ -9,7 +9,8 @@
             [shadow.build.resolve :as res]
             [shadow.build.data :as data]
             [shadow.build.macros :as macros]
-            [shadow.build.compiler :as impl]))
+            [shadow.build.compiler :as impl]
+            [shadow.build.log :as build-log]))
 
 
 (deftest test-resolve
@@ -219,3 +220,25 @@
       #_(-> resolved-state :npm :index-ref deref :package-json-cache (pprint)))
     (catch Exception e
       (prn (ex-data e)))))
+
+
+(deftest test-resolve-perf
+  (try
+
+    (let [build-state
+          (-> (test-build)
+              (api/with-js-options
+                {:js-provider :shadow}))
+
+          [resolved resolved-state]
+          (time
+            (api/resolve-entries build-state ["semantic-ui-react"]))
+
+          [resolve2 resolved2]
+          (time
+            (api/resolve-entries resolved-state ["semantic-ui-react"]))
+          ]
+      )
+    (catch Exception e
+      (prn (ex-data e))))
+  )

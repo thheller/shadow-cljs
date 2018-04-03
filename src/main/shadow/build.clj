@@ -282,6 +282,12 @@
     (assoc state :build-macros build-macros)
     ))
 
+(defn compile-start [state]
+  (assoc state ::build-info {:compile-start (System/currentTimeMillis)}))
+
+(defn compile-complete [state]
+  (assoc-in state [::build-info :compile-complete] (System/currentTimeMillis)))
+
 (defn compile
   [{::keys [mode] :as state}]
   {:pre [(build-api/build-state? state)]
@@ -289,23 +295,26 @@
   (if-not (modules/configured? state)
     ;; flat build, no modules
     (-> state
-        (assoc ::build-info {})
+        (compile-start)
         (process-stage :resolve false)
         (extract-build-macros)
         (process-stage :compile-prepare true)
         (build-api/compile-sources)
         (update-build-info-after-compile)
-        (process-stage :compile-finish true))
+        (process-stage :compile-finish true)
+        (compile-complete))
     ;; :modules based build
     (-> state
-        (assoc ::build-info {})
+        (compile-start)
         (modules/analyze)
         (extract-build-macros)
         (process-stage :compile-prepare true)
         (update-build-info-from-modules)
         (build-api/compile-sources)
         (update-build-info-after-compile)
-        (process-stage :compile-finish true))))
+        (process-stage :compile-finish true)
+        (compile-complete)
+        )))
 
 (defn optimize
   [{::keys [mode skip-optimize] :as state}]
@@ -331,7 +340,9 @@
   [state]
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
-  (process-stage state :flush true))
+  (-> state
+      (process-stage :flush true)
+      (assoc-in [::build-info :flush-complete] (System/currentTimeMillis))))
 
 
 (defn log [state log-event]

@@ -7,7 +7,8 @@
             [shadow.build.resource :as rc]
             [shadow.build.data :as data]
             [clojure.java.io :as io]
-            [shadow.build.classpath :as cp]))
+            [shadow.build.classpath :as cp]
+            [shadow.build.log :as cljs-log]))
 
 (defn topo-sort-modules*
   [{:keys [modules deps visited] :as state} module-id]
@@ -193,6 +194,10 @@
           (update-in [::modules mod-id :sources] conj resource-id)
           ))))
 
+(defmethod cljs-log/event->str ::analyze-module
+  [{:keys [module-id entries] :as event}]
+  (format "Analyzing Module: %s" module-id))
+
 (defn analyze-module
   "resolve all deps for a given module, based on specified :entries
    will update state for each module with :sources, a list of sources needed to compile this module
@@ -202,23 +207,26 @@
          (keyword? module-id)]}
 
   (let [{:keys [entries append-js prepend-js] :as module}
-        (get-in state [::modules module-id])
+        (get-in state [::modules module-id])]
 
-        [sources state]
-        (res/resolve-entries state entries)]
+    (util/with-logged-time [state {:type ::analyze-module
+                                   :entries entries
+                                   :module-id module-id}]
+      (let [[sources state]
+            (res/resolve-entries state entries)]
 
-    (-> state
-        (assoc-in [::modules module-id :sources] sources)
-        (cond->
-          (seq prepend-js)
-          (add-module-pseudo-rc ::prepend module-id prepend-js)
+        (-> state
+            (assoc-in [::modules module-id :sources] sources)
+            (cond->
+              (seq prepend-js)
+              (add-module-pseudo-rc ::prepend module-id prepend-js)
 
-          ;; bootstrap needs to append some load info
-          ;; this ensures that the rc is append correctly
-          ;; it will be modified by shadow.build.bootstrap
-          (or (seq append-js) (:force-append module))
-          (add-module-pseudo-rc ::append module-id (or append-js ""))
-          ))))
+              ;; bootstrap needs to append some load info
+              ;; this ensures that the rc is append correctly
+              ;; it will be modified by shadow.build.bootstrap
+              (or (seq append-js) (:force-append module))
+              (add-module-pseudo-rc ::append module-id (or append-js ""))
+              ))))))
 
 (defn analyze-modules [{::keys [module-order] :as state}]
   (reduce analyze-module state module-order))
