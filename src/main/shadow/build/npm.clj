@@ -10,7 +10,10 @@
   (:import (java.io File)
            (com.google.javascript.jscomp SourceFile CompilerOptions CompilerOptions$LanguageMode)
            (com.google.javascript.jscomp.deps ModuleNames)
-           (shadow.build.closure JsInspector)))
+           (shadow.build.closure JsInspector)
+           [java.nio.file Path]))
+
+(set! *warn-on-reflection* true)
 
 (def NPM-TIMESTAMP
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
@@ -70,7 +73,7 @@
         content
         ))))
 
-(defn find-package-json [file]
+(defn find-package-json [^File file]
   (loop [root (if (.isDirectory file)
                 (.getParentFile file)
                 file)]
@@ -180,7 +183,7 @@
                  (remove nil?)
                  (into []))
 
-            [entry entry-file]
+            [entry ^File entry-file]
             (or (reduce
                   (fn [_ entry]
                     ;; test file exts first, so we don't pick a directory over a file
@@ -223,11 +226,11 @@
       ;; rxjs/Observable.js
       ;; must find file before dir
       :else
-      (let [file-or-dir
+      (let [^File file-or-dir
             (or (test-file-exts npm package-dir suffix)
                 (test-file package-dir suffix))
 
-            file
+            ^File file
             (if-not (and file-or-dir (.isDirectory file-or-dir))
               file-or-dir
               (test-file-exts npm file-or-dir "index"))]
@@ -264,7 +267,7 @@
         file
         (test-file rel-dir require)
 
-        file
+        ^File file
         (cond
           (not file)
           (test-file-exts npm rel-dir require)
@@ -425,18 +428,18 @@
 
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
-  [{:keys [compiler node-modules-dir project-dir] :as npm} ^File file]
+  [{:keys [compiler ^File node-modules-dir ^File project-dir] :as npm} ^File file]
   {:pre [(service? npm)
          (util/is-file-instance? file)
          (.isAbsolute file)]}
 
-  (let [abs-path
+  (let [^Path abs-path
         (.toPath project-dir)
 
-        node-modules-path
+        ^Path node-modules-path
         (.toPath node-modules-dir)
 
-        file-path
+        ^Path file-path
         (.toPath file)
 
         npm-file?
@@ -612,7 +615,7 @@
          (string? require)
          (map? require-ctx)]}
 
-  (let [file (find-file npm require-from require)]
+  (let [^File file (find-file npm require-from require)]
     (cond
       (nil? file)
       nil
@@ -621,7 +624,7 @@
       empty-rc
 
       :else
-      (let [{:keys [browser-overrides package-dir] :as pkg}
+      (let [{:keys [browser-overrides ^File package-dir] :as pkg}
             (find-package-for-file npm file)
 
             ;; the package may have "browser":{"./a":"./b"} overrides
