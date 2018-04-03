@@ -7,7 +7,6 @@
             [clojure.set :as set]
             [clojure.java.shell :as sh]
             [clojure.edn :as edn]
-            [clojure.pprint :refer (pprint)]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.util :as util]
             [shadow.build.api :as build-api]
@@ -317,8 +316,7 @@
         manifest
         (cond
           (str/ends-with? manifest-name ".edn")
-          (with-out-str
-            (pprint data))
+          (core-ext/safe-pr-str data)
 
           (str/ends-with? manifest-name ".json")
           (with-out-str

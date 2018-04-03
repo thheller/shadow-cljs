@@ -14,7 +14,8 @@
             [shadow.build.data :as data]
             [clojure.tools.logging :as log]
             [shadow.build.log :as build-log]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [shadow.cljs.util :as util]))
 
 (defn enhance-warnings
   "adds source excerpts to warnings if line information is available"
@@ -100,6 +101,10 @@
   [state]
   (update state ::build-info merge (extract-build-info state)))
 
+(defmethod build-log/event->str ::process-stage
+  [{:keys [target stage]}]
+  (format "build target: %s stage: %s" target stage))
+
 (defn process-stage
   [{::keys [config mode target-fn] :as state} stage optional?]
   (let [before
@@ -108,7 +113,10 @@
             (assoc-in [::build-info :timings stage :enter] (System/currentTimeMillis)))
 
         after
-        (target-fn before)]
+        (util/with-logged-time [before {:type ::process-stage
+                                        :target (:target config)
+                                        :stage stage}]
+          (target-fn before))]
     (if (and (not optional?) (identical? before after))
       (throw (ex-info "process didn't do anything on non-optional stage"
                {:stage stage :mode mode :config config}))

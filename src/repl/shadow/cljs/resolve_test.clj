@@ -215,11 +215,12 @@
 
       (doseq [x resolved]
         (prn x))
-      #_ (pprint (map second resolved))
+      #_(pprint (map second resolved))
       #_(pprint str->sym)
       #_(-> resolved-state :npm :index-ref deref :package-json-cache (pprint)))
     (catch Exception e
       (prn (ex-data e)))))
+
 
 
 (deftest test-resolve-perf
@@ -241,4 +242,27 @@
       )
     (catch Exception e
       (prn (ex-data e))))
+  )
+
+(defn resolve-entries [state entries]
+  (let [[resolved resolved-state]
+        (api/resolve-entries state entries)]
+
+    resolved-state
+    ))
+
+
+(comment
+  (def build-state
+    (-> (test-build)
+        (api/with-js-options
+          {:js-provider :shadow})))
+
+
+  (def resolve1 (time (resolve-entries build-state ["semantic-ui-react"])))
+  (def resolve2 (time (resolve-entries resolve1 ["semantic-ui-react"])))
+
+  (dotimes [x 100]
+    (time (resolve-entries resolve1 ["semantic-ui-react"])))
+
   )
