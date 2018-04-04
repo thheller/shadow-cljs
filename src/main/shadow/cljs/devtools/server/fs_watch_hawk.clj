@@ -47,8 +47,9 @@
                         {:paths [(.getAbsolutePath root)]
                          :handler
                          (fn [ctx {:keys [file kind] :as e}]
-                           (when (and (.isFile file)
-                                      (not (.isHidden file)))
+                           (when (or (= :delete kind)
+                                     (and (.isFile file)
+                                          (not (.isHidden file))))
                              (try
                                (let [abs-name (.getAbsolutePath file)]
 

@@ -26,8 +26,9 @@
                    :file (io/file dir name)
                    :event event}))
            ;; ignore empty files
-           (remove (fn [{:keys [file]}]
-                     (zero? (.length file))))
+           (remove (fn [{:keys [event file] :as x}]
+                     (and (not= event :del)
+                          (zero? (.length file)))))
            ))))
 
 (defn watch-loop
