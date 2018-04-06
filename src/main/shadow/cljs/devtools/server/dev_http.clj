@@ -41,21 +41,20 @@
             (get-in config [:http :host])
             "0.0.0.0")
 
-        http-handler-fn
+        http-handler-var
         (if-not http-handler
-          push-state/handle
+          #'push-state/handle
 
-          (let [http-handler-ns
-                (require (symbol (namespace http-handler)))]
-            @(find-var http-handler)))
+          (do (require (symbol (namespace http-handler)))
+              (find-var http-handler)))
 
-        http-handler
+        http-handler-fn
         (fn [req]
           (-> req
               (assoc :http-root root-dir
                      :build-id build-id
                      :devtools config)
-              (http-handler-fn)))]
+              (http-handler-var)))]
 
     (when (and root-dir (not (.exists root-dir)))
       (io/make-parents (io/file root-dir "index.html")))
@@ -94,7 +93,7 @@
             (loop [{:keys [port] :as http-options} http-options
                    fails 0]
               (let [srv (try
-                          (undertow/start http-options http-handler middleware-fn)
+                          (undertow/start http-options http-handler-fn middleware-fn)
                           (catch Exception e
                             (log/warnf "failed to start %s dev-http:%d reason: %s" build-id (:port http-options) (.getMessage e))
                             nil))]
