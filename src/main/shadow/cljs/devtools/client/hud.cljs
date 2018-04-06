@@ -97,7 +97,8 @@
            :style {:position "absolute"
                    :pointer-events "none"
                    :left "0px"
-                   :bottom "20px"}}
+                   :bottom "20px"
+                   :z-index "10000"}}
      [:div {:style {:background "#eee"
                     :border-top-right-radius "40px"
                     :border-bottom-right-radius "40px"
@@ -234,7 +235,7 @@
               :color "#000"
               :background-color "#fff"
               :border "5px solid red"
-              :z-index "100"
+              :z-index "10000"
               :padding "20px"
               :overflow "auto"
               :font-family "monospace"
@@ -254,7 +255,8 @@
            :style {:position "absolute"
                    :pointer-events "none"
                    :left "0px"
-                   :bottom "20px"}}
+                   :bottom "20px"
+                   :z-index "10000"}}
      [:div {:style {:background "#c00"
                     :border-top-right-radius "40px"
                     :border-bottom-right-radius "40px"
