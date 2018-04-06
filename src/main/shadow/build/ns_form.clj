@@ -517,7 +517,7 @@
             )))))
 
 (defn rewrite-ns-aliases
-  [{:keys [requires uses deps renames] :as ast}
+  [{:keys [requires require-macros uses use-macros deps renames] :as ast}
    {:keys [ns-aliases] :as state}]
 
   (if-not (seq ns-aliases)
@@ -546,8 +546,12 @@
         (into [] (map rewrite-ns) deps)
         :requires
         (rewrite-ns-map requires true)
+        :require-macros
+        (rewrite-ns-map require-macros true)
         :uses
         (rewrite-ns-map uses false)
+        :use-macros
+        (rewrite-ns-map use-macros false)
         :renames
         (reduce-kv
           (fn [renames var fqn-name]

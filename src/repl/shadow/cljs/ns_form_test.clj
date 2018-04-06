@@ -222,6 +222,23 @@
     (pprint ns-required)
     ))
 
+(deftest test-aliased-refer-macros
+  (let [test-ns
+        '(ns some.thing
+           (:require [clojure.core.async :as async :refer-macros (go)]))
+
+        ns-info
+        (ns-form/parse test-ns)
+
+        ns-renamed
+        (ns-form/rewrite-ns-aliases ns-info
+          {:ns-aliases
+           '{clojure.core.async cljs.core.async}})]
+
+    (pprint ns-info)
+    (pprint ns-renamed)
+    ))
+
 
 
 #_(deftest test-file-relativize
