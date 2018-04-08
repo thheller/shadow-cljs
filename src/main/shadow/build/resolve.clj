@@ -219,7 +219,8 @@
   ;; FIXME: properly cleanup :str->sym, should not be possible to get some ns here but nil for rc
   (let [rc
         (when-let [resolved-sym (get-in state [:str->sym require-from-ns require])]
-          (data/get-source-by-provide state resolved-sym))]
+          (when-let [resource-id (get-in state [:sym->id resolved-sym])]
+            (get-in state [:sources resource-id])))]
     (if rc
       (resolve-deps state rc)
 
