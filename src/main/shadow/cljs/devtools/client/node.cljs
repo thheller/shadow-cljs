@@ -143,10 +143,7 @@
     (.on client "message"
       (fn [data flags]
         (try
-          (-> data
-              (reader/read-string)
-              (process-message))
-
+          (env/process-ws-msg data process-message)
           (catch :default e
             (js/console.error "failed to process message" data e)))))
 

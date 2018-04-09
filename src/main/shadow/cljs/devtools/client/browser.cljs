@@ -317,7 +317,7 @@
                                     :out (into [] args)})
                            (apply print-fn args)))
 
-        (env/process-ws-msg e handle-message)
+        (env/process-ws-msg (. e -data) handle-message)
         ))
 
     (set! (.-onopen socket)

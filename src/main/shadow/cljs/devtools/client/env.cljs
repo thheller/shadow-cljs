@@ -82,21 +82,16 @@
       (repl-error e)
       )))
 
-(defn process-ws-msg [e handler]
+(defn process-ws-msg [text handler]
   (binding [reader/*default-data-reader-fn*
             (fn [tag value]
               [:tagged-literal tag value])]
-    (let [text
-          (.-data e)
-
-          msg
-          (try
-            (reader/read-string text)
-            (catch :default e
-              (js/console.warn "failed to parse websocket message" text e)))]
-      (when msg
+    (try
+      (let [msg (reader/read-string text)]
         (handler msg))
-      )))
+      (catch :default e
+        (js/console.warn "failed to parse websocket message" text e)
+        (throw e)))))
 
 (defn make-task-fn [{:keys [log-missing-fn log-call-async log-call]} {:keys [fn-sym fn-str async]}]
   (fn [next]
