@@ -159,7 +159,7 @@
                 (reduce-kv conj [dep-id version] mods))))
        (into [])))
 
-(defn get-classpath [project-root {:keys [cache-root version] :as config}]
+(defn get-classpath [project-root {:keys [cache-root] :as config}]
   (let [cp-file
         (path/resolve project-root cache-root "classpath.edn")
 
@@ -176,14 +176,27 @@
                   (modified-dependencies? cp-file classpath-config))
           ;; re-create classpath by running the java helper
           (let [jar (js/require "shadow-cljs-jar/path")]
-            (run-java project-root ["-jar" jar] {:input (pr-str classpath-config)
-                                                 :stdio [nil js/process.stdout js/process.stderr]})
-            true))]
+            (run-java
+              project-root
+              ["-jar" jar]
+              {:input (pr-str classpath-config)
+               :stdio [nil js/process.stdout js/process.stderr]})
+            true))
 
-    ;; only return :files since the rest is just cache info
-    (-> (util/slurp cp-file)
-        (reader/read-string)
-        (assoc :updated? updated?))))
+        {:keys [files] :as classpath-data}
+        (-> (util/slurp cp-file)
+            (reader/read-string)
+            (assoc :updated? updated?))]
+
+    ;; if something in the ~/.m2 directory is deleted we need to re-fetch it
+    ;; otherwise we end up with weird errors at runtime
+    (if (every? #(fs/existsSync %) files)
+      classpath-data
+      ;; if anything is missing delete the classpath.edn and start over
+      (do (fs/unlinkSync cp-file)
+          (log "WARN: missing dependencies, reconstructing classpath.")
+          (recur project-root config)
+          ))))
 
 (defn print-error [ex]
   (let [{:keys [tag] :as data}
