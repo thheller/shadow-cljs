@@ -259,7 +259,7 @@
          (into modified))))
 
 (defn reset-resources [state source-ids]
-  {:pre [(sequential? source-ids)]}
+  {:pre [(coll? source-ids)]}
 
   (let [modified
         (set source-ids)
@@ -299,6 +299,23 @@
   (->> (find-resources-using-macros state macros)
        (reset-resources state)))
 
+(defn reset-always-compile-namespaces
+  "removes all namespaces marked with (ns ^:dev/always some.thing ...) from the build state
+   so they are recompiled."
+  [state]
+  (let [always-compile-source-ids
+        (->> (:build-sources state)
+             (filter (fn [source-id]
+                       (let [src (get-in state [:sources source-id])]
+                         (and src
+                              (= :cljs (:type src))
+                              (let [src-meta (get-in src [:ns-info :meta])]
+                                (or (:figwheel-always src-meta)
+                                    (:dev/always src-meta)))))))
+             (into #{}))]
+
+    (reset-resources state always-compile-source-ids)
+    ))
 
 
 (defn add-sources-for-entries

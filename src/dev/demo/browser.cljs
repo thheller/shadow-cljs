@@ -13,6 +13,7 @@
     #_ ["/demo/myComponent" :refer (myComponent)]
     [cljs.test :refer (deftest)]
     [demo.never-load]
+    [demo.always-load]
     ))
 
 (deftest yo

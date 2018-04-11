@@ -177,6 +177,7 @@
 
       (let [{:keys [build-sources build-macros] :as build-state}
             (-> build-state
+                (build-api/reset-always-compile-namespaces)
                 (build/compile)
                 (build/flush)
                 (update ::compile-attempt inc))]

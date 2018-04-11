@@ -450,12 +450,14 @@
 
 (defn is-cache-blocked? [state {:keys [ns requires macro-requires] :as rc}]
   (let [cache-blockers (get-in state [:build-options :cache-blockers])]
-    ;; cache-blockers should be a set of namespace symbols or nil
-    (when (set? cache-blockers)
-      ;; block if the ns itself is blocked or when it requires blocked namespaces directly
-      (or (contains? cache-blockers ns)
-          (some cache-blockers requires)
-          (some cache-blockers macro-requires)))))
+    (or (get-in rc [:ns-info :meta :figwheel-always])
+        (get-in rc [:ns-info :meta :dev/always])
+        ;; cache-blockers should be a set of namespace symbols or nil
+        (when (set? cache-blockers)
+          ;; block if the ns itself is blocked or when it requires blocked namespaces directly
+          (or (contains? cache-blockers ns)
+              (some cache-blockers requires)
+              (some cache-blockers macro-requires))))))
 
 (defn load-cached-cljs-resource
   [{:keys [build-options] :as state}
@@ -524,18 +526,6 @@
     (do (util/log state {:type :cache-skip
                          :ns ns
                          :id resource-id})
-        nil)
-
-    (is-cache-blocked? state rc)
-    (do (util/log state {:type :cache-block
-                         :ns ns
-                         :id resource-id
-                         :block-reasons
-                         (let [cache-blockers (get-in state [:build-options :cache-blockers])]
-                           (->> (conj requires ns)
-                                (filter #(contains? cache-blockers %))
-                                (into #{}))
-                           )})
         nil)
 
     :else
@@ -611,9 +601,10 @@
                       ;; don't cache files with no actual backing url/file
                       (or url file))
                  (and (= cache-level :jars)
-                      from-jar)))]
+                      from-jar))
+             (not (is-cache-blocked? state rc)))]
 
-    (or (when (and cache? (not (is-cache-blocked? state rc)))
+    (or (when cache?
           (load-cached-cljs-resource state rc))
         (let [source
               (data/get-source-code state rc)
