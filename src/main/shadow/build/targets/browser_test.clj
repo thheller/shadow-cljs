@@ -8,7 +8,8 @@
             [shadow.cljs.util :as util]
             [hiccup.page :refer (html5)]
             [clojure.java.io :as io]
-            [cljs.compiler :as cljs-comp]))
+            [cljs.compiler :as cljs-comp]
+            [clojure.tools.logging :as log]))
 
 ;; FIXME: automate all of this better ...
 
@@ -36,6 +37,8 @@
         (update ::build/config assoc :output-dir (str test-dir "/js"))
         (assoc-in [::build/config :modules :test] {:entries []})
         (assoc-in [::build/config :compiler-options :source-map] true) ;; always
+        (update :build-options merge {:greedy true
+                                      :dynamic-resolve true})
         (assoc ::runner-ns runner-ns)
         (update-in [::build/config :devtools] merge
           ;; FIXME: can't yet dynamically inject the http-root config
@@ -48,7 +51,7 @@
 ;; since :configure is only called once in :dev
 ;; we delay setting the :entries until compile-prepare which is called every cycle
 ;; need to come up with a cleaner API for this
-(defn compile-prepare
+(defn test-resolve
   [{::build/keys [config]
     :keys [classpath]
     ::keys [runner-ns] :as state}]
@@ -64,15 +67,13 @@
                        (re-find (re-pattern ns-regexp) (str ns))))
              (into []))]
 
-    #_(build/log state {:type ::test-namespaces
-                        :test-namespaces test-namespaces})
+    (log/debug ::test-resolve ns-regexp test-namespaces)
 
     (-> state
-        (update-in [::modules/config :test :entries]
-          #(-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
-               (into %)
-               (into test-namespaces)
-               (conj runner-ns)))
+        (assoc-in [::modules/config :test :entries]
+          (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
+              (into test-namespaces)
+              (conj runner-ns)))
         (modules/analyze)
         )))
 
@@ -83,7 +84,7 @@
         (= :configure stage)
         (modify-config)
 
-        (= :compile-prepare stage)
-        (compile-prepare))
+        (= :resolve stage)
+        (test-resolve))
 
       (browser/process)))

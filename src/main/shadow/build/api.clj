@@ -268,6 +268,14 @@
         (find-resources-affected-by state source-ids)]
     (reduce data/remove-source-by-id state all-deps-to-reset)))
 
+(defn reset-namespaces [state provides]
+  (let [source-ids
+        (->> provides
+             (map #(get-in state [:sym->id %]))
+             (into #{}))]
+
+    (reset-resources state source-ids)))
+
 (defn- macro-test-fn [macros]
   (fn [{:keys [type macro-requires] :as src}]
     (when (= :cljs type)

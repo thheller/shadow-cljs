@@ -18,6 +18,8 @@
 (defn configure [{::build/keys [config mode] :as state}]
   (-> state
       (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
+      (update :build-options merge {:greedy true
+                                    :dynamic-resolve true})
       ;; FIXME: allow custom :runner-ns?
       (update ::build/config merge {:main 'shadow.test.node/main})
       (update-in [::build/config :devtools] assoc :enabled false)))
@@ -25,7 +27,7 @@
 ;; since :configure is only called once in :dev
 ;; we delay setting the :entries until compile-prepare which is called every cycle
 ;; need to come up with a cleaner API for this
-(defn compile-prepare
+(defn test-resolve
   [{:keys [classpath] ::build/keys [mode config] :as state}]
   (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
         config
@@ -77,8 +79,9 @@
         (= stage :configure)
         (configure)
 
-        (= stage :compile-prepare)
-        (compile-prepare))
+        (= stage :resolve)
+        (test-resolve))
+
       (node-script/process)
       (cond->
         (and (= stage :flush)

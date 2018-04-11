@@ -190,6 +190,7 @@
 
         (assoc worker-state
           :build-state build-state
+          :last-build-provides (-> build-state :sym->id keys set)
           :last-build-sources build-sources
           :last-build-macros build-macros))
       (catch Exception e
@@ -466,42 +467,42 @@
         worker-state)))
 
 (defn do-resource-update
-  [{:keys [autobuild build-state] :as worker-state}
-   {:keys [resources] :as msg}]
+  [{:keys [autobuild last-build-provides build-state] :as worker-state}
+   {:keys [namespaces added] :as msg}]
 
-  (let [sources-in-use
-        (into #{} (:last-build-sources worker-state))
+  ;; configuration errors mean to build state, no updates affect this
+  (if-not build-state
+    worker-state
 
-        sources-used-by-build
-        (->> resources
-             ;; cannot check against :sources since they will be removed by reset
-             ;; :build-sources maintains is not affected
-             (filter #(contains? sources-in-use %))
-             (into []))]
+    (let [namespaces-used-by-build
+          (->> namespaces
+               (filter #(contains? last-build-provides %))
+               (into #{}))]
 
-    (cond
-      ;; configuration errors mean to build state
-      (not build-state)
-      worker-state
+      (cond
+        ;; always recompile if the first compile attempt failed
+        ;; since we don't know which files it wanted to use
+        ;; after that only recompile when files in use by the build changed
+        ;; or when new files were added and the build is greedy
+        ;; (eg. browser-test since it dynamically adds file to the build)
+        (and (pos? (::compile-attempt build-state))
+             (not (seq namespaces-used-by-build))
+             (if-not (get-in build-state [:build-options :greedy])
+               ;; build is not greedy, not interested in new files
+               true
+               ;; build is greedy, must recompile if new files were added
+               (not (seq added))))
+        worker-state
 
-      ;; always recompile if the first compile attempt failed
-      ;; since we don't know which files it wanted to use
-      ;; after that only recompile when files in use by the build changed
-      (and (pos? (::compile-attempt build-state))
-           (not (seq sources-used-by-build)))
-      worker-state
+        :else
+        (let [build-state (build-api/reset-namespaces build-state namespaces-used-by-build)]
 
-      :else
-      (let [build-state
-            (build-api/reset-resources build-state sources-used-by-build)]
-        (log/debugf "build-update: %s" sources-used-by-build)
-
-        (-> worker-state
-            (assoc :build-state build-state)
-            (cond->
-              autobuild
-              (build-compile))))
-      )))
+          (-> worker-state
+              (assoc :build-state build-state)
+              (cond->
+                autobuild
+                (build-compile))))
+        ))))
 
 (defn do-asset-update
   [{:keys [eval-clients] :as worker-state} updates]

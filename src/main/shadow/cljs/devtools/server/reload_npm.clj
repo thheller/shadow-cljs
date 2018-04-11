@@ -42,10 +42,10 @@
       ;; remove from cache
       (swap! index-ref invalidate-files modified-files)
 
-      (let [modified-ids
-            (into [] (map :resource-id) modified-resources)]
+      (let [modified-provides
+            (into #{} (map :provides) modified-resources)]
 
-        (sys-bus/publish! system-bus ::sys-msg/resource-update {:resources modified-ids})
+        (sys-bus/publish! system-bus ::sys-msg/resource-update {:provides modified-provides})
         ))))
 
 (defn watch-loop [system-bus npm control-chan]

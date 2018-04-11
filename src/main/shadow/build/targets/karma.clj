@@ -29,7 +29,9 @@
         (build-api/with-compiler-options
           {:source-map true})
         (build-api/with-build-options
-          {:output-dir output-dir})
+          {:output-dir output-dir
+           :greedy true
+           :dynamic-resolve true})
         (cond->
           (not js-options)
           (build-api/with-js-options
@@ -43,7 +45,7 @@
 ;; since :configure is only called once in :dev
 ;; we delay setting the :entries until compile-prepare which is called every cycle
 ;; need to come up with a cleaner API for this
-(defn compile-prepare
+(defn test-resolve
   [{:keys [classpath] ::keys [runner-ns] :as state} mode config]
   (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
         config
@@ -109,8 +111,8 @@
     :configure
     (configure state mode config)
 
-    :compile-prepare
-    (compile-prepare state mode config)
+    :resolve
+    (test-resolve state mode config)
 
     :flush
     (flush state mode config)
