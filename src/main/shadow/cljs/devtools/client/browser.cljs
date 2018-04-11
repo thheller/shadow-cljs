@@ -298,6 +298,7 @@
     (.send s (pr-str {:type :ping :v (js/Date.now)}))
     (js/setTimeout heartbeat! 30000)))
 
+
 (defn ws-connect []
   (let [print-fn
         cljs.core/*print-fn*
@@ -312,11 +313,6 @@
 
     (set! (.-onmessage socket)
       (fn [e]
-        #_(set-print-fn! (fn [& args]
-                           (ws-msg {:type :repl/out
-                                    :out (into [] args)})
-                           (apply print-fn args)))
-
         (env/process-ws-msg (. e -data) handle-message)
         ))
 
@@ -328,6 +324,9 @@
         (when (= "goog" env/module-format)
           ;; patch away the already declared exception
           (set! (.-provide js/goog) js/goog.constructNamespace_))
+
+        (env/set-print-fns! ws-msg)
+
         (devtools-msg "WebSocket connected!")
         ))
 
@@ -338,6 +337,7 @@
         (devtools-msg "WebSocket disconnected!")
         (hud/connection-error (or @close-reason-ref "Connection closed!"))
         (vreset! socket-ref nil)
+        (env/reset-print-fns!)
         ))
 
     (set! (.-onerror socket)

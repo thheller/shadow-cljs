@@ -82,6 +82,26 @@
       (repl-error e)
       )))
 
+(defonce original-print-fn cljs.core/*print-fn*)
+(defonce original-print-err-fn cljs.core/*print-err-fn*)
+
+(defn set-print-fns! [msg-fn]
+  (set-print-fn!
+    (fn repl-print-fn [& args]
+      (msg-fn {:type :repl/out :text (str/join "" args)})
+      (when original-print-fn
+        (apply original-print-fn args))))
+
+  (set-print-err-fn!
+    (fn repl-print-err-fn [& args]
+      (msg-fn {:type :repl/err :text (str/join "" args)})
+      (when original-print-err-fn
+        (apply original-print-err-fn args)))))
+
+(defn reset-print-fns! []
+  (set-print-fn! original-print-fn)
+  (set-print-err-fn! original-print-err-fn))
+
 (defn process-ws-msg [text handler]
   (binding [reader/*default-data-reader-fn*
             (fn [tag value]

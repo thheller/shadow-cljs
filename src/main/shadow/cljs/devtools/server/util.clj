@@ -150,6 +150,13 @@
         :println
         (println (:msg x))
 
+        ;; handled in dedicated channel as they should not mix with build output
+        :repl/out
+        :ignored
+
+        :repl/err
+        :ignored
+
         ;; default
         (prn [:log x])))))
 

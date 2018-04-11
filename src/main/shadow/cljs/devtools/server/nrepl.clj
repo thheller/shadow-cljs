@@ -15,7 +15,9 @@
             [shadow.cljs.devtools.server.repl-impl :as repl-impl]
             [shadow.cljs.devtools.fake-piggieback :as fake-piggieback]
             [clojure.java.io :as io]
-            [shadow.cljs.devtools.errors :as errors])
+            [shadow.cljs.devtools.errors :as errors]
+            [clojure.core.async :as async :refer (go <! >!)]
+            [shadow.build.log :as build-log])
   (:import (java.io StringReader)))
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
@@ -32,6 +34,19 @@
 
     (log/debug "nrepl-send" id (pr-str res))
     (transport/send transport res)))
+
+(defn do-repl-quit [session]
+  (let [quit-var #'api/*nrepl-quit-signal*
+        quit-chan (get @session quit-var)]
+
+    (when quit-chan
+      (async/close! quit-chan))
+
+    (swap! session assoc
+      quit-var (async/chan)
+      #'*ns* (get @session #'api/*nrepl-clj-ns*)
+      #'api/*nrepl-cljs* nil
+      #'cemerick.piggieback/*cljs-compiler-env* nil)))
 
 (defn do-cljs-eval [{::keys [build-id worker] :keys [session code] :as msg}]
   (let [reader (StringReader. code)]
@@ -55,18 +70,12 @@
             (recur)
 
             (= :repl/quit form)
-            (do (swap! session assoc
-                  #'*ns* (get @session #'api/*nrepl-clj-ns*)
-                  #'api/*nrepl-cljs* nil
-                  #'cemerick.piggieback/*cljs-compiler-env* nil)
+            (do (do-repl-quit session)
                 (send msg {:value :repl/quit
                            :ns (-> *ns* ns-name str)}))
 
             (= :cljs/quit form)
-            (do (swap! session assoc
-                  #'*ns* (get @session #'api/*nrepl-clj-ns*)
-                  #'api/*nrepl-cljs* nil
-                  #'cemerick.piggieback/*cljs-compiler-env* nil)
+            (do (do-repl-quit session)
                 (send msg {:value :cljs/quit
                            :ns (-> *ns* ns-name str)}))
 
@@ -125,12 +134,13 @@
     ))
 
 (defn cljs-select [next]
-  (fn [{:keys [session op] :as msg}]
+  (fn [{:keys [session op transport] :as msg}]
 
     (let [repl-var #'api/*nrepl-cljs*]
       (when-not (contains? @session repl-var)
         (swap! session assoc
           repl-var nil
+          #'api/*nrepl-quit-signal* (async/chan)
           #'api/*nrepl-active* true
           #'api/*nrepl-clj-ns* nil))
 

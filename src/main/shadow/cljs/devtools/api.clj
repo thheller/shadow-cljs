@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.api
   (:refer-clojure :exclude (compile test))
   (:require
-    [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
+    [clojure.core.async :as async :refer (go <! >! >!! <!! alt! alt!!)]
     [clojure.java.io :as io]
     [clojure.tools.logging :as log]
     [clojure.pprint :refer (pprint)]
@@ -31,6 +31,7 @@
 (def ^:dynamic *nrepl-cljs* nil)
 (def ^:dynamic *nrepl-clj-ns* nil)
 (def ^:dynamic *nrepl-active* false)
+(def ^:dynamic *nrepl-quit-signal* nil)
 
 (defn get-worker
   [id]
@@ -266,6 +267,43 @@
           ;; doing this to make cider prompt not show "user" as prompt after calling this
           (set! *nrepl-clj-ns* *ns*)
           (set! *ns* (create-ns 'cljs.user))
+
+          (log/warn ::nrepl-select-output-loop *nrepl-quit-signal*)
+
+          ;; nrepl doesn't have a clear way to signal the end of a session
+          ;; so this keeps running even is the nrepl is disconnected
+          ;; I hope the print just fails and kills the loop?
+          (when-let [quit *nrepl-quit-signal*]
+            (let [chan (async/chan 100)]
+
+              (go (try
+                    (loop []
+                      (alt! :priority true
+                        chan
+                        ([msg]
+                          (when (some? msg)
+                            (case (:type msg)
+                              :repl/out
+                              (do (println (:text msg))
+                                  (flush))
+
+                              :repl/err
+                              (binding [*out* *err*]
+                                (println (:text msg))
+                                (flush))
+
+                              :ignored)
+                            (recur)
+                            ))
+
+                        quit
+                        ([_] :quit)))
+                    (log/debug ::nrepl-print-loop-end)
+                    (catch Exception e
+                      (log/debug e ::nrepl-print-loop-ex)
+                      (async/close! chan))))
+
+              (worker/watch worker chan true)))
 
           ;; need to set the var immediately since some cider middleware needs it to
           ;; switch REPL type to cljs. can't get to the nrepl session from here.

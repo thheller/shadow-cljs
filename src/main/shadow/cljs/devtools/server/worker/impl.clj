@@ -256,8 +256,18 @@
   [worker-state {:keys [msg client-out] :as envelope}]
 
   (case (:type msg)
-    (:repl/result :repl/invoke-error :repl/init-complete :repl/set-ns-complete :repl/require-complete)
+    (:repl/result
+      :repl/invoke-error
+      :repl/init-complete
+      :repl/set-ns-complete
+      :repl/require-complete)
     (process-repl-result worker-state msg)
+
+    :repl/out
+    (>!!output worker-state {:type :repl/out :text (:text msg)})
+
+    :repl/err
+    (>!!output worker-state {:type :repl/err :text (:text msg)})
 
     :ping
     (do (>!! client-out {:type :pong :v (:v msg)})

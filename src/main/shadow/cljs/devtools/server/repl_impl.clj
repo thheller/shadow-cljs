@@ -92,50 +92,82 @@
 
     (apply handler app worker repl-state read-result args)))
 
+(defn repl-print-chan []
+  (let [print-chan
+        (async/chan)]
+
+    (go (loop []
+          (when-some [msg (<! print-chan)]
+            (case (:type msg)
+              :repl/out
+              (locking build-log/stdout-lock
+                (println (:text msg))
+                (flush))
+
+              :repl/err
+              (locking build-log/stdout-lock
+                (binding [*out* *err*]
+                  (println (:text msg))
+                  (flush)))
+
+              :ignored)
+            (recur)
+            )))
+
+    print-chan
+    ))
+
 (defn stdin-takeover!
   [worker {:keys [out] :as app}]
-  (r/takeover (repl-level worker)
-    (loop []
-      ;; unlock stdin when we can't get repl-state, just in case
-      (when-let [repl-state (worker-repl-state worker)]
+  (let [print-chan (repl-print-chan)]
+    (worker/watch worker print-chan true)
 
-        ;; FIXME: inf-clojure fails when there is a space between \n and =>
-        (print (format "[%d:%d]~%s=> " r/*root-id* r/*level-id* (-> repl-state :current :ns)))
-        (flush)
+    (r/takeover (repl-level worker)
+      (loop []
+        ;; unlock stdin when we can't get repl-state, just in case
+        (when-let [repl-state (worker-repl-state worker)]
 
-        ;; need the repl state to properly support reading ::alias/foo
-        (let [{:keys [eof? error? ex form] :as read-result}
-              (repl/read-one repl-state *in* {})]
+          ;; FIXME: inf-clojure fails when there is a space between \n and =>
+          (print (format "[%d:%d]~%s=> " r/*root-id* r/*level-id* (-> repl-state :current :ns)))
+          (flush)
 
-          (log/debug :repl/read-result read-result)
+          ;; need the repl state to properly support reading ::alias/foo
+          (let [{:keys [eof? error? ex form] :as read-result}
+                (repl/read-one repl-state *in* {})]
 
-          (cond
-            eof?
-            :eof
+            (log/debug :repl/read-result read-result)
 
-            error?
-            (do (println (str "Failed to read: " ex))
-                (recur))
+            (cond
+              eof?
+              :eof
 
-            (nil? form)
-            (recur)
+              error?
+              (do (println (str "Failed to read: " ex))
+                  (recur))
 
-            (= :repl/quit form)
-            :quit
+              (nil? form)
+              (recur)
 
-            (= :cljs/quit form)
-            :quit
+              (= :repl/quit form)
+              :quit
 
-            (and (list? form)
-                 (contains? repl-api-fns (first form)))
-            (do (do-repl-api-fn app worker repl-state read-result)
-                (recur))
+              (= :cljs/quit form)
+              :quit
 
-            :else
-            (when-some [result (worker/repl-eval worker ::stdin read-result)]
-              (print-result result)
-              (when (not= :repl/interrupt (:type result))
-                (recur)))))))))
+              (and (list? form)
+                   (contains? repl-api-fns (first form)))
+              (do (do-repl-api-fn app worker repl-state read-result)
+                  (recur))
+
+              :else
+              (when-some [result (worker/repl-eval worker ::stdin read-result)]
+                (print-result result)
+                (when (not= :repl/interrupt (:type result))
+                  (recur))))))))
+    (async/close! print-chan)
+
+    nil
+    ))
 
 (defn node-repl*
   [{:keys [supervisor config] :as app}
