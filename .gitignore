@@ -33,3 +33,4 @@ pom.xml.asc
 yarn.lock
 package-lock.json
 /package.json
+*.log

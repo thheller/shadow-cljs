@@ -60,40 +60,27 @@ shadow.js.process["umask"] = function() { return 0; };
  * @return {ShadowJS}
  */
 shadow.js.jsRequire = function(name, opts) {
-  var exports = shadow.js.files[name];
-  if (exports === undefined) {
-    exports = shadow.js.files[name] = {};
+  var module = shadow.js.files[name];
+
+  // module must be created before calling moduleFn due to circular deps
+  if (module === undefined) {
+    module = shadow.js.files[name] = {
+      "exports": {}
+    };
   }
 
   var moduleFn = shadow$provide[name];
   if (moduleFn) {
     delete shadow$provide[name];
 
-    var module = {};
-
-    // FIXME: should this use an empty {} for exports
-    // and copy onto the actual exports after? circular dependencies are weird
-    // I'm not sure all references work properly like this
-
-    // must use string accessors, otherwise :advanced will rename them
-    // but the JS is not optimized so it wont map properly
-    module["exports"] = exports;
-
-    // FIXME: is the call necessary? only ensures that this equals the module
-    // which should match node? not entirely sure how others do it.
-
     var process = goog.global.process || shadow.js.process;
 
     try {
-      moduleFn.call(module, goog.global, process, shadow.js.jsRequire, module, module["exports"], goog.global);
+      moduleFn.call(module, goog.global, process, shadow.js.jsRequire, module, module["exports"]);
     } catch (e) {
       console.warn("shadow-cljs - failed to load", name);
       throw e;
     }
-
-    exports = module["exports"];
-
-    shadow.js.files[name] = exports;
 
     if (opts) {
       var globals = opts["globals"];
@@ -105,7 +92,7 @@ shadow.js.jsRequire = function(name, opts) {
     }
   }
 
-  return exports;
+  return module["exports"];
 };
 
 /**
