@@ -41,6 +41,8 @@
              (filter #(contains? interesting-file-exts (:ext %)))
              (into []))
 
+        _ (log/debugf "classpath updates total:%d" (count fs-updates))
+
         state
         (reduce process-update state fs-updates)
 

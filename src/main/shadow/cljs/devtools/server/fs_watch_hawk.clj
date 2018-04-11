@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
+            [cljs.util :refer (distinct-by)]
             [hawk.core :as hawk]
             [shadow.cljs.devtools.server.fs-watch-jvm :as fs-watch]))
 
@@ -40,7 +41,9 @@
         (hawk/watch!
           config
           (->> directories
+               (distinct-by #(.getAbsolutePath %))
                (map (fn [root]
+                      (log/debug "adding fs-watch root" (.getAbsolutePath root))
                       (let [root-prefix (.getAbsolutePath root)
                             root-prefix-len (inc (count root-prefix))]
 
