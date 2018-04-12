@@ -86,7 +86,7 @@
 
 (defn start []
   (when-not (.exists (io/file worker-file))
-    (log/warnf "can't find %s, please install npm install --save-dev shadow-cljs." worker-file))
+    (log/warnf "can't find %s, please run \"npm install --save-dev shadow-cljs\" or \"yarn add --dev shadow-cljs\" to install it." worker-file))
 
   (let [babel-in (async/chan 100)]
     {::service true
