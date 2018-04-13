@@ -46,7 +46,9 @@
           #'push-state/handle
 
           (do (require (symbol (namespace http-handler)))
-              (find-var http-handler)))
+              (or (find-var http-handler)
+                  (do (log/warn ":http-handler var not found" http-handler)
+                      #'push-state/handle))))
 
         http-handler-fn
         (fn [req]
