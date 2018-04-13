@@ -89,6 +89,7 @@
     ;; it may want to put things on the websocket?
     (let [worker-info
           {:proc-id proc-id
+           :addr (:addr http)
            :host (:host http)
            :port (:port http)
            :ssl (:ssl http)}

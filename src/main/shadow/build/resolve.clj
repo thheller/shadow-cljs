@@ -61,7 +61,7 @@
               (update :resolved-order conj resource-id))))))
 
 (defmulti find-resource-for-string
-  (fn [state rc require]
+  (fn [state rc require was-symbol?]
     (get-in state [:js-options :js-provider]))
   :default ::default)
 
@@ -70,12 +70,12 @@
       ;; only :js and :shadow-js are allowed to go off classpath
       (not (contains? #{:js :shadow-js} type))))
 
-(defmethod find-resource-for-string ::default [_ _ _]
+(defmethod find-resource-for-string ::default [_ _ _ _]
   (throw (ex-info "invalid [:js-options :js-provider] config" {})))
 
 ;; FIXME: this is now a near duplicate of :shadow, should refactor and remove dupes
 (defmethod find-resource-for-string :closure
-  [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require]
+  [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
   (let [abs? (util/is-absolute? require)
         rel? (util/is-relative? require)
@@ -110,7 +110,7 @@
 
 
 (defmethod find-resource-for-string :shadow
-  [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require]
+  [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
   (let [abs? (util/is-absolute? require)
         rel? (util/is-relative? require)
@@ -178,7 +178,7 @@
     "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
 
 (defmethod find-resource-for-string :require
-  [{:keys [project-dir npm js-options classpath] :as state} {:keys [resource-name] :as require-from} require]
+  [{:keys [project-dir npm js-options classpath] :as state} {:keys [resource-name] :as require-from} require was-symbol?]
   (let [cp-rc? (when require-from
                  (classpath-resource? require-from))]
 
@@ -192,22 +192,20 @@
       (cp/find-js-resource classpath require-from require)
 
       :else
-      (let [js-packages
-            (get-in state [:js-options :packages])
-
-            ;; require might be react-dom or react-dom/server
-            ;; we need to check the package name only
-            [package-name suffix]
+      (let [[package-name suffix]
             (npm/split-package-require require)]
 
-        ;; I hate magic symbols buts its the way chosen by CLJS
-        ;; so if the package is configured or exists in node_modules we allow it
-        ;; FIXME: actually use configuration from :packages to use globals and such
         (when (or (contains? native-node-modules package-name)
-                  (contains? js-packages package-name)
+                  ;; if the require was a string we just pass it through
+                  ;; we don't need to check if it exists since the runtime
+                  ;; will take care of that. we do not actually need anything from the package
+                  (not was-symbol?)
+                  ;; if `(:require [react ...])` was used we need to check if the package
+                  ;; is actually installed. otherwise we will blindy return a shim for
+                  ;; every symbol, no matter it was a typo or actually intended JS package.
                   (npm/find-package (:npm state) package-name))
-          (js-support/shim-require-resource require))
-        ))))
+          (js-support/shim-require-resource state require)))
+      )))
 
 (defn resolve-string-require
   [state {require-from-ns :ns :as require-from} require]
@@ -226,7 +224,7 @@
 
       ;; fresh resolve
       (let [{:keys [resource-id ns] :as rc}
-            (find-resource-for-string state require-from require)]
+            (find-resource-for-string state require-from require false)]
 
         (when-not rc
           (throw (ex-info
@@ -295,7 +293,7 @@
       ;; (:require [react]) should be (:require ["react"]) as it is a magical symbol
       ;; that becomes available if node_modules/react exists but not otherwise
       (when-let [{:keys [resource-id ns] :as rc}
-                 (find-resource-for-string state require-from (str require))]
+                 (find-resource-for-string state require-from (str require) true)]
         [rc
          (-> state
              (update :magic-syms conj require)

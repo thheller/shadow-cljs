@@ -23,7 +23,7 @@
             [shadow.undertow :as undertow]
             [ring.middleware.resource :as ring-resource]
             [clojure.string :as str])
-  (:import (java.net BindException SocketException)
+  (:import (java.net BindException SocketException NetworkInterface Inet4Address URL Socket)
            [java.lang.management ManagementFactory]))
 
 (def app-config
@@ -156,6 +156,33 @@
 
 (declare stop!)
 
+(defn find-local-addrs []
+  (for [ni (enumeration-seq (NetworkInterface/getNetworkInterfaces))
+        :when (not (.isLoopback ni))
+        :when (.isUp ni)
+        :let [display-name (.getDisplayName ni)]
+        addr (enumeration-seq (.getInetAddresses ni))
+        ;; probably don't need ipv6 for dev
+        :when (instance? Inet4Address addr)]
+    [ni addr]))
+
+(defn select-server-addr []
+  (let [addrs (find-local-addrs)
+        [ni addr] (first addrs)]
+
+    (println (format "shadow-cljs - Using IP \"%s\" from Interface \"%s\"" (.getHostAddress addr) (.getDisplayName ni)))
+
+    (when (not= 1 (count addrs))
+      (log/infof "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.")
+      (doseq [[ni addr] addrs]
+        (log/infof "Found IP:%s Interface:%s" (.getHostAddress addr) (.getDisplayName ni))))
+
+    ;; would be neat if we could just use InetAddress/getLocalHost
+    ;; but that returns my VirtualBox Adapter for some reasone
+    ;; which is incorrect and doesn't work
+    (.getHostAddress addr)
+    ))
+
 (defn start-system
   [app-ref app-config {:keys [cache-root] :as config}]
   (when @app-ref
@@ -163,6 +190,9 @@
 
   (let [{:keys [http ssl]}
         config
+
+        server-addr
+        (select-server-addr)
 
         pid
         (-> (ManagementFactory/getRuntimeMXBean)
@@ -226,6 +256,7 @@
              :shutdown-hook shutdown-hook
              :ssl-context ssl-context
              :http {:port (or https-port http-port)
+                    :addr server-addr
                     :http-port http-port
                     :https-port https-port
                     :host (:host http-config)
@@ -246,6 +277,9 @@
           (.deleteOnExit))]
 
     (vreset! app-ref app)
+
+
+
 
     ;; do this as the very last setup to maybe fix circleci timing issue?
     (reset! port-files-ref

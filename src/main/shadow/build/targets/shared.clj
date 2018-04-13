@@ -7,7 +7,8 @@
             [shadow.build.api :as cljs]
             [shadow.build.data :as data]
             [shadow.build.modules :as modules]
-            ))
+            )
+  (:import [java.net InetAddress]))
 
 (defn unquoted-qualified-symbol? [sym]
   (and (qualified-symbol? sym)
@@ -65,7 +66,7 @@
 
 (defn repl-defines
   [{:keys [worker-info] :as state} build-config]
-  (let [{:keys [proc-id ssl host port]}
+  (let [{:keys [proc-id ssl addr host port]}
         worker-info
 
         {:keys [build-id]}
@@ -87,7 +88,7 @@
      (not (false? use-document-host))
 
      "shadow.cljs.devtools.client.env.repl_host"
-     host
+     addr
 
      "shadow.cljs.devtools.client.env.repl_port"
      port

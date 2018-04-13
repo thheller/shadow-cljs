@@ -7,9 +7,9 @@
   (:import (com.google.javascript.jscomp.deps ModuleNames)))
 
 (defn shim-require-resource
-  ([js-require]
-    (shim-require-resource js-require js-require))
-  ([js-name js-require]
+  ([state js-require]
+    (shim-require-resource state js-require js-require))
+  ([state js-name js-require]
    (let [js-ns-alias
          (-> (ModuleNames/fileToModuleName js-name)
              (->> (str "shadow.js.shim."))
@@ -21,7 +21,10 @@
          (symbol (ModuleNames/fileToModuleName (str js-ns-alias)))
 
          name
-         (str js-ns-alias ".js")]
+         (str js-ns-alias ".js")
+
+         require-fn
+         (get-in state [:js-options :require-fn] "require")]
 
      {:resource-id [::require js-name]
       :resource-name name
@@ -41,7 +44,7 @@
       ;; as it won't touch the require call unless specifically told to
       :source (str "goog.provide(\"" js-ns-alias "\");\n"
                    "goog.provide(\"" commonjs-ns "\");\n"
-                   js-ns-alias " = require(\"" js-require "\");\n"
+                   js-ns-alias " = " require-fn "(\"" js-require "\");\n"
                    ;; FIXME: this default business is annoying
                    commonjs-ns ".default = " js-ns-alias ";\n"
                    )}

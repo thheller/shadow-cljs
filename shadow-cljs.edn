@@ -314,6 +314,11 @@
    :entries [demo.npm
              demo.rel-require]}
 
+  :react-native
+  {:target :react-native
+   :entry demo.rn
+   :output-to "out/TestCRNA/out/index.js"}
+
   :npm-web
   {:target :npm-module
    :runtime :browser
