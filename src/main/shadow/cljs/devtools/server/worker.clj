@@ -220,6 +220,7 @@
 
         worker-proc
         (-> {::impl/proc true
+             :http http
              :proc-stop proc-stop
              :proc-id proc-id
              :proc-control proc-control

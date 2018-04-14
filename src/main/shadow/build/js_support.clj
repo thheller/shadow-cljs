@@ -32,6 +32,7 @@
       :type :goog
       :cache-key [js-ns-alias name]
       :last-modified 0
+      ::require-shim true
       :js-require js-require
       :ns js-ns-alias
       :provides #{js-ns-alias commonjs-ns}

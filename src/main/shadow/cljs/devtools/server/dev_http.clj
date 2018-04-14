@@ -50,10 +50,14 @@
                   (do (log/warn ":http-handler var not found" http-handler)
                       #'push-state/handle))))
 
+        http-info-ref
+        (atom {})
+
         http-handler-fn
         (fn [req]
           (-> req
               (assoc :http-root root-dir
+                     :http @http-info-ref
                      :build-id build-id
                      :devtools config)
               (http-handler-var)))]
@@ -112,6 +116,8 @@
 
             display-host
             (if (= "0.0.0.0" http-host) "localhost" http-host)]
+
+        (swap! http-info-ref merge {:port http-port})
 
         (when https-port
           (>!! out {:type :println

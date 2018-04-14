@@ -1,20 +1,18 @@
 (ns demo.rn
   (:require
-    ["expo" :as expo]
     ["react" :as react :rename {createElement $}]
     ["react-native" :as rn :refer (Text View)]
-    ["create-react-class" :as crc]))
+    [shadow.expo :as expo]
+    ))
 
-(js/console.log "foo")
-
-(defn render []
+(defn render-root []
   ($ View nil
     ($ Text nil "Hello World from CLJS! 1")
-    ($ Text nil "Hello World from CLJS! 2222")
+    ($ Text nil "Hello World from CLJS! 2")
     ($ Text nil "Hello World from CLJS! 3")))
 
-(def Root (crc #js {:render render}))
+(defn ^:dev/after-load start []
+  (expo/render-root render-root))
 
-(expo/registerRootComponent Root)
-
-
+(defn init []
+  (start))

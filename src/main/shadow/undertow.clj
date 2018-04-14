@@ -162,15 +162,19 @@
    (let [ws-handler
          (websocket req-handler)
 
-         handler
+         ring-handler
          (-> (ring-middleware req-handler)
-             (ring)
-             ;; FIXME: this composition is horrible
-             ((fn [next]
-                (doto (Handlers/path next)
-                  ;; FIXME: don't hardcode /ws, should be possible to use ws anywhere
-                  ;; but the ws handler tries to handshake every get request which seems wasteful
-                  (.addPrefixPath "/ws" ws-handler)))))
+             (ring))
+
+         handler
+         (reify HttpHandler
+           (handleRequest [this x]
+             (if (= "websocket" (-> (.getRequestHeaders x) (.getFirst "Upgrade")))
+               ;; some ring-middleware won't like the ::async response
+               ;; so this runs through a special handler without any middleware
+               (.handleRequest ws-handler x)
+               ;; serve request ring-style otherwise
+               (.handleRequest ring-handler x))))
 
          instance
          (doto (-> (Undertow/builder)

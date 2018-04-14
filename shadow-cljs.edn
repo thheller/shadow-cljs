@@ -314,10 +314,27 @@
    :entries [demo.npm
              demo.rel-require]}
 
-  :react-native
-  {:target :react-native
-   :entry demo.rn
-   :output-to "out/TestCRNA/out/index.js"}
+  :expo-ios
+  {:target :expo
+   :init-fn demo.rn/init
+   :platform "ios"
+   :expo-root "out/TestCRNA"
+   :output-dir "out/TestCRNA/out-ios"
+   :devtools
+   {:http-port 19000
+    :http-root "out/TestCRNA/out-ios"
+    :http-handler shadow.expo/serve}}
+
+  :expo-android
+  {:target :expo
+   :init-fn demo.rn/init
+   :platform "android"
+   :expo-root "out/TestCRNA"
+   :output-dir "out/TestCRNA/out-android"
+   :devtools
+   {:http-port 19001
+    :http-root "out/TestCRNA/out-android"
+    :http-handler shadow.expo/serve}}
 
   :npm-web
   {:target :npm-module
