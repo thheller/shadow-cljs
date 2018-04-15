@@ -321,7 +321,7 @@
    :expo-root "out/TestCRNA"
    :output-dir "out/TestCRNA/out-ios"
    :devtools
-   {:http-port 19000
+   {:http-port 19500
     :http-root "out/TestCRNA/out-ios"
     :http-handler shadow.expo/serve}}
 
@@ -332,7 +332,7 @@
    :expo-root "out/TestCRNA"
    :output-dir "out/TestCRNA/out-android"
    :devtools
-   {:http-port 19001
+   {:http-port 19501
     :http-root "out/TestCRNA/out-android"
     :http-handler shadow.expo/serve}}
 

@@ -12,7 +12,7 @@
     ($ Text nil "Hello World from CLJS! 3")))
 
 (defn ^:dev/after-load start []
-  (expo/render-root render-root))
+  (expo/render-root (render-root)))
 
 (defn init []
   (start))

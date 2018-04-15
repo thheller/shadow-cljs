@@ -323,11 +323,10 @@
 
 (defn make-runtime-setup
   [state]
-  (->> [(case (get-in state [:build-options :print-fn])
-          :none ""
-          ;; default to console
-          "cljs.core.enable_console_print_BANG_();")]
-       (str/join "\n")))
+  (case (get-in state [:build-options :print-fn])
+    :none ""
+    ;; default to console
+    "cljs.core.enable_console_print_BANG_();\n"))
 
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}

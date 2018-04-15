@@ -8,7 +8,8 @@
             [shadow.build.data :as data]
             [clojure.set :as set]
             [shadow.build.resource :as rc]
-            [shadow.build.log :as build-log])
+            [shadow.build.log :as build-log]
+            [clojure.tools.logging :as log])
   (:import (java.io StringReader BufferedReader File ByteArrayOutputStream)
            (java.util Base64)
            (java.util.zip GZIPOutputStream)
@@ -267,7 +268,7 @@
                 ;; append is fine
                 final-output
                 (str prepend
-                     (when goog-base
+                     (when (and goog-base (seq shadow-js-output))
                        "var shadow$provide = {};\n")
                      shadow-js-prepend
                      output

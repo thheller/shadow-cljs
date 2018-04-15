@@ -16,7 +16,9 @@
             [shadow.build.data :as data]
             [shadow.cljs.util :as util]
             [clojure.edn :as edn]
-            [shadow.cljs.devtools.server.util :refer (pipe)]))
+            [shadow.cljs.devtools.server.util :refer (pipe)]
+            [clojure.data.json :as json]
+            [cljs.source-map :as sm]))
 
 (s/def ::init-fn shared/unquoted-qualified-symbol?)
 (s/def ::platform #{"ios" "android"})
@@ -35,7 +37,7 @@
 (defmethod config/target-spec `process [_]
   (s/spec ::target))
 
-(defn configure [state mode {:keys [expo-root init-fn output-dir] :as config}]
+(defn configure [state mode {:keys [expo-root platform init-fn output-dir] :as config}]
   (let [output-dir
         (-> (io/file output-dir)
             (.getAbsoluteFile))
@@ -64,8 +66,10 @@
           {:output-dir output-dir})
 
         (build-api/configure-modules
-          {:index {:entries [entry]
-                   :append-js (str (cljs-comp/munge init-fn) "();")}})
+          {:index
+           {:entries [entry]
+            :output-name (str "optimized." platform ".js")
+            :append-js (str (cljs-comp/munge init-fn) "();")}})
 
         (update :js-options merge {:js-provider :require})
         (assoc ::expo-root expo-root)
@@ -92,8 +96,14 @@
   (let [bundle-file
         (data/output-file state (str "bundle." platform ".js"))
 
+        bundle-idx-file
+        (data/output-file state (str "bundle." platform ".js.idx"))
+
         rn-output-file
         (data/output-file state (str "rn." platform ".js"))
+
+        rn-output-map-file
+        (data/output-file state (str "rn." platform ".js.map"))
 
         js-requires
         (->> build-sources
@@ -133,7 +143,8 @@
              "--bundle-output" (.getAbsolutePath rn-output-file)
              "--dev" "true"
              "--platform" platform
-             "--sourcemap-output" (str (.getAbsolutePath rn-output-file) ".map")
+             "--sourcemap-output" (.getAbsolutePath rn-output-map-file)
+             "--sourcemap-sources-root" (str (.getAbsolutePath expo-root))
              ;; FIXME: should use output-dir, should this be split for platform?
              "--assets-dest" (-> bundle-file
                                  (.getParentFile)
@@ -161,41 +172,97 @@
                 (spit js-require-cache-file (pr-str js-requires)))
               )))))
 
-    (let [final-output
-          (str "var SHADOW_REQUIRES = {};\n"
-               "var shadow$require = function(name) { return SHADOW_REQUIRES[name]; };\n"
-               (slurp rn-output-file)
-               "\n\n"
-               (output/closure-defines-and-base state)
+    (let [preamble
+          (str (output/closure-defines-and-base state)
                ;; used by shadow.cljs.devtools.client.env
                "\nvar $CLJS = goog.global;\n"
                (->> (for [resource-id build-sources
                           :let [{:keys [output-name] :as rc}
-                                (data/get-source-by-id state resource-id)
-
-                                {:keys [js] :as output}
-                                (data/get-output! state rc)]]
+                                (data/get-source-by-id state resource-id)]]
 
                       ;; required for live-reloading but shouldn't be, this is not a browser
                       ;; we know exactly what was loaded
-                      (str "goog.dependencies_.written[\"" output-name "\"] = true;\n"
-                           js))
+                      (str "goog.dependencies_.written[\"" output-name "\"] = true;"))
+                    (str/join "\n"))
+               "\n"
+               "var SHADOW_REQUIRES = {};\n"
+               "var shadow$require = function(name) { return SHADOW_REQUIRES[name]; };\n"
+               "\n")
+
+          rn-output
+          (slurp rn-output-file)
+
+          final-output
+          (str preamble
+               rn-output
+               "\n"
+               (->> build-sources
+                    (remove #{output/goog-base-id})
+                    (map #(data/get-source-by-id state %))
+                    (map #(data/get-output! state %))
+                    (map :js)
                     (str/join "\n")))]
 
       (io/make-parents bundle-file)
 
-      (spit bundle-file final-output)))
+      (spit bundle-file final-output)
+
+      ;; generating an actual index source maps takes upward of
+      ;; 650ms on my pretty beefy machine which is way too slow
+      ;; for incremental compiles. instead just emit an index file
+      ;; so the /symbolicate thing knows which files to look at
+      (let [sm-index
+            (->> build-sources
+                 (remove #{output/goog-base-id})
+                 (map (fn [resource-id]
+                        (let [{:keys [output-name] :as rc}
+                              (data/get-source-by-id state resource-id)
+
+                              {:keys [js compiled-at source-map source-map-json] :as output}
+                              (data/get-output! state rc)
+
+                              lines
+                              (inc (output/line-count js))
+
+                              sm-file
+                              (data/output-file state "sm" (str output-name ".map"))
+
+                              has-map?
+                              (or source-map source-map-json)]
+
+                          (when (and has-map?
+                                     (or (not (.exists sm-file))
+                                         (< (.lastModified sm-file) compiled-at)))
+
+                            (io/make-parents sm-file)
+                            (spit sm-file (output/encode-source-map rc output)))
+
+                          (-> {:resource-id resource-id
+                               :lines lines}
+                              (cond->
+                                has-map?
+                                (assoc :file (str "sm/" output-name ".map")))))))
+
+                 (into [{:lines (output/line-count preamble) :preamble true}
+                        {:lines (output/line-count rn-output)
+                         :file (.getName rn-output-map-file)}]))]
+
+        (spit bundle-idx-file (pr-str sm-index)))))
 
   state)
 
 (defn process
   [{::comp/keys [mode stage config] :as state}]
-  (case stage
-    :configure
+  (cond
+    (= stage :configure)
     (configure state mode config)
 
-    :flush
+    (and (= stage :flush) (= mode :dev))
     (flush-expo-bundle state mode config)
 
+    (and (= stage :flush) (= mode :release))
+    (output/flush-optimized state)
+
+    :else
     state
     ))
