@@ -4,13 +4,15 @@
 [![npm](https://img.shields.io/npm/v/shadow-cljs.svg)](https://github.com/thheller/shadow-cljs)
 [![Clojars Project](https://img.shields.io/clojars/v/thheller/shadow-cljs.svg)](https://clojars.org/thheller/shadow-cljs)
 
+<a href="http://shadow-cljs.org" target="_blank"><img src="https://raw.githubusercontent.com/thheller/shadow-cljs/master/src/main/shadow/cljs/devtools/server/web/resources/img/shadow-cljs.png" width="120" height="120" /></a>
 
 ## Features
 
 - Good configuration defaults so you don't have to sweat the details
+- Supporting various targets `:browser`, `:node-script`, `:npm-module`, `:react-native`(exprimental)...
 - Live Reload (CLJS + CSS)
 - CLJS REPL
-- JS dependencies via `npm`
+- Importing CommonJS & ES6 modules from npm or local JavaScript files
 - Code splitting (via `:modules`)
 - Fast builds, reliable caching, ...
 
