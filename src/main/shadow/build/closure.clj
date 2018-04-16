@@ -335,11 +335,12 @@
                (into [])))
 
         deps-externs
-        (->> (for [[deps-path externs] deps-externs
-                   {:keys [resource-name url] :as ext} externs]
-               ;; FIXME: use url? deps-path is accurate enough for now
-               (SourceFile/fromCode (str "EXTERNS:" deps-path "!/" resource-name) (slurp url)))
-             (into []))
+        (when (get-in state [:build-options :cljsjs-externs])
+          (->> (for [[deps-path externs] deps-externs
+                     {:keys [resource-name url] :as ext} externs]
+                 ;; FIXME: use url? deps-path is accurate enough for now
+                 (SourceFile/fromCode (str "EXTERNS:" deps-path "!/" resource-name) (slurp url)))
+               (into [])))
 
         all-externs
         (-> []
