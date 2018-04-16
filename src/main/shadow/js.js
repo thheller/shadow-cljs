@@ -86,7 +86,7 @@ shadow.js.jsRequire = function(name, opts) {
       var globals = opts["globals"];
       if (globals) {
         for (var i = 0; i < globals.length; i++) {
-          window[globals[i]] = exports;
+          window[globals[i]] = module["exports"];
         }
       }
     }
