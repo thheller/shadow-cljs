@@ -52,7 +52,7 @@
 ;; we delay setting the :entries until compile-prepare which is called every cycle
 ;; need to come up with a cleaner API for this
 (defn test-resolve
-  [{::build/keys [config]
+  [{::build/keys [mode config]
     :keys [classpath]
     ::keys [runner-ns] :as state}]
   (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
@@ -74,6 +74,13 @@
           (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
               (into test-namespaces)
               (conj runner-ns)))
+        (cond->
+          (and (= :dev mode) (:worker-info state))
+          (update-in [::modules/config :test] browser/inject-repl-client state config)
+
+          (= :dev mode)
+          (-> (update-in [::modules/config :test] browser/inject-preloads state config)
+              (update-in [::modules/config :test] browser/inject-devtools-console state config)))
         (modules/analyze)
         )))
 

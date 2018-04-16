@@ -82,25 +82,39 @@
       (repl-error e)
       )))
 
-(defonce original-print-fn cljs.core/*print-fn*)
-(defonce original-print-err-fn cljs.core/*print-err-fn*)
+;; FIXME: this need to become idempotent somehow
+;; but is something sets a print-fn we can't tell if that
+;; will actually call ours. only a problem if the websocket is
+;; reconnected though
+(defonce reset-print-fn-ref (atom nil))
 
 (defn set-print-fns! [msg-fn]
-  (set-print-fn!
-    (fn repl-print-fn [& args]
-      (msg-fn {:type :repl/out :text (str/join "" args)})
-      (when original-print-fn
-        (apply original-print-fn args))))
+  ;; cannot capture these before as they may change in between loading this file
+  ;; and running the websocket connect. the user code is loaded after this file
+  (let [original-print-fn cljs.core/*print-fn*
+        original-print-err-fn cljs.core/*print-err-fn*]
 
-  (set-print-err-fn!
-    (fn repl-print-err-fn [& args]
-      (msg-fn {:type :repl/err :text (str/join "" args)})
-      (when original-print-err-fn
-        (apply original-print-err-fn args)))))
+    (reset! reset-print-fn-ref
+      (fn reset-print-fns! []
+        (set-print-fn! original-print-fn)
+        (set-print-err-fn! original-print-err-fn)))
+
+    (set-print-fn!
+      (fn repl-print-fn [& args]
+        (msg-fn {:type :repl/out :text (str/join "" args)})
+        (when original-print-fn
+          (apply original-print-fn args))))
+
+    (set-print-err-fn!
+      (fn repl-print-err-fn [& args]
+        (msg-fn {:type :repl/err :text (str/join "" args)})
+        (when original-print-err-fn
+          (apply original-print-err-fn args))))))
 
 (defn reset-print-fns! []
-  (set-print-fn! original-print-fn)
-  (set-print-err-fn! original-print-err-fn))
+  (when-let [x @reset-print-fn-ref]
+    (x)
+    (reset! reset-print-fn-ref nil)))
 
 (defn process-ws-msg [text handler]
   (binding [reader/*default-data-reader-fn*
