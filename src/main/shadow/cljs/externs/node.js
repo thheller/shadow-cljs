@@ -30,3 +30,10 @@ function require(name) {}
  * @dict
  */
 var shadow$provide = {};
+
+
+/**
+ * @const
+ */
+var Java = {};
+Java.type = function() {};
