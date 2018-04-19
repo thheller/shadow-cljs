@@ -1543,21 +1543,20 @@
         cc
         (make-closure-compiler)
 
-        ;; FIXME: are there more options we should take from the user?
         co-opts
-        {:source-map (:source-maps js-options true)
-         ;; FIXME: is there any reason to not always use :simple?
-         ;; source maps are pretty good so debugging should not be an issue
-         ;; :whitespace is about an order of magnitude faster though
-         ;; could use that in :dev but given that npm deps won't change that often
-         ;; that might not matter, should cache anyways
-         :optimizations (:optimizations js-options :simple) ;; FIXME: validate whitespace or simple
-         :pretty-print (:pretty-print js-options false)
-         ;; es6+ is transformed by babel first
-         ;; but closure got real picky and complains about some things being es6 that aren't
-         ;; doesn't really impact much here anyways
-         :language-in :ecmascript-next
-         :language-out :ecmascript5}
+        (merge
+          {:source-map true
+           ;; :whitespace or :simple work but some patterns really require the DCE done by :simple
+           ;; eg some conditional imports done by react&friends
+           :optimizations :simple
+           :pretty-print false
+           :pseudo-names false
+           ;; es6+ is transformed by babel first
+           ;; but closure got real picky and complains about some things being es6 that aren't
+           ;; doesn't really impact much here anyways
+           :language-in :ecmascript-next
+           :language-out :ecmascript5}
+          (dissoc js-options :resolve))
 
         property-collector
         (PropertyCollector. cc)
