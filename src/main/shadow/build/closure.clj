@@ -1545,10 +1545,9 @@
 
         co-opts
         (merge
-          {:source-map true
-           ;; :whitespace or :simple work but some patterns really require the DCE done by :simple
-           ;; eg some conditional imports done by react&friends
-           :optimizations :simple
+          ;; :whitespace or :simple work but some patterns really require the DCE done by :simple
+          ;; eg some conditional imports done by react&friends
+          {:optimizations :simple
            :pretty-print false
            :pseudo-names false
            ;; es6+ is transformed by babel first
@@ -1556,7 +1555,12 @@
            ;; doesn't really impact much here anyways
            :language-in :ecmascript-next
            :language-out :ecmascript5}
-          (dissoc js-options :resolve))
+          (dissoc js-options :resolve)
+          ;; always enable source-map, just skip emitting them later if desired
+          {:source-map true})
+
+        generate-source-map?
+        (not (false? (:source-map js-options)))
 
         property-collector
         (PropertyCollector. cc)
@@ -1649,15 +1653,13 @@
                        (remove #(str/includes? js (str "(\"" % "\")")))
                        (into #{}))
 
-                  sw
-                  (StringWriter.)
-
-                  ;; for sourcesContent
-                  _ (.addSourceFile source-map source-file)
-                  _ (.appendTo source-map sw output-name)
-
                   sm-json
-                  (.toString sw)
+                  (when generate-source-map?
+                    (let [sw (StringWriter.)]
+                      ;; for sourcesContent
+                      (.addSourceFile source-map source-file)
+                      (.appendTo source-map sw output-name)
+                      (.toString sw)))
 
                   deps
                   (data/deps->syms state rc)
@@ -1666,14 +1668,16 @@
                   (into #{} (remove removed-requires) deps)
 
                   output
-                  {:resource-id resource-id
-                   :js js
-                   :source (.getCode source-file)
-                   :removed-requires removed-requires
-                   :actual-requires actual-requires
-                   :properties (into #{} (-> property-collector (.-properties) (.get name)))
-                   :compiled-at (System/currentTimeMillis)
-                   :source-map-json sm-json}]
+                  (-> {:resource-id resource-id
+                       :js js
+                       :source (.getCode source-file)
+                       :removed-requires removed-requires
+                       :actual-requires actual-requires
+                       :properties (into #{} (-> property-collector (.-properties) (.get name)))
+                       :compiled-at (System/currentTimeMillis)}
+                      (cond->
+                        generate-source-map?
+                        (assoc :source-map-json sm-json)))]
 
               (assoc-in state [:output resource-id] output)
               ))
