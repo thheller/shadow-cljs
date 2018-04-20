@@ -268,8 +268,6 @@
           (set! *nrepl-clj-ns* *ns*)
           (set! *ns* (create-ns 'cljs.user))
 
-          (log/warn ::nrepl-select-output-loop *nrepl-quit-signal*)
-
           ;; nrepl doesn't have a clear way to signal the end of a session
           ;; so this keeps running even is the nrepl is disconnected
           ;; I hope the print just fails and kills the loop?
