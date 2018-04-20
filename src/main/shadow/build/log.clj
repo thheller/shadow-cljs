@@ -47,7 +47,7 @@
 
 (defmethod event->str :cache-read
   [{:keys [resource-name] :as event}]
-  (format "[CACHED] %s" resource-name))
+  (format "Cache read: %s" resource-name))
 
 (defmethod event->str :cache-write
   [{:keys [resource-name] :as event}]

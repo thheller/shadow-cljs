@@ -467,43 +467,48 @@
     (try
       (when (.exists cache-file)
 
-        (let [cache-data
-              (cache/read-cache cache-file)
+        (util/with-logged-time
+          [state {:type :cache-read
+                  :resource-id resource-id
+                  :resource-name resource-name}]
 
-              cache-key-map
-              (make-cache-key-map state rc)]
+          (let [cache-data
+                (cache/read-cache cache-file)
 
-          ;; just checking the "maximum" last-modified of all dependencies is not enough
-          ;; must check times of all deps, mostly to guard against jar changes
-          ;; lib-A v1 was released 3 days ago
-          ;; lib-A v2 was released 1 day ago
-          ;; we depend on lib-A and compile against v1 today
-          ;; realize that a new version exists and update deps
-          ;; compile again .. since we were compiled today the min-age is today
-          ;; which is larger than v2 release date thereby using cache if only checking one timestamp
+                cache-key-map
+                (make-cache-key-map state rc)]
 
-          (when (and (= cache-key-map (:cache-keys cache-data))
-                     (every?
-                       #(= (get-in state %)
-                          (get-in cache-data [:compiler-options %]))
-                       cache-affecting-options))
+            ;; just checking the "maximum" last-modified of all dependencies is not enough
+            ;; must check times of all deps, mostly to guard against jar changes
+            ;; lib-A v1 was released 3 days ago
+            ;; lib-A v2 was released 1 day ago
+            ;; we depend on lib-A and compile against v1 today
+            ;; realize that a new version exists and update deps
+            ;; compile again .. since we were compiled today the min-age is today
+            ;; which is larger than v2 release date thereby using cache if only checking one timestamp
 
-            (util/log state {:type :cache-read :resource-id resource-id :resource-name resource-name})
+            (when (and (= cache-key-map (:cache-keys cache-data))
+                       (every?
+                         #(= (get-in state %)
+                            (get-in cache-data [:compiler-options %]))
+                         cache-affecting-options))
 
-            ;; restore analysis data
-            (let [ana-data (:analyzer cache-data)]
-              (swap! env/*compiler* update-in [::ana/namespaces (:ns cache-data)] merge ana-data)
-              (macros/load-macros ana-data))
 
-            ;; restore specs
-            (let [{:keys [ns-specs ns-spec-vars]} cache-data]
-              (swap! cljs-spec/registry-ref merge ns-specs)
 
-              ;; no idea why this is named so weirdly and private
-              (let [priv-var (find-var 'cljs.spec.alpha/_speced_vars)]
-                (swap! @priv-var set/union ns-spec-vars)))
+              ;; restore analysis data
+              (let [ana-data (:analyzer cache-data)]
+                (swap! env/*compiler* update-in [::ana/namespaces (:ns cache-data)] merge ana-data)
+                (macros/load-macros ana-data))
 
-            (assoc (:output cache-data) :cached true))))
+              ;; restore specs
+              (let [{:keys [ns-specs ns-spec-vars]} cache-data]
+                (swap! cljs-spec/registry-ref merge ns-specs)
+
+                ;; no idea why this is named so weirdly and private
+                (let [priv-var (find-var 'cljs.spec.alpha/_speced_vars)]
+                  (swap! @priv-var set/union ns-spec-vars)))
+
+              (assoc (:output cache-data) :cached true)))))
 
       (catch Exception e
         (util/warn state {:type :cache-error
@@ -530,54 +535,58 @@
     :else
     (let [cache-file (get-cache-file-for-rc state rc)]
       (try
-        (let [cache-compiler-options
-              (reduce
-                (fn [cache-options option-path]
-                  (assoc cache-options option-path (get-in state option-path)))
-                {}
-                cache-affecting-options)
+        (util/with-logged-time
+          [state {:type :cache-write
+                  :resource-id resource-id
+                  :resource-name resource-name
+                  :ns ns}]
+          (let [cache-compiler-options
+                (reduce
+                  (fn [cache-options option-path]
+                    (assoc cache-options option-path (get-in state option-path)))
+                  {}
+                  cache-affecting-options)
 
-              ns-str
-              (str ns)
+                ns-str
+                (str ns)
 
-              spec-filter-fn
-              (fn [v]
-                (or (= ns-str (namespace v))
-                    (= ns (-> v meta :fdef-ns))))
+                spec-filter-fn
+                (fn [v]
+                  (or (= ns-str (namespace v))
+                      (= ns (-> v meta :fdef-ns))))
 
-              ns-specs
-              (reduce-kv
-                (fn [m k v]
-                  (if-not (spec-filter-fn k)
-                    m
-                    (assoc m k v)))
-                {}
-                ;; this is {spec-kw|sym raw-spec-form}
-                @cljs-spec/registry-ref)
+                ns-specs
+                (reduce-kv
+                  (fn [m k v]
+                    (if-not (spec-filter-fn k)
+                      m
+                      (assoc m k v)))
+                  {}
+                  ;; this is {spec-kw|sym raw-spec-form}
+                  @cljs-spec/registry-ref)
 
-              ;; this is a #{fqn-var-sym ...}
-              ns-speced-vars
-              (->> (cljs-spec/speced-vars)
-                   (filter spec-filter-fn)
-                   (into []))
+                ;; this is a #{fqn-var-sym ...}
+                ns-speced-vars
+                (->> (cljs-spec/speced-vars)
+                     (filter spec-filter-fn)
+                     (into []))
 
-              ana-data
-              (get-in @env/*compiler* [::ana/namespaces ns])
+                ana-data
+                (get-in @env/*compiler* [::ana/namespaces ns])
 
-              cache-data
-              {:output output
-               :cache-keys (make-cache-key-map state rc)
-               :analyzer ana-data
-               :ns ns
-               :ns-specs ns-specs
-               :ns-speced-vars ns-speced-vars
-               :compiler-options cache-compiler-options}]
+                cache-data
+                {:output output
+                 :cache-keys (make-cache-key-map state rc)
+                 :analyzer ana-data
+                 :ns ns
+                 :ns-specs ns-specs
+                 :ns-speced-vars ns-speced-vars
+                 :compiler-options cache-compiler-options}]
 
-          (io/make-parents cache-file)
-          (cache/write-file cache-file cache-data)
+            (io/make-parents cache-file)
+            (cache/write-file cache-file cache-data)
 
-          (util/log state {:type :cache-write :resource-id resource-id :resource-name resource-name :ns ns})
-          true)
+            true))
         (catch Exception e
           (util/warn state {:type :cache-error
                             :action :write
