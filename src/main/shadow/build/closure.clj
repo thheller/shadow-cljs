@@ -1254,9 +1254,14 @@
             (.setRewritePolyfills true)
             (.setPreventLibraryInjection false)))
 
+        property-collector
+        (PropertyCollector. cc)
+
         co
         (doto co
           (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
+
+          (.addCustomPass CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector)
 
           (.setProcessCommonJSModules true)
           (.setTransformAMDToCJSModules true)
@@ -1375,6 +1380,9 @@
                       sm-json
                       (.toString sw)
 
+                      properties
+                      (into #{} (-> property-collector (.-properties) (.get name)))
+
                       output
                       {:resource-id resource-id
                        :compiled-at (System/currentTimeMillis)
@@ -1390,10 +1398,13 @@
                                            ;; FIXME: not sure if it will always emit this exact pattern
                                            (str/includes? js (str "var " ns " =")))
                                   (str "\n$CLJS." ns "=" ns ";")))
+                       :properties properties
                        :source (.getCode source-file)
                        :source-map-json sm-json}]
 
-                  (assoc-in state [:output resource-id] output)))))
+                  (-> state
+                      (assoc-in [:output resource-id] output)
+                      (update :js-properties set/union properties))))))
 
           (->> (ShadowAccess/getJsRoot cc)
                (.children) ;; the inputs
@@ -1458,11 +1469,13 @@
                       (let [cache-file
                             (data/cache-file state "closure-js" output-name)
 
-                            {:keys [actual-requires] :as cached-output}
+                            {:keys [actual-requires properties] :as cached-output}
                             (-> (cache/read-cache cache-file)
                                 (assoc :cached true))]
 
-                        (assoc-in state [:output resource-id] cached-output)
+                        (-> state
+                            (assoc-in [:output resource-id] cached-output)
+                            (update :js-properties set/union properties))
                         )))
                   cache-files))))
 
