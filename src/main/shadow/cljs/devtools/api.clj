@@ -24,7 +24,8 @@
     [shadow.cljs.devtools.server.runtime :as runtime]
     [shadow.build.output :as output]
     [shadow.build.log :as build-log]
-    [shadow.core-ext :as core-ext]))
+    [shadow.core-ext :as core-ext]
+    [shadow.cljs.devtools.release-snapshot :as snapshot]))
 
 ;; nREPL support
 
@@ -493,12 +494,15 @@
 
       (spit
         (io/file output-dir "bundle-info.edn")
-        (core-ext/safe-pr-str bundle-info)))
+        (core-ext/safe-pr-str bundle-info))
+
+      (snapshot/print-bundle-info-table bundle-info))
 
     :done
     ))
 
 (comment
+  (release-snapshot :browser {})
 
   (defn node-execute! [node-args file]
     (let [script-args
