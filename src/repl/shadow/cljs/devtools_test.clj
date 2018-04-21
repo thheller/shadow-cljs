@@ -699,7 +699,7 @@
 
 (deftest test-build-js-entry
   (try
-    (let [{:keys [build-sources] :as state}
+    (let [{:keys [build-sources js-properties] :as state}
           (api/compile*
             '{:build-id :js-entry
               :target :browser
@@ -708,6 +708,7 @@
             {})]
 
       (pprint build-sources)
+      (pprint js-properties)
       )
     (catch Exception ex
       (errors/user-friendly-error ex))))

@@ -202,24 +202,14 @@
          __dirname]
        (into #{} (map str))))
 
-(defn extern-props-from-js [state]
-  (->> (:build-sources state)
-       (map #(get-in state [:sources %]))
-       (filter #(= :shadow-js (:type %)))
-       (map (fn [{:keys [file] :as src}]
-              (let [{:keys [properties] :as output}
-                    (data/get-output! state src)]
-
-                ;; some files may have been minified by closure
-                ;; which follows this naming pattern
-                ;; the user is never going to use those directly so we do not
-                ;; need to generate externs for these
-                (if-not (set/superset? properties #{"a" "b" "c" "d" "e" "f"})
-                  properties
-                  ;; just strip out the "short" properties
-                  (into #{} (remove #(<= (count %) 2)) properties)
-                  ))))
-       (reduce set/union #{})))
+(defn clean-collected-properties [properties]
+  ;; some files may have been minified by closure
+  ;; which follows this naming pattern and we can't reserve those
+  ;; since we need them for our :advanced build later
+  (if-not (set/superset? properties #{"a" "b" "c" "d" "e" "f"})
+    properties
+    ;; just strip out the "short" properties
+    (into #{} (remove #(<= (count %) 2)) properties)))
 
 (defn extern-props-from-cljs [state]
   (->> (:build-sources state)
@@ -274,7 +264,7 @@
         js-props
         (set/union
           (when js-externs?
-            (extern-props-from-js state))
+            (:js-properties state))
           (extern-props-from-cljs state)
           file-props)
 
@@ -1381,7 +1371,8 @@
                       (.toString sw)
 
                       properties
-                      (into #{} (-> property-collector (.-properties) (.get name)))
+                      (-> (into #{} (-> property-collector (.-properties) (.get name)))
+                          (clean-collected-properties))
 
                       output
                       {:resource-id resource-id
@@ -1594,8 +1585,6 @@
             (let [m (require-replacement-map state)]
               (ReplaceRequirePass. cc m)))
 
-          (.addCustomPass CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector)
-
           (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
           (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
           ;; node_modules/@firebase/util/dist/cjs/src/constants.ts:26: ERROR - @define variable  assignment must be global
@@ -1610,6 +1599,11 @@
           ;; unreachable code in react
           (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
+
+        ;; :js-provider :shadow uses this for es6 on the classpath
+        ;; we want to collect the props only for :shadow not :closure
+        _ (when (= :shadow (get-in state [:js-options :js-provider]))
+            (.addCustomPass closure-opts CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector))
 
         result
         (try
@@ -1680,13 +1674,17 @@
                   actual-requires
                   (into #{} (remove removed-requires) deps)
 
+                  properties
+                  (-> (into #{} (-> property-collector (.-properties) (.get name)))
+                      (clean-collected-properties))
+
                   output
                   (-> {:resource-id resource-id
                        :js js
                        :source (.getCode source-file)
                        :removed-requires removed-requires
                        :actual-requires actual-requires
-                       :properties (into #{} (-> property-collector (.-properties) (.get name)))
+                       :properties properties
                        :compiled-at (System/currentTimeMillis)}
                       (cond->
                         generate-source-map?
