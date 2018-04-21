@@ -39,6 +39,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [ahonn/shadow-electron-starter](https://github.com/ahonn/shadow-electorn-starter) - ClojureScript + Shadow-cljs + Electron + Reagent
 - [jacekschae/conduit](https://github.com/jacekschae/conduit) - Real world application built with shadow-cljs + re-frame + re-frame-10x <br> [Demo](https://jacekschae.github.io/conduit-re-frame-demo/) | [Demo with re-frame-10x](https://jacekschae.github.io/conduit-re-frame-10x-demo/)
 - [quangv/shadow-re-frame-simple-example](https://github.com/quangv/shadow-re-frame-simple-example) - a simple re-frame + shadow-cljs example.
+- [CryptoTwittos](https://github.com/teawaterwire/cryptotwittos) - reagent, re-frame, web3
 - ... please let me know if you created something to include here
 
 ## License
