@@ -22,7 +22,7 @@
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          SourceMap$LocationMapping BasicErrorManager Result ShadowAccess
-                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck)
+                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy)
            (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode ModuleNames)
            (com.google.javascript.jscomp.parsing.parser FeatureSet)
@@ -139,9 +139,6 @@
   (when (contains? opts :closure-extra-annotations)
     (. closure-opts (setExtraAnnotationNames (map name (:closure-extra-annotations opts)))))
 
-  (when (contains? opts :closure-module-roots)
-    (. closure-opts (setModuleRoots (:closure-module-roots opts))))
-
   (when (contains? opts :closure-generate-exports)
     (. closure-opts (setGenerateExports (:closure-generate-exports opts))))
 
@@ -149,6 +146,26 @@
     (. closure-opts (setRewritePolyfills (:rewrite-polyfills opts))))
 
   (. closure-opts (setOutputCharset (Charset/forName (:closure-output-charset opts "UTF-8"))))
+
+  (when (contains? opts :variable-renaming)
+    (.setVariableRenaming
+      closure-opts
+      (case (:variable-renaming opts)
+        false VariableRenamingPolicy/OFF
+        :off VariableRenamingPolicy/OFF
+        :local VariableRenamingPolicy/LOCAL
+        :all VariableRenamingPolicy/ALL
+        (throw (ex-info "invalid :variable-renaming (use :off, :local or :all)" {})))))
+
+  (when (contains? opts :property-renaming)
+    (.setPropertyRenaming
+      closure-opts
+      (case (:property-renaming opts)
+        false PropertyRenamingPolicy/OFF
+        :off PropertyRenamingPolicy/OFF
+        true PropertyRenamingPolicy/ALL_UNQUOTED
+        :all-unquoted PropertyRenamingPolicy/ALL_UNQUOTED
+        (throw (ex-info "invalid :property-renaming (use :off or :all-unquoted)" {})))))
 
   closure-opts)
 
