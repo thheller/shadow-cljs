@@ -659,7 +659,7 @@
           sources-info
           (->> build-sources
                (map (fn [src-id]
-                      (let [{:keys [resource-name output-name type] :as src}
+                      (let [{:keys [resource-name output-name type provides] :as src}
                             (data/get-source-by-id state src-id)
 
                             {:keys [js source] :as output}
@@ -670,6 +670,8 @@
                              :module-id (get src->mod src-id)
                              :type type
                              :output-name output-name
+                             :provides provides
+                             :requires (into #{} (data/deps->syms state src))
                              :js-size (count js)}
                             (cond->
                               (string? source)
