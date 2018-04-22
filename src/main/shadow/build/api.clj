@@ -96,6 +96,11 @@
        :js-options
        default-js-options
 
+       ;; string property names collected while compiling JS
+       ;; will be used to generate externs for closure
+       :js-properties
+       #{}
+
        :last-progress-ref
        (atom (System/currentTimeMillis))
 

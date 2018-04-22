@@ -1817,13 +1817,12 @@
                            (update :live-js-deps conj ns)
                            (update :required set/union actual-requires)))))
                  {:required required-js-names
-                  :js-properties #{}
                   :live-js-deps #{}
                   :dead-js-deps #{}}))]
 
-      (assoc state
-        ::shadow-js-cache cache-index-updated
-        :js-properties js-properties
-        :dead-js-deps dead-js-deps
-        :live-js-deps live-js-deps)
+      (-> state
+          (update :js-properties set/union js-properties)
+          (assoc ::shadow-js-cache cache-index-updated
+                 :dead-js-deps dead-js-deps
+                 :live-js-deps live-js-deps))
       )))
