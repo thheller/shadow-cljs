@@ -518,11 +518,12 @@
           (->> (into [] (map io/file)))
           ))))
 
-(defn get-classpath-entries [{:keys [classpath-excludes] :as cp}]
-  (->> (get-classpath)
-       (remove #(should-exclude-classpath classpath-excludes %))
-       (map #(.getCanonicalFile %))
-       (into [])))
+(defn get-classpath-entries [{:keys [index-ref] :as cp}]
+  (let [{:keys [classpath-excludes]} @index-ref]
+    (->> (get-classpath)
+         (remove #(should-exclude-classpath classpath-excludes %))
+         (map #(.getCanonicalFile %))
+         (into []))))
 
 (defn index-rc-remove [index resource-name]
   {:pre [(string? resource-name)]}

@@ -24,6 +24,13 @@
     (pprint x)
     ))
 
+(deftest test-classpath-filtering
+  (let [x (cp/start (io/file "tmp" "classpath-cache"))]
+    (doseq [e (cp/get-classpath-entries x)
+            :when (.isDirectory e)]
+      (prn e))
+    ))
+
 (deftest test-classpath-dir
   (let [x
         (cp/start (io/file "target" "shadow-cljs"))
