@@ -174,3 +174,8 @@
                      (next))))]
 
      (do-js-reload* load-tasks))))
+
+(defn before-load-src [{:keys [type ns] :as src}]
+  (when (= :cljs type)
+    (let [ev (js/CustomEvent. "cljs/ns-reset", #js {:detail ns})]
+      (js/document.dispatchEvent ev))))

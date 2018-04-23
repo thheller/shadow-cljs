@@ -216,7 +216,7 @@
          (->> sources
               (map (fn [src-id]
                      (assert (rc/valid-resource-id? src-id))
-                     (let [{:keys [resource-name type output-name ns output] :as src}
+                     (let [{:keys [resource-name type output-name ns provides] :as src}
                            (data/get-source-by-id build-state src-id)
 
                            {:keys [js] :as output}
@@ -225,6 +225,9 @@
                        {:resource-name resource-name
                         :resource-id src-id
                         :output-name output-name
+                        :type type
+                        :ns ns
+                        :provides provides
 
                         ;; FIXME: make this pretty ...
                         :js

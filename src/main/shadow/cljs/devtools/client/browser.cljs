@@ -61,6 +61,7 @@
 (defn do-js-load [sources]
   (doseq [{:keys [resource-id resource-name js] :as src} sources]
     (devtools-msg "load JS" resource-name)
+    (env/before-load-src src)
     (script-eval (str js "\n//# sourceURL=" resource-name))))
 
 (defn do-js-reload [msg sources complete-fn]

@@ -89,7 +89,8 @@
         (env/do-js-reload
           msg
           #(doseq [src files-to-require]
-            (closure-import src))
+             (env/before-load-src src)
+             (closure-import src))
           )))))
 
 (defn process-message

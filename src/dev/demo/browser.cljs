@@ -16,6 +16,8 @@
     [demo.always-load]
     ))
 
+
+
 (deftest yo
   (= 1 2))
 
@@ -38,15 +40,10 @@
 
 (js/console.log :foo)
 (prn :foo1 :bar)
-(prn :foo2 :bar)
-(prn :foo3 :bar)
-(prn :foo4 :bar)
-(prn :foo5 :bar)
-(prn :foo6 :bar)
-(prn :foo7 :bar)
-(prn :foo8 :bar)
-(prn :foo9 :bar)
-(prn :foo0 :bar)
+
+
+
+
 
 #_ (js/console.log "babel-test" babel-test (Shape. 1 1))
 

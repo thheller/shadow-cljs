@@ -6,6 +6,18 @@
 ;; only the macros were replaced, the functionality remains unchanged
 (defonce tests-ref (atom {:namespaces {}}))
 
+(when-not (:hooked @tests-ref)
+  ;; we want to remove all tests when a ns is reloaded
+  ;; since otherwise deleted tests stay in the atom
+  ;; the event is dispatched by shadow.cljs.devtools.client.env
+  ;; right before the source is loaded
+  (js/document.addEventListener "cljs/ns-reset"
+    (fn [e]
+      (let [ns (.-detail e)]
+        (swap! tests-ref update :namespaces dissoc ns)
+        )))
+  (swap! tests-ref assoc :hooked true))
+
 (defn register-test [test-ns test-name test-var]
   ;; register by name so reloading replaces the old test
   (swap! tests-ref assoc-in [:namespaces test-ns :vars test-name] test-var))
