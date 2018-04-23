@@ -67,6 +67,8 @@
         ;; no need to forward :build-log messages to the client
         watch-ignore
         #{:build-log
+          :repl/out
+          :repl/err
           :repl/result
           :repl/error ;; server-side error
           :repl/action
