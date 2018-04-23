@@ -59,7 +59,8 @@
   (try
     (doseq [{:keys [provides output-name] :as src} sources]
       (when (or (not (is-loaded? output-name))
-                (some reload-namespaces provides))
+                (and reload-namespaces 
+                     (some reload-namespaces provides)))
         (closure-import output-name)))
     (ws-msg {:type :repl/require-complete :id id})
 
