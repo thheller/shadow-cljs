@@ -273,7 +273,7 @@
             action
             {:type :repl/require
              :sources build-sources
-             :reload :reload}]
+             :reload-namespaces #{ns}}]
 
         (output/flush-sources state build-sources)
         (update-in state [:repl-state :repl-actions] conj action)
@@ -310,7 +310,8 @@
 
         ns-requires
         {:type :repl/require
-         :sources build-sources}
+         :sources build-sources
+         :reload-namespaces #{}}
 
         ns-provide
         {:type :repl/invoke
