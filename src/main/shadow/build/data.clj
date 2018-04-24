@@ -194,12 +194,14 @@
         )))
 
 (defn remove-source-by-id [state resource-id]
-  (let [{:keys [virtual] :as rc} (get-in state [:sources resource-id])]
+  (let [{:keys [virtual ns] :as rc} (get-in state [:sources resource-id])]
     (if-not rc
       state
       (-> state
           (update :output dissoc resource-id)
           (update :immediate-deps dissoc resource-id)
+          ;; remove analyzer data so removed vars don't stick around
+          (update-in [:compiler-env :cljs.analyzer/namespaces] dissoc ns)
           ;; virtual resources are modified by code
           ;; and can't be affected by filesystem changes
           ;; so they never need to be removed, just their output
