@@ -161,27 +161,32 @@
         :when (not (.isLoopback ni))
         :when (.isUp ni)
         :let [display-name (.getDisplayName ni)]
+        :when
+        (and (not (str/includes? display-name "VirtualBox"))
+             (not (str/includes? display-name "utun")))
         addr (enumeration-seq (.getInetAddresses ni))
         ;; probably don't need ipv6 for dev
         :when (instance? Inet4Address addr)]
     [ni addr]))
 
+;; (prn (find-local-addrs))
+
 (defn select-server-addr []
-  (let [addrs (find-local-addrs)
-        [ni addr] (first addrs)]
+  (let [addrs (find-local-addrs)]
+    (when (seq addrs)
+      (let [[ni addr] (first addrs)]
 
-    (println (format "shadow-cljs - Using IP \"%s\" from Interface \"%s\"" (.getHostAddress addr) (.getDisplayName ni)))
+        (println (format "shadow-cljs - Using IP \"%s\" from Interface \"%s\"" (.getHostAddress addr) (.getDisplayName ni)))
 
-    (when (not= 1 (count addrs))
-      (log/infof "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.")
-      (doseq [[ni addr] addrs]
-        (log/infof "Found IP:%s Interface:%s" (.getHostAddress addr) (.getDisplayName ni))))
+        (when (not= 1 (count addrs))
+          (log/infof "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.")
+          (doseq [[ni addr] addrs]
+            (log/infof "Found IP:%s Interface:%s" (.getHostAddress addr) (.getDisplayName ni))))
 
-    ;; would be neat if we could just use InetAddress/getLocalHost
-    ;; but that returns my VirtualBox Adapter for some reasone
-    ;; which is incorrect and doesn't work
-    (.getHostAddress addr)
-    ))
+        ;; would be neat if we could just use InetAddress/getLocalHost
+        ;; but that returns my VirtualBox Adapter for some reason
+        ;; which is incorrect and doesn't work
+        (.getHostAddress addr)))))
 
 (defn start-system
   [app-ref app-config {:keys [cache-root] :as config}]
@@ -256,7 +261,6 @@
              :shutdown-hook shutdown-hook
              :ssl-context ssl-context
              :http {:port (or https-port http-port)
-                    :addr server-addr
                     :http-port http-port
                     :https-port https-port
                     :host (:host http-config)
@@ -265,6 +269,8 @@
              :port-files-ref port-files-ref
              :cli-repl cli-repl}
             (cond->
+              server-addr
+              (assoc-in [:http :addr] server-addr)
               socket-repl
               (assoc :socket-repl socket-repl)
               nrepl
@@ -277,9 +283,6 @@
           (.deleteOnExit))]
 
     (vreset! app-ref app)
-
-
-
 
     ;; do this as the very last setup to maybe fix circleci timing issue?
     (reset! port-files-ref

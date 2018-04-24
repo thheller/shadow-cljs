@@ -88,7 +88,7 @@
      (not (false? use-document-host))
 
      "shadow.cljs.devtools.client.env.repl_host"
-     addr
+     (or addr host)
 
      "shadow.cljs.devtools.client.env.repl_port"
      port
