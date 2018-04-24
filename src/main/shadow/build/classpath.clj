@@ -17,16 +17,28 @@
             [shadow.build.config :as config]
             [shadow.build.cljs-bridge :as cljs-bridge]
             [shadow.build.npm :as npm])
-  (:import (java.io StringReader PushbackReader File)
+  (:import (java.io File)
            (java.util.jar JarFile JarEntry)
            (java.net URL)
            (java.util.zip ZipException)
            (shadow.build.closure ErrorCollector JsInspector)
            [java.nio.file Paths]
            [com.google.javascript.jscomp CompilerOptions$LanguageMode CompilerOptions SourceFile]
-           [com.google.javascript.jscomp.deps ModuleNames]))
+           [com.google.javascript.jscomp.deps ModuleNames]
+           [javax.xml.parsers DocumentBuilderFactory]
+           ))
 
-(def CACHE-TIMESTAMP (System/currentTimeMillis))
+(def CACHE-TIMESTAMP (util/resource-last-modified "shadow/build/classpath.clj"))
+
+(defn get-classpath []
+  (let [cp (cp/classpath)]
+    (if (seq cp)
+      cp
+      ;; java9 fallback which can't get classpath from the classloader anymore
+      (-> (System/getProperty "java.class.path")
+          (.split File/pathSeparator)
+          (->> (into [] (map io/file)))
+          ))))
 
 (defn service? [x]
   (and (map? x) (::service x)))
@@ -348,6 +360,87 @@
          :externs extern-rcs}
         ))))
 
+(defn pom-info-for-jar [file]
+  (when (.isFile file)
+    (let [pom-file (io/file
+                     (.getParentFile file)
+                     (str/replace (.getName file) ".jar" ".pom"))]
+      (when (.exists pom-file)
+        (try
+          (let [doc
+                (-> (DocumentBuilderFactory/newInstance)
+                    (.newDocumentBuilder)
+                    (.parse pom-file))
+
+                el
+                (.getDocumentElement doc)
+
+                child-nodes
+                (.getChildNodes el)
+
+                {:keys [artifact-id group-id version] :as pom-info}
+                (loop [x 0
+                       info {}]
+                  (if (>= x (.getLength child-nodes))
+                    info
+                    (let [node (.item child-nodes x)]
+                      (recur
+                        (inc x)
+                        (case (.getNodeName node)
+                          "artifactId"
+                          (assoc info :artifact-id (symbol (.getTextContent node)))
+
+                          "groupId"
+                          (assoc info :group-id (symbol (.getTextContent node)))
+
+                          ;; POM inheritance ... no idea how that works
+                          ;; but core.cache and others don't have their own groupId
+                          ;; guessing they inherit from the parent
+                          "parent"
+                          (let [pgid
+                                (-> node
+                                    (.getElementsByTagName "groupId")
+                                    (.item 0)
+                                    (.getTextContent)
+                                    (symbol))]
+                            (-> info
+                                (assoc :parent-group-id pgid)
+                                (cond->
+                                  (not (contains? info :group-id))
+                                  (assoc :group-id pgid))))
+
+                          "version"
+                          (assoc info :version (.getTextContent node))
+
+                          "name"
+                          (assoc info :name (.getTextContent node))
+
+                          "url"
+                          (assoc info :url (.getTextContent node))
+
+                          "description"
+                          (assoc info :description (.getTextContent node))
+
+                          info
+                          )))))
+
+                id
+                (if (= artifact-id group-id)
+                  artifact-id
+                  (symbol (str group-id) (str artifact-id)))]
+
+            (assoc pom-info
+              :id id
+              :coordinate [id version]))
+
+          (catch Exception e
+            (log/debug e "failed to parse pom" pom-file)
+            nil))))))
+
+(comment
+  (doseq [x (get-classpath)]
+    (prn (pom-info-for-jar x))))
+
 (defn find-jar-resources* [cp file]
   (try
     (let [jar-path
@@ -358,6 +451,9 @@
 
           last-modified
           (.lastModified file)
+
+          pom-info
+          (pom-info-for-jar file)
 
           entries
           (.entries jar-file)]
@@ -374,12 +470,15 @@
               (recur result)
               (let [url (URL. (str "jar:file:" jar-path "!/" name))]
                 (-> result
-                    (conj! {:resource-id [::resource name]
-                            :resource-name (rc/normalize-name name)
-                            :cache-key [last-modified]
-                            :last-modified last-modified
-                            :url url
-                            :from-jar true})
+                    (conj! (-> {:resource-id [::resource name]
+                                :resource-name (rc/normalize-name name)
+                                :cache-key [last-modified]
+                                :last-modified last-modified
+                                :url url
+                                :from-jar true}
+                               (cond->
+                                 pom-info
+                                 (assoc :pom-info pom-info))))
                     (recur)
                     )))))))
 
@@ -451,7 +550,15 @@
                    (>= (.lastModified mfile) (.lastModified jar-file))
                    (>= (.lastModified mfile) CACHE-TIMESTAMP))
           (try
-            (cache/read-cache mfile)
+            (let [cache (cache/read-cache mfile)]
+              ;; user downloads version 2.0.0 runs it
+              ;; upgrades to latest version release a day ago
+              ;; last-modified of cache is higher that release data
+              ;; so the initial check succeeds because >= is true
+              ;; comparing them to be equal ensures that new version
+              ;; will invalidate the cache
+              (when (= CACHE-TIMESTAMP (::CACHE-TIMESTAMP cache))
+                cache))
             (catch Exception e
               (log/info ::manifest-error :file mfile :ex e)
               nil)))
@@ -460,7 +567,7 @@
               (->> (find-jar-resources* cp jar-file)
                    (process-root-contents cp jar-file))]
           (io/make-parents mfile)
-          (cache/write-file mfile jar-contents)
+          (cache/write-file mfile (assoc jar-contents ::CACHE-TIMESTAMP CACHE-TIMESTAMP))
           jar-contents))))
 
 (defn make-fs-resource [file name]
@@ -508,15 +615,7 @@
   (let [abs-path (.getAbsolutePath file)]
     (boolean (some #(re-find % abs-path) exclude))))
 
-(defn get-classpath []
-  (let [cp (cp/classpath)]
-    (if (seq cp)
-      cp
-      ;; java9 fallback which can't get classpath from the classloader anymore
-      (-> (System/getProperty "java.class.path")
-          (.split File/pathSeparator)
-          (->> (into [] (map io/file)))
-          ))))
+
 
 (defn get-classpath-entries [{:keys [index-ref] :as cp}]
   (let [{:keys [classpath-excludes]} @index-ref]
