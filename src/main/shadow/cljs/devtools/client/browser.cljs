@@ -59,7 +59,12 @@
     (js/document.body.removeChild node)))
 
 (defn do-js-load [sources]
-  (doseq [{:keys [resource-id resource-name js] :as src} sources]
+  (doseq [{:keys [resource-id output-name resource-name js] :as src} sources]
+    ;; should really stop using this and rather maintain our own record
+    ;; but without this hot-reload will reload shadow-js files with each cycle
+    ;; since they don't set it
+    (gobj/set js/goog.dependencies_.written output-name true)
+
     (devtools-msg "load JS" resource-name)
     (env/before-load-src src)
     (script-eval (str js "\n//# sourceURL=" resource-name))))

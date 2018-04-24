@@ -129,23 +129,27 @@
 
 (defn make-task-fn [{:keys [log-missing-fn log-call-async log-call]} {:keys [fn-sym fn-str async]}]
   (fn [next]
-    (let [fn-obj (js/goog.getObjectByName fn-str js/$CLJS)]
-      (cond
-        (nil? fn-obj)
-        (do (when log-missing-fn
-              (log-missing-fn fn-sym))
-            (next))
+    (try
+      (let [fn-obj (js/goog.getObjectByName fn-str js/$CLJS)]
+        (cond
+          (nil? fn-obj)
+          (do (when log-missing-fn
+                (log-missing-fn fn-sym))
+              (next))
 
-        async
-        (do (when log-call-async
-              (log-call-async fn-sym))
-            (fn-obj next))
+          async
+          (do (when log-call-async
+                (log-call-async fn-sym))
+              (fn-obj next))
 
-        :else
-        (do (when log-call
-              (log-call fn-sym))
-            (fn-obj)
-            (next))))))
+          :else
+          (do (when log-call
+                (log-call fn-sym))
+              (fn-obj)
+              (next))))
+      (catch :default ex
+        (js/console.warn "error when calling lifecycle function" (str fn-sym) ex)
+        (next)))))
 
 (defn do-js-reload* [[task & remaining-tasks]]
   (when task
