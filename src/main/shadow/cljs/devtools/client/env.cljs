@@ -177,5 +177,5 @@
 
 (defn before-load-src [{:keys [type ns] :as src}]
   (when (= :cljs type)
-    (let [ev (js/CustomEvent. "cljs/ns-reset", #js {:detail ns})]
-      (js/document.dispatchEvent ev))))
+    (doseq [x js/goog.global.SHADOW_NS_RESET]
+      (x ns))))

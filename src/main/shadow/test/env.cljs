@@ -11,12 +11,14 @@
   ;; since otherwise deleted tests stay in the atom
   ;; the event is dispatched by shadow.cljs.devtools.client.env
   ;; right before the source is loaded
-  (js/document.addEventListener "cljs/ns-reset"
-    (fn [e]
-      (let [ns (.-detail e)]
-        (swap! tests-ref update :namespaces dissoc ns)
-        )))
-  (swap! tests-ref assoc :hooked true))
+  (let [event-fn
+        (fn [ns]
+          (swap! tests-ref update :namespaces dissoc ns))]
+
+    (if-not js/goog.global.SHADOW_NS_RESET
+      (set! js/goog.global.SHADOW_NS_RESET [event-fn])
+      (set! js/goog.global.SHADOW_NS_RESET (conj js/goog.global.SHADOW_NS_RESET event-fn)))
+    (swap! tests-ref assoc :hooked true)))
 
 (defn register-test [test-ns test-name test-var]
   ;; register by name so reloading replaces the old test
