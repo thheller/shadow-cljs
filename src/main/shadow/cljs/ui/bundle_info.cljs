@@ -1,132 +1,165 @@
 (ns shadow.cljs.ui.bundle-info
-  (:require [clojure.string :as str]
-            [shadow.api :refer (ns-ready)]
-            [shadow.dom :as dom]
-    #_["./bundle_renderer" :as x]
-            [goog.format :as gf]
-            [shadow.markup.react :as html :refer (defstyled)]
-            ["react-dom" :as rdom]))
-
+  (:require
+    [clojure.string :as str]
+    [shadow.api :refer (ns-ready)]
+    [shadow.dom :as dom]
+    [goog.format :as gf]
+    [shadow.markup.react :as html :refer ($ defstyled)]
+    ["react-dom" :as rdom]
+    ["react-table" :as rt :default ReactTable]
+    [goog.string.format] ;; FIXME: implement :as format and make it callable just like JS
+    [goog.string :refer (format)]
+    ))
 
 (defonce state-ref (atom {}))
 
 (defonce root (dom/by-id "root"))
 
-#_(defn sunburst []
-    (let [{:keys [build-modules]}
-          @state-ref
-
-          all
-          (->> (:build-modules @state-ref)
-               (map :source-bytes)
-               (reduce #(merge-with + %1 %2))
-               (remove #(str/includes? (first %) "synthetic:"))
-               (sort-by second)
-               (clj->js))]
-
-      (dom/append root
-        [:div#container
-         [:div#sequence]
-         [:div#chart
-          [:div#explanation
-           {:style "visibility: hidden;"}
-           [:span#percentage]]]])
-
-      (x/createVisualization all)
-      ))
-
-(defn safe-add [x y]
-  (if (nil? x)
-    y
-    (+ x y)))
-
-(defn source-rows [{:keys [source-bytes]}]
-  (->> source-bytes
-       (reduce-kv
-         (fn [idx name size]
-           (let [parts (str/split name "/")]
-
-             (reduce
-               (fn [idx path]
-                 (update idx path safe-add size))
-               idx
-               (->> (count parts)
-                    (inc)
-                    (range 1)
-                    (map #(vec (take % parts)))))
-
-             ))
-         {})
-       (map (fn [[path size]]
-              {:path path
-               :name (str/join "/" path)
-               :size size}))
-       (sort-by (fn [{:keys [path size]}]
-                  [size (* -1 (count path))]))
-       (reverse)
-       (into [])))
-
-(defstyled caption :caption [_]
-  {:font-weight "bold"
-   :text-align "left"})
-
-(defstyled table :table [_]
-  {:border-collapse "collapse"
-   :width "100%"
-   :margin-bottom 20
-   "& td, & caption, & th"
-   {:border-top "1px solid #eee"
-    :padding [5 10]}})
-
-(defstyled row-size :td [_]
-  {:font-weight "bold"
-   :text-align "right"
-   :white-space "nowrap"
-   :width 80})
-
-(defstyled th :th [_]
-  {:font-weight "normal"
-   :text-align "right"
-   :white-space "nowrap"
-   :width 80})
-
-(defstyled row-name :td [_]
-  {})
-
 (defn filesize [size]
   (gf/numBytesToString size 2 true true))
+
+(defstyled main-table-container :div [_]
+  {:max-width 800})
+
+(defstyled sub-table-container :div [_]
+  {:padding [5 70 20 40]})
+
+(defstyled sub-table-header :div [_]
+  {:font-size "1.3em"
+   :font-weight "bold"
+   :margin-bottom 10})
+
+(def rt-columns
+  (-> [{:id "group-name"
+        :Header "Name"
+        :Cell (fn [^js row-obj]
+                (let [{:keys [group-id group-name] :as row}
+                      (.-original row-obj)]
+                  (if (= :prj group-id)
+                    (html/b group-name)
+                    group-name)))}
+       {:id "optimized-size"
+        :Header "Optimized"
+        :headerClassName "numeric"
+        :className "numeric"
+        :maxWidth 120
+        :Cell (fn [^js row-obj]
+                (filesize (.-value row-obj)))
+        :accessor #(:optimized-size %)}
+       {:id "group-ptc"
+        :Header "%"
+        :headerClassName "numeric"
+        :className "numeric"
+        :maxWidth 70
+        :Cell (fn [^js row-obj]
+                (format "%.1f %%" (.-value row-obj)))
+        :accessor #(:group-pct %)}]
+      (clj->js)))
+
+(def rt-sub-columns
+  (-> [{:id "resource-name"
+        :Header "Name"
+        :accessor #(:resource-name %)}
+       {:id "optimized-size"
+        :Header "Optimized"
+        :headerClassName "numeric"
+        :className "numeric"
+        :maxWidth 120
+        :Cell (fn [^js row-obj]
+                (filesize (.-value row-obj)))
+        :accessor #(:optimized-size %)}]
+      (clj->js)))
 
 (defn overview []
   (let [sources-by-name
         (->> (:build-sources @state-ref)
              (map (juxt :resource-name identity))
-             (into {}))]
+             (into {}))
+
+        {:keys [build-sources build-modules]}
+        @state-ref
+
+        display-modules
+        (->> build-modules
+             (map (fn [{:keys [source-bytes] :as mod}]
+                    (let [total
+                          (->> source-bytes vals (reduce + 0))
+
+                          rows
+                          (->> source-bytes
+                               (map (fn [[resource-name optimized-size]]
+                                      (let [{:keys [npm-info pom-info] :as src-info}
+                                            (get sources-by-name resource-name)]
+                                        (merge src-info
+                                          {:resource-name resource-name
+                                           :group
+                                           (or (and npm-info [:npm (:package-name npm-info)])
+                                               (and pom-info [:jar (str (:id pom-info))])
+                                               [:prj "Project Files"])
+                                           :optimized-size optimized-size}))))
+                               ;; sort all items so the sub-table is sorted
+                               (sort-by :optimized-size >)
+                               (group-by :group)
+                               (map (fn [[group [item :as items]]]
+                                      (let [[group-id group-name] group
+                                            group-size (->> items (map :optimized-size) (reduce + 0))]
+                                        (assoc item
+                                          :group-id group-id
+                                          :group-name group-name
+                                          :optimized-size group-size
+                                          :group-pct (* 100 (double (/ group-size total)))
+                                          :item-count (count items)
+                                          :items items))))
+                               ;; then sort again by aggregate
+                               (sort-by :optimized-size >)
+                               (into-array))]
+                      (assoc mod :rows rows))
+                    )))
+
+
+        sub-row
+        (fn sub-row [^js row]
+          (let [{:keys [npm-info pom-info resource-name item-count items] :as row}
+                (.-original row)]
+
+            (sub-table-container {}
+
+              (when pom-info
+                (sub-table-header (pr-str (:coordinate pom-info))))
+
+              (when npm-info
+                (sub-table-header (str "npm: " (:package-name npm-info) "@" (:version npm-info))))
+
+              ($ ReactTable
+                #js {:data (into-array items)
+                     :columns rt-sub-columns
+                     :showPagination false
+                     :defaultPageSize 250
+                     :minRows item-count
+                     :className "-sriped -highlight"}))))]
 
     (html/div
-      (for [{:keys [module-id js-size gzip-size] :as mod} (:build-modules @state-ref)]
-        (table
-          (caption (str "Module: " (pr-str module-id) " [JS: " (filesize js-size) "] [GZIP: " (filesize gzip-size) "]"))
-          (html/thead
-            (html/tr
-              (th "Optimized")
-              (th "Source")
-              (html/th "")))
+      (for [{:keys [module-id js-size gzip-size rows] :as mod}
+            display-modules]
+        (main-table-container {:key (name module-id)}
+          (html/h3 (str "Module: " (pr-str module-id) " [JS: " (filesize js-size) "] [GZIP: " (filesize gzip-size) "]"))
 
-          (html/tbody
-            (for [{:keys [name size] :as row} (source-rows mod)]
-              (html/tr {:key name}
-                (row-size (filesize size))
-                (row-size
-                  (when-let [{:keys [js-size] :as src} (get sources-by-name name)]
-                    (filesize js-size)))
-                (row-name name))
-              )))))))
+          ($ ReactTable
+            #js {:data rows
+                 :columns rt-columns
+                 :showPagination false
+                 :defaultPageSize 250
+                 :minRows (count rows)
+                 :expanderDefaults #js {:width 40}
+                 :className "-sriped -highlight"
+                 :SubComponent sub-row
+                 }))))))
 
-(defn start []
+(defn ^:dev/after-load start []
   (js/console.log "start")
   (rdom/render (overview) root))
 
-(defn stop []
+(defn ^:dev/before-load stop []
   (rdom/unmountComponentAtNode root)
   (js/console.log "stop"))
 

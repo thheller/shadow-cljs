@@ -39,6 +39,9 @@
    :dev {:output-dir ".shadow-cljs/ui/js"}
    :asset-path "/js"
 
+   :compiler-options
+   {:infer-externs :auto}
+
    :modules
    {:ui
     {:entries
@@ -48,9 +51,7 @@
      #{}}}
 
    :devtools
-   {:before-load shadow.cljs.ui.bundle-info/stop
-    :after-load shadow.cljs.ui.bundle-info/start
-    :async-require true}}
+   {:async-require true}}
 
   ;; test builds
 

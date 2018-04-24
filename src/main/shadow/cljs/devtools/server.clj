@@ -65,12 +65,11 @@
         (io/file cache-root "ui")]
 
     (-> handler
+        (ring-resource/wrap-resource "shadow/cljs/ui/dist")
         (cond->
           (.exists ui-root)
-          (ring-file/wrap-file ui-root)
+          (ring-file/wrap-file ui-root))
 
-          (not (.exists ui-root))
-          (ring-resource/wrap-resource "shadow/cljs/ui/dist"))
         (ring-resource/wrap-resource "shadow/cljs/devtools/server/web/resources")
         ;; (reload/wrap-reload {:dirs ["src/main"]})
         (ring-params/wrap-params)

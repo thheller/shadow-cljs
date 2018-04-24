@@ -472,7 +472,7 @@
         ;; we can't just remember the entry require("react") since that may
         ;; require("./lib/React.js") which also belongs to the react package
         ;; so we must determine this from the file alone not by the way it was required
-        {:keys [package-name]}
+        {:keys [package-name] :as pkg-info}
         (find-package-for-file npm file)
         ]
 
@@ -547,8 +547,9 @@
                   :deps js-deps))))
 
         (cond->
-          package-name
-          (assoc :package-name package-name)))))
+          pkg-info
+          (assoc :npm-info (select-keys pkg-info [:package-name :version])
+                 :package-name package-name)))))
 
 (defn get-file-info [{:keys [index-ref] :as npm} ^File file]
   {:pre [(service? npm)]}
