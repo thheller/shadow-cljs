@@ -494,7 +494,7 @@
         (io/file output-dir "bundle-info.edn")
         (core-ext/safe-pr-str bundle-info))
 
-      (snapshot/print-bundle-info-table bundle-info {:group-jars true}))
+      (snapshot/print-bundle-info-table bundle-info {:group-npm true}))
 
     :done
     ))
