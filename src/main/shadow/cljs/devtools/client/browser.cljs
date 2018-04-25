@@ -131,32 +131,30 @@
       ;; of modules that are active
       ;; and are either not loaded yet
       ;; or specifically marked for reload
-      (let [sources-to-get
-            (->> sources
-                 (filter
-                   (fn [{:keys [module] :as rc}]
-                     (or (= "js" env/module-format)
-                         (module-is-active? module))))
-                 ;; don't reload namespaces that have ^:dev/never-reload meta
-                 (remove (fn [{:keys [ns]}]
-                           (contains? (:never-load reload-info) ns)))
-                 (filter
-                   (fn [{:keys [ns resource-id] :as src}]
-                     (or (contains? (:always-load reload-info) ns)
-                         (not (src-is-loaded? src))
-                         (and (contains? compiled resource-id)
-                              ;; never reload files from jar
-                              ;; they can't be hot-swapped so the only way they get re-compiled
-                              ;; is if they have warnings, which we can't to anything about
-                              (not (:from-jar src))))))
-                 (into []))]
+      (when (or (empty? warnings) env/ignore-warnings)
+        (let [sources-to-get
+              (->> sources
+                   (filter
+                     (fn [{:keys [module] :as rc}]
+                       (or (= "js" env/module-format)
+                           (module-is-active? module))))
+                   ;; don't reload namespaces that have ^:dev/never-reload meta
+                   (remove (fn [{:keys [ns]}]
+                             (contains? (:never-load reload-info) ns)))
+                   (filter
+                     (fn [{:keys [ns resource-id] :as src}]
+                       (or (contains? (:always-load reload-info) ns)
+                           (not (src-is-loaded? src))
+                           (and (contains? compiled resource-id)
+                                ;; never reload files from jar
+                                ;; they can't be hot-swapped so the only way they get re-compiled
+                                ;; is if they have warnings, which we can't to anything about
+                                (not (:from-jar src))))))
+                   (into []))]
 
-
-        ;; FIXME: should allow reload with warnings
-        (when (and (empty? warnings)
-                   (seq sources-to-get))
-          (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success))
-          )))))
+          (when (seq sources-to-get)
+            (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success))
+            ))))))
 
 (defn handle-asset-watch [{:keys [updates] :as msg}]
   (doseq [path updates

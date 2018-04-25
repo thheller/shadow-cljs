@@ -70,28 +70,40 @@
 
 (defn build-complete
   [{:keys [info reload-info] :as msg}]
+  (let [{:keys [sources compiled]}
+        info
 
-  (when env/autoload
-    (let [{:keys [sources compiled]}
-          info
+        warnings
+        (->> (for [{:keys [resource-name warnings] :as src} sources
+                   :when (not (:from-jar src))
+                   warning warnings]
+               (assoc warning :resource-name resource-name))
+             (distinct)
+             (into []))]
 
-          files-to-require
-          (->> sources
-               (remove (fn [{:keys [ns]}]
-                         (contains? (:never-load reload-info) ns)))
-               (filter (fn [{:keys [ns resource-id]}]
-                         (or (contains? compiled resource-id)
-                             (contains? (:always-load reload-info) ns))))
-               (map :output-name)
-               (into []))]
+    (when (and env/autoload
+               (or (empty? warnings) env/ignore-warnings))
+      
+      (let [{:keys [sources compiled]}
+            info
 
-      (when (seq files-to-require)
-        (env/do-js-reload
-          msg
-          #(doseq [src files-to-require]
-             (env/before-load-src src)
-             (closure-import src))
-          )))))
+            files-to-require
+            (->> sources
+                 (remove (fn [{:keys [ns]}]
+                           (contains? (:never-load reload-info) ns)))
+                 (filter (fn [{:keys [ns resource-id]}]
+                           (or (contains? compiled resource-id)
+                               (contains? (:always-load reload-info) ns))))
+                 (map :output-name)
+                 (into []))]
+
+        (when (seq files-to-require)
+          (env/do-js-reload
+            msg
+            #(doseq [src files-to-require]
+               (env/before-load-src src)
+               (closure-import src))
+            ))))))
 
 (defn process-message
   [{:keys [type] :as msg}]

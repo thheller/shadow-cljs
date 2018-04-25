@@ -27,6 +27,8 @@
 
 (goog-define ssl false)
 
+(goog-define ignore-warnings false)
+
 (defn get-repl-host []
   (if (and use-document-host js/goog.global.document)
     js/document.location.hostname

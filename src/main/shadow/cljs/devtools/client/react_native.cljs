@@ -92,7 +92,8 @@
              (distinct)
              (into []))]
 
-    (when env/autoload
+    (when (and env/autoload
+               (or (empty? warnings) env/ignore-warnings))
 
       (let [sources-to-get
             (->> sources
@@ -110,8 +111,7 @@
                               (not (:from-jar src))))))
                  (into []))]
 
-        (when (and (empty? warnings)
-                   (seq sources-to-get))
+        (when (seq sources-to-get)
           (load-sources sources-to-get #(do-js-reload msg % noop))
           )))))
 
