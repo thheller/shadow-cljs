@@ -30,7 +30,7 @@
       false
 
       :else
-      (util/url-last-modified rc-url)
+      (> (util/url-last-modified rc-url) last-loaded)
       )))
 
 (defn check-macros! [system-bus]
