@@ -268,7 +268,7 @@
                 ;; append is fine
                 final-output
                 (str prepend
-                     (when (and goog-base (seq shadow-js-output))
+                     (when goog-base
                        "var shadow$provide = {};\n")
                      shadow-js-prepend
                      output
