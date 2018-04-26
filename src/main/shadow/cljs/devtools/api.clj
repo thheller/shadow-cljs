@@ -259,9 +259,6 @@
       (nil? worker)
       [:no-worker id]
 
-      (not (repl-client-connected? worker))
-      [:no-client id "Make sure your JS environment has loaded your compiled ClojureScript code."]
-
       :else
       (do (set! *nrepl-cljs* id)
 
