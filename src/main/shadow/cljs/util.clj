@@ -13,7 +13,7 @@
            (java.io File StringWriter ByteArrayOutputStream)
            (java.security MessageDigest)
            (java.nio.charset Charset)
-           [java.net URLConnection]))
+           [java.net URLConnection URL]))
 
 (defn build-state? [state]
   ;; not using shadow.build.data because of a cyclic dependency I need to clean up
@@ -276,9 +276,16 @@
             exit-code (.waitFor proc)]
         {:exit exit-code :out @out :err @err}))))
 
+(defn url-last-modified [^URL url]
+  (let [^URLConnection con (.openConnection url)
+        ;; not looking at it but only way to close file:... connections
+        ;; which keep the file open and will leak otherwise
+        stream (.getInputStream con)]
+    (try
+      (.getLastModified con)
+      (finally
+        (.close stream)))))
+
 (defn resource-last-modified [path]
   {:pre [(string? path)]}
-  (let [^URLConnection con
-        (-> (io/resource path)
-            (.openConnection))]
-    (.getLastModified con)))
+  (url-last-modified (io/resource path)))

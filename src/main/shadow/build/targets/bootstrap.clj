@@ -28,8 +28,7 @@
             (io/resource (str path ".cljc")))
 
         last-mod
-        (let [^URLConnection con (.openConnection rc-url)]
-          (.getLastModified con))
+        (util/url-last-modified rc-url)
 
         rc
         (->> {:resource-id [::macro macro-ns]

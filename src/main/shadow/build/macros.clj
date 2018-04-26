@@ -4,7 +4,8 @@
             [shadow.build.cljs-bridge :as cljs-bridge]
             [clojure.java.io :as io]
             [shadow.cljs.util :as util]
-            [shadow.build.classpath :as cp])
+            [shadow.build.classpath :as cp]
+            [shadow.build.data :as data])
   (:import (clojure.lang Namespace)
            (java.net URL URLConnection)))
 
@@ -155,8 +156,7 @@
        (map (fn [{:keys [url] :as info}]
               (if (nil? url)
                 info
-                (let [^URLConnection con (.openConnection url)]
-                  (assoc info :cache-key [(.getLastModified con)]))
+                (assoc info :cache-key [(util/url-last-modified url)])
                 )))
        ;; get file (if not in jar)
        (map (fn [{:keys [^URL url] :as info}]

@@ -247,9 +247,7 @@
 
   (apply io/file cache-dir name names))
 
-(defn url-last-modified [^URL url]
-  (let [^URLConnection con (.openConnection url)]
-    (.getLastModified con)))
+
 
 (defn js-names-accessed-from-cljs
   ([{:keys [build-sources] :as state}]

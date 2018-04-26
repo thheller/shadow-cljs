@@ -19,8 +19,7 @@
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
-  (util/resource-last-modified "shadow/build/npm.clj")
-  )
+  (util/resource-last-modified "shadow/build/npm.clj"))
 
 (def CLOSURE-TIMESTAMP
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
