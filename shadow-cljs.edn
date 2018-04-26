@@ -116,6 +116,27 @@
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 
+  :browser-single
+  {:target :browser
+
+   :output-dir "out/demo-browser-single/public/js"
+   :asset-path "/js"
+
+   :compiler-options
+   {:infer-externs :auto
+    :shadow-keywords true
+    :closure-defines {demo.browser/FOO "bar"}}
+
+   :modules
+   {:demo {:entries [demo.browser]}}
+
+   :devtools
+   {:http-root "out/demo-browser-single/public"
+    :http-port 8602
+    :async-require true
+    :before-load-async demo.browser/stop-from-config
+    :after-load demo.browser/start-from-config}}
+
   :test-browser
   {:target :browser-test
    :test-dir "out/demo-test-browser"

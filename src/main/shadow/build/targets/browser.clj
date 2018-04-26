@@ -253,7 +253,8 @@
                     (= :dev mode)
                     (inject-preloads state config)
 
-                    (and (= :release mode)
+                    (and (not web-worker)
+                         (= :release mode)
                          (get-in state [:compiler-options :output-wrapper]))
                     (wrap-output state)))]
 
@@ -275,9 +276,10 @@
               (assoc-in [:devtools :autoload] true)))
 
         output-wrapper?
-        (or (get-in state [:compiler-options :output-wrapper])
-            (and (= :release mode)
-                 (= 1 (count modules))))]
+        (let [x (get-in state [:compiler-options :output-wrapper])]
+          (if (false? x)
+            false
+            (or x (and (= :release mode) (= 1 (count modules))))))]
 
     (-> state
         (assoc ::build/config config) ;; so the merged defaults don't get lost
