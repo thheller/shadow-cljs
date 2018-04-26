@@ -267,9 +267,9 @@
                 ;; will mess up source maps otherwise
                 ;; append is fine
                 final-output
-                (str prepend
-                     (when goog-base
+                (str (when goog-base
                        "var shadow$provide = {};\n")
+                     prepend
                      shadow-js-prepend
                      output
                      append
@@ -413,7 +413,10 @@
         out
         (if (or goog-base web-worker)
           ;; default mod needs closure related setup and goog.addDependency stuff
-          (str unoptimizable
+          (str (when (and goog-base
+                          (= :shadow (get-in state [:js-options :js-provider])))
+                 "var shadow$provide = {};\n")
+               unoptimizable
                (when web-worker
                  "\nvar CLOSURE_IMPORT_SCRIPT = function(src) { importScripts(src); };\n")
                (when (get-in state [:devtools :async-require])
@@ -429,9 +432,6 @@
                "goog.global[\"$CLJS\"] = goog.global;\n"
                (closure-goog-deps state (:build-sources state))
                "\n\n"
-               (when (and goog-base
-                          (= :shadow (get-in state [:js-options :js-provider])))
-                 "var shadow$provide = {};\n")
                out)
           ;; else
           out)]

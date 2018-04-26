@@ -167,6 +167,12 @@
         :all-unquoted PropertyRenamingPolicy/ALL_UNQUOTED
         (throw (ex-info "invalid :property-renaming (use :off or :all-unquoted)" {})))))
 
+  (when (contains? opts :rename-prefix)
+    (.setRenamePrefix closure-opts (:rename-prefix opts)))
+
+  (when (contains? opts :rename-prefix-namespace)
+    (.setRenamePrefixNamespace closure-opts (:rename-prefix-namespace opts)))
+
   closure-opts)
 
 (defn ^CompilerOptions make-options []

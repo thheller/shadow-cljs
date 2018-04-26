@@ -203,6 +203,15 @@
       (throw (ex-info "all modules have deps, can't find default" {}))
       ))
 
+(defn wrap-output [{:keys [default prepend append] :as module-config} state]
+  (let [ppns (get-in state [:compiler-options :rename-prefix-namespace])]
+    (-> module-config
+        (assoc :prepend (str (when (and default (seq ppns))
+                               (str "var " ppns " = {};\n"))
+                             "(function(){\n"
+                             prepend)
+               :append (str append "\n}).call(this);")))))
+
 (defn rewrite-modules
   "rewrites :modules to add browser related things"
   [{:keys [worker-info] :as state} mode {:keys [modules module-loader] :as config}]
@@ -215,7 +224,8 @@
 
               module-config
               (-> module-config
-                  (assoc :force-append true)
+                  (assoc :force-append true
+                         :default default?)
                   (cond->
                     ;; REPL client - only for watch (via worker-info), not compile
                     (and default? (= :dev mode) worker-info)
@@ -241,7 +251,11 @@
                     (update :append-js str "\nshadow.loader.set_loaded('" (name module-id) "');")
 
                     (= :dev mode)
-                    (inject-preloads state config)))]
+                    (inject-preloads state config)
+
+                    (and (= :release mode)
+                         (get-in state [:compiler-options :output-wrapper]))
+                    (wrap-output state)))]
 
           (assoc mods module-id module-config)))
       {}
@@ -254,15 +268,25 @@
 
 (defn configure
   [state mode config]
-  (let [{:keys [output-dir asset-path public-dir public-path] :as config}
+  (let [{:keys [output-dir asset-path public-dir public-path modules] :as config}
         (-> (merge default-browser-config config)
             (cond->
               (not (false? (get-in config [:devtools :autoload])))
-              (assoc-in [:devtools :autoload] true)))]
+              (assoc-in [:devtools :autoload] true)))
+
+        output-wrapper?
+        (or (get-in state [:compiler-options :output-wrapper])
+            (and (= :release mode)
+                 (= 1 (count modules))))]
 
     (-> state
         (assoc ::build/config config) ;; so the merged defaults don't get lost
+        (assoc-in [:compiler-options :output-wrapper] output-wrapper?)
         (cond->
+          (and output-wrapper?
+               (not (seq (get-in state [:compiler-options :rename-prefix-namespace]))))
+          (assoc-in [:compiler-options :rename-prefix-namespace] "$APP")
+
           asset-path
           (build-api/merge-build-options {:asset-path asset-path})
 

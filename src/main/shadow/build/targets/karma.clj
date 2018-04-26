@@ -77,9 +77,9 @@
   [{::keys [output-to] :keys [polyfill-js unoptimizable build-options build-sources] :as state} config]
 
   (let [prepend
-        (str unoptimizable
+        (str "var shadow$provide = {};\n"
+             unoptimizable
              (output/closure-defines-and-base state)
-             "var shadow$provide = {};\n"
              "goog.global[\"$CLJS\"] = goog.global;\n")
 
         out

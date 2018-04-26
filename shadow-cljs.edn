@@ -64,6 +64,7 @@
    :compiler-options
    {:infer-externs :auto
     :shadow-keywords true
+    :output-wrapper true
     :closure-defines
     {demo.browser/FOO "bar"}}
 
