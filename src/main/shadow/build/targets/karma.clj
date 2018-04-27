@@ -32,10 +32,10 @@
           {:output-dir output-dir
            :greedy true
            :dynamic-resolve true})
+        (build-api/with-js-options {:js-provider :shadow})
         (cond->
-          (not js-options)
-          (build-api/with-js-options
-            {:js-provider :shadow}))
+          js-options
+          (build-api/with-js-options js-options))
         (build-api/configure-modules {:test {:entries []
                                              :output-name (.getName output-to)}})
 

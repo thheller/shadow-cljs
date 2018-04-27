@@ -1,7 +1,7 @@
 (ns demo.browser
   (:require-macros [demo.browser :refer (test-macro)])
   (:require
-    #_ ["babel-test" :as babel-test :default Shape]
+    #_["babel-test" :as babel-test :default Shape]
     [clojure.pprint :refer (pprint)]
     [clojure.spec.alpha :as s]
     [clojure.spec.gen.alpha :as gen]
@@ -9,8 +9,8 @@
     [cljs.core.async :as async :refer (go)]
     ["./es6.js" :as es6]
     ["./foo" :as foo]
-    #_ ["circular-test" :as circ]
-    #_ ["/demo/myComponent" :refer (myComponent)]
+    #_["circular-test" :as circ]
+    #_["/demo/myComponent" :refer (myComponent)]
     [cljs.test :refer (deftest)]
     [demo.never-load]
     [demo.always-load]
@@ -24,9 +24,10 @@
 (go (<! (async/timeout 500))
     (js/console.log "go!"))
 
-(es6/someAsyncFn (js/fetch "/index.html"))
+(when js/goog.global.fetch
+  (es6/someAsyncFn (js/fetch "/index.html")))
 
-#_ (js/console.log "JSX" (myComponent))
+#_(js/console.log "JSX" (myComponent))
 
 (pprint [1 2 3])
 
@@ -39,24 +40,29 @@
 (js/console.log :foo)
 (prn :foo1 :bar)
 
-
-
-
-
-#_ (js/console.log "babel-test" babel-test (Shape. 1 1))
+#_(js/console.log "babel-test" babel-test (Shape. 1 1))
 
 (js/console.log "foo" foo)
 
-#_ (js/console.log "circular - not yet" (circ/test))
-#_ (js/console.log "circular - actual" (circ/foo))
+#_(js/console.log "circular - not yet" (circ/test))
+#_(js/console.log "circular - actual" (circ/foo))
 
 (s/def ::foo string?)
 
 (s/fdef foo
   :args (s/cat :foo ::foo))
 
+(defonce worker-ref (atom nil))
+
 (defn ^:dev/after-load start []
-  (js/console.log "browser-start"))
+  (js/console.log "browser-start")
+  (set! (.-innerHTML (js/document.querySelector "h1")) "loaded!")
+  (let [worker (js/Worker. "/js/worker.js")]
+    (reset! worker-ref worker)
+
+    (.addEventListener worker "message"
+      (fn [e]
+        (js/console.log "mesage from worker" e)))))
 
 (defn start-from-config []
   (js/console.log "browser-start-from-config"))
@@ -66,6 +72,7 @@
   (start))
 
 (defn ^:dev/before-load stop-sync []
+  (.terminate @worker-ref)
   (js/console.log "browser-stop-sync"))
 
 (defn ^:dev/before-load-async stop [done]

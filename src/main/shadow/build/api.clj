@@ -23,6 +23,38 @@
 (defn build-state? [build]
   (data/build-state? build))
 
+(defn deep-merge [a b]
+  (cond
+    (nil? a)
+    b
+
+    (nil? b)
+    a
+
+    (and (map? a) (map? b))
+    (merge-with deep-merge a b)
+
+    (and (vector? a) (vector? b))
+    (->> (concat a b)
+         (distinct)
+         (into []))
+
+    (string? b)
+    b
+
+    (number? b)
+    b
+
+    (boolean? b)
+    b
+
+    (keyword? b)
+    b
+
+    :else
+    (throw (ex-info "failed to merge config value" {:a a :b b}))
+    ))
+
 (def default-compiler-options
   {:optimizations :none
    :static-fns true
@@ -42,7 +74,7 @@
    {"goog.DEBUG" false
     "goog.LOCALE" "en"
     "goog.TRANSPILE" "never"
-    "process.env.NODE_ENV" "development"}})
+    "goog.ENABLE_DEBUG_LOADER" false}})
 
 (def default-build-options
   {:print-fn :console
@@ -138,19 +170,19 @@
   (assoc state :executor executor))
 
 (defn with-build-options [state opts]
-  (update state :build-options merge opts))
+  (update state :build-options deep-merge opts))
 
 (defn merge-build-options [state opts]
-  (update state :build-options merge opts))
+  (update state :build-options deep-merge opts))
 
 (defn with-compiler-options [state opts]
-  (update state :compiler-options merge opts))
+  (update state :compiler-options deep-merge opts))
 
 (defn merge-compiler-options [state opts]
-  (update state :compiler-options merge opts))
+  (update state :compiler-options deep-merge opts))
 
 (defn with-js-options [state opts]
-  (update state :js-options merge opts))
+  (update state :js-options deep-merge opts))
 
 (defn enable-source-maps [state]
   (update state :compiler-options merge {:source-map "/dev/null"
@@ -188,9 +220,6 @@
 
 (defn check [state]
   (closure/check state))
-
-(defn flush-unoptimized [state]
-  (output/flush-unoptimized state))
 
 (defn resolve-entries [state entries]
   (res/resolve-entries state entries))

@@ -19,7 +19,7 @@
 (def loaded? js/goog.isProvided_)
 
 (defn goog-is-loaded? [name]
-  (gobj/get js/goog.dependencies_.written name))
+  (js/SHADOW_ENV.isLoaded name))
 
 (def goog-base-rc
   [:shadow.build.classpath/resource "goog/base.js"])

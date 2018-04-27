@@ -357,8 +357,7 @@
          :modules
          {:repl {:entries '[shadow.cljs.devtools.client.browser-repl]}}
          :devtools
-         {:autoload false
-          :async-require true}}]
+         {:autoload false}}]
 
     (super/start-worker supervisor cfg)))
 

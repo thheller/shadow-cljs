@@ -124,40 +124,14 @@
       (assoc-in after [::build-info :timings stage :exit] (System/currentTimeMillis)))))
 
 (defn deep-merge [a b]
-  (cond
-    (nil? a)
-    b
-
-    (nil? b)
-    a
-
-    (and (map? a) (map? b))
-    (merge-with deep-merge a b)
-
-    (and (vector? a) (vector? b))
-    (->> (concat a b)
-         (distinct)
-         (into []))
-
-    (string? b)
-    b
-
-    (number? b)
-    b
-
-    (boolean? b)
-    b
-
-    :else
-    (throw (ex-info "failed to merge config value" {:a a :b b}))
-    ))
+  (build-api/deep-merge a b))
 
 (defn config-merge [config mode]
   (let [mode-opts (get config mode)]
     (-> config
         (cond->
           mode-opts
-          (deep-merge mode-opts))
+          (build-api/deep-merge mode-opts))
         (dissoc :release :dev))))
 
 (defonce target-require-lock (Object.))
@@ -242,8 +216,8 @@
                 (build-api/with-build-options
                   {:use-file-min false})
                 (build-api/with-compiler-options
-                  {:optimizations :none
-                   :closure-defines {"goog.DEBUG" true}})
+                  {:optimizations :none})
+                (update-in [:compiler-options :closure-defines] merge {"goog.DEBUG" true})
                 (assoc :devtools (:devtools config)))
 
             ;; generic release mode
@@ -251,11 +225,11 @@
             (-> (build-api/with-compiler-options
                   {:optimizations :advanced
                    :elide-asserts true
-                   :pretty-print false
-                   :closure-defines {"goog.DEBUG" false}}))
+                   :pretty-print false})
+                (update-in [:compiler-options :closure-defines] merge {"goog.DEBUG" false}))
 
             closure-defines
-            (build-api/with-compiler-options {:closure-defines closure-defines})
+            (update-in [:compiler-options :closure-defines] merge closure-defines)
 
             compiler-options
             (build-api/with-compiler-options compiler-options)

@@ -182,7 +182,7 @@
 
                       ;; required for live-reloading but shouldn't be, this is not a browser
                       ;; we know exactly what was loaded
-                      (str "goog.dependencies_.written[\"" output-name "\"] = true;"))
+                      (str "$CLJS.SHADOW_ENV.setLoaded(\"" output-name "\");"))
                     (str/join "\n"))
                "\n"
                "var SHADOW_REQUIRES = {};\n"

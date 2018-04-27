@@ -434,6 +434,144 @@
               (-> (assoc :output-name (str (name module-id) ".js"))
                   (hash-optimized-module module-hash-names))))))))
 
+(defn get-all-module-deps [{:keys [build-modules] :as state} {:keys [depends-on] :as mod}]
+  ;; FIXME: not exactly pretty, just abusing the fact that build-modules is already ordered
+  (->> (reverse build-modules)
+       (reduce
+         (fn [{:keys [deps order] :as x} {:keys [module-id] :as mod}]
+           (if-not (contains? deps module-id)
+             x
+             {:deps (set/union deps (:depends-on mod))
+              :order (conj order mod)}))
+         {:deps depends-on
+          :order []})
+       (:order)
+       (reverse)))
+
+(defn flush-unoptimized-module!
+  [{:keys [unoptimizable build-options] :as state}
+   {:keys [goog-base output-name prepend append sources web-worker] :as mod}]
+
+  (let [{:keys [dev-inline-js]}
+        build-options
+
+        sources
+        (if-not web-worker
+          sources
+          (let [mods (get-all-module-deps state mod)]
+            (-> []
+                (into (mapcat :sources) mods)
+                (into sources))))
+
+        inlineable-sources
+        (if-not dev-inline-js
+          []
+          (->> sources
+               (map #(data/get-source-by-id state %))
+               (filter output/inlineable?)
+               (into [])))
+
+        inlineable-set
+        (into #{} (map :resource-id) inlineable-sources)
+
+        target
+        (data/output-file state output-name)
+
+        inlined-js
+        (->> inlineable-sources
+             (map #(data/get-output! state %))
+             (map :js)
+             (str/join "\n"))
+
+        ;; goog.writeScript_ (via goog.require) will set these
+        ;; since we skip these any later goog.require (that is not under our control, ie REPL)
+        ;; won't recognize them as loaded and load again
+        closure-require-hack
+        (->> inlineable-sources
+             (map :output-name)
+             (map (fn [output-name]
+                    ;; not entirely sure why we are setting the full path and just the name
+                    ;; goog seems to do that
+                    (str "SHADOW_ENV.setLoaded(\"" + output-name "\");")
+                    ))
+             (str/join "\n"))
+
+        require-files
+        (->> sources
+             (remove inlineable-set)
+             (remove #{output/goog-base-id})
+             (map #(data/get-source-by-id state %))
+             (map :output-name)
+             (into []))
+
+        out
+        (str inlined-js
+             prepend
+             closure-require-hack
+             (str "SHADOW_ENV.load(" (json/write-str require-files) ");\n")
+             append)
+
+        out
+        (if (or goog-base web-worker)
+          ;; default mod needs closure related setup and goog.addDependency stuff
+          (str (when (and goog-base
+                          (= :shadow (get-in state [:js-options :js-provider])))
+                 "var shadow$provide = {};\n")
+               unoptimizable
+
+               (let [{:keys [polyfill-js]} state]
+                 (when (and goog-base (seq polyfill-js))
+                   (str "\n" polyfill-js)))
+
+               (-> state
+                   (cond->
+                     web-worker
+                     (assoc-in [:compiler-options :closure-defines "shadow.cljs.devtools.client.env.enabled"] false))
+                   (output/closure-defines-and-base))
+
+               (if web-worker
+                 (slurp (io/resource "shadow/boot/worker.js"))
+                 (slurp (io/resource "shadow/boot/browser.js")))
+               "\n\n"
+               ;; create the $CLJS var so devtools can always use it
+               ;; always exists for :module-format :js
+               "goog.global[\"$CLJS\"] = goog.global;\n"
+               "\n\n"
+               out)
+          ;; else
+          out)]
+
+    (spit target out)))
+
+(defn flush-unoptimized!
+  [{:keys [build-modules] :as state}]
+
+  ;; FIXME: this always flushes
+  ;; it could do partial flushes when nothing was actually compiled
+  ;; a change in :closure-defines won't trigger a recompile
+  ;; so just checking if nothing was compiled is not reliable enough
+  ;; flushing really isn't that expensive so just do it always
+
+  (when-not (seq build-modules)
+    (throw (ex-info "flush before compile?" {})))
+
+  (output/flush-sources state)
+
+  (util/with-logged-time
+    [state {:type :flush-unoptimized}]
+
+    (doseq [mod build-modules]
+      (flush-unoptimized-module! state mod))
+
+    state
+    ))
+
+(defn flush-unoptimized
+  [state]
+  "util for ->"
+  (flush-unoptimized! state)
+  state)
+
 (defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
   (case mode
     :dev
@@ -442,7 +580,7 @@
           module-loader
           (-> (inject-loader-setup-dev config)
               (flush-module-data)))
-        (output/flush-unoptimized)
+        (flush-unoptimized)
         (flush-manifest false))
     :release
     (-> state
@@ -463,19 +601,7 @@
           (flush-module-data))
         (flush-manifest true))))
 
-(defn get-all-module-deps [{:keys [build-modules] :as state} {:keys [depends-on] :as mod}]
-  ;; FIXME: not exactly pretty, just abusing the fact that build-modules is already ordered
-  (->> (reverse build-modules)
-       (reduce
-         (fn [{:keys [deps order] :as x} {:keys [module-id] :as mod}]
-           (if-not (contains? deps module-id)
-             x
-             {:deps (set/union deps (:depends-on mod))
-              :order (conj order mod)}))
-         {:deps depends-on
-          :order []})
-       (:order)
-       (reverse)))
+
 
 (defn make-web-worker-prepend [state mod]
   (let [all
@@ -495,7 +621,7 @@
 (defn module-wrap
   "add web specific prepends to each module"
   ;; FIXME: node environments should not require the Math.imul fix right?
-  [state]
+  [{::build/keys [mode] :as state}]
   (update state :build-modules
     (fn [modules]
       (->> modules
@@ -505,7 +631,7 @@
                         goog-base
                         (update :prepend str imul-js-fix "\n")
 
-                        web-worker
+                        (and (= :release mode) web-worker)
                         (update :prepend str (make-web-worker-prepend state mod) "\n")
                         ))))
            (into [])
