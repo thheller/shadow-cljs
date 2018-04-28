@@ -421,6 +421,7 @@
        ;; set global back to actual global so things like setTimeout work
        "\ngoog.global = CLJS_GLOBAL;"
 
+       (slurp (io/resource "shadow/boot/npm_module.js"))
        (slurp (io/resource "shadow/build/targets/npm_module_goog_overrides.js"))
        "\nmodule.exports = $CLJS;\n"
        ))
