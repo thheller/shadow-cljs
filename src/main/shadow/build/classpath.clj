@@ -22,11 +22,13 @@
            (java.net URL)
            (java.util.zip ZipException)
            (shadow.build.closure ErrorCollector JsInspector)
-           [java.nio.file Paths]
+           [java.nio.file Paths Path]
            [com.google.javascript.jscomp CompilerOptions$LanguageMode CompilerOptions SourceFile]
            [com.google.javascript.jscomp.deps ModuleNames]
            [javax.xml.parsers DocumentBuilderFactory]
-           ))
+           [org.w3c.dom Node Element]))
+
+(set! *warn-on-reflection* true)
 
 (def CACHE-TIMESTAMP (util/resource-last-modified "shadow/build/classpath.clj"))
 
@@ -230,7 +232,7 @@
       false
       )))
 
-(defn process-deps-cljs [cp source-path resources]
+(defn process-deps-cljs [cp ^File source-path resources]
   {:pre [(sequential? resources)
          (util/file? source-path)]}
 
@@ -360,7 +362,7 @@
          :externs extern-rcs}
         ))))
 
-(defn pom-info-for-jar [file]
+(defn pom-info-for-jar [^File file]
   (when (.isFile file)
     (let [pom-file (io/file
                      (.getParentFile file)
@@ -383,7 +385,7 @@
                        info {}]
                   (if (>= x (.getLength child-nodes))
                     info
-                    (let [node (.item child-nodes x)]
+                    (let [^Element node (.item child-nodes x)]
                       (recur
                         (inc x)
                         (case (.getNodeName node)
@@ -441,7 +443,7 @@
   (doseq [x (get-classpath)]
     (prn (pom-info-for-jar x))))
 
-(defn find-jar-resources* [cp file]
+(defn find-jar-resources* [cp ^File file]
   (try
     (let [jar-path
           (.getCanonicalPath file)
@@ -539,7 +541,7 @@
        (inspect-resources cp)))
 
 (defn find-jar-resources
-  [{:keys [manifest-cache-dir] :as cp} jar-file]
+  [{:keys [manifest-cache-dir] :as cp} ^File jar-file]
   (let [manifest-name
         (str (.lastModified jar-file) "-" (.getName jar-file) ".manifest")
 
@@ -570,7 +572,7 @@
           (cache/write-file mfile (assoc jar-contents ::CACHE-TIMESTAMP CACHE-TIMESTAMP))
           jar-contents))))
 
-(defn make-fs-resource [file name]
+(defn make-fs-resource [^File file name]
   (let [last-mod
         (if (.exists file)
           (.lastModified file)
@@ -606,7 +608,7 @@
   (->> (find-fs-resources* cp root)
        (process-root-contents cp root)))
 
-(defn find-resources [cp file]
+(defn find-resources [cp ^File file]
   (if (util/is-jar? (.getName file))
     (find-jar-resources cp file)
     (find-fs-resources cp file)))
@@ -621,7 +623,7 @@
   (let [{:keys [classpath-excludes]} @index-ref]
     (->> (get-classpath)
          (remove #(should-exclude-classpath classpath-excludes %))
-         (map #(.getCanonicalFile %))
+         (map #(.getCanonicalFile ^File %))
          (into []))))
 
 (defn index-rc-remove [index resource-name]
@@ -798,7 +800,7 @@
   (let [dir-contents (find-resources index path)]
     (index-path-merge index path dir-contents)))
 
-(defn index-file-add [index source-path file]
+(defn index-file-add [index ^File source-path ^File file]
   (let [abs-file
         (.getAbsoluteFile file)
 
@@ -823,7 +825,7 @@
         (index-rc-merge index rc)
         ))))
 
-(defn index-file-remove [index source-path file]
+(defn index-file-remove [index source-path ^File file]
   (let [abs-file (.getAbsoluteFile file)
         resource-name (get-in index [:file->name abs-file])]
     (if-not resource-name
@@ -935,7 +937,7 @@
 
 (defn find-resource-by-file
   "returns nil if file is not registered on the classpath"
-  [{:keys [index-ref] :as cp} file]
+  [{:keys [index-ref] :as cp} ^File file]
   {:pre [(service? cp)
          (util/is-file-instance? file)]}
 
@@ -1005,7 +1007,7 @@
          )))
 
   ;; relative require "./foo.js" from another rc
-  ([cp {:keys [resource-name] :as require-from} require]
+  ([cp {:keys [resource-name] :as require-from} ^String require]
    (when-not require-from
      (throw (ex-info "relative requires only allowed in files" {:require require})))
 

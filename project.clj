@@ -30,12 +30,12 @@
    [org.clojure/data.json "0.2.6"]
 
    [org.clojure/tools.logging "0.4.0"]
-   [org.clojure/tools.cli "0.3.5"]
+   [org.clojure/tools.cli "0.3.7"]
    [org.clojure/tools.nrepl "0.2.13"]
    [org.clojure/tools.reader "1.3.0-alpha3"]
 
-   [com.cognitect/transit-clj "0.8.300"]
-   [com.cognitect/transit-cljs "0.8.243"]
+   [com.cognitect/transit-clj "0.8.309"]
+   [com.cognitect/transit-cljs "0.8.256"]
 
    [org.clojure/core.async "0.4.474"]
 
@@ -49,9 +49,7 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.1.Final"]
-   ;; tools.deps won't include runtime deps properly
-   [org.jboss.xnio/xnio-nio "3.3.8.Final"]
+   [io.undertow/undertow-core "2.0.4.Final"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.6.3"
@@ -59,7 +57,7 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [expound "0.5.0"]
+   [expound "0.6.0"]
    [fipp "0.6.12"]
 
    ;; experimental
