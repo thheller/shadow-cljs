@@ -88,6 +88,32 @@
       (super/start-worker supervisor build-config)
       )))
 
+(defn watch-compile!
+  "manually trigger a recompile for a watch when {:autobuild false} is used"
+  [build-id]
+  (let [worker (get-worker build-id)]
+    (if-not worker
+      :watch-not-running
+      (do (-> worker
+              (worker/compile)
+              (worker/sync!))
+          ;; avoid returning the worker state because it will blow up the REPL
+          :ok))))
+
+(defn watch-compile-all!
+  "call watch-compile! for all running builds"
+  []
+  (let [{:keys [supervisor]}
+        (runtime/get-instance!)
+
+        active-builds
+        (super/active-builds supervisor)]
+
+    (doseq [id active-builds]
+      (watch-compile! id))
+
+    :ok))
+
 (defn watch
   "starts a dev worker process for a given :build-id
   opts defaults to {:autobuild true}"
@@ -106,8 +132,11 @@
          (worker/watch out true)
          (cond->
            (not (false? autobuild))
-           (-> (worker/start-autobuild)
-               (worker/sync!))))
+           (worker/start-autobuild)
+
+           (false? autobuild)
+           (worker/compile))
+         (worker/sync!))
 
      :watching
      )))

@@ -302,10 +302,12 @@
   (assoc worker-state :autobuild false))
 
 (defmethod do-proc-control :compile
-  [worker-state {:keys [reply-to] :as msg}]
+  [{:keys [build-state] :as worker-state} {:keys [reply-to] :as msg}]
   (let [result
         (-> worker-state
-            (build-configure)
+            (cond->
+              (not build-state)
+              (build-configure))
             (build-compile))]
 
     (when reply-to
