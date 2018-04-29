@@ -114,6 +114,26 @@
 
     :ok))
 
+(defn watch-set-autobuild!
+  "starts/stops autobuild for a watch worker by id
+   (watch-set-autobuild :app true|false)"
+  [build-id toggle]
+  (let [worker (get-worker build-id)]
+    (cond
+      (nil? worker)
+      :watch-not-running
+
+      toggle
+      (-> worker
+          (worker/start-autobuild)
+          (worker/sync!))
+
+      :else
+      (-> worker
+          (worker/stop-autobuild)
+          (worker/sync!)))
+    :ok))
+
 (defn watch
   "starts a dev worker process for a given :build-id
   opts defaults to {:autobuild true}"
