@@ -11,6 +11,7 @@ css/
 /wiki
 /book
 /blog
+/examples
 /src/gen
 pom.xml
 pom.xml.asc

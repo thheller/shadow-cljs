@@ -152,7 +152,8 @@
                                 (not (:from-jar src))))))
                    (into []))]
 
-          (when (seq sources-to-get)
+          (if-not (seq sources-to-get)
+            (hud/load-end-success)
             (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success))
             ))))))
 
