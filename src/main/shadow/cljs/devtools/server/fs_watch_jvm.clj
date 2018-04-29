@@ -21,7 +21,7 @@
            (map (fn [[name event]]
                   {:dir dir
                    :name name
-                   :ext (when-let [x (str/index-of name ".")]
+                   :ext (when-let [x (str/last-index-of name ".")]
                           (subs name (inc x)))
                    :file (io/file dir name)
                    :event event}))

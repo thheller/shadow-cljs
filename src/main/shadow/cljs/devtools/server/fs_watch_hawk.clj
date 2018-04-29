@@ -72,7 +72,7 @@
                                          (subs abs-name root-prefix-len)
 
                                          ext
-                                         (when-let [x (str/index-of name ".")]
+                                         (when-let [x (str/last-index-of name ".")]
                                            (subs name (inc x)))]
 
                                      (when (contains? file-exts ext)
