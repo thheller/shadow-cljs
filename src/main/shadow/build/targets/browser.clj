@@ -518,8 +518,10 @@
         out
         (if (or goog-base web-worker)
           (str unoptimizable
-               (when any-shadow-js?
-                 "var shadow$provide = {};\n")
+               ;; always include this in dev builds
+               ;; a build may not include any shadow-js initially
+               ;; but load some from the REPL later
+               "var shadow$provide = {};\n"
 
                (let [{:keys [polyfill-js]} state]
                  (when (and goog-base (seq polyfill-js))
