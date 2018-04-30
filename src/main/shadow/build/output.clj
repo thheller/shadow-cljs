@@ -217,6 +217,10 @@
 
   (let [{:keys [module-format]} build-options
 
+        any-shadow-js?
+        (->> (data/get-build-sources state)
+             (some #(= :shadow-js (:type %))))
+
         js-provider
         (get-in state [:js-options :js-provider])]
 
@@ -267,9 +271,9 @@
                 ;; will mess up source maps otherwise
                 ;; append is fine
                 final-output
-                (str (when goog-base
+                (str prepend
+                     (when (and any-shadow-js? goog-base)
                        "var shadow$provide = {};\n")
-                     prepend
                      shadow-js-prepend
                      output
                      append

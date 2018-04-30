@@ -455,6 +455,10 @@
   (let [{:keys [dev-inline-js]}
         build-options
 
+        any-shadow-js?
+        (->> (data/get-build-sources state)
+             (some #(= :shadow-js (:type %))))
+
         sources
         (if-not web-worker
           sources
@@ -513,11 +517,9 @@
 
         out
         (if (or goog-base web-worker)
-          ;; default mod needs closure related setup and goog.addDependency stuff
-          (str (when (and goog-base
-                          (= :shadow (get-in state [:js-options :js-provider])))
+          (str unoptimizable
+               (when any-shadow-js?
                  "var shadow$provide = {};\n")
-               unoptimizable
 
                (let [{:keys [polyfill-js]} state]
                  (when (and goog-base (seq polyfill-js))

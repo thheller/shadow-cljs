@@ -146,6 +146,10 @@
   (or (get-in state [:sources id])
       (throw (ex-info (format "no source by id: %s" id) {:id id}))))
 
+(defn get-build-sources [{:keys [build-sources] :as state}]
+  (->> build-sources
+       (map #(get-source-by-id state %))))
+
 (defn get-source-by-name [state name]
   {:pre [(string? name)]}
   (let [id (or (get-in state [:name->id name])
