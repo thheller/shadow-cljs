@@ -2,7 +2,8 @@
   (:require [cognitect.transit :as transit])
   (:import (java.io File FileOutputStream FileInputStream ByteArrayOutputStream)
            (java.net URL)
-           (cljs.tagged_literals JSValue)))
+           (cljs.tagged_literals JSValue)
+           [java.util.regex Pattern]))
 
 (defn write-stream [out data]
   (let [w (transit/writer out :json
@@ -13,6 +14,10 @@
               (transit/write-handler "file" #(.getAbsolutePath %))
               JSValue
               (transit/write-handler "js-value" #(.-val %))
+              Pattern
+              (transit/write-handler "regexp"
+                (fn [re]
+                  [(.pattern re) (.flags re)]))
               }})]
     (transit/write w data)))
 
@@ -36,6 +41,10 @@
                 (transit/read-handler #(File. %))
                 "js-value"
                 (transit/read-handler #(JSValue. %))
+                "regexp"
+                (transit/read-handler
+                  (fn [[pattern flags]]
+                    (Pattern/compile pattern flags)))
                 }})]
       (transit/read r)
       )))
