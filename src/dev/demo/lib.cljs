@@ -1,4 +1,5 @@
-(ns demo.lib)
+(ns demo.lib
+  (:require ["./es6"]))
 
 (js/console.log "demo.lib")
 

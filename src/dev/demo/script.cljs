@@ -1,5 +1,7 @@
 (ns demo.script
-  (:require ["http" :as http]))
+  (:require
+    ["http" :as http]
+    ["./es6"]))
 
 (defn request-handler [req res]
   (.end res "foo"))

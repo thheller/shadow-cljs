@@ -87,7 +87,7 @@
        "\nglobal.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"))
 
 (defn flush-unoptimized
-  [{:keys [build-modules build-sources build-options compiler-options node-config] :as state}]
+  [{:keys [build-modules build-sources build-options compiler-options node-config polyfill-js] :as state}]
   (when (not= 1 (count build-modules))
     (throw (ex-info "node builds can only have one module!" {:tag ::output :build-modules build-modules})))
 
@@ -147,7 +147,10 @@
                                    (data/get-output! state src)]
                                (str (str/replace js #"goog.global = this;" "goog.global = global;")
                                     "\ngoog.provide = SHADOW_PROVIDE;"
-                                    "\ngoog.require = SHADOW_REQUIRE;"))
+                                    "\ngoog.require = SHADOW_REQUIRE;"
+                                    (when (seq polyfill-js)
+                                      (str "\n" polyfill-js
+                                           "\nglobal.$jscomp = $jscomp;"))))
                              (str "SHADOW_IMPORT(" (pr-str output-name) ");"))))
                     (str/join "\n"))
 
