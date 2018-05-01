@@ -176,6 +176,7 @@
           (str (output/closure-defines-and-base state)
                ;; used by shadow.cljs.devtools.client.env
                "\nvar $CLJS = goog.global;\n"
+               (slurp (io/resource "shadow/boot/static.js"))
                (->> (for [resource-id build-sources
                           :let [{:keys [output-name] :as rc}
                                 (data/get-source-by-id state resource-id)]]
