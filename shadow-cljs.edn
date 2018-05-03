@@ -284,7 +284,8 @@
    :output-to "out/demo-script/script.js"
 
    :compiler-options
-   {:optimizations :advanced}
+   {:optimizations :advanced
+    :source-map-use-fs-paths true}
 
    :devtools
    {:before-load-async demo.script/stop

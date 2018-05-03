@@ -155,6 +155,11 @@
           use-fs-path?
           (true? (get-in state [:compiler-options :source-map-use-fs-paths]))
 
+          source-url
+          (if (and use-fs-path? file)
+            (.getAbsolutePath file)
+            resource-name)
+
           ;; FIXME: make this use encode-source-map from above
           source-map-json
           (or source-map-json
@@ -170,11 +175,7 @@
                     (-> {(util/flat-filename resource-name) source-map}
                         (sm/encode* sm-opts)
                         (dissoc "lineCount") ;; its nil which closure doesn't like
-                        (assoc "sources"
-                               [(if (and use-fs-path? file)
-                                  (-> file (.getAbsoluteFile) (.toURI))
-                                  resource-name)])
-                        )]
+                        (assoc "sources" [source-url]))]
 
                 (json/write-str source-map-v3 :escape-slash false)))]
 

@@ -1177,6 +1177,19 @@
             (.getDeclaredField "injectedLibraries"))
     (.setAccessible true)))
 
+(defn add-sm-location-mappings [co state sources]
+  ;; can't feed the actual path to GCC when compiling since
+  ;; that affects which variable GCC chooses in the code
+  ;; just mapping each file back to the file this way
+  ;; which is not exactly the intent of prefix mappings but it works
+  (when (true? (get-in state [:compiler-options :source-map-use-fs-paths]))
+    (.setSourceMapLocationMappings
+      co
+      (->> (for [{:keys [resource-name file]} sources
+                 :when file]
+             (SourceMap$LocationMapping. resource-name (.getAbsolutePath file)))
+           (into [])))))
+
 (defn convert-sources*
   "takes a list of :js sources and rewrites them to using closure
    partial compiles must supply the cached sources so closure doesn't complain about things
@@ -1258,7 +1271,8 @@
 
         co
         (doto (make-options)
-          (set-options co-opts state))
+          (set-options co-opts state)
+          (add-sm-location-mappings state sources))
 
         co
         (if (false? (get-in state [:compiler-options :rewrite-polyfills]))
@@ -1595,6 +1609,8 @@
         closure-opts
         (doto (make-options)
           (set-options co-opts state)
+          (add-sm-location-mappings state sources)
+
           (.resetWarningsGuard)
 
           (.setStrictModeInput false)
