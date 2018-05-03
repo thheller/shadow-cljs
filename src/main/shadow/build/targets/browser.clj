@@ -371,9 +371,18 @@
     state
     ))
 
-(defn hash-optimized-module [{:keys [output output-name] :as mod} module-hash-names]
+(defn hash-optimized-module [{:keys [sources output output-name] :as mod} state module-hash-names]
   (let [signature
-        (util/md5hex output)
+        (->> sources
+             (map #(data/get-source-by-id state %))
+             ;; these are prepended after closure compilation
+             ;; so they need to be included in the hash calculation
+             ;; not just output
+             (filter #(= :shadow-js (:type %)))
+             (map #(data/get-output! state %))
+             (map :js)
+             (into [output])
+             (util/md5hex-seq))
 
         signature
         (cond
@@ -393,7 +402,7 @@
   (update state ::closure/modules
     (fn [optimized]
       (->> optimized
-           (map #(hash-optimized-module % module-hash-names))
+           (map #(hash-optimized-module % state module-hash-names))
            (into [])))))
 
 ;; because of the debug loader we can't just append the loader setup

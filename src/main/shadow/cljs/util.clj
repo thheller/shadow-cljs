@@ -162,6 +162,19 @@
       ""
       sig)))
 
+(defn md5hex-seq [segments]
+  (let [md (MessageDigest/getInstance "MD5")]
+
+    (doseq [text segments]
+      (.update md (.getBytes text)))
+
+    (reduce
+      (fn [s b]
+        (str s (format "%02X" b)))
+      ""
+      (.digest md)
+      )))
+
 (defn log-collector []
   (let [entries (atom [])]
     (reify
