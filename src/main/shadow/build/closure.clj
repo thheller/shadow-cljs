@@ -1190,6 +1190,11 @@
              (SourceMap$LocationMapping. resource-name (.getAbsolutePath file)))
            (into [])))))
 
+(def cache-affecting-options
+  [[:compiler-options :source-map-use-fs-paths]
+   [:compiler-options :rewrite-polyfills]
+   [:js-options]])
+
 (defn convert-sources*
   "takes a list of :js sources and rewrites them to using closure
    partial compiles must supply the cached sources so closure doesn't complain about things
@@ -1459,8 +1464,14 @@
             (do (io/make-parents cache-index-file)
                 {}))
 
+        cache-options
+        (->> cache-affecting-options
+             (map #(get-in state %))
+             (into []))
+
         cache-files
-        (if (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
+        (if (or (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
+                (not= cache-options (:CACHE-OPTIONS cache-index)))
           ;; invalidate all cache when the timestamp of this file has changed
           []
           ;; compare each cache key
@@ -1519,6 +1530,7 @@
                                          :num-files (count recompile-sources)}]
             (-> cache-index
                 (assoc :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
+                       :CACHE-OPTIONS cache-options
                        :polyfill-js (:polyfill-js state)
                        :injected-libs (::injected-libs state))
                 (util/reduce->
@@ -1767,8 +1779,14 @@
             (do (io/make-parents cache-index-file)
                 {}))
 
+        cache-options
+        (->> cache-affecting-options
+             (map #(get-in state %))
+             (into []))
+
         cache-files
-        (if (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
+        (if (or (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
+                (not= cache-options (:CACHE-OPTIONS cache-index)))
           ;; invalidate all cache when the timestamp of this file has changed
           []
           ;; compare each cache key
@@ -1812,7 +1830,9 @@
                   (cache/write-file cache-file output)
 
                   (assoc idx resource-id cache-key)))
-              (assoc cache-index :SHADOW-CACHE-KEY SHADOW-CACHE-KEY)
+              (assoc cache-index
+                :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
+                :CACHE-OPTIONS cache-options)
               recompile-sources)))]
 
     (when need-compile?
