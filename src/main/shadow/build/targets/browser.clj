@@ -285,7 +285,9 @@
         (assoc ::build/config config) ;; so the merged defaults don't get lost
         (assoc-in [:compiler-options :output-wrapper] output-wrapper?)
         (cond->
+          ;; only turn this on with 2+ modules, not required for single file
           (and output-wrapper?
+               (not= 1 (count modules))
                (not (seq (get-in state [:compiler-options :rename-prefix-namespace]))))
           (assoc-in [:compiler-options :rename-prefix-namespace] "$APP")
 
