@@ -139,7 +139,7 @@
 
 (defn generate-source-map
   [state
-   {:keys [resource-name output-name input] :as src}
+   {:keys [resource-name output-name file input] :as src}
    {:keys [source source-map source-map-json] :as output}
    js-file
    prepend]
@@ -152,6 +152,10 @@
           src-map-file
           (io/file (str (.getAbsolutePath js-file) ".map"))
 
+          use-fs-path?
+          (true? (get-in state [:compiler-options :source-map-use-fs-paths]))
+
+          ;; FIXME: make this use encode-source-map from above
           source-map-json
           (or source-map-json
               (let [sm-opts
@@ -166,7 +170,10 @@
                     (-> {(util/flat-filename resource-name) source-map}
                         (sm/encode* sm-opts)
                         (dissoc "lineCount") ;; its nil which closure doesn't like
-                        (assoc "sources" [resource-name])
+                        (assoc "sources"
+                               [(if (and use-fs-path? file)
+                                  (-> file (.getAbsoluteFile) (.toURI))
+                                  resource-name)])
                         )]
 
                 (json/write-str source-map-v3 :escape-slash false)))]
@@ -271,9 +278,9 @@
                 ;; will mess up source maps otherwise
                 ;; append is fine
                 final-output
-                (str prepend
-                     (when (and any-shadow-js? goog-base)
+                (str (when (and any-shadow-js? goog-base)
                        "var shadow$provide = {};\n")
+                     prepend
                      shadow-js-prepend
                      output
                      append
