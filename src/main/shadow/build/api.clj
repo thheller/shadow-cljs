@@ -39,6 +39,10 @@
          (distinct)
          (into []))
 
+    (and (instance? File a)
+         (instance? File b))
+    b
+
     (string? b)
     b
 
