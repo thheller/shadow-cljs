@@ -123,9 +123,6 @@
                {:stage stage :mode mode :config config}))
       (assoc-in after [::build-info :timings stage :exit] (System/currentTimeMillis)))))
 
-(defn deep-merge [a b]
-  (build-api/deep-merge a b))
-
 (defn config-merge [config mode]
   (let [mode-opts (get config mode)]
     (-> config

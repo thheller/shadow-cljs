@@ -526,8 +526,7 @@
           (-> (util/new-build build-config :release {})
               (build/configure :release build-config)
               (build-api/enable-source-maps)
-              (build-api/with-build-options
-                {:output-dir (io/file output-dir)})
+              (assoc-in [:build-options :output-dir] (io/file output-dir))
               (build/compile)
               (build/optimize)
               (build/flush))
