@@ -25,15 +25,21 @@ public class SourceMapReport {
         public void visit(String sourceName, String symbolName, FilePosition sourceStartPosition, FilePosition startPos, FilePosition endPos) {
             long diff = 0;
 
+            // we only want to count the = chars
             if (startPos.getLine() == endPos.getLine()) {
+                // -----+===============================+-----------------
                 diff = endPos.getColumn() - startPos.getColumn();
             } else {
+                // -------------------------+=============================
+                // =======================================================
+                // =======================================================
+                // ================+--------------------------------------
                 int line = startPos.getLine();
                 int lineDiff = endPos.getLine() - line;
-                if (lineDiff > 1) {
-                    throw new IllegalStateException("TBD, more than one line between mappings");
-                }
                 diff = (lines.get(line).length() - startPos.getColumn());
+                for (int i = 1; i < lineDiff; i++) {
+                    diff += lines.get(line + i).length();
+                }
                 diff += endPos.getColumn();
             }
 
@@ -59,10 +65,4 @@ public class SourceMapReport {
         return PersistentHashMap.create(visitor.bytes);
     }
 
-    public static void main(String[] args) throws Exception {
-        File sourceFile = new File(".shadow-cljs/release-info/demo.js");
-        File sourceMapFile = new File(".shadow-cljs/release-info/demo.js.map");
-
-        System.out.println(getByteMap(sourceFile, sourceMapFile));
-    }
 }
