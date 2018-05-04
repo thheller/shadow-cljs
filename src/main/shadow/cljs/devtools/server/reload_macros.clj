@@ -55,7 +55,7 @@
           active-macros)]
 
     (when (seq reloaded)
-      (log/warnf "macro namespace reloaded %s" reloaded)
+      (log/debugf "macro namespace reloaded %s" reloaded)
       (sys-bus/publish! system-bus ::sys-msg/macro-update {:macro-namespaces reloaded}))
 
     ))
