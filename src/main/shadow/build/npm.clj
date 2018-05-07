@@ -414,7 +414,11 @@
 
 (def asset-exts
   #{"css"
+    "scss"
+    "sass"
+    "less"
     "png"
+    "gif"
     "jpg"
     "jpeg"
     "svg"})
