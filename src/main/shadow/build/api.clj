@@ -39,6 +39,9 @@
          (distinct)
          (into []))
 
+    (and (set? a) (set? b))
+    (set/union a b)
+
     (string? b)
     b
 
