@@ -13,7 +13,9 @@
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.undertow :as undertow]
-            [shadow.http.push-state :as push-state]))
+            [shadow.http.push-state :as push-state])
+  (:import [io.undertow.server.handlers.proxy ProxyHandler LoadBalancingProxyClient]
+           [java.net URI]))
 
 (defn disable-all-kinds-of-caching [handler]
   ;; this is strictly a dev server and caching is not wanted for anything
@@ -28,7 +30,7 @@
 
 (defn start-build-server
   [config ssl-context out
-   {:keys [build-id http-root http-port http-host http-resource-root http-handler]
+   {:keys [build-id proxy-url http-root http-port http-host http-resource-root http-handler]
     :or {http-port 0}
     :as config}]
 
@@ -42,9 +44,31 @@
             "0.0.0.0")
 
         http-handler-var
-        (if-not http-handler
+        (cond
+          ;; FIXME: there seems to be no proper way to close the proxy-client instance?
+          (seq proxy-url)
+          (let [proxy-client
+                (-> (LoadBalancingProxyClient.)
+                    (.addHost (URI. proxy-url)))
+
+                proxy-handler
+                (-> (ProxyHandler/builder)
+                    (.setProxyClient proxy-client)
+                    (.setMaxRequestTime 30000)
+                    (.build))]
+
+            (fn [{ex :shadow.undertow.impl/exchange :as req}]
+              (.handleRequest proxy-handler ex)
+              ;; FIXME: cannot return ::undertow/async here
+              ;; the ring middleware blows up if this doesn't return a map
+              {:status 200
+               :body ""
+               ::undertow/handled true}))
+
+          (nil? http-handler)
           #'push-state/handle
 
+          :else
           (do (require (symbol (namespace http-handler)))
               (or (find-var http-handler)
                   (do (log/warn ":http-handler var not found" http-handler)

@@ -26,7 +26,7 @@
     (handleRequest [_ exchange]
       (let [req (impl/exchange->ring exchange)
             res (handler-fn req)]
-        (when (not= res ::async)
+        (when (and (map? res) (not (::handled res)))
           (impl/ring->exchange exchange req res))
         ))))
 

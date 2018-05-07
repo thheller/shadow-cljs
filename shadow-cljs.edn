@@ -112,6 +112,7 @@
    :devtools
    {:http-root "out/demo-browser/public"
     :http-port 8600
+    :proxy-url "http://localhost:9630"
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 
