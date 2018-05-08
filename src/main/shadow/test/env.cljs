@@ -22,7 +22,8 @@
 
 (defn register-test [test-ns test-name test-var]
   ;; register by name so reloading replaces the old test
-  (swap! tests-ref assoc-in [:namespaces test-ns :vars test-name] test-var))
+  (swap! tests-ref assoc-in [:namespaces test-ns :vars test-name] test-var)
+  test-var)
 
 (defn register-fixtures [test-ns type fix]
   (swap! tests-ref assoc-in [:namespaces test-ns :fixtures type] fix))
