@@ -89,26 +89,32 @@
       :cache-key [(System/currentTimeMillis)]
       )))
 
-(defn setup [state]
-  {:pre [(build-api/build-state? state)]}
-  (let [;; FIXME: less hardcoded cljs.user
-        cljs-user-ns
-        '(ns cljs.user
-           (:require [cljs.repl :refer (doc find-doc source apropos pst dir)]))
+(def cljs-user-ns
+  '(ns cljs.user
+     (:require [cljs.repl :refer (doc find-doc source apropos pst dir)])))
 
-        cljs-user
-        (make-repl-resource state cljs-user-ns)
+(defn setup [{:keys [classpath] :as state}]
+  {:pre [(build-api/build-state? state)]}
+  (let [state
+        (-> state
+            (cond->
+              ;; only generate cljs.user when it is not found on the classpath
+              (not (classpath/find-resource-for-provide classpath 'cljs.user))
+              (data/add-source (make-repl-resource state cljs-user-ns))))
+
+        repl-init-ns
+        (get-in state [:build-options :repl-init-ns] 'cljs.user)
 
         [repl-sources state]
         (-> state
-            (data/add-source cljs-user)
-            (build-api/resolve-entries '[cljs.user]))
+            (build-api/resolve-entries [repl-init-ns]))
 
-        ;; FIXME: proper ns-info for cljs.user, can use analyzer data because nothing was compiled yet
+        repl-rc
+        (data/get-source-by-provide state repl-init-ns)
 
         repl-state
         {::repl-state true
-         :current (select-keys cljs-user repl-current-attrs)
+         :current (select-keys repl-rc repl-current-attrs)
 
          :reader-features
          (data/get-reader-features state)

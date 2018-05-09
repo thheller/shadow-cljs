@@ -313,7 +313,8 @@
 
           ;; doing this to make cider prompt not show "user" as prompt after calling this
           (set! *nrepl-clj-ns* *ns*)
-          (set! *ns* (create-ns 'cljs.user))
+          (let [repl-ns (some-> worker :state-ref deref :build-state :repl-state :current :ns)]
+            (set! *ns* (create-ns (or repl-ns 'cljs.user))))
 
           ;; nrepl doesn't have a clear way to signal the end of a session
           ;; so this keeps running even is the nrepl is disconnected

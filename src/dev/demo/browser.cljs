@@ -11,46 +11,42 @@
     ["./foo" :as foo]
     #_["circular-test" :as circ]
     #_["/demo/myComponent" :refer (myComponent)]
-    [cljs.test :refer (deftest)]
     [demo.never-load]
     [demo.always-load]
     ))
-
-(deftest yo
-  (= 1 2))
 
 (js/console.log "or" (or nil js/document.body))
 
 (s/def ::color
   (s/or :keyword
-        keyword?
-        :literal
-        (s/and string?
-               #(re-matches #"#[a-fA-F0-9]+" %)
-               #(or (= (count %) 7) (= (count %) 4)))))
+    keyword?
+    :literal
+    (s/and string?
+           #(re-matches #"#[a-fA-F0-9]+" %)
+           #(or (= (count %) 7) (= (count %) 4)))))
 
-(go (<! (async/timeout 500))
-    (js/console.log "go!"))
+#_(go (<! (async/timeout 500))
+      (js/console.log "go!"))
 
-(when js/goog.global.fetch
-  (es6/someAsyncFn (js/fetch "/index.html")))
+#_(when js/goog.global.fetch
+    (es6/someAsyncFn (js/fetch "/index.html")))
 
 #_(js/console.log "JSX" (myComponent))
 
-(pprint [1 2 3])
+#_(pprint [1 2 3])
 
-(assoc nil :foo 1)
+#_(assoc nil :foo 1)
 
-(js/console.log "es6" (es6/foo "es6"))
+#_(js/console.log "es6" (es6/foo "es6"))
 
 ;; (defn x 1)
 
-(js/console.log :foo)
-(prn :foo1 :bar)
+#_(js/console.log :foo)
+#_(prn :foo1 :bar)
 
 #_(js/console.log "babel-test" babel-test (Shape. 1 1))
 
-(js/console.log "foo" foo)
+#_(js/console.log "foo" foo)
 
 #_(js/console.log "circular - not yet" (circ/test))
 #_(js/console.log "circular - actual" (circ/foo))
@@ -99,16 +95,14 @@
       (done))
     250))
 
-(defrecord Foo [a b])
+(comment
+  (defrecord Foo [a b])
 
-(js/console.log (pr-str Foo) (pr-str (Foo. 1 2)) (Foo. 1 2))
+  (js/console.log (pr-str Foo) (pr-str (Foo. 1 2)) (Foo. 1 2))
 
-(js/console.log (test-macro 1 2 3))
+  (js/console.log (test-macro 1 2 3))
 
-(js/console.log {:something [:nested #{1 2 3}]})
-
-(defn tokenize []
-  (js/console.log "REMOVE-CHECK"))
+  (js/console.log {:something [:nested #{1 2 3}]}))
 
 (ns-ready)
 

@@ -194,7 +194,8 @@
                                                :tag ::config
                                                :config config))))
 
-    (let [externs-file (io/file "externs" (str (name build-id) ".txt"))]
+    (let [externs-file (io/file "externs" (str (name build-id) ".txt"))
+          {:keys [devtools]} config]
 
       (-> build-state
           (assoc
@@ -215,7 +216,10 @@
                 (build-api/with-compiler-options
                   {:optimizations :none})
                 (update-in [:compiler-options :closure-defines] merge {"goog.DEBUG" true})
-                (assoc :devtools (:devtools config)))
+                (assoc :devtools devtools)
+                (cond->
+                  (:repl-init-ns devtools)
+                  (assoc-in [:build-options :repl-init-ns] (:repl-init-ns devtools))))
 
             ;; generic release mode
             (= :release mode)
