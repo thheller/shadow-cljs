@@ -313,6 +313,13 @@
       ;; system config doesn't need build infos
       (dissoc :builds)))
 
+(defn find-version-from-pom [pom-xml]
+  (let [[_ version :as m]
+        (->> (slurp pom-xml)
+             (re-find #"<version>([^<]+)</version>"))]
+    (when m
+      version)))
+
 (defn start!
   ([]
    (let [config (load-config)]
@@ -326,8 +333,17 @@
            (start-system runtime/instance-ref app sys-config)
 
            {:keys [http ssl-context socket-repl nrepl config] :as app}
-           @app-ref]
+           @app-ref
 
+           pom-xml
+           (io/resource "META-INF/maven/thheller/shadow-cljs/pom.xml")
+
+           version
+           (if (nil? pom-xml)
+             "<snapshot>"
+             (find-version-from-pom pom-xml))]
+
+       (println (str "shadow-cljs - server version: " version))
        (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http)))
        (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl)))
        (println (str "shadow-cljs - nREPL server started on port " (:port nrepl)))

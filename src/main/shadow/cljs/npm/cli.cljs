@@ -684,7 +684,7 @@
                     (log "shadow-cljs - server pid exists but server appears to be dead, proceeding without server.")
                     (fs/unlinkSync server-pid-file))
 
-                  (log "shadow-cljs - config:" config-path "version:" version)
+                  (log "shadow-cljs - config:" config-path " cli version:" version " node:" js/process.version)
 
                   (cond
                     (or (:cli-info options)
