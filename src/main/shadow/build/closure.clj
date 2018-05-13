@@ -21,13 +21,11 @@
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
-                                         SourceMap$LocationMapping BasicErrorManager Result ShadowAccess
+                                          BasicErrorManager Result ShadowAccess
                                          SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy)
            (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector)
-           (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode ModuleNames)
-           (com.google.javascript.jscomp.parsing.parser FeatureSet)
-           (java.nio.charset Charset)
-           (java.util Base64)))
+           (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
+           (java.nio.charset Charset)))
 
 (def SHADOW-CACHE-KEY
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
@@ -1177,6 +1175,27 @@
             (.getDeclaredField "injectedLibraries"))
     (.setAccessible true)))
 
+
+;; closure folks really do not care about backwards compatibility
+;; SourceMap$LocationMapping used to be a final class
+;; v20180506 release contains PrefixLocationMapping with LocationMapping becoming an interface
+;; but it was rolled back shortly after release to the older version, not sure what it will be in the future
+(def make-location-mapping
+  (let [class
+        (try
+          ;; https://github.com/google/closure-compiler/commit/985fc0ccea83fc8d90c2301ba56a9831e06dbd8e
+          (Class/forName "com.google.javascript.jscomp.SourceMap$PrefixLocationMapping")
+          (catch ClassNotFoundException ex
+            ;; https://github.com/google/closure-compiler/commit/5d60d64275a24ff2d93a5db778d8017fce76ad99
+            (Class/forName "com.google.javascript.jscomp.SourceMap$LocationMapping")))
+
+        ctor
+        (.getConstructor class (into-array [String String]))]
+
+    (fn [resource-name file-path]
+      (.newInstance ctor (into-array [resource-name file-path]))
+      )))
+
 (defn add-sm-location-mappings [co state sources]
   ;; can't feed the actual path to GCC when compiling since
   ;; that affects which variable GCC chooses in the code
@@ -1187,7 +1206,7 @@
       co
       (->> (for [{:keys [resource-name file]} sources
                  :when file]
-             (SourceMap$LocationMapping. resource-name (.getAbsolutePath file)))
+             (make-location-mapping resource-name (.getAbsolutePath file)))
            (into [])))))
 
 (def cache-affecting-options
