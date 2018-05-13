@@ -6,6 +6,20 @@
             [shadow.cljs.npm.util :as util]
             [clojure.string :as str]))
 
+(defn socket-data [data exit-token error-token]
+  (let [txt (.toString data)]
+    (cond
+      (str/includes? txt exit-token)
+      [:close (-> (str/replace txt exit-token "")
+                  (str/trimr))]
+
+      (str/includes? txt error-token)
+      [:exit (-> (str/replace txt error-token "")
+                 (str/trimr))]
+
+      :else
+      [:continue txt])))
+
 (defn repl-client
   "readline client that tries to maintain a prompt. not quite smart yet."
   [^js socket args]
@@ -66,19 +80,8 @@
 
     (.on socket "data"
       (fn [data]
-        (let [txt
-              (.toString data)
-
-              [action txt]
-              (cond
-                (str/includes? txt exit-token)
-                [:close (str/replace txt (str exit-token "\n") "")]
-
-                (str/includes? txt error-token)
-                [:exit (str/replace txt (str error-token "\n") "")]
-
-                :else
-                [:continue txt])]
+        (let [[action txt]
+              (socket-data data exit-token error-token)]
 
           (js/process.stdout.write txt)
 
@@ -134,19 +137,8 @@
 
     (.on socket "data"
       (fn [data]
-        (let [txt
-              (.toString data)
-
-              [action txt]
-              (cond
-                (str/includes? txt exit-token)
-                [:close (str/replace txt (str exit-token "\n") "")]
-
-                (str/includes? txt error-token)
-                [:exit (str/replace txt (str error-token "\n") "")]
-
-                :else
-                [:continue txt])]
+        (let [[action txt]
+              (socket-data data exit-token error-token)]
 
           (js/process.stdout.write txt)
 

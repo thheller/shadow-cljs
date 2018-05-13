@@ -36,6 +36,7 @@
    [nil "--debug" "enable source-maps + pseudo-names. DO NOT SHIP THIS CODE!"]
    [nil "--stdin" "clj-eval from stdin"]
    ["-v" "--verbose" "verbose build log"]
+   [nil "--force-spawn" "spawn new process, do not connect to running server"]
    [nil "--cli-info" "prints a bunch of information"]
    [nil "--via VIA" "internal option, used by node script" :parse-fn keyword]
    ["-h" "--help"]])
