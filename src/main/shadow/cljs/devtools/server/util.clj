@@ -251,7 +251,8 @@
               (.flush out)))
           (catch IOException e
             (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
-              (.printStackTrace e *err*))))
+              (when *err*
+                (.printStackTrace e *err*)))))
         (recur buf)))))
 
 (defn wsl-ify [path]

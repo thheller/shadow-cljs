@@ -190,76 +190,57 @@
          :output-to script-name}
 
         {:keys [proc-stop] :as worker}
-        (super/start-worker supervisor build-config)]
+        (super/start-worker supervisor build-config)
 
-    (when (not= via :main)
-      (let [out-chan
-            (-> (async/sliding-buffer 10)
-                (async/chan))]
+        result
+        (worker/compile! worker)]
 
-        (go (loop []
-              (when-some [msg (<! out-chan)]
-                (try
-                  (util/print-worker-out msg verbose)
-                  (catch Exception e
-                    (prn [:print-worker-out-error e])))
-                (recur)
-                )))
+    ;; FIXME: validate that compilation succeeded
 
-        (worker/watch worker out-chan)))
+    (let [node-script
+          (doto (io/file script-name)
+            ;; just to ensure it is removed, should this crash for some reason
+            (.deleteOnExit))
 
-    (let [result
-          (-> worker
-              ;; forwards all build messages to the server output
-              ;; prevents spamming the REPL with build progress
-              (worker/watch (:out app) false)
-              (worker/compile!))]
+          node-proc
+          (-> (ProcessBuilder.
+                (into-array
+                  (into [node-command] node-args)))
+              (.directory
+                ;; nil defaults to JVM working dir
+                (when pwd
+                  (io/file pwd)))
+              (.start))]
 
-      ;; FIXME: validate that compilation succeeded
+      ;; FIXME: validate that proc started properly
 
-      (let [node-script
-            (doto (io/file script-name)
-              ;; just to ensure it is removed, should this crash for some reason
-              (.deleteOnExit))
+      ;; FIXME: these should print to worker out instead
+      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
+      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
 
-            node-proc
-            (-> (ProcessBuilder.
-                  (into-array
-                    (into [node-command] node-args)))
-                (.directory
-                  ;; nil defaults to JVM working dir
-                  (when pwd
-                    (io/file pwd)))
-                (.start))]
+      ;; piping the script into node-proc instead of using command line arg
+      ;; as node will otherwise adopt the path of the script as the require reference point
+      ;; we want to control that via pwd
 
-        ;; FIXME: validate that proc started properly
+      (let [out (.getOutputStream node-proc)]
+        (io/copy (slurp node-script) out)
+        (.close out))
 
-        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
-
-        ;; piping the script into node-proc instead of using command line arg
-        ;; as node will otherwise adopt the path of the script as the require reference point
-        ;; we want to control that via pwd
-
-        (let [out (.getOutputStream node-proc)]
-          (io/copy (slurp node-script) out)
-          (.close out))
-
-        ;; worker stop should kill the node process
-        (go (<! proc-stop)
-            (try
-              (when (.isAlive node-proc)
-                (.destroyForcibly node-proc))
-              (catch Exception e)))
-
-        ;; node process might crash which should stop the worker
-        (async/thread
+      ;; worker stop should kill the node process
+      (go (<! proc-stop)
           (try
-            (.waitFor node-proc)
-            (finally
-              (super/stop-worker supervisor :node-repl)
-              )))
+            (when (.isAlive node-proc)
+              (.destroyForcibly node-proc))
+            (catch Exception e)))
 
-        (assoc worker
-          :node-script node-script
-          :node-proc node-proc)))))
+      ;; node process might crash which should stop the worker
+      (async/thread
+        (try
+          (.waitFor node-proc)
+          (finally
+            (super/stop-worker supervisor :node-repl)
+            )))
+
+      (assoc worker
+        :node-script node-script
+        :node-proc node-proc))))

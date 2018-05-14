@@ -76,17 +76,28 @@
 (defn get-runtime! []
   (runtime/get-instance!))
 
-(defn get-or-start-worker [build-config opts]
-  (let [{:keys [autobuild]}
-        opts
-
-        {:keys [out supervisor] :as app}
+(defn- get-or-start-worker [build-config opts]
+  (let [{:keys [supervisor] :as app}
         (runtime/get-instance!)]
 
     (if-let [worker (super/get-worker supervisor (:build-id build-config))]
       worker
       (super/start-worker supervisor build-config)
       )))
+
+(defn- start-worker [build-config opts]
+  (let [{:keys [supervisor] :as app}
+        (runtime/get-instance!)]
+
+    (super/start-worker supervisor build-config)
+    ))
+
+(defn worker-running? [build-id]
+  (let [{:keys [supervisor] :as app}
+        (runtime/get-instance!)]
+
+    (contains? (super/active-builds supervisor) build-id)
+    ))
 
 (defn watch-compile!
   "manually trigger a recompile for a watch when {:autobuild false} is used"
@@ -134,12 +145,8 @@
           (worker/sync!)))
     :ok))
 
-(defn watch
-  "starts a dev worker process for a given :build-id
-  opts defaults to {:autobuild true}"
-  ([build-id]
-   (watch build-id {}))
-  ([build-id {:keys [autobuild verbose] :as opts}]
+(defn watch*
+  ([{:keys [build-id] :as build-config} {:keys [autobuild verbose] :as opts}]
    (let [out
          (util/stdout-dump verbose)
 
@@ -148,7 +155,7 @@
            build-id
            (config/get-build! build-id))]
 
-     (-> (get-or-start-worker build-config opts)
+     (-> (start-worker build-config opts)
          (worker/watch out true)
          (cond->
            (not (false? autobuild))
@@ -156,10 +163,25 @@
 
            (false? autobuild)
            (worker/compile))
-         (worker/sync!))
+         (worker/sync!)
+         ))))
 
-     :watching
-     )))
+(defn watch
+  "starts a dev worker process for a given :build-id
+  opts defaults to {:autobuild true}"
+  ([build-id]
+   (watch build-id {}))
+  ([build-id opts]
+   (if (worker-running? build-id)
+     :already-watching
+     (let [build-config
+           (if (map? build-id)
+             build-id
+             (config/get-build! build-id))]
+
+       (watch* build-config opts)
+       :watching
+       ))))
 
 (defn active-builds []
   (let [{:keys [supervisor]}
@@ -302,75 +324,81 @@
 (defn repl-client-connected? [worker]
   (not (empty? (-> worker :state-ref deref :eval-clients))))
 
-(defn nrepl-select [id]
-  (let [worker (get-worker id)]
-    (cond
-      (nil? worker)
-      [:no-worker id]
+(defn nrepl-select
+  ([id]
+    (nrepl-select id {}))
+  ([id {:keys [skip-repl-out] :as opts}]
+   (let [worker (get-worker id)]
+     (cond
+       (nil? worker)
+       [:no-worker id]
 
-      :else
-      (do (set! *nrepl-cljs* id)
+       :else
+       (do (set! *nrepl-cljs* id)
 
-          ;; doing this to make cider prompt not show "user" as prompt after calling this
-          (set! *nrepl-clj-ns* *ns*)
-          (let [repl-ns (some-> worker :state-ref deref :build-state :repl-state :current :ns)]
-            (set! *ns* (create-ns (or repl-ns 'cljs.user))))
+           ;; doing this to make cider prompt not show "user" as prompt after calling this
+           (set! *nrepl-clj-ns* *ns*)
+           (let [repl-ns (some-> worker :state-ref deref :build-state :repl-state :current :ns)]
+             (set! *ns* (create-ns (or repl-ns 'cljs.user))))
 
-          ;; nrepl doesn't have a clear way to signal the end of a session
-          ;; so this keeps running even is the nrepl is disconnected
-          ;; I hope the print just fails and kills the loop?
-          (when-let [quit *nrepl-quit-signal*]
-            (let [chan (async/chan 100)]
+           ;; calling (node-repl) in a REPL will cause the stdout and the repl prn forward
+           ;; to both print which is not what we want
+           (when-not skip-repl-out
+             ;; nrepl doesn't have a clear way to signal the end of a session
+             ;; so this keeps running even is the nrepl is disconnected
+             ;; I hope the print just fails and kills the loop?
+             (when-let [quit *nrepl-quit-signal*]
+               (let [chan (async/chan 100)]
 
-              (go (try
-                    (loop []
-                      (alt! :priority true
-                        chan
-                        ([msg]
-                          (when (some? msg)
-                            (case (:type msg)
-                              :repl/out
-                              (do (println (:text msg))
-                                  (flush))
+                 (go (try
+                       (loop []
+                         (alt! :priority true
+                           chan
+                           ([msg]
+                             (when (some? msg)
+                               (case (:type msg)
+                                 :repl/out
+                                 (do (println (:text msg))
+                                     (flush))
 
-                              :repl/err
-                              (binding [*out* *err*]
-                                (println (:text msg))
-                                (flush))
+                                 :repl/err
+                                 (binding [*out* *err*]
+                                   (println (:text msg))
+                                   (flush))
 
-                              :ignored)
-                            (recur)
-                            ))
+                                 :ignored)
+                               (recur)
+                               ))
 
-                        quit
-                        ([_] :quit)))
-                    (log/debug ::nrepl-print-loop-end)
-                    (catch Exception e
-                      (log/debug e ::nrepl-print-loop-ex)
-                      (async/close! chan))))
+                           quit
+                           ([_] :quit)))
+                       (log/debug ::nrepl-print-loop-end)
+                       (catch Exception e
+                         (log/debug e ::nrepl-print-loop-ex)
+                         (async/close! chan))))
 
-              (worker/watch worker chan true)))
+                 (worker/watch worker chan true))))
 
-          ;; need to set the var immediately since some cider middleware needs it to
-          ;; switch REPL type to cljs. can't get to the nrepl session from here.
-          (when-let [pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
-            (.set pvar
-              (reify
-                clojure.lang.IDeref
-                (deref [_]
-                  (when-let [worker (get-worker id)]
-                    (-> worker :state-ref deref :build-state :compiler-env))))))
+           ;; need to set the var immediately since some cider middleware needs it to
+           ;; switch REPL type to cljs. can't get to the nrepl session from here.
+           (when-let [pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
+             (.set pvar
+               (reify
+                 clojure.lang.IDeref
+                 (deref [_]
+                   (when-let [worker (get-worker id)]
+                     (-> worker :state-ref deref :build-state :compiler-env))))))
 
-          ;; Cursive uses this to switch repl type to cljs
-          (println "To quit, type: :cljs/quit")
-          [:selected id]))))
+           ;; Cursive uses this to switch repl type to cljs
+           (println "To quit, type: :cljs/quit")
+           [:selected id])))))
 
 (defn repl
   ([build-id]
    (repl build-id {}))
   ([build-id {:keys [stop-on-eof] :as opts}]
    (if *nrepl-active*
-     (nrepl-select build-id)
+     (nrepl-select build-id opts)
      (let [{:keys [supervisor] :as app}
            (runtime/get-instance!)
 
@@ -390,11 +418,14 @@
    (let [{:keys [supervisor] :as app}
          (runtime/get-instance!)
 
+         was-running?
+         (worker-running? node-repl)
+
          worker
          (or (super/get-worker supervisor :node-repl)
              (repl-impl/node-repl* app opts))]
 
-     (repl :node-repl)
+     (repl :node-repl {:skip-repl-out (not was-running?)})
      )))
 
 ;; FIXME: should maybe allow multiple instances
@@ -446,30 +477,32 @@
      )))
 
 (defn dev*
-  [build-config {:keys [autobuild verbose] :as opts}]
-  (let [config
-        (config/load-cljs-edn)
+  [{:keys [build-id] :as build-config} {:keys [autobuild verbose] :as opts}]
+  (if (worker-running? build-id)
+    :already-watching
+    (let [config
+          (config/load-cljs-edn)
 
-        {:keys [supervisor] :as app}
-        (runtime/get-instance!)
+          {:keys [supervisor] :as app}
+          (runtime/get-instance!)
 
-        out
-        (util/stdout-dump verbose)
+          out
+          (util/stdout-dump verbose)
 
-        worker
-        (-> (get-or-start-worker build-config opts)
-            (worker/watch out false)
-            (cond->
-              (not (false? autobuild))
-              (-> (worker/start-autobuild)
-                  (worker/sync!))))]
+          worker
+          (-> (start-worker build-config opts)
+              (worker/watch out false)
+              (cond->
+                (not (false? autobuild))
+                (-> (worker/start-autobuild)
+                    (worker/sync!))))]
 
-    ;; for normal REPL loops we wait for the CLJS loop to end
-    (when-not *nrepl-active*
-      (repl-impl/stdin-takeover! worker app)
-      (super/stop-worker supervisor (:build-id build-config)))
+      ;; for normal REPL loops we wait for the CLJS loop to end
+      (when-not *nrepl-active*
+        (repl-impl/stdin-takeover! worker app)
+        (super/stop-worker supervisor (:build-id build-config)))
 
-    :done))
+      :done)))
 
 (defn dev
   ([build]
