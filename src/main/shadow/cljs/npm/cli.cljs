@@ -67,13 +67,27 @@
 ;; same as run! but preserves the exit code of the process
 ;; must be run as the last step since it will kill the node process after
 (defn run! [project-root cmd args proc-opts]
-  (let [^js result (run project-root cmd args proc-opts)]
+  (let [^js result (run project-root cmd args proc-opts)
 
-    (when (and (.-error result) (= "ENOENT" (.. result -error -errno)))
-      (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found.")))
+        error
+        (.-error result)
 
-    (js/process.exit (.-status result))
-    ))
+        status
+        (.-status result)]
+
+    (cond
+      (and error (= "ENOENT" (. error -errno)))
+      (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
+
+      error
+      (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message)))
+
+      (number? status)
+      (js/process.exit status)
+
+      :else
+      (log (str "shadow-cljs - command completed without status " (pr-str result)))
+      )))
 
 (defn run-java [project-root args opts]
   (let [^js result
