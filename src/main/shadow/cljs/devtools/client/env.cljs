@@ -30,7 +30,7 @@
 (goog-define ignore-warnings false)
 
 (defn get-repl-host []
-  (if (and use-document-host js/goog.global.document)
+  (if (and use-document-host js/goog.global.document (seq js/goog.global.document.hostname))
     js/document.location.hostname
     repl-host))
 
