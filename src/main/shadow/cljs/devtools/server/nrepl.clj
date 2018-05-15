@@ -1,23 +1,18 @@
 (ns shadow.cljs.devtools.server.nrepl
   (:refer-clojure :exclude (send select))
-  (:require [clojure.pprint :refer (pprint)]
-            [clojure.tools.nrepl.middleware :as middleware]
-            [clojure.tools.nrepl.middleware.session :as nrepl-session]
-            [clojure.tools.nrepl.transport :as transport]
-            [clojure.tools.nrepl.misc :as misc]
-            [clojure.tools.nrepl.server :as server]
-            [clojure.edn :as edn]
-            [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.api :as api]
-            [clojure.tools.logging :as log]
-            [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.repl :as repl]
-            [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-            [shadow.cljs.devtools.fake-piggieback :as fake-piggieback]
-            [clojure.java.io :as io]
-            [shadow.cljs.devtools.errors :as errors]
-            [clojure.core.async :as async :refer (go <! >!)]
-            [shadow.build.log :as build-log])
+  (:require
+    [clojure.pprint :refer (pprint)]
+    [clojure.core.async :as async :refer (go <! >!)]
+    [clojure.tools.nrepl.middleware :as middleware]
+    [clojure.tools.nrepl.transport :as transport]
+    [clojure.tools.nrepl.server :as server]
+    [clojure.tools.logging :as log]
+    [shadow.cljs.repl :as repl]
+    [shadow.cljs.devtools.fake-piggieback :as fake-piggieback]
+    [shadow.cljs.devtools.api :as api]
+    [shadow.cljs.devtools.server.worker :as worker]
+    [shadow.cljs.devtools.server.repl-impl :as repl-impl]
+    [shadow.cljs.devtools.errors :as errors])
   (:import (java.io StringReader)))
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
