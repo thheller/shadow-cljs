@@ -72,7 +72,15 @@
         {:keys [build-id]}
         build-config
 
-        {:keys [ignore-warnings reload-with-state devtools-url before-load before-load-async after-load autoload use-document-host]}
+        {:keys [ignore-warnings
+                reload-with-state
+                devtools-url
+                before-load
+                before-load-async
+                after-load
+                autoload
+                use-document-host
+                repl-pprint]}
         (:devtools build-config)]
 
     {"shadow.cljs.devtools.client.env.enabled"
@@ -92,6 +100,9 @@
 
      "shadow.cljs.devtools.client.env.repl_port"
      port
+
+     "shadow.cljs.devtools.client.env.repl_pprint"
+     (true? repl-pprint)
 
      "shadow.cljs.devtools.client.env.ignore_warnings"
      (true? ignore-warnings)

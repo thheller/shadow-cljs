@@ -1,7 +1,10 @@
 (ns shadow.cljs.devtools.client.env
-  (:require [goog.object :as gobj]
-            [cljs.tools.reader :as reader]
-            [clojure.string :as str]))
+  (:require
+    [goog.object :as gobj]
+    [clojure.string :as str]
+    [cljs.tools.reader :as reader]
+    [cljs.pprint :refer (pprint)]
+    ))
 
 (defonce client-id (random-uuid))
 
@@ -20,6 +23,8 @@
 (goog-define repl-host "")
 
 (goog-define repl-port 8200)
+
+(goog-define repl-pprint false)
 
 (goog-define use-document-host true)
 
@@ -53,7 +58,13 @@
 (defn files-url []
   (str (get-url-base) "/worker/files/" build-id "/" proc-id "/" client-id))
 
-(def repl-print-fn pr-str)
+(def repl-print-fn
+  (if-not repl-pprint
+    pr-str
+    (fn repl-pprint [obj]
+      (with-out-str
+        (pprint obj)
+        ))))
 
 (defn repl-error [e]
   (-> {:type :repl/invoke-error
@@ -162,7 +173,7 @@
    which performs the actual loading of the code (sync)
    will call all before/after callbacks in order"
   ([msg load-code-fn]
-    (do-js-reload msg load-code-fn (fn [])))
+   (do-js-reload msg load-code-fn (fn [])))
   ([{:keys [reload-info] :as msg} load-code-fn complete-fn]
    (let [load-tasks
          (-> []
