@@ -1,7 +1,8 @@
 (ns demo.script
   (:require
     ["http" :as http]
-    ["./es6"]))
+    ["./es6"]
+    ["codemirror"]))
 
 (defn request-handler [req res]
   (.end res "foo"))

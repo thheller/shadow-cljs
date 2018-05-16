@@ -606,13 +606,8 @@
     (get-file-info npm file)
     ))
 
-;; FIXME: this should work with URLs now that we can easily resolve into jars
-;; but since David pretty clearly said the relative requires are not going to happen
-;; I'm not worried about finding relative requires in jars
-;; https://dev.clojure.org/jira/browse/CLJS-2061?focusedCommentId=46191&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-46191
-
-(defn find-resource*
-  [{:keys [project-dir] :as npm} ^File require-from ^String require require-ctx]
+(defn find-resource
+  [npm ^File require-from ^String require require-ctx]
   {:pre [(service? npm)
          (or (nil? require-from)
              (instance? File require-from))
@@ -681,72 +676,6 @@
                     :package-dir package-dir
                     :require require
                     :override override})))))))
-
-(def global-resolve-config
-  {"jquery"
-   {:export-globals ["$", "jQuery"]}})
-
-(defn find-resource
-  [{:keys [project-dir] :as npm} ^File require-from ^String require require-ctx]
-  {:pre [(service? npm)
-         (or (nil? require-from)
-             (instance? File require-from))
-         (string? require)
-         (map? require-ctx)]}
-
-  ;; FIXME: this should probably be moved to shadow.build.resolve?
-
-  ;; per build :resolve config that may override where certain requires go
-  ;; FIXME: should this only allow overriding package requires?
-  ;; relative would need to be relative to the project, otherwise a generic
-  ;; "./something.js" would override anything from any package
-  ;; just assume ppl will only override packages for now
-  (let [{:keys [target] :as cfg}
-        (or (get-in require-ctx [:resolve require])
-            (get global-resolve-config require))
-
-        rc
-        (case target
-          ;; no resolve config, or resolve config without :target
-          nil
-          (find-resource* npm require-from require require-ctx)
-
-          ;; {"react" {:target :global :global "React"}}
-          :global
-          (js-resource-for-global require cfg)
-
-          ;; {"react" {:target :file :file "some/path.js"}}
-          :file
-          (js-resource-for-file npm require cfg require-ctx)
-
-          ;; {"react" {:target :npm :require "preact"}}
-          :npm
-          (let [other
-                (if (and (= :release (:mode require-ctx)) (contains? cfg :require-min))
-                  (:require-min cfg)
-                  (:require cfg))]
-
-            ;; FIXME: maybe allow to add some additional stuff?
-            (when (= require other)
-              (throw (ex-info "can't resolve to self" {:require require :other other})))
-
-            (or (find-resource npm require-from other require-ctx)
-                (throw (ex-info (format ":resolve override for \"%s\" to \"%s\" which does not exist" require other)
-                         {:tag ::invalid-override
-                          :require-from require-from
-                          :require require
-                          :other other}))))
-
-          (throw (ex-info "unknown resolve target"
-                   {:require require
-                    :config cfg})))]
-
-    (when rc ;; don't assoc into nil (aka resource not found)
-      (cond-> rc
-        cfg
-        (-> (assoc :resource-config (assoc cfg :original-require require))
-            ;; make sure that any change to the resolve config invalidated the cache
-            (update :cache-key conj cfg))))))
 
 (defn shadow-js-require [{:keys [ns resource-config] :as rc}]
   (let [{:keys [export-global export-globals]}

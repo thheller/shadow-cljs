@@ -73,6 +73,75 @@
 (defmethod find-resource-for-string ::default [_ _ _ _]
   (throw (ex-info "invalid [:js-options :js-provider] config" {})))
 
+(def global-resolve-config
+  {"jquery"
+   {:export-globals ["$", "jQuery"]}})
+
+(defn find-npm-resource
+  [npm ^File require-from ^String require require-ctx]
+  {:pre [(npm/service? npm)
+         (or (nil? require-from)
+             (instance? File require-from))
+         (string? require)
+         (map? require-ctx)]}
+
+  ;; per build :resolve config that may override where certain requires go
+  ;; FIXME: should this only allow overriding package requires?
+  ;; relative would need to be relative to the project, otherwise a generic
+  ;; "./something.js" would override anything from any package
+  ;; just assume ppl will only override packages for now
+  (let [resolve-cfg
+        (or (get-in require-ctx [:resolve require])
+            (get global-resolve-config require))]
+
+    (if (false? resolve-cfg)
+      npm/empty-rc
+      (let [{:keys [target]}
+            resolve-cfg
+
+            rc
+            (case target
+              ;; no resolve config, or resolve config without :target
+              nil
+              (npm/find-resource npm require-from require require-ctx)
+
+              ;; {"react" {:target :global :global "React"}}
+              :global
+              (npm/js-resource-for-global require resolve-cfg)
+
+              ;; {"react" {:target :file :file "some/path.js"}}
+              :file
+              (npm/js-resource-for-file npm require resolve-cfg require-ctx)
+
+              ;; {"react" {:target :npm :require "preact"}}
+              :npm
+              (let [other
+                    (if (and (= :release (:mode require-ctx)) (contains? resolve-cfg :require-min))
+                      (:require-min resolve-cfg)
+                      (:require resolve-cfg))]
+
+                ;; FIXME: maybe allow to add some additional stuff?
+                (when (= require other)
+                  (throw (ex-info "can't resolve to self" {:require require :other other})))
+
+                (or (find-npm-resource npm require-from other require-ctx)
+                    (throw (ex-info (format ":resolve override for \"%s\" to \"%s\" which does not exist" require other)
+                             {:tag ::invalid-override
+                              :require-from require-from
+                              :require require
+                              :other other}))))
+
+              (throw (ex-info "unknown resolve target"
+                       {:require require
+                        :config resolve-cfg})))]
+
+        (when rc ;; don't assoc into nil (aka resource not found)
+          (cond-> rc
+            resolve-cfg
+            (-> (assoc :resource-config (assoc resolve-cfg :original-require require))
+                ;; make sure that any change to the resolve config invalidated the cache
+                (update :cache-key conj resolve-cfg))))))))
+
 ;; FIXME: this is now a near duplicate of :shadow, should refactor and remove dupes
 (defmethod find-resource-for-string :closure
   [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
@@ -92,7 +161,7 @@
       (or (not cp-rc?)
           (and (not abs?)
                (not rel?)))
-      (npm/find-resource (:npm state) file require
+      (find-npm-resource (:npm state) file require
         (assoc js-options
           :mode (:mode state)
           :target :browser))
@@ -106,8 +175,6 @@
       :else
       (throw (ex-info "unsupported require" {:require require}))
       )))
-
-
 
 (defmethod find-resource-for-string :shadow
   [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
@@ -128,7 +195,7 @@
                  (or (not cp-rc?)
                      (and (not abs?)
                           (not rel?)))
-                 (npm/find-resource (:npm state) file require
+                 (find-npm-resource (:npm state) file require
                    (assoc js-options
                      :mode (:mode state)
                      :target :browser))
@@ -178,7 +245,7 @@
     "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
 
 (defmethod find-resource-for-string :require
-  [{:keys [project-dir npm js-options classpath] :as state} {:keys [resource-name] :as require-from} require was-symbol?]
+  [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
   (let [cp-rc? (when require-from
                  (classpath-resource? require-from))]
 
@@ -204,8 +271,37 @@
                   ;; is actually installed. otherwise we will blindy return a shim for
                   ;; every symbol, no matter it was a typo or actually intended JS package.
                   (npm/find-package (:npm state) package-name))
-          (js-support/shim-require-resource state require)))
-      )))
+
+          ;; technically this should be done before the find-package above
+          ;; but I'm fine with this breaking for symbol requires
+          (let [resolve-cfg (get-in js-options [:resolve require])]
+            (cond
+              (nil? resolve-cfg)
+              (js-support/shim-require-resource state require)
+
+              (false? resolve-cfg)
+              (assoc npm/empty-rc :deps []) ;; FIXME: why the shadow.js dep in npm?
+
+              (= :npm (:target resolve-cfg))
+              (let [{:keys [require require-min]} resolve-cfg
+
+                    require
+                    (or (and (= :release mode) require-min)
+                        require)]
+                (find-resource-for-string state require-from require false))
+
+              (= :file (:target resolve-cfg))
+              (npm/js-resource-for-file npm require resolve-cfg {:mode mode})
+
+              (= :global (:target resolve-cfg))
+              (npm/js-resource-for-global require resolve-cfg)
+
+              (= :resource (:target resolve-cfg))
+              (cp/find-js-resource classpath (:resource resolve-cfg))
+
+              :else
+              (throw (ex-info "override not supported for :js-provider :require" resolve-cfg))
+              )))))))
 
 (defn resolve-string-require
   [state {require-from-ns :ns :as require-from} require]

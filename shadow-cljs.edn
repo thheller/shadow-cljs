@@ -287,6 +287,10 @@
    {:optimizations :advanced
     :source-map-use-fs-paths true}
 
+   :js-options
+   {:resolve
+    {"codemirror" false}}
+
    :devtools
    {:before-load-async demo.script/stop
     :after-load demo.script/start}}

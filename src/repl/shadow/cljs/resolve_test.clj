@@ -140,41 +140,23 @@
     ))
 
 
-(deftest test-resolve-symbol-that-should-be-a-string
+(deftest test-resolve-config
 
   (let [build-state
         (-> (test-build)
             (api/with-js-options
               {:js-provider :require
                :resolve
-               '{"react"
-                 {:type :include
-                  :provides [cljsjs.react react]
-                  :externs []
-                  :source-type :resource
-                  :source {:dev "cljsjs/react.dev.js"
-                           :min "cljsjs/react.min.js"}
-                  :ref "React"}
-                 #_"react"
-                 #_{:type :provided
-                    :externs []
-                    :ref "React"}
-                 "fs"
-                 {:type :alias
-                  :require "browserfs"}
-                 "create-react-class"
-                 {}
-                 "react-dom"
-                 {:type :include
-                  :requires ["react"]
-                  :source {:dev "cljsjs/react-dom.dev.js"
-                           :min "cljsjs/react-dom.min.js"}
-                  :provides [cljsjs.react.dom]
-                  :global "ReactDOM"}
-                 }}))
+               {"something"
+                {:target :npm
+                 :require "react"}
+                "foo"
+                {:target :resource
+                 :resource "demo/foo.js"}
+                "bar" false}}))
 
         [resolved resolved-state]
-        (api/resolve-entries build-state '[reagent.core])]
+        (api/resolve-entries build-state '["something" "foo" "bar"])]
 
     (pprint resolved)
     (pprint (:ns-aliases resolved-state))
