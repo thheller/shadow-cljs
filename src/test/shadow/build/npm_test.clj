@@ -3,6 +3,7 @@
             [clojure.pprint :refer (pprint)]
             [clojure.java.io :as io]
             [shadow.build.npm :as npm]
+            [shadow.build.resolve :refer (find-npm-resource)]
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
             [shadow.cljs.util :as util]))
 
@@ -16,7 +17,7 @@
 
 (deftest test-missing-package-returns-nil
   (with-npm [x {}]
-    (let [rc (npm/find-resource x nil "i-dont-exist" {})]
+    (let [rc (find-npm-resource x nil "i-dont-exist" {})]
       (is (nil? rc))
       )))
 
@@ -35,7 +36,7 @@
 (deftest test-browser-override
   (with-npm [x {}]
     (let [{:keys [resource-name ns file package-name] :as rc}
-          (npm/find-resource x nil "pkg-a" {})]
+          (find-npm-resource x nil "pkg-a" {})]
 
       ;; has browser override for index -> index-browser
       (is rc)
@@ -54,7 +55,7 @@
 (deftest test-resolve-to-global
   (with-npm [x {}]
     (let [{:keys [ns type requires source] :as rc}
-          (npm/find-resource x nil "react"
+          (find-npm-resource x nil "react"
             {:target :browser
              :resolve
              {"react" {:target :global
@@ -70,7 +71,7 @@
 (deftest test-resolve-to-file
   (with-npm [x {}]
     (let [{:keys [ns resource-name] :as rc}
-          (npm/find-resource x nil "react"
+          (find-npm-resource x nil "react"
             {:mode :release
              :resolve
              {"react" {:target :file
@@ -84,7 +85,7 @@
 (deftest test-resolve-to-other
   (with-npm [x {}]
     (let [{:keys [ns resource-name] :as rc}
-          (npm/find-resource x nil "react"
+          (find-npm-resource x nil "react"
             {:target :browser
              :resolve
              {"react" {:target :npm
@@ -100,7 +101,7 @@
 (deftest test-relative-file
   (with-npm [x {}]
     (let [{:keys [ns resource-name] :as rc}
-          (npm/find-resource x
+          (find-npm-resource x
             (-> (io/file ".")
                 (.getCanonicalFile))
             "./src/test/foo" {})]
@@ -129,10 +130,10 @@
     (let [ctx {}
 
           {:keys [file] :as rc1}
-          (npm/find-resource x nil "pkg-a/nested/thing" ctx)
+          (find-npm-resource x nil "pkg-a/nested/thing" ctx)
 
           {:keys [ns resource-name] :as rc2}
-          (npm/find-resource x file ".." ctx)]
+          (find-npm-resource x file ".." ctx)]
 
       (is rc1)
       (is rc2)
@@ -147,7 +148,7 @@
     (let [ctx {}
 
           {:keys [resource-name] :as rc1}
-          (npm/find-resource x nil "file-over-dir/foo" ctx)]
+          (find-npm-resource x nil "file-over-dir/foo" ctx)]
 
       (is rc1)
       (is (string? resource-name))
@@ -160,7 +161,7 @@
     (let [ctx {}
 
           {:keys [resource-name] :as rc1}
-          (npm/find-resource x nil "entry-dir/foo" ctx)]
+          (find-npm-resource x nil "entry-dir/foo" ctx)]
 
       (is rc1)
       (is (string? resource-name))
