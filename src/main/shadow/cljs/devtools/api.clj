@@ -293,16 +293,16 @@
   ;; in most cases we want exactly :release but not sure that is true for everything?
   (-> (util/new-build build-config :release opts)
       (build/configure :release build-config)
-      ;; using another dir because of source maps
-      ;; not sure :release builds want to enable source maps by default
-      ;; so running check on the release dir would cause a recompile which is annoying
-      ;; but check errors are really useless without source maps
-      (as-> X
-        (-> X
-            (assoc :cache-dir (io/file (:cache-dir X) "check"))
-            ;; always override :output-dir since check output should never be used
-            ;; only generates output for source maps anyways
-            (assoc :output-dir (io/file (:cache-dir X) "check-out"))))
+      (as-> {:keys [cache-dir] :as X}
+        (assoc X
+          ;; using another dir because of source maps
+          ;; not sure :release builds want to enable source maps by default
+          ;; so running check on the release dir would cause a recompile which is annoying
+          ;; but check errors are really useless without source maps
+          :cache-dir (io/file cache-dir "check")
+          ;; always override :output-dir since check output should never be used
+          ;; only generates output for source maps anyways
+          :output-dir (io/file cache-dir "check-out")))
       (build-api/enable-source-maps)
       (update-in [:compiler-options :closure-warnings] merge {:check-types :warning})
       (build/compile)
@@ -326,7 +326,7 @@
 
 (defn nrepl-select
   ([id]
-    (nrepl-select id {}))
+   (nrepl-select id {}))
   ([id {:keys [skip-repl-out] :as opts}]
    (let [worker (get-worker id)]
      (cond

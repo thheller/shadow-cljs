@@ -33,7 +33,8 @@ var shadow$provide = {};
 
 
 /**
+ * @param {string} name
  * @const
  */
 var Java = {};
-Java.type = function() {};
+Java.type = function(name) {};

@@ -217,6 +217,7 @@
          process
          require
          WebSocket
+         Worker
          XMLHttpRequest
          window
          __filename
@@ -383,7 +384,7 @@
           (.getTypeRegistry compiler)
 
           obj-type
-          (.getType type-reg "Object")]
+          (.getGlobalType type-reg "Object")]
 
       ;; some general properties
       (doseq [prop
