@@ -3,7 +3,7 @@ var SHADOW_ENV = (function () {
 
   var env = {};
 
-  env.load = function (paths) {
+  env.load = function (opts, paths) {
     paths.forEach(function (path) {
       if (!loadedFiles[path]) {
         loadedFiles[path] = true;
