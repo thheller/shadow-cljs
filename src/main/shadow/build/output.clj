@@ -109,16 +109,18 @@
          :preamble-line-count (if-not (seq prepend)
                                 0
                                 (line-count prepend))
-         :sources-content [source]}
+         :sources-content [source]}]
 
-        source-map-cljs
-        (-> {output-name source-map}
-            (sm/encode* sm-opts)
-            (assoc "sources" [resource-name])
-            ;; its nil which closure doesn't like
-            (dissoc "lineCount"))]
+    (-> {output-name source-map}
+        (sm/encode* sm-opts)
+        (assoc "sources" [resource-name])
+        ;; its nil which closure doesn't like
+        (dissoc "lineCount"))))
 
-    (json/write-str source-map-cljs)))
+(defn encode-source-map-json
+  [src output]
+  (-> (encode-source-map src output)
+      (json/write-str)))
 
 (defn generate-source-map-inline
   [state
@@ -129,7 +131,7 @@
 
     (let [source-map-json
           (or source-map-json
-              (encode-source-map src output))
+              (encode-source-map-json src output))
 
           b64
           (-> (Base64/getEncoder)

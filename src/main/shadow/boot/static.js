@@ -7,7 +7,7 @@ $CLJS.SHADOW_ENV = (function() {
         loadedFiles[name] = true;
     };
 
-    env.load = function(paths) {
+    env.load = function(opts, paths) {
         paths.forEach(function(name) {
             env.setLoaded(name);
         });

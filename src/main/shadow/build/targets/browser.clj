@@ -521,7 +521,7 @@
         (str inlined-js
              prepend
              closure-require-hack
-             (str "SHADOW_ENV.load(" (json/write-str require-files) ");\n")
+             (str "SHADOW_ENV.load({}, " (json/write-str require-files) ");\n")
              append)
 
         out

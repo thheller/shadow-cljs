@@ -548,7 +548,7 @@
           source-map-json
           (or source-map-json
               ;; source-map is CLJS source map data, need to encode it to json so closure can read it
-              (output/encode-source-map rc output))]
+              (output/encode-source-map-json rc output))]
 
       ;; not using SourceFile/fromFile as the name that gets displayed in warnings sucks
       ;; public/js/cljs-runtime/cljs/core.cljs vs cljs/core.cljs

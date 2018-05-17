@@ -77,8 +77,8 @@ var SHADOW_ENV = function() {
     }
   })();
 
-  env.load = function(paths) {
-    var docWrite = canDocumentWrite();
+  env.load = function(opts, paths) {
+    var docWrite = opts.forceAsync ? false : canDocumentWrite();
 
     paths.forEach(function(path) {
       if (!loadedFiles[path]) {
