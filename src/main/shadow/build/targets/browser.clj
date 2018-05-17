@@ -443,7 +443,7 @@
               module-hash-names
               ;; previous hash already changed the output-name, reset it back
               (-> (assoc :output-name (str (name module-id) ".js"))
-                  (hash-optimized-module module-hash-names))))))))
+                  (hash-optimized-module state module-hash-names))))))))
 
 (defn get-all-module-deps [{:keys [build-modules] :as state} {:keys [depends-on] :as mod}]
   ;; FIXME: not exactly pretty, just abusing the fact that build-modules is already ordered
@@ -461,7 +461,8 @@
 
 (defn flush-unoptimized-module!
   [{:keys [unoptimizable build-options] :as state}
-   {:keys [goog-base output-name prepend append sources web-worker] :as mod}]
+   {:keys [goog-base output-name prepend append sources web-worker] :as mod}
+   target]
 
   (let [{:keys [dev-inline-js]}
         build-options
@@ -488,9 +489,6 @@
 
         inlineable-set
         (into #{} (map :resource-id) inlineable-sources)
-
-        target
-        (data/output-file state output-name)
 
         inlined-js
         (->> inlineable-sources
@@ -575,8 +573,8 @@
   (util/with-logged-time
     [state {:type :flush-unoptimized}]
 
-    (doseq [mod build-modules]
-      (flush-unoptimized-module! state mod))
+    (doseq [{:keys [output-name] :as mod} build-modules]
+      (flush-unoptimized-module! state mod (data/output-file state output-name)))
 
     state
     ))

@@ -8,8 +8,9 @@ $CLJS.SHADOW_ENV = (function() {
     };
 
     env.load = function(paths) {
-        // should never be called
-        throw new Error("SHADOW_ENV.load not supported!");
+        paths.forEach(function(name) {
+            env.setLoaded(name);
+        });
     };
 
     env.isLoaded = function(name) {

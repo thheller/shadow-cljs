@@ -135,11 +135,15 @@
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 
-  :chrome-ext
-  {:target :browser
-   :output-dir "out/chrome-ext/js"
-   :asset-path "/js"
-   :modules {:background {:entries [demo.chrome-bg]}}}
+  :chrome-bg
+  {:target :chrome-extension
+   :output-to "out/chrome-ext/background.js"
+   :entry demo.chrome-bg}
+
+  :chrome-content
+  {:target :chrome-extension
+   :output-to "out/chrome-ext/content-script.js"
+   :entry demo.chrome-content}
 
   :test-browser
   {:target :browser-test

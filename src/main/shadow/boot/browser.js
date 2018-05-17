@@ -15,17 +15,6 @@ var SHADOW_ENV = function() {
     return !wentAsync && doc.readyState == "loading";
   };
 
-  // apparently calling eval causes the code to never be optimized
-  // creating a script node, appending it and removing it seems to
-  // have the same effect without the speed penalty?
-  function scriptEval(code) {
-    var node = doc.createElement("script");
-    node.type = "text/javascript";
-    node.appendChild(doc.createTextNode(code));
-    doc.body.appendChild(node);
-    doc.body.removeChild(node);
-  }
-
   var asyncLoad = (function() {
     var loadOrder = [];
     var loadState = {};
@@ -39,7 +28,7 @@ var SHADOW_ENV = function() {
           loadState[uri] = true;
           if (state != "") {
             var code = state + "\n//# sourceURL=" + uri + "\n";
-            scriptEval(code);
+            goog.globalEval(code);
           }
         } else if (state === true) {
           continue;
