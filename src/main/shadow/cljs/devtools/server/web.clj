@@ -122,48 +122,63 @@
     ;; since all previous JS state is lost
 
     (-> (cond
-        (nil? worker)
-        {:status 404
-         :header {"content-type" "text/plain"}
-         :body "browser-repl not running."}
+          (nil? worker)
+          {:status 404
+           :header {"content-type" "text/plain"}
+           :body "browser-repl not running."}
 
-        ;; test twice in case the websocket disconnect happened concurrently (ie. reload)
-        (and (not (empty? (get-in @state-ref [:eval-clients])))
-             (do (Thread/sleep 500)
-                 (not (empty? (get-in @state-ref [:eval-clients])))))
-        {:status 503
-         :header {"content-type" "text/plain"}
-         :body "browser-repl already open elsewhere."}
+          ;; test twice in case the websocket disconnect happened concurrently (ie. reload)
+          (and (not (empty? (get-in @state-ref [:eval-clients])))
+               (do (Thread/sleep 500)
+                   (not (empty? (get-in @state-ref [:eval-clients])))))
+          {:status 503
+           :header {"content-type" "text/plain"}
+           :body "browser-repl already open elsewhere."}
 
-        :else
-        {:status 200
-         :headers {"content-type" "text/html; charset=utf-8"}
-         :body
-         (html5
-           {:lang "en"}
-           [:head [:title "shadow-cljs browser-repl"]]
-           [:body {:style "font-family: monospace; font-size: 14px;"}
-            [:div#app]
-            [:div#root]
+          :else
+          {:status 200
+           :headers {"content-type" "text/html; charset=utf-8"}
+           :body
+           (html5
+             {:lang "en"}
+             [:head [:title "shadow-cljs browser-repl"]]
+             [:body {:style "font-family: monospace; font-size: 14px;"}
+              [:div#app]
+              [:div#root]
 
-            [:div
-             [:div {:style "float: left; padding-right: 10px;"} logo-svg]
-             [:h1 {:style "line-height: 40px;"} "shadow-cljs"]
-             [:p "Code entered in a browser-repl prompt will be evaluated here."]]
+              [:div
+               [:div {:style "float: left; padding-right: 10px;"} logo-svg]
+               [:h1 {:style "line-height: 40px;"} "shadow-cljs"]
+               [:p "Code entered in a browser-repl prompt will be evaluated here."]]
 
-            [:pre#log]
+              [:pre#log]
 
-            [:script {:src "/cache/browser-repl/js/repl.js" :defer true}]])})
+              [:script {:src "/cache/browser-repl/js/repl.js" :defer true}]])})
         (no-cache!))))
+
+;; add SameSite cookie to protect UI websockets later
+(defn add-secret-header [{:keys [status] :as res} {:keys [server-secret] :as req}]
+  (let [cookie (get-in req [:ring-request :headers "cookie"])]
+    (if (and (< status 400) cookie (str/includes? cookie server-secret))
+      res
+      ;; not using ring cookies middleware due to its dependency on clj-time, overkill anyways.
+      (assoc-in res [:headers "Set-Cookie"] (str "secret=" server-secret "; HttpOnly; SameSite=Strict;")))))
+
+(defn pages [req]
+  (-> req
+      (http/route
+        (:GET "" index-page)
+        (:GET "/bundle-info/{build-id:keyword}" bundle-info-page build-id)
+        (:ANY "^/release-snapshots" release-snapshots/root)
+        (:GET "^/cache" serve-cache-file)
+        (:GET "/browser-repl-js" browser-repl-js)
+        common/not-found)
+      (add-secret-header req)))
 
 (defn root [req]
   (http/route req
-    (:GET "" index-page)
-    (:GET "/bundle-info/{build-id:keyword}" bundle-info-page build-id)
-    (:ANY "^/release-snapshots" release-snapshots/root)
     (:ANY "^/api" web-api/root)
     (:ANY "^/ws" ws/process-ws)
     (:ANY "^/worker" ws/process-req)
     (:GET "^/cache" serve-cache-file)
-    (:GET "/browser-repl-js" browser-repl-js)
-    common/not-found))
+    pages))

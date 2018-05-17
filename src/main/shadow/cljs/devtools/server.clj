@@ -22,9 +22,11 @@
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
             [shadow.undertow :as undertow]
             [ring.middleware.resource :as ring-resource]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [ring.middleware.content-type :as ring-content-type])
   (:import (java.net BindException SocketException NetworkInterface Inet4Address URL Socket)
-           [java.lang.management ManagementFactory]))
+           [java.lang.management ManagementFactory]
+           [java.util UUID]))
 
 (def app-config
   (merge
@@ -72,6 +74,7 @@
 
         (ring-resource/wrap-resource "shadow/cljs/devtools/server/web/resources")
         ;; (reload/wrap-reload {:dirs ["src/main"]})
+        (ring-content-type/wrap-content-type)
         (ring-params/wrap-params)
         (ring-gzip/wrap-gzip)
         )))
@@ -256,6 +259,7 @@
         app
         (-> {::started (System/currentTimeMillis)
              :server-pid pid
+             :server-secret (str (UUID/randomUUID))
              :config config
              :shutdown-hook shutdown-hook
              :ssl-context ssl-context
