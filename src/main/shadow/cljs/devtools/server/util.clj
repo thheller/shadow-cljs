@@ -138,10 +138,10 @@
         :repl/error
         :ignored ;; also handled by out
 
-        :repl/eval-start
+        :repl/runtime-connect
         (println "JS runtime connected.")
 
-        :repl/eval-stop
+        :repl/runtime-disconnect
         (println "JS runtime disconnected.")
 
         :worker-shutdown
@@ -194,11 +194,6 @@
     (thread
       (let [last-state
             (loop [state init-state]
-              (when server-id
-                (dbg/tap> {:tag :inspect/value
-                           :id [::state server-id]
-                           :value state}))
-
               (vreset! state-ref state)
 
               (let [[msg ch]
@@ -206,12 +201,6 @@
 
                     handler
                     (get dispatch-table ch)]
-
-                (when server-id
-                  (dbg/tap> {:tag :inspect/log
-                             :id [::last-msg server-id]
-                             :value msg
-                             :keep 10}))
 
                 (if (nil? handler)
                   state

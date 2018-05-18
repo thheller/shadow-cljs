@@ -230,37 +230,42 @@
   (async/close! chan)
   worker-state)
 
-(defmethod do-proc-control :eval-start
-  [{:keys [build-state] :as worker-state} {:keys [client-id eval-out client-out]}]
-  (>!! eval-out {:type :repl/init
-                 :repl-state
-                 (-> (:repl-state build-state)
-                     (update :repl-sources repl-sources-as-client-resources build-state))})
+(defmethod do-proc-control :runtime-connect
+  [{:keys [build-state] :as worker-state} {:keys [runtime-id runtime-out]}]
+  (log/debug ::runtime-connect runtime-id)
+  (>!! runtime-out {:type :repl/init
+                    :repl-state
+                    (-> (:repl-state build-state)
+                        (update :repl-sources repl-sources-as-client-resources build-state))})
 
-  (>!!output worker-state {:type :repl/eval-start :client-id client-id})
-  (update worker-state :eval-clients assoc client-id {:client-id client-id
-                                                      :eval-out eval-out
-                                                      :client-out client-out}))
+  (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id})
+  (update worker-state :runtimes assoc runtime-id
+    {:runtime-id runtime-id
+     :runtime-out runtime-out
+     :init-sent true}))
 
-
-(defmethod do-proc-control :eval-stop
-  [worker-state {:keys [client-id]}]
-  (>!!output worker-state {:type :repl/eval-stop :id client-id})
-  (update worker-state :eval-clients dissoc client-id))
+(defmethod do-proc-control :runtime-disconnect
+  [worker-state {:keys [runtime-id]}]
+  (log/debug ::runtime-disconnect runtime-id)
+  (>!!output worker-state {:type :repl/runtime-disconnect :runtime-id runtime-id})
+  (update worker-state :runtimes dissoc runtime-id))
 
 (defmethod do-proc-control :client-start
   [worker-state {:keys [id in]}]
+  (log/debug ::client-start id)
   (>!!output worker-state {:type :repl/client-start :id id})
   (update worker-state :repl-clients assoc id {:id id :in in}))
 
 (defmethod do-proc-control :client-stop
   [worker-state {:keys [id]}]
+  (log/debug ::client-stop id)
   (>!!output worker-state {:type :repl/client-stop :id id})
   (update worker-state :repl-clients dissoc id))
 
-;; messages sent by the loop started in repl-eval-connect
-(defmethod do-proc-control :client-msg
-  [worker-state {:keys [msg client-out] :as envelope}]
+;; messages received from the runtime
+(defmethod do-proc-control :runtime-msg
+  [worker-state {:keys [msg runtime-id runtime-out] :as envelope}]
+  (log/debug ::runtime-msg runtime-id (:type msg))
 
   (case (:type msg)
     (:repl/result
@@ -277,13 +282,12 @@
     (>!!output worker-state {:type :repl/err :text (:text msg)})
 
     :ping
-    (do (>!! client-out {:type :pong :v (:v msg)})
+    (do (>!! runtime-out {:type :pong :v (:v msg)})
         worker-state)
 
     ;; unknown message
-    (do (log/warn "client sent unknown msg" msg)
-        worker-state)
-    ))
+    (do (log/warn "runtime sent unknown msg" runtime-id msg)
+        worker-state)))
 
 (defmethod do-proc-control :start-autobuild
   [{:keys [build-config autobuild] :as worker-state} msg]
@@ -321,27 +325,27 @@
   (assoc worker-state :autobuild false))
 
 (defmethod do-proc-control :load-file
-  [{:keys [build-state eval-clients] :as worker-state}
+  [{:keys [build-state runtimes] :as worker-state}
    {:keys [result-chan input] :as msg}]
-  (let [eval-count (count eval-clients)]
+  (let [runtime-count (count runtimes)]
 
     (cond
       (nil? build-state)
       (do (>!! result-chan {:type :repl/illegal-state})
           worker-state)
 
-      (> eval-count 1)
-      (do (>!! result-chan {:type :repl/too-many-eval-clients :count eval-count})
+      (> runtime-count 1)
+      (do (>!! result-chan {:type :repl/too-many-runtimes :count runtime-count})
           worker-state)
 
-      (zero? eval-count)
-      (do (>!! result-chan {:type :repl/no-eval-target})
+      (zero? runtime-count)
+      (do (>!! result-chan {:type :repl/no-runtime-connected})
           worker-state)
 
       :else
       (try
-        (let [{:keys [eval-out] :as eval-client}
-              (first (vals eval-clients))
+        (let [{:keys [runtime-out] :as runtime}
+              (first (vals runtimes))
 
               start-idx
               (count (get-in build-state [:repl-state :repl-actions]))
@@ -362,7 +366,7 @@
                         action (assoc action :id idx)]]
             (>!!output worker-state {:type :repl/action
                                      :action action})
-            (>!! eval-out (transform-repl-action build-state action)))
+            (>!! runtime-out (transform-repl-action build-state action)))
 
           (-> worker-state
               (assoc :build-state build-state)
@@ -399,27 +403,27 @@
       worker-state)))
 
 (defmethod do-proc-control :repl-eval
-  [{:keys [build-state eval-clients] :as worker-state}
+  [{:keys [build-state runtimes] :as worker-state}
    {:keys [result-chan input] :as msg}]
-  (let [eval-count (count eval-clients)]
+  (let [runtime-count (count runtimes)]
 
     (cond
       (nil? build-state)
       (do (>!! result-chan {:type :repl/illegal-state})
           worker-state)
 
-      (> eval-count 1)
-      (do (>!! result-chan {:type :repl/too-many-eval-clients :count eval-count})
+      (> runtime-count 1)
+      (do (>!! result-chan {:type :repl/too-many-runtimes :count runtime-count})
           worker-state)
 
-      (zero? eval-count)
-      (do (>!! result-chan {:type :repl/no-eval-target})
+      (zero? runtime-count)
+      (do (>!! result-chan {:type :repl/no-runtime-connected})
           worker-state)
 
       :else
       (try
-        (let [{:keys [eval-out] :as eval-client}
-              (first (vals eval-clients))
+        (let [{:keys [runtime-out] :as runtime}
+              (first (vals runtimes))
 
               start-idx
               (count (get-in build-state [:repl-state :repl-actions]))
@@ -442,7 +446,7 @@
                         action (assoc action :id idx)]]
             (>!!output worker-state {:type :repl/action
                                      :action action})
-            (>!! eval-out (transform-repl-action build-state action)))
+            (>!! runtime-out (transform-repl-action build-state action)))
 
           (-> worker-state
               (assoc :build-state build-state)
@@ -457,16 +461,6 @@
 
 (defn do-macro-update
   [{:keys [build-state last-build-macros autobuild] :as worker-state} {:keys [macro-namespaces] :as msg}]
-
-  (dbg/tap> {:tag :inspect/value
-             :id ::macro-update
-             :value
-             {:build-state (nil? build-state)
-              :affected (build-api/build-affected-by-macros? build-state macro-namespaces)
-              :macro-namespaces macro-namespaces
-              :last-build-macros last-build-macros
-              :autobuild autobuild
-              }})
 
   (cond
     (not build-state)
@@ -524,7 +518,7 @@
         ))))
 
 (defn do-asset-update
-  [{:keys [eval-clients] :as worker-state} updates]
+  [{:keys [runtimes] :as worker-state} updates]
   (let [watch-path
         (get-in worker-state [:build-config :devtools :watch-path])
 
@@ -536,9 +530,9 @@
     ;; only interested in file modifications
     ;; don't need file instances, just the names
     (when (seq updates)
-      (doseq [{:keys [eval-out] :as client} (vals eval-clients)]
-        (>!! eval-out {:type :asset-watch
-                       :updates updates}))))
+      (doseq [{:keys [runtime-out]} (vals runtimes)]
+        (>!! runtime-out {:type :asset-watch
+                          :updates updates}))))
 
   worker-state)
 
@@ -551,54 +545,53 @@
         (-> (build-configure)
             (build-compile)))))
 
-(defn repl-eval-connect
-  [{:keys [proc-stop proc-control] :as proc} client-id client-out]
+(defn repl-runtime-connect
+  [{:keys [proc-stop proc-control] :as proc} runtime-id runtime-out]
   {:pre [(proc? proc)]}
 
-  ;; client-in - messages received from the client are put into client-in
-  ;; client-out - direct line to client
-  ;; eval-out - bridge to client-out so we can properly should down this loop
-  (let [client-in
+  ;; runtime-in - messages received from the runtime are put into runtime-in
+  ;; runtime-out - direct line to runtime
+  ;; runtime-out-bridge - forwards to runtime-out. bridged so this loop can shutdown properly when the worker closes runtime-out
+  (let [runtime-in
         (async/chan)
 
-        eval-out
+        runtime-out-bridge
         (async/chan)]
 
     ;; each ws gets it own connection loop which just forwards to the main worker
     ;; to ensure everything is executed in the worker thread.
-    (go (>! proc-control {:type :eval-start
-                          :client-id client-id
-                          :eval-out eval-out})
+    (go (>! proc-control {:type :runtime-connect
+                          :runtime-id runtime-id
+                          :runtime-out runtime-out-bridge})
 
         (loop []
           (alt!
             proc-stop
             ([_] nil)
 
-            client-in
+            runtime-in
             ([msg]
               (when-not (nil? msg)
-                (>! proc-control {:type :client-msg
-                                  :client-id client-id
-                                  :client-out client-out
-                                  :eval-out eval-out
+                (>! proc-control {:type :runtime-msg
+                                  :runtime-id runtime-id
+                                  :runtime-out runtime-out-bridge
                                   :msg msg})
                 (recur)))
 
-            eval-out
+            runtime-out-bridge
             ([msg]
               (when-not (nil? msg)
-                (>! client-out msg)
+                (>! runtime-out msg)
                 (recur)))
             ))
 
-        (>! proc-control {:type :eval-stop
-                          :client-id client-id})
+        (>! proc-control {:type :runtime-disconnect
+                          :runtime-id runtime-id})
 
-        (async/close! eval-out)
-        (async/close! client-in))
+        (async/close! runtime-out-bridge)
+        (async/close! runtime-in))
 
-    client-in))
+    runtime-in))
 
 ;; FIXME: remove these ... just make worker do the stuff directly, this is nonsense
 

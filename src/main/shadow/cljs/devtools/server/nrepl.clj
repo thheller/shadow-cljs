@@ -109,7 +109,7 @@
                   :repl/timeout
                   (send msg {:err "REPL command timed out.\n"})
 
-                  :repl/no-eval-target
+                  :repl/no-runtime-connected
                   (send msg {:err "No application has connected to the REPL server. Make sure your JS environment has loaded your compiled ClojureScript code.\n"})
 
                   :repl/too-many-eval-clients

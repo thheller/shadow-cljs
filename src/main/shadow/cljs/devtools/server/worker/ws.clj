@@ -16,7 +16,7 @@
   (:import (java.util UUID)))
 
 (defn ws-loop!
-  [{:keys [worker-proc watch-chan eval-out in out result-chan] :as client-state}]
+  [{:keys [worker-proc watch-chan in out runtime-out runtime-in] :as client-state}]
   (let [{:keys [system-bus]} worker-proc]
 
     (worker/watch worker-proc watch-chan true)
@@ -28,7 +28,7 @@
     (loop [client-state client-state]
 
       (alt!!
-        eval-out
+        runtime-out
         ([msg]
           (when-not (nil? msg)
             (>!! out msg)
@@ -45,24 +45,26 @@
         in
         ([msg]
           (when-not (nil? msg)
-            (>!! result-chan msg)
+            (>!! runtime-in msg)
             (recur client-state))
           )))
 
-    (async/close! result-chan)))
+    (async/close! runtime-in)))
 
 (defn ws-connect
   [{:keys [ring-request] :as ctx}
-   {:keys [output] :as worker-proc} client-id client-type]
+   {:keys [output] :as worker-proc} runtime-id runtime-type]
 
   (let [{:keys [ws-in ws-out]} ring-request
 
-        eval-out
+        ;; messages put on this must be forwarded to the runtime
+        runtime-out
         (-> (async/sliding-buffer 10)
             (async/chan))
 
-        result-chan
-        (worker/repl-eval-connect worker-proc client-id eval-out)
+        ;; messages coming from the runtime must be put on runtime-in
+        runtime-in
+        (worker/repl-runtime-connect worker-proc runtime-id runtime-out)
 
         ;; no need to forward :build-log messages to the client
         watch-ignore
@@ -72,8 +74,8 @@
           :repl/result
           :repl/error ;; server-side error
           :repl/action
-          :repl/eval-start
-          :repl/eval-stop
+          :repl/runtime-connect
+          :repl/runtime-disconnect
           :repl/client-start
           :repl/client-stop}
 
@@ -84,12 +86,12 @@
 
         client-state
         {:worker-proc worker-proc
-         :client-id client-id
-         :client-type client-type
+         :runtime-id runtime-id
+         :runtime-type runtime-type
          :in ws-in
          :out ws-out
-         :eval-out eval-out
-         :result-chan result-chan
+         :runtime-out runtime-out
+         :runtime-in runtime-in
          :watch-chan watch-chan}]
 
     (thread (ws-loop! client-state))
@@ -107,8 +109,8 @@
           :repl/result
           :repl/error ;; server-side error
           :repl/action
-          :repl/eval-start
-          :repl/eval-stop
+          :repl/runtime-connect
+          :repl/runtime-disconnect
           :repl/client-start
           :repl/client-stop}
 
