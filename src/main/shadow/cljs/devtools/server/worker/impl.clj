@@ -169,6 +169,16 @@
           (->> build-sources
                (map #(data/get-source-by-id build-state %))
                (filter #(= :cljs (:type %)))
+               ;; should filter more resources that don't contain hooks
+               ;; processing might become slow when processing too many namespaces?
+               ;; Bruce Hauman added ^:figwheel-hooks on the ns to filter
+               ;; but I think that puts unnecessary burden on the user to "tag" twice
+               ;; should this ever become a bottleneck we can optimize this by only checking
+               ;; for hooks once after compile and cache it
+               ;; FIXME: maybe add cache
+               (remove (fn [{:keys [resource-name] :as rc}]
+                         (or (str/starts-with? resource-name "cljs/")
+                             (str/starts-with? resource-name "clojure/"))))
                (map :ns)
                (map #(get-in compiler-env [::cljs-ana/namespaces %]))))
         )))
