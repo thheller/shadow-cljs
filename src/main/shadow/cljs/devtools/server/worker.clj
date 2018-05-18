@@ -16,33 +16,49 @@
 
 (defn compile
   "triggers an async compilation, use watch to receive notification about worker state"
-  [proc]
-  (impl/compile proc))
+  [{:keys [proc-control] :as proc}]
+  {:pre [(impl/proc? proc)]}
+  (>!! proc-control {:type :compile :reply-to nil})
+  proc)
 
 (defn compile!
   "triggers an async compilation and waits for the compilation result (blocking)"
-  [proc]
-  (impl/compile! proc))
+  [{:keys [proc-control] :as proc}]
+  {:pre [(impl/proc? proc)]}
+  (let [reply-to (async/chan)]
+    (>!! proc-control {:type :compile :reply-to reply-to})
+    (<!! reply-to)))
 
 (defn watch
   "watch all output produced by the worker"
-  ([proc chan]
-   (impl/watch proc chan true))
-  ([proc chan close?]
-   (impl/watch proc chan close?)))
+  ([proc log-chan]
+    (watch proc log-chan true))
+  ([{:keys [output-mult] :as proc} log-chan close?]
+   {:pre [(impl/proc? proc)]}
+   (async/tap output-mult log-chan close?)
+   proc))
 
 (defn start-autobuild
   "automatically compile on file changes"
-  [proc]
-  (impl/start-autobuild proc))
+  [{:keys [proc-control] :as proc}]
+  {:pre [(impl/proc? proc)]}
+  (>!! proc-control {:type :start-autobuild})
+  proc)
 
-(defn stop-autobuild [proc]
-  (impl/stop-autobuild proc))
+(defn stop-autobuild
+  [{:keys [proc-control] :as proc}]
+  {:pre [(impl/proc? proc)]}
+  (>!! proc-control {:type :stop-autobuild})
+  proc)
 
 (defn sync!
   "ensures that all proc-control commands issued have completed"
-  [proc]
-  (impl/sync! proc))
+  [{:keys [proc-control] :as proc}]
+  {:pre [(impl/proc? proc)]}
+  (let [chan (async/chan)]
+    (>!! proc-control {:type :sync! :chan chan})
+    (<!! chan))
+  proc)
 
 (defn repl-runtime-connect
   "called by processes that are able to eval repl commands and report their result
