@@ -50,9 +50,15 @@
               (assoc :background {:entries [background] :depends-on #{:shared}})
 
               content-script
-              (assoc :content-script {:entries [content-script] :depends-on #{:shared}})))]
+              (assoc :content-script {:entries [content-script] :depends-on #{:shared}})))
+
+        config
+        (update config :devtools merge
+          {:use-document-host false
+           :autoload true})]
 
     (-> state
+        (assoc ::b/config config)
         (build-api/merge-build-options
           {:output-dir output-dir
            :asset-path "out"})
@@ -143,7 +149,7 @@
           :key-fn (fn [key]
                     (-> key name (str/replace #"-" "_"))))))
 
-    #_ (pprint manifest)
+    #_(pprint manifest)
 
     state))
 
