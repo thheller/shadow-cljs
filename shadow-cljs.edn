@@ -147,9 +147,7 @@
 
   :chrome-ext
   {:target :chrome-extension
-   :extension-dir "out/chrome-ext"
-   :devtools
-   {:autoload true}}
+   :extension-dir "out/chrome-ext"}
 
   :test-browser
   {:target :browser-test

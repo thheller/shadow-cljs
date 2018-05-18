@@ -489,7 +489,7 @@
     (resolve-string-require state require-from require)
 
     :else
-    (throw (ex-info "invalid require" {:entry require}))
+    (throw (ex-info "invalid require, only symbols or strings are supported" {:require require}))
     ))
 
 (defn resolve-entry [state entry]
