@@ -1,6 +1,9 @@
 (ns shadow.build.targets.chrome-extension
   (:require
     [clojure.java.io :as io]
+    [clojure.data.json :as json]
+    [clojure.string :as str]
+    [clojure.pprint :refer (pprint)]
     [shadow.build :as b]
     [shadow.build.targets.browser :as browser]
     [shadow.build.targets.shared :as shared]
@@ -10,165 +13,142 @@
     [shadow.build.modules :as modules]
     [shadow.build.output :as output]
     [shadow.build.data :as data]
-    [clojure.data.json :as json]
-    [clojure.string :as str]
-    [shadow.cljs.util :as util]))
+    [shadow.cljs.util :as util]
+    [clojure.edn :as edn]
+    [clojure.walk :as walk]))
 
 (defn configure
-  [{:keys [worker-info] :as state} mode {:keys [build-id output-to entry] :as config}]
-  (let [runtime
-        (api/get-runtime!)
+  [state mode {:keys [extension-dir] :as config}]
+  (let [extension-dir
+        (io/file extension-dir)
 
-        asset-path
-        (str "http://localhost:9630/cache/" (name build-id) "/dev/out")
+        manifest
+        (-> (io/file extension-dir "manifest.edn")
+            (slurp)
+            (edn/read-string))
 
         output-dir
-        (io/file (get-in runtime [:config :cache-root]) "builds" (name build-id) "dev" "out")
+        (io/file extension-dir "out")
 
-        module-config
-        (-> {:module-id :main
-             :default true
-             :entries [entry]}
+        manifest-file
+        (io/file extension-dir "manifest.json")
+
+        background
+        (get-in manifest [:background :entry])
+
+        content-script
+        (some-> manifest
+          (get :content-scripts)
+          (get 0)
+          (get :entry))
+
+        modules
+        (-> {:shared {:entries ['cljs.core]
+                      :default true}}
             (cond->
-              ;; REPL client - only for watch (via worker-info), not compile
-              (and (= :dev mode) worker-info)
-              (browser/inject-repl-client state config)
+              background
+              (assoc :background {:entries [background] :depends-on #{:shared}})
 
-              ;; DEVTOOLS console, it is prepended so it loads first in case anything wants to log
-              (= :dev mode)
-              (browser/inject-devtools-console state config)
-
-              (= :dev mode)
-              (browser/inject-preloads state config)))]
+              content-script
+              (assoc :content-script {:entries [content-script] :depends-on #{:shared}})))]
 
     (-> state
-        (assoc ::output-to (io/file output-to))
         (build-api/merge-build-options
-          {:asset-path asset-path
-           :output-dir output-dir})
+          {:output-dir output-dir
+           :asset-path "out"})
 
         (build-api/with-js-options
           {:js-provider :shadow})
+
+        (assoc ::manifest-file manifest-file
+               ::manifest manifest
+               ::extension-dir extension-dir)
 
         (cond->
           (and (= :dev mode) (:worker-info state))
           (-> (repl/setup)
               (shared/merge-repl-defines config)))
 
-        (modules/configure {:main module-config})
-        )))
+        (browser/configure-modules mode (assoc config :modules modules)))))
 
-;; acts of sort of a cache for source maps
-;; converting CLJS format to v3 is quite expensive
-;; so we only want to do that once
-(defn generate-source-maps
-  [state]
-  (reduce
-    (fn [state resource-id]
-      (let [rc
-            (data/get-source-by-id state resource-id)
+(defn mod-files [state {:keys [module-id sources] :as mod}]
+  (->> (let [mods (browser/get-all-module-deps state mod)]
+         (-> []
+             (into (mapcat :sources) mods)
+             (into sources)))
+       (remove #{output/goog-base-id})
+       (map #(data/get-source-by-id state %))
+       (map :output-name)
+       (map #(str "out/cljs-runtime/" %))))
 
-            {:keys [js source-map-info source-map source-map-json] :as output}
-            (data/get-output! state rc)]
-        (if (some? source-map-info)
-          state
-          (let [sm
-                (or (and source-map (output/encode-source-map rc output))
-                    (and (seq source-map-json) (json/read-str source-map-json))
-                    {})
+(defn flush-base [state mod filename]
+  (spit (data/output-file state filename)
 
-                lines
-                (output/line-count js)]
+    (str "var shadow$provide = {};\n"
 
-            (assoc-in state [:output resource-id :source-map-info]
-              {:lines lines
-               :source-map sm})
-            ))))
-    state
-    (-> state :build-modules first :sources)))
+         (let [{:keys [polyfill-js]} state]
+           (when (seq polyfill-js)
+             (str "\n" polyfill-js)))
 
-(defn create-index-map [state header sources output-to]
-  (let [prepend-offset
-        (output/line-count header)
+         (output/closure-defines-and-base state)
 
-        sm-file
-        (io/file (.getParentFile output-to) (str (.getName output-to) ".map"))
+         "var $CLJS = {};\n"
+         "goog.global[\"$CLJS\"] = $CLJS;\n"
 
-        sm-index
-        (-> {:version 3
-             :file (.getName output-to)
-             :offset prepend-offset
-             :sections []}
-            (util/reduce->
-              (fn [{:keys [offset] :as sm-index} resource-id]
-
-                (let [rc
-                      (data/get-source-by-id state resource-id)
-
-                      {:keys [lines source-map]}
-                      (get-in state [:output resource-id :source-map-info])]
-
-                  (-> sm-index
-                      (update :offset + lines)
-                      (cond->
-                        (seq source-map)
-                        (update :sections conj {:offset {:line offset :column 0}
-                                                :map source-map})))))
-
-              sources)
-            (dissoc :offset))]
-
-    (spit sm-file (json/write-str sm-index))))
+         (slurp (io/resource "shadow/boot/static.js"))
+         "\n\n"
+         ;; create the $CLJS var so devtools can always use it
+         ;; always exists for :module-format :js
+         "\n\n")))
 
 (defn flush-dev
-  [{::keys [output-to] :as state}]
+  [{::keys [manifest-file manifest] :keys [build-modules] :as state}]
 
-  (io/make-parents output-to)
+  (output/flush-sources state)
 
-  (let [{:keys [prepend append sources] :as mod}
-        (-> state :build-modules first)
+  (let [{:keys [background content-script] :as mods-by-id}
+        (reduce
+          (fn [m {:keys [module-id] :as mod}]
+            (assoc m module-id mod))
+          {}
+          build-modules)
 
-        header
-        (str prepend
-             "var shadow$provide = {};\n"
+        manifest
+        (-> manifest
+            (update :content-security-policy (fn [x] (if (string? x) x (str/join " " x))))
+            (cond->
+              background
+              (-> (update :background dissoc :entry)
+                  (assoc-in [:background :scripts]
+                    (->> (mod-files state background)
+                         (into ["out/background.js"]))))
 
-             (let [{:keys [polyfill-js]} state]
-               (when (seq polyfill-js)
-                 (str "\n" polyfill-js)))
+              content-script
+              (-> (update-in [:content-scripts 0] dissoc :entry)
+                  (assoc-in [:content-scripts 0 :js]
+                    (->> (mod-files state content-script)
+                         (into ["out/content_script.js"]))))
+              ))]
 
-             (output/closure-defines-and-base state)
+    (when background
+      (flush-base state background "background.js"))
 
-             "goog.global[\"$CLJS\"] = goog.global;\n"
+    (when content-script
+      (flush-base state content-script "content_script.js"))
 
-             (slurp (io/resource "shadow/boot/static.js"))
-             "\n\n"
+    (spit manifest-file
+      (with-out-str
+        (json/pprint manifest
+          :escape-slash false
+          :key-fn (fn [key]
+                    (-> key name (str/replace #"-" "_"))))))
 
-             (let [require-files
-                   (->> sources
-                        (map #(data/get-source-by-id state %))
-                        (map :output-name)
-                        (into []))]
-               (str "SHADOW_ENV.load("
-                    (json/write-str {:forceAsync true})
-                    ", "
-                    (json/write-str require-files) ");\n"))
+    #_ (pprint manifest)
 
-             "\n\n")
+    state))
 
-        out
-        (str header
-             (->> sources
-                  (map #(data/get-source-by-id state %))
-                  (map #(data/get-output! state %))
-                  (map :js)
-                  (str/join "\n"))
-             append
-
-             (str "\n//# sourceMappingURL=" (.getName output-to) ".map\n"))]
-
-    (create-index-map state header sources output-to)
-    (spit output-to out))
-
+(defn update-manifest-release [state]
+  (throw (ex-info "not implemented yet" {}))
   state)
 
 (defn process
@@ -180,17 +160,22 @@
 
     (and (= :dev mode) (= :flush stage))
     (-> state
-        (generate-source-maps)
         (flush-dev))
 
     (and (= :release mode) (= :flush stage))
-    (output/flush-optimized state)
+    (-> state
+        (output/flush-optimized)
+        (update-manifest-release))
 
     :else
     state
     ))
 
 (comment
-  (shadow.cljs.devtools.api/compile :chrome-bg)
-  (shadow.cljs.devtools.api/compile :chrome-content))
+  (shadow.cljs.devtools.api/compile :chrome-ext))
+
+(comment
+  (shadow.cljs.devtools.api/watch :chrome-ext {:verbose true}))
+
+
 
