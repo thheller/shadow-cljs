@@ -121,67 +121,80 @@
 
 (defn extract-reload-info
   "for every cljs build source collect all defs that are marked with special metadata"
-  [{::build/keys [config] :keys [compiler-env build-sources] :as build-state}]
-  (let [{:keys [after-load after-load-async before-load before-load-async] :as devtools-config}
+  [{:keys [build-sources] :as build-state}]
+  (-> {:never-load #{}
+       :after-load []
+       :before-load []}
+      (reduce->
+        (fn [info resource-id]
+          (let [hooks (get-in build-state [:output resource-id ::hooks])]
+            (if-not hooks
+              info
+              (merge-with into info hooks)
+              )))
+        build-sources
+        )))
+
+(defn add-entry [entries fn-sym & extra-attrs]
+  (conj entries
+    (-> {:fn-sym fn-sym
+         :fn-str (cljs-comp/munge (str fn-sym))}
+        (cond->
+          (seq extra-attrs)
+          (merge (apply array-map extra-attrs))))))
+
+(defn build-find-resource-hooks [{:keys [compiler-env] :as build-state} {:keys [resource-id ns] :as src}]
+  (let [{:keys [name meta defs] :as ns-info}
+        (get-in compiler-env [::cljs-ana/namespaces ns])
+
+        {:keys [after-load after-load-async before-load before-load-async] :as devtools-config}
         (get-in build-state [::build/config :devtools])
 
-        add-entry
-        (fn [entries fn-sym & extra-attrs]
-          (conj entries
-            (-> {:fn-sym fn-sym
-                 :fn-str (cljs-comp/munge (str fn-sym))}
-                (cond->
-                  (seq extra-attrs)
-                  (merge (apply array-map extra-attrs))))))]
+        hooks
+        (-> {:never-load #{}
+             :after-load []
+             :before-load []}
+            (cond->
+              (or (:dev/never-load meta)
+                  (:dev/once meta) ;; can't decide on which meta to use
+                  (:figwheel-noload meta))
+              (update :never-load conj name))
 
-    (-> {:never-load #{}
-         :after-load []
-         :before-load []}
-        (reduce->
-          (fn [info {:keys [name meta defs] :as ns-info}]
-            (-> info
-                (cond->
-                  (or (:dev/never-load meta)
-                      (:dev/once meta) ;; can't decide on which meta to use
-                      (:figwheel-noload meta))
-                  (update :never-load conj name))
+            (reduce-kv->
+              (fn [info def-sym {:keys [name meta] :as def-info}]
+                (cond-> info
+                  (or (:dev/before-load meta)
+                      (= name before-load))
+                  (update :before-load add-entry name)
 
-                (reduce-kv->
-                  (fn [info def-sym {:keys [name meta] :as def-info}]
-                    (cond-> info
-                      (or (:dev/before-load meta)
-                          (= name before-load))
-                      (update :before-load add-entry name)
+                  (or (:dev/before-load-async meta)
+                      (= name before-load-async))
+                  (update :before-load add-entry name :async true)
 
-                      (or (:dev/before-load-async meta)
-                          (= name before-load-async))
-                      (update :before-load add-entry name :async true)
+                  (or (:dev/after-load meta)
+                      (= name after-load))
+                  (update :after-load add-entry name)
 
-                      (or (:dev/after-load meta)
-                          (= name after-load))
-                      (update :after-load add-entry name)
+                  (or (:dev/after-load-async meta)
+                      (= name after-load-async))
+                  (update :after-load add-entry name :async true)))
+              defs))]
 
-                      (or (:dev/after-load-async meta)
-                          (= name after-load-async))
-                      (update :after-load add-entry name :async true)
-                      ))
-                  defs)))
-          (->> build-sources
-               (map #(data/get-source-by-id build-state %))
-               (filter #(= :cljs (:type %)))
-               ;; should filter more resources that don't contain hooks
-               ;; processing might become slow when processing too many namespaces?
-               ;; Bruce Hauman added ^:figwheel-hooks on the ns to filter
-               ;; but I think that puts unnecessary burden on the user to "tag" twice
-               ;; should this ever become a bottleneck we can optimize this by only checking
-               ;; for hooks once after compile and cache it
-               ;; FIXME: maybe add cache
-               (remove (fn [{:keys [resource-name] :as rc}]
-                         (or (str/starts-with? resource-name "cljs/")
-                             (str/starts-with? resource-name "clojure/"))))
-               (map :ns)
-               (map #(get-in compiler-env [::cljs-ana/namespaces %]))))
-        )))
+    (assoc-in build-state [:output resource-id ::hooks] hooks)))
+
+(defn build-find-hooks [{:keys [build-sources] :as state}]
+  (reduce
+    (fn [state resource-id]
+      (let [{:keys [type resource-name] :as src}
+            (data/get-source-by-id state resource-id)]
+        (if (or (not= :cljs type)
+                (get-in state [:output resource-id ::hooks])
+                (str/starts-with? resource-name "cljs/")
+                (str/starts-with? resource-name "clojure/"))
+          state
+          (build-find-resource-hooks state src))))
+    state
+    build-sources))
 
 (defn build-compile
   [{:keys [build-state] :as worker-state}]
@@ -197,6 +210,7 @@
                 (build-api/reset-always-compile-namespaces)
                 (build/compile)
                 (build/flush)
+                (build-find-hooks)
                 (update ::compile-attempt inc))]
 
         (>!!output worker-state
