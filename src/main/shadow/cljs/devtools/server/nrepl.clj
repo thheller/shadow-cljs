@@ -43,8 +43,11 @@
       #'api/*nrepl-cljs* nil
       #'cemerick.piggieback/*cljs-compiler-env* nil)))
 
-(defn do-cljs-eval [{::keys [build-id worker] :keys [session code] :as msg}]
-  (let [reader (StringReader. code)]
+(defn do-cljs-eval [{::keys [build-id worker] :keys [session code runtime-id] :as msg}]
+  (let [reader (StringReader. code)
+
+        session-id
+        (-> session meta :id str)]
 
     (loop []
       (when-let [repl-state (repl-impl/worker-repl-state worker)]
@@ -78,7 +81,7 @@
             ;; {:status :eval-error :ex <exception name/message> :root-ex <root exception name/message>}
             ;; {:err string} prints to stderr
             :else
-            (when-some [result (worker/repl-eval worker ::stdin read-result)]
+            (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
               (log/debug "nrepl-eval-result" (pr-str result))
               (let [repl-state (repl-impl/worker-repl-state worker)
                     repl-ns (-> repl-state :current :ns)]
@@ -112,7 +115,7 @@
                   :repl/no-runtime-connected
                   (send msg {:err "No application has connected to the REPL server. Make sure your JS environment has loaded your compiled ClojureScript code.\n"})
 
-                  :repl/too-many-eval-clients
+                  :repl/too-many-runtimes
                   (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
 
                   :repl/error

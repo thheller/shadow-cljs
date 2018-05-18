@@ -101,10 +101,11 @@
     {:type :repl-compile
      :input input}))
 
-(defn repl-eval [worker client-id input]
+(defn repl-eval [worker session-id runtime-id input]
   (worker-request worker
     {:type :repl-eval
-     :client-id client-id
+     :session-id session-id
+     :runtime-id runtime-id
      :input input}))
 
 (defn load-file [worker {:keys [source file-path] :as file-info}]

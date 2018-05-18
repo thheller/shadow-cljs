@@ -9,7 +9,8 @@
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.build.log :as build-log]
             [clojure.tools.logging :as log])
-  (:import (java.io StringReader PushbackReader File)))
+  (:import (java.io StringReader PushbackReader File)
+           [java.util UUID]))
 
 (defn print-result [result]
   (locking build-log/stdout-lock
@@ -50,7 +51,7 @@
       :repl/no-runtime-connected
       (println "No application has connected to the REPL server. Make sure your JS environment has loaded your compiled ClojureScript code.")
 
-      :repl/too-many-eval-clients
+      :repl/too-many-runtimes
       (println "There are too many connected processes.")
 
       (prn [:result result]))
@@ -118,8 +119,13 @@
     ))
 
 (defn stdin-takeover!
-  [worker {:keys [out] :as app}]
-  (let [print-chan (repl-print-chan)]
+  [worker {:keys [out runtime-id] :as app}]
+  (let [print-chan
+        (repl-print-chan)
+
+        session-id
+        (str (UUID/randomUUID))]
+
     (worker/watch worker print-chan true)
 
     (r/takeover (repl-level worker)
@@ -160,7 +166,7 @@
                   (recur))
 
               :else
-              (when-some [result (worker/repl-eval worker ::stdin read-result)]
+              (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
                 (print-result result)
                 (when (not= :repl/interrupt (:type result))
                   (recur))))))))

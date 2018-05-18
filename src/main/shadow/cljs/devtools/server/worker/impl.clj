@@ -428,7 +428,8 @@
 
 (defmethod do-proc-control :repl-eval
   [{:keys [build-state runtimes] :as worker-state}
-   {:keys [result-chan input] :as msg}]
+   {:keys [result-chan input session-id runtime-id] :as msg}]
+  (log/debug ::repl-eval session-id runtime-id)
   (let [runtime-count (count runtimes)]
 
     (cond
