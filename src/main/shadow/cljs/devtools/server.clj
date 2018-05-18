@@ -413,7 +413,7 @@
 
     (doseq [{:keys [build-id] :as build-config} build-configs]
       (println "shadow-cljs - watching build" build-id)
-      (api/watch* build-config options))
+      (api/watch* build-config (assoc options :sync false)))
 
     (go (loop []
           (when-some [msg (<! out-chan)]

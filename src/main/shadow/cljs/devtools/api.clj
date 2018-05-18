@@ -146,7 +146,7 @@
     :ok))
 
 (defn watch*
-  ([{:keys [build-id] :as build-config} {:keys [autobuild verbose] :as opts}]
+  ([{:keys [build-id] :as build-config} {:keys [autobuild verbose sync] :as opts}]
    (let [out
          (util/stdout-dump verbose)
 
@@ -162,8 +162,10 @@
            (worker/start-autobuild)
 
            (false? autobuild)
-           (worker/compile))
-         (worker/sync!)
+           (worker/compile)
+
+           (not (false? sync))
+           (worker/sync!))
          ))))
 
 (defn watch
