@@ -424,7 +424,7 @@
 
 (defn repl-next
   ([build-id]
-   (repl build-id {}))
+   (repl-next build-id {}))
   ([build-id {:keys [stop-on-eof] :as opts}]
    (if *nrepl-active*
      (nrepl-select build-id opts)
