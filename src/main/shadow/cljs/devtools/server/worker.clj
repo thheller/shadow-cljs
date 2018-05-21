@@ -68,8 +68,53 @@
 
    returns a channel the results of eval should be put in
    when no more results are coming this channel should be closed"
-  [proc runtime-id runtime-out]
-  (impl/repl-runtime-connect proc runtime-id runtime-out))
+  [{:keys [proc-stop proc-control] :as proc} runtime-id runtime-out runtime-info]
+  {:pre [(impl/proc? proc)]}
+
+  ;; runtime-in - messages received from the runtime are put into runtime-in
+  ;; runtime-out - direct line to runtime
+  ;; runtime-out-bridge - forwards to runtime-out. bridged so this loop can shutdown properly when the worker closes runtime-out
+  (let [runtime-in
+        (async/chan)
+
+        runtime-out-bridge
+        (async/chan)]
+
+    ;; each ws gets it own connection loop which just forwards to the main worker
+    ;; to ensure everything is executed in the worker thread.
+    (go (>! proc-control {:type :runtime-connect
+                          :runtime-id runtime-id
+                          :runtime-out runtime-out-bridge
+                          :runtime-info runtime-info})
+
+        (loop []
+          (alt!
+            proc-stop
+            ([_] nil)
+
+            runtime-in
+            ([msg]
+              (when-not (nil? msg)
+                (>! proc-control {:type :runtime-msg
+                                  :runtime-id runtime-id
+                                  :runtime-out runtime-out-bridge
+                                  :msg msg})
+                (recur)))
+
+            runtime-out-bridge
+            ([msg]
+              (when-not (nil? msg)
+                (>! runtime-out msg)
+                (recur)))
+            ))
+
+        (>! proc-control {:type :runtime-disconnect
+                          :runtime-id runtime-id})
+
+        (async/close! runtime-out-bridge)
+        (async/close! runtime-in))
+
+    runtime-in))
 
 (defn worker-request [{:keys [proc-control state-ref] :as worker} request]
   {:pre [(impl/proc? worker)

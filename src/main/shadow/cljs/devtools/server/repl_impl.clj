@@ -119,7 +119,7 @@
     ))
 
 (defn stdin-takeover!
-  [worker {:keys [out runtime-id] :as app}]
+  [worker {:keys [out] :as app} runtime-id]
   (let [print-chan
         (repl-print-chan)
 

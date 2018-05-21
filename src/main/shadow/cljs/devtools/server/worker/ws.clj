@@ -52,8 +52,7 @@
     (async/close! runtime-in)))
 
 (defn ws-connect
-  [{:keys [ring-request] :as ctx}
-   {:keys [output] :as worker-proc} runtime-id runtime-type]
+  [{:keys [ring-request] :as ctx} worker-proc runtime-id runtime-type]
 
   (let [{:keys [ws-in ws-out]} ring-request
 
@@ -64,7 +63,10 @@
 
         ;; messages coming from the runtime must be put on runtime-in
         runtime-in
-        (worker/repl-runtime-connect worker-proc runtime-id runtime-out)
+        (worker/repl-runtime-connect worker-proc runtime-id runtime-out
+          {:runtime-type runtime-type
+           :user-agent (get-in ctx [:ring-request :headers "user-agent"])
+           :remote-addr (:remote-addr ring-request)})
 
         ;; no need to forward :build-log messages to the client
         watch-ignore
@@ -302,8 +304,7 @@
   [{::http/keys [path-tokens] :keys [supervisor] :as ctx}]
 
   ;; "/worker/browser/430da920-ffe8-4021-be47-c9ca77c6defd/305de5d9-0272-408f-841e-479937512782/browser"
-  ;; _ _ to drop / and worker
-  (let [[action build-id proc-id client-id client-type :as x]
+  (let [[action build-id proc-id runtime-id runtime-type :as x]
         path-tokens
 
         build-id
@@ -311,6 +312,9 @@
 
         proc-id
         (UUID/fromString proc-id)
+
+        runtime-type
+        (keyword runtime-type)
 
         ws-out
         (get-in ctx [:ring-request :ws-out])
@@ -333,10 +337,10 @@
       :else
       (case action
         "worker"
-        (ws-connect ctx worker-proc client-id client-type)
+        (ws-connect ctx worker-proc runtime-id runtime-type)
 
         "listener"
-        (ws-listener-connect ctx worker-proc client-id)
+        (ws-listener-connect ctx worker-proc runtime-id)
 
         :else
         nil

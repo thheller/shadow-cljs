@@ -6,7 +6,8 @@
     [cljs.pprint :refer (pprint)]
     ))
 
-(defonce client-id (random-uuid))
+;; FIXME: make this persistent somehow?
+(defonce runtime-id (random-uuid))
 
 (goog-define enabled false)
 
@@ -51,15 +52,15 @@
   (-> (get-url-base)
       (str/replace #"^http" "ws")))
 
-(defn ws-url [client-type]
-  {:pre [(keyword? client-type)]}
-  (str (get-ws-url-base) "/ws/worker/" build-id "/" proc-id "/" client-id "/" (name client-type)))
+(defn ws-url [runtime-type]
+  {:pre [(keyword? runtime-type)]}
+  (str (get-ws-url-base) "/ws/worker/" build-id "/" proc-id "/" runtime-id "/" (name runtime-type)))
 
 (defn ws-listener-url [client-type]
-  (str (get-ws-url-base) "/ws/listener/" build-id "/" proc-id "/" client-id))
+  (str (get-ws-url-base) "/ws/listener/" build-id "/" proc-id "/" runtime-id))
 
 (defn files-url []
-  (str (get-url-base) "/worker/files/" build-id "/" proc-id "/" client-id))
+  (str (get-url-base) "/worker/files/" build-id "/" proc-id "/" runtime-id))
 
 (def repl-print-fn
   (if-not repl-pprint

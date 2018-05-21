@@ -395,6 +395,63 @@
            (println "To quit, type: :cljs/quit")
            [:selected id])))))
 
+(defn select-cljs-runtime [worker]
+  (let [all (-> worker :state-ref deref :runtimes vals vec)]
+
+    (println (format "There are %d connected runtimes, please select one by typing the number and pressing enter." (count all)))
+    (println "Type x or q to quit")
+
+    (doseq [[idx runtime] (->> all
+                               (map :runtime-info)
+                               (map-indexed vector))]
+      (prn [idx runtime]))
+
+
+    (let [num (read)]
+      (cond
+        (number? num)
+        (get all num)
+
+        (= num 'x)
+        {:quit true}
+
+        (= num 'q)
+        {:quit true}
+
+        :else
+        (recur worker)
+        ))))
+
+(defn repl-next
+  ([build-id]
+   (repl build-id {}))
+  ([build-id {:keys [stop-on-eof] :as opts}]
+   (if *nrepl-active*
+     (nrepl-select build-id opts)
+     (let [{:keys [supervisor] :as app}
+           (runtime/get-instance!)
+
+           worker
+           (super/get-worker supervisor build-id)]
+       (if-not worker
+         :no-worker
+         (let [current-runtimes
+               (-> worker :state-ref deref :runtimes vals)
+
+               {:keys [quit runtime-id runtime-info] :as runtime}
+               (if (= 1 (count current-runtimes))
+                 (-> current-runtimes first)
+                 (select-cljs-runtime worker))]
+
+           (when-not quit
+             (when runtime-id
+               (println (str "Connecting to REPL runtime: " runtime-id)))
+             ;; " " (pr-str runtime-info)
+
+             (repl-impl/stdin-takeover! worker app runtime-id)
+             (when stop-on-eof
+               (super/stop-worker supervisor build-id)))))))))
+
 (defn repl
   ([build-id]
    (repl build-id {}))
@@ -408,9 +465,11 @@
            (super/get-worker supervisor build-id)]
        (if-not worker
          :no-worker
-         (do (repl-impl/stdin-takeover! worker app)
+         (do (repl-impl/stdin-takeover! worker app nil)
              (when stop-on-eof
                (super/stop-worker supervisor build-id))))))))
+
+
 
 ;; FIXME: should maybe allow multiple instances
 (defn node-repl
@@ -501,7 +560,7 @@
 
       ;; for normal REPL loops we wait for the CLJS loop to end
       (when-not *nrepl-active*
-        (repl-impl/stdin-takeover! worker app)
+        (repl-impl/stdin-takeover! worker app nil)
         (super/stop-worker supervisor (:build-id build-config)))
 
       :done)))

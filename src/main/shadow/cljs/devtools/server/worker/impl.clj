@@ -255,17 +255,18 @@
   worker-state)
 
 (defmethod do-proc-control :runtime-connect
-  [{:keys [build-state] :as worker-state} {:keys [runtime-id runtime-out]}]
+  [{:keys [build-state] :as worker-state} {:keys [runtime-id runtime-out runtime-info]}]
   (log/debug ::runtime-connect runtime-id)
   (>!! runtime-out {:type :repl/init
                     :repl-state
                     (-> (:repl-state build-state)
                         (update :repl-sources repl-sources-as-client-resources build-state))})
 
-  (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id})
+  (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
   (update worker-state :runtimes assoc runtime-id
     {:runtime-id runtime-id
      :runtime-out runtime-out
+     :runtime-info runtime-info
      :init-sent true}))
 
 (defmethod do-proc-control :runtime-disconnect
@@ -437,8 +438,12 @@
       (do (>!! result-chan {:type :repl/illegal-state})
           worker-state)
 
-      (> runtime-count 1)
+      (and (not runtime-id) (> runtime-count 1))
       (do (>!! result-chan {:type :repl/too-many-runtimes :count runtime-count})
+          worker-state)
+
+      (and runtime-id (not (get runtimes runtime-id)))
+      (do (>!! result-chan {:type :repl/runtime-not-found :runtime-id runtime-id})
           worker-state)
 
       (zero? runtime-count)
@@ -448,7 +453,9 @@
       :else
       (try
         (let [{:keys [runtime-out] :as runtime}
-              (first (vals runtimes))
+              (if runtime-id
+                (get runtimes runtime-id)
+                (first (vals runtimes)))
 
               start-idx
               (count (get-in build-state [:repl-state :repl-actions]))
@@ -569,51 +576,3 @@
         autobuild
         (-> (build-configure)
             (build-compile)))))
-
-(defn repl-runtime-connect
-  [{:keys [proc-stop proc-control] :as proc} runtime-id runtime-out]
-  {:pre [(proc? proc)]}
-
-  ;; runtime-in - messages received from the runtime are put into runtime-in
-  ;; runtime-out - direct line to runtime
-  ;; runtime-out-bridge - forwards to runtime-out. bridged so this loop can shutdown properly when the worker closes runtime-out
-  (let [runtime-in
-        (async/chan)
-
-        runtime-out-bridge
-        (async/chan)]
-
-    ;; each ws gets it own connection loop which just forwards to the main worker
-    ;; to ensure everything is executed in the worker thread.
-    (go (>! proc-control {:type :runtime-connect
-                          :runtime-id runtime-id
-                          :runtime-out runtime-out-bridge})
-
-        (loop []
-          (alt!
-            proc-stop
-            ([_] nil)
-
-            runtime-in
-            ([msg]
-              (when-not (nil? msg)
-                (>! proc-control {:type :runtime-msg
-                                  :runtime-id runtime-id
-                                  :runtime-out runtime-out-bridge
-                                  :msg msg})
-                (recur)))
-
-            runtime-out-bridge
-            ([msg]
-              (when-not (nil? msg)
-                (>! runtime-out msg)
-                (recur)))
-            ))
-
-        (>! proc-control {:type :runtime-disconnect
-                          :runtime-id runtime-id})
-
-        (async/close! runtime-out-bridge)
-        (async/close! runtime-in))
-
-    runtime-in))
