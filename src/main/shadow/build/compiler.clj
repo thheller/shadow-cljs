@@ -630,6 +630,7 @@
 
                         err-data
                         (-> {:tag ::compile-cljs
+                             :resource-id resource-id
                              :source-id resource-id
                              :url url
                              :file file}
@@ -775,7 +776,7 @@
           0 nil
           1 (let [[_ err] (first errs)]
               (throw err))
-          (throw (ex-info "compilation failed" errs))))
+          (throw (ex-info "compilation failed" {:tag ::fail-many :resource-ids (keys errs) :errors errs}))))
 
       (reduce
         (fn [state {:keys [resource-id] :as output}]

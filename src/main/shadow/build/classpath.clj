@@ -171,8 +171,8 @@
   "looks at the first form in a .cljs file, analyzes it if (ns ...) and returns the updated resource
    with ns-related infos"
   [{:keys [url resource-name macros-ns] :as rc}]
-  (let [{:keys [name deps requires] :as ast}
-        (try
+  (try
+    (let [{:keys [name deps requires] :as ast}
           (cljs-bridge/get-resource-info
             resource-name
             (or (:source rc) ;; nREPL load-file supplies source
@@ -180,34 +180,47 @@
             ;; since the classpath instance is shared we use the default
             ;; on resolve the resource should be inspected again
             #{:cljs})
-          (catch Exception e
-            (throw (ex-info
-                     (if macros-ns
-                       (format "failed to inspect macro file: %s" url)
-                       (format "failed to inspect cljs file: %s" url))
-                     {:tag ::inspect-cljs
-                      :resource-name resource-name
-                      :url url} e))))
 
-        provide-name
-        (if-not macros-ns
-          name
-          (symbol (str name "$macros")))]
+          provide-name
+          (if-not macros-ns
+            name
+            (symbol (str name "$macros")))]
 
-    (-> rc
-        (assoc
-          :ns-info (dissoc ast :env)
-          :ns provide-name
-          :provides #{provide-name}
-          :requires (into #{} (vals requires))
-          :macro-requires
-          (-> #{}
-              (into (-> ast :require-macros vals))
-              (into (-> ast :use-macros vals)))
-          :deps deps)
-        (cond->
-          macros-ns
-          (assoc :macros-ns true)))))
+      (-> rc
+          (assoc
+            :ns-info (dissoc ast :env)
+            :ns provide-name
+            :provides #{provide-name}
+            :requires (into #{} (vals requires))
+            :macro-requires
+            (-> #{}
+                (into (-> ast :require-macros vals))
+                (into (-> ast :use-macros vals)))
+            :deps deps)
+          (cond->
+            macros-ns
+            (assoc :macros-ns true))))
+    (catch Exception e
+      ;; when the ns form fails to parse or any other related error occurs
+      ;; we guess the ns from the filename and proceed to the real error
+      ;; occurs again when actually trying to compile
+      ;; otherwise the error ends up unrelated in the log
+      ;; with the build error just being a generic "not available"
+
+      (log/debugf e (if macros-ns
+                      (format "failed to inspect macro file: %s" url)
+                      (format "failed to inspect cljs file: %s" url)))
+
+      (let [guessed-ns (util/filename->ns resource-name)]
+        (assoc rc
+          :ns guessed-ns
+          :inspect-error true
+          :inspect-error-data (ex-data e)
+          :provides #{guessed-ns}
+          :requires '#{goog cljs.core}
+          :macro-requires #{}
+          :deps '[goog cljs.core])
+        ))))
 
 (defn inspect-resource
   [state {:keys [resource-name url] :as rc}]

@@ -230,7 +230,7 @@
 (defn maybe-add-source
   "add given resource to the :sources and lookup indexes"
   [{:keys [sources] :as state}
-   {:keys [resource-id name] :as rc}]
+   {:keys [resource-id] :as rc}]
   (if (contains? sources resource-id)
     ;; a source may already be present in case of string requires as they are not unique
     ;; "../foo" and "../../foo" may resolve to the same resource
@@ -250,8 +250,6 @@
     (throw (ex-info "no :cache-dir" {})))
 
   (apply io/file cache-dir name names))
-
-
 
 (defn js-names-accessed-from-cljs
   ([{:keys [build-sources] :as state}]

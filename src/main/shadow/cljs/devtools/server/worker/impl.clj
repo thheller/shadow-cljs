@@ -6,11 +6,12 @@
             [clojure.tools.logging :as log]
             [cljs.compiler :as cljs-comp]
             [cljs.analyzer :as cljs-ana]
-            [shadow.build.api :as cljs]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.util :refer (reduce->)]
             [shadow.build :as build]
             [shadow.build.api :as build-api]
+            [shadow.build.api :as cljs]
+            [shadow.build.compiler :as build-comp]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
@@ -74,14 +75,25 @@
 
 (defn build-failure
   [{:keys [build-config] :as worker-state} e]
-  (>!!output worker-state
-    {:type :build-failure
-     :build-config build-config
-     :report
-     (binding [warnings/*color* false]
-       (errors/error-format e))
-     :e e
-     }))
+  (let [{:keys [resource-id resource-ids]} (ex-data e)]
+    (-> worker-state
+        ;; if any resource was responsible for the build failing we remove it completely
+        ;; to ensure that all state is in proper order in the next compile and does not
+        ;; contain remnants of the failed compile
+        ;; FIXME: should probably check ex-data :tag
+        (cond->
+          resource-id
+          (update :build-state data/remove-source-by-id resource-id)
+          resource-ids
+          (update :build-state build-api/reset-resources resource-ids))
+        (>!!output
+          {:type :build-failure
+           :build-config build-config
+           :report
+           (binding [warnings/*color* false]
+             (errors/error-format e))
+           :e e
+           }))))
 
 (defn build-configure
   "configure the build according to build-config in state"
