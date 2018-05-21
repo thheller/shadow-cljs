@@ -17,6 +17,21 @@
     [clojure.edn :as edn]
     [clojure.walk :as walk]))
 
+(defn extract-content-scripts
+  [modules manifest]
+  (reduce
+    (fn [modules [idx {entry :shadow/entry :as content-script}]]
+      (if-not entry
+        modules
+        (let [mod-id (keyword (str "content-script-" idx))]
+          (assoc modules mod-id {:entries [entry]
+                                 :depends-on #{:shared}
+                                 ::module-type :content-script
+                                 ::idx idx}))))
+    modules
+    (->> (get manifest :content-scripts)
+         (map-indexed vector))))
+
 (defn configure
   [state mode {:keys [extension-dir] :as config}]
   (let [extension-dir
@@ -34,23 +49,19 @@
         (io/file extension-dir "manifest.json")
 
         background
-        (get-in manifest [:background :entry])
-
-        content-script
-        (some-> manifest
-          (get :content-scripts)
-          (get 0)
-          (get :entry))
+        (get-in manifest [:background :shadow/entry])
 
         modules
         (-> {:shared {:entries ['cljs.core]
                       :default true}}
             (cond->
               background
-              (assoc :background {:entries [background] :depends-on #{:shared}})
+              (assoc :background {:entries [background]
+                                  :depends-on #{:shared}
+                                  ::module-type :background})
 
-              content-script
-              (assoc :content-script {:entries [content-script] :depends-on #{:shared}})))
+              (get manifest :content-scripts)
+              (extract-content-scripts manifest)))
 
         config
         (update config :devtools merge
@@ -77,18 +88,8 @@
 
         (browser/configure-modules mode (assoc config :modules modules)))))
 
-(defn mod-files [state {:keys [module-id sources] :as mod}]
-  (->> (let [mods (browser/get-all-module-deps state mod)]
-         (-> []
-             (into (mapcat :sources) mods)
-             (into sources)))
-       (remove #{output/goog-base-id})
-       (map #(data/get-source-by-id state %))
-       (map :output-name)
-       (map #(str "out/cljs-runtime/" %))))
-
-(defn flush-base [state mod filename]
-  (spit (data/output-file state filename)
+(defn flush-base [state {:keys [output-name] :as mod}]
+  (spit (data/output-file state output-name)
 
     (str "var shadow$provide = {};\n"
 
@@ -101,46 +102,51 @@
          "var $CLJS = {};\n"
          "goog.global[\"$CLJS\"] = $CLJS;\n"
 
+         ;; not using a debug loader since chrome loads the files for us
          (slurp (io/resource "shadow/boot/static.js"))
-         "\n\n"
-         ;; create the $CLJS var so devtools can always use it
-         ;; always exists for :module-format :js
          "\n\n")))
 
-(defn flush-dev
+(defn mod-files [{::b/keys [mode] :as state} {:keys [output-name sources] :as mod}]
+  (let [mods (browser/get-all-module-deps state mod)]
+
+    (case mode
+      :release
+      (-> []
+          (into (map #(str "out/" (:output-name %))) mods)
+          (conj (str "out/" output-name)))
+
+      :dev
+      (->> (-> []
+               (into (mapcat :sources) mods)
+               (into sources))
+           (remove #{output/goog-base-id})
+           (map #(data/get-source-by-id state %))
+           (map :output-name)
+           (map #(str "out/cljs-runtime/" %))
+           (into [(str "out/" output-name)])))))
+
+(defn flush-manifest
   [{::keys [manifest-file manifest] :keys [build-modules] :as state}]
 
-  (output/flush-sources state)
-
-  (let [{:keys [background content-script] :as mods-by-id}
-        (reduce
-          (fn [m {:keys [module-id] :as mod}]
-            (assoc m module-id mod))
-          {}
-          build-modules)
-
-        manifest
+  (let [manifest
         (-> manifest
             (update :content-security-policy (fn [x] (if (string? x) x (str/join " " x))))
-            (cond->
-              background
-              (-> (update :background dissoc :entry)
-                  (assoc-in [:background :scripts]
-                    (->> (mod-files state background)
-                         (into ["out/background.js"]))))
+            (util/reduce->
+              (fn [manifest {::keys [module-type idx] :as mod}]
+                (case module-type
+                  :background
+                  (-> manifest
+                      (update :background dissoc :shadow/entry)
+                      (assoc-in [:background :scripts] (mod-files state mod)))
 
-              content-script
-              (-> (update-in [:content-scripts 0] dissoc :entry)
-                  (assoc-in [:content-scripts 0 :js]
-                    (->> (mod-files state content-script)
-                         (into ["out/content_script.js"]))))
-              ))]
+                  :content-script
+                  (-> manifest
+                      (update-in [:content-scripts idx] dissoc :shadow/entry)
+                      (assoc-in [:content-scripts idx :js] (mod-files state mod)))
 
-    (when background
-      (flush-base state background "background.js"))
-
-    (when content-script
-      (flush-base state content-script "content_script.js"))
+                  (throw (ex-info "invalid module config" {:mod mod}))))
+              ;; skip shared which is always first
+              (rest build-modules)))]
 
     (spit manifest-file
       (with-out-str
@@ -153,9 +159,12 @@
 
     state))
 
-(defn update-manifest-release [state]
-  (throw (ex-info "not implemented yet" {}))
-  state)
+(defn flush-dev
+  [{:keys [build-modules] :as state}]
+  (output/flush-sources state)
+  (doseq [mod (rest build-modules)]
+    (flush-base state mod))
+  (flush-manifest state))
 
 (defn process
   [{::b/keys [stage mode config] :as state}]
@@ -171,7 +180,7 @@
     (and (= :release mode) (= :flush stage))
     (-> state
         (output/flush-optimized)
-        (update-manifest-release))
+        (flush-manifest))
 
     :else
     state
@@ -179,6 +188,9 @@
 
 (comment
   (shadow.cljs.devtools.api/compile :chrome-ext))
+
+(comment
+  (shadow.cljs.devtools.api/release :chrome-ext))
 
 (comment
   (shadow.cljs.devtools.api/watch :chrome-ext {:verbose true}))

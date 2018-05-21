@@ -3,10 +3,10 @@
  :description "Build an Extension!"
  :manifest-version 2
  :background
- {:entry demo.chrome-bg
+ {:shadow/entry demo.chrome-bg
   :persistent false}
  :content-scripts
- [{:entry demo.chrome-content
+ [{:shadow/entry demo.chrome-content
    :matches ["http://localhost:*/*"]
    :run-at "document_idle"}]
  :content-security-policy
