@@ -135,10 +135,12 @@
       )))
 
 (defmethod ex-data-format ::resolve/missing-js
-  [w e {:keys [require] :as data}]
+  [w e {:keys [require node-modules-dir] :as data}]
   (write-msg w e)
   (when (util/is-package-require? require)
     (.write w (str "\n"
+                   "Searched in:" (.getAbsolutePath node-modules-dir) "\n"
+                   "\n"
                    "You probably need to run:\n"
                    "  npm install " require "\n"
                    "\n"

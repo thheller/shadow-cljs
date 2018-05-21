@@ -355,7 +355,7 @@
      :source ""}))
 
 (defn find-file
-  [{:keys [project-dir] :as npm} ^File require-from ^String require]
+  [npm ^File require-from ^String require]
   (cond
     (util/is-absolute? require)
     (throw (ex-info "absolute require not allowed for node_modules files"

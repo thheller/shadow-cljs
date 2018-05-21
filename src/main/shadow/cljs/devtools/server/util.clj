@@ -43,7 +43,27 @@
         config
 
         cache-dir
-        (config/make-cache-dir cache-root build-id mode)]
+        (config/make-cache-dir cache-root build-id mode)
+
+        node-modules-dir
+        (when-let [nmd (get-in build-config [:js-options :node-modules-dir])]
+          (let [nmdf (io/file nmd)]
+            (cond
+              (and (str/ends-with? nmd "node_modules")
+                   (.exists nmdf))
+              nmdf
+
+              (.exists (io/file nmdf "node_modules"))
+              (io/file nmdf "node_modules")
+
+              :else
+              nmdf)))
+
+        npm
+        (-> npm
+            (cond->
+              node-modules-dir
+              (assoc :node-modules-dir node-modules-dir)))]
 
     (-> (build-api/init)
         (build-api/with-npm npm)
