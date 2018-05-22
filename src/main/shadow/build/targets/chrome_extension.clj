@@ -19,8 +19,8 @@
 
 (defn extract-content-scripts
   [modules manifest]
-  (reduce
-    (fn [modules [idx {entry :shadow/entry :as content-script}]]
+  (reduce-kv
+    (fn [modules idx {entry :shadow/entry :as content-script}]
       (if-not entry
         modules
         (let [mod-id (keyword (str "content-script-" idx))]
@@ -29,8 +29,7 @@
                                  ::module-type :content-script
                                  ::idx idx}))))
     modules
-    (->> (get manifest :content-scripts)
-         (map-indexed vector))))
+    (get manifest :content-scripts)))
 
 (defn configure
   [state mode {:keys [extension-dir] :as config}]

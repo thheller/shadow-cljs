@@ -15,6 +15,8 @@
     [demo.always-load]
     ))
 
+(js/console.log "▶❤◀")
+
 (js/console.log "or" (or nil js/document.body))
 
 (s/def ::color
