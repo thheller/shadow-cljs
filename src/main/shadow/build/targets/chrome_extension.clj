@@ -195,10 +195,11 @@
 
     (spit manifest-file
       (with-out-str
-        (json/pprint manifest
-          :escape-slash false
-          :key-fn (fn [key]
-                    (-> key name (str/replace #"-" "_"))))))
+        (binding [*print-length* nil] ;; grr cider for setting *print-length* in nrepl
+          (json/pprint manifest
+            :escape-slash false
+            :key-fn (fn [key]
+                      (-> key name (str/replace #"-" "_")))))))
 
     state))
 
