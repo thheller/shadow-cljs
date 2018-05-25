@@ -31,6 +31,11 @@ function require(name) {}
  */
 var shadow$provide = {};
 
+/**
+ * @dict
+ */
+var shadow$loader = {};
+
 
 /**
  * @param {string} name

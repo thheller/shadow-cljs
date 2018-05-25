@@ -207,11 +207,20 @@
 (defn wrap-output [{:keys [default prepend append] :as module-config} state]
   (let [ppns (get-in state [:compiler-options :rename-prefix-namespace])]
     (-> module-config
-        (assoc :prepend (str (when (and default (seq ppns))
+        (assoc :prepend (str prepend
+                             (when (and default (seq ppns))
                                (str "var " ppns " = {};\n"))
-                             "(function(){\n"
-                             prepend)
+                             "(function(){\n")
                :append (str append "\n}).call(this);")))))
+
+(defn apply-output-wrapper
+  ([state]
+   (update state ::closure/modules apply-output-wrapper state))
+  ([modules state]
+   (->> modules
+        (map #(wrap-output % state))
+        (into [])
+        )))
 
 (defn ns-only [sym]
   {:pre [(qualified-symbol? sym)]}
@@ -258,11 +267,8 @@
 
                     ;; MODULE-LOADER
                     ;; default module brings in shadow.loader
-                    ;; must create some :append-js so the pseudo-rc is created
-                    ;; the enable call is currently a noop
                     (and module-loader default?)
-                    (-> (update :entries #(into '[shadow.loader] %))
-                        (update :append-js str "\nshadow.loader.enable();"))
+                    (update :entries #(into '[shadow.loader] %))
 
                     ;; other modules just need to tell the loader they finished loading
                     (and module-loader (not (or default? web-worker)))
@@ -270,11 +276,7 @@
 
                     (= :dev mode)
                     (inject-preloads state config)
-
-                    (and (not web-worker)
-                         (= :release mode)
-                         (get-in state [:compiler-options :output-wrapper]))
-                    (wrap-output state)))]
+                    ))]
 
           (assoc mods module-id module-config)))
       {}
@@ -389,7 +391,7 @@
     state
     ))
 
-(defn hash-optimized-module [{:keys [sources output output-name] :as mod} state module-hash-names]
+(defn hash-optimized-module [{:keys [sources prepend append output output-name] :as mod} state module-hash-names]
   (let [signature
         (->> sources
              (map #(data/get-source-by-id state %))
@@ -399,7 +401,9 @@
              (filter #(= :shadow-js (:type %)))
              (map #(data/get-output! state %))
              (map :js)
-             (into [output])
+             (into [prepend output])
+             (conj append)
+             (remove nil?)
              (util/md5hex-seq))
 
         signature
@@ -423,40 +427,26 @@
            (map #(hash-optimized-module % state module-hash-names))
            (into [])))))
 
-;; because of the debug loader we can't just append the loader setup
-;; instead inject it into the pseudo module append-js which is a separate file
-;; and can be loaded properly by the debug loader
 (defn inject-loader-setup-dev
-  [{:keys [build-options] :as state} {:keys [module-loader] :as config}]
+  [state config]
   (let [{:keys [module-uris module-infos]}
-        (module-loader-data state)
+        (module-loader-data state)]
 
-        [loader-module & other-modules]
-        (or (::closure/modules state)
-            (:build-modules state))
-
-        loader-append-rc
-        (-> loader-module :sources last)]
-
-    (when-not (data/get-output! state {:resource-id loader-append-rc})
-      (throw (ex-info "no loader append rc" {:rc loader-append-rc})))
-
-    (update-in state [:output loader-append-rc :js]
-      ;; prepend so it is emitted called before the enable()
-      #(str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n" %))
+    (update-in state [:build-modules 0 :prepend]
+      str "\nvar shadow$loader = " (json {:uris module-uris :infos module-infos}) ";\n")
     ))
 
 ;; in release just append to first (base) module
 (defn inject-loader-setup-release
   [state {:keys [module-loader module-hash-names] :as config}]
-  (let [{:keys [module-uris module-infos]} (module-loader-data state)]
+  (let [{:keys [module-uris module-infos] :as md} (module-loader-data state)]
 
     (update-in state [::closure/modules 0]
       (fn [{:keys [module-id] :as mod}]
-        ;; since appending this text changes the md5 of the output
+        ;; since prepending this text changes the md5 of the output
         ;; we need to re-hash that module again
         (-> mod
-            (update :output str "\nshadow.loader.setup(" (json module-uris) ", " (json module-infos) ");\n")
+            (update :prepend str "\nvar shadow$loader = " (json {:uris module-uris :infos module-infos}) ";\n")
             (cond->
               module-hash-names
               ;; previous hash already changed the output-name, reset it back
@@ -487,10 +477,6 @@
 
   (let [{:keys [dev-inline-js]}
         build-options
-
-        any-shadow-js?
-        (->> (data/get-build-sources state)
-             (some #(= :shadow-js (:type %))))
 
         sources
         (if-not web-worker
@@ -552,6 +538,9 @@
                ;; a build may not include any shadow-js initially
                ;; but load some from the REPL later
                "var shadow$provide = {};\n"
+
+               (when (and web-worker (get-in state [::build/config :module-loader]))
+                 "var shadow$loader = false;\n")
 
                (let [{:keys [polyfill-js]} state]
                  (when (and goog-base (seq polyfill-js))
@@ -628,7 +617,10 @@
           ;; any other true-ish value still generates the module-loader.edn data files
           ;; but does not inject (ie. change the signature)
           (true? module-loader)
-          (inject-loader-setup-release config))
+          (inject-loader-setup-release config)
+
+          (get-in state [:compiler-options :output-wrapper])
+          (apply-output-wrapper))
         (output/flush-optimized)
         (cond->
           module-loader
