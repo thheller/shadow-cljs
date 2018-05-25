@@ -219,134 +219,144 @@
 
        state))))
 
+(defmulti flush-optimized-module
+  (fn [state mod]
+    (get mod :output-type ::default)))
+
+(defn finalize-module-output
+  [state {:keys [goog-base prepend output append source-map-name source-map-json module-id output-name sources] :as mod}]
+  (let [any-shadow-js?
+        (->> (data/get-build-sources state)
+             (some #(= :shadow-js (:type %))))
+
+        shadow-js-outputs
+        (->> sources
+             (map #(data/get-source-by-id state %))
+             (filter #(= :shadow-js (:type %)))
+             (map #(data/get-output! state %))
+             (into []))
+
+        shadow-js-prepend
+        (when (seq shadow-js-outputs)
+          (let [provides
+                (->> shadow-js-outputs
+                     (map :js)
+                     (str/join ";\n"))]
+            (str provides
+                 (when (seq provides)
+                   ";\n"))))
+
+        final-output
+        (str (when (and any-shadow-js? goog-base)
+               "var shadow$provide = {};\n")
+             prepend
+             shadow-js-prepend
+             output
+             append)]
+
+    {:output final-output
+     ;; for source maps
+     :shadow-js-outputs shadow-js-outputs
+     :prepend-offset
+     (-> 0
+         (cond->
+           (seq prepend)
+           (+ (line-count prepend))
+           (and goog-base)
+           (inc) ;; var shadow$provide ...
+           ))}))
+
+(defmethod flush-optimized-module ::default
+  [state {:keys [dead source-map-json module-id output-name] :as mod}]
+  (if dead
+    (util/log state {:type :dead-module
+                     :module-id module-id
+                     :output-name output-name})
+
+    (let [{:keys [output prepend-offset shadow-js-outputs]}
+          (finalize-module-output state mod)
+
+          target
+          (data/output-file state output-name)
+
+          source-map-name
+          (str output-name ".map")
+
+          final-output
+          (str output
+               (when source-map-json
+                 (str "\n//# sourceMappingURL=" source-map-name "\n")))]
+
+      (io/make-parents target)
+
+      (spit target final-output)
+
+      (util/log state {:type :flush-module
+                       :module-id module-id
+                       :output-name output-name
+                       :js-size (count final-output)})
+
+      (when source-map-json
+        (let [sm-index
+              (-> {:version 3
+                   :file output-name
+                   :offset prepend-offset
+                   :sections []}
+                  (util/reduce->
+                    (fn [{:keys [offset] :as sm-index}
+                         {:keys [js source-map-json] :as src}]
+
+                      (let [sm
+                            (json/read-str (or source-map-json "{}"))
+
+                            lines
+                            (line-count js)]
+                        (-> sm-index
+                            (update :offset + lines)
+                            (update :sections conj {:offset {:line offset :column 0}
+                                                    :map sm}))))
+
+                    shadow-js-outputs))
+
+              sm
+              (json/read-str source-map-json)
+
+              sm-index
+              (-> sm-index
+                  (update :sections conj {:offset {:line (:offset sm-index) :column 0} :map sm})
+                  (dissoc :offset))
+
+              target
+              (data/output-file state source-map-name)]
+          (spit target
+            (json/write-str sm-index)))))))
+
 (defn flush-optimized
   ;; FIXME: can't alias this due to cyclic dependency
   [{modules :shadow.build.closure/modules
     :keys [build-options]
     :as state}]
 
-  (let [{:keys [module-format]} build-options
+  (when-not (seq modules)
+    (throw (ex-info "flush before optimize?" {})))
 
-        any-shadow-js?
-        (->> (data/get-build-sources state)
-             (some #(= :shadow-js (:type %))))
+  (when (= :js (get-in state [:build-options :module-format]))
+    (let [env-file
+          (data/output-file state "cljs_env.js")]
 
-        js-provider
-        (get-in state [:js-options :js-provider])]
+      (io/make-parents env-file)
+      (spit env-file
+        (str "module.exports = {};\n"))))
 
-    (when-not (seq modules)
-      (throw (ex-info "flush before optimize?" {})))
+  (util/with-logged-time
+    [state {:type :flush-optimized}]
 
-    (when (= module-format :js)
-      (let [env-file
-            (data/output-file state "cljs_env.js")]
+    (doseq [mod modules]
+      (flush-optimized-module state mod))
 
-        (io/make-parents env-file)
-        (spit env-file
-          (str "module.exports = {};\n"))))
-
-    (util/with-logged-time
-      [state {:type :flush-optimized}]
-
-      (doseq [{:keys [dead goog-base prepend output append source-map-name source-map-json module-id output-name sources] :as mod} modules]
-        (if dead
-          (util/log state {:type :dead-module
-                           :module-id module-id
-                           :output-name output-name})
-
-          (let [target
-                (data/output-file state output-name)
-
-                source-map-name
-                (str output-name ".map")
-
-                shadow-js-output
-                (->> sources
-                     (map #(data/get-source-by-id state %))
-                     (filter #(= :shadow-js (:type %)))
-                     (map #(data/get-output! state %))
-                     (into []))
-
-                shadow-js-prepend
-                (when (seq shadow-js-output)
-                  (let [provides
-                        (->> shadow-js-output
-                             (map :js)
-                             (str/join ";\n"))]
-                    (str provides
-                         (when (seq provides)
-                           ";\n"))))
-
-                ;; must not prepend anything else before output
-                ;; will mess up source maps otherwise
-                ;; append is fine
-                final-output
-                (str (when (and any-shadow-js? goog-base)
-                       "var shadow$provide = {};\n")
-                     prepend
-                     shadow-js-prepend
-                     output
-                     append
-                     (when source-map-json
-                       (str "\n//# sourceMappingURL=" source-map-name "\n")))]
-
-            (io/make-parents target)
-
-            (spit target final-output)
-
-            (util/log state {:type :flush-module
-                             :module-id module-id
-                             :output-name output-name
-                             :js-size (count final-output)})
-
-            (when source-map-json
-              (let [prepend-offset
-                    (-> 0
-                        (cond->
-                          (seq prepend)
-                          (+ (line-count prepend))
-                          (and goog-base)
-                          (inc) ;; var shadow$provide ...
-                          ))
-
-                    sm-index
-                    (-> {:version 3
-                         :file output-name
-                         :offset prepend-offset
-                         :sections []}
-                        (util/reduce->
-                          (fn [{:keys [offset] :as sm-index}
-                               {:keys [js source-map-json] :as src}]
-
-                            (let [sm
-                                  (json/read-str (or source-map-json "{}"))
-
-                                  lines
-                                  (line-count js)]
-                              (-> sm-index
-                                  (update :offset + lines)
-                                  (update :sections conj {:offset {:line offset :column 0}
-                                                          :map sm}))))
-
-                          shadow-js-output))
-
-                    sm
-                    (json/read-str source-map-json)
-
-                    sm-index
-                    (-> sm-index
-                        (update :sections conj {:offset {:line (:offset sm-index) :column 0} :map sm})
-                        (dissoc :offset))
-
-                    target
-                    (data/output-file state source-map-name)]
-                (spit target
-                  (json/write-str sm-index))))
-            )))
-
-      ;; with-logged-time expects that we return the compiler-state
-      state
-      )))
+    ;; with-logged-time expects that we return the compiler-state
+    state
+    ))
 
 (defn js-module-root [sym]
   (let [s (comp/munge (str sym))]

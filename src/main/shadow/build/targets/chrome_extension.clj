@@ -14,22 +14,35 @@
     [shadow.build.output :as output]
     [shadow.build.data :as data]
     [shadow.cljs.util :as util]
-    [clojure.edn :as edn]
-    [clojure.walk :as walk]))
+    [clojure.edn :as edn]))
 
-(defn extract-content-scripts
-  [modules manifest]
+
+(defn extract-outputs
+  [modules {:shadow/keys [outputs] :as manifest}]
   (reduce-kv
-    (fn [modules idx {entry :shadow/entry :as content-script}]
-      (if-not entry
-        modules
-        (let [mod-id (keyword (str "content-script-" idx))]
-          (assoc modules mod-id {:entries [entry]
-                                 :depends-on #{:shared}
-                                 ::module-type :content-script
-                                 ::idx idx}))))
+    (fn [modules mod-id {:keys [output-type] :as mod}]
+      (assoc modules mod-id
+                     (-> mod
+                         (update :depends-on util/set-conj :shared)
+                         (cond->
+                           (and (not= :chrome/content-script output-type)
+                                (not= :chrome/content-inject output-type))
+                           (update :depends-on util/set-conj :bg-shared)
+
+                           (and (nil? output-type) (= :background mod-id))
+                           (assoc :output-type :chrome/background)
+
+                           (and (nil? output-type) (= :content-script mod-id))
+                           (assoc :output-type :chrome/content-script)
+
+                           (and (nil? output-type) (= :browser-action mod-id))
+                           (assoc :output-type :chrome/browser-action)
+
+                           (and (nil? output-type) (= :page-action mod-id))
+                           (assoc :output-type :chrome/page-action)
+                           ))))
     modules
-    (get manifest :content-scripts)))
+    outputs))
 
 (defn configure
   [state mode {:keys [extension-dir] :as config}]
@@ -47,20 +60,14 @@
         manifest-file
         (io/file extension-dir "manifest.json")
 
-        background
-        (get-in manifest [:background :shadow/entry])
-
         modules
-        (-> {:shared {:entries ['cljs.core]
-                      :default true}}
-            (cond->
-              background
-              (assoc :background {:entries [background]
-                                  :depends-on #{:shared}
-                                  ::module-type :background})
-
-              (get manifest :content-scripts)
-              (extract-content-scripts manifest)))
+        (-> {:shared
+             {:entries ['cljs.core]
+              :default true}
+             :bg-shared
+             {:entries []
+              :depends-on #{:shared}}}
+            (extract-outputs manifest))
 
         config
         (update config :devtools merge
@@ -87,9 +94,8 @@
 
         (browser/configure-modules mode (assoc config :modules modules)))))
 
-(defn flush-base [state {:keys [output-name] :as mod}]
+(defn flush-base [state {:keys [output-type output-name] :as mod}]
   (spit (data/output-file state output-name)
-
     (str "var shadow$provide = {};\n"
 
          (let [{:keys [polyfill-js]} state]
@@ -101,9 +107,41 @@
          "var $CLJS = {};\n"
          "goog.global[\"$CLJS\"] = $CLJS;\n"
 
-         ;; not using a debug loader since chrome loads the files for us
-         (slurp (io/resource "shadow/boot/static.js"))
-         "\n\n")))
+         (case output-type
+           ;; these are controlled via the scripts/js properties and
+           ;; support loading multiple files so no loader support is required
+           (:chrome/background :chrome/content-script)
+           (slurp (io/resource "shadow/boot/static.js"))
+
+           ;; special case for thing that require on isolated file
+           ;; specifically chrome.tabs.executeScript(id, {file: "something.js"})
+           :chrome/single-file
+           (str (slurp (io/resource "shadow/boot/static.js"))
+                (let [mods (-> (browser/get-all-module-deps state mod)
+                               (conj mod))]
+                  (->> mods
+                       (mapcat :sources)
+                       (remove #{output/goog-base-id})
+                       (map #(data/get-source-by-id state %))
+                       (map #(data/get-output! state %))
+                       (map :js)
+                       (str/join "\n"))
+                  ))
+
+           ;; anything else assumes that can load files via normal browser methods
+           (str (slurp (io/resource "shadow/boot/browser.js"))
+                (let [mods (-> (browser/get-all-module-deps state mod)
+                               (conj mod))
+
+                      require-files
+                      (->> mods
+                           (mapcat :sources)
+                           (remove #{output/goog-base-id})
+                           (map #(data/get-source-by-id state %))
+                           (map :output-name))]
+                  (str "SHADOW_ENV.load({}, " (json/write-str require-files) ");\n")))
+
+           ))))
 
 (defn mod-files [{::b/keys [mode] :as state} {:keys [output-name sources] :as mod}]
   (let [mods (browser/get-all-module-deps state mod)]
@@ -129,23 +167,31 @@
 
   (let [manifest
         (-> manifest
+            (dissoc :shadow/outputs)
             (update :content-security-policy (fn [x] (if (string? x) x (str/join " " x))))
             (util/reduce->
-              (fn [manifest {::keys [module-type idx] :as mod}]
-                (case module-type
-                  :background
-                  (-> manifest
-                      (update :background dissoc :shadow/entry)
-                      (assoc-in [:background :scripts] (mod-files state mod)))
+              (fn [manifest {:keys [output-type] :as mod}]
+                (case output-type
+                  :chrome/background
+                  (update manifest :background
+                    #(merge
+                       {:scripts (mod-files state mod)
+                        :persistent false}
+                       %))
 
-                  :content-script
+                  :chrome/content-script
                   (-> manifest
-                      (update-in [:content-scripts idx] dissoc :shadow/entry)
-                      (assoc-in [:content-scripts idx :js] (mod-files state mod)))
+                      (update :content-scripts util/vec-conj
+                        (merge
+                          {:js (mod-files state mod)}
+                          (:chrome/options mod))))
 
-                  (throw (ex-info "invalid module config" {:mod mod}))))
+                  ;; nothing to do for other output-types
+                  manifest))
               ;; skip shared which is always first
               (rest build-modules)))]
+
+    #_(pprint manifest)
 
     (spit manifest-file
       (with-out-str
@@ -154,9 +200,56 @@
           :key-fn (fn [key]
                     (-> key name (str/replace #"-" "_"))))))
 
-    #_(pprint manifest)
-
     state))
+
+(defn flush-single-file-for-module
+  [state {:keys [output-name] :as mod}]
+
+  (let [mods (-> (browser/get-all-module-deps state mod)
+                 (conj mod))
+
+        ;; FIXME: create index source map properly
+        js
+        (str "var shadow$provide = {};\n"
+             (->> mods
+                  (mapcat :sources)
+                  (map #(data/get-source-by-id state %))
+                  (filter #(= :shadow-js (:type %)))
+                  (map #(data/get-output! state %))
+                  (map :js)
+                  (map #(str % ";"))
+                  (str/join "\n")))
+
+        {:keys [js source-map]}
+        (reduce
+          (fn [m {:keys [prepend output append] :as mod}]
+            (update m :js str prepend output append))
+          {:js js
+           :source-map {}}
+          mods)
+
+        mod-file
+        (data/output-file state output-name)]
+
+    (spit mod-file js)
+    ))
+
+(defmethod output/flush-optimized-module :chrome/single-file
+  [state mod]
+  (flush-single-file-for-module state mod))
+
+(defmethod output/flush-optimized-module :chrome/content-inject
+  [state mod]
+  (flush-single-file-for-module state mod))
+
+(defmethod output/flush-optimized-module :chrome/background
+  [state mod]
+  (output/flush-optimized-module state (assoc mod :output-type ::output/default)))
+
+(defmethod output/flush-optimized-module :chrome/content-script
+  [state mod]
+  (output/flush-optimized-module state (assoc mod :output-type ::output/default)))
+
 
 (defn flush-dev
   [{:keys [build-modules] :as state}]

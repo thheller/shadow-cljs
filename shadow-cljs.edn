@@ -136,16 +136,6 @@
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 
-  :chrome-bg
-  {:target :single-file
-   :output-to "out/chrome-ext/background.js"
-   :entry demo.chrome-bg}
-
-  :chrome-content
-  {:target :single-file
-   :output-to "out/chrome-ext/content-script.js"
-   :entry demo.chrome-content}
-
   :chrome-ext
   {:target :chrome-extension
    :extension-dir "out/chrome-ext"}

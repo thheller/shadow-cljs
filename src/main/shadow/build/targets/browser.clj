@@ -17,7 +17,8 @@
             [shadow.build.closure :as closure]
             [shadow.build.data :as data]
             [shadow.build.log :as log]
-            [shadow.core-ext :as core-ext]))
+            [shadow.core-ext :as core-ext]
+            [cljs.compiler :as cljs-comp]))
 
 (s/def ::entry
   (s/or :sym shared/unquoted-simple-symbol?
@@ -212,13 +213,26 @@
                              prepend)
                :append (str append "\n}).call(this);")))))
 
+(defn ns-only [sym]
+  {:pre [(qualified-symbol? sym)]}
+  (symbol (namespace sym)))
+
+(defn fn-call [sym]
+  {:pre [(qualified-symbol? sym)]}
+  (str "\n" (cljs-comp/munge sym) "();"))
+
+(defn merge-init-fn [module init-fn]
+  (-> module
+      (update :entries util/vec-conj (ns-only init-fn))
+      (update :append-js str (fn-call init-fn))))
+
 (defn rewrite-modules
   "rewrites :modules to add browser related things"
   [{:keys [worker-info] :as state} mode {:keys [modules module-loader] :as config}]
 
   (let [default-module (pick-default-module-from-config modules)]
     (reduce-kv
-      (fn [mods module-id {:keys [web-worker default] :as module-config}]
+      (fn [mods module-id {:keys [web-worker init-fn] :as module-config}]
         (let [default?
               (= default-module module-id)
 
@@ -227,7 +241,11 @@
                   (assoc :force-append true
                          :default default?)
                   (cond->
+                    init-fn
+                    (merge-init-fn init-fn)
+
                     ;; REPL client - only for watch (via worker-info), not compile
+
                     (and default? (= :dev mode) worker-info)
                     (inject-repl-client state config)
 
@@ -447,7 +465,9 @@
 
 (defn get-all-module-deps [{:keys [build-modules] :as state} {:keys [depends-on] :as mod}]
   ;; FIXME: not exactly pretty, just abusing the fact that build-modules is already ordered
-  (->> (reverse build-modules)
+  (->> (reverse (or (get-in state [:shadow.build.closure/modules])
+                    (get-in state [:build-modules])))
+       (remove :dead)
        (reduce
          (fn [{:keys [deps order] :as x} {:keys [module-id] :as mod}]
            (if-not (contains? deps module-id)
@@ -457,7 +477,8 @@
          {:deps depends-on
           :order []})
        (:order)
-       (reverse)))
+       (reverse)
+       (into [])))
 
 (defn flush-unoptimized-module!
   [{:keys [unoptimizable build-options] :as state}

@@ -6,7 +6,7 @@
     [clojure.spec.alpha :as s]
     [clojure.spec.gen.alpha :as gen]
     [shadow.api :refer (ns-ready)]
-    [cljs.core.async :as async :refer (go)]
+    [cljs.core.async :as async :refer (go alt!)]
     ["./es6.js" :as es6]
     ["./foo" :as foo]
     #_["circular-test" :as circ]
