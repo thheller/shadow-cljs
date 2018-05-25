@@ -28,6 +28,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [EN] [A beginner guide to compile ClojureScript with shadow-cljs](https://medium.com/@jiyinyiyong/a-beginner-guide-to-compile-clojurescript-with-shadow-cljs-26369190b786)
 - [CN] [shadow-cljs 2.x 使用教程](https://segmentfault.com/a/1190000011499210)
 - [EN] [ClojureScript with Middleman via Shadow-CLJS](http://bobnadler.com/articles/2018/01/28/clojurescript-with-middleman-via-shadow-cljs.html)
+- [EN] [Clojurescript Development for JavaScript Developers in Atom with Shadow-cljs and ProtoREPL](https://medium.com/@loganpowell/clojurescript-development-for-javascript-developers-in-atom-with-shadow-cljs-and-protorepl-ec5e38e3de26)
 - ... please let me know if you created something to include here
 
 ## Examples
@@ -40,6 +41,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [jacekschae/conduit](https://github.com/jacekschae/conduit) - Real world application built with shadow-cljs + re-frame + re-frame-10x <br> [Demo](https://jacekschae.github.io/conduit-re-frame-demo/) | [Demo with re-frame-10x](https://jacekschae.github.io/conduit-re-frame-10x-demo/)
 - [quangv/shadow-re-frame-simple-example](https://github.com/quangv/shadow-re-frame-simple-example) - a simple re-frame + shadow-cljs example.
 - [CryptoTwittos](https://github.com/teawaterwire/cryptotwittos) - reagent, re-frame, web3
+- [loganpowell/shadow-proto-starter](https://github.com/loganpowell/shadow-proto-starter) - shadow-cljs, Atom, Proto-REPL, node.js library
 - ... please let me know if you created something to include here
 
 ## License
