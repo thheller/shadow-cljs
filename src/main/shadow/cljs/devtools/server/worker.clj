@@ -247,6 +247,7 @@
 
         thread-ref
         (util/server-thread
+          (str "shadow-cljs-worker[" (name build-id) "]")
           state-ref
           thread-state
           {proc-stop nil

@@ -1,5 +1,5 @@
 (ns shadow.cljs.devtools.server.util
-  (:require [clojure.core.async :as async :refer (go thread <! >! alt!! alts!!)]
+  (:require [clojure.core.async :as async :refer (go <! >! alt!! alts!!)]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
@@ -198,6 +198,22 @@
     chan
     ))
 
+(defmacro thread
+  "same as core async thread but does not preserve bindings"
+  [name & body]
+  `(let [c# (async/promise-chan)
+         t# (Thread.
+              (^:once fn* []
+                (try
+                  (when-some [result# (do ~@body)]
+                    (async/>!! c# result#))
+                  (catch Exception e#
+                    (log/warn e# ~(str "failure in thread: " name)))
+                  (finally
+                    (async/close! c#)))))]
+     (.start t#)
+     c#))
+
 (defn server-thread
   "options
 
@@ -206,12 +222,12 @@
   :validate-error (fn [state-before state-after msg] state-before)
   :do-shutdown (fn [last-state])"
 
-  [state-ref init-state dispatch-table
+  [thread-name state-ref init-state dispatch-table
    {:keys [server-id validate validate-error on-error do-shutdown] :as options}]
   (let [chans
         (into [] (keys dispatch-table))]
 
-    (thread
+    (thread thread-name
       (let [last-state
             (loop [state init-state]
               (vreset! state-ref state)
