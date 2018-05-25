@@ -104,7 +104,7 @@
 
          (output/closure-defines-and-base state)
 
-         "var $CLJS = {};\n"
+         "var $CLJS = this;\n"
          "goog.global[\"$CLJS\"] = $CLJS;\n"
 
          (case output-type

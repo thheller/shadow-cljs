@@ -4,3 +4,6 @@
 
 (defn init []
   (js/console.log "▶❤◀"))
+
+(defn ^:dev/after-load call-me-maybe []
+  (js/console.warn "actually called!"))
