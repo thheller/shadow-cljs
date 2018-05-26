@@ -222,18 +222,10 @@
         (into [])
         )))
 
-(defn ns-only [sym]
-  {:pre [(qualified-symbol? sym)]}
-  (symbol (namespace sym)))
-
-(defn fn-call [sym]
-  {:pre [(qualified-symbol? sym)]}
-  (str "\n" (cljs-comp/munge sym) "();"))
-
 (defn merge-init-fn [module init-fn]
   (-> module
-      (update :entries util/vec-conj (ns-only init-fn))
-      (update :append-js str (fn-call init-fn))))
+      (update :entries util/vec-conj (output/ns-only init-fn))
+      (update :append-js str (output/fn-call init-fn))))
 
 (defn rewrite-modules
   "rewrites :modules to add browser related things"

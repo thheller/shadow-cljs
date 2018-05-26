@@ -346,15 +346,11 @@
              demo.rel-require]}
 
   :expo-ios
-  {:target :expo
+  {:target :react-native
    :init-fn demo.rn/init
-   :platform "ios"
-   :expo-root "out/TestCRNA"
-   :output-dir "out/TestCRNA/out-ios"
-   :devtools
-   {:http-port 19500
-    :http-root "out/TestCRNA/out-ios"
-    :http-handler shadow.expo/serve}}
+   :output-to "out/testCRNA/index.js"
+   :devtools {:autoload true
+              :preload [shadow.expo.keep-awake]}}
 
   :expo-android
   {:target :expo

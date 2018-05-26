@@ -55,6 +55,14 @@
          goog-base
          "\n")))
 
+(defn ns-only [sym]
+  {:pre [(qualified-symbol? sym)]}
+  (symbol (namespace sym)))
+
+(defn fn-call [sym]
+  {:pre [(qualified-symbol? sym)]}
+  (str "\n" (comp/munge sym) "();"))
+
 (defn- ns-list-string [coll]
   (->> coll
        (map #(str "'" (comp/munge %) "'"))
