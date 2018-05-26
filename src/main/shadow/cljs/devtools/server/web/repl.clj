@@ -56,13 +56,15 @@
         (thread
           (with-open [^java.io.Reader in (-> socket-in InputStreamReader. BufferedReader.)]
             (loop [buf (char-array 1024)]
-              (try
-                (let [len (.read in buf)]
-                  (when-not (neg? len)
-                    (out-fn {:tag :socket-in :text (String. buf 0 len)})))
-                (catch IOException e
-                  (log/debug e ::repl-out)))
-              (recur buf))))]
+              (when (try
+                      (let [len (.read in buf)]
+                        (when-not (neg? len)
+                          (out-fn {:tag :socket-in :text (String. buf 0 len)})))
+                      true
+                      (catch Exception e
+                        (log/debug e ::repl-out)
+                        false))
+                (recur buf)))))]
 
     (assoc ctx
       ::socket socket
@@ -135,4 +137,3 @@
 
             (repl-cleanup exit-state)
             (log/debug ::loop-end)))))))
-
