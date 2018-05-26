@@ -58,9 +58,10 @@
             (try
               (loop [buf (char-array 1024)]
                 (let [len (.read in buf)]
-                  (when-not (neg? len)
-                    (out-fn {:tag :socket-in :text (String. buf 0 len)})))
-                (recur buf))
+                  (when (not= -1 len)
+                    (when (pos? len)
+                      (out-fn {:tag :socket-in :text (String. buf 0 len)}))
+                    (recur buf))))
               (catch Exception e
                 (log/debug e ::repl-out)))))]
 
