@@ -129,14 +129,17 @@
 
         (read-package-json npm package-json-file)))))
 
-(defn find-package [{:keys [index-ref] :as npm} package-name]
+(defn find-package [{:keys [index-ref node-modules-dir] :as npm} package-name]
   {:pre [(string? package-name)
          (seq package-name)]}
-  (or (get-in @index-ref [:packages package-name])
-      (let [pkg-info (find-package* npm package-name)]
-        (swap! index-ref assoc-in [:packages package-name] pkg-info)
-        pkg-info
-        )))
+  ;; do not cache by package name because builds can end up using different :node-modules-dir settings
+  ;; which would lead to incorrect lookups
+  (let [package-id (io/file node-modules-dir package-name)]
+    (or (get-in @index-ref [:packages package-id])
+        (let [pkg-info (find-package* npm package-name)]
+          (swap! index-ref assoc-in [:packages package-id] pkg-info)
+          pkg-info
+          ))))
 
 (defn split-package-require
   "@scoped/thing -> [@scoped/thing nil]

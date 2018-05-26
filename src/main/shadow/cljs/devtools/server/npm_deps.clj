@@ -20,14 +20,19 @@
 
     engine))
 
+(def engine-lock (Object.))
+
 (def semver-intersects
   (let [engine (delay (make-engine))]
     (fn [a b]
-      (try
-        (.invokeFunction @engine "shadowIntersects" (into-array Object [a b]))
-        (catch Exception e
-          (prn [:failed-to-compare a b e])
-          true)))))
+      ;; not sure if the engine is safe to use from multiple threads
+      ;; better be sure
+      (locking engine-lock
+        (try
+          (.invokeFunction @engine "shadowIntersects" (into-array Object [a b]))
+          (catch Exception e
+            (prn [:failed-to-compare a b e])
+            true))))))
 
 (comment
   (semver-intersects "^1.0.0" "^1.1.0")
