@@ -18,7 +18,7 @@
 
 
 (defn extract-outputs
-  [modules {:shadow/keys [outputs] :as manifest}]
+  [modules outputs]
   (reduce-kv
     (fn [modules mod-id {:keys [output-type] :as mod}]
       (assoc modules mod-id
@@ -45,7 +45,7 @@
     outputs))
 
 (defn configure
-  [state mode {:keys [extension-dir] :as config}]
+  [state mode {:keys [outputs extension-dir] :as config}]
   (let [extension-dir
         (io/file extension-dir)
 
@@ -60,6 +60,10 @@
         manifest-file
         (io/file extension-dir "manifest.json")
 
+        outputs
+        (or outputs
+            (:shadow/outputs manifest))
+
         modules
         (-> {:shared
              {:entries ['cljs.core]
@@ -67,7 +71,7 @@
              :bg-shared
              {:entries []
               :depends-on #{:shared}}}
-            (extract-outputs manifest))
+            (extract-outputs outputs))
 
         config
         (update config :devtools merge
