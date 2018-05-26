@@ -13,9 +13,6 @@
     #_["/demo/myComponent" :refer (myComponent)]
     [demo.never-load]
     [demo.always-load]
-    ["react"]
-    ["react-dom"]
-    ["react-table"]
     ))
 
 (js/console.log "▶❤◀")

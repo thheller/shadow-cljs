@@ -25,7 +25,7 @@
 
 (s/def ::entry
   (s/or :sym shared/unquoted-simple-symbol?
-        :str string?))
+    :str string?))
 
 (s/def ::entries
   (s/coll-of ::entry :kind vector?))
@@ -722,7 +722,9 @@
       (util/with-logged-time [state {:type ::npm-version-check}]
         (reduce
           (fn [state package-name]
-            (doseq [[dep wanted-version] (get-in pkg-index [package-name :package-json "dependencies"])
+            (doseq [[dep wanted-version]
+                    (merge (get-in pkg-index [package-name :package-json "dependencies"])
+                           (get-in pkg-index [package-name :package-json "peerDependencies"]))
                     ;; not all deps end up being used so we don't need to check the version
                     :when (get pkg-index dep)
                     :let [installed-version (get-in pkg-index [dep :package-json "version"])]
