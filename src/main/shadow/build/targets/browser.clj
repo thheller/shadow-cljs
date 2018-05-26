@@ -694,9 +694,10 @@
   "Checking used npm package versions")
 
 (defmethod build-log/event->str ::npm-version-conflict
-  [{:keys [package-name wanted-version installed-version] :as event}]
-  (format "npm package \"%s\" expected version \"%s\" but \"%s\" is installed."
+  [{:keys [package-name wanted-dep wanted-version installed-version] :as event}]
+  (format "npm package \"%s\" expected version \"%s@%s\" but \"%s\" is installed."
     package-name
+    wanted-dep
     wanted-version
     installed-version))
 
@@ -729,6 +730,7 @@
 
               (util/warn state {:type ::npm-version-conflict
                                 :package-name package-name
+                                :wanted-dep dep
                                 :wanted-version wanted-version
                                 :installed-version installed-version}))
 
