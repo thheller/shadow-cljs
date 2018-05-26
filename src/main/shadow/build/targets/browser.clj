@@ -720,9 +720,8 @@
       ;; FIXME: updating npm package while watch is running will not check again
       (util/with-logged-time [state {:type ::npm-version-check}]
         (reduce
-          (fn [state {:keys [package-name] :as pkg}]
-            (doseq [deps (get-in pkg [:package-json "dependencies"])
-                    [dep wanted-version] deps
+          (fn [state package-name]
+            (doseq [[dep wanted-version] (get-in pkg-index [package-name :package-json "dependencies"])
                     ;; not all deps end up being used so we don't need to check the version
                     :when (get pkg-index dep)
                     :let [installed-version (get-in pkg-index [dep :package-json "version"])]
@@ -735,7 +734,7 @@
 
             (update state ::version-checked util/set-conj package-name))
           state
-          (vals pkg-index))))))
+          (keys pkg-index))))))
 
 (defn process
   [{::build/keys [stage mode config] :as state}]
