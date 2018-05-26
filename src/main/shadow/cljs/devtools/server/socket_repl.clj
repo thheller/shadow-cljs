@@ -17,15 +17,9 @@
   (printf "[%d:%d]~%s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))
 
 (defn repl-init [{:keys [print] :as config}]
-  (ns shadow.user
-    (:require [clojure.repl :refer (source apropos dir pst doc find-doc)]
-              [clojure.java.javadoc :refer (javadoc)]
-              [clojure.pprint :refer (pp pprint)]
-              [shadow.cljs.devtools.api :as shadow :refer (help)]))
 
-  ;; (in-ns 'shadow.user)
-  ;; (apply require repl-requires)
-  ;; just doing that does refer-clojure, ns seems to work
+  (require 'shadow.user)
+  (in-ns 'shadow.user)
 
   (when-not (false? print)
     (println "shadow-cljs - REPL - see (help)")

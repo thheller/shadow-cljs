@@ -11,6 +11,7 @@
 (defn index-page [{:keys [config] :as req}]
   (let [root-dir (io/file (:cache-root config) "release-snapshots")]
     (common/page-boilerplate req
+      {:modules []}
       (html
         [:h1 "shadow-cljs - release snapshots"]
 
@@ -38,6 +39,7 @@
         (io/file snapshot-dir "bundle-info.edn")]
 
     (common/page-boilerplate req
+      {:modules [:bundle-info]}
       (html
         [:h1 "shadow-cljs - release snapshot"]
 

@@ -2,8 +2,11 @@
   (:require [clojure.core.async :as async :refer (thread go <!)]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
+            [clojure.string :as str]
             [ring.middleware.file :as ring-file]
             [ring.middleware.params :as ring-params]
+            [ring.middleware.content-type :as ring-content-type]
+            [ring.middleware.resource :as ring-resource]
             [shadow.repl :as r]
             [shadow.http.router :as http]
             [shadow.runtime.services :as rt]
@@ -20,11 +23,8 @@
             [shadow.cljs.devtools.server.nrepl :as nrepl]
             [shadow.cljs.devtools.server.dev-http :as dev-http]
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-            [shadow.undertow :as undertow]
-            [ring.middleware.resource :as ring-resource]
-            [clojure.string :as str]
-            [ring.middleware.content-type :as ring-content-type])
-  (:import (java.net BindException SocketException NetworkInterface Inet4Address URL Socket)
+            [shadow.undertow :as undertow])
+  (:import (java.net BindException NetworkInterface Inet4Address)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
 
@@ -73,7 +73,6 @@
           (ring-file/wrap-file ui-root))
 
         (ring-resource/wrap-resource "shadow/cljs/devtools/server/web/resources")
-        ;; (reload/wrap-reload {:dirs ["src/main"]})
         (ring-content-type/wrap-content-type)
         (ring-params/wrap-params)
         (ring-gzip/wrap-gzip)

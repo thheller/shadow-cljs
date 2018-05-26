@@ -1,24 +1,28 @@
 (ns shadow.cljs.devtools.server.web
   (:require
     [clojure.string :as str]
+    [clojure.java.io :as io]
+    [clojure.edn :as edn]
     [hiccup.core :refer (html)]
     [hiccup.page :refer (html5)]
+    [ring.middleware.file :as ring-file]
+    [ring.middleware.file-info :as ring-file-info]
     [shadow.http.router :as http]
     [shadow.server.assets :as assets]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
+    [shadow.cljs.devtools.server.web.repl :as web-repl]
     [shadow.cljs.devtools.server.web.release-snapshots :as release-snapshots]
     [shadow.cljs.devtools.server.worker.ws :as ws]
-    [clojure.java.io :as io]
-    [clojure.edn :as edn]
-    [ring.middleware.file :as ring-file]
-    [ring.middleware.file-info :as ring-file-info]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
-    [shadow.cljs.devtools.api :as api]))
+    [shadow.cljs.devtools.api :as api]
+    [clojure.tools.logging :as log])
+  (:import [java.util UUID]))
 
 (defn index-page [{:keys [dev-http] :as req}]
   (common/page-boilerplate req
+    {:modules [:app]}
     (html
       [:h1 "shadow-cljs"]
       [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
@@ -44,12 +48,20 @@
     (if-not (.exists file)
       (common/not-found req "bundle-info.edn not found, please run shadow-cljs release")
       (common/page-boilerplate req
+        {:modules [:bundle-info]}
         (html
           [:h1 "shadow-cljs - bundle info"]
           [:div#root]
           (assets/js-queue :none 'shadow.cljs.ui.bundle-info/init
             (edn/read-string (slurp file)))
           )))))
+
+(defn repl-page [{:keys [config] :as req}]
+  (common/page-boilerplate req
+    {:modules [:repl]}
+    (html
+      [:div#root]
+      (assets/js-queue :none 'shadow.cljs.ui.repl/init))))
 
 (defn no-cache! [res]
   (update-in res [:headers] assoc
@@ -159,7 +171,8 @@
 ;; add SameSite cookie to protect UI websockets later
 (defn add-secret-header [{:keys [status] :as res} {:keys [server-secret] :as req}]
   (let [cookie (get-in req [:ring-request :headers "cookie"])]
-    (if (and (< status 400) cookie (str/includes? cookie server-secret))
+    (if (or (>= status 400)
+            (and cookie (str/includes? cookie server-secret)))
       res
       ;; not using ring cookies middleware due to its dependency on clj-time, overkill anyways.
       (assoc-in res [:headers "Set-Cookie"] (str "secret=" server-secret "; HttpOnly; SameSite=Strict;")))))
@@ -171,6 +184,7 @@
         (:GET "/bundle-info/{build-id:keyword}" bundle-info-page build-id)
         (:ANY "^/release-snapshots" release-snapshots/root)
         (:GET "^/cache" serve-cache-file)
+        (:GET "/repl" repl-page)
         (:GET "/browser-repl-js" browser-repl-js)
         common/not-found)
       (add-secret-header req)))
@@ -180,5 +194,6 @@
     (:ANY "^/api" web-api/root)
     (:ANY "^/ws" ws/process-ws)
     (:ANY "^/worker" ws/process-req)
+    (:ANY "/repl-ws" web-repl/repl-ws)
     (:GET "^/cache" serve-cache-file)
     pages))

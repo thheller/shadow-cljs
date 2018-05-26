@@ -12,7 +12,8 @@
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-    [shadow.cljs.devtools.errors :as errors])
+    [shadow.cljs.devtools.errors :as errors]
+    [shadow.cljs.devtools.config :as config])
   (:import (java.io StringReader)))
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
@@ -220,6 +221,39 @@
    :expects
    #{"eval" "load-file"}})
 
+(defn shadow-init [next]
+  ;; can only assoc vars into nrepl-session
+  (with-local-vars [init-complete false]
+
+    (fn [{:keys [session] :as msg}]
+      (when-not (get @session init-complete)
+
+        (let [{:keys [repl]}
+              (config/load-cljs-edn)
+
+              {:keys [init-ns]
+               :or {init-ns 'shadow.user}}
+              repl]
+
+          (try
+            (require init-ns)
+            (swap! session assoc #'*ns* (find-ns init-ns))
+            (catch Exception e
+              (log/warn e "failed to load repl :init-ns" init-ns))
+            (finally
+              (swap! session assoc init-complete true)
+              ))))
+
+      (next msg))))
+
+(middleware/set-descriptor!
+  #'shadow-init
+  {:requires
+   #{#'clojure.tools.nrepl.middleware.session/session}
+
+   :expects
+   #{"eval"}})
+
 (defn middleware-load [sym]
   {:pre [(qualified-symbol? sym)]}
   (let [sym-ns (-> sym (namespace) (symbol))]
@@ -255,6 +289,7 @@
              #'cljs-load-file
              #'cljs-eval
              #'cljs-select
+             #'shadow-init
 
              #'clojure.tools.nrepl.middleware.session/add-stdin
              #'clojure.tools.nrepl.middleware.session/session])
@@ -300,9 +335,13 @@
     (server/start-server
       :bind host
       :port port
-      :handler (fn [msg]
-                 (log/debug "nrepl-receive" (pr-str (dissoc msg :transport :session)))
-                 (handler-fn msg)))))
+      :greeting-fn
+      (fn [transport]
+        (transport/send transport {:out "Welcome to the shadow-cljs REPL!"}))
+      :handler
+      (fn [msg]
+        (log/debug "nrepl-receive" (pr-str (dissoc msg :transport :session)))
+        (handler-fn msg)))))
 
 (comment
   (prn (server/default-handler)))

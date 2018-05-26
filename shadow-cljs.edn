@@ -43,15 +43,20 @@
    {:infer-externs :auto}
 
    :modules
-   {:ui
+   {:shared
+    {:entries []}
+    :app
     {:entries
-     [shadow.cljs.ui.app
-      shadow.cljs.ui.bundle-info]
-     :depends-on
-     #{}}}
-
-   :devtools
-   {:async-require true}}
+     [shadow.cljs.ui.app]
+     :depends-on #{:shared}}
+    :bundle-info
+    {:entries
+     [shadow.cljs.ui.bundle-info]
+     :depends-on #{:shared}}
+    :repl
+    {:entries
+     [shadow.cljs.ui.repl]
+     :depends-on #{:shared}}}}
 
   ;; test builds
 

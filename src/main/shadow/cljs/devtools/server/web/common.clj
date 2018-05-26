@@ -24,20 +24,22 @@
    :body (core-ext/safe-pr-str data)})
 
 (defn page-boilerplate
-  [req ^String content]
+  [req {:keys [modules headers]} ^String content]
   {:status 200
-   :headers {"content-type" "text/html; charset=utf-8"}
+   :headers (merge {"content-type" "text/html; charset=utf-8"} headers)
    :body
    (html5
      {:lang "en"}
      [:head
       ;; lol preload for local dev
-      [:link {:as "script" :href "/js/ui.js" :rel "preload"}]
+      [:link {:as "script" :href "/js/shared.js" :rel "preload"}]
       [:title "shadow-cljs"]
       [:link {:rel "stylesheet" :href "/css/main.css"}]]
      [:body
       content
-      [:script {:src "/js/ui.js" :defer true}]
+      [:script {:src "/js/shared.js" :defer true}]
+      (for [x modules]
+        [:script {:src (str "/js/" (name x) ".js") :defer true}])
       ])})
 
 (defn nav []

@@ -1,18 +1,22 @@
 (ns shadow.cljs.devtools.server.worker.ws
   "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
-  (:require [clojure.core.async :as async :refer (go <! >! thread alt!! >!!)]
-            [clojure.edn :as edn]
-            [shadow.build.output :as output]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [shadow.cljs.devtools.server.supervisor :as super]
-            [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.build :as comp]
-            [shadow.http.router :as http]
-            [shadow.build.data :as data]
-            [shadow.build.resource :as rc]
-            [clojure.tools.logging :as log]
-            [shadow.core-ext :as core-ext])
+  (:require
+    [clojure.core.async :as async :refer (go <! >! thread alt!! <!! >!!)]
+    [clojure.tools.nrepl.bencode :as be]
+    [clojure.tools.nrepl.transport :as nrepl-transport]
+    [clojure.edn :as edn]
+    [shadow.user]
+    [shadow.build.output :as output]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]
+    [shadow.cljs.devtools.server.system-msg :as sys-msg]
+    [shadow.cljs.devtools.server.supervisor :as super]
+    [shadow.cljs.devtools.server.worker :as worker]
+    [shadow.build :as comp]
+    [shadow.http.router :as http]
+    [shadow.build.data :as data]
+    [shadow.build.resource :as rc]
+    [clojure.tools.logging :as log]
+    [shadow.core-ext :as core-ext])
   (:import (java.util UUID)))
 
 (defn ws-loop!
@@ -244,7 +248,7 @@
                                 (output/js-module-src-prepend build-state src false)
 
                                 append
-                                "" #_ (output/js-module-src-append build-state src)
+                                "" #_(output/js-module-src-append build-state src)
 
                                 sm-text
                                 (output/generate-source-map-inline build-state src output prepend)]
