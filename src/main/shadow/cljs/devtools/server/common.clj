@@ -2,21 +2,14 @@
   (:require
     [clojure.edn :as edn]
     [clojure.java.io :as io]
+    [clojure.tools.logging :as log]
     [cognitect.transit :as transit]
-    [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch]
-    [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.devtools.server.system-msg :as sys-msg]
-    [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
-    [shadow.cljs.devtools.server.reload-npm :as reload-npm]
-    [shadow.cljs.devtools.server.reload-macros :as reload-macros]
-    [shadow.cljs.devtools.server.config-watch :as config-watch]
-    [shadow.cljs.devtools.server.supervisor :as super]
-    [shadow.cljs.devtools.server.system-bus :as system-bus]
     [shadow.build]
     [shadow.build.api :as cljs]
     [shadow.build.classpath :as build-classpath]
     [shadow.build.npm :as build-npm]
-    [shadow.build.babel :as babel])
+    [shadow.build.babel :as babel]
+    [shadow.cljs.devtools.plugin-manager :as plugin-mgr])
   (:import (java.io ByteArrayOutputStream InputStream)
            (java.util.concurrent Executors)))
 
@@ -54,7 +47,12 @@
 
     :stop (fn [x])}
 
-   :executor
+   :plugin-manager
+   {:depends-on []
+    :start plugin-mgr/start
+    :stop plugin-mgr/stop}
+
+   :build-executor
    {:depends-on [:config]
     :start
     (fn [{:keys [compile-threads] :as config}]
@@ -65,36 +63,6 @@
     :stop
     (fn [ex]
       (.shutdown ex))}
-
-   :system-bus
-   {:depends-on []
-    :start sys-bus/start
-    :stop sys-bus/stop}
-
-   :config-watch
-   {:depends-on [:system-bus]
-    :start config-watch/start
-    :stop config-watch/stop}
-
-   :reload-classpath
-   {:depends-on [:system-bus :classpath]
-    :start reload-classpath/start
-    :stop reload-classpath/stop}
-
-   :reload-npm
-   {:depends-on [:system-bus :npm]
-    :start reload-npm/start
-    :stop reload-npm/stop}
-
-   :reload-macros
-   {:depends-on [:system-bus]
-    :start reload-macros/start
-    :stop reload-macros/stop}
-
-   :supervisor
-   {:depends-on [:config :system-bus :executor :cache-root :http :classpath :npm :babel]
-    :start super/start
-    :stop super/stop}
 
    :classpath
    {:depends-on [:cache-root]
@@ -111,18 +79,58 @@
    :babel
    {:depends-on []
     :start babel/start
-    :stop babel/stop}
+    :stop babel/stop}})
 
-   :cljs-watch
-   {:depends-on [:config :classpath :system-bus]
-    :start (fn [config classpath system-bus]
-             (fs-watch/start
-               (:fs-watch config)
-               (->> (build-classpath/get-classpath-entries classpath)
-                    (filter #(.isDirectory %))
-                    (into []))
-               ;; no longer watches .clj files, reload-macros directly looks at used macros
-               ["cljs" "cljc" "js"]
-               #(system-bus/publish! system-bus ::sys-msg/cljs-watch {:updates %})
-               ))
-    :stop fs-watch/stop}})
+(defn get-system-config [{:keys [server-runtime plugins]}]
+  (reduce
+    (fn [config plugin]
+      (try
+        (require plugin)
+        (let [plugin-var-name
+              (symbol (name plugin) "plugin")
+
+              plugin-kw
+              (keyword (name plugin) "plugin")
+
+              ;; FIXME: should eventually move this to classpath edn files and discover from there
+              plugin-var
+              (find-var plugin-var-name)
+
+              {:keys [requires-server start stop] :as plugin-config}
+              @plugin-var]
+
+          (if (and requires-server (not server-runtime))
+            config
+            ;; wrapping the start/stop fns to they don't take down the entire system if they fail
+            (let [safe-config
+                  (assoc plugin-config
+                    :start
+                    (fn [& args]
+                      (try
+                        (apply start args)
+                        (catch Exception e
+                          (log/warnf e "failed to start plugin: %s" plugin)
+                          ::error)))
+                    :stop
+                    (fn [instance]
+                      (when (not= ::error instance)
+                        (try
+                          (cond
+                            (and (nil? stop) (nil? instance))
+                            ::ok
+
+                            (nil? stop)
+                            (log/warnf "plugin: %s returned something in start but did not provide a stop method" plugin)
+
+                            :else
+                            (stop instance))
+
+                          (catch Exception e
+                            (log/warnf e "failed to stop plugin: %s" plugin))))))]
+
+              (assoc config plugin-kw safe-config))))
+        (catch Exception e
+          (log/warnf e "failed to load plugin: %s" plugin)
+          config)))
+    app-config
+    plugins))

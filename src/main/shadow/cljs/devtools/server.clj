@@ -10,9 +10,11 @@
             [shadow.repl :as r]
             [shadow.http.router :as http]
             [shadow.runtime.services :as rt]
+            [shadow.undertow :as undertow]
             [shadow.cljs.devtools.api :as api]
             [shadow.cljs.devtools.server.web :as web]
             [shadow.cljs.devtools.server.config-watch :as config-watch]
+            [shadow.cljs.devtools.server.fs-watch :as fs-watch]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.cljs.devtools.server.common :as common]
             [shadow.cljs.devtools.config :as config]
@@ -23,23 +25,17 @@
             [shadow.cljs.devtools.server.nrepl :as nrepl]
             [shadow.cljs.devtools.server.dev-http :as dev-http]
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-            [shadow.undertow :as undertow])
+            [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
+            [shadow.cljs.devtools.server.reload-npm :as reload-npm]
+            [shadow.cljs.devtools.server.reload-macros :as reload-macros]
+            [shadow.build.classpath :as build-classpath]
+            [shadow.cljs.devtools.server.system-msg :as system-msg]
+            [shadow.cljs.devtools.server.system-bus :as system-bus])
   (:import (java.net BindException NetworkInterface Inet4Address)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
 
-(def app-config
-  (merge
-    common/app-config
-    {:dev-http
-     {:depends-on [:system-bus :config :ssl-context :out]
-      :start dev-http/start
-      :stop dev-http/stop}
-     :out
-     {:depends-on [:config]
-      :start (fn [config]
-               (util/stdout-dump (:verbose config)))
-      :stop async/close!}}))
+
 
 (defn wait-for [app-ref]
   (or @app-ref
@@ -326,13 +322,69 @@
 (defn start!
   ([]
    (let [config (load-config)]
-     (start! config app-config)))
+     (start! config)))
   ([sys-config]
-   (start! sys-config app-config))
-  ([sys-config app]
    (if (runtime/get-instance)
      ::already-running
-     (let [app-ref
+     (let [app
+           (merge
+             {:dev-http
+              {:depends-on [:system-bus :config :ssl-context :out]
+               :start dev-http/start
+               :stop dev-http/stop}
+
+              :system-bus
+              {:depends-on []
+               :start system-bus/start
+               :stop system-bus/stop}
+
+              :cljs-watch
+              {:depends-on [:config :classpath :system-bus]
+               :start (fn [config classpath system-bus]
+                        (fs-watch/start
+                          (:fs-watch config)
+                          (->> (build-classpath/get-classpath-entries classpath)
+                               (filter #(.isDirectory %))
+                               (into []))
+                          ;; no longer watches .clj files, reload-macros directly looks at used macros
+                          ["cljs" "cljc" "js"]
+                          #(system-bus/publish! system-bus ::system-msg/cljs-watch {:updates %})
+                          ))
+               :stop fs-watch/stop}
+
+              :config-watch
+              {:depends-on [:system-bus]
+               :start config-watch/start
+               :stop config-watch/stop}
+
+              :reload-classpath
+              {:depends-on [:system-bus :classpath]
+               :start reload-classpath/start
+               :stop reload-classpath/stop}
+
+              :reload-npm
+              {:depends-on [:system-bus :npm]
+               :start reload-npm/start
+               :stop reload-npm/stop}
+
+              :reload-macros
+              {:depends-on [:system-bus]
+               :start reload-macros/start
+               :stop reload-macros/stop}
+
+              :supervisor
+              {:depends-on [:config :system-bus :build-executor :cache-root :http :classpath :npm :babel]
+               :start super/start
+               :stop super/stop}
+
+              :out
+              {:depends-on [:config]
+               :start (fn [config]
+                        (util/stdout-dump (:verbose config)))
+               :stop async/close!}}
+             (common/get-system-config (assoc sys-config :server-runtime true)))
+
+           app-ref
            (start-system runtime/instance-ref app sys-config)
 
            {:keys [http ssl-context socket-repl nrepl config] :as app}

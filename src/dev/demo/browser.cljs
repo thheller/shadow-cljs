@@ -1,4 +1,6 @@
 (ns demo.browser
+  {:shadow.sass/include
+   ["./foo.scss"]}
   (:require-macros [demo.browser :refer (test-macro)])
   (:require
     #_["babel-test" :as babel-test :default Shape]

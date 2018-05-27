@@ -106,6 +106,25 @@
   [{:keys [target stage]}]
   (format "build target: %s stage: %s" target stage))
 
+(defmethod build-log/event->str ::process-hook
+  [{:keys [hook-id stage]}]
+  (format "build hook: %s stage: %s" hook-id stage))
+
+(defn execute-hooks [{::keys [build-id] :as state} stage]
+  (reduce-kv
+    (fn [state hook-id hook-fn]
+      (try
+        (util/with-logged-time [state {:type ::process-hook
+                                       :stage stage
+                                       :build-id build-id
+                                       :hook-id hook-id}]
+          (hook-fn state))
+        (catch Exception e
+          (log/warnf e "failed to execute hook %s in build %s" hook-id build-id)
+          state)))
+    state
+    (get-in state [:build-hooks stage])))
+
 (defn process-stage
   [{::keys [config mode target-fn] :as state} stage optional?]
   (let [before
@@ -121,7 +140,9 @@
     (if (and (not optional?) (identical? before after))
       (throw (ex-info "process didn't do anything on non-optional stage"
                {:stage stage :mode mode :config config}))
-      (assoc-in after [::build-info :timings stage :exit] (System/currentTimeMillis)))))
+      (-> after
+          (execute-hooks stage)
+          (assoc-in [::build-info :timings stage :exit] (System/currentTimeMillis))))))
 
 (defn config-merge [config mode]
   (let [mode-opts (get config mode)]
@@ -172,6 +193,35 @@
         fn
         ))))
 
+(defn configure-hooks-from-config [{::keys [build-id] :as state} build-hooks]
+  (reduce-kv
+    (fn [state hook-idx [hook-sym & args]]
+      (try
+        ;; require the ns
+        (locking target-require-lock
+          (-> hook-sym namespace symbol require))
+
+        (let [hook-var (find-var hook-sym)
+              {::keys [stages stage]} (meta hook-var)]
+          (reduce
+            (fn [state stage]
+              (assoc-in state [:build-hooks stage [hook-idx hook-sym]]
+                (fn [build-state]
+                  (let [result (apply hook-var build-state args)]
+                    (when-not (build-api/build-state? result)
+                      (throw (ex-info "hook returned invalid result" {:type ::invalid-hook-result
+                                                                      :hook-sym hook-sym
+                                                                      :build-id build-id
+                                                                      :stage stage})))
+                    result))))
+            state
+            (or stages [stage])))
+        (catch Exception e
+          (log/warnf e "failed to configure hook[%d:%s] for build %s" hook-idx hook-sym build-id)
+          state)))
+    state
+    build-hooks))
+
 (defn configure
   [build-state mode {:keys [build-id target] :as config}]
   {:pre [(build-api/build-state? build-state)
@@ -181,7 +231,7 @@
          (some? target)]
    :post [(build-api/build-state? %)]}
 
-  (let [{:keys [build-options closure-defines compiler-options js-options] :as config}
+  (let [{:keys [build-options closure-defines compiler-options js-options build-hooks] :as config}
         (config-merge config mode)
 
         target-fn
@@ -200,6 +250,7 @@
       (-> build-state
           (assoc
             :build-id build-id
+            ::build-id build-id
             ::stage :init
             ::config config
             ::target-fn target-fn
@@ -207,7 +258,11 @@
           ;; FIXME: not setting this for :release builds may cause errors
           ;; http://dev.clojure.org/jira/browse/CLJS-2002
           (update :runtime assoc :print-fn :console)
+
           (cond->
+            (seq build-hooks)
+            (configure-hooks-from-config build-hooks)
+
             ;; generic dev mode, each target can overwrite in :init stage
             (= :dev mode)
             (-> (build-api/enable-source-maps)

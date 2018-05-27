@@ -120,6 +120,10 @@
        :cache-dir
        (io/file "target" "shadow-cljs" "cache")
 
+       ;; {<stage> {<hook-id> <hook-fn}}}
+       :build-hooks
+       {}
+
        :logger build-log/stdout
 
        :compiler-options
@@ -270,8 +274,6 @@
    com.google.javascript.jscomp.CompilerOptions"
   [state callback]
   (update state :closure-configurators conj callback))
-
-
 
 (defn find-resources-affected-by
   "returns the set all resources and the immediate dependents of those sources

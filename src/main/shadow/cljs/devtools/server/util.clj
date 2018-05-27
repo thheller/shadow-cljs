@@ -36,7 +36,7 @@
 
 (defn new-build
   [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
-  (let [{:keys [npm classpath cache-root executor babel config] :as runtime}
+  (let [{:keys [npm classpath cache-root build-executor babel config] :as runtime}
         (runtime/get-instance!)
 
         {:keys [cache-blockers]}
@@ -70,7 +70,7 @@
         (build-api/with-babel babel)
         (build-api/with-classpath classpath)
         (build-api/with-cache-dir cache-dir)
-        (build-api/with-executor executor)
+        (build-api/with-executor build-executor)
         ;; default logger logs everything
         ;; if not verbose replace with one that only logs warnings/errors
         (cond->

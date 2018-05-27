@@ -7,6 +7,15 @@
   #(or (simple-keyword? %)
        (symbol? %)))
 
+(s/def ::build-hook
+  (s/cat
+    :hook-sym qualified-symbol?
+    :hook-args (s/* any?)
+    ))
+
+(s/def ::build-hooks
+  (s/coll-of ::build-hook :kind vector?))
+
 (defmulti target-spec :target :default ::default)
 
 (defmethod target-spec ::default [_]
@@ -16,7 +25,9 @@
   (s/keys
     :req-un
     [::build-id
-     ::target]))
+     ::target]
+    :opt-un
+    [::build-hooks]))
 
 (s/def ::build+target
   (s/and

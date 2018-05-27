@@ -43,13 +43,15 @@
     ))
 
 (defn make-runtime []
-  (let [config (config/load-cljs-edn!)]
+  (let [config (-> (config/load-cljs-edn!)
+                   ;; just in case someone gets the idea to put :server-runtime true into their config
+                   (dissoc :server-runtime))]
 
     (log/debug "starting runtime instance")
 
     (-> {::started (System/currentTimeMillis)
          :config config}
-        (rt/init common/app-config)
+        (rt/init (common/get-system-config config))
         (rt/start-all)
         )))
 

@@ -11,6 +11,8 @@
  :http
  {}
 
+ :plugins [demo.dummy-plugin]
+
  :nrepl {:port 8202 :middleware []}
 
  :source-paths
@@ -72,6 +74,9 @@
     ;; :closure-output-charset "US-ASCII"
     :closure-defines
     {demo.browser/FOO "bar"}}
+
+   :build-hooks
+   [(demo.hooks/dummy 1 2 3)]
 
    :module-loader false
    ;; :module-hash-names true
