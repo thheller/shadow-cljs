@@ -396,8 +396,7 @@
              (filter #(= :shadow-js (:type %)))
              (map #(data/get-output! state %))
              (map :js)
-             (into [prepend output])
-             (conj append)
+             (into [prepend output append])
              (remove nil?)
              (util/md5hex-seq))
 
