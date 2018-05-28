@@ -75,6 +75,12 @@
 (defn get-build-config [build-id]
   (config/get-build build-id))
 
+(defn get-build-ids []
+  (-> (config/load-cljs-edn)
+      (get :builds)
+      (keys)
+      (into #{})))
+
 (defn get-runtime! []
   (runtime/get-instance!))
 
