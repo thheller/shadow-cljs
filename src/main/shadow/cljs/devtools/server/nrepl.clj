@@ -335,9 +335,10 @@
     (server/start-server
       :bind host
       :port port
-      :greeting-fn
-      (fn [transport]
-        (transport/send transport {:out "Welcome to the shadow-cljs REPL!"}))
+      ;; breaks vim-fireplace, doesn't even show up in Cursive
+      #_:greeting-fn
+      #_(fn [transport]
+          (transport/send transport {:out "Welcome to the shadow-cljs REPL!"}))
       :handler
       (fn [msg]
         (log/debug "nrepl-receive" (pr-str (dissoc msg :transport :session)))
