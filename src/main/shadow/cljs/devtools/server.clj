@@ -160,6 +160,7 @@
         :let [display-name (.getDisplayName ni)]
         :when
         (and (not (str/includes? display-name "VirtualBox"))
+             (not (str/includes? display-name "vboxnet"))
              (not (str/includes? display-name "utun")))
         addr (enumeration-seq (.getInetAddresses ni))
         ;; probably don't need ipv6 for dev
