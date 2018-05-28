@@ -269,23 +269,31 @@
     (log "shadow-cljs - starting ...")
     (run! project-root "java" cli-args {})))
 
-(defn get-lein-args [{:keys [lein] :as config}]
+(defn get-lein-args [{:keys [lein] :as config} opts]
   (let [{:keys [profile] :as lein-config}
         (cond
           (map? lein)
           lein
           (true? lein)
-          {})]
+          {})
+
+        extra-deps
+        (get-in opts [:options :dependencies])]
 
     (-> []
         (cond->
           profile
           (conj "with-profile" profile)
-          ))))
+
+          (seq extra-deps)
+          (util/reduce->
+            (fn [args dep]
+              (conj args "update-in" ":dependencies" "conj" (pr-str dep) "--"))
+            extra-deps)))))
 
 (defn run-lein [project-root config args opts]
   (let [lein-args
-        (-> (get-lein-args config)
+        (-> (get-lein-args config opts)
             (conj "run" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
@@ -304,7 +312,14 @@
         aliases
         (if-not inject?
           aliases
-          (conj aliases :shadow-cljs-inject))]
+          (conj aliases :shadow-cljs-inject))
+
+        extra-deps
+        (-> {'thheller/shadow-cljs {:mvn/version jar-version}}
+            (util/reduce->
+              (fn [m [id version]]
+                (assoc m id {:mvn/version version}))
+              (get-in opts [:options :dependencies])))]
 
     (-> []
         (into (map #(str "-J" %)) (logging-config project-root config))
@@ -315,8 +330,7 @@
             (pr-str {:aliases
                      {:shadow-cljs-inject
                       ;; :extra-paths ["target/shadow-cljs/aot"]
-                      (-> {:extra-deps
-                           {'thheller/shadow-cljs {:mvn/version jar-version}}}
+                      (-> {:extra-deps extra-deps}
                           (cond->
                             (seq jvm-opts)
                             (assoc :jvm-opts jvm-opts))
@@ -359,7 +373,7 @@
 
           lein
           ["lein"
-           (-> (get-lein-args config)
+           (-> (get-lein-args config opts)
                (conj "run" "-m"))]
 
           :else
