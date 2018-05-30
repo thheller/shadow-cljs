@@ -223,7 +223,7 @@
   :do-shutdown (fn [last-state])"
 
   [thread-name state-ref init-state dispatch-table
-   {:keys [server-id validate validate-error on-error do-shutdown] :as options}]
+   {:keys [server-id idle-action idle-timeout validate validate-error on-error do-shutdown] :as options}]
   (let [chans
         (into [] (keys dispatch-table))]
 
@@ -232,30 +232,43 @@
             (loop [state init-state]
               (vreset! state-ref state)
 
-              (let [[msg ch]
-                    (alts!! chans)
+              (let [timeout-chan
+                    (when idle-action
+                      (async/timeout (or idle-timeout 500)))
 
-                    handler
-                    (get dispatch-table ch)]
+                    [msg ch]
+                    (alts!! (cond-> chans timeout-chan (conj timeout-chan)))]
 
-                (if (nil? handler)
+                (cond
+                  (identical? ch timeout-chan)
+                  (-> (try
+                        (idle-action state)
+                        (catch Exception ex
+                          (log/warnf ex "exception during idle")
+                          state))
+                      (recur))
+
+                  (nil? msg)
                   state
-                  (if (nil? msg)
-                    state
-                    (-> (let [state-after
-                              (try
-                                (handler state msg)
-                                (catch Throwable ex
-                                  (log/warnf ex "failed to handle server msg: %s" msg)
-                                  (if (ifn? on-error)
-                                    (on-error state msg ex)
-                                    ;; FIXME: silently dropping e if no on-error is defined is bad
-                                    state)))]
-                          (if (and (ifn? validate)
-                                   (not (validate state-after)))
-                            (validate-error state state-after msg)
-                            state-after))
-                        (recur))))))]
+
+                  :else
+                  (let [handler (get dispatch-table ch)]
+                    (if (nil? handler)
+                      state
+                      (-> (let [state-after
+                                (try
+                                  (handler state msg)
+                                  (catch Throwable ex
+                                    (log/warnf ex "failed to handle server msg: %s" msg)
+                                    (if (ifn? on-error)
+                                      (on-error state msg ex)
+                                      ;; FIXME: silently dropping e if no on-error is defined is bad
+                                      state)))]
+                            (if (and (ifn? validate)
+                                     (not (validate state-after)))
+                              (validate-error state state-after msg)
+                              state-after))
+                          (recur)))))))]
 
         (if-not do-shutdown
           last-state

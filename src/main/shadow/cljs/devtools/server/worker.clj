@@ -32,7 +32,7 @@
 (defn watch
   "watch all output produced by the worker"
   ([proc log-chan]
-    (watch proc log-chan true))
+   (watch proc log-chan true))
   ([{:keys [output-mult] :as proc} log-chan close?]
    {:pre [(impl/proc? proc)]}
    (async/tap output-mult log-chan close?)
@@ -257,6 +257,8 @@
            macro-update impl/do-macro-update
            config-watch impl/do-config-watch}
           {:server-id [::worker build-id]
+           :idle-action impl/do-idle
+           :idle-timeout 500
            :validate
            impl/worker-state?
            :validate-error

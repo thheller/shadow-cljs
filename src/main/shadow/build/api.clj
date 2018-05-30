@@ -120,6 +120,10 @@
        :cache-dir
        (io/file "target" "shadow-cljs" "cache")
 
+       ;; builds can add files during :configure that will trigger a reload in watch
+       :extra-config-files
+       #{}
+
        ;; {<stage> {<hook-id> <hook-fn}}}
        :build-hooks
        {}

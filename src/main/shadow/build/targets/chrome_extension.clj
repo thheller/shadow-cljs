@@ -45,19 +45,23 @@
     outputs))
 
 (defn configure
-  [state mode {:keys [outputs extension-dir] :as config}]
+  [state mode {:keys [outputs extension-dir manifest-file] :as config}]
   (let [extension-dir
         (io/file extension-dir)
 
+        manifest-input-file
+        (or (and (seq manifest-file) (io/file manifest-file))
+            (io/file extension-dir "manifest.edn"))
+
         manifest
-        (-> (io/file extension-dir "manifest.edn")
+        (-> manifest-input-file
             (slurp)
             (edn/read-string))
 
         output-dir
         (io/file extension-dir "out")
 
-        manifest-file
+        manifest-output-file
         (io/file extension-dir "manifest.json")
 
         outputs
@@ -80,6 +84,7 @@
 
     (-> state
         (assoc ::b/config config)
+        (update :extra-config-files conj manifest-input-file)
         (build-api/merge-build-options
           {:output-dir output-dir
            :asset-path "out"})
@@ -87,7 +92,7 @@
         (build-api/with-js-options
           {:js-provider :shadow})
 
-        (assoc ::manifest-file manifest-file
+        (assoc ::manifest-output-file manifest-output-file
                ::manifest manifest
                ::extension-dir extension-dir)
 
@@ -167,7 +172,7 @@
            (into [(str "out/" output-name)])))))
 
 (defn flush-manifest
-  [{::keys [manifest-file manifest] :keys [build-modules] :as state}]
+  [{::keys [manifest-output-file manifest] :keys [build-modules] :as state}]
 
   (let [manifest
         (-> manifest
@@ -197,7 +202,7 @@
 
     #_(pprint manifest)
 
-    (spit manifest-file
+    (spit manifest-output-file
       (with-out-str
         (binding [*print-length* nil] ;; grr cider for setting *print-length* in nrepl
           (json/pprint manifest

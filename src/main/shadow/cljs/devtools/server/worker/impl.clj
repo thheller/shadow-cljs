@@ -97,7 +97,7 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config proc-id http executor npm babel classpath cache-root] :as worker-state}]
+  [{:keys [build-config proc-id http] :as worker-state}]
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
@@ -112,17 +112,26 @@
            :port (:port http)
            :ssl (:ssl http)}
 
-          build-state
+          {:keys [extra-config-files] :as build-state}
           (-> (util/new-build build-config :dev {})
               (build-api/with-logger (util/async-logger (-> worker-state :channels :output)))
               (assoc
                 :worker-info worker-info
                 :mode :dev
                 ::compile-attempt 0)
-              (build/configure :dev build-config))]
+              (build/configure :dev build-config))
+
+          extra-config-files
+          (reduce
+            (fn [m file]
+              (assoc m file (.lastModified file)))
+            {}
+            extra-config-files)]
 
       ;; FIXME: should maybe cleanup old :build-state if there is one (re-configure)
-      (assoc worker-state :build-state build-state))
+      (assoc worker-state
+        :extra-config-files extra-config-files
+        :build-state build-state))
     (catch Exception e
       (-> worker-state
           (dissoc :build-state) ;; just in case there is an old one
@@ -588,3 +597,32 @@
         autobuild
         (-> (build-configure)
             (build-compile)))))
+
+(defn check-extra-files [files]
+  (reduce-kv
+    (fn [m file last-mod]
+      (let [new-mod (.lastModified file)]
+        (if (= new-mod last-mod)
+          m
+          (assoc m file new-mod))))
+    files
+    files))
+
+(defn maybe-reload-config-files [{:keys [autobuild extra-config-files] :as worker-state}]
+  (let [checked (check-extra-files extra-config-files)]
+    (if (identical? extra-config-files checked)
+      worker-state
+      (do (log/debug ::extra-files-modified)
+          (-> worker-state
+              (assoc :addition-config-files checked)
+              (cond->
+                autobuild
+                (-> (build-configure)
+                    (build-compile)))
+              )))))
+
+(defn do-idle [{:keys [extra-config-files] :as worker-state}]
+  (-> worker-state
+      (cond->
+        (seq extra-config-files)
+        (maybe-reload-config-files))))

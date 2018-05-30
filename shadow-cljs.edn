@@ -148,7 +148,8 @@
 
   :chrome-ext
   {:target :chrome-extension
-   :extension-dir "out/chrome-ext"}
+   :extension-dir "out/chrome-ext"
+   :manifest-file "out/chrome-manifest.edn"}
 
   :test-browser
   {:target :browser-test
