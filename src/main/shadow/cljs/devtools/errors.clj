@@ -268,6 +268,36 @@
         (w/print-source-excerpt-footer data)
         (println (w/sep-line))))))
 
+(defmethod ex-data-format :shadow.build.compiler/js-error
+  [w e {:keys [file js-errors] :as data}]
+
+  (doseq [{:keys [line column message source-excerpt] :as err} js-errors]
+    ;; FIXME: rewrite warnings code to use a writer instead of just print
+    ;; use custom class that handles the styling to it can be turned off easily
+    (.write w
+      (with-out-str
+        (println (w/coded-str [:bold :red] (w/sep-line " ERROR " 6)))
+        (println " File:"
+          (str file
+               (when (pos-int? line)
+                 (str ":" line
+                      (when (pos-int? column)
+                        (str ":" column))))))
+
+        (when source-excerpt
+          (w/print-source-excerpt-header err))))
+
+    (.write w message)
+    (.write w "\n")
+    (.write w (w/sep-line))
+    (.write w "\n")
+
+    (.write w
+      (with-out-str
+        (if source-excerpt
+          (w/print-source-excerpt-footer err)
+          (println (w/sep-line)))))))
+
 (defmethod ex-data-format :shadow.cljs.util/macro-load
   [w e {:keys [macro-ns] :as data}]
 

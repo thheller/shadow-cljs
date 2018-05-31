@@ -6,13 +6,8 @@
 
 (def ^:dynamic *color* true)
 
-(defn get-source-excerpts
-  "adds source excerpts to warnings if line information is available"
-  [state {:keys [file] :as rc} locations]
-  (let [{:keys [source]}
-        (data/get-output! state rc)
-
-        source-lines
+(defn get-source-excerpts [source locations]
+  (let [source-lines
         (into [] (-> source
                      (StringReader.)
                      (BufferedReader.)
@@ -41,20 +36,18 @@
              :after (subvec source-lines line after)}))]
 
     (->> (for [{:keys [line column] :as location} locations]
-           (try
-             (make-source-excerpt line column)
-             (catch Throwable e
-               (log/warnf e
-                 "failed to get source excerpt for %s at %s"
-                 (or (:file rc)
-                     (:url rc)
-                     (:resource-name rc))
-                 location)
-               nil)))
+           (make-source-excerpt line column))
          (into []))))
 
-(defn get-source-excerpt [state rc location]
-  (-> (get-source-excerpts state rc [location])
+(defn get-source-excerpts-for-rc
+  "adds source excerpts to warnings if line information is available"
+  [state rc locations]
+  (let [{:keys [source]} (data/get-output! state rc)]
+    (get-source-excerpts source locations)
+    ))
+
+(defn get-source-excerpt-for-rc [state rc location]
+  (-> (get-source-excerpts-for-rc state rc [location])
       (first)))
 
 ;; https://en.wikipedia.org/wiki/ANSI_escape_code

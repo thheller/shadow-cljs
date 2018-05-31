@@ -521,7 +521,7 @@
                    (.getColumnPosition mapping)
 
                    source-excerpt
-                   (warnings/get-source-excerpt state src {:line line :column column})]
+                   (warnings/get-source-excerpt-for-rc state src {:line line :column column})]
 
                {:resource-id resource-id
                 :resource-name resource-name

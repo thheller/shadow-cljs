@@ -86,7 +86,6 @@
                   js-errors
                   js-warnings
                   js-invalid-requires
-                  js-esm
                   js-language
                   js-str-offsets
                   goog-module
@@ -102,11 +101,6 @@
                  (symbol))]
 
       (cond
-        (seq js-errors)
-        (do (log/warn (str "failed to parse javascript file: " url "\n"
-                           (pr-str js-errors)))
-            nil)
-
         ;; goog.provide('thing')
         ;; goog.require('foo')
         ;; goog.module('some.thing')
@@ -124,6 +118,7 @@
           (-> rc
               (assoc :type :goog
                      :requires (into #{} deps)
+                     :source source
                      :provides
                      (-> #{}
                          ;; for goog files make both namespaces available

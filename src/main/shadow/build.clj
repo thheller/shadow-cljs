@@ -30,7 +30,7 @@
             (into [] (distinct warnings))
 
             source-excerpts
-            (warnings/get-source-excerpts state rc warnings)]
+            (warnings/get-source-excerpts-for-rc state rc warnings)]
 
         (->> (map (fn [warning source-excerpt]
                     (-> warning

@@ -643,7 +643,7 @@
 
                               (and data line column)
                               (assoc :source-excerpt
-                                     (warnings/get-source-excerpt
+                                     (warnings/get-source-excerpt-for-rc
                                        ;; FIXME: this is a bit ugly but compilation failed so the source is not in state
                                        ;; but the warnings extractor wants to access it
                                        (assoc-in state [:output resource-id] {:source source})
@@ -880,18 +880,29 @@
         deps-syms (data/deps->syms state rc)]
     (update-in state [:sources resource-id :cache-key] into deps-syms)))
 
+(defn throw-js-errors-now! [state]
+  (doseq [{:keys [file js-errors source] :as src} (data/get-build-sources state)
+          :when (seq js-errors)]
+    (let [excerpts (warnings/get-source-excerpts source js-errors)
+          merged (vec (map (fn [loc ex] (assoc loc :source-excerpt ex)) js-errors excerpts))]
+
+      (throw (ex-info "Invalid JS input" {:tag ::js-error
+                                          :file file
+                                          :js-errors merged})))))
+
 (defn compile-all
+  "compile a list of sources by id,
+   requires that the ids are in dependency order
+   requires that ALL of the dependencies NOT listed are already compiled
+   eg. you cannot just compile clojure.string as it requires other files to be compiled first "
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
   ([{:keys [executor last-progress-ref] :as state} source-ids]
-   " compile a list of sources by id,
-requires that the ids are in dependency order
-requires that ALL of the dependencies NOT listed are already compiled
-eg. you cannot just compile clojure.string as it requires other files to be compiled first "
-   (let [js-provider
-         (get-in state [:js-options :js-provider])
+    ;; throwing js parser errors here so they match other error sources
+    ;; as other errors will be thrown later on in this method as well
+   (throw-js-errors-now! state)
 
-         state
+   (let [state
          (reduce ensure-cache-invalidation-on-resolve-changes state source-ids)
 
          sources
