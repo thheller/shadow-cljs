@@ -228,12 +228,13 @@
     (fn [{:keys [session] :as msg}]
       (when-not (get @session init-complete)
 
-        (let [{:keys [repl]}
+        (let [config
               (config/load-cljs-edn)
 
-              {:keys [init-ns]
-               :or {init-ns 'shadow.user}}
-              repl]
+              init-ns
+              (or (get-in config [:nrepl :init-ns])
+                  (get-in config [:repl :init-ns])
+                  'shadow.user)]
 
           (try
             (require init-ns)

@@ -95,7 +95,8 @@
     :dependencies
     [[cider/cider-nrepl "0.16.0"]]
     :repl-options
-    {:nrepl-middleware
+    {:init-ns shadow.user
+     :nrepl-middleware
      [shadow.cljs.devtools.server.nrepl/cljs-load-file
       shadow.cljs.devtools.server.nrepl/cljs-eval
       shadow.cljs.devtools.server.nrepl/cljs-select
