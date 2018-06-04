@@ -95,7 +95,7 @@
 (defn load-start []
   (dom-insert
     [:div {:id load-id
-           :style {:position "absolute"
+           :style {:position "fixed"
                    :pointer-events "none"
                    :left "0px"
                    :bottom "20px"
@@ -209,26 +209,41 @@
       (load-end)
       (dom-insert
         [:div
-         {:id hud-id
-          :style {:position "absolute"
-                  :z-index "10000"
-                  :left "0px"
-                  :bottom "0px"
-                  :right "0px"
-                  :padding "10px 10px 0 10px"
-                  :overflow "auto"
-                  :font-family "monospace"
-                  :font-size "12px"}}
-         (for [{:keys [warnings] :as src} sources-with-warnings
-               warning warnings]
-           (html-for-warning warning))])
-      )))
+         {:id    hud-id
+          :style {:position       "fixed"
+                  :z-index        "10000"
+                  :left           "0px"
+                  :bottom         "0px"
+                  :right          "0px"
+                  :display        "flex"
+                  :flex-direction "column"
+                  :font-family    "monospace"
+                  :font-size      "12px"}}
+         [:div {:style {:align-self    "flex-end"
+                        :background    "#fff"
+                        :border        "2px solid #ccc"
+                        :border-bottom "0px"
+                        :cursor        "pointer"
+                        :padding       "6px"
+                        :margin-bottom "-2px"
+                        :z-index       "1"}
+                :on    {:click hud-hide}}
+          "Close"]
+         [:div {:style {:background "#fff"
+                        :border-top "2px solid #ccc"
+                        :flex       "1"
+                        :max-height "300px"
+                        :padding    "10px 10px 0"
+                        :overflow   "auto"}}
+          (for [{:keys [warnings]} sources-with-warnings
+                warning warnings]
+            (html-for-warning warning))]]))))
 
 (defn hud-error [{:keys [report] :as msg}]
   (dom-insert
     [:div
      {:id hud-id
-      :style {:position "absolute"
+      :style {:position "fixed"
               :left "0px"
               :top "0px"
               :bottom "0px"
@@ -253,7 +268,7 @@
 (defn connection-error [msg]
   (dom-insert
     [:div {:id connection-error-id
-           :style {:position "absolute"
+           :style {:position "fixed"
                    :pointer-events "none"
                    :left "0px"
                    :bottom "20px"
