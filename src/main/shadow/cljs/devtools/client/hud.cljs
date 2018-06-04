@@ -201,6 +201,7 @@
 
         sources-with-warnings
         (->> sources
+             (remove :from-jar)
              (filter #(seq (:warnings %)))
              (into []))]
 
@@ -226,7 +227,7 @@
                         :cursor        "pointer"
                         :padding       "6px"
                         :margin-bottom "-2px"
-                        :z-index       "1"}
+                        :z-index       "10000"}
                 :on    {:click hud-hide}}
           "Close"]
          [:div {:style {:background "#fff"
