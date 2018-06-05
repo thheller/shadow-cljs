@@ -1,21 +1,22 @@
 (ns shadow.build
   (:refer-clojure :exclude (compile flush))
-  (:require [clojure.java.io :as io]
-            [clojure.spec.alpha :as s]
-            [clojure.string :as str]
-            [shadow.build.api :as build-api]
-            [shadow.build.config :as config]
-            [shadow.build.closure :as closure]
-            [shadow.build.warnings :as warnings]
-            [shadow.build.modules :as modules]
-
-    ;; FIXME: move these
-            [shadow.cljs.devtools.cljs-specs]
-            [shadow.build.data :as data]
-            [clojure.tools.logging :as log]
-            [shadow.build.log :as build-log]
-            [clojure.set :as set]
-            [shadow.cljs.util :as util]))
+  (:require
+    [clojure.java.io :as io]
+    [clojure.spec.alpha :as s]
+    [clojure.string :as str]
+    [clojure.tools.logging :as log]
+    [clojure.set :as set]
+    [shadow.cljs.util :as util]
+    [shadow.build.api :as build-api]
+    [shadow.build.config :as config]
+    [shadow.build.closure :as closure]
+    [shadow.build.warnings :as warnings]
+    [shadow.build.modules :as modules]
+    [shadow.build.data :as data]
+    [shadow.build.log :as build-log]
+    [shadow.build.async :as async]
+    [shadow.cljs.devtools.cljs-specs] ;; FIXME: move these
+    ))
 
 (defn enhance-warnings
   "adds source excerpts to warnings if line information is available"
@@ -377,6 +378,9 @@
    :post [(build-api/build-state? %)]}
   (-> state
       (process-stage :flush true)
+      ;; FIXME: technically don't need to wait for this to complete
+      ;; but ensures that the build is actually complete with no pending tasks
+      (async/wait-for-pending-tasks!)
       (assoc-in [::build-info :flush-complete] (System/currentTimeMillis))))
 
 

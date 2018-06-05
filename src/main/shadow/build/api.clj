@@ -158,6 +158,9 @@
        :previously-compiled
        #{}
 
+       :pending-tasks-ref
+       (atom [])
+
        :last-progress-ref
        (atom (System/currentTimeMillis))
 

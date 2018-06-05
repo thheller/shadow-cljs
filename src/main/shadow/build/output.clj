@@ -1,16 +1,18 @@
 (ns shadow.build.output
-  (:require [clojure.java.io :as io]
-            [cljs.source-map :as sm]
-            [shadow.cljs.util :as util]
-            [clojure.string :as str]
-            [cljs.compiler :as comp]
-            [clojure.data.json :as json]
-            [shadow.build.data :as data]
-            [clojure.set :as set]
-            [shadow.build.resource :as rc]
-            [shadow.build.log :as build-log]
-            [clojure.tools.logging :as log])
-  (:import (java.io StringReader BufferedReader File ByteArrayOutputStream)
+  (:require
+    [clojure.java.io :as io]
+    [cljs.source-map :as sm]
+    [clojure.set :as set]
+    [clojure.string :as str]
+    [cljs.compiler :as comp]
+    [clojure.data.json :as json]
+    [clojure.tools.logging :as log]
+    [shadow.build.data :as data]
+    [shadow.build.resource :as rc]
+    [shadow.build.log :as build-log]
+    [shadow.build.async :as async]
+    [shadow.cljs.util :as util])
+  (:import (java.io StringReader File ByteArrayOutputStream)
            (java.util Base64)
            (java.util.zip GZIPOutputStream)
            (shadow.build.closure SourceMapReport)))
@@ -194,38 +196,40 @@
 
       sm-text)))
 
+(defn flush-source [state src-id]
+  (let [{:keys [resource-name output-name last-modified] :as src}
+        (data/get-source-by-id state src-id)
+
+        {:keys [js compiled-at] :as output}
+        (data/get-output! state src)
+
+        js-file
+        (data/output-file state (get-in state [:build-options :cljs-runtime-path]) output-name)]
+
+    ;; skip files we already have
+    (when (or (not (.exists js-file))
+              (zero? last-modified)
+              ;; js is not compiled but maybe modified
+              (> (or compiled-at last-modified)
+                 (.lastModified js-file)))
+
+      (io/make-parents js-file)
+
+      (util/with-logged-time
+        [state {:type :flush-source
+                :resource-name resource-name}]
+
+        (let [output (str js (generate-source-map state src output js-file ""))]
+          (spit js-file output))))))
+
 (defn flush-sources
   ([{:keys [build-sources] :as state}]
    (flush-sources state build-sources))
-  ([{:keys [build-options] :as state} source-ids]
-   (let [{:keys [cljs-runtime-path]} build-options]
+  ([state source-ids]
+   (doseq [src-id source-ids]
+     (async/queue-task state #(flush-source state src-id)))
 
-     (util/with-logged-time
-       [state {:type :flush-sources
-               :source-ids source-ids}]
-       (doseq [src-id source-ids
-               :let [{:keys [output-name ns last-modified type] :as src}
-                     (data/get-source-by-id state src-id)
-
-                     {:keys [js] :as output}
-                     (data/get-output! state src)
-
-                     js-file
-                     (data/output-file state cljs-runtime-path output-name)]
-
-               ;; skip files we already have
-               :when (or (not (.exists js-file))
-                         (zero? last-modified)
-                         ;; js is not compiled but maybe modified
-                         (> (or (:compiled-at output) last-modified)
-                            (.lastModified js-file)))]
-
-         (io/make-parents js-file)
-
-         (let [output (str js (generate-source-map state src output js-file ""))]
-           (spit js-file output)))
-
-       state))))
+   state))
 
 (defmulti flush-optimized-module
   (fn [state mod]
