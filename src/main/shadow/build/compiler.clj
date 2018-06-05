@@ -2,6 +2,7 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]
             [clojure.set :as set]
+            [clojure.core.async :refer [go]]
             [clojure.java.io :as io]
             [clojure.tools.reader.reader-types :as readers]
             [clojure.tools.reader :as reader]
@@ -583,9 +584,16 @@
                  :ns-speced-vars ns-speced-vars
                  :compiler-options cache-compiler-options}]
 
-            (io/make-parents cache-file)
-            (cache/write-file cache-file cache-data)
-
+            (go
+              (try
+                (io/make-parents cache-file)
+                (cache/write-file cache-file cache-data)
+                (catch Exception e
+                  (util/warn state {:type   :cache-error
+                                    :action :write
+                                    :ns     ns
+                                    :id     resource-id
+                                    :error  e}))))
             true))
         (catch Exception e
           (util/warn state {:type :cache-error
