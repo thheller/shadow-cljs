@@ -706,8 +706,12 @@
     index
 
     ;; do not merge files that don't have the expected path for their ns
-    ;; not really needed but cljs does this, so we should enforce it as well
+    ;; ONLY enforce this for files in jars, since they sometimes contain
+    ;; invalid files which should never be used.
+    ;; for actual files the resource should be available but display a proper warning
+    ;; so it can be fixed. not including the file displays confusing errors otherwise.
     (and (= :cljs (:type rc))
+         (:from-jar rc)
          (symbol? (:ns rc))
          (let [expected-cljs (util/ns->cljs-filename (:ns rc))
                expected-cljc (str/replace expected-cljs #".cljs$" ".cljc")]
@@ -760,8 +764,20 @@
           existing-provides
           (into #{} lookup-xf provides)
 
-          {:keys [file resource-id]}
-          rc]
+          expected-name
+          (util/ns->cljs-filename (:ns rc))
+
+          expected-filename?
+          (and (= :cljs (:type rc))
+               (symbol? (:ns rc))
+               (let [expected-cljc (str/replace expected-name #".cljs$" ".cljc")]
+                 (or (= resource-name expected-name)
+                     (= resource-name expected-cljc))))
+          rc
+          (cond-> rc
+            (not expected-filename?)
+            (assoc :unexpected-name true
+                   :expected-name expected-name))]
 
       (cond
         ;; don't merge .cljc file if a .cljs of the same name exists

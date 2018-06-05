@@ -91,7 +91,7 @@
    {:aot [repl]}
 
    :cljs
-   {:java-opts ^:replace []
+   {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
     :dependencies
     [[cider/cider-nrepl "0.16.0"]]
     :repl-options

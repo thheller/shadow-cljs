@@ -77,8 +77,20 @@
     (throw (ex-info "ns* not supported (require, require-macros, import, import-macros, ... must be part of your ns form)" ast))
     ast))
 
+(defmethod ana/error-message ::unexpected-name
+  [warning-type {:keys [resource-name expected-name] :as info}]
+  (format "Invalid Filename, got %s but expected %s (or .cljc)" resource-name expected-name))
+
 (defn hijacked-parse-ns [env form rc opts]
   (let [build-state (cljs-bridge/get-build-state)]
+    (when (:unexpected-name rc)
+      (let [ns-sym-meta (-> form second meta)]
+        (ana/warning
+          ::unexpected-name
+          ;; want the warning to highlight the symbol not the ns-form
+          (merge env (select-keys ns-sym-meta [:line :column :end-line :end-column]))
+          (select-keys rc [:resource-name :expected-name :file :url]))))
+
     (-> (ns-form/parse form)
         (ns-form/rewrite-ns-aliases build-state)
         (ns-form/rewrite-js-deps build-state)
@@ -398,7 +410,6 @@
                 (= ns 'cljs.core)
                 (update :js str "\n" (make-runtime-setup state))
                 )))))))
-
 
 (defn get-cache-file-for-rc
   ^File [state {:keys [resource-name] :as rc}]
