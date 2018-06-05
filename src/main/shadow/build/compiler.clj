@@ -610,7 +610,7 @@
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
    make sure you are in with-compiler-env"
-  [{:keys [build-options] :as state} {:keys [resource-id resource-name from-jar file url] :as rc}]
+  [{:keys [build-options previously-compiled] :as state} {:keys [resource-id resource-name from-jar file url] :as rc}]
   (let [{:keys [cache-level]}
         build-options
 
@@ -623,7 +623,7 @@
                       from-jar))
              (not (is-cache-blocked? state rc)))]
 
-    (or (when cache?
+    (or (when (and cache? (not (contains? previously-compiled resource-id)))
           (load-cached-cljs-resource state rc))
         (let [source
               (data/get-source-code state rc)
@@ -908,7 +908,7 @@
    eg. you cannot just compile clojure.string as it requires other files to be compiled first "
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
-  ([{:keys [executor last-progress-ref] :as state} source-ids]
+  ([{:keys [build-sources last-progress-ref] :as state} source-ids]
     ;; throwing js parser errors here so they match other error sources
     ;; as other errors will be thrown later on in this method as well
    (throw-js-errors-now! state)
@@ -978,7 +978,10 @@
            #_(and optimizing? (seq npm))
            #_(copy-source-to-output npm))
 
-
+         ;; remember which sources were compiled for watch mode
+         ;; otherwise it will attempt to load cache from disk although
+         ;; that just got invalidated elsewhere
+         (update :previously-compiled into build-sources)
          (remove-dead-js-deps)
          (assoc :compile-finish (System/currentTimeMillis))
          ))))

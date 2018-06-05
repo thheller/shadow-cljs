@@ -144,6 +144,20 @@
        :js-properties
        #{}
 
+       ;; resource-id -> resource
+       :sources
+       {}
+
+       ;; resource-id -> output
+       :output
+       {}
+
+       ;; set of resource-ids that were previously compiled (in watch mode)
+       ;; if the id is present it will skip loading the cache for it on recompile
+       ;; since that will always be stale
+       :previously-compiled
+       #{}
+
        :last-progress-ref
        (atom (System/currentTimeMillis))
 

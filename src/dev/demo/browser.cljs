@@ -89,7 +89,7 @@
     (fn []
       (js/console.log "browser-stop async complete")
       (done))
-    250))
+    10))
 
 (defn stop-from-config [done]
   (js/console.log "browser-stop-from-config async")
@@ -97,7 +97,7 @@
     (fn []
       (js/console.log "browser-stop-from-config async complete")
       (done))
-    250))
+    10))
 
 (comment
   (defrecord Foo [a b])
