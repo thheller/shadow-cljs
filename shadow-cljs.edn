@@ -356,6 +356,11 @@
    :entries [demo.npm
              demo.rel-require]}
 
+  :azure-fn
+  {:target :azure-fn
+   :entry-fn demo.azure.simple/test-fn
+   :output-dir "out/azure-fn/simple"}
+
   :expo-ios
   {:target :react-native
    :init-fn demo.rn/init
