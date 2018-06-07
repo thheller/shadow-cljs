@@ -14,25 +14,34 @@
             [shadow.build.data :as data]))
 
 (s/def ::exports
-  (s/or
-    :fn
-    shared/unquoted-qualified-symbol?
+  (s/map-of
+    simple-keyword?
+    shared/unquoted-qualified-symbol?))
 
-    :map
-    (s/map-of
-      simple-keyword?
-      shared/unquoted-qualified-symbol?)))
+(s/def ::exports-fn shared/unquoted-qualified-symbol?)
+
+(s/def ::exports-var shared/unquoted-qualified-symbol?)
 
 (s/def ::umd-root-name shared/non-empty-string?)
 
 (s/def ::target
-  (s/keys
-    :req-un
-    [::exports
-     ::shared/output-to]
-    :opt-un
-    [::shared/output-dir
-     ::umd-root-name]
+  (s/and
+    (s/keys
+      :req-un
+      [::shared/output-to]
+      :opt-un
+      [::shared/output-dir
+       ::exports
+       ::exports-var
+       ::exports-fn
+       ::umd-root-name])
+    (s/or
+      :exports
+      #(contains? % :exports)
+      :exports-fn
+      #(contains? % :exports-fn)
+      :exports-sym
+      #(contains? % :exports-sym))
     ))
 
 (defmethod config/target-spec :node-library [_]
@@ -41,17 +50,18 @@
 (defmethod config/target-spec `process [_]
   (s/spec ::target))
 
-(defn create-module [state {:keys [exports output-to umd-root-name] :as config}]
+(defn create-module [state {:keys [exports exports-fn exports-var output-to umd-root-name] :as config}]
   {:pre [(data/build-state? state)
-         (map? config)
-         (or (qualified-symbol? exports)
-             (and (map? exports)
-                  (seq exports)))]}
+         (map? config)]}
 
   (let [[entries get-exports]
         (cond
-          (qualified-symbol? exports)
-          [#{(-> exports namespace symbol)}
+          exports-var
+          [#{(-> exports-var namespace symbol)}
+           exports-var]
+
+          exports-fn
+          [#{(-> exports-fn namespace symbol)}
            `(~exports)]
 
           (map? exports)
@@ -116,12 +126,17 @@
 
 (defn check-exports!
   [{:keys [compiler-env] :as state}
-   {:keys [exports] :as config}]
+   {:keys [exports exports-fn exports-var] :as config}]
 
   (doseq [[export-name export-sym]
-          (if (map? exports)
-            exports
-            {:module.exports exports})]
+          (cond
+            exports-fn
+            {:module.exports exports-fn}
+            exports-var
+            {:module.exports exports-var}
+            (map? exports)
+            exports)]
+
     (let [export-ns (symbol (namespace export-sym))
           export-fn (symbol (name export-sym))]
 
@@ -135,11 +150,6 @@
 
 (defn configure [state mode {:keys [id] :as config}]
   (-> state
-      (cond->
-        (and (= :release mode)
-             (nil? (get-in config [:compiler-options :optimizations])))
-        (cljs/merge-compiler-options {:optimizations :simple}))
-
       ;; node builds should never attempt to import libs through closure
       (assoc-in [:js-options :js-provider] :require)
       (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
