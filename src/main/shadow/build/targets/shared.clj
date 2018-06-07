@@ -60,6 +60,52 @@
      ::use-document-host
      ::devtools-url]))
 
+(s/def ::entry
+  (s/or :sym unquoted-simple-symbol?
+    :str string?))
+
+(s/def ::init-fn unquoted-qualified-symbol?)
+
+(s/def ::entries
+  (s/coll-of ::entry :kind vector?))
+
+(s/def ::output-dir non-empty-string?)
+(s/def ::asset-path non-empty-string?)
+
+;; OLD, only allowed in config so they don't break.
+;; rewritten to :output-dir and :asset-path
+(s/def ::public-dir non-empty-string?)
+(s/def ::public-path non-empty-string?)
+;; ---
+
+;; will just be added as is (useful for comments, license, ...)
+(s/def ::prepend string?)
+(s/def ::append string?)
+
+;; these go through closure optimized, should be valid js
+(s/def ::prepend-js string?)
+(s/def ::append-js string?)
+
+(s/def ::depends-on
+  (s/coll-of keyword? :kind set?))
+
+(s/def ::module
+  (s/keys
+    :opt-un
+    [::entries
+     ::entry
+     ::init-fn
+     ::depends-on
+     ::prepend
+     ::prepend-js
+     ::append-js
+     ::append]))
+
+(s/def ::modules
+  (s/map-of
+    keyword?
+    ::module))
+
 (defn prepend [tail head]
   {:pre [(vector? head)]}
   (into head tail))

@@ -23,63 +23,19 @@
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
             [shadow.build.log :as build-log]))
 
-(s/def ::entry
-  (s/or :sym shared/unquoted-simple-symbol?
-    :str string?))
-
-(s/def ::entries
-  (s/coll-of ::entry :kind vector?))
-
-(s/def ::output-dir shared/non-empty-string?)
-(s/def ::asset-path shared/non-empty-string?)
-
-;; OLD, only allowed in config so they don't break.
-;; rewritten to :output-dir and :asset-path
-(s/def ::public-dir shared/non-empty-string?)
-(s/def ::public-path shared/non-empty-string?)
-;; ---
-
-;; will just be added as is (useful for comments, license, ...)
-(s/def ::prepend string?)
-(s/def ::append string?)
-
-;; these go through closure optimized, should be valid js
-(s/def ::prepend-js string?)
-(s/def ::append-js string?)
-
 (s/def ::module-loader boolean?)
-
-(s/def ::depends-on
-  (s/coll-of keyword? :kind set?))
-
-(s/def ::module
-  (s/keys
-    :req-un
-    [::entries]
-    :opt-un
-    [::depends-on
-     ::prepend
-     ::prepend-js
-     ::append-js
-     ::append]))
-
-(s/def ::modules
-  (s/map-of
-    keyword?
-    ::module))
 
 (s/def ::target
   (s/keys
     :req-un
-    [::modules]
+    [::shared/modules]
     :opt-un
     [::module-loader
-     ::output-dir
-     ::asset-path
-     ::public-dir
-     ::public-path
-     ::shared/devtools]
-    ))
+     ::shared/output-dir
+     ::shared/asset-path
+     ::shared/public-dir
+     ::shared/public-path
+     ::shared/devtools]))
 
 (defmethod config/target-spec :browser [_]
   (s/spec ::target))

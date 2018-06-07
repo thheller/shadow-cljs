@@ -9,8 +9,23 @@
             [shadow.build.targets.shared :as shared]
             [shadow.build.classpath :as cp]
             [shadow.cljs.repl :as repl]
-            [shadow.build.targets.browser :as browser])
-  (:import [java.net NetworkInterface InetAddress Inet4Address]))
+            [shadow.build.targets.browser :as browser]
+            [clojure.spec.alpha :as s]
+            [shadow.build.config :as config]))
+
+(s/def ::runtime #{:node :browser :react-native})
+
+(s/def ::target
+  (s/keys
+    :req-un
+    [::shared/output-dir]
+    :opt-un
+    [::runtime
+     ::shared/entries
+     ::shared/devtools]))
+
+(defmethod config/target-spec :npm-module [_]
+  (s/spec ::target))
 
 (defn configure [state mode {:keys [runtime entries output-dir] :as config}]
   (-> state

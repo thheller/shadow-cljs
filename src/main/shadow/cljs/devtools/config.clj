@@ -46,11 +46,11 @@
       {}
       builds)
 
-    ;; ensure that each build has an :id so user isn't forced to repeat it
+    ;; ensure that each build has an :build-id so user isn't forced to repeat it
     (map? builds)
     (reduce-kv
       (fn [builds id build]
-        (assoc builds id (assoc build :id id :build-id id)))
+        (assoc builds id (assoc build :build-id id)))
       {}
       builds)
 
