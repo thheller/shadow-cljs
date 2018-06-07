@@ -62,7 +62,7 @@
 
           exports-fn
           [#{(-> exports-fn namespace symbol)}
-           `(~exports)]
+           `(~exports-fn)]
 
           (map? exports)
           [(->> exports
