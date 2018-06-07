@@ -31,11 +31,9 @@
             [shadow.build.classpath :as build-classpath]
             [shadow.cljs.devtools.server.system-msg :as system-msg]
             [shadow.cljs.devtools.server.system-bus :as system-bus])
-  (:import (java.net BindException NetworkInterface Inet4Address)
+  (:import (java.net BindException)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
-
-
 
 (defn wait-for [app-ref]
   (or @app-ref
@@ -153,39 +151,6 @@
 
 (declare stop!)
 
-(defn find-local-addrs []
-  (for [ni (enumeration-seq (NetworkInterface/getNetworkInterfaces))
-        :when (not (.isLoopback ni))
-        :when (.isUp ni)
-        :let [display-name (.getDisplayName ni)]
-        :when
-        (and (not (str/includes? display-name "VirtualBox"))
-             (not (str/includes? display-name "vboxnet"))
-             (not (str/includes? display-name "utun")))
-        addr (enumeration-seq (.getInetAddresses ni))
-        ;; probably don't need ipv6 for dev
-        :when (instance? Inet4Address addr)]
-    [ni addr]))
-
-;; (prn (find-local-addrs))
-
-(defn select-server-addr []
-  (let [addrs (find-local-addrs)]
-    (when (seq addrs)
-      (let [[ni addr] (first addrs)]
-
-        (println (format "shadow-cljs - Using IP \"%s\" from Interface \"%s\"" (.getHostAddress addr) (.getDisplayName ni)))
-
-        (when (not= 1 (count addrs))
-          (log/infof "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.")
-          (doseq [[ni addr] addrs]
-            (log/infof "Found IP:%s Interface:%s" (.getHostAddress addr) (.getDisplayName ni))))
-
-        ;; would be neat if we could just use InetAddress/getLocalHost
-        ;; but that returns my VirtualBox Adapter for some reason
-        ;; which is incorrect and doesn't work
-        (.getHostAddress addr)))))
-
 (defn start-system
   [app-ref app-config {:keys [cache-root] :as config}]
   (when @app-ref
@@ -193,9 +158,6 @@
 
   (let [{:keys [http ssl]}
         config
-
-        server-addr
-        (select-server-addr)
 
         pid
         (-> (ManagementFactory/getRuntimeMXBean)
@@ -268,8 +230,6 @@
              :port-files-ref port-files-ref
              :cli-repl cli-repl}
             (cond->
-              server-addr
-              (assoc-in [:http :addr] server-addr)
               socket-repl
               (assoc :socket-repl socket-repl)
               nrepl
@@ -394,15 +354,21 @@
            pom-xml
            (io/resource "META-INF/maven/thheller/shadow-cljs/pom.xml")
 
+           http-host
+           (let [host (:host http)]
+             (if (= host "0.0.0.0")
+               "localhost"
+               host))
+
            version
            (if (nil? pom-xml)
              "<snapshot>"
              (find-version-from-pom pom-xml))]
 
        (println (str "shadow-cljs - server version: " version))
-       (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" (:host http) ":" (:port http)))
-       (println (str "shadow-cljs - socket repl running at " (:host socket-repl) ":" (:port socket-repl)))
-       (println (str "shadow-cljs - nREPL server started on port " (:port nrepl)))
+       (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" http-host ":" (:port http)))
+       (println (str "shadow-cljs - socket REPL running on port " (:port socket-repl)))
+       (println (str "shadow-cljs - nREPL server running on port " (:port nrepl)))
 
        ::started
        ))))

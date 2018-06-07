@@ -66,14 +66,13 @@
 
 (defn repl-defines
   [{:keys [worker-info] :as state} build-config]
-  (let [{:keys [proc-id ssl addr host port]}
+  (let [{:keys [proc-id ssl host port]}
         worker-info
 
         {:keys [build-id]}
         build-config
 
         {:keys [ignore-warnings
-                reload-with-state
                 devtools-url
                 before-load
                 before-load-async
@@ -83,44 +82,41 @@
                 repl-pprint]}
         (:devtools build-config)]
 
-    {"shadow.cljs.devtools.client.env.enabled"
+    {'shadow.cljs.devtools.client.env/enabled
      true
 
-     "shadow.cljs.devtools.client.env.autoload"
+     'shadow.cljs.devtools.client.env/autoload
      (or autoload (some? before-load) (some? after-load) (some? before-load-async))
 
-     "shadow.cljs.devtools.client.env.module_format"
+     'shadow.cljs.devtools.client.env/module-format
      (name (get-in state [:build-options :module-format]))
 
-     "shadow.cljs.devtools.client.env.use_document_host"
+     'shadow.cljs.devtools.client.env/use-document-host
      (not (false? use-document-host))
 
-     "shadow.cljs.devtools.client.env.repl_host"
-     (or addr host)
+     'shadow.cljs.devtools.client.env/server-host
+     (or host "localhost")
 
-     "shadow.cljs.devtools.client.env.repl_port"
+     'shadow.cljs.devtools.client.env/server-port
      port
 
-     "shadow.cljs.devtools.client.env.repl_pprint"
+     'shadow.cljs.devtools.client.env/repl-pprint
      (true? repl-pprint)
 
-     "shadow.cljs.devtools.client.env.ignore_warnings"
+     'shadow.cljs.devtools.client.env/ignore-warnings
      (true? ignore-warnings)
 
-     "shadow.cljs.devtools.client.env.ssl"
+     'shadow.cljs.devtools.client.env/ssl
      (true? ssl)
 
-     "shadow.cljs.devtools.client.env.build_id"
+     'shadow.cljs.devtools.client.env/build-id
      (name build-id)
 
-     "shadow.cljs.devtools.client.env.proc_id"
+     'shadow.cljs.devtools.client.env/proc-id
      (str proc-id)
 
-     "shadow.cljs.devtools.client.env.devtools_url"
+     'shadow.cljs.devtools.client.env/devtools-url
      (or devtools-url "")
-
-     "shadow.cljs.devtools.client.env.reload_with_state"
-     (boolean reload-with-state)
      }))
 
 (defn merge-repl-defines [state config]

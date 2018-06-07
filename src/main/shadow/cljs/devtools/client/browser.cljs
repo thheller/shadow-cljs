@@ -280,7 +280,7 @@
 
 (defn compile [text callback]
   (xhr/send
-    (str "http" (when env/ssl "s") "://" env/repl-host ":" env/repl-port "/worker/compile/" env/build-id "/" env/proc-id "/browser")
+    (str "http" (when env/ssl "s") "://" env/server-host ":" env/server-port "/worker/compile/" env/build-id "/" env/proc-id "/browser")
     (fn [res]
       (this-as ^goog req
         (let [actions

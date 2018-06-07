@@ -21,9 +21,9 @@
 
 (goog-define proc-id "")
 
-(goog-define repl-host "")
+(goog-define server-host "")
 
-(goog-define repl-port 8200)
+(goog-define server-port 8200)
 
 (goog-define repl-pprint false)
 
@@ -35,18 +35,24 @@
 
 (goog-define ignore-warnings false)
 
-(defn get-repl-host []
-  (if (and use-document-host
-           js/goog.global.document
-           js/goog.global.document.location
-           (seq js/goog.global.document.location.hostname))
+(defn get-server-host []
+  (cond
+    (and use-document-host
+         js/goog.global.document
+         js/goog.global.document.location
+         (seq js/goog.global.document.location.hostname))
     js/document.location.hostname
-    repl-host))
+
+    (seq server-host)
+    server-host
+
+    :else
+    "localhost"))
 
 (defn get-url-base []
   (if (seq devtools-url)
     devtools-url
-    (str "http" (when ssl "s") "://" (get-repl-host) ":" repl-port)))
+    (str "http" (when ssl "s") "://" (get-server-host) ":" server-port)))
 
 (defn get-ws-url-base []
   (-> (get-url-base)

@@ -14,7 +14,9 @@
             [shadow.build.output :as output]
             [clojure.java.io :as io]
             [shadow.build.data :as data]
-            [shadow.cljs.util :as util]))
+            [shadow.cljs.util :as util]
+            [shadow.cljs.devtools.api :as api]
+            [shadow.build.log :as build-log]))
 
 (s/def ::init-fn qualified-symbol?)
 
@@ -30,6 +32,19 @@
 
 (defmethod config/target-spec `process [_]
   (s/spec ::target))
+
+(defmethod build-log/event->str ::server-addr
+  [{:keys [addr]}]
+  (format "Using IP: %s" addr))
+
+(defn set-server-host [state {:keys [local-ip] :as config}]
+  (let  [server-addr (or local-ip (api/get-server-addr))]
+
+    (util/log state {:type ::server-addr :addr server-addr})
+
+    (assoc-in state
+      [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]
+      (str server-addr))))
 
 (defn configure [state mode {:keys [build-id init-fn output-to] :as config}]
   (let [output-file
@@ -65,6 +80,7 @@
           (:worker-info state)
           (-> (repl/setup)
               (shared/merge-repl-defines config)
+              (set-server-host config)
               (update-in [::modules/config :index :entries] shared/prepend
                 '[cljs.user
                   shadow.cljs.devtools.client.react-native]))))))

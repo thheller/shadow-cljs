@@ -25,7 +25,9 @@
     [shadow.build.output :as output]
     [shadow.build.log :as build-log]
     [shadow.core-ext :as core-ext]
-    [shadow.cljs.devtools.release-snapshot :as snapshot]))
+    [shadow.cljs.devtools.release-snapshot :as snapshot]
+    [clojure.string :as str])
+  (:import [java.net Inet4Address NetworkInterface]))
 
 ;; nREPL support
 
@@ -699,3 +701,37 @@
     ::test-affected))
 
 
+(defn- find-local-addrs []
+  (for [ni (enumeration-seq (NetworkInterface/getNetworkInterfaces))
+        :when (not (.isLoopback ni))
+        :when (.isUp ni)
+        :let [display-name (.getDisplayName ni)]
+        :when
+        (and (not (str/includes? display-name "VirtualBox"))
+             (not (str/includes? display-name "vboxnet"))
+             (not (str/includes? display-name "utun"))
+             (not (re-find #"tun\d+" display-name)))
+        addr (enumeration-seq (.getInetAddresses ni))
+        ;; probably don't need ipv6 for dev
+        :when (instance? Inet4Address addr)]
+    [ni addr]))
+
+;; (prn (find-local-addrs))
+
+(defn get-server-addr []
+  (let [addrs (find-local-addrs)]
+    (when (seq addrs)
+      (let [[ni addr] (first addrs)]
+
+        (comment
+          (println (format "shadow-cljs - Using IP \"%s\" from Interface \"%s\"" (.getHostAddress addr) (.getDisplayName ni)))
+
+          (when (not= 1 (count addrs))
+            (log/infof "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.")
+            (doseq [[ni addr] addrs]
+              (log/infof "Found IP:%s Interface:%s" (.getHostAddress addr) (.getDisplayName ni)))))
+
+        ;; would be neat if we could just use InetAddress/getLocalHost
+        ;; but that returns my VirtualBox Adapter for some reason
+        ;; which is incorrect and doesn't work
+        (.getHostAddress addr)))))
