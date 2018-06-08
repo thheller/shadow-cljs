@@ -40,8 +40,8 @@
       #(contains? % :exports)
       :exports-fn
       #(contains? % :exports-fn)
-      :exports-sym
-      #(contains? % :exports-sym))
+      :exports-var
+      #(contains? % :exports-var))
     ))
 
 (defmethod config/target-spec :node-library [_]
