@@ -7,11 +7,6 @@
             [clojure.tools.logging :as log])
   (:import (java.io PushbackReader Writer InputStreamReader BufferedReader IOException)))
 
-(def worker-file
-  "node_modules/shadow-cljs/cli/dist/shadow.cljs.npm.transform.js"
-  #_"packages/shadow-cljs/cli/transform.js"
-  )
-
 (defn service? [x]
   (and (map? x) (::service x)))
 
@@ -35,7 +30,10 @@
     state
     (let [proc
           (-> (ProcessBuilder.
-                (into-array ["node" worker-file]))
+                ;; let node resolve where the actual worker file is
+                ;; this can either be in the project, any parent path or a global install
+                ;; all should work fine
+                (into-array ["node" "--eval" "require('shadow-cljs/cli/dist/shadow.cljs.npm.transform')"]))
               (.directory nil)
               (.start))]
 
@@ -85,9 +83,6 @@
       (shutdown state))))
 
 (defn start []
-  (when-not (.exists (io/file worker-file))
-    (log/warnf "can't find %s, please run \"npm install --save-dev shadow-cljs\" or \"yarn add --dev shadow-cljs\" to install it." worker-file))
-
   (let [babel-in (async/chan 100)]
     {::service true
      :babel-in babel-in

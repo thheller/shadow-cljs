@@ -693,61 +693,59 @@
                   (into [] args) ;; starts out as JS array
 
                   config
-                  (read-config config-path opts)]
+                  (read-config config-path opts)
 
-              (when (check-project-install! project-root config)
+                  {:keys [cache-root version] :as config}
+                  (merge defaults config)
 
-                (let [{:keys [cache-root version] :as config}
-                      (merge defaults config)
+                  server-port-file
+                  (path/resolve project-root cache-root "cli-repl.port")
 
-                      server-port-file
-                      (path/resolve project-root cache-root "cli-repl.port")
+                  server-pid-file
+                  (path/resolve project-root cache-root "server.pid")
 
-                      server-pid-file
-                      (path/resolve project-root cache-root "server.pid")
+                  server-running?
+                  (and (fs/existsSync server-port-file)
+                       (fs/existsSync server-pid-file))]
 
-                      server-running?
-                      (and (fs/existsSync server-port-file)
-                           (fs/existsSync server-pid-file))]
+              (mkdirp/sync (path/resolve project-root cache-root))
 
-                  (mkdirp/sync (path/resolve project-root cache-root))
+              (when (and (not server-running?) (fs/existsSync server-pid-file))
+                (log "shadow-cljs - server pid exists but server appears to be dead, proceeding without server.")
+                (fs/unlinkSync server-pid-file))
 
-                  (when (and (not server-running?) (fs/existsSync server-pid-file))
-                    (log "shadow-cljs - server pid exists but server appears to be dead, proceeding without server.")
-                    (fs/unlinkSync server-pid-file))
+              (log "shadow-cljs - config:" config-path " cli version:" version " node:" js/process.version)
 
-                  (log "shadow-cljs - config:" config-path " cli version:" version " node:" js/process.version)
+              (cond
+                (or (:cli-info options)
+                    (= :info action))
+                (print-cli-info project-root config-path config opts)
 
-                  (cond
-                    (or (:cli-info options)
-                        (= :info action))
-                    (print-cli-info project-root config-path config opts)
+                (= :pom action)
+                (generate-pom project-root config-path config opts)
 
-                    (= :pom action)
-                    (generate-pom project-root config-path config opts)
+                (= :start action)
+                (if server-running?
+                  (log "shadow-cljs - server already running")
+                  (server-start project-root config args opts))
 
-                    (= :start action)
-                    (if server-running?
-                      (log "shadow-cljs - server already running")
-                      (server-start project-root config args opts))
+                (= :stop action)
+                (if-not server-running?
+                  (log "shadow-cljs - server not running")
+                  (server-stop project-root config server-port-file server-pid-file args opts))
 
-                    (= :stop action)
-                    (if-not server-running?
-                      (log "shadow-cljs - server not running")
-                      (server-stop project-root config server-port-file server-pid-file args opts))
+                (= :restart action)
+                (go (when server-running?
+                      (<! (server-stop project-root config server-port-file server-pid-file args opts)))
+                    (server-start project-root config args opts))
 
-                    (= :restart action)
-                    (go (when server-running?
-                          (<! (server-stop project-root config server-port-file server-pid-file args opts)))
-                        (server-start project-root config args opts))
+                (and server-running? (not (:force-spawn options)))
+                (client/run project-root config server-port-file opts args
+                  #(do-start project-root config args opts))
 
-                    (and server-running? (not (:force-spawn options)))
-                    (client/run project-root config server-port-file opts args
-                      #(do-start project-root config args opts))
-
-                    :else
-                    (do-start project-root config args opts)
-                    ))))))))
+                :else
+                (do-start project-root config args opts)
+                ))))))
     (catch :default ex
       (print-error ex)
       (js/process.exit 1))))
