@@ -8,10 +8,13 @@
 
 (defn get-source-excerpts [source locations]
   (let [source-lines
-        (into [] (-> source
-                     (StringReader.)
-                     (BufferedReader.)
-                     (line-seq)))
+        (-> []
+            (into (-> source (StringReader.) (BufferedReader.) (line-seq)))
+            (cond->
+              ;; add additional line since EOF errors otherwise are out of bounds
+              ;; better matches how editors show EOF errors
+              (str/ends-with? source "\n")
+              (conj "")))
 
         excerpt-offset
         4 ;; +/- lines to show
@@ -21,21 +24,23 @@
 
         make-source-excerpt
         (fn [line col]
-          (let [before
-                (Math/max 0 (- line excerpt-offset))
+          (let [idx (Math/max 0 (dec line))]
 
-                idx
-                (Math/max 0 (dec line))
+            ;; safety check just in case the line is invalid and not actual in the file
+            (when (contains? source-lines idx)
+              (let [before
+                    (Math/max 0 (- line excerpt-offset))
 
-                after
-                (Math/min max-lines (+ line excerpt-offset))]
+                    after
+                    (Math/min max-lines (+ line excerpt-offset))]
 
-            {:start-idx before
-             :before (subvec source-lines before idx)
-             :line (nth source-lines idx)
-             :after (subvec source-lines line after)}))]
+                {:start-idx before
+                 :before (subvec source-lines before idx)
+                 :line (nth source-lines idx)
+                 :after (subvec source-lines line after)}
+                ))))]
 
-    (->> (for [{:keys [line column] :as location} locations]
+    (->> (for [{:keys [line column]} locations]
            (make-source-excerpt line column))
          (into []))))
 

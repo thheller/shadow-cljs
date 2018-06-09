@@ -162,6 +162,11 @@
   {:target :node-test
    :output-to "out/demo-test-node/script.js"}
 
+  :test-fail
+  {:target :node-test
+   :output-to "out/demo-test-node-fail/script.js"
+   :ns-regexp "demo.test-fail"}
+
   :test-karma
   {:target :karma
    :output-to "out/demo-karma/test.js"}

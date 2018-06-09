@@ -642,7 +642,7 @@
               (try
                 (do-compile-cljs-resource state rc source)
                 (catch Exception e
-                  (let [{:keys [tag line] :as data}
+                  (let [{:keys [type ex-kind line] :as data}
                         (ex-data e)
 
                         column
@@ -656,6 +656,12 @@
                              :url url
                              :file file}
                             (cond->
+                              ex-kind
+                              (assoc :ex-kind ex-kind)
+
+                              type
+                              (assoc :ex-type type)
+
                               line
                               (assoc :line line)
 
@@ -664,12 +670,10 @@
 
                               (and data line column)
                               (assoc :source-excerpt
-                                     (warnings/get-source-excerpt-for-rc
-                                       ;; FIXME: this is a bit ugly but compilation failed so the source is not in state
-                                       ;; but the warnings extractor wants to access it
-                                       (assoc-in state [:output resource-id] {:source source})
-                                       rc
-                                       {:line line :column column}))))]
+                                     (let [[source-excerpt]
+                                           (warnings/get-source-excerpts source [{:line line :column column}])]
+                                       source-excerpt
+                                       ))))]
 
                     (throw (ex-info (format "failed to compile resource: %s" resource-id) err-data e)))))]
 
