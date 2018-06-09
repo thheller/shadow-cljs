@@ -11,7 +11,7 @@
     [shadow.build.babel :as babel]
     [shadow.cljs.devtools.plugin-manager :as plugin-mgr])
   (:import (java.io ByteArrayOutputStream InputStream)
-           (java.util.concurrent Executors)))
+           (java.util.concurrent Executors TimeUnit)))
 
 (def app-config
   {:edn-reader
@@ -62,7 +62,10 @@
         (Executors/newFixedThreadPool n-threads)))
     :stop
     (fn [ex]
-      (.shutdown ex))}
+      (.shutdown ex)
+      (try
+        (.awaitTermination ex 10 TimeUnit/SECONDS)
+        (catch InterruptedException ex)))}
 
    :classpath
    {:depends-on [:cache-root]
