@@ -21,14 +21,17 @@
 
         make-source-excerpt
         (fn [line col]
-          (let [before
-                (Math/max 0 (- line excerpt-offset))
+          (let [line
+                (Math/max 0 (Math/min line (dec max-lines))) ;; too paranoid?
+
+                before
+                (Math/min (Math/max 0 (- line excerpt-offset)) (dec max-lines))
 
                 idx
-                (Math/max 0 (dec line))
+                (Math/min (Math/max 0 line) (dec max-lines))
 
                 after
-                (Math/min max-lines (+ line excerpt-offset))]
+                (Math/max 0 (Math/min (+ line excerpt-offset) (dec max-lines)))]
 
             {:start-idx before
              :before (subvec source-lines before idx)
