@@ -186,3 +186,9 @@
         (not (seq output-dir))
         (assoc-in [:build-options :output-dir] (data/cache-file state "out")))))
 
+(defn inject-preloads [state module-id config]
+  (let [preloads (get-in config [:devtools :preloads])]
+    (if-not (seq preloads)
+      state
+      (update-in state [::modules/config module-id :entries] prepend preloads)
+      )))

@@ -31,11 +31,6 @@
 
 (defn configure [state mode config]
   (-> state
-      (cond->
-        (and (= :release mode)
-             (nil? (get-in config [:compiler-options :optimizations])))
-        (cljs/merge-compiler-options {:optimizations :simple}))
-
       (shared/set-output-dir mode config)
       (node/configure config)
 
@@ -46,7 +41,11 @@
       (cond->
         (:worker-info state)
         (-> (repl/setup)
-            (shared/inject-node-repl config)))))
+            (shared/inject-node-repl config))
+
+        (= :dev mode)
+        (shared/inject-preloads :main config)
+        )))
 
 (defn check-main-exists! [{:keys [compiler-env node-config] :as state}]
   (let [{:keys [main main-ns main-fn]} node-config]
