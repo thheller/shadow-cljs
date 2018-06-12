@@ -19,7 +19,8 @@
             [shadow.cljs.devtools.errors :as errors]
             [shadow.build.warnings :as warnings]
             [shadow.debug :as dbg]
-            [shadow.build.data :as data]))
+            [shadow.build.data :as data]
+            [shadow.build.resource :as rc]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -578,6 +579,7 @@
         updates
         (->> updates
              (filter #(= :mod (:event %)))
+             (map #(update % :name rc/normalize-name))
              (map #(str watch-path "/" (:name %)))
              (into []))]
     ;; only interested in file modifications

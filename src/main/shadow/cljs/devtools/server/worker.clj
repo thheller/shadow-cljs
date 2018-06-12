@@ -299,7 +299,8 @@
             (cond->
               (seq watch-dir)
               (assoc :fs-watch
-                     (let [watch-dir (io/file watch-dir)]
+                     (let [watch-dir (-> (io/file watch-dir)
+                                         (.getCanonicalFile))]
                        (when-not (.exists watch-dir)
                          (io/make-parents (io/file watch-dir "dummy.html")))
                        (fs-watch/start (:fs-watch config) [watch-dir] watch-exts #(async/>!! asset-update %))))))]
