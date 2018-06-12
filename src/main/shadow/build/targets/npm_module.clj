@@ -53,6 +53,8 @@
             (shared/merge-repl-defines
               (update config :devtools merge {:autolaod false ;; doesn't work yet, use built-in for now
                                               :use-document-host false})))
+        (= :dev mode)
+        (shared/inject-preloads :main config)
         )))
 
 (defn resolve* [module-config {:keys [classpath] :as state} mode {:keys [entries runtime] :as config}]
