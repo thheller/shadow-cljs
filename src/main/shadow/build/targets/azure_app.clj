@@ -28,6 +28,7 @@
 (defn do-configure [state mode {:keys [fn-map app-dir] :as config}]
   (-> state
       (assoc ::app-dir (io/file app-dir)
+             ::fn-data {}
              ::fn-map fn-map)
       (assoc-in [:compiler-options :optimizations] :advanced)
       (assoc-in [::build/config :devtools :enabled] false)
@@ -36,9 +37,9 @@
                                     :output-to (str app-dir "/cljs/shared.js")})
       ))
 
-(defn flush-fn-file [{::keys [app-dir] :as state} fn-id entry-fn]
-  (let [fn-ns (-> entry-fn namespace symbol)
-        fn-sym (-> entry-fn name symbol)
+(defn flush-fn-file [{::keys [app-dir] :as state} fn-id azure-fn]
+  (let [fn-ns (-> azure-fn namespace symbol)
+        fn-sym (-> azure-fn name symbol)
 
         fn-id-s
         (name fn-id)
@@ -64,14 +65,15 @@
         index-file
         (io/file output-dir "index.js")]
 
+    (when (empty? fn-data)
+      (throw (ex-info (format "azure fn %s did not define any azure metadata" azure-fn) {:fn-id fn-id :azure-fn azure-fn})))
+
     (io/make-parents fn-file)
-    (when (not= fn-data (::fn-data state))
-      (spit fn-file (json/write-str fn-data)))
+    (when (not= fn-data (get-in state [::fn-data fn-id]))
+      (spit fn-file (json/write-str fn-data))
+      (spit index-file (str "module.exports = require(\"../cljs/shared.js\")." fn-id-s ";\n")))
 
-    (spit index-file (str "module.exports = require(\"../cljs/shared.js\")." fn-id-s ";\n"))
-
-    (assoc state
-      ::fn-data fn-data)))
+    (assoc-in state [::fn-data fn-id] fn-data)))
 
 (defn do-flush [{::keys [fn-map] :as state}]
   (reduce-kv flush-fn-file state fn-map))
