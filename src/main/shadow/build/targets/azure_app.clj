@@ -63,7 +63,7 @@
         (io/file output-dir "function.json")
 
         index-file
-        (io/file output-dir "index.js")]
+        (io/file output-dir (get "scriptFile" fn-data "index.js"))]
 
     (when (empty? fn-data)
       (throw (ex-info (format "azure fn %s did not define any azure metadata" azure-fn) {:fn-id fn-id :azure-fn azure-fn})))
