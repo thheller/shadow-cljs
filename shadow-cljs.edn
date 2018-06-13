@@ -363,9 +363,9 @@
              demo.rel-require]}
 
   :azure-fn
-  {:target :azure-fn
-   :entry-fn demo.azure.simple/test-fn
-   :output-dir "out/azure-fn/simple"}
+  {:target :azure-app
+   :fn-map {:simple demo.azure.simple/test-fn}
+   :app-dir "out/azure-fn"}
 
   :expo-ios
   {:target :react-native

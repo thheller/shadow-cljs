@@ -22,6 +22,6 @@ project.lock.json
 appsettings.json
 local.settings.json
 
-/simple
+*.js
 
 node_modules
