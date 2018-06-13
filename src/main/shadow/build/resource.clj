@@ -74,7 +74,7 @@
      ::deps]
     ))
 
-(defn valid-resource? [{:keys [resource-id] :as rc}]
+(defn valid-resource? [rc]
   ;; this is for asserts but the default error is basically useless
   ;; java.lang.AssertionError: Assert failed: (rc/valid-resource? src)
   ;; so it just explains since its for debugging anyways
@@ -115,5 +115,3 @@
     identity
     (fn [^String name]
       (str/replace name File/separatorChar \/))))
-
-
