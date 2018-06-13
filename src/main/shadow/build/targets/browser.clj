@@ -514,6 +514,7 @@
           ;; else
           out)]
 
+    (io/make-parents target)
     (spit target out)))
 
 (defn flush-unoptimized!
