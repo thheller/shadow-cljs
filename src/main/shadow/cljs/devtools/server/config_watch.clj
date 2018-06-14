@@ -37,10 +37,10 @@
                 (log/debug "config-watch update global")
                 (sys-bus/publish! system-bus ::sys-msg/config-watch {:config new-config}))
 
-              (doseq [{:keys [id] :as new} (-> new-config :builds (vals))
-                      :when (not= new (get-in config [:builds id]))]
-                (log/debugf "config-watch update %s" id)
-                (sys-bus/publish! system-bus [::sys-msg/config-watch id] {:config new}))
+              (doseq [{:keys [build-id] :as new} (-> new-config :builds (vals))
+                      :when (not= new (get-in config [:builds build-id]))]
+                (log/debugf "config-watch update %s" build-id)
+                (sys-bus/publish! system-bus [::sys-msg/config-watch build-id] {:config new}))
 
               (reset! env/dependencies-modified-ref (not= dependencies (:dependencies new-config)))
 
