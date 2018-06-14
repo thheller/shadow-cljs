@@ -71,7 +71,7 @@
     (io/make-parents fn-file)
     (when (not= fn-data (get-in state [::fn-data fn-id]))
       (spit fn-file (json/write-str fn-data))
-      (spit index-file (str "module.exports = require(\"../cljs/shared.js\")." fn-id-s ";\n")))
+      (spit index-file (str "module.exports = require(\"../cljs/shared.js\")[\"" fn-id-s "\"];\n")))
 
     (assoc-in state [::fn-data fn-id] fn-data)))
 
