@@ -42,7 +42,7 @@
         fn-sym (-> azure-fn name symbol)
 
         fn-id-s
-        (name fn-id)
+        (-> fn-id name cljs-comp/munge)
 
         fn-meta
         (get-in state [:compiler-env :cljs.analyzer/namespaces fn-ns :defs fn-sym :meta])
