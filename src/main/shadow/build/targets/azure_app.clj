@@ -31,7 +31,6 @@
              ::fn-data {}
              ::fn-map fn-map)
       (assoc-in [:compiler-options :optimizations] :advanced)
-      (assoc-in [::build/config :devtools :enabled] false)
       (update ::build/config merge {:exports fn-map
                                     ;; FIXME: can't have a {:cljs some.ns/fn} function when using cljs dir
                                     :output-to (str app-dir "/cljs/shared.js")})

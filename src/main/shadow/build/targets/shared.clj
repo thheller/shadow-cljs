@@ -141,7 +141,7 @@
      (not (false? use-document-host))
 
      'shadow.cljs.devtools.client.env/server-host
-     (or host "localhost")
+     (or (and (not= host "0.0.0.0") host) "localhost")
 
      'shadow.cljs.devtools.client.env/server-port
      port
