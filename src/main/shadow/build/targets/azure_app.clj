@@ -55,7 +55,7 @@
           fn-meta)
 
         output-dir
-        (io/file app-dir fn-id-s)
+        (io/file app-dir (-> fn-id name))
 
         fn-file
         (io/file output-dir "function.json")
