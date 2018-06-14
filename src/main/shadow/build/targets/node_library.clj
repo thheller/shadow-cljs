@@ -11,7 +11,8 @@
             [shadow.cljs.repl :as repl]
             [shadow.build.node :as node]
             [shadow.cljs.util :as util]
-            [shadow.build.data :as data]))
+            [shadow.build.data :as data]
+            [cljs.compiler :as cljs-comp]))
 
 (s/def ::exports
   (s/map-of
@@ -70,7 +71,7 @@
                 (map namespace)
                 (map symbol)
                 (into #{}))
-           `(cljs.core/js-obj ~@(->> exports (mapcat (fn [[k v]] [(name k) v]))))
+           `(cljs.core/js-obj ~@(->> exports (mapcat (fn [[k v]] [(-> k (name) (cljs-comp/munge)) v]))))
            ])
 
         requires
