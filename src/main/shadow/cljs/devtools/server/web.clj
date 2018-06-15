@@ -12,7 +12,6 @@
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
     [shadow.cljs.devtools.server.web.repl :as web-repl]
-    [shadow.cljs.devtools.server.web.release-snapshots :as release-snapshots]
     [shadow.cljs.devtools.server.worker.ws :as ws]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
@@ -26,15 +25,13 @@
     (html
       [:h1 "shadow-cljs"]
       [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
-      [:ul
-       [:li [:a {:href "/release-snapshots"} "Release Snapshots"]]]
 
-      (let [{:keys [servers]} dev-http]
+      (let [{:keys [servers]} @dev-http]
         (when (seq servers)
           (html
             [:h2 "HTTP Servers"]
             [:ul
-             (for [{:keys [build-id instance] :as srv} (:servers dev-http)
+             (for [{:keys [build-id instance] :as srv} servers
                    :let [{:keys [http-port https-port]} instance]]
                (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
                  [:li [:a {:href url} (str url " - " (pr-str build-id))]]))])))
@@ -42,19 +39,6 @@
       [:div#root]
       (assets/js-queue :none 'shadow.cljs.ui.app/init)
       )))
-
-(defn bundle-info-page [{:keys [config] :as req} build-id]
-  (let [file (io/file (:cache-root config) "builds" (name build-id) "release" "bundle-info.edn")]
-    (if-not (.exists file)
-      (common/not-found req "bundle-info.edn not found, please run shadow-cljs release")
-      (common/page-boilerplate req
-        {:modules [:bundle-info]}
-        (html
-          [:h1 "shadow-cljs - bundle info"]
-          [:div#root]
-          (assets/js-queue :none 'shadow.cljs.ui.bundle-info/init
-            (edn/read-string (slurp file)))
-          )))))
 
 (defn repl-page [{:keys [config] :as req}]
   (common/page-boilerplate req
@@ -181,8 +165,6 @@
   (-> req
       (http/route
         (:GET "" index-page)
-        (:GET "/bundle-info/{build-id:keyword}" bundle-info-page build-id)
-        (:ANY "^/release-snapshots" release-snapshots/root)
         (:GET "^/cache" serve-cache-file)
         (:GET "/repl" repl-page)
         (:GET "/browser-repl-js" browser-repl-js)

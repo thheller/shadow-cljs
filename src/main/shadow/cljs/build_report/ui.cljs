@@ -1,4 +1,4 @@
-(ns shadow.cljs.ui.bundle-info
+(ns shadow.cljs.build-report.ui
   (:require
     [clojure.string :as str]
     [shadow.api :refer (ns-ready)]

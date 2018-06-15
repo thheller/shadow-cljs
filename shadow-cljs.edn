@@ -51,24 +51,20 @@
     {:entries
      [shadow.cljs.ui.app]
      :depends-on #{:shared}}
-    :bundle-info
-    {:entries
-     [shadow.cljs.ui.bundle-info]
-     :depends-on #{:shared}}
     :repl
     {:entries
      [shadow.cljs.ui.repl]
      :depends-on #{:shared}}}}
 
-  :release-snapshot
+  :build-report
   {:target :browser
-   :output-dir "src/ui-release/shadow/cljs/release-snapshot/dist/js"
+   :output-dir "src/ui-release/shadow/cljs/build_report/dist/js"
 
    :compiler-options
    {:infer-externs :auto}
 
    :modules
-   {:main {:entries [shadow.cljs.ui.bundle-info]}}
+   {:main {:entries [shadow.cljs.build-report.ui]}}
 
    :devtools
    {:enabled false}}

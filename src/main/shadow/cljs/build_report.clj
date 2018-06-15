@@ -9,8 +9,14 @@
     [shadow.core-ext :as core-ext]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
-    [shadow.cljs.devtools.server.util :as util]
-    [shadow.cljs.devtools.api :as api]))
+    [shadow.build.log :as build-log]
+    [shadow.build.data :as data]
+    [shadow.cljs.util :as util]
+    [shadow.cljs.devtools.api :as api]
+    [shadow.cljs.devtools.server.util :as server-util])
+  (:import [shadow.build.closure SourceMapReport]
+           [java.io ByteArrayOutputStream]
+           [java.util.zip GZIPOutputStream]))
 
 (defn format-byte-size [size]
   (loop [i 0 size (double size)]
@@ -100,6 +106,87 @@
                )))
       )))
 
+(defmethod build-log/event->str ::generate-bundle-info
+  [event]
+  "Generate bundle-info.edn")
+
+(defn extract-report-data
+  [{:shadow.build.closure/keys [optimized-bytes modules] :keys [build-sources] :as state}]
+  (util/with-logged-time [state {:type ::generate-bundle-info}]
+    (let [modules-info
+          (->> modules
+               (map (fn [{:keys [module-id sources depends-on output-name goog-base prepend output append] :as mod}]
+                      (let [out-file
+                            (data/output-file state output-name)
+
+                            out-map-file
+                            (data/output-file state (str output-name ".map"))
+
+                            byte-map
+                            (SourceMapReport/getByteMap out-file out-map-file)
+
+                            bytes-out
+                            (ByteArrayOutputStream.)
+
+                            zip-out
+                            (GZIPOutputStream. bytes-out)]
+
+                        (io/copy (slurp out-file) zip-out)
+                        (.flush zip-out)
+                        (.close zip-out)
+
+                        {:module-id module-id
+                         :sources sources
+                         :depends-on depends-on
+                         :source-bytes byte-map
+                         :js-size (.length out-file)
+                         :gzip-size (.size bytes-out)}
+                        )
+                      ))
+               (into []))
+
+          src->mod
+          (->> (for [{:keys [module-id sources] :as mod} modules
+                     src sources]
+                 [src module-id])
+               (into {}))
+
+          sources-info
+          (->> build-sources
+               (map (fn [src-id]
+                      (let [{:keys [resource-name pom-info npm-info package-name output-name type provides] :as src}
+                            (data/get-source-by-id state src-id)
+
+                            {:keys [js source] :as output}
+                            (data/get-output! state src)]
+
+                        (-> {:resource-id src-id
+                             :resource-name resource-name
+                             :module-id (get src->mod src-id)
+                             :type type
+                             :output-name output-name
+                             :provides provides
+                             :requires (into #{} (data/deps->syms state src))
+                             :js-size (count js)}
+                            (cond->
+                              (seq package-name)
+                              (assoc :package-name package-name)
+
+                              pom-info
+                              (assoc :pom-info pom-info)
+
+                              npm-info
+                              (assoc :npm-info npm-info)
+
+                              (string? source)
+                              (assoc :source-size (count source))
+                              )))))
+               (into []))]
+
+      {:build-modules modules-info
+       :build-sources sources-info})))
+
+
 (defn generate
   [build-id {:keys [tag print-table report-file] :or {tag "latest"} :as opts}]
   {:pre [(keyword? build-id)
@@ -124,7 +211,7 @@
                 :module-hash-names false))
 
           state
-          (-> (util/new-build build-config :release {})
+          (-> (server-util/new-build build-config :release {})
               (build/configure :release build-config)
               (build-api/enable-source-maps)
               (assoc-in [:build-options :output-dir] (io/file output-dir))
@@ -133,7 +220,7 @@
               (build/flush))
 
           bundle-info
-          (output/generate-bundle-info state)
+          (extract-report-data state)
 
           report-file
           (or (and (seq report-file) (io/file report-file))
@@ -152,11 +239,11 @@
            [:meta {:charset "utf-8"}]]
           [:body
            [:div#root]
-           (assets/js-queue :none 'shadow.cljs.ui.bundle-info/init bundle-info)
+           (assets/js-queue :none 'shadow.cljs.build-report.ui/init bundle-info)
            [:style
-            (slurp (io/resource "shadow/cljs/release-snapshot/dist/css/main.css"))]
+            (slurp (io/resource "shadow/cljs/build_report/dist/css/main.css"))]
            [:script {:type "text/javascript"}
-            (slurp (io/resource "shadow/cljs/release-snapshot/dist/js/main.js"))]
+            (slurp (io/resource "shadow/cljs/build_report/dist/js/main.js"))]
            ]))
 
       (when print-table
