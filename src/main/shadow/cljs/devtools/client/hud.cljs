@@ -284,5 +284,9 @@
                     :font-weight "bold"
                     :color "#fff"}}
       (str "shadow-cljs - " msg)
-      ]])
-  )
+      ]]))
+
+(defn load-failure [error task remaining]
+  (load-end)
+  (js/console.error "reload-failed" error)
+  (connection-error (str "[reload failed] " (.-message error))))

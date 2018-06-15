@@ -174,17 +174,30 @@
         (js/console.warn "error when calling lifecycle function" (str fn-sym) ex)
         (next)))))
 
-(defn do-js-reload* [[task & remaining-tasks]]
+(defn do-js-reload* [failure-fn [task & remaining-tasks]]
   (when task
-    (task #(do-js-reload* remaining-tasks))))
+    (try
+      (task #(do-js-reload* failure-fn remaining-tasks))
+      (catch :default e
+        (failure-fn e task remaining-tasks)))))
 
 (defn do-js-reload
   "should pass the :build-complete message and an additional callback
    which performs the actual loading of the code (sync)
    will call all before/after callbacks in order"
   ([msg load-code-fn]
-   (do-js-reload msg load-code-fn (fn [])))
-  ([{:keys [reload-info] :as msg} load-code-fn complete-fn]
+   (do-js-reload
+     msg
+     load-code-fn
+     (fn [])))
+  ([msg load-code-fn complete-fn]
+   (do-js-reload
+     msg
+     load-code-fn
+     complete-fn
+     (fn [error task remaining]
+       (js/console.warn "JS reload failed" error))))
+  ([{:keys [reload-info] :as msg} load-code-fn complete-fn failure-fn]
    (let [load-tasks
          (-> []
              ;; unload is FILO
@@ -200,7 +213,7 @@
                      (complete-fn)
                      (next))))]
 
-     (do-js-reload* load-tasks))))
+     (do-js-reload* failure-fn load-tasks))))
 
 (defn before-load-src [{:keys [type ns] :as src}]
   (when (= :cljs type)

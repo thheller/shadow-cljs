@@ -64,7 +64,7 @@
     (env/before-load-src src)
     (script-eval (str js "\n//# sourceURL=" resource-name))))
 
-(defn do-js-reload [msg sources complete-fn]
+(defn do-js-reload [msg sources complete-fn failure-fn]
   (env/do-js-reload
     (assoc msg
       :log-missing-fn
@@ -77,7 +77,8 @@
       (fn [fn-sym]
         (devtools-msg (str "call " fn-sym))))
     #(do-js-load sources)
-    complete-fn))
+    complete-fn
+    failure-fn))
 
 (defn do-js-requires
   "when (require '[\"some-str\" :as x]) is done at the REPL we need to manually call the shadow.js.require for it
@@ -149,7 +150,7 @@
 
           (if-not (seq sources-to-get)
             (hud/load-end-success)
-            (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success))
+            (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success hud/load-failure))
             ))))))
 
 (defn handle-asset-watch [{:keys [updates] :as msg}]
@@ -235,6 +236,7 @@
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg}]
   ;; (js/console.log "ws-msg" msg)
+  (hud/connection-error-clear!)
   (case type
     :asset-watch
     (handle-asset-watch msg)

@@ -21,6 +21,8 @@
 
 (js/console.log "or" (or nil js/document.body))
 
+;; (throw (ex-info "fail to load" {}))
+
 (s/def ::color
   (s/or :keyword
     keyword?
