@@ -209,10 +209,14 @@
              :flags (:flags new-ns-info)}
             (cond->
               (= :shadow (get-in state [:js-options :js-provider]))
-              (assoc :js-requires (->> new-deps
-                                       (filter string?)
-                                       (map #(get-in state [:str->sym (:name new-ns-info) %]))
-                                       (into [])))))]
+              (assoc :js-requires
+                     (->> new-deps
+                          (map (fn [dep]
+                                 (or (and (string? dep) (get-in state [:str->sym (:name new-ns-info) dep]))
+                                     (and (contains? (:magic-syms state) dep) (get-in state [:ns-aliases dep]))
+                                     nil)))
+                          (remove nil?)
+                          (into [])))))]
 
     (output/flush-sources state new-sources)
 
