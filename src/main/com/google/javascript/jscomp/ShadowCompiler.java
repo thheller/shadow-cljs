@@ -19,6 +19,10 @@ public class ShadowCompiler extends Compiler {
         super(errorManager);
     }
 
+    public void justSetOptions(CompilerOptions opts) {
+        this.options = opts;
+    }
+
     @Nullable
     @Override
     public Mapping.OriginalMapping getSourceMapping(String sourceName, int lineNumber, int columnNumber) {

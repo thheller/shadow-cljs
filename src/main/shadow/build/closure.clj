@@ -790,6 +790,11 @@
 
     (set-options closure-opts compiler-options state)
 
+    ;; add-input-source-maps requires options to be set, otherwise throws NPE
+    ;; ShadowCompiler exposes this to just set options since initOptions does a bunch of stuff
+    ;; we do not need yet
+    (.justSetOptions cc closure-opts)
+
     (when source-map?
       ;; FIXME: path is not used at all but needs to be set
       ;; otherwise the applyInputSourceMaps will have no effect since it happens
@@ -912,7 +917,7 @@
   ;; for some reason .reset removes them all so we need to repeat this for every module
   ;; since modules require .reset
   (doseq [src-file (source-map-sources state)]
-    (.addSourceFile source-map src-file)))
+    (.addSourceFile source-map (.getName src-file) (.getCode src-file))))
 
 (defn compile-js-modules
   [{::keys [externs modules compiler compiler-options] :as state}]
@@ -1420,7 +1425,7 @@
                       _
                       (doto source-map
                         ;; for sourcesContent
-                        (.addSourceFile source-file)
+                        (.addSourceFile (.getName source-file) (.getCode source-file))
                         (.setWrapperPrefix (or shadow-js-prefix ""))
                         (.appendTo sw output-name))
 
@@ -1735,7 +1740,7 @@
                   (when generate-source-map?
                     (let [sw (StringWriter.)]
                       ;; for sourcesContent
-                      (.addSourceFile source-map source-file)
+                      (.addSourceFile source-map (.getName source-file) (.getCode source-file))
                       (.appendTo source-map sw output-name)
                       (.toString sw)))
 

@@ -38,7 +38,7 @@ public class ShadowAccess {
         builder.setTypeRegistry(comp.getTypeRegistry());
         builder.setCompilerOptions(comp.getOptions());
         builder.setSourceMap(sourceMap);
-        builder.setTagAsExterns(false);
+        builder.setTagAsTypeSummary(false);
         // FIXME: should it?
         builder.setTagAsStrict(false);
         return builder.build();
@@ -53,7 +53,7 @@ public class ShadowAccess {
         CodePrinter.Builder builder = new CodePrinter.Builder(node);
         builder.setTypeRegistry(comp.getTypeRegistry());
         builder.setCompilerOptions(comp.getOptions());
-        builder.setTagAsExterns(false);
+        builder.setTagAsTypeSummary(false);
         builder.setTagAsStrict(false);
         return builder.build();
     }
