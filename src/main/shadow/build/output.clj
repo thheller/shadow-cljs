@@ -17,6 +17,12 @@
            (java.util.zip GZIPOutputStream)
            (shadow.build.closure SourceMapReport)))
 
+(defn clean-dir [dir]
+  (when (.exists dir)
+    (doseq [file (.listFiles dir)]
+      (.delete file)
+      )))
+
 (defn closure-defines-json [state]
   (let [closure-defines
         (reduce-kv

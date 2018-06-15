@@ -1,6 +1,16 @@
-(ns shadow.cljs.devtools.release-snapshot
+(ns shadow.cljs.build-report
   (:require
-    [clojure.string :as str]))
+    [clojure.string :as str]
+    [clojure.java.io :as io]
+    [clojure.tools.cli :as cli]
+    [hiccup.page :refer (html5)]
+    [shadow.build.output :as output]
+    [shadow.server.assets :as assets]
+    [shadow.core-ext :as core-ext]
+    [shadow.build :as build]
+    [shadow.build.api :as build-api]
+    [shadow.cljs.devtools.server.util :as util]
+    [shadow.cljs.devtools.api :as api]))
 
 (defn format-byte-size [size]
   (loop [i 0 size (double size)]
@@ -89,3 +99,75 @@
                " |"
                )))
       )))
+
+(defn generate
+  [build-id {:keys [tag print-table report-file] :or {tag "latest"} :as opts}]
+  {:pre [(keyword? build-id)
+         (string? tag)
+         (seq tag)]}
+  (api/with-runtime
+    (let [{:keys [cache-root]}
+          (api/get-config)
+
+          output-dir
+          (doto (io/file cache-root "release-snapshots" (name build-id) tag)
+            (output/clean-dir))
+
+          build-id-alias
+          (keyword (str (name build-id) "-release-snapshot"))
+
+          build-config
+          (-> (api/get-build-config build-id)
+              (assoc
+                :build-id build-id-alias
+                ;; not required, the files are never going to be used
+                :module-hash-names false))
+
+          state
+          (-> (util/new-build build-config :release {})
+              (build/configure :release build-config)
+              (build-api/enable-source-maps)
+              (assoc-in [:build-options :output-dir] (io/file output-dir))
+              (build/compile)
+              (build/optimize)
+              (build/flush))
+
+          bundle-info
+          (output/generate-bundle-info state)
+
+          report-file
+          (or (and (seq report-file) (io/file report-file))
+              (io/file output-dir "report.html"))]
+
+      (spit
+        (io/file output-dir "bundle-info.edn")
+        (core-ext/safe-pr-str bundle-info))
+
+      (spit
+        report-file
+        (html5
+          {}
+          [:head
+           [:title (format "[%s] Build Report - shadow-cljs" (name build-id))]
+           [:meta {:charset "utf-8"}]]
+          [:body
+           [:div#root]
+           (assets/js-queue :none 'shadow.cljs.ui.bundle-info/init bundle-info)
+           [:style
+            (slurp (io/resource "shadow/cljs/release-snapshot/dist/css/main.css"))]
+           [:script {:type "text/javascript"}
+            (slurp (io/resource "shadow/cljs/release-snapshot/dist/js/main.js"))]
+           ]))
+
+      (when print-table
+        (print-bundle-info-table bundle-info {:group-npm true}))
+
+      (println)
+      (println (format "HTML Report generated in: %s" (.getAbsolutePath report-file)))
+
+      :done)))
+
+;; FIXME: parse args properly, need support for tag and output-dir
+(defn -main [build-id report-file]
+  (generate (keyword build-id) {:print-table true
+                                :report-file report-file}))

@@ -6,7 +6,7 @@
     [clojure.tools.logging :as log]
     [clojure.pprint :refer (pprint)]
     [clojure.java.browse :refer (browse-url)]
-    [clojure.set :as set]
+    [clojure.string :as str]
     [shadow.runtime.services :as rt]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
@@ -21,12 +21,7 @@
     [shadow.cljs.devtools.errors :as e]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-    [shadow.cljs.devtools.server.runtime :as runtime]
-    [shadow.build.output :as output]
-    [shadow.build.log :as build-log]
-    [shadow.core-ext :as core-ext]
-    [shadow.cljs.devtools.release-snapshot :as snapshot]
-    [clojure.string :as str])
+    [shadow.cljs.devtools.server.runtime :as runtime])
   (:import [java.net Inet4Address NetworkInterface]))
 
 ;; nREPL support
@@ -598,55 +593,14 @@
 (defn test []
   (println "TBD"))
 
-(defn- clean-dir [dir]
-  (when (.exists dir)
-    (doseq [file (.listFiles dir)]
-      (.delete file)
-      )))
-
-(defn release-snapshot
-  [build-id {:keys [tag] :or {tag "latest"} :as opts}]
-  {:pre [(keyword? build-id)
-         (string? tag)
-         (seq tag)]}
-  (with-runtime
-    (let [{:keys [cache-root]}
-          (get-config)
-
-          output-dir
-          (doto (io/file cache-root "release-snapshots" (name build-id) tag)
-            (clean-dir))
-
-          build-id-alias
-          (keyword (str (name build-id) "-release-snapshot"))
-
-          build-config
-          (-> (get-build-config build-id)
-              (assoc
-                :build-id build-id-alias
-                ;; not required, the files are never going to be used
-                :module-hash-names false))
-
-          state
-          (-> (util/new-build build-config :release {})
-              (build/configure :release build-config)
-              (build-api/enable-source-maps)
-              (assoc-in [:build-options :output-dir] (io/file output-dir))
-              (build/compile)
-              (build/optimize)
-              (build/flush))
-
-          bundle-info
-          (output/generate-bundle-info state)]
-
-      (spit
-        (io/file output-dir "bundle-info.edn")
-        (core-ext/safe-pr-str bundle-info))
-
-      (snapshot/print-bundle-info-table bundle-info {:group-npm true}))
-
-    :done
-    ))
+(defn release-snapshot [& args]
+  (println "release-snapshot was moved!")
+  (println "from the CLI use:" )
+  (println "\tshadow-cljs run shadow.cljs.build-report <build-id> some.html")
+  (println "from the REPL use:")
+  (println "\t(require '[shadow.cljs.build-report :as r])")
+  (println "\t(r/generate :build-id {:report-file \"some.html\"})")
+  (println "both commands generate a standalone \"some.html\" file with the full report"))
 
 (comment
   (release-snapshot :browser {})

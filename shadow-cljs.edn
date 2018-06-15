@@ -60,6 +60,19 @@
      [shadow.cljs.ui.repl]
      :depends-on #{:shared}}}}
 
+  :release-snapshot
+  {:target :browser
+   :output-dir "src/ui-release/shadow/cljs/release-snapshot/dist/js"
+
+   :compiler-options
+   {:infer-externs :auto}
+
+   :modules
+   {:main {:entries [shadow.cljs.ui.bundle-info]}}
+
+   :devtools
+   {:enabled false}}
+
   ;; test builds
 
   :browser

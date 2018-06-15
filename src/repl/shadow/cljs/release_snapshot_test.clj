@@ -3,7 +3,7 @@
     [clojure.test :refer (deftest is)]
     [clojure.edn :as edn]
     [clojure.java.io :as io]
-    [shadow.cljs.devtools.release-snapshot :as snap]))
+    [shadow.cljs.build-report :as snap]))
 
 
 (deftest test-print-table
