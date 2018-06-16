@@ -368,7 +368,8 @@
        (println (str "shadow-cljs - server version: " version))
        (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" http-host ":" (:port http)))
        (println (str "shadow-cljs - socket REPL running on port " (:port socket-repl)))
-       (println (str "shadow-cljs - nREPL server running on port " (:port nrepl)))
+       ;; must keep this message since cider looks for it
+       (println (str "shadow-cljs - nREPL server started on port " (:port nrepl)))
 
        ::started
        ))))
