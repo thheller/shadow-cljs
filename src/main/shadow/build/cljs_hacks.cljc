@@ -145,19 +145,24 @@
      (if (= "js" sym-ns-str)
        (do (when (contains? locals (-> sym name symbol))
              (warning :js-shadowed-by-local env {:name sym}))
-           ;; always record all fully qualified js/foo.bar calls
-           (let [[global & props]
-                 (clojure.string/split (name sym) #"\.")]
 
-             ;; do not record access to
-             ;; js/goog.string.format
-             ;; js/cljs.core.assoc
-             ;; just in case someone does that, we won't need externs for those
-             (when-not (contains? known-safe-js-globals global)
-               (shadow-js-access-global current-ns global)
-               (when (seq props)
-                 (doseq [prop props]
-                   (shadow-js-access-property current-ns prop)))))
+           ;; always record all fully qualified js/foo.bar calls
+           ;; except for the code emitted by cljs.core/exists?
+           ;; (exists? some.foo/bar)
+           ;; checks js/some, js/some.foo, js/some.foo.bar
+           (when-not (-> sym meta ::no-resolve)
+             (let [[global & props]
+                   (clojure.string/split (name sym) #"\.")]
+
+               ;; do not record access to
+               ;; js/goog.string.format
+               ;; js/cljs.core.assoc
+               ;; just in case someone does that, we won't need externs for those
+               (when-not (contains? known-safe-js-globals global)
+                 (shadow-js-access-global current-ns global)
+                 (when (seq props)
+                   (doseq [prop props]
+                     (shadow-js-access-property current-ns prop))))))
 
            {:name sym
             :ns 'js
