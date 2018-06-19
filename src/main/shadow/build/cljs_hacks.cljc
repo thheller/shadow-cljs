@@ -461,7 +461,8 @@
                      (es5>= (:language-out options)))
                 (emits ".default")
 
-                (contains? js-reserved part)
+                (and (contains? js-reserved part)
+                     (not (-> var-name meta :cljs.analyzer/no-resolve)))
                 (emits "[\"" part "\"]")
 
                 :else

@@ -99,3 +99,15 @@
             (repl/process-input "(require 'demo.script :reload)"))]
 
     (pprint repl-state)))
+
+(deftest test-codegen
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(exists? cljs.core/return)"))]
+
+    (-> repl-state
+        :repl-actions
+        last
+        :js
+        (println))))
