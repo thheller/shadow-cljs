@@ -106,7 +106,8 @@
                 (and macros (contains? macros used-name)))
               ;; :include-macros true may have situations where cljs+clj namespaces exist
               ;; but the cljs doesn't self-require so it has no :macros analyzer data
-              (is-macro? used-ns used-name))
+              (and (contains? (:require-macros ns-info) used-ns)
+                   (is-macro? used-ns used-name)))
         (update-in ast [:use-macros] assoc used-name used-ns)
         ast))
     ns-info
