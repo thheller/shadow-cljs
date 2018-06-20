@@ -102,12 +102,13 @@
   [{:keys [uses] :as ns-info}]
   (reduce
     (fn [ast [used-name used-ns]]
-      (let [macros (get-in @env/*compiler* [::ana/namespaces used-ns :macros])]
-        (if (or (nil? macros)
-                (not (contains? macros used-name)))
-          ast
-          (update-in ast [:use-macros] assoc used-name used-ns)
-          )))
+      (if (or (let [macros (get-in @env/*compiler* [::ana/namespaces used-ns :macros])]
+                (and macros (contains? macros used-name)))
+              ;; :include-macros true may have situations where cljs+clj namespaces exist
+              ;; but the cljs doesn't self-require so it has no :macros analyzer data
+              (is-macro? used-ns used-name))
+        (update-in ast [:use-macros] assoc used-name used-ns)
+        ast))
     ns-info
     uses))
 

@@ -180,7 +180,8 @@
     (when-not (or (ana-is-cljs-def? lib sym)
                   (contains? (get-in @env/*compiler* [::ana/namespaces lib :macros]) sym)
                   ;; don't check refer when we have no analyzer data
-                  (nil? (get-in @env/*compiler* [::ana/namespaces lib])))
+                  (nil? (get-in @env/*compiler* [::ana/namespaces lib]))
+                  (contains? use-macros sym))
       (error env :undeclared-ns-form {:type "var" :lib lib :sym sym}))))
 
 (defn check-renames! [{:keys [renames rename-macros] :as ns-info}]
