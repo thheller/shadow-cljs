@@ -271,8 +271,10 @@
                   {:use-file-min false})
                 (build-api/with-compiler-options
                   {:optimizations :none})
-                (update-in [:compiler-options :closure-defines] merge {"goog.DEBUG" true})
+                (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG true})
                 (assoc :devtools devtools)
+                (build-api/with-js-options
+                  {:variable-renaming :off})
                 (cond->
                   (:repl-init-ns devtools)
                   (assoc-in [:build-options :repl-init-ns] (:repl-init-ns devtools))))
@@ -283,7 +285,7 @@
                   {:optimizations :advanced
                    :elide-asserts true
                    :pretty-print false})
-                (update-in [:compiler-options :closure-defines] merge {"goog.DEBUG" false}))
+                (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG false}))
 
             closure-defines
             (update-in [:compiler-options :closure-defines] merge closure-defines)

@@ -74,10 +74,10 @@
        (.availableProcessors))
 
    :closure-defines
-   {"goog.DEBUG" false
-    "goog.LOCALE" "en"
-    "goog.TRANSPILE" "never"
-    "goog.ENABLE_DEBUG_LOADER" false}})
+   '{goog.DEBUG false
+     goog.LOCALE "en"
+     goog.TRANSPILE "never"
+     goog.ENABLE_DEBUG_LOADER false}})
 
 (def default-build-options
   {:print-fn :console
