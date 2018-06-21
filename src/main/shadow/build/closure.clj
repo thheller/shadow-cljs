@@ -299,14 +299,14 @@
         (str "/** @constructor */\nfunction ShadowJS() {};\n"
              (->> js-globals
                   (remove known-js-globals)
-                  (map cljs-comp/munge)
+                  (map #(cljs-comp/munge % #{}))
                   (sort)
                   (map #(str "/** @const {ShadowJS} */ var " % ";"))
                   (str/join "\n"))
              "\n"
              (->> js-props
                   (sort)
-                  (map cljs-comp/munge)
+                  (map #(cljs-comp/munge % #{}))
                   (map #(str "ShadowJS.prototype." % ";"))
                   (str/join "\n")))]
 
