@@ -312,6 +312,7 @@
 
     ;; not actually required but makes it easier to verify
     (let [file (data/cache-file state "externs.shadow.js")]
+      (io/make-parents file)
       (spit file content))
 
     (SourceFile/fromCode "externs.shadow.js" content)
