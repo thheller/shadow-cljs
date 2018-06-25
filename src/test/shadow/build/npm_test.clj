@@ -155,7 +155,6 @@
       (is (= "node_modules/file-over-dir/foo.js" resource-name))
       )))
 
-
 (deftest test-require-entry-dir-with-index
   (with-npm [x {}]
     (let [ctx {}
@@ -166,6 +165,18 @@
       (is rc1)
       (is (string? resource-name))
       (is (= "node_modules/entry-dir/foo/index.js" resource-name))
+      )))
+
+(deftest test-main-as-dir
+  (with-npm [x {}]
+    (let [ctx {}
+
+          {:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "main-is-dir" ctx)]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/main-is-dir/lib/index.js" resource-name))
       )))
 
 (deftest test-nested-pkg

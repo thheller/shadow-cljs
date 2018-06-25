@@ -167,7 +167,11 @@
         ;; lib/jsdom
         ;; lib/jsdom.js
         (when-let [file (or (test-file-exts npm package-dir entry)
-                            (test-file package-dir entry))]
+                            (when-let [file-or-dir (test-file package-dir entry)]
+                              (if-not (.isDirectory file-or-dir)
+                                file-or-dir
+                                (let [index (io/file file-or-dir "index.js")]
+                                  (and (.exists index) index)))))]
 
           ;; we only want the first one in case more exist
           (reduced file)))
