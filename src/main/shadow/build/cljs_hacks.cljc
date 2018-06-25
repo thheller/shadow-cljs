@@ -392,8 +392,14 @@
           (symbol (str ns) (str tsym))
           tsym-meta)
 
+        defrecord?
+        (or (= :defrecord op)
+            ;; 1.10.335 changed this to the above
+            ;; FIXME: remove additional check in the future when everyone is on 1.10.335+
+            (= :defrecord* op))
+
         locals-fields
-        (if (= :defrecord* op)
+        (if defrecord?
           (concat fields '[__meta __extmap ^:mutable __hash])
           fields)
 
@@ -424,7 +430,7 @@
               :type true
               :tag type-sym
               :num-fields (count fields)
-              :record (= :defrecord* op))
+              :record defrecord?)
             (merge (source-info tsym env)))))
 
     {:op op :env env :form form :t type-sym :fields fields :pmasks pmasks
