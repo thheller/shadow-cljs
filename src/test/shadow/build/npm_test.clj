@@ -168,6 +168,44 @@
       (is (= "node_modules/entry-dir/foo/index.js" resource-name))
       )))
 
+(deftest test-nested-pkg
+  (with-npm [x {}]
+    (let [ctx {}
+
+          {:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "nested-pkg/nested" ctx)]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/nested-pkg/nested/main.js" resource-name))
+      )))
+
+(deftest test-nested-pkg-without-main
+  (with-npm [x {}]
+    (let [ctx {}
+
+          {:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "nested-pkg/just-index" ctx)]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/nested-pkg/just-index/index.js" resource-name))
+      )))
+
+;; the node docs made it appear like @scoped things were special but it turns
+;; out they are just like any other nested pkg with special rules only for the registry
+(deftest test-scoped-pkg
+  (with-npm [x {}]
+    (let [ctx {}
+
+          {:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "@scoped/a" ctx)]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/@scoped/a/index.js" resource-name))
+      )))
+
 (comment
   ;; FIXME: write proper tests for these
 

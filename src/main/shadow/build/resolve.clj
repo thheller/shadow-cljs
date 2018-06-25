@@ -259,49 +259,46 @@
       (cp/find-js-resource classpath require-from require)
 
       :else
-      (let [[package-name suffix]
-            (npm/split-package-require require)]
+      (when (or (contains? native-node-modules require)
+                ;; if the require was a string we just pass it through
+                ;; we don't need to check if it exists since the runtime
+                ;; will take care of that. we do not actually need anything from the package
+                (not was-symbol?)
+                ;; if `(:require [react ...])` was used we need to check if the package
+                ;; is actually installed. otherwise we will blindy return a shim for
+                ;; every symbol, no matter it was a typo or actually intended JS package.
+                (npm/find-package (:npm state) require))
 
-        (when (or (contains? native-node-modules package-name)
-                  ;; if the require was a string we just pass it through
-                  ;; we don't need to check if it exists since the runtime
-                  ;; will take care of that. we do not actually need anything from the package
-                  (not was-symbol?)
-                  ;; if `(:require [react ...])` was used we need to check if the package
-                  ;; is actually installed. otherwise we will blindy return a shim for
-                  ;; every symbol, no matter it was a typo or actually intended JS package.
-                  (npm/find-package (:npm state) package-name))
+        ;; technically this should be done before the find-package above
+        ;; but I'm fine with this breaking for symbol requires
+        (let [resolve-cfg (get-in js-options [:resolve require])]
+          (cond
+            (nil? resolve-cfg)
+            (js-support/shim-require-resource state require)
 
-          ;; technically this should be done before the find-package above
-          ;; but I'm fine with this breaking for symbol requires
-          (let [resolve-cfg (get-in js-options [:resolve require])]
-            (cond
-              (nil? resolve-cfg)
-              (js-support/shim-require-resource state require)
+            (false? resolve-cfg)
+            (assoc npm/empty-rc :deps []) ;; FIXME: why the shadow.js dep in npm?
 
-              (false? resolve-cfg)
-              (assoc npm/empty-rc :deps []) ;; FIXME: why the shadow.js dep in npm?
+            (= :npm (:target resolve-cfg))
+            (let [{:keys [require require-min]} resolve-cfg
 
-              (= :npm (:target resolve-cfg))
-              (let [{:keys [require require-min]} resolve-cfg
+                  require
+                  (or (and (= :release mode) require-min)
+                      require)]
+              (find-resource-for-string state require-from require false))
 
-                    require
-                    (or (and (= :release mode) require-min)
-                        require)]
-                (find-resource-for-string state require-from require false))
+            (= :file (:target resolve-cfg))
+            (npm/js-resource-for-file npm require resolve-cfg {:mode mode})
 
-              (= :file (:target resolve-cfg))
-              (npm/js-resource-for-file npm require resolve-cfg {:mode mode})
+            (= :global (:target resolve-cfg))
+            (npm/js-resource-for-global require resolve-cfg)
 
-              (= :global (:target resolve-cfg))
-              (npm/js-resource-for-global require resolve-cfg)
+            (= :resource (:target resolve-cfg))
+            (cp/find-js-resource classpath (:resource resolve-cfg))
 
-              (= :resource (:target resolve-cfg))
-              (cp/find-js-resource classpath (:resource resolve-cfg))
-
-              :else
-              (throw (ex-info "override not supported for :js-provider :require" resolve-cfg))
-              )))))))
+            :else
+            (throw (ex-info "override not supported for :js-provider :require" resolve-cfg))
+            ))))))
 
 (defn resolve-string-require
   [state {require-from-ns :ns :as require-from} require]

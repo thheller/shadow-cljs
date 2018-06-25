@@ -113,21 +113,11 @@
   ;; not allowing anything outside the project because of
   ;; https://github.com/technomancy/leiningen/wiki/Repeatability
 
-  (let [package-dir
-        (io/file node-modules-dir package-name)]
-
+  (let [package-dir (io/file node-modules-dir package-name)]
     (when (.exists package-dir)
-
-      (let [package-json-file
-            (io/file package-dir "package.json")]
-
-        (when-not (.exists package-json-file)
-          (throw (ex-info (format "cannot find package.json for package %s at %s" package-name package-json-file)
-                   {:tag ::missing-package-json
-                    :package-name package-name
-                    :package-json-file package-json-file})))
-
-        (read-package-json npm package-json-file)))))
+      (let [package-json-file (io/file package-dir "package.json")]
+        (when (.exists package-json-file)
+          (read-package-json npm package-json-file))))))
 
 (defn find-package [{:keys [index-ref node-modules-dir] :as npm} package-name]
   {:pre [(string? package-name)
@@ -164,87 +154,49 @@
          (when (not= suffix "")
            suffix))])))
 
-(defn find-package-require [npm require]
+(defn find-package-main [npm {:keys [package-dir package-json] :as package}]
+  (let [entries
+        (->> (:main-keys npm)
+             (map #(get package-json %))
+             (remove nil?)
+             (into []))]
+
+    (reduce
+      (fn [_ entry]
+        ;; test file exts first, so we don't pick a directory over a file
+        ;; lib/jsdom
+        ;; lib/jsdom.js
+        (when-let [file (or (test-file-exts npm package-dir entry)
+                            (test-file package-dir entry))]
+
+          ;; we only want the first one in case more exist
+          (reduced file)))
+      nil
+      entries)))
+
+(defn find-package-require [{:keys [node-modules-dir] :as npm} require]
   {:pre [(not (util/is-relative? require))
          (not (util/is-absolute? require))]}
-  (let [[package-name suffix]
-        (split-package-require require)
 
-        {:keys [package-dir package-json entry-file] :as package}
-        (find-package npm package-name)]
+  ;; slightly modified node resolve rules since we don't go "up" the paths
+  ;; only node-modules-dir is checked
+  ;; eg. /usr/project/node_modules but not /usr/node_modules
 
-    (cond
-      (nil? package)
-      nil
+  ;; react-dom/server -> react-dom/server.js
+  ;; react-dom -> react-dom/package.json -> follow main
+  ;; firebase/app
+  ;; firebase/app.js doesn't exists
+  ;; firebase/app/package.json -> follow main
 
-      ;; "react-dom", use entry-file
-      (nil? suffix)
-      (let [entries
-            (->> (:main-keys npm)
-                 (map #(get package-json %))
-                 (remove nil?)
-                 (into []))
-
-            [entry ^File entry-file]
-            (or (reduce
-                  (fn [_ entry]
-                    ;; test file exts first, so we don't pick a directory over a file
-                    ;; lib/jsdom
-                    ;; lib/jsdom.js
-                    (when-let [file (or (test-file-exts npm package-dir entry)
-                                        (test-file package-dir entry))]
-
-                      (reduced [entry file])))
-                  nil
-                  ;; we only want the first one in case more exist
-                  entries)
-
-                ;; FIXME: test-file-exts may have chosen index.json, not index.js
-                ["index.js"
-                 (test-file-exts npm package-dir "index")])]
-
-
-        (cond
-          (not entry-file)
-          (throw (ex-info
-                   (format "module without entry or suffix: %s" require)
-                   {:package package
-                    :entry require}))
-
-          (.isDirectory entry-file)
-          (or (test-file-exts npm entry-file "index")
-              (throw (ex-info
-                       (format "module entry not found, it was a directory: %s -> %s" require entry-file)
-                       {:require require
-                        :entry entry-file})))
-
-          :else
-          entry-file))
-
-      ;; "react-dom/server" -> react-dom/server.js
-      ;; "core-js/library/fn-symbol" is a directory, need to resolve to index.js
-      ;; rxjs contains
-      ;; rxjs/observable/...
-      ;; rxjs/Observable.js
-      ;; must find file before dir
-      :else
-      (let [^File file-or-dir
-            (or (test-file-exts npm package-dir suffix)
-                (test-file package-dir suffix))
-
-            ^File file
-            (if-not (and file-or-dir (.isDirectory file-or-dir))
-              file-or-dir
-              (test-file-exts npm file-or-dir "index"))]
-
-        (when-not (and file (.isFile file))
-          (throw (ex-info (format "could not find module-entry: %s" require)
-                   {:require require
-                    :entry require
-                    :package package})))
-
-        file
-        ))))
+  ;; first check if node_modules/<require> exists as a file (with or without exts)
+  (or (test-file-exts npm node-modules-dir require)
+      ;; check if node_modules/<require>/package.json exists and follow :main
+      (when-let [package (find-package npm require)]
+        (find-package-main npm package))
+      ;; find node_modules/<require>/index.js
+      (let [^File file (io/file node-modules-dir require "index.js")]
+        (when (.exists file)
+          file))))
 
 (defn find-relative [npm ^File relative-to ^String require]
   (when-not relative-to
