@@ -73,7 +73,6 @@
 
   :browser
   {:target :browser
-   :source-paths ["a" "b"]
 
    :output-dir "out/demo-browser/public/js"
    :asset-path "/js"
