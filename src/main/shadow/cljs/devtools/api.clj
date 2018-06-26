@@ -156,9 +156,9 @@
          (util/stdout-dump verbose)
 
          build-config
-         (if (map? build-id)
-           build-id
-           (config/get-build! build-id))]
+         (if (map? build-config)
+           build-config
+           (config/get-build! build-config))]
 
      (-> (start-worker build-config opts)
          (worker/watch out true)
