@@ -151,27 +151,24 @@
     :ok))
 
 (defn watch*
-  ([{:keys [build-id] :as build-config} {:keys [autobuild verbose sync] :as opts}]
-   (let [out
-         (util/stdout-dump verbose)
+  [{:keys [build-id] :as build-config} {:keys [autobuild verbose sync] :as opts}]
+  {:pre [(map? build-config)
+         (keyword? build-id) ;; not required here but by start-worker
+         (map? opts)]}
+  (let [out (util/stdout-dump verbose)]
 
-         build-config
-         (if (map? build-id)
-           build-id
-           (config/get-build! build-id))]
+    (-> (start-worker build-config opts)
+        (worker/watch out true)
+        (cond->
+          (not (false? autobuild))
+          (worker/start-autobuild)
 
-     (-> (start-worker build-config opts)
-         (worker/watch out true)
-         (cond->
-           (not (false? autobuild))
-           (worker/start-autobuild)
+          (false? autobuild)
+          (worker/compile)
 
-           (false? autobuild)
-           (worker/compile)
-
-           (not (false? sync))
-           (worker/sync!))
-         ))))
+          (not (false? sync))
+          (worker/sync!))
+        )))
 
 (defn watch
   "starts a dev worker process for a given :build-id
