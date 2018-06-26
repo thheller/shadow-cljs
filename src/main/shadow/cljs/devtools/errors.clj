@@ -126,6 +126,10 @@
   (.write w "Invalid configuration\n")
   (spec-explain w data))
 
+(defmethod ex-data-format ::comp/source-paths
+  [w e {:keys [config] :as data}]
+  (.write w (format ":source-paths is only valid globally and cannot be configured in build %s." (:build-id config))))
+
 (defmethod ex-data-format ::resolve/missing-ns
   [w e {:keys [require] :as data}]
   (write-msg w e)

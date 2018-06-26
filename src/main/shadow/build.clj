@@ -245,6 +245,11 @@
                                                :tag ::config
                                                :config config))))
 
+    (when (contains? config :source-paths)
+      (throw (ex-info
+               ":source-paths only work at the top level and not per build."
+               {:tag ::source-paths :config config})))
+
     (let [externs-file (io/file "externs" (str (name build-id) ".txt"))
           {:keys [devtools]} config]
 
