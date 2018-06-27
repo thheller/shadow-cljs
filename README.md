@@ -23,6 +23,11 @@
 
 Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.html). (Work in Progress)
 
+## Video Courses
+
+- [EN] [Learn Reagent Free](https://www.jacekschae.com/learn-reagent-free/uk29i?coupon=SHADOW) - [reagent](https://github.com/reagent-project/reagent)+[firebase](https://firebase.google.com/) demo application built using shadow-cljs
+- [EN] [Learn Reagent Pro](https://www.jacekschae.com/learn-reagent-pro/uk29i?coupon=SHADOW) [Affiliate Link, 30$ discount] - [reagent](https://github.com/reagent-project/reagent)+[firebase](https://firebase.google.com/) demo application built using shadow-cljs
+
 ## Guides
 
 - [EN] [A beginner guide to compile ClojureScript with shadow-cljs](https://medium.com/@jiyinyiyong/a-beginner-guide-to-compile-clojurescript-with-shadow-cljs-26369190b786)
