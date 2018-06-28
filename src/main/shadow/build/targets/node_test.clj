@@ -12,7 +12,8 @@
             [cljs.compiler :as cljs-comp]
             [shadow.build.api :as build-api]
             [shadow.build.output :as output]
-            [shadow.build.data :as data])
+            [shadow.build.data :as data]
+            [shadow.build.async :as async])
   (:import [java.lang ProcessBuilder$Redirect]))
 
 (defn configure [{::build/keys [config mode] :as state}]
@@ -86,5 +87,6 @@
       (cond->
         (and (= stage :flush)
              (:autorun config))
-        (autorun-test)
+        (-> (async/wait-for-pending-tasks!)
+            (autorun-test))
         )))
