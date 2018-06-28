@@ -90,11 +90,11 @@
 
 (defn test-file ^File [^File dir name]
   (when name
-    (let [path
+    (let [file
           (-> (io/file dir name)
               (.getCanonicalFile))]
-      (when (.exists path)
-        path))))
+      (when (.exists file)
+        file))))
 
 (defn test-file-exts [{:keys [extensions] :as npm} ^File dir name]
   (reduce
@@ -193,7 +193,9 @@
   ;; firebase/app/package.json -> follow main
 
   ;; first check if node_modules/<require> exists as a file (with or without exts)
-  (or (test-file-exts npm node-modules-dir require)
+  (or (when-let [file (test-file node-modules-dir require)]
+        (and (.isFile file) file))
+      (test-file-exts npm node-modules-dir require)
       ;; check if node_modules/<require>/package.json exists and follow :main
       (when-let [package (find-package npm require)]
         (find-package-main npm package))

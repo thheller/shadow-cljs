@@ -155,6 +155,18 @@
       (is (= "node_modules/file-over-dir/foo.js" resource-name))
       )))
 
+(deftest test-require-file-over-dir-with-ext
+  (with-npm [x {}]
+    (let [ctx {}
+
+          {:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "file-over-dir/foo.js" ctx)]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/file-over-dir/foo.js" resource-name))
+      )))
+
 (deftest test-require-entry-dir-with-index
   (with-npm [x {}]
     (let [ctx {}
