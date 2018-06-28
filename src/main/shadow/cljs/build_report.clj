@@ -239,7 +239,9 @@
            [:meta {:charset "utf-8"}]]
           [:body
            [:div#root]
-           (assets/js-queue :none 'shadow.cljs.build-report.ui/init bundle-info)
+           (binding [*print-length* nil
+                     *print-namespace-maps* nil]
+             (assets/js-queue :none 'shadow.cljs.build-report.ui/init bundle-info))
            [:style
             (slurp (io/resource "shadow/cljs/build_report/dist/css/main.css"))]
            [:script {:type "text/javascript"}
