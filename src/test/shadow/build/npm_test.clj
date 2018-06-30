@@ -191,6 +191,19 @@
       (is (= "node_modules/main-is-dir/lib/index.js" resource-name))
       )))
 
+(deftest test-dir-dot-js
+  (with-npm [x {}]
+    (let [ctx {}
+
+          ;; it should never try to pick dir.js
+          ;; node has asn1 and asn1.js packages
+          ;; and it should not pick the .js version over the other
+          rc1
+          (find-npm-resource x nil "dir" ctx)]
+
+      (is (nil? rc1))
+      )))
+
 (deftest test-nested-pkg
   (with-npm [x {}]
     (let [ctx {}

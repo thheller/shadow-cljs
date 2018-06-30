@@ -96,11 +96,12 @@
       (when (.exists file)
         file))))
 
-(defn test-file-exts [{:keys [extensions] :as npm} ^File dir name]
+(defn test-file-exts ^File [{:keys [extensions] :as npm} ^File dir name]
   (reduce
     (fn [_ ext]
       (when-let [path (test-file dir (str name ext))]
-        (reduced path)))
+        (when (.isFile path)
+          (reduced path))))
     nil
     extensions))
 
