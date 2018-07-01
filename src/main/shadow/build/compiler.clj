@@ -294,7 +294,12 @@
           env
 
           msg
-          (ana/error-message warning-type extra)]
+          (ana/error-message warning-type extra)
+
+          extra
+          (if (not= warning-type :fn-deprecated)
+            extra
+            (dissoc extra :fexpr))]
 
       (swap! warnings conj
         {:warning warning-type

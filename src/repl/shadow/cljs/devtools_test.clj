@@ -890,13 +890,12 @@
 (deftest test-build-info
   (let [{info :shadow.build/build-info :as x}
         (api/compile*
-          '{:id :test
+          '{:build-id :test
             :target :browser
             :output-dir "target/test-build-info/js"
             :asset-path "/js"
             :modules
-            {:main {:entries [demo.browser
-                              demo.browser-extra]}}}
+            {:main {:entries [demo.browser]}}}
           {})]
 
     (pprint info)
