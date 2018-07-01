@@ -385,7 +385,7 @@
         (let [compile-init
               (-> {:resource-id resource-id
                    :resource-name resource-name
-                   :source source
+                   :source (str source)
                    :ns 'cljs.user
                    :js ""
                    :cljc (util/is-cljc? resource-name)
