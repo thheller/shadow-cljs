@@ -7,22 +7,14 @@
             [shadow.build.targets.node-script :as node-script]
             [shadow.cljs.util :as util]
             [shadow.cljs.devtools.server.util :refer (pipe)]
-            [hiccup.page :refer (html5)]
-            [clojure.java.io :as io]
-            [cljs.compiler :as cljs-comp]
-            [shadow.build.api :as build-api]
-            [shadow.build.output :as output]
-            [shadow.build.data :as data]
-            [shadow.build.async :as async])
-  (:import [java.lang ProcessBuilder$Redirect]))
+            [shadow.build.async :as async]))
 
 (defn configure [{::build/keys [config mode] :as state}]
   (-> state
       (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
       (update :build-options merge {:greedy true
                                     :dynamic-resolve true})
-      ;; FIXME: allow custom :runner-ns?
-      (update ::build/config merge {:main 'shadow.test.node/main})
+      (update ::build/config merge {:main (get config :main 'shadow.test.node/main)})
       (update-in [::build/config :devtools] assoc :enabled false)))
 
 ;; since :configure is only called once in :dev
@@ -45,7 +37,9 @@
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
             (into test-namespaces)
-            (conj 'shadow.test.node))]
+            (conj (or (when-let [main (:main config)]
+                        (-> main namespace symbol))
+                      'shadow.test.node)))]
 
     (-> state
         (assoc-in [::modules/config :main :entries] entries)
