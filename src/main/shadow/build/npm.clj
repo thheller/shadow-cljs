@@ -480,7 +480,12 @@
                      (remove asset-require?)
                      (distinct)
                      (map maybe-convert-goog)
-                     (into []))]
+                     (into []))
+
+                js-deps
+                (cond-> js-deps
+                  (:uses-global-buffer info)
+                  (conj 'shadow.js.buffer-global))]
 
             (when (seq js-errors)
               (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))

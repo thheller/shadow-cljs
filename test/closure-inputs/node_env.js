@@ -45,3 +45,8 @@ process.env.NODE_ENV !== "production" ? warning(false, "`valueLink` prop on `inp
 if (/[?&]react_perf\b/.test(url)) {
   ReactDebugTool.beginProfiling();
 }
+
+var x = Buffer();
+
+console.log(__dirname);
+console.log(__filename);

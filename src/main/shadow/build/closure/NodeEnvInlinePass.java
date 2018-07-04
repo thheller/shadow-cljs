@@ -31,6 +31,25 @@ public class NodeEnvInlinePass extends NodeTraversal.AbstractPostOrderCallback i
         if (isEnvLookup(node)) {
             node.replaceWith(IR.string(nodeEnv));
             t.reportCodeChange();
+        } else if (node.isName()) {
+            // replace a few more node constants.
+            // these rarely occur in npm packages and webpack inlines them like this as well
+            switch (node.getString()) {
+                case "__filename":
+                    node.replaceWith(IR.string("/" + t.getSourceName()));
+                    break;
+                case "__dirname":
+                    node.replaceWith(IR.string("/"));
+                    break;
+                case "Buffer":
+                    if (t.getScope().getVar("Buffer") == null) {
+                        node.replaceWith(IR.getprop(IR.name("shadow$shims"), "Buffer"));
+                    }
+                    break;
+
+                default:
+                    break;
+            }
         }
     }
 

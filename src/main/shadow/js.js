@@ -22,6 +22,12 @@ goog.define("shadow.js.NODE_ENV", "development");
 goog.define("shadow.js.process.browser", false);
 
 
+/**
+ * @dict
+ */
+shadow.js.shims = {};
+
+
 // https://github.com/defunctzombie/node-process/blob/master/browser.js
 
 shadow.js.process["title"] = "browser";
@@ -76,7 +82,7 @@ shadow.js.jsRequire = function(name, opts) {
     var process = goog.global.process || shadow.js.process;
 
     try {
-      moduleFn.call(module, goog.global, process, shadow.js.jsRequire, module, module["exports"]);
+      moduleFn.call(module, goog.global, process, shadow.js.jsRequire, module, module["exports"], shadow.js.shims);
     } catch (e) {
       console.warn("shadow-cljs - failed to load", name);
       throw e;

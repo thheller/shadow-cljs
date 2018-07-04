@@ -41,6 +41,7 @@ public class JsInspector {
         ITransientCollection strOffsets = PersistentVector.EMPTY.asTransient();
 
         boolean esm = false;
+        boolean usesGlobalBuffer = false;
 
         String googModule = null;
 
@@ -110,7 +111,10 @@ public class JsInspector {
                 googProvides = googProvides.conj(x);
             } else if (NodeUtil.isCallTo(node, "goog.module")) {
                 googModule = node.getLastChild().getString();
+            } else if (node.isName() && node.getString().equals("Buffer") && t.getScope().getVar("Buffer") == null) {
+                usesGlobalBuffer = true;
             }
+
         }
     }
 
@@ -148,6 +152,7 @@ public class JsInspector {
     public static final Keyword KW_GOOG_PROVIDES = RT.keyword(NS, "goog-provides");
     public static final Keyword KW_GOOG_REQUIRES = RT.keyword(NS, "goog-requires");
     public static final Keyword KW_GOOG_MODULE = RT.keyword(NS, "goog-module");
+    public static final Keyword KW_USES_GLOBAL_BUFFER = RT.keyword(NS, "uses-global-buffer");
 
     public static FileInfo getFileInfo(Compiler cc, SourceFile srcFile) {
         JsAst ast = new JsAst(srcFile);
@@ -180,7 +185,8 @@ public class JsInspector {
                 KW_GOOG_MODULE, fileInfo.googModule,
                 KW_INVALID_REQUIRES, fileInfo.invalidRequires.persistent(),
                 KW_LANGUAGE, fileInfo.features.version(),
-                KW_STR_OFFSETS, fileInfo.strOffsets.persistent()
+                KW_STR_OFFSETS, fileInfo.strOffsets.persistent(),
+                KW_USES_GLOBAL_BUFFER, fileInfo.usesGlobalBuffer
         );
 
         if (fileInfo.parseResult != null) {
