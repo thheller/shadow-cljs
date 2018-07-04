@@ -8,35 +8,40 @@ import com.google.javascript.rhino.Node;
 import java.io.File;
 import java.nio.charset.Charset;
 
-public class NodeEnvInlinePass extends NodeTraversal.AbstractPostOrderCallback implements CompilerPass {
+public class NodeStuffInlinePass extends NodeTraversal.AbstractPostOrderCallback implements CompilerPass {
     private final Compiler compiler;
-    private final String nodeEnv;
 
-    public NodeEnvInlinePass(Compiler compiler, String nodeEnv) {
+    public NodeStuffInlinePass(Compiler compiler) {
         this.compiler = compiler;
-        this.nodeEnv = nodeEnv;
-    }
-
-    public static boolean isEnvLookup(Node node) {
-        // there should be a simpler way to check this
-        // must check if two getprops, /someregex/.test() breaks eval
-        return node.isGetProp() &&
-                node.getFirstChild().isGetProp() &&
-                node.getFirstChild().getFirstChild().isName() &&
-                node.getQualifiedName().equals("process.env.NODE_ENV");
     }
 
     @Override
     public void visit(NodeTraversal t, Node node, Node parent) {
-        if (isEnvLookup(node)) {
-            node.replaceWith(IR.string(nodeEnv));
-            t.reportCodeChange();
+        if (node.isName()) {
+            // replace a few more node constants.
+            // these rarely occur in npm packages and webpack inlines them like this as well
+            switch (node.getString()) {
+                case "__filename":
+                    node.replaceWith(IR.string("/" + t.getSourceName()));
+                    break;
+                case "__dirname":
+                    node.replaceWith(IR.string("/"));
+                    break;
+                case "Buffer":
+                    if (t.getScope().getVar("Buffer") == null) {
+                        node.replaceWith(IR.getprop(IR.name("shadow$shims"), "Buffer"));
+                    }
+                    break;
+
+                default:
+                    break;
+            }
         }
     }
 
     @Override
     public void process(Node externs, Node root) {
-        NodeTraversal.traverseEs6(compiler, root, this);
+        NodeTraversal.traverse(compiler, root, this);
     }
 
     public static Node process(Compiler cc, SourceFile srcFile) {
@@ -46,7 +51,7 @@ public class NodeEnvInlinePass extends NodeTraversal.AbstractPostOrderCallback i
         JsAst.ParseResult result = (JsAst.ParseResult) node.getProp(Node.PARSE_RESULTS);
 
         // FIXME: don't do this if result has errors?
-        NodeTraversal.Callback pass = new NodeEnvInlinePass(cc, "production");
+        NodeTraversal.Callback pass = new NodeStuffInlinePass(cc);
         NodeTraversal.traverseEs6(cc, node, pass);
 
         return node;

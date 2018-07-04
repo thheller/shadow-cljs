@@ -23,7 +23,7 @@
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                           BasicErrorManager Result ShadowAccess
                                          SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy)
-           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector)
+           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (java.nio.charset Charset)))
 
@@ -1657,6 +1657,9 @@
             (NodeEnvInlinePass. cc (if (= :release mode)
                                      "production"
                                      "development")))
+
+          (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
+            (NodeStuffInlinePass. cc))
 
           (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
             (let [m (require-replacement-map state)]
