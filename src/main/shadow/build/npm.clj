@@ -155,9 +155,9 @@
          (when (not= suffix "")
            suffix))])))
 
-(defn find-package-main [npm {:keys [package-dir package-json] :as package}]
+(defn find-package-main [{:keys [main-keys] :as npm} {:keys [package-dir package-json] :as package}]
   (let [entries
-        (->> (:main-keys npm)
+        (->> main-keys
              (map #(get package-json %))
              (remove nil?)
              (into []))]
@@ -696,7 +696,6 @@
         (-> (io/file "")
             (.getAbsoluteFile))
 
-        ;; FIXME: allow configuration of this
         node-modules-dir
         (if (seq node-modules-dir)
           (-> (io/file node-modules-dir)
@@ -710,11 +709,8 @@
      ;; JVM working dir always
      :project-dir project-dir
      :node-modules-dir node-modules-dir
-     ;; npm and yarn handle installing bin files differenly for dependencies
-     ;; so use the first thing that exists
-     ;; FIXME: if a build ever needs to configure these we can't use the shared npm reference
-     :extensions [".js" ".json"]
-     :main-keys [#_#_"module" "jsnext:main" "browser" "main"]
+     :extensions [#_ ".mjs" ".js" ".json"]
+     :main-keys [#_#_ "module" "jsnext:main" "browser" "main"]
      }))
 
 (defn stop [npm])

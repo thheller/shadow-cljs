@@ -60,10 +60,15 @@
               nmdf)))
 
         npm
-        (-> npm
+        (-> (select-keys (:js-options build-config) [:main-keys :extensions])
+            (merge npm)
             (cond->
               node-modules-dir
-              (assoc :node-modules-dir node-modules-dir)))]
+              (assoc :node-modules-dir node-modules-dir)
+
+              (get-in build-config [:js-options :prefer-esm])
+              (assoc :main-keys ["module" "jsnext:main" "browser" "main"]
+                     :extensions [".mjs" ".js" ".json"])))]
 
     (-> (build-api/init)
         (build-api/with-npm npm)

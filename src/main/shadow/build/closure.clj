@@ -21,7 +21,7 @@
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
-                                          BasicErrorManager Result ShadowAccess
+                                         BasicErrorManager Result ShadowAccess
                                          SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy)
            (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
@@ -47,6 +47,11 @@
   ([out-or-error-manager]
    (doto (com.google.javascript.jscomp.ShadowCompiler. out-or-error-manager)
      (.disableThreads))))
+
+(def injected-libraries-field
+  (doto (-> (Class/forName "com.google.javascript.jscomp.Compiler")
+            (.getDeclaredField "injectedLibraries"))
+    (.setAccessible true)))
 
 ;;;
 ;;; partially taken from cljs/closure.clj
@@ -572,7 +577,7 @@
        "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
 
 (defn make-js-modules
-  [{:keys [build-modules closure-configurators compiler-options build-sources polyfill-js] :as state}]
+  [{:keys [build-modules build-sources] :as state}]
 
   ;; modules that only contain foreign sources must not be exposed to closure
   ;; since they technically do not depend on goog but closure only allows one root module
@@ -582,9 +587,6 @@
              (filter :all-foreign)
              (map :module-id)
              (into #{}))
-
-        js-provider
-        (get-in state [:js-options :js-provider])
 
         required-js-names
         (data/js-names-accessed-from-cljs state build-sources)
@@ -641,7 +643,6 @@
                       (cond
                         (= "goog/base.js" resource-name)
                         (str (output/closure-defines state)
-                             polyfill-js
                              js
                              goog-nodeGlobalRequire-fix)
 
@@ -765,7 +766,7 @@
 
 (defn setup
   [{::keys [modules]
-    :keys [compiler-options] :as state}]
+    :keys [closure-injected-libs compiler-options] :as state}]
   (let [source-map?
         (boolean (:source-map compiler-options))
 
@@ -777,10 +778,6 @@
           (.resetWarningsGuard)
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
 
-          ;; all the required polyfills are handled when transpiling, stored in :polyfill-js
-          ;; must prevent injecting them again
-          (.setPreventLibraryInjection (boolean (seq (:polyfill-js state))))
-
           (.setWarningLevel DiagnosticGroups/CHECK_TYPES CheckLevel/OFF)
           ;; really only want the undefined variables warnings
           ;; must turn off CHECK_VARIABLES first or it will complain too much (REDECLARED_VARIABLES)
@@ -790,6 +787,19 @@
           (.setWarningLevel DiagnosticGroups/UNDEFINED_VARIABLES CheckLevel/WARNING))]
 
     (set-options closure-opts compiler-options state)
+
+    ;; ensure that libs injected during transforms are injected again
+    ;; not using polyfill-js since we might need to inject polyfills for CLJS
+    ;; which wasn't processed yet and would clash with the manually injected libs
+    (let [injected-libs
+          (set/union
+            #{}
+            closure-injected-libs
+            (get-in state [:compiler-options :force-library-injection]))]
+      (when (seq injected-libs)
+        (doto closure-opts
+          (.setRewritePolyfills true)
+          (.setForceLibraryInjection injected-libs))))
 
     ;; add-input-source-maps requires options to be set, otherwise throws NPE
     ;; ShadowCompiler exposes this to just set options since initOptions does a bunch of stuff
@@ -940,15 +950,18 @@
         success?
         (.success result)
 
-        js-provider
-        (get-in state [:js-options :js-provider])
+        ;; keep track of all the injected polyfills for some reports?
+        injected-libs
+        (-> (.get injected-libraries-field compiler)
+            (keys)
+            (into #{}))
 
         source-map
         (when (and success? (get-in state [:compiler-options :source-map]))
           (.getSourceMap compiler))]
 
     (-> state
-        (assoc ::result result)
+        (assoc ::result result ::injected-libs injected-libs)
         (cond->
           success?
           (update ::modules
@@ -1177,10 +1190,7 @@
       ;; must start at the end since we are inserting longer strings
       (reverse js-str-offsets))))
 
-(def injected-libraries-field
-  (doto (-> (Class/forName "com.google.javascript.jscomp.Compiler")
-            (.getDeclaredField "injectedLibraries"))
-    (.setAccessible true)))
+
 
 
 ;; closure folks really do not care about backwards compatibility
@@ -1347,7 +1357,7 @@
                   ;; re-injected polyfills even if they are only
                   ;; used by the cached sources as we take them out
                   ;; in one chunk to ensure they are ordered correctly
-                  (doseq [lib (::injected-libs state)]
+                  (doseq [lib (:closure-injected-libs state)]
                     (ShadowAccess/ensureLibraryInjected cc lib))
 
                   (.stage1Passes cc)
@@ -1377,7 +1387,7 @@
 
     (-> state
         (log-warnings cc result)
-        (assoc ::injected-libs injected-libs)
+        (update :closure-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
             (.reset source-map)
@@ -1525,8 +1535,8 @@
           (util/with-logged-time [state {:type ::closure-cache-read
                                          :num-files (count sources)}]
             (-> state
-                (assoc ::injected-libs (:injected-libs cache-index)
-                       :polyfill-js (:polyfill-js cache-index))
+                (update :closure-injected-libs set/union (:injected-libs cache-index))
+                (assoc :polyfill-js (:polyfill-js cache-index))
                 (util/reduce->
                   (fn [state {:keys [resource-id output-name] :as cached-rc}]
                     (if (get-in state [:output resource-id])
@@ -1558,7 +1568,7 @@
                 (assoc :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
                        :CACHE-OPTIONS cache-options
                        :polyfill-js (:polyfill-js state)
-                       :injected-libs (::injected-libs state))
+                       :injected-libs (:closure-injected-libs state))
                 (util/reduce->
                   (fn [idx {:keys [cache-key resource-id output-name] :as compiled-src}]
                     (let [output
