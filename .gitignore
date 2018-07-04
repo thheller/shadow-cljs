@@ -6,6 +6,7 @@ classes/
 checkouts/
 cljs-runtime/
 js/
+!src/main/shadow/js
 css/
 /public/assets
 /wiki
