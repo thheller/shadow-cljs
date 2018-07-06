@@ -625,11 +625,12 @@
   (let [abs-path (.getAbsolutePath file)]
     (boolean (some #(re-find % abs-path) exclude))))
 
-
-
 (defn get-classpath-entries [{:keys [index-ref] :as cp}]
   (let [{:keys [classpath-excludes]} @index-ref]
     (->> (get-classpath)
+         ;; apparently linux distros put jars on the classpath that don't exist?
+         ;; https://github.com/shadow-cljs/shadow-cljs.github.io/pull/19
+         (filter #(.exists ^File %))
          (remove #(should-exclude-classpath classpath-excludes %))
          (map #(.getCanonicalFile ^File %))
          (into []))))
