@@ -364,17 +364,6 @@
   [_ env [_ target field & member+ :as form] _ opts]
   (disallowing-recur (analyze-dot env target field member+ form opts)))
 
-;; thheller: changed tag inference to always use tag on form first
-;; destructured bindings had meta in their :init
-;; https://dev.clojure.org/jira/browse/CLJS-2385
-(defn get-tag [e]
-  (if-some [tag (-> e :form meta :tag)]
-    tag
-    (if-some [tag (-> e :tag)]
-      tag
-      (-> e :info :tag)
-      )))
-
 ;; cljs.analyzer/parse-type, cleaned up since I couldnt follow it otherwise
 ;; removed one resolve-var call
 ;; added :tag
