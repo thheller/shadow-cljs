@@ -703,7 +703,13 @@
     (configure state mode config)
 
     :compile-prepare
-    (maybe-inject-cljs-loader-constants state mode config)
+    (-> state
+        (maybe-inject-cljs-loader-constants mode config)
+        (cond->
+          ;; only set this if any :shadow-js is used otherwise closure will complain
+          (get-in state [:sym->id 'shadow.js])
+          (assoc-in [:compiler-options :closure-defines 'shadow.js.process.browser] true)
+          ))
 
     :compile-finish
     (-> state
@@ -712,10 +718,6 @@
         (cond->
           (bootstrap-host-build? state)
           (bootstrap-host-info)))
-
-    :optimize-prepare
-    (-> state
-        (assoc-in [:compiler-options :closure-defines 'shadow.js.process.browser] true))
 
     :flush
     (flush state mode config)
