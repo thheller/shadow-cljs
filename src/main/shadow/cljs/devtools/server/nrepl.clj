@@ -295,6 +295,7 @@
 
              ;; provided by fake-piggieback, only because tools expect piggieback
              #'cemerick.piggieback/wrap-cljs-repl
+             #'cider.piggieback/wrap-cljs-repl
 
              ;; cljs support
              #'cljs-load-file
