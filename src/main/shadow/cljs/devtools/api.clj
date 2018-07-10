@@ -385,13 +385,24 @@
 
            ;; need to set the var immediately since some cider middleware needs it to
            ;; switch REPL type to cljs. can't get to the nrepl session from here.
-           (when-let [pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
-             (.set pvar
-               (reify
-                 clojure.lang.IDeref
-                 (deref [_]
-                   (when-let [worker (get-worker id)]
-                     (-> worker :state-ref deref :build-state :compiler-env))))))
+           (let [pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
+             (when (and pvar (.isBound pvar))
+               (.set pvar
+                 (reify
+                   clojure.lang.IDeref
+                   (deref [_]
+                     (when-let [worker (get-worker id)]
+                       (-> worker :state-ref deref :build-state :compiler-env)))))))
+
+           (let [pvar (find-var 'cider.piggieback/*cljs-compiler-env*)]
+             (when (and pvar (.isBound pvar))
+               (.set pvar
+                 (reify
+                   clojure.lang.IDeref
+                   (deref [_]
+                     (when-let [worker (get-worker id)]
+                       (-> worker :state-ref deref :build-state :compiler-env)))))))
+
 
            ;; Cursive uses this to switch repl type to cljs
            (println "To quit, type: :cljs/quit")

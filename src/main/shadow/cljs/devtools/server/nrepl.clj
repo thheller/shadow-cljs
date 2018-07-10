@@ -42,6 +42,7 @@
       quit-var (async/chan)
       #'*ns* (get @session #'api/*nrepl-clj-ns*)
       #'api/*nrepl-cljs* nil
+      #'cider.piggieback/*cljs-compiler-env* nil
       #'cemerick.piggieback/*cljs-compiler-env* nil)))
 
 (defn do-cljs-eval [{::keys [build-id worker] :keys [session code runtime-id] :as msg}]
@@ -214,6 +215,15 @@
 ;; fake piggieback descriptor
 (middleware/set-descriptor!
   #'cemerick.piggieback/wrap-cljs-repl
+  {:requires
+   #{#'cljs-select}
+
+   ;; it doesn't do anything, it is just here for cider-nrepl
+   :expects
+   #{"eval" "load-file"}})
+
+(middleware/set-descriptor!
+  #'cider.piggieback/wrap-cljs-repl
   {:requires
    #{#'cljs-select}
 
