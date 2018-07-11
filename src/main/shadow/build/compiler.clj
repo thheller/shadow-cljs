@@ -908,7 +908,11 @@
   [state resource-id]
   (let [rc (data/get-source-by-id state resource-id)
         deps-syms (data/deps->syms state rc)]
-    (update-in state [:sources resource-id :cache-key] into deps-syms)))
+    (update-in state [:sources resource-id :cache-key]
+      (fn [key]
+        (->> (into key deps-syms)
+             (distinct)
+             (into []))))))
 
 (defn throw-js-errors-now! [state]
   (doseq [{:keys [file js-errors source] :as src} (data/get-build-sources state)
