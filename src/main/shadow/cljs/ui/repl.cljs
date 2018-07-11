@@ -49,7 +49,8 @@
     (do (js/console.log "unknown cmd" cmd)
         state)))
 
-(defonce state-ref (atom nil))
+(defonce state-ref
+  (atom {}))
 
 (defn ws-loop []
   (go (loop []
@@ -77,6 +78,8 @@
     (let [term
           (doto (xterm/Terminal. #js {:disableStdin true
                                       :convertEol true
+                                      :fontFamily "monospace"
+                                      :fontSize 12
                                       :theme #js {:foreground "#000000"
                                                   :background "#FFFFFF"
                                                   :selection "rgba(0,0,0,0.3)"}})
@@ -125,6 +128,9 @@
    :right 0
    :bottom 0
    :height "auto"
+   ;;:margin 10
+   ;; :border-radius 2
+   ;; :box-shadow "0 3px 1px -2px rgba(0,0,0,.2), 0 2px 2px 0 rgba(0,0,0,.14), 0 1px 5px 0 rgba(0,0,0,.12)"
    :flex-direction "column"})
 
 (defstyled term-container :div [_]
@@ -132,20 +138,23 @@
    :padding-left 10})
 
 (defstyled editor-container :div [_]
-  {:height 200})
+  {:height 200
+   :border-top "2px solid #eee"})
 
 (defstyled html-toolbar :div [_]
   {:padding 10
+   :margin-bottom 10
+   :background-color "#eee"
    :font-weight "bold"})
 
-(defn ui []
-  (html-container
-    (html-toolbar
-      "[ALPHA] shadow-cljs REPL")
+(defn ui [state]
+  (html/div
+    (html-container
+      (html-toolbar "[ALPHA] shadow-cljs REPL")
 
-    (term-container {:ref attach-terminal})
-    (editor-container
-      (html/input {:ref attach-codemirror}))))
+      (term-container {:ref attach-terminal})
+      (editor-container
+        (html/input {:ref attach-codemirror})))))
 
 (defn ^:dev/after-load start []
   (let [cmd-in
@@ -164,7 +173,10 @@
         {:ws ws
          :ws-in ws-in
          :ws-out ws-out
-         :cmd-in cmd-in}]
+         :cmd-in cmd-in}
+
+        dom-target
+        (dom/by-id "root")]
 
     (swap! state-ref merge init-state)
 
@@ -185,7 +197,12 @@
                       (.send ws (pr-str msg))
                       (recur))))
 
-              (rd/render (ui) (dom/by-id "root"))
+              (rd/render (ui @state-ref) dom-target)
+
+              (add-watch state-ref
+                ::render
+                (fn [_ _ new-val old-val]
+                  (rd/render (ui new-val) dom-target)))
 
               (ws-loop)
 
@@ -202,6 +219,7 @@
               (async/close! ws-in))))))
 
 (defn ^:dev/before-load stop []
+  (remove-watch state-ref ::render)
   (rd/unmountComponentAtNode (dom/by-id "root"))
   (when-let [ws (:ws @state-ref)]
     (.close ws)
