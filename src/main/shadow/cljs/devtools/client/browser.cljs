@@ -3,8 +3,6 @@
     [cljs.reader :as reader]
     [clojure.string :as str]
     [goog.dom :as gdom]
-    [goog.object :as gobj]
-    [goog.net.jsloader :as loader]
     [goog.userAgent.product :as product]
     [goog.Uri]
     [goog.net.XhrIo :as xhr]
@@ -153,14 +151,25 @@
             (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success hud/load-failure))
             ))))))
 
+;; capture this once because the path may change via pushState
+(def ^goog page-load-uri
+  (when js/goog.global.document
+    (goog.Uri/parse js/document.location.href)))
+
 (defn handle-asset-watch [{:keys [updates] :as msg}]
   (doseq [path updates
           ;; FIXME: could support images?
           :when (str/ends-with? path "css")]
-    (when-let [node (js/document.querySelector (str "link[href^=\"" path "\"]"))]
+    (doseq [node (array-seq (js/document.querySelectorAll "link[rel=\"stylesheet\"]"))
+            :let [^goog node-uri (goog.Uri/parse (.getAttribute node "href"))
+                  node-uri-resolved (.resolve page-load-uri node-uri)
+                  node-abs (.getPath ^goog node-uri-resolved)]
+            :when (and (or (= (.hasSameDomainAs page-load-uri node-uri))
+                           (not (.hasDomain node-uri)))
+                       (= node-abs path))]
+
       (let [new-link
-            (doto (js/document.createElement "link")
-              (.setAttribute "rel" "stylesheet")
+            (doto (.cloneNode node true)
               (.setAttribute "href" (str path "?r=" (rand))))]
 
         (devtools-msg "load CSS" path)
