@@ -34,7 +34,7 @@
 (def loaded? js/goog.isProvided_)
 
 (defn goog-is-loaded? [name]
-  (js/SHADOW_ENV.isLoaded name))
+  (js/$CLJS.SHADOW_ENV.isLoaded name))
 
 (def goog-base-rc
   [:shadow.build.classpath/resource "goog/base.js"])
@@ -56,7 +56,7 @@
     ;; should really stop using this and rather maintain our own record
     ;; but without this hot-reload will reload shadow-js files with each cycle
     ;; since they don't set it
-    (js/SHADOW_ENV.setLoaded output-name)
+    (js/$CLJS.SHADOW_ENV.setLoaded output-name)
 
     (devtools-msg "load JS" resource-name)
     (env/before-load-src src)

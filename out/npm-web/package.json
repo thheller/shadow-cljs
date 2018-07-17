@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "license": "MIT",
   "devDependencies": {
-    "source-map-loader": "^0.2.1"
+    "source-map-loader": "^0.2.1",
+    "webpack": "^4.16.1",
+    "webpack-cli": "^3.0.8"
   },
   "dependencies": {
     "react": "^15.5.4",
