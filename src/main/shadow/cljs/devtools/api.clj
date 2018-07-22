@@ -544,7 +544,12 @@
                (worker/watch worker out-chan)
                (worker/compile! worker)
 
-               (browse-url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/browser-repl-js"))
+               (let [url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/browser-repl-js")]
+                 (try
+                   (browse-url url)
+                   (catch Exception e
+                     (println
+                       (format "Failed to open Browser automatically.\nPlease open the URL below in your Browser:\n\t%s" url)))))
                worker))]
 
      (repl :browser-repl)
