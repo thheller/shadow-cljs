@@ -21,7 +21,9 @@
             [cljs.compiler :as cljs-comp]
             [shadow.build.npm :as npm]
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
-            [shadow.build.log :as build-log]))
+            [shadow.build.log :as build-log])
+  (:import [com.google.javascript.jscomp.deps SourceCodeEscapers]
+           [com.google.common.escape Escaper]))
 
 (s/def ::module-loader boolean?)
 
@@ -420,7 +422,79 @@
        (reverse)
        (into [])))
 
-(defn flush-unoptimized-module!
+(def ^Escaper js-escaper
+  (SourceCodeEscapers/javascriptEscaper))
+
+(defn flush-unoptimized-module-eval!
+  [{:keys [unoptimizable build-options] :as state}
+   {:keys [goog-base output-name prepend append sources web-worker] :as mod}
+   target]
+
+  (let [sources
+        (if-not web-worker
+          sources
+          (let [mods (get-all-module-deps state mod)]
+            (-> []
+                (into (mapcat :sources) mods)
+                (into sources))))
+
+        source-loads
+        (->> sources
+             (remove #{output/goog-base-id})
+             (map #(data/get-source-by-id state %))
+             (map (fn [{:keys [output-name] :as rc}]
+                    (let [{:keys [js] :as output} (data/get-output! state rc)
+
+                          source-map?
+                          (boolean (or (contains? output :source-map)
+                                       (contains? output :source-map-json)))]
+                      (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")
+                      )))
+             (str/join "\n"))
+
+        out
+        (str prepend
+             ;; (str "SHADOW_ENV.load({}, " (json/write-str require-files) ");\n")
+             source-loads
+             append)
+
+        out
+        (if (or goog-base web-worker)
+          (str unoptimizable
+               ;; always include this in dev builds
+               ;; a build may not include any shadow-js initially
+               ;; but load some from the REPL later
+               "var shadow$provide = {};\n"
+
+               (when (and web-worker (get-in state [::build/config :module-loader]))
+                 "var shadow$loader = false;\n")
+
+               (let [{:keys [polyfill-js]} state]
+                 (when (and goog-base (seq polyfill-js))
+                   (str "\n" polyfill-js)))
+
+               (-> state
+                   (cond->
+                     web-worker
+                     (assoc-in [:compiler-options :closure-defines "shadow.cljs.devtools.client.env.enabled"] false))
+                   (output/closure-defines-and-base))
+
+               (if web-worker
+                 (slurp (io/resource "shadow/boot/worker.js"))
+                 (slurp (io/resource "shadow/boot/browser.js")))
+               "\n\n"
+               ;; create the $CLJS var so devtools can always use it
+               ;; always exists for :module-format :js
+               "goog.global[\"$CLJS\"] = goog.global;\n"
+               "\n\n"
+               out)
+          ;; else
+          out)]
+
+    (io/make-parents target)
+    (spit target out)))
+
+(defn flush-unoptimized-module-fetch!
   [{:keys [unoptimizable build-options] :as state}
    {:keys [goog-base output-name prepend append sources web-worker] :as mod}
    target]
@@ -516,6 +590,12 @@
 
     (io/make-parents target)
     (spit target out)))
+
+(defn flush-unoptimized-module!
+  [state module target]
+  (if (= :eval (get-in state [:shadow.build/config :devtools :loader-mode]))
+    (flush-unoptimized-module-eval! state module target)
+    (flush-unoptimized-module-fetch! state module target)))
 
 (defn flush-unoptimized!
   [{:keys [build-modules] :as state}]
@@ -680,7 +760,7 @@
           (fn [state package-name]
             (doseq [[dep wanted-version]
                     (merge (get-in pkg-index [package-name :package-json "dependencies"])
-                           (get-in pkg-index [package-name :package-json "peerDependencies"]))
+                      (get-in pkg-index [package-name :package-json "peerDependencies"]))
                     ;; not all deps end up being used so we don't need to check the version
                     :when (get pkg-index dep)
                     :let [installed-version (get-in pkg-index [dep :package-json "version"])]

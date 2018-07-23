@@ -21,5 +21,14 @@ var SHADOW_ENV = (function () {
     loadedFiles[path] = true;
   }
 
+  env.evalLoad = function(path, sourceMap, code) {
+    loadedFiles[path] = true;
+    code += ("\n//# sourceURL=" + CLOSURE_BASE_PATH + path);
+    if (sourceMap) {
+      code += ("\n//# sourceMappingURL=" + path + ".map");
+    }
+    goog.globalEval(code);
+ }
+
   return env;
 }).call(this);
