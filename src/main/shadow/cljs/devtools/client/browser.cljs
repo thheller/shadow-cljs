@@ -311,53 +311,55 @@
 
 
 (defn ws-connect []
-  (let [print-fn
-        cljs.core/*print-fn*
+  (try
+    (let [print-fn
+          cljs.core/*print-fn*
 
-        ws-url
-        (env/ws-url :browser)
+          ws-url
+          (env/ws-url :browser)
 
-        socket
-        (js/WebSocket. ws-url)]
+          socket
+          (js/WebSocket. ws-url)]
 
-    (vreset! socket-ref socket)
+      (vreset! socket-ref socket)
 
-    (set! (.-onmessage socket)
-      (fn [e]
-        (env/process-ws-msg (. e -data) handle-message)
-        ))
+      (set! (.-onmessage socket)
+        (fn [e]
+          (env/process-ws-msg (. e -data) handle-message)
+          ))
 
-    (set! (.-onopen socket)
-      (fn [e]
-        (hud/connection-error-clear!)
-        (vreset! close-reason-ref nil)
-        ;; :module-format :js already patches provide
-        (when (= "goog" env/module-format)
-          ;; patch away the already declared exception
-          (set! (.-provide js/goog) js/goog.constructNamespace_))
+      (set! (.-onopen socket)
+        (fn [e]
+          (hud/connection-error-clear!)
+          (vreset! close-reason-ref nil)
+          ;; :module-format :js already patches provide
+          (when (= "goog" env/module-format)
+            ;; patch away the already declared exception
+            (set! (.-provide js/goog) js/goog.constructNamespace_))
 
-        (env/set-print-fns! ws-msg)
+          (env/set-print-fns! ws-msg)
 
-        (devtools-msg "WebSocket connected!")
-        ))
+          (devtools-msg "WebSocket connected!")
+          ))
 
-    (set! (.-onclose socket)
-      (fn [e]
-        ;; not a big fan of reconnecting automatically since a disconnect
-        ;; may signal a change of config, safer to just reload the page
-        (devtools-msg "WebSocket disconnected!")
-        (hud/connection-error (or @close-reason-ref "Connection closed!"))
-        (vreset! socket-ref nil)
-        (env/reset-print-fns!)
-        ))
+      (set! (.-onclose socket)
+        (fn [e]
+          ;; not a big fan of reconnecting automatically since a disconnect
+          ;; may signal a change of config, safer to just reload the page
+          (devtools-msg "WebSocket disconnected!")
+          (hud/connection-error (or @close-reason-ref "Connection closed!"))
+          (vreset! socket-ref nil)
+          (env/reset-print-fns!)
+          ))
 
-    (set! (.-onerror socket)
-      (fn [e]
-        (hud/connection-error "Connection failed!")
-        (devtools-msg "websocket error" e)))
+      (set! (.-onerror socket)
+        (fn [e]
+          (hud/connection-error "Connection failed!")
+          (devtools-msg "websocket error" e)))
 
-    (js/setTimeout heartbeat! 30000)
-    ))
+      (js/setTimeout heartbeat! 30000))
+    (catch :default e
+      (devtools-msg "WebSocket setup failed" e))))
 
 (when ^boolean env/enabled
   ;; disconnect an already connected socket, happens if this file is reloaded
@@ -376,4 +378,4 @@
       (when-let [s @socket-ref]
         (.close s))))
 
-  (ws-connect))
+  (js/setTimeout ws-connect 10))
