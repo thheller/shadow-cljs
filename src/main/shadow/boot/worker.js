@@ -27,7 +27,11 @@ var SHADOW_ENV = (function () {
     if (sourceMap) {
       code += ("\n//# sourceMappingURL=" + path + ".map");
     }
-    goog.globalEval(code);
+    try {
+      goog.globalEval(code);
+    } catch (e) {
+        console.warn("failed to load", path, e);
+    }
  }
 
   return env;
