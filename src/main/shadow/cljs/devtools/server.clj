@@ -205,7 +205,7 @@
         (try
           (nrepl/start (:nrepl config))
           (catch Exception e
-            (log/warn "failed to start nrepl server" (.getMessage e))
+            (log/warn e "failed to start nrepl server")
             nil))
 
         port-files-ref

@@ -1,4 +1,4 @@
-(ns shadow.cljs.devtools.fake-piggieback)
+(ns shadow.cljs.devtools.server.fake-piggieback)
 
 ;; tools like cider-nrepl expect to use piggieback
 ;; but piggieback does a lot of weird things that we neither want or need
@@ -8,8 +8,11 @@
 ;; https://github.com/clojure-emacs/cider-nrepl/blob/master/src/cider/nrepl/middleware/util/cljs.clj
 
 (ns cemerick.piggieback
-  (:require [clojure.tools.nrepl.middleware :refer (set-descriptor!)]
-            [shadow.cljs.devtools.api :as api]))
+  (:require [shadow.cljs.devtools.api :as api]))
+
+(if (find-ns 'clojure.tools.nrepl.server)
+  (require '[clojure.tools.nrepl.middleware :refer (set-descriptor!)])
+  (require '[nrepl.middleware :refer (set-descriptor!)]))
 
 ;; tools access this directly via resolve
 (def ^:dynamic *cljs-compiler-env* nil)
@@ -31,8 +34,11 @@
     (next msg)))
 
 (ns cider.piggieback
-  (:require [clojure.tools.nrepl.middleware :refer (set-descriptor!)]
-            [shadow.cljs.devtools.api :as api]))
+  (:require [shadow.cljs.devtools.api :as api]))
+
+(if (find-ns 'clojure.tools.nrepl.server)
+  (require '[clojure.tools.nrepl.middleware :refer (set-descriptor!)])
+  (require '[nrepl.middleware :refer (set-descriptor!)]))
 
 ;; tools access this directly via resolve
 (def ^:dynamic *cljs-compiler-env* nil)

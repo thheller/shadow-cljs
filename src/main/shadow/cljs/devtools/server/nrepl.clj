@@ -3,18 +3,40 @@
   (:require
     [clojure.pprint :refer (pprint)]
     [clojure.core.async :as async :refer (go <! >!)]
-    [clojure.tools.nrepl.middleware :as middleware]
-    [clojure.tools.nrepl.transport :as transport]
-    [clojure.tools.nrepl.server :as server]
     [clojure.tools.logging :as log]
+    [shadow.cljs.devtools.server.fake-piggieback :as fake-piggieback]
     [shadow.cljs.repl :as repl]
-    [shadow.cljs.devtools.fake-piggieback :as fake-piggieback]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.errors :as errors]
     [shadow.cljs.devtools.config :as config])
   (:import (java.io StringReader)))
+
+;; nrepl 0.4 + nrepl 0.2 support
+;; the assumption is that the .server is only loaded when running in lein
+;; shadow-cljs standalone will not have this loaded and will require the newer
+;; version instead. since non of the API changed yet just swapping the namespaces
+;; should be enough
+(if (find-ns 'clojure.tools.nrepl.server)
+  (require
+    '[clojure.tools.nrepl.middleware :as middleware]
+    '[clojure.tools.nrepl.transport :as transport]
+    '[clojure.tools.nrepl.server :as server])
+  (require
+    '[nrepl.middleware :as middleware]
+    '[nrepl.transport :as transport]
+    '[nrepl.server :as server]))
+
+(def nrepl-base-ns
+  (if (find-ns 'clojure.tools.nrepl.server)
+    "clojure.tools.nrepl"
+    "nrepl"))
+
+(defn middleware-var [ns-suffix var-name]
+  (let [qsym (symbol (str nrepl-base-ns ns-suffix) var-name)
+        var (find-var qsym)]
+    var))
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
   (let [res
@@ -169,7 +191,7 @@
 (middleware/set-descriptor!
   #'cljs-select
   {:requires
-   #{#'clojure.tools.nrepl.middleware.session/session}
+   #{(middleware-var ".middleware.session" "session")}
 
    :handles
    {"cljs/select" {}}})
@@ -260,7 +282,7 @@
 (middleware/set-descriptor!
   #'shadow-init
   {:requires
-   #{#'clojure.tools.nrepl.middleware.session/session}
+   #{(middleware-var ".middleware.session" "session")}
 
    :expects
    #{"eval"}})
@@ -289,9 +311,9 @@
                  (map middleware-load)
                  (remove nil?)))
       (into (get-cider-middleware))
-      (into [#'clojure.tools.nrepl.middleware/wrap-describe
-             #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
-             #'clojure.tools.nrepl.middleware.load-file/wrap-load-file
+      (into [(middleware-var ".middleware" "wrap-describe")
+             (middleware-var ".middleware.interruptible-eval" "interruptible-eval")
+             (middleware-var ".middleware.load-file" "wrap-load-file")
 
              ;; provided by fake-piggieback, only because tools expect piggieback
              #'cemerick.piggieback/wrap-cljs-repl
@@ -303,34 +325,10 @@
              #'cljs-select
              #'shadow-init
 
-             #'clojure.tools.nrepl.middleware.session/add-stdin
-             #'clojure.tools.nrepl.middleware.session/session])
+             (middleware-var ".middleware.session" "add-stdin")
+             (middleware-var ".middleware.session" "session")]
+        )
       (middleware/linearize-middleware-stack)))
-
-(comment
-  (pprint
-    (make-middleware-stack
-      '[cider.nrepl.middleware.apropos/wrap-apropos
-        cider.nrepl.middleware.classpath/wrap-classpath
-        cider.nrepl.middleware.complete/wrap-complete
-        cider.nrepl.middleware.debug/wrap-debug
-        cider.nrepl.middleware.enlighten/wrap-enlighten
-        cider.nrepl.middleware.format/wrap-format
-        cider.nrepl.middleware.info/wrap-info
-        cider.nrepl.middleware.inspect/wrap-inspect
-        cider.nrepl.middleware.macroexpand/wrap-macroexpand
-        cider.nrepl.middleware.ns/wrap-ns
-        cider.nrepl.middleware.out/wrap-out
-        cider.nrepl.middleware.pprint/wrap-pprint
-        cider.nrepl.middleware.pprint/wrap-pprint-fn
-        cider.nrepl.middleware.refresh/wrap-refresh
-        cider.nrepl.middleware.resource/wrap-resource
-        cider.nrepl.middleware.stacktrace/wrap-stacktrace
-        cider.nrepl.middleware.test/wrap-test
-        cider.nrepl.middleware.trace/wrap-trace
-        cider.nrepl.middleware.track-state/wrap-tracker
-        cider.nrepl.middleware.undef/wrap-undef
-        cider.nrepl.middleware.version/wrap-version])))
 
 (defn start
   [{:keys [host port middleware]

@@ -31,8 +31,8 @@
 
    [org.clojure/tools.logging "0.4.1"]
    [org.clojure/tools.cli "0.3.7"]
-   [org.clojure/tools.nrepl "0.2.13"]
    [org.clojure/tools.reader "1.3.0"]
+   [nrepl "0.4.3"]
 
    [com.cognitect/transit-clj "0.8.309"]
    [com.cognitect/transit-cljs "0.8.256"]

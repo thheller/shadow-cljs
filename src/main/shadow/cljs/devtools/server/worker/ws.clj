@@ -2,8 +2,6 @@
   "the websocket which is injected into the app, responsible for live-reload, repl-eval, etc"
   (:require
     [clojure.core.async :as async :refer (go <! >! thread alt!! <!! >!!)]
-    [clojure.tools.nrepl.bencode :as be]
-    [clojure.tools.nrepl.transport :as nrepl-transport]
     [clojure.edn :as edn]
     [shadow.user]
     [shadow.build.output :as output]
