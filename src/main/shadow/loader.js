@@ -4,7 +4,7 @@ goog.require("goog.module.ModuleLoader");
 
 // this is written in JS so it doesn't depend on cljs.core
 
-if (shadow$loader) {
+if (goog.global.shadow$loader) {
   shadow.loader.ml = new goog.module.ModuleLoader();
   shadow.loader.ml.setSourceUrlInjection(true);
 
