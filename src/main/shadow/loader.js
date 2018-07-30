@@ -10,8 +10,8 @@ if (goog.global.shadow$loader) {
 
   shadow.loader.mm = goog.module.ModuleManager.getInstance();
   shadow.loader.mm.setLoader(shadow.loader.ml);
-  shadow.loader.mm.setAllModuleInfo(shadow$loader["infos"]);
-  shadow.loader.mm.setModuleUris(shadow$loader["uris"]);
+  shadow.loader.mm.setAllModuleInfo(goog.global.shadow$loader["infos"]);
+  shadow.loader.mm.setModuleUris(goog.global.shadow$loader["uris"]);
 }
 
 shadow.loader.getModuleManager = function() {
