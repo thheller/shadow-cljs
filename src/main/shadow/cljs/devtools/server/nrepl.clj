@@ -4,14 +4,27 @@
     [clojure.pprint :refer (pprint)]
     [clojure.core.async :as async :refer (go <! >!)]
     [clojure.tools.logging :as log]
-    [shadow.cljs.devtools.server.fake-piggieback :as fake-piggieback]
     [shadow.cljs.repl :as repl]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.errors :as errors]
-    [shadow.cljs.devtools.config :as config])
+    [shadow.cljs.devtools.config :as config]
+    [clojure.java.io :as io])
   (:import (java.io StringReader)))
+
+
+;; if cider is on the classpath we load it here
+;; since that will load either clojure.tools.nrepl.server or nrepl.server
+;; we adjust our use according to this since otherwise the cider-nrepl
+;; middleware won't work and thats pretty much the only reason to use nrepl
+;; in the first place. Cursive doesn't care about middleware and works
+;; with either version.
+(when (io/resource "cider/nrepl.clj")
+  (try
+    (require 'cider.nrepl)
+    (catch Exception e
+      (log/warn e "failed to load cider.nrepl"))))
 
 ;; nrepl 0.4 + nrepl 0.2 support
 ;; the assumption is that the .server is only loaded when running in lein
@@ -27,6 +40,10 @@
     '[nrepl.middleware :as middleware]
     '[nrepl.transport :as transport]
     '[nrepl.server :as server]))
+
+;; must load this after the cider.nrepl was required
+;; so it makes the same decision as the check above
+(require '[shadow.cljs.devtools.server.fake-piggieback :as fake-piggieback])
 
 (def nrepl-base-ns
   (if (find-ns 'clojure.tools.nrepl.server)
