@@ -1332,7 +1332,8 @@
           (.addCustomPass CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector)
 
           (.setProcessCommonJSModules true)
-          (.setTransformAMDToCJSModules true)
+          ;; officially deprecated and shouldn't be used anymore
+          ;; (.setTransformAMDToCJSModules true)
           ;; just in case there are some type annotations
           (.setPreserveTypeAnnotations true)
 

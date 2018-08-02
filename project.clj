@@ -46,7 +46,7 @@
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20180610"]
+   [com.google.javascript/closure-compiler-unshaded "v20180716"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
