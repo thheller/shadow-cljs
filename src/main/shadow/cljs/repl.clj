@@ -21,7 +21,8 @@
             [shadow.build.data :as data]
             [shadow.build.resolve :as res]
             [shadow.build.classpath :as classpath])
-  (:import (java.io StringReader BufferedReader)))
+  (:import (java.io StringReader BufferedReader File)
+           [java.nio.file Paths]))
 
 (comment
   (def repl-state
@@ -227,16 +228,21 @@
   [{:keys [source-paths classpath] :as state} {:keys [file-path source]}]
   ;; FIXME: could clojure.core/load-file .clj files?
 
-  (let [matched-paths
+  (let [full-path
+        (Paths/get file-path (into-array String []))
+
+        matched-paths
         (->> (classpath/get-classpath-entries classpath)
              (filter #(.isDirectory %))
-             (map #(.getAbsolutePath %))
+             (map #(.toPath %))
              (filter
                (fn [path]
                  ;; without the / it will create 2 matches for
                  ;; something/src/clj
                  ;; something/src/cljs
-                 (.startsWith file-path (str path "/"))))
+                 (.startsWith full-path path)))
+             (map #(.toFile %))
+             (map #(.getAbsolutePath %))
              (into []))]
 
     (cond

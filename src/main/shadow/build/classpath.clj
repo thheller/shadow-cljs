@@ -633,6 +633,7 @@
          (filter #(.exists ^File %))
          (remove #(should-exclude-classpath classpath-excludes %))
          (map #(.getCanonicalFile ^File %))
+         (distinct)
          (into []))))
 
 (defn index-rc-remove [index resource-name]
