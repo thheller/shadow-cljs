@@ -15,14 +15,14 @@
       (let [cache-root
             (-> (slurp config-file)
                 (edn/read-string)
-                (get :cache-root "target/shadow-cljs")
+                (get :cache-root ".shadow-cljs")
                 (io/file))
 
             port-file
             (io/file cache-root "socket-repl.port")]
 
         (if-not (.exists port-file)
-          (println (format "port file not found: %" (.getAbsolutePath port-file)))
+          (println (format "port file not found: %s" (.getAbsolutePath port-file)))
 
           (Long/parseLong (slurp port-file)))))))
 
