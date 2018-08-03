@@ -56,7 +56,7 @@ var SHADOW_IMPORT = global.SHADOW_IMPORT = function(src) {
 global.SHADOW_NODE_EVAL = function(js, smJson) {
   if (smJson) {
     js += "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,";
-    js += new Buffer(smJson).toString('base64');
+    js += Buffer.from(smJson).toString('base64');
   }
 
   // console.log(js);
