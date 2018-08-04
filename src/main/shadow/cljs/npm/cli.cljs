@@ -181,11 +181,20 @@
   (let [cp-file
         (path/resolve project-root cache-root "classpath.edn")
 
+        use-aot
+        (not (false? (get config :aot true)))
+
+        shadow-artifact
+        (-> ['thheller/shadow-cljs jar-version]
+            (cond->
+              use-aot
+              (conj :classifier "aot")))
+
         classpath-config
         (-> config
             (update :dependencies drop-unwanted-deps)
             (update :dependencies add-exclusions)
-            (update :dependencies #(into [['thheller/shadow-cljs jar-version]] %)))
+            (update :dependencies #(into [shadow-artifact] %)))
 
         ;; only need to rebuild the classpath if :dependencies
         ;; or the version changed

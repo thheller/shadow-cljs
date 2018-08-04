@@ -32,7 +32,7 @@
    [org.clojure/tools.logging "0.4.1"]
    [org.clojure/tools.cli "0.3.7"]
    [org.clojure/tools.reader "1.3.0"]
-   [nrepl "0.4.3"]
+   [nrepl "0.4.4"]
 
    [com.cognitect/transit-clj "0.8.309"]
    [com.cognitect/transit-cljs "0.8.256"]
@@ -51,7 +51,7 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.10.Final"]
+   [io.undertow/undertow-core "2.0.11.Final"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.6.3"
@@ -74,6 +74,12 @@
 
   :java-source-paths
   ["src/main"]
+
+  :classifiers
+  {:aot
+   {:aot [shadow.cljs.devtools.cli
+          shadow.cljs.devtools.api
+          shadow.cljs.devtools.server]}}
 
   :profiles
   {:provided
