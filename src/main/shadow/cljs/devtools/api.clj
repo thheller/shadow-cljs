@@ -22,7 +22,8 @@
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.server.runtime :as runtime])
-  (:import [java.net Inet4Address NetworkInterface]))
+  (:import [java.net Inet4Address NetworkInterface]
+           [clojure.lang Var]))
 
 ;; nREPL support
 
@@ -385,23 +386,32 @@
 
            ;; need to set the var immediately since some cider middleware needs it to
            ;; switch REPL type to cljs. can't get to the nrepl session from here.
-           (let [pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
-             (when (and pvar (.isBound pvar))
-               (.set pvar
-                 (reify
-                   clojure.lang.IDeref
-                   (deref [_]
-                     (when-let [worker (get-worker id)]
-                       (-> worker :state-ref deref :build-state :compiler-env)))))))
+           (try
+             (let [^Var pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
+               (when (and pvar (.isBound pvar))
+                 (.set pvar
+                   (reify
+                     clojure.lang.IDeref
+                     (deref [_]
+                       (when-let [worker (get-worker id)]
+                         (-> worker :state-ref deref :build-state :compiler-env)))))))
+             (catch Exception e
+               (log/warn e "Failed to set cemerick.piggieback compiler env!")))
 
-           (let [pvar (find-var 'cider.piggieback/*cljs-compiler-env*)]
-             (when (and pvar (.isBound pvar))
-               (.set pvar
-                 (reify
-                   clojure.lang.IDeref
-                   (deref [_]
-                     (when-let [worker (get-worker id)]
-                       (-> worker :state-ref deref :build-state :compiler-env)))))))
+           (try
+             (let [^Var pvar (find-var 'cider.piggieback/*cljs-compiler-env*)]
+               (when (and pvar (.isBound pvar))
+                 ;; for reasons I do not understand this set! fails with
+                 ;; java.lang.IllegalStateException: Can't change/establish root binding of: *cljs-compiler-env* with set
+                 ;; although I do check isBound above?
+                 (.set pvar
+                   (reify
+                     clojure.lang.IDeref
+                     (deref [_]
+                       (when-let [worker (get-worker id)]
+                         (-> worker :state-ref deref :build-state :compiler-env)))))))
+             (catch Exception e
+               (log/warn e "Failed to set cider.piggieback compiler env!")))
 
 
            ;; Cursive uses this to switch repl type to cljs

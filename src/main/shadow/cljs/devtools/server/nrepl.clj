@@ -1,59 +1,21 @@
 (ns shadow.cljs.devtools.server.nrepl
+  "tools.nrepl 0.2"
   (:refer-clojure :exclude (send select))
   (:require
     [clojure.pprint :refer (pprint)]
     [clojure.core.async :as async :refer (go <! >!)]
+    [clojure.tools.nrepl.middleware :as middleware]
+    [clojure.tools.nrepl.transport :as transport]
+    [clojure.tools.nrepl.server :as server]
     [clojure.tools.logging :as log]
     [shadow.cljs.repl :as repl]
     [shadow.cljs.devtools.api :as api]
+    [shadow.cljs.devtools.server.fake-piggieback :as fake-piggieback]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.errors :as errors]
-    [shadow.cljs.devtools.config :as config]
-    [clojure.java.io :as io])
+    [shadow.cljs.devtools.config :as config])
   (:import (java.io StringReader)))
-
-
-;; if cider is on the classpath we load it here
-;; since that will load either clojure.tools.nrepl.server or nrepl.server
-;; we adjust our use according to this since otherwise the cider-nrepl
-;; middleware won't work and thats pretty much the only reason to use nrepl
-;; in the first place. Cursive doesn't care about middleware and works
-;; with either version.
-(when (io/resource "cider/nrepl.clj")
-  (try
-    (require 'cider.nrepl)
-    (catch Exception e
-      (log/warn e "failed to load cider.nrepl"))))
-
-;; nrepl 0.4 + nrepl 0.2 support
-;; the assumption is that the .server is only loaded when running in lein
-;; shadow-cljs standalone will not have this loaded and will require the newer
-;; version instead. since non of the API changed yet just swapping the namespaces
-;; should be enough
-(if (find-ns 'clojure.tools.nrepl.server)
-  (require
-    '[clojure.tools.nrepl.middleware :as middleware]
-    '[clojure.tools.nrepl.transport :as transport]
-    '[clojure.tools.nrepl.server :as server])
-  (require
-    '[nrepl.middleware :as middleware]
-    '[nrepl.transport :as transport]
-    '[nrepl.server :as server]))
-
-;; must load this after the cider.nrepl was required
-;; so it makes the same decision as the check above
-(require '[shadow.cljs.devtools.server.fake-piggieback :as fake-piggieback])
-
-(def nrepl-base-ns
-  (if (find-ns 'clojure.tools.nrepl.server)
-    "clojure.tools.nrepl"
-    "nrepl"))
-
-(defn middleware-var [ns-suffix var-name]
-  (let [qsym (symbol (str nrepl-base-ns ns-suffix) var-name)
-        var (find-var qsym)]
-    var))
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
   (let [res
@@ -208,7 +170,7 @@
 (middleware/set-descriptor!
   #'cljs-select
   {:requires
-   #{(middleware-var ".middleware.session" "session")}
+   #{#'clojure.tools.nrepl.middleware.session/session}
 
    :handles
    {"cljs/select" {}}})
@@ -299,7 +261,7 @@
 (middleware/set-descriptor!
   #'shadow-init
   {:requires
-   #{(middleware-var ".middleware.session" "session")}
+   #{#'clojure.tools.nrepl.middleware.session/session}
 
    :expects
    #{"eval"}})
@@ -328,9 +290,9 @@
                  (map middleware-load)
                  (remove nil?)))
       (into (get-cider-middleware))
-      (into [(middleware-var ".middleware" "wrap-describe")
-             (middleware-var ".middleware.interruptible-eval" "interruptible-eval")
-             (middleware-var ".middleware.load-file" "wrap-load-file")
+      (into [#'clojure.tools.nrepl.middleware/wrap-describe
+             #'clojure.tools.nrepl.middleware.interruptible-eval/interruptible-eval
+             #'clojure.tools.nrepl.middleware.load-file/wrap-load-file
 
              ;; provided by fake-piggieback, only because tools expect piggieback
              #'cemerick.piggieback/wrap-cljs-repl
@@ -342,9 +304,8 @@
              #'cljs-select
              #'shadow-init
 
-             (middleware-var ".middleware.session" "add-stdin")
-             (middleware-var ".middleware.session" "session")]
-        )
+             #'clojure.tools.nrepl.middleware.session/add-stdin
+             #'clojure.tools.nrepl.middleware.session/session])
       (middleware/linearize-middleware-stack)))
 
 (defn start

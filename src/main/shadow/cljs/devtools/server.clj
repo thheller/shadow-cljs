@@ -1,39 +1,41 @@
 (ns shadow.cljs.devtools.server
-  (:require [clojure.core.async :as async :refer (thread go <!)]
-            [clojure.java.io :as io]
-            [clojure.tools.logging :as log]
-            [clojure.string :as str]
-            [ring.middleware.file :as ring-file]
-            [ring.middleware.params :as ring-params]
-            [ring.middleware.content-type :as ring-content-type]
-            [ring.middleware.resource :as ring-resource]
-            [shadow.repl :as r]
-            [shadow.http.router :as http]
-            [shadow.runtime.services :as rt]
-            [shadow.undertow :as undertow]
-            [shadow.cljs.devtools.api :as api]
-            [shadow.cljs.devtools.server.web :as web]
-            [shadow.cljs.devtools.server.config-watch :as config-watch]
-            [shadow.cljs.devtools.server.fs-watch :as fs-watch]
-            [shadow.cljs.devtools.server.supervisor :as super]
-            [shadow.cljs.devtools.server.common :as common]
-            [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.devtools.server.util :as util]
-            [shadow.cljs.devtools.server.socket-repl :as socket-repl]
-            [shadow.cljs.devtools.server.runtime :as runtime]
-            [shadow.cljs.devtools.server.nrepl :as nrepl]
-            [shadow.cljs.devtools.server.dev-http :as dev-http]
-            [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-            [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
-            [shadow.cljs.devtools.server.reload-npm :as reload-npm]
-            [shadow.cljs.devtools.server.reload-macros :as reload-macros]
-            [shadow.build.classpath :as build-classpath]
-            [shadow.cljs.devtools.server.system-msg :as system-msg]
-            [shadow.cljs.devtools.server.system-bus :as system-bus])
+  (:require
+    [clojure.core.async :as async :refer (thread go <!)]
+    [clojure.java.io :as io]
+    [clojure.tools.logging :as log]
+    [clojure.string :as str]
+    [ring.middleware.file :as ring-file]
+    [ring.middleware.params :as ring-params]
+    [ring.middleware.content-type :as ring-content-type]
+    [ring.middleware.resource :as ring-resource]
+    [shadow.repl :as r]
+    [shadow.http.router :as http]
+    [shadow.runtime.services :as rt]
+    [shadow.undertow :as undertow]
+    [shadow.build.classpath :as build-classpath]
+    [shadow.cljs.devtools.api :as api]
+    [shadow.cljs.devtools.server.web :as web]
+    [shadow.cljs.devtools.server.config-watch :as config-watch]
+    [shadow.cljs.devtools.server.fs-watch :as fs-watch]
+    [shadow.cljs.devtools.server.supervisor :as super]
+    [shadow.cljs.devtools.server.common :as common]
+    [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.server.worker :as worker]
+    [shadow.cljs.devtools.server.util :as util]
+    [shadow.cljs.devtools.server.socket-repl :as socket-repl]
+    [shadow.cljs.devtools.server.runtime :as runtime]
+    [shadow.cljs.devtools.server.dev-http :as dev-http]
+    [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
+    [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
+    [shadow.cljs.devtools.server.reload-npm :as reload-npm]
+    [shadow.cljs.devtools.server.reload-macros :as reload-macros]
+    [shadow.cljs.devtools.server.system-msg :as system-msg]
+    [shadow.cljs.devtools.server.system-bus :as system-bus])
   (:import (java.net BindException)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
+
+
 
 (defn wait-for [app-ref]
   (or @app-ref
@@ -104,7 +106,7 @@
   (do-shutdown (socket-repl/stop cli-repl))
 
   (when nrepl
-    (do-shutdown (nrepl/stop nrepl)))
+    (do-shutdown (nrepl)))
 
   (do-shutdown (undertow/stop (:server http)))
 
@@ -203,7 +205,39 @@
 
         nrepl
         (try
-          (nrepl/start (:nrepl config))
+          ;; problem child nrepl
+          ;; we need to start a 0.2 nrepl server
+          ;; if an older cider-nrepl version is used
+          ;; otherwise it should be fine to start 0.4
+          (let [use-old-nrepl?
+                (when (io/resource "cider/nrepl.clj")
+                  (require 'cider.nrepl)
+
+                  (when-let [the-ns (find-ns 'cider.nrepl)]
+                    (= 'clojure.tools.nrepl.server
+                       (-> (.getAliases the-ns)
+                           (.get 'nrepl-server)
+                           (.getName)))))
+
+                nrepl-ns
+                (if use-old-nrepl?
+                  (do (log/info "Using tools.nrepl 0.2.*")
+                      'shadow.cljs.devtools.server.nrepl)
+                  'shadow.cljs.devtools.server.nrepl04)
+
+                _ (require nrepl-ns)
+
+                nrepl-start
+                (ns-resolve nrepl-ns 'start)
+
+                nrepl-stop
+                (ns-resolve nrepl-ns 'stop)
+
+                server
+                (nrepl-start (:nrepl config))]
+
+            ;; return a generic stop fn
+            #(nrepl-stop server))
           (catch Exception e
             (log/warn e "failed to start nrepl server")
             nil))

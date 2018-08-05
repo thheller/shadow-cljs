@@ -108,7 +108,8 @@
       shadow.cljs.devtools.server.nrepl/cljs-eval
       shadow.cljs.devtools.server.nrepl/cljs-select
       ;; required by some tools, not by shadow-cljs.
-      cemerick.piggieback/wrap-cljs-repl]}
+      ;; cemerick.piggieback/wrap-cljs-repl
+      ]}
     :source-paths
     ["src/dev"
      "src/gen"
