@@ -5,7 +5,8 @@
             [shadow.jvm-log :as log]
             [clojure.string :as str]
             [clojure.set :as set])
-  (:import (java.net URL URLConnection)))
+  (:import (java.net URL URLConnection)
+           [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]))
 
 ;; FIXME: there are still lots of places that work directly with the map
 ;; that is ok for most things but makes it really annoying to change the structure of the data
@@ -62,6 +63,18 @@
 
 (defn init [state]
   (merge state empty-data))
+
+(defn error-manager []
+  (proxy [BasicErrorManager] []
+    (printSummary [])
+    (println [level error]
+      (log/debug ::closure-log {:level (str level)
+                                :error (str error)}))))
+
+(defn ^com.google.javascript.jscomp.Compiler make-closure-compiler
+  []
+  (doto (ShadowCompiler. (error-manager))
+    (.disableThreads)))
 
 (defn add-provide [state resource-id provide-sym]
   {:pre [(symbol? provide-sym)]}

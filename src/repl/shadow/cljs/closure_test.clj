@@ -1,13 +1,14 @@
 (ns shadow.cljs.closure-test
   (:require [clojure.test :refer (deftest is)]
             [clojure.pprint :refer (pprint)]
-            [shadow.build.closure :as closure])
+            [shadow.build.closure :as closure]
+            [shadow.build.data :as data])
   (:import (com.google.javascript.jscomp ShadowAccess)))
 
 
 (deftest test-get-externs-properties
   (let [cc
-        (closure/make-closure-compiler)
+        (data/make-closure-compiler)
 
         co
         (closure/make-options)

@@ -1,31 +1,35 @@
 (ns shadow.build.closure
-  (:require [clojure.string :as str]
-            [clojure.java.io :as io]
-            [cljs.analyzer :as ana]
-            [cljs.compiler :as comp]
-            [cljs.env :as env]
-            [shadow.cljs.util :as util]
-            [shadow.build.output :as output]
-            [shadow.build.warnings :as warnings]
-            [shadow.build.log :as build-log]
-            [shadow.build.data :as data]
-            [shadow.build.npm :as npm]
-            [clojure.set :as set]
-            [cljs.source-map :as sm]
-            [clojure.data.json :as json]
-            [shadow.build.cache :as cache]
-            [cljs.compiler :as cljs-comp]
-            [shadow.jvm-log :as log]
-            [shadow.core-ext :as core-ext])
+  (:require
+    [clojure.string :as str]
+    [clojure.java.io :as io]
+    [clojure.set :as set]
+    [cljs.analyzer :as ana]
+    [cljs.compiler :as comp]
+    [cljs.env :as env]
+    [cljs.compiler :as cljs-comp]
+    [shadow.cljs.util :as util]
+    [shadow.build.output :as output]
+    [shadow.build.warnings :as warnings]
+    [shadow.build.log :as build-log]
+    [shadow.build.data :as data]
+    [shadow.build.npm :as npm]
+    [shadow.build.cache :as cache]
+    [shadow.core-ext :as core-ext])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
-                                         BasicErrorManager Result ShadowAccess
-                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy)
+                                         Result ShadowAccess
+                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy PhaseOptimizer)
            (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
-           (java.nio.charset Charset)))
+           (java.nio.charset Charset)
+           [java.util.logging Logger Level]))
+
+;; get rid of some annoying/useless warning log messages
+;; https://github.com/google/closure-compiler/pull/2998/files
+(doto (Logger/getLogger (.getName PhaseOptimizer))
+  (.setLevel Level/OFF))
 
 (def SHADOW-CACHE-KEY
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
@@ -35,18 +39,6 @@
    ;; in case someone sets a specific closure dependency
    (util/resource-last-modified "com/google/javascript/jscomp/Compiler.class")])
 
-(defn noop-error-manager []
-  (proxy [BasicErrorManager] []
-    (printSummary [])
-    (println [level error])))
-
-(defn ^com.google.javascript.jscomp.Compiler make-closure-compiler
-  ([]
-   (doto (com.google.javascript.jscomp.ShadowCompiler.)
-     (.disableThreads)))
-  ([out-or-error-manager]
-   (doto (com.google.javascript.jscomp.ShadowCompiler. out-or-error-manager)
-     (.disableThreads))))
 
 (def injected-libraries-field
   (doto (-> (Class/forName "com.google.javascript.jscomp.Compiler")
@@ -767,7 +759,7 @@
         (boolean (:source-map compiler-options))
 
         cc
-        (make-closure-compiler (noop-error-manager))
+        (data/make-closure-compiler)
 
         closure-opts
         (doto (make-options)
@@ -843,7 +835,7 @@
 (defn load-extern-properties [{::keys [extern-properties] :as state}]
   (if extern-properties
     state
-    (let [cc (make-closure-compiler)
+    (let [cc (data/make-closure-compiler)
           co
           (doto (make-options)
             (set-options
@@ -1297,7 +1289,7 @@
              (into {}))
 
         cc
-        (make-closure-compiler)
+        (data/make-closure-compiler)
 
         ;; FIXME: are there more options we should take from the user?
         co-opts
@@ -1627,7 +1619,7 @@
              (into {}))
 
         cc
-        (make-closure-compiler)
+        (data/make-closure-compiler)
 
         co-opts
         (merge

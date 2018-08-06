@@ -6,7 +6,8 @@
             [shadow.jvm-log :as log]
             [shadow.build.resource :as rc]
             [shadow.build.log :as cljs-log]
-            [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)])
+            [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)]
+            [shadow.build.data :as data])
   (:import (java.io File)
            (com.google.javascript.jscomp SourceFile CompilerOptions CompilerOptions$LanguageMode)
            (com.google.javascript.jscomp.deps ModuleNames)
@@ -687,9 +688,8 @@
           ;; should be the highest possible option, since we can't tell before parsing
           (.setLanguageIn CompilerOptions$LanguageMode/ECMASCRIPT_NEXT))
 
-        cc ;; FIXME: error reports still prints to stdout
-        (doto (com.google.javascript.jscomp.Compiler.)
-          (.disableThreads)
+        cc
+        (doto (data/make-closure-compiler)
           (.initOptions co))
 
         project-dir
