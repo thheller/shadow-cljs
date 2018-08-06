@@ -5,9 +5,10 @@
             [clojure.spec.alpha :as s]
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [shadow.jvm-log :as log]
             [clojure.set :as set]
+            [clojure.java.classpath :as cp]
             [cljs.tagged-literals :as tags]
+            [shadow.jvm-log :as log]
             [shadow.spec :as ss]
             [shadow.build.resource :as rc]
             [shadow.cljs.util :as util]
@@ -32,11 +33,14 @@
 (def CACHE-TIMESTAMP (util/resource-last-modified "shadow/build/classpath.clj"))
 
 (defn get-classpath []
-  ;; java9 fallback which can't get classpath from the classloader anymore
-  ;; and we shouldn't rely on anything java8-
-  (-> (System/getProperty "java.class.path")
-      (.split File/pathSeparator)
-      (->> (into [] (map io/file)))))
+  (let [cp (cp/classpath)]
+    (if (seq cp)
+      cp
+      ;; java9 fallback which can't get classpath from the classloader anymore
+      (-> (System/getProperty "java.class.path")
+          (.split File/pathSeparator)
+          (->> (into [] (map io/file)))
+          ))))
 
 (defn service? [x]
   (and (map? x) (::service x)))
