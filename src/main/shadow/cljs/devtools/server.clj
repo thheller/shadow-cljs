@@ -106,7 +106,8 @@
   (do-shutdown (socket-repl/stop cli-repl))
 
   (when nrepl
-    (do-shutdown (nrepl)))
+    (let [stop (::stop nrepl)]
+      (do-shutdown (stop))))
 
   (do-shutdown (undertow/stop (:server http)))
 
@@ -237,7 +238,7 @@
                 (nrepl-start (:nrepl config))]
 
             ;; return a generic stop fn
-            #(nrepl-stop server))
+            (assoc server ::stop #(nrepl-stop server)))
           (catch Exception e
             (log/warn e "failed to start nrepl server")
             nil))
