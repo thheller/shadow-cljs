@@ -3,7 +3,7 @@
  :log {:level :debug}
 
  ;; :deps {:aliases []}
- :xlein {:profile "+cljs"}
+ :lein {:profile "+cljs"}
 
  ;; target/shadow-cljs gets deleted by lein frequently which is rather annoying
  :cache-root ".shadow-cljs"
