@@ -4,7 +4,7 @@
             [clojure.spec.alpha :as s]
             [shadow.build.config :as build-config]
             [shadow.cljs.util :as cljs-util]
-            [clojure.tools.logging :as log]))
+            [shadow.jvm-log :as log]))
 
 (s/def ::builds (s/map-of keyword? ::build-config/build))
 

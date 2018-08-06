@@ -3,7 +3,7 @@
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [cljs.compiler :as cljs-comp]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.build.resource :as rc]
             [shadow.build.log :as cljs-log]
             [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)])
@@ -495,8 +495,8 @@
 
             ;; moment.js has require('./locale/' + name); inside a function
             ;; it shouldn't otherwise hurt though
-            (doseq [{:keys [line column]} js-invalid-requires]
-              (log/warnf "invalid JS require call in file %s:%d:%d" file line column))
+            (when (seq js-invalid-requires)
+              (log/info ::js-invalid-requires {:requires js-invalid-requires}))
 
             (-> info
                 (assoc

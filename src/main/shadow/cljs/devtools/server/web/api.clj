@@ -2,7 +2,7 @@
   (:require
     [clojure.edn :as edn]
     [clojure.java.shell :as sh]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.build.closure :as closure]
     [shadow.http.router :as http]
@@ -74,7 +74,7 @@
                   result
                   (server-util/launch launch-args {})]
 
-              (log/debug ::open-file launch-args result)
+              (log/debug ::open-file {:launch-args launch-args :result result})
               result))
           (catch Exception e
             {:type :error

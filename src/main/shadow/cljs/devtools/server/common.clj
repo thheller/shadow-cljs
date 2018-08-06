@@ -2,7 +2,7 @@
   (:require
     [clojure.edn :as edn]
     [clojure.java.io :as io]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [cognitect.transit :as transit]
     [shadow.build]
     [shadow.build.api :as cljs]
@@ -112,7 +112,7 @@
                       (try
                         (apply start args)
                         (catch Exception e
-                          (log/warnf e "failed to start plugin: %s" plugin)
+                          (log/warn-ex e ::plugin-start-ex {:plugin plugin})
                           ::error)))
                     :stop
                     (fn [instance]
@@ -123,17 +123,17 @@
                             ::ok
 
                             (nil? stop)
-                            (log/warnf "plugin: %s returned something in start but did not provide a stop method" plugin)
+                            (log/warn ::plugin-start-without-stop {:plugin plugin})
 
                             :else
                             (stop instance))
 
                           (catch Exception e
-                            (log/warnf e "failed to stop plugin: %s" plugin))))))]
+                            (log/warn-ex e ::plugin-stop-ex {:plugin plugin}))))))]
 
               (assoc config plugin-kw safe-config))))
         (catch Exception e
-          (log/warnf e "failed to load plugin: %s" plugin)
+          (log/warn-ex e ::plugin-load-ex {:plugin plugin})
           config)))
     app-config
     plugins))

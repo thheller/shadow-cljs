@@ -1,7 +1,7 @@
 (ns shadow.build.warnings
   (:require [clojure.string :as str]
             [shadow.build.data :as data]
-            [clojure.tools.logging :as log])
+            [shadow.jvm-log :as log])
   (:import (java.io BufferedReader StringReader)))
 
 (def ^:dynamic *color* true)

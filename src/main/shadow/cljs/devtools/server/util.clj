@@ -2,7 +2,7 @@
   (:require [clojure.core.async :as async :refer (go <! >! alt!! alts!!)]
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.build.log :as build-log]
             [shadow.build.api :as cljs]
             [shadow.build.warnings :as warnings]
@@ -213,7 +213,7 @@
                   (when-some [result# (do ~@body)]
                     (async/>!! c# result#))
                   (catch Exception e#
-                    (log/warn e# ~(str "failure in thread: " name)))
+                    (log/warn-ex e# ::thread-ex {:name ~name}))
                   (finally
                     (async/close! c#)))))]
      (.start t#)
@@ -249,7 +249,7 @@
                   (-> (try
                         (idle-action state)
                         (catch Exception ex
-                          (log/warnf ex "exception during idle")
+                          (log/warn-ex ex ::idle-ex)
                           state))
                       (recur))
 
@@ -264,7 +264,7 @@
                                 (try
                                   (handler state msg)
                                   (catch Throwable ex
-                                    (log/warnf ex "failed to handle server msg: %s" msg)
+                                    (log/warn-ex ex ::handle-ex {:msg msg})
                                     (if (ifn? on-error)
                                       (on-error state msg ex)
                                       ;; FIXME: silently dropping e if no on-error is defined is bad

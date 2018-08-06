@@ -3,7 +3,7 @@
   (:require [clojure.string :as str]
             [clojure.set :as set]
             [clojure.java.io :as io]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [cljs.analyzer :as cljs-ana]
             [cljs.compiler :as cljs-comp]
             [shadow.cljs.util :as util]

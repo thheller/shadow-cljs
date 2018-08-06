@@ -2,7 +2,7 @@
   (:require [clojure.core.async :as async :refer (thread alt!!)]
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [cljs.util :refer (distinct-by)]
             [hawk.core :as hawk]
             [shadow.cljs.devtools.server.fs-watch-jvm :as fs-watch]))
@@ -43,7 +43,7 @@
           (->> directories
                (distinct-by #(.getAbsolutePath %))
                (map (fn [root]
-                      (log/debug "adding fs-watch root" (.getAbsolutePath root))
+                      (log/debug ::adding-root {:path (.getAbsolutePath root)})
                       (let [root-prefix (.getAbsolutePath root)
                             root-prefix-len (inc (count root-prefix))]
 
@@ -88,7 +88,7 @@
                                             ;; don't seem to get delete events?
                                             :delete :del)})))))
                                (catch Exception ex
-                                 (log/debugf ex "failed to process hawk event %s" e))))
+                                 (log/debug-ex ex ::hawk-ex e))))
 
                            ctx)})))
                (into [])))]
@@ -101,7 +101,7 @@
   (try
     (start* config directories file-exts publish-fn)
     (catch Exception e
-      (log/warn "failed to start hawk file watcher, falling back to normal watch.")
+      (log/warn-ex e ::hawk-start-ex)
       (fs-watch/start config directories file-exts publish-fn)
       )))
 

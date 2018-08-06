@@ -1,6 +1,6 @@
 (ns shadow.cljs.devtools.server.reload-macros
   (:require [clojure.core.async :as async :refer (thread alt!!)]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.build.macros :as m]
             [clojure.java.io :as io]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
@@ -22,7 +22,7 @@
     (cond
       ;; FIXME: deleted macro files?
       (not rc-url)
-      (do (log/warnf "could not find macro resource: %s" ns-sym)
+      (do (log/warn ::macro-missing {:ns-sym ns-sym})
           false)
 
       ;; do not reload macros from jars, only files
@@ -49,13 +49,13 @@
                   (conj updated ns-sym)
 
                   (catch Exception e
-                    (log/warnf e "macro reload failed: %s" ns-sym)
+                    (log/warn-ex e ::macro-reload-ex {:ns-sym ns-sym})
                     updated)))))
           #{}
           active-macros)]
 
     (when (seq reloaded)
-      (log/debugf "macro namespace reloaded %s" reloaded)
+      (log/debug ::macro-reload {:reloaded reloaded})
       (sys-bus/publish! system-bus ::sys-msg/macro-update {:macro-namespaces reloaded}))
 
     ))
@@ -71,7 +71,7 @@
         (try
           (check-macros! system-bus)
           (catch Exception e
-            (log/warn e "checking macros failed")))
+            (log/warn-ex e ::macro-watch-ex)))
         (recur))))
 
   ::terminated)

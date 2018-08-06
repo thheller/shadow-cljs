@@ -5,8 +5,7 @@
             [clojure.spec.alpha :as s]
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [clojure.java.classpath :as cp]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [clojure.set :as set]
             [cljs.tagged-literals :as tags]
             [shadow.spec :as ss]
@@ -33,14 +32,11 @@
 (def CACHE-TIMESTAMP (util/resource-last-modified "shadow/build/classpath.clj"))
 
 (defn get-classpath []
-  (let [cp (cp/classpath)]
-    (if (seq cp)
-      cp
-      ;; java9 fallback which can't get classpath from the classloader anymore
-      (-> (System/getProperty "java.class.path")
-          (.split File/pathSeparator)
-          (->> (into [] (map io/file)))
-          ))))
+  ;; java9 fallback which can't get classpath from the classloader anymore
+  ;; and we shouldn't rely on anything java8-
+  (-> (System/getProperty "java.class.path")
+      (.split File/pathSeparator)
+      (->> (into [] (map io/file)))))
 
 (defn service? [x]
   (and (map? x) (::service x)))
@@ -202,10 +198,7 @@
       ;; otherwise the error ends up unrelated in the log
       ;; with the build error just being a generic "not available"
 
-      (log/debugf e (if macros-ns
-                      (format "failed to inspect macro file: %s" url)
-                      (format "failed to inspect cljs file: %s" url)))
-
+      (log/debug-ex e ::inspect-failure {:macro-ns macros-ns :url url})
       (let [guessed-ns (util/filename->ns resource-name)]
         (assoc rc
           :ns guessed-ns
@@ -444,7 +437,7 @@
               :coordinate [id version]))
 
           (catch Exception e
-            (log/debug e "failed to parse pom" pom-file)
+            (log/debug-ex e ::pom-error {:pom pom-file})
             nil))))))
 
 (comment
@@ -493,7 +486,7 @@
                     )))))))
 
     (catch ZipException e
-      (log/debug "filtered bad jar" file e)
+      (log/debug-ex e ::bad-jar {:file file})
       {})
 
     (catch Exception e
@@ -518,6 +511,9 @@
       (str ns ".js")
       )))
 
+(defmethod log/log-msg ::resource-inspect [_ {:keys [loc]}]
+  (format "failed to inspect resource \"%s\", it will not be available." loc))
+
 (defn inspect-resources [cp {:keys [resources] :as contents}]
   (assoc contents :resources
                   (->> resources
@@ -526,15 +522,16 @@
                                 (inspect-resource cp src)
                                 (catch Exception e
                                   ;; don't warn with stacktrace
-                                  (log/warnf "failed to inspect resource \"%s\", it will not be available."
-                                    (or (:file src)
-                                        (:url src)
-                                        (:resource-name src)))
+                                  (log/warn ::resource-inspect
+                                    {:loc (or (:file src)
+                                              (:url src)
+                                              (:resource-name src))})
                                   ;; debug log should contain stacktrace
-                                  (log/debugf e "failed to inspect resource \"%s\", it will not be available."
-                                    (or (:file src)
-                                        (:url src)
-                                        (:resource-name src)))
+                                  (log/debug-ex e
+                                    ::inspect-ex
+                                    {:log (or (:file src)
+                                              (:url src)
+                                              (:resource-name src))})
                                   nil))))
                        (remove nil?)
                        (map set-output-name)
@@ -570,7 +567,7 @@
               (when (= CACHE-TIMESTAMP (::CACHE-TIMESTAMP cache))
                 cache))
             (catch Exception e
-              (log/info ::manifest-error :file mfile :ex e)
+              (log/info-ex e ::manifest-ex {:file mfile})
               nil)))
 
         (let [jar-contents
@@ -668,6 +665,16 @@
         file
         (assoc-in [:file->name file] resource-name))))
 
+(defmethod log/log-msg ::duplicate-resource [_ {:keys [resource-name url-a url-b]}]
+  (format "duplicate resource %s on classpath, using %s over %s" resource-name url-a url-b))
+
+(defmethod log/log-msg ::filename-violation [_ {:keys [ns expected actual]}]
+  (format "filename violation for ns %s, got: %s expected: %s (or .cljc)" ns actual expected))
+
+(defmethod log/log-msg ::provide-conflict [_ {:keys [provides resource-name conflicts]}]
+  (format "provide conflict for %s provided by %s and %s" provides resource-name conflicts))
+
+
 (defn index-rc-merge-js
   [index {:keys [type ns resource-name provides url file] :as rc}]
   (cond
@@ -679,7 +686,9 @@
       (when-not (and (:from-jar rc)
                      (not (:from-jar conflict)))
         ;; only warn when jar conflicts with jar, fs is allowed to override files in jars
-        (log/infof "duplicate resource %s on classpath, using %s over %s" resource-name (:url conflict) (:url rc)))
+        (log/info ::duplicate-resource {:resource-name resource-name
+                                        :url-a (:url conflict)
+                                        :url-b (:url rc)}))
       index)
 
     :no-conflict
@@ -721,10 +730,9 @@
                     (= resource-name expected-cljc)
                     ))))
 
-    (do (log/infof "filename violation for ns %s, got: %s expected: %s (or .cljc)"
-          (:ns rc)
-          resource-name
-          (util/ns->cljs-filename (:ns rc)))
+    (do (log/info ::filename-violation {:ns (:ns rc)
+                                        :actual resource-name
+                                        :expected (util/ns->cljs-filename (:ns rc))})
 
         ;; still want to remember the resource so it doesn't get detected as new all the time
         ;; remove all provides, otherwise it might end up being used despite the invalid name
@@ -742,7 +750,9 @@
       (when-not (and (:from-jar rc)
                      (not (:from-jar conflict)))
         ;; only warn when jar conflicts with jar, fs is allowed to override files in jars
-        (log/infof "duplicate resource %s on classpath, using %s over %s" resource-name (:url conflict) (:url rc)))
+        (log/info ::duplicate-resource {:resource-name resource-name
+                                        :url-a (:url conflict)
+                                        :url-b (:url rc)}))
       index)
 
     ;; now we need to handle conflicts for cljc/cljs files
@@ -796,16 +806,18 @@
         ;; ensure that files do not have conflicting provides
         (and (seq existing-provides)
              (not (every? #(is-same-resource? rc (get-in index [:sources %])) existing-provides)))
-        (do (log/warnf "provide conflict for %s provided by %s and %s"
-              provides
-              resource-name
-              (reduce
-                (fn [m src-name]
-                  (let [{:keys [source-path provides]}
-                        (get-in index [:sources src-name])]
-                    (assoc m (str source-path "/" src-name) provides)))
-                {}
-                existing-provides))
+        (do (log/warn
+              ::provide-conflict
+              {:provides provides
+               :resource-name resource-name
+               :conflicts
+               (reduce
+                 (fn [m src-name]
+                   (let [{:keys [source-path provides]}
+                         (get-in index [:sources src-name])]
+                     (assoc m (str source-path "/" src-name) provides)))
+                 {}
+                 existing-provides)})
             index)
 
         :no-conflict

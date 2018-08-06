@@ -2,7 +2,7 @@
   (:require
     [clojure.core.async :as async :refer (thread go <!)]
     [clojure.java.io :as io]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [clojure.string :as str]
     [ring.middleware.file :as ring-file]
     [ring.middleware.params :as ring-params]
@@ -85,7 +85,7 @@
   `(try
      ~@body
      (catch Throwable t#
-       (log/warn t# "shutdown failed" ~(pr-str body))
+       (log/warn-ex t# ::shutdown-ex {:form ~(pr-str body)})
        (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
 (defn shutdown-system [{:keys [shutdown-hook http port-files-ref socket-repl cli-repl nrepl] :as app}]
@@ -131,6 +131,9 @@
     {}
     ports))
 
+(defmethod log/log-msg ::tcp-port-unavailable [_ {:keys [port]}]
+  (format "TCP Port %d in use." port))
+
 (defn start-http [config {:keys [port strict] :as http-config} ring]
   (let [middleware-fn #(get-ring-middleware config %)]
     (loop [port (or port 9630)]
@@ -143,16 +146,19 @@
                   (throw e)
 
                   (instance? BindException (.getCause e))
-                  (log/warnf "TCP Port %d in use." port)
+                  (log/warn ::tcp-port-unavailable {:port port})
 
                   :else
-                  (log/warnf e "HTTP startup failed")
+                  (log/warn-ex e ::http-startup-ex)
                   )))]
 
         (or srv (recur (inc port)))
         ))))
 
 (declare stop!)
+
+(defmethod log/log-msg ::nrepl-fallback [_ _]
+  "Using tools.nrepl 0.2.* server!")
 
 (defn start-system
   [app-ref app-config {:keys [cache-root] :as config}]
@@ -189,7 +195,7 @@
         (try
           (socket-repl/start socket-repl-config app-ref)
           (catch Exception e
-            (log/warn "failed to start socket-repl" (.getMessage e))
+            (log/warn-ex e ::socket-repl-ex)
             nil
             ))
 
@@ -222,7 +228,7 @@
 
                 nrepl-ns
                 (if use-old-nrepl?
-                  (do (log/info "Using tools.nrepl 0.2.*")
+                  (do (log/info ::nrepl-fallback)
                       'shadow.cljs.devtools.server.nrepl)
                   'shadow.cljs.devtools.server.nrepl04)
 
@@ -240,7 +246,7 @@
             ;; return a generic stop fn
             (assoc server ::stop #(nrepl-stop server)))
           (catch Exception e
-            (log/warn e "failed to start nrepl server")
+            (log/warn-ex e ::nrepl-ex)
             nil))
 
         port-files-ref
@@ -322,92 +328,95 @@
   ([sys-config]
    (if (runtime/get-instance)
      ::already-running
-     (let [app
-           (merge
-             {:dev-http
-              {:depends-on [:system-bus :config :ssl-context :out]
-               :start dev-http/start
-               :stop dev-http/stop}
+     (do (log/set-level! (get-in sys-config [:log :level] :info))
+         (let [app
+               (merge
+                 {:dev-http
+                  {:depends-on [:system-bus :config :ssl-context :out]
+                   :start dev-http/start
+                   :stop dev-http/stop}
 
-              :system-bus
-              {:depends-on []
-               :start system-bus/start
-               :stop system-bus/stop}
+                  :system-bus
+                  {:depends-on []
+                   :start system-bus/start
+                   :stop system-bus/stop}
 
-              :cljs-watch
-              {:depends-on [:config :classpath :system-bus]
-               :start (fn [config classpath system-bus]
-                        (fs-watch/start
-                          (:fs-watch config)
-                          (->> (build-classpath/get-classpath-entries classpath)
-                               (filter #(.isDirectory %))
-                               (into []))
-                          ;; no longer watches .clj files, reload-macros directly looks at used macros
-                          ["cljs" "cljc" "js"]
-                          #(system-bus/publish! system-bus ::system-msg/cljs-watch {:updates %})
-                          ))
-               :stop fs-watch/stop}
+                  :cljs-watch
+                  {:depends-on [:config :classpath :system-bus]
+                   :start (fn [config classpath system-bus]
+                            (fs-watch/start
+                              (:fs-watch config)
+                              (->> (build-classpath/get-classpath-entries classpath)
+                                   (filter #(.isDirectory %))
+                                   (into []))
+                              ;; no longer watches .clj files, reload-macros directly looks at used macros
+                              ["cljs" "cljc" "js"]
+                              #(system-bus/publish! system-bus ::system-msg/cljs-watch {:updates %})
+                              ))
+                   :stop fs-watch/stop}
 
-              :config-watch
-              {:depends-on [:system-bus]
-               :start config-watch/start
-               :stop config-watch/stop}
+                  :config-watch
+                  {:depends-on [:system-bus]
+                   :start config-watch/start
+                   :stop config-watch/stop}
 
-              :reload-classpath
-              {:depends-on [:system-bus :classpath]
-               :start reload-classpath/start
-               :stop reload-classpath/stop}
+                  :reload-classpath
+                  {:depends-on [:system-bus :classpath]
+                   :start reload-classpath/start
+                   :stop reload-classpath/stop}
 
-              :reload-npm
-              {:depends-on [:system-bus :npm]
-               :start reload-npm/start
-               :stop reload-npm/stop}
+                  :reload-npm
+                  {:depends-on [:system-bus :npm]
+                   :start reload-npm/start
+                   :stop reload-npm/stop}
 
-              :reload-macros
-              {:depends-on [:system-bus]
-               :start reload-macros/start
-               :stop reload-macros/stop}
+                  :reload-macros
+                  {:depends-on [:system-bus]
+                   :start reload-macros/start
+                   :stop reload-macros/stop}
 
-              :supervisor
-              {:depends-on [:config :system-bus :build-executor :cache-root :http :classpath :npm :babel]
-               :start super/start
-               :stop super/stop}
+                  :supervisor
+                  {:depends-on [:config :system-bus :build-executor :cache-root :http :classpath :npm :babel]
+                   :start super/start
+                   :stop super/stop}
 
-              :out
-              {:depends-on [:config]
-               :start (fn [config]
-                        (util/stdout-dump (:verbose config)))
-               :stop async/close!}}
-             (common/get-system-config (assoc sys-config :server-runtime true)))
+                  :out
+                  {:depends-on [:config]
+                   :start (fn [config]
+                            (util/stdout-dump (:verbose config)))
+                   :stop async/close!}}
+                 (common/get-system-config (assoc sys-config :server-runtime true)))
 
-           app-ref
-           (start-system runtime/instance-ref app sys-config)
+               app-ref
+               (start-system runtime/instance-ref app sys-config)
 
-           {:keys [http ssl-context socket-repl nrepl config] :as app}
-           @app-ref
+               {:keys [http ssl-context socket-repl nrepl config] :as app}
+               @app-ref
 
-           pom-xml
-           (io/resource "META-INF/maven/thheller/shadow-cljs/pom.xml")
+               pom-xml
+               (io/resource "META-INF/maven/thheller/shadow-cljs/pom.xml")
 
-           http-host
-           (let [host (:host http)]
-             (if (= host "0.0.0.0")
-               "localhost"
-               host))
+               http-host
+               (let [host (:host http)]
+                 (if (= host "0.0.0.0")
+                   "localhost"
+                   host))
 
-           version
-           (if (nil? pom-xml)
-             "<snapshot>"
-             (find-version-from-pom pom-xml))]
+               version
+               (if (nil? pom-xml)
+                 "<snapshot>"
+                 (find-version-from-pom pom-xml))]
 
-       (println (str "shadow-cljs - server version: " version))
-       (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" http-host ":" (:port http)))
-       (println (str "shadow-cljs - socket REPL running on port " (:port socket-repl)))
-       ;; must keep this message since cider looks for it
-       (println (str "shadow-cljs - nREPL server started on port " (:port nrepl)))
+           (log/debug ::start)
 
-       ::started
-       ))))
+           (println (str "shadow-cljs - server version: " version))
+           (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" http-host ":" (:port http)))
+           (println (str "shadow-cljs - socket REPL running on port " (:port socket-repl)))
+           ;; must keep this message since cider looks for it
+           (println (str "shadow-cljs - nREPL server started on port " (:port nrepl)))
+
+           ::started
+           )))))
 
 (defn stop! []
   (when-let [inst @runtime/instance-ref]
@@ -536,7 +545,7 @@
                     (let [x (try
                               (read *in* false ::eof)
                               (catch Exception e
-                                (log/warn e "read socket ex")
+                                (log/warn-ex e ::socket-read-ex)
                                 ::eof))]
                       (if (not= x ::eof)
                         (recur)

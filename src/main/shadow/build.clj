@@ -4,7 +4,7 @@
     [clojure.java.io :as io]
     [clojure.spec.alpha :as s]
     [clojure.string :as str]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [clojure.set :as set]
     [shadow.cljs.util :as util]
     [shadow.build.api :as build-api]
@@ -121,7 +121,8 @@
                                        :hook-id hook-id}]
           (hook-fn state))
         (catch Exception e
-          (log/warnf e "failed to execute hook %s in build %s" hook-id build-id)
+          (log/warn-ex e ::hook-execute-ex {:hook-id hook-id
+                                            :build-id build-id})
           state)))
     state
     (get-in state [:build-hooks stage])))
@@ -218,7 +219,9 @@
             state
             (or stages [stage])))
         (catch Exception e
-          (log/warnf e "failed to configure hook[%d:%s] for build %s" hook-idx hook-sym build-id)
+          (log/warn-ex e ::hook-config-ex {:hook-idx hook-idx
+                                           :hook-sym hook-sym
+                                           :build-id build-id})
           state)))
     state
     build-hooks))

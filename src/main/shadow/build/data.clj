@@ -2,7 +2,7 @@
   "generic helpers for the build data structure"
   (:require [shadow.build.resource :as rc]
             [clojure.java.io :as io]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [clojure.string :as str]
             [clojure.set :as set])
   (:import (java.net URL URLConnection)))

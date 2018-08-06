@@ -22,7 +22,7 @@
             [shadow.build.data :as data]
             [shadow.build.closure :as closure]
             [shadow.build.npm :as npm]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [cljs.compiler :as cljs-comp]
             [shadow.build.js-support :as js-support]
             [shadow.build.async :as async])

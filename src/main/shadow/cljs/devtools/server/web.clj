@@ -16,7 +16,7 @@
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.api :as api]
-    [clojure.tools.logging :as log])
+    [shadow.jvm-log :as log])
   (:import [java.util UUID]))
 
 (defn index-page [{:keys [dev-http] :as req}]

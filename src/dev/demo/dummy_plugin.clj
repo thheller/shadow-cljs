@@ -1,14 +1,14 @@
 (ns demo.dummy-plugin
-  (:require [clojure.tools.logging :as log]))
+  (:require [shadow.jvm-log :as log]))
 
 (def plugin
   {:requires-server true
    :depends-on []
    :start
    (fn []
-     (log/warn ::start)
+     (log/debug ::start)
      ::instance)
    :stop
    (fn [instance]
-     (log/warn ::stop instance)
+     (log/debug ::stop {:instance instance})
      ::done)})

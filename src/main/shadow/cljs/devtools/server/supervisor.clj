@@ -2,7 +2,7 @@
   (:require [shadow.cljs.devtools.server.worker :as worker]
             [clojure.core.async :as async :refer (go <! alt!)]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [clojure.tools.logging :as log]))
+            [shadow.jvm-log :as log]))
 
 (defn get-worker
   [{:keys [workers-ref] :as svc} id]

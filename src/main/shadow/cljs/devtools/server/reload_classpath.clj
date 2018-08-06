@@ -2,7 +2,7 @@
   "service that watches fs updates and ensures classpath resources are updated
    will emit system-bus messages for inform about changed resources"
   (:require [clojure.core.async :as async :refer (alt!! thread)]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.build.classpath :as cp]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
@@ -22,7 +22,7 @@
 (defn process-update
   [{:keys [classpath] :as state} {:keys [event name file dir ext] :as fs-update}]
   (try
-    (log/debugf "classpath update [%s] %s" event file)
+    (log/debug ::classpath-update fs-update)
 
     (case event
       :mod
@@ -33,7 +33,7 @@
       (cp/file-remove classpath dir file))
 
     (catch Exception e
-      (log/warn e "classpath update failed" file))))
+      (log/warn-ex e ::update-failed fs-update))))
 
 (defn process-updates [{:keys [system-bus classpath] :as state} updates]
   (let [fs-updates
@@ -41,7 +41,7 @@
              (filter #(contains? interesting-file-exts (:ext %)))
              (into []))
 
-        _ (log/debugf "classpath updates total:%d" (count fs-updates))
+        _ (log/debug ::classpath-update-count {:count (count fs-updates)})
 
         ;; classpath is treated as an external process so knowing what updates
         ;; actually did is kind of tough

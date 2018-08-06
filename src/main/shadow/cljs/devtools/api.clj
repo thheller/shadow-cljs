@@ -3,7 +3,7 @@
   (:require
     [clojure.core.async :as async :refer (go <! >! >!! <!! alt! alt!!)]
     [clojure.java.io :as io]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [clojure.pprint :refer (pprint)]
     [clojure.java.browse :refer (browse-url)]
     [clojure.string :as str]
@@ -45,7 +45,7 @@
                    ;; just in case someone gets the idea to put :server-runtime true into their config
                    (dissoc :server-runtime))]
 
-    (log/debug "starting runtime instance")
+    (log/debug ::runtime-start)
 
     (-> {::started (System/currentTimeMillis)
          :config config}
@@ -379,7 +379,7 @@
                            ([_] :quit)))
                        (log/debug ::nrepl-print-loop-end)
                        (catch Exception e
-                         (log/debug e ::nrepl-print-loop-ex)
+                         (log/debug-ex e ::nrepl-print-loop-ex)
                          (async/close! chan))))
 
                  (worker/watch worker chan true))))
@@ -396,7 +396,7 @@
                        (when-let [worker (get-worker id)]
                          (-> worker :state-ref deref :build-state :compiler-env)))))))
              (catch Exception e
-               (log/warn e "Failed to set cemerick.piggieback compiler env!")))
+               (log/warn-ex e ::piggieback-cemerick)))
 
            (try
              (let [^Var pvar (find-var 'cider.piggieback/*cljs-compiler-env*)]
@@ -411,7 +411,7 @@
                        (when-let [worker (get-worker id)]
                          (-> worker :state-ref deref :build-state :compiler-env)))))))
              (catch Exception e
-               (log/warn e "Failed to set cider.piggieback compiler env!")))
+               (log/warn-ex e ::piggieback-cider)))
 
 
            ;; Cursive uses this to switch repl type to cljs
@@ -618,7 +618,7 @@
 
 (defn release-snapshot [& args]
   (println "release-snapshot was moved!")
-  (println "from the CLI use:" )
+  (println "from the CLI use:")
   (println "\tshadow-cljs run shadow.cljs.build-report <build-id> some.html")
   (println "from the REPL use:")
   (println "\t(require '[shadow.cljs.build-report :as r])")
@@ -695,6 +695,12 @@
 
 ;; (prn (find-local-addrs))
 
+(defmethod log/log-msg ::multiple-ips [_ {:keys [addrs] :as data}]
+  (str "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.\n"
+       (->> (for [[ni addr] addrs]
+              (format "Found IP:%s Interface:%s" (.getHostAddress addr) (.getDisplayName ni)))
+            (str/join "\n"))))
+
 (defn get-server-addr []
   (let [addrs (find-local-addrs)]
     (when (seq addrs)
@@ -704,9 +710,7 @@
           (println (format "shadow-cljs - Using IP \"%s\" from Interface \"%s\"" (.getHostAddress addr) (.getDisplayName ni)))
 
           (when (not= 1 (count addrs))
-            (log/infof "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.")
-            (doseq [[ni addr] addrs]
-              (log/infof "Found IP:%s Interface:%s" (.getHostAddress addr) (.getDisplayName ni)))))
+            (log/info ::multiple-ips {:addrs addrs})))
 
         ;; would be neat if we could just use InetAddress/getLocalHost
         ;; but that returns my VirtualBox Adapter for some reason

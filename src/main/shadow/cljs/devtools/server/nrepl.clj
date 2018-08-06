@@ -7,7 +7,7 @@
     [clojure.tools.nrepl.middleware :as middleware]
     [clojure.tools.nrepl.transport :as transport]
     [clojure.tools.nrepl.server :as server]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [shadow.cljs.repl :as repl]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.fake-piggieback :as fake-piggieback]
@@ -29,7 +29,7 @@
                    (not (coll? status)))
               (assoc :status #{status})))]
 
-    (log/debug "nrepl-send" id (pr-str res))
+    (log/debug ::send res)
     (transport/send transport res)))
 
 (defn do-repl-quit [session]
@@ -85,7 +85,7 @@
             ;; {:err string} prints to stderr
             :else
             (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
-              (log/debug "nrepl-eval-result" (pr-str result))
+              (log/debug ::eval-result {:result result})
               (let [repl-state (repl-impl/worker-repl-state worker)
                     repl-ns (-> repl-state :current :ns)]
 
@@ -251,7 +251,7 @@
             (require init-ns)
             (swap! session assoc #'*ns* (find-ns init-ns))
             (catch Exception e
-              (log/warn e "failed to load repl :init-ns" init-ns))
+              (log/warn-ex e ::init-ns-ex {:init-ns init-ns}))
             (finally
               (swap! session assoc init-complete true)
               ))))
@@ -329,7 +329,7 @@
           (transport/send transport {:out "Welcome to the shadow-cljs REPL!"}))
       :handler
       (fn [msg]
-        (log/debug "nrepl-receive" (pr-str (dissoc msg :transport :session)))
+        (log/debug ::receive (dissoc msg :transport :session))
         (handler-fn msg)))))
 
 (comment

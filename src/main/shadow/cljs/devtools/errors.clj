@@ -11,7 +11,7 @@
             [shadow.cljs.devtools.config :as config]
             [shadow.build.warnings :as w]
             [expound.alpha :as expound]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.cljs.util :as util]
             [clojure.java.io :as io])
   (:import (java.io StringWriter FileNotFoundException)
@@ -327,6 +327,6 @@
     (try
       (println (error-format e))
       (catch Throwable e
-        (log/warn "failed to format error" (.getMessage e))
+        (log/warn-ex e ::format-error)
         (println (.getMessage e)))))
   :error)

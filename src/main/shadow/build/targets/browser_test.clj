@@ -9,7 +9,7 @@
             [hiccup.page :refer (html5)]
             [clojure.java.io :as io]
             [cljs.compiler :as cljs-comp]
-            [clojure.tools.logging :as log]))
+            [shadow.jvm-log :as log]))
 
 ;; FIXME: automate all of this better ...
 
@@ -67,7 +67,8 @@
                        (re-find (re-pattern ns-regexp) (str ns))))
              (into []))]
 
-    (log/debug ::test-resolve ns-regexp test-namespaces)
+    (log/debug ::test-resolve {:ns-regexp ns-regexp
+                               :test-namespaces test-namespaces})
 
     (-> state
         (assoc-in [::modules/config :test :entries]

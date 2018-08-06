@@ -2,7 +2,7 @@
   "service that watches fs updates and ensures npm resources are updated
    will emit system-bus messages for inform about changed resources"
   (:require [clojure.core.async :as async :refer (alt!! thread)]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.build.npm :as npm]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
@@ -37,7 +37,8 @@
 
     (when (seq modified-resources)
 
-      (log/debugf "npm count: %d modified: %d" (count files) (count modified-files))
+      (log/debug ::npm-update {:file-count (count files)
+                               :modified-count (count modified-files)})
 
       ;; remove from cache
       (swap! index-ref invalidate-files modified-files)
@@ -63,7 +64,7 @@
         (try
           (check-files! system-bus npm)
           (catch Exception e
-            (log/warn e "checking npm files failed")))
+            (log/warn-ex e ::npm-check-ex)))
         (recur))))
 
   ::terminated)

@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.server.worker
   (:refer-clojure :exclude (compile load-file))
   (:require [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [clojure.java.io :as io]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
@@ -174,7 +174,7 @@
   (let [proc-id
         (UUID/randomUUID) ;; FIXME: not really unique but unique enough
 
-        _ (log/debug ::start build-id proc-id)
+        _ (log/debug ::start {:build-id build-id :proc-id proc-id})
 
         ;; closed when the proc-stops
         ;; nothing will ever be written here
@@ -316,7 +316,7 @@
         (async/close! resource-update)
         (async/close! macro-update)
         (async/close! asset-update)
-        (log/debug ::stop build-id proc-id))
+        (log/debug ::stop {:build-id build-id :proc-id proc-id}))
 
     worker-proc))
 

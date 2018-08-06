@@ -13,7 +13,7 @@
     [shadow.http.router :as http]
     [shadow.build.data :as data]
     [shadow.build.resource :as rc]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [shadow.core-ext :as core-ext])
   (:import (java.util UUID)))
 
@@ -133,7 +133,7 @@
     ;; close watch when websocket closes
     (go (loop []
           (when-some [msg (<! ws-in)]
-            (log/warn "ignored listener msg" msg)
+            (log/warn ::ignored-listener-msg {:msg msg})
             (recur)))
         (async/close! watch-chan))
 

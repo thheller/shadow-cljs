@@ -3,7 +3,7 @@
             [clojure.string :as str]
             [clojure.core.async :as async :refer (go alt! <! >!)]
             [clojure.core.async.impl.protocols :as async-prot]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.undertow.impl :as impl]
             [clojure.edn :as edn]
             [shadow.core-ext :as core-ext])

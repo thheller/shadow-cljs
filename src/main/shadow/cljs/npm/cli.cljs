@@ -233,24 +233,6 @@
       (log "shadow-cljs - error" (.-message ex)))
     ))
 
-(defn logging-config [project-root {:keys [cache-root] :as config}]
-  (if (false? (:log config))
-    []
-    (let [log-config-path
-          (path/join project-root cache-root "logging.properties")]
-
-      (when-not (fs/existsSync log-config-path)
-        (fs/writeFileSync log-config-path
-          (str (util/slurp (path/resolve js/__dirname ".." "default-log.properties"))
-               "\njava.util.logging.FileHandler.pattern="
-               (-> (path/join cache-root "shadow-cljs.log")
-                   ;; don't generate windows paths \ will be treated as escape
-                   (str/replace "\\" "/"))
-               "\n")))
-
-      [(str "-Djava.util.logging.config.file=" log-config-path)]
-      )))
-
 (defn get-shared-home []
   (path/resolve (os/homedir) ".shadow-cljs" jar-version))
 
@@ -265,7 +247,6 @@
 
     (-> []
         (into jvm-opts)
-        (into (logging-config project-root config))
         (conj "-cp" classpath-str)
         )))
 
@@ -331,7 +312,6 @@
               (get-in opts [:options :dependencies])))]
 
     (-> []
-        (into (map #(str "-J" %)) (logging-config project-root config))
         (cond->
           inject?
           (conj

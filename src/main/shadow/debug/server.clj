@@ -1,7 +1,7 @@
 (ns shadow.debug.server
   (:require [shadow.debug :as dbg]
             [shadow.undertow :as undertow]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [clojure.java.io :as io]
             [ring.middleware.resource :as ring-resource]
             [ring.middleware.content-type :as ring-content-type]
@@ -106,7 +106,7 @@
               (http/prepare)
               (root))
           (catch Exception e
-            (log/warn e "failed to process request")
+            (log/warn-ex e ::http-handler-ex)
             {:status 500
              :headers {"Content-Type" "text/plain"}
              :body "Request failed."}))))))
@@ -147,7 +147,7 @@
         {:keys [http-port] :as server}
         (undertow/start http-options http-handler middleware-fn)]
 
-    (log/debug ::server http-port)
+    (log/debug ::server {:http-port http-port})
 
     (let [app {:http server
                :values-ref values-ref}]
@@ -179,7 +179,7 @@
     (inspect-log srv msg)
 
     :else
-    (log/debug "unhandled tap" tag)))
+    (log/debug ::unhandled-tap msg)))
 
 (defonce instance-ref (atom nil))
 (defonce values-ref (atom {}))

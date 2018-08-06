@@ -1,5 +1,5 @@
 (ns shadow.cljs.devtools.server.fs-watch
-  (:require [clojure.tools.logging :as log]
+  (:require [shadow.jvm-log :as log]
             [clojure.string :as str]))
 
 
@@ -18,7 +18,7 @@
           ;; so its a lot faster but doesn't properly support delete
           'shadow.cljs.devtools.server.fs-watch-hawk)]
 
-    (log/debugf "fs-watch using %s" ns-sym)
+    (log/debug ::fs-watch {:ns ns-sym})
 
     (require ns-sym)
 

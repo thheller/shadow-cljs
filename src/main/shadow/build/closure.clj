@@ -15,7 +15,7 @@
             [clojure.data.json :as json]
             [shadow.build.cache :as cache]
             [cljs.compiler :as cljs-comp]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.core-ext :as core-ext])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
@@ -368,10 +368,6 @@
             (cond->
               generate?
               (conj (generate-externs state))))]
-
-    ;; logs when loading externs for externs inference which is pretty annoying
-    #_(doseq [^SourceFile ext all-externs]
-        (log/debug ::externs (.getName ext)))
 
     all-externs))
 

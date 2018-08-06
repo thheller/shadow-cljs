@@ -4,7 +4,7 @@
             [shadow.build.log :as cljs-log]
             [shadow.cljs.util :as util]
             [shadow.core-ext :as core-ext]
-            [clojure.tools.logging :as log])
+            [shadow.jvm-log :as log])
   (:import (java.io PushbackReader Writer InputStreamReader BufferedReader IOException)))
 
 (defn service? [x]
@@ -64,7 +64,7 @@
         (>!! reply-to res))
       state)
     (catch Exception e
-      (log/warnf e "babel-transform! failed")
+      (log/warn-ex e ::babel-transform-ex req)
       state)
     (finally
       (async/close! reply-to))))

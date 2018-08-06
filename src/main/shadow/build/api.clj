@@ -13,7 +13,7 @@
             [shadow.build.output :as output]
             [shadow.build.log :as build-log]
             [shadow.build.resource :as rc]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [clojure.set :as set]
             [shadow.build.resolve :as resolve]
             [shadow.build.babel :as babel])

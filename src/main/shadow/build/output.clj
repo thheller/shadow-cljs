@@ -6,7 +6,7 @@
     [clojure.string :as str]
     [cljs.compiler :as comp]
     [clojure.data.json :as json]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [shadow.build.data :as data]
     [shadow.build.resource :as rc]
     [shadow.build.log :as build-log]

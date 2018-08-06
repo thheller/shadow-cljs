@@ -7,7 +7,7 @@
             [ring.middleware.file :as ring-file]
             [ring.middleware.file-info :as ring-file-info]
             [ring.middleware.content-type :as ring-content-type]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
@@ -69,9 +69,13 @@
           #'push-state/handle
 
           :else
-          (do (require (symbol (namespace http-handler)))
-              (or (find-var http-handler)
-                  (do (log/warn ":http-handler var not found" http-handler)
+          (do
+              (or (try
+                    (require (symbol (namespace http-handler)))
+                    (find-var http-handler)
+                    (catch Exception e
+                      (log/warn-ex e ::handler-load-ex {:http-handler http-handler})))
+                  (do (log/warn ::handler-not-found {:http-handler http-handler})
                       #'push-state/handle))))
 
         http-info-ref
@@ -125,7 +129,8 @@
               (let [srv (try
                           (undertow/start http-options http-handler-fn middleware-fn)
                           (catch Exception e
-                            (log/warnf "failed to start %s dev-http:%d reason: %s" build-id (:port http-options) (.getMessage e))
+                            (log/warn-ex e ::http-start-ex {:build-id build-id
+                                                            :http-options http-options})
                             nil))]
                 (cond
                   (some? srv)
@@ -159,7 +164,7 @@
          :instance server})
 
       (catch Exception e
-        (log/warn ::start-error http-root http-port e)
+        (log/warn-ex e ::start-ex config)
         nil))))
 
 (defn get-server-configs []
@@ -215,7 +220,7 @@
             (when-some [new-config (<!! sub-chan)]
               (let [configs (get-server-configs)]
                 (when (not= configs (:configs @state-ref))
-                  (log/debug "dev http change, restarting servers")
+                  (log/debug ::config-change)
                   (>!! out {:type :println
                             :msg "shadow-cljs - dev http config change, restarting servers"})
                   (swap! state-ref stop-servers)

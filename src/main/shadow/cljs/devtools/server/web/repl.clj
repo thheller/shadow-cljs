@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.server.web.repl
   (:require
     [clojure.core.async :as async :refer (go <! >! thread alt!! <!! >!!)]
-    [clojure.tools.logging :as log]
+    [shadow.jvm-log :as log]
     [clojure.string :as str])
   (:import [java.io Writer InputStreamReader BufferedReader IOException OutputStreamWriter BufferedWriter]
            [java.net Socket NetworkInterface]))
@@ -13,8 +13,7 @@
 
 (defmethod ws-process* ::default
   [client-state msg]
-
-  (log/warn "unknown message from client" msg))
+  (log/warn ::unknown-msg {:msg msg}))
 
 (defmethod ws-process* :socket-out
   [{::keys [socket-out out-fn] :as client-state}
@@ -30,11 +29,11 @@
   (try
     (let [next-state (ws-process* state msg)]
       (when-not (and (map? next-state) (::client-state next-state))
-        (log/warn "invalid ws-process result" msg)
+        (log/warn ::invalid-ws-result {:msg msg})
         (throw (ex-info "invalid ws-process result" {})))
       next-state)
     (catch Exception ex
-      (log/warn ex "failed to process ws msg" msg)
+      (log/warn-ex ex ::process-ws-ex {:msg msg})
       (out-fn {:tag :ex :ex (Throwable->map ex) :ns (str *ns*)})
       state
       )))
@@ -63,7 +62,7 @@
                       (out-fn {:tag :socket-in :text (String. buf 0 len)}))
                     (recur buf))))
               (catch Exception e
-                (log/debug e ::repl-out)))))]
+                (log/debug-ex e ::repl-out)))))]
 
     (assoc ctx
       ::socket socket

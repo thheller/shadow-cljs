@@ -3,7 +3,7 @@
   (:require [clojure.set :as set]
             [clojure.string :as str]
             [clojure.core.async :as async :refer (go >! <! >!! <!! alt!)]
-            [clojure.tools.logging :as log]
+            [shadow.jvm-log :as log]
             [cljs.compiler :as cljs-comp]
             [cljs.analyzer :as cljs-ana]
             [shadow.cljs.repl :as repl]
@@ -70,7 +70,7 @@
      :msg msg}))
 
 (defn repl-error [e]
-  (log/debug repl-error e)
+  (log/debug-ex e ::repl-error)
   {:type :repl/error
    :ex e})
 
@@ -258,7 +258,9 @@
   (let [reply-to
         (get pending-results id)]
 
-    (log/debug ::repl-result id (nil? reply-to) (pr-str result))
+    (log/debug ::repl-result {:id id
+                              :reply-to reply-to
+                              :result result})
 
     (if (nil? reply-to)
       worker-state
@@ -278,7 +280,7 @@
 
 (defmethod do-proc-control :runtime-connect
   [{:keys [build-state] :as worker-state} {:keys [runtime-id runtime-out runtime-info]}]
-  (log/debug ::runtime-connect runtime-id)
+  (log/debug ::runtime-connect {:runtime-id runtime-id})
   (>!! runtime-out {:type :repl/init
                     :repl-state
                     (-> (:repl-state build-state)
@@ -293,26 +295,27 @@
 
 (defmethod do-proc-control :runtime-disconnect
   [worker-state {:keys [runtime-id]}]
-  (log/debug ::runtime-disconnect runtime-id)
+  (log/debug ::runtime-disconnect {:runtime-id runtime-id})
   (>!!output worker-state {:type :repl/runtime-disconnect :runtime-id runtime-id})
   (update worker-state :runtimes dissoc runtime-id))
 
 (defmethod do-proc-control :client-start
   [worker-state {:keys [id in]}]
-  (log/debug ::client-start id)
+  (log/debug ::client-start {:client-id id})
   (>!!output worker-state {:type :repl/client-start :id id})
   (update worker-state :repl-clients assoc id {:id id :in in}))
 
 (defmethod do-proc-control :client-stop
   [worker-state {:keys [id]}]
-  (log/debug ::client-stop id)
+  (log/debug ::client-stop {:client-id id})
   (>!!output worker-state {:type :repl/client-stop :id id})
   (update worker-state :repl-clients dissoc id))
 
 ;; messages received from the runtime
 (defmethod do-proc-control :runtime-msg
   [worker-state {:keys [msg runtime-id runtime-out] :as envelope}]
-  (log/debug ::runtime-msg runtime-id (:type msg))
+  (log/debug ::runtime-msg {:runtime-id runtime-id
+                            :type (:type msg)})
 
   (case (:type msg)
     (:repl/result
@@ -333,7 +336,7 @@
         worker-state)
 
     ;; unknown message
-    (do (log/warn "runtime sent unknown msg" runtime-id msg)
+    (do (log/warn ::unknown-runtime-msg {:runtime-id runtime-id :msg msg})
         worker-state)))
 
 (defmethod do-proc-control :start-autobuild
@@ -452,7 +455,7 @@
 (defmethod do-proc-control :repl-eval
   [{:keys [build-state runtimes] :as worker-state}
    {:keys [result-chan input session-id runtime-id] :as msg}]
-  (log/debug ::repl-eval session-id runtime-id)
+  (log/debug ::repl-eval {:session-id session-id :runtime-id runtime-id})
   (let [runtime-count (count runtimes)]
 
     (cond
@@ -530,7 +533,8 @@
           (build-compile)))
 
     :do-nothing
-    (do (log/debug "build not affected by macros" macro-namespaces (get-in build-state [:build-config :build-id]))
+    (do (log/debug ::not-affected {:build-id (get-in build-state [:build-config :build-id])
+                                   :macro-namespaces macro-namespaces})
         worker-state)))
 
 (defn do-resource-update

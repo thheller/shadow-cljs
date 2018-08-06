@@ -4,7 +4,7 @@
             [clojure.main :as m]
             [clojure.string :as str]
             [clojure.core.server :as srv]
-            [clojure.tools.logging :as log])
+            [shadow.jvm-log :as log])
   (:import java.net.ServerSocket
            (java.io StringReader PushbackReader PrintStream BufferedWriter OutputStreamWriter InputStreamReader)
            (java.net InetAddress SocketException)
@@ -145,7 +145,7 @@
           nil)
 
         (catch Exception e
-          (log/warn e "socket-repl exception"))
+          (log/warn-ex e ::socket-repl-ex))
 
         (finally
           ;; try to close but ignore all errors
