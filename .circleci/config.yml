@@ -36,15 +36,15 @@ jobs:
 
       - restore_cache:
           keys:
-          - npm-deps-{{ checksum "package.json" }}
-          - npm-deps-
+          - npm-deps-1-{{ checksum "packages/shadow-cljs/package.json" }}
+          - npm-deps-1-
 
       - run: npm install ./packages/shadow-cljs
 
       - save_cache:
           paths:
             - ~/repo/node_modules
-          key: npm-deps-{{ checksum "package.json" }}
+          key: npm-deps-1-{{ checksum "packages/shadow-cljs/package.json" }}
 
       - run: lein run -m shadow.cljs.devtools.cli release cli
 
