@@ -5,7 +5,6 @@
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.cli-opts :as opts]
             [shadow.cljs.devtools.api :as api]
-            [shadow.cljs.devtools.server :as server]
             [shadow.cljs.devtools.errors :as errors]
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
             [shadow.build.api :as cljs]
@@ -15,6 +14,12 @@
             [shadow.cljs.devtools.server.runtime :as runtime])
   (:import (clojure.lang LineNumberingPushbackReader)
            (java.io StringReader)))
+
+;; delayed require to we can improve startup time a bit
+(defn lazy-invoke [var-sym & args]
+  (require (-> var-sym namespace symbol))
+  (let [var (find-var var-sym)]
+    (apply var args)))
 
 (defn do-build-command [{:keys [action options] :as opts} build-config]
   (try
@@ -112,9 +117,9 @@
 
               ;; new jvm. task fn wants to run watch
               (:shadow/requires-server main-meta)
-              (do (server/start!)
+              (do (lazy-invoke 'shadow.cljs.devtools.server/start!)
                   (apply main-var args)
-                  (server/wait-for-stop!))
+                  (lazy-invoke 'shadow.cljs.devtools.server/wait-for-stop!))
 
               ;; new jvm. task fn doesn't need watch
               :else
@@ -140,7 +145,7 @@
       (do-clj-run config opts)
 
       (contains? #{:watch :node-repl :browser-repl :cljs-repl :clj-repl :server} action)
-      (server/from-cli action builds options)
+      (lazy-invoke 'shadow.cljs.devtools.server/from-cli action builds options)
       )))
 
 (defn main [& args]

@@ -23,40 +23,18 @@ jobs:
           - m2-deps-{{ checksum "project.clj" }}
           - m2-deps-
 
-      - run: lein with-profile +cljs deps
+      - run: sh build-deps.sh
 
       - save_cache:
           paths:
             - ~/.m2
           key: m2-deps-{{ checksum "project.clj" }}
 
-      - run: lein test
+      - run: lein do test, install
 
-      - run: npm init -y
+      - run: sh build-cli.sh
 
-      - restore_cache:
-          keys:
-          - npm-deps-1-{{ checksum "packages/shadow-cljs/package.json" }}
-          - npm-deps-1-
+      - run: sh build-launcher.sh
 
-      - run: npm install ./packages/shadow-cljs
-
-      - save_cache:
-          paths:
-            - ~/repo/node_modules
-          key: npm-deps-1-{{ checksum "packages/shadow-cljs/package.json" }}
-
-      - run: lein run -m shadow.cljs.devtools.cli release cli
-
-      - run: npx shadow-cljs --cli-info
-
-      - run: npx shadow-cljs start
-
-      - run: npx shadow-cljs clj-run demo.runnable/foo
-
-      - run: npx shadow-cljs compile browser test-node
-
-      - run: npx shadow-cljs stop
-
-      - run: node out/demo-test-node/script.js
+      - run: cd test-project; sh ci-run.sh
 

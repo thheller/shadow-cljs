@@ -1,9 +1,10 @@
 {:verbose true
 
  :log {:level :debug}
+ :launcher-version "2.0.0"
 
  ;; :deps {:aliases []}
- :lein {:profile "+cljs"}
+ :xlein {:profile "+cljs"}
 
  ;; target/shadow-cljs gets deleted by lein frequently which is rather annoying
  :cache-root ".shadow-cljs"
@@ -118,6 +119,8 @@
 
    :js-options
    {:js-provider :shadow
+    :pretty-print true
+    :optimizations :whitespace
     :resolve
     {#_"d3"
      #_{:target :npm

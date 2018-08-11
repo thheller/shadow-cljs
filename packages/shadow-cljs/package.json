@@ -2,7 +2,7 @@
   "name": "shadow-cljs",
   "version": "2.4.33",
   "jar-version": "2.4.33",
-  "launcher-version": "1.2.0",
+  "launcher-version": "2.0.0",
   "description": "ClojureScript compiler and JS bundler",
   "author": "Thomas Heller",
   "license": "ISC",
@@ -25,7 +25,7 @@
     "node": ">=6.0.0"
   },
   "disabled-scripts": {
-    "install":"node ./cli/runner.js aot"
+    "install": "node ./cli/runner.js aot"
   },
   "dependencies": {
     "babel-core": "^6.26.0",

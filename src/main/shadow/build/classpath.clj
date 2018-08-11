@@ -6,7 +6,6 @@
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.java.classpath :as cp]
             [cljs.tagged-literals :as tags]
             [shadow.jvm-log :as log]
             [shadow.spec :as ss]
@@ -33,14 +32,16 @@
 (def CACHE-TIMESTAMP (util/resource-last-modified "shadow/build/classpath.clj"))
 
 (defn get-classpath []
-  (let [cp (cp/classpath)]
-    (if (seq cp)
-      cp
-      ;; java9 fallback which can't get classpath from the classloader anymore
-      (-> (System/getProperty "java.class.path")
-          (.split File/pathSeparator)
-          (->> (into [] (map io/file)))
-          ))))
+  ;; in case of a dynamically modified classpath
+  ;; we can't use java.class.path so its used last
+  ;; shadow-cljs-launcher sets shadow.class.path
+  ;; boot-clj sets boot.class-path
+  (-> (or (System/getProperty "shadow.class.path")
+          (System/getProperty "boot.class.path")
+          (System/getProperty "java.class.path"))
+      (.split File/pathSeparator)
+      (->> (into [] (map io/file)))
+      ))
 
 (defn service? [x]
   (and (map? x) (::service x)))

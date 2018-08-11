@@ -27,7 +27,6 @@
    ;; [org.clojure/core.specs.alpha "0.1.10"]
 
    [org.clojure/data.json "0.2.6"]
-   [org.clojure/java.classpath "0.2.3"]
    [org.clojure/tools.cli "0.3.7"]
    [org.clojure/tools.reader "1.3.0"]
    [nrepl "0.4.4"]
@@ -38,13 +37,13 @@
    [org.clojure/core.async "0.4.474"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.10.339"
+   [org.clojure/clojurescript "1.10.339" :classifier "slim"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded]]
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20180716"]
+   [com.google.javascript/closure-compiler-unshaded "v20180805"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
@@ -98,7 +97,10 @@
    :cljs
    {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
     :dependencies
-    [[cider/cider-nrepl "0.18.0"]]
+    [[cider/cider-nrepl "0.18.0"]
+     ;; just so the CI build has this downloaded
+     ;; and cached before compiling the test-project
+     [reagent "0.8.1"]]
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware
@@ -111,4 +113,5 @@
     :source-paths
     ["src/dev"
      "src/gen"
-     "src/test"]}})
+     "src/test"
+     "test-project/src/main"]}})

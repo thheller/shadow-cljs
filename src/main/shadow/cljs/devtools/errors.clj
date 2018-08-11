@@ -35,7 +35,7 @@
              (remove #(contains? ignored-stack-elements (.getClassName %)))
              ;; limiting this is not ideal but we don't want to dump large stacks on the user
              ;; especially when analysis errors are really long but provide no useful insight
-             (take 8)
+             (take 80)
              (map repl/stack-element-str))]
 
     (doseq [x stack]

@@ -1,0 +1,20 @@
+;; shadow-cljs configuration
+{:source-paths
+ ["src/main"]
+
+ :dependencies
+ [[reagent "0.8.1"]]
+
+ :launcher-override
+ "launcher.jar"
+
+ :builds
+ {:reagent
+  {:target :browser
+   :output-dir "out/reagent"
+   :modules {:main {:init-fn test.reagent/init}}}
+
+  :test-node
+  {:target :node-test
+   :output-to "out/test-node/script.js"}
+  }}

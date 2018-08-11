@@ -1,4 +1,4 @@
-(ns demo.runnable)
+(ns test.runnable)
 
 (defn foo []
   (prn :foo))

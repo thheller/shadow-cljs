@@ -143,91 +143,6 @@
       config
       )))
 
-(defn modified-dependencies? [cp-file config]
-  (let [cp (-> (util/slurp cp-file)
-               (reader/read-string))]
-
-    (or (not= (:version cp) (:version config))
-        (not= (:dependencies cp) (:dependencies config))
-        )))
-
-;; these might cause trouble when using different versions
-;; than expected by shadow-cljs.
-(def unwanted-deps
-  '#{org.clojure/clojurescript ;; we will always be on the latest version
-     org.clojure/clojure ;; can't run on 1.8
-     thheller/shadow-cljs ;; just in case, added later
-     })
-
-(defn drop-unwanted-deps [dependencies]
-  (->> dependencies
-       (remove (fn [[dep-id & _]]
-                 (contains? unwanted-deps dep-id)))
-       (into [])))
-
-(defn add-exclusions [dependencies]
-  (->> dependencies
-       (map (fn [[dep-id version & modifiers :as dep]]
-              (let [mods
-                    (-> (apply hash-map modifiers)
-                        (update :exclusions (fn [excl]
-                                              (->> excl
-                                                   (concat unwanted-deps)
-                                                   (distinct)
-                                                   (into [])))))]
-                (reduce-kv conj [dep-id version] mods))))
-       (into [])))
-
-(defn get-classpath [{:keys [project-root launcher-file config] :as state}]
-  (let [{:keys [cache-root]}
-        config
-
-        cp-file
-        (path/resolve project-root cache-root "classpath.edn")
-
-        use-aot
-        (not (false? (get config :aot true)))
-
-        shadow-artifact
-        (-> ['thheller/shadow-cljs jar-version]
-            (cond->
-              use-aot
-              (conj :classifier "aot")))
-
-        classpath-config
-        (-> config
-            (update :dependencies drop-unwanted-deps)
-            (update :dependencies add-exclusions)
-            (update :dependencies #(into [shadow-artifact] %)))
-
-        ;; only need to rebuild the classpath if :dependencies
-        ;; or the version changed
-        updated?
-        (when (or (not (fs/existsSync cp-file))
-                  (modified-dependencies? cp-file classpath-config))
-          ;; re-create classpath by running the java helper
-          (run-java
-            project-root
-            ["-cp" launcher-file "shadow.cljs.launcher.deps"]
-            {:input (pr-str classpath-config)
-             :stdio [nil js/process.stdout js/process.stderr]})
-          true)
-
-        {:keys [files] :as classpath-data}
-        (-> (util/slurp cp-file)
-            (reader/read-string)
-            (assoc :updated? updated?))]
-
-    ;; if something in the ~/.m2 directory is deleted we need to re-fetch it
-    ;; otherwise we end up with weird errors at runtime
-    (if (every? #(fs/existsSync %) files)
-      classpath-data
-      ;; if anything is missing delete the classpath.edn and start over
-      (do (fs/unlinkSync cp-file)
-          (log "WARN: missing dependencies, reconstructing classpath.")
-          (recur state)
-          ))))
-
 (defn print-error [ex]
   (let [{:keys [tag] :as data}
         (ex-data ex)]
@@ -242,41 +157,33 @@
     path
     ))
 
-(defn get-jvm-opts [{:keys [project-root config] :as state}]
-  (let [{:keys [source-paths jvm-opts]}
-        config
+(defn get-jvm-opts [{:keys [launcher-file config] :as state}]
+  (let [{:keys [jvm-opts]}
+        config]
 
-        classpath
-        (get-classpath state)
-
-        classpath-str
-        (->> (:files classpath)
-             (concat source-paths)
-             (str/join cp-separator))]
-
-    (-> []
+    (-> [(str "-Dshadow.cljs.jar-version=" jar-version)]
         (into jvm-opts)
-        (conj "-cp" classpath-str)
+        (conj "-jar" launcher-file)
         )))
 
-(defn run-standalone* [{:keys [project-root config args opts launcher-version] :as state}]
+(defn run-standalone* [{:keys [project-root args] :as state}]
   (let [cli-args
         (-> (get-jvm-opts state)
-            (conj "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm")
+            (conj "--npm")
             (into args))]
 
     (log "shadow-cljs - starting ...")
     (run! project-root "java" cli-args {})))
 
-;; https://github.com/shadow-cljs/launcher/releases/download/1.2.0/launcher-1.2.0-standalone.jar
+;; https://github.com/shadow-cljs/launcher/releases/download/1.2.0/shadow-cljs-launcher-1.2.0.jar
 
 (defn download-launcher [{:keys [launcher-version launcher-file] :as state} callback]
   (let [launcher-url
         (str "https://github.com/shadow-cljs/launcher/releases/download/"
              launcher-version
-             "/launcher-"
+             "/shadow-cljs-launcher-"
              launcher-version
-             "-standalone.jar")
+             ".jar")
 
         tmp-file
         (str launcher-file ".tmp")
@@ -288,8 +195,14 @@
         (fn res-handler [^js res]
           (let [redir-url (gobj/getValueByKeys res "headers" "location")]
             ;; github redirects to some AWS url
-            (if (and (<= 300 (.-statusCode res) 400) (seq redir-url))
+            (cond
+              (and (<= 300 (.-statusCode res) 400) (seq redir-url))
               (https/get redir-url res-handler)
+
+              (= 404 (.-statusCode res))
+              (log "shadow-cljs - launcher download not found!")
+
+              :else
               (let [dl-size (gobj/getValueByKeys res "headers" "content-length")]
 
                 (.on res "data"
@@ -309,22 +222,31 @@
     (https/get launcher-url res-handler)))
 
 (defn ensure-launcher [state callback]
-  (let [launcher-version
-        (-> (js/require "../../package.json")
-            (gobj/get "launcher-version"))
+  (let [override
+        (some->
+          (get-in state [:config :launcher-override])
+          (path/resolve))]
 
-        launcher-file
-        (path/resolve (get-shared-home) (str "launcher-" launcher-version "-standalone.jar"))
+    (if (and override (fs/existsSync override))
+      (do (println "launcher-override:" override)
+          (callback (assoc state :launcher-file override)))
+      (let [launcher-version
+            (or (get-in state [:config :launcher-version])
+                (-> (js/require "../../package.json")
+                    (gobj/get "launcher-version")))
 
-        state
-        (assoc state
-          :launcher-version launcher-version
-          :launcher-file launcher-file)]
+            launcher-file
+            (path/resolve (get-shared-home) (str "shadow-cljs-launcher-" launcher-version ".jar"))
 
-    ;; FIXME: validate launcher-file?
-    (if (fs/existsSync launcher-file)
-      (callback state)
-      (download-launcher state callback))))
+            state
+            (assoc state
+              :launcher-version launcher-version
+              :launcher-file launcher-file)]
+
+        ;; FIXME: validate launcher-file?
+        (if (fs/existsSync launcher-file)
+          (callback state)
+          (download-launcher state callback))))))
 
 (defn run-standalone [state]
   (ensure-launcher state run-standalone*))
@@ -431,20 +353,19 @@
           deps
           ["clojure"
            (-> (get-clojure-args project-root config opts)
-               (conj "-m"))]
+               (conj "-m" "shadow.cljs.devtools.cli"))]
 
           lein
           ["lein"
            (-> (get-lein-args config opts)
-               (conj "run" "-m"))]
+               (conj "run" "-m" "shadow.cljs.devtools.cli"))]
 
           :else
           ["java"
-           (-> (get-jvm-opts state)
-               (conj "clojure.main" "-m"))])
+           (get-jvm-opts state)])
 
         server-args
-        (conj server-args "shadow.cljs.devtools.cli" "--npm" "server")]
+        (conj server-args  "--npm" "server")]
 
     (js/process.stderr.write "shadow-cljs - server starting ")
 
