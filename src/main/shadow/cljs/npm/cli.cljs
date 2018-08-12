@@ -166,20 +166,20 @@
         (conj "-jar" launcher-file)
         )))
 
-(defn run-standalone* [{:keys [project-root args] :as state}]
+(defn run-standalone*
+  [{:keys [project-root launcher-version launcher-override args] :as state}]
   (let [cli-args
         (-> (get-jvm-opts state)
             (conj "--npm")
             (into args))]
 
-    (log "shadow-cljs - starting ...")
+    (log "shadow-cljs - starting" jar-version "with launcher" (or launcher-version launcher-override) "...")
     (run! project-root "java" cli-args {})))
 
-;; https://github.com/shadow-cljs/launcher/releases/download/1.2.0/shadow-cljs-launcher-1.2.0.jar
-
+;; https://github.com/thheller/shadow-cljs/releases/download/launcher-2.0.0/shadow-cljs-launcher-2.0.0.jar
 (defn download-launcher [{:keys [launcher-version launcher-file] :as state} callback]
   (let [launcher-url
-        (str "https://github.com/shadow-cljs/launcher/releases/download/"
+        (str "https://github.com/thheller/shadow-cljs/releases/download/launcher-"
              launcher-version
              "/shadow-cljs-launcher-"
              launcher-version
@@ -208,7 +208,7 @@
                 (.on res "data"
                   (fn [buf]
                     ;; FIXME: show some kind of download progress
-                    #_ (log "got some bytes" (.-length buf))))
+                    #_(log "got some bytes" (.-length buf))))
 
                 (.on res "end"
                   (fn []
@@ -365,7 +365,7 @@
            (get-jvm-opts state)])
 
         server-args
-        (conj server-args  "--npm" "server")]
+        (conj server-args "--npm" "server")]
 
     (js/process.stderr.write "shadow-cljs - server starting ")
 

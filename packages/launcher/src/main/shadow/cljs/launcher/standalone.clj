@@ -196,7 +196,7 @@
               (-> (slurp package-json-file)
                   (json/read-str)
                   (get "jar-version")))
-            (throw (ex-info "could not found which shadow-cljs version to use." {})))
+            (throw (ex-info "could not find which shadow-cljs version to use." {})))
 
         ;; shadow-cljs run something.foo deps-only
         ;; is not actually calling our deps-only
