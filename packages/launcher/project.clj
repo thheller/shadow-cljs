@@ -1,4 +1,4 @@
-(defproject shadow-cljs/launcher "2.0.0"
+(defproject shadow-cljs/launcher "2.1.0"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
 
