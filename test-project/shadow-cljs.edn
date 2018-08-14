@@ -3,7 +3,10 @@
  ["src/main"]
 
  :dependencies
- [[reagent "0.8.1"]]
+ [[reagent "0.8.1"]
+  ;; [re-frame "0.10.5"]
+  ;; [fulcrologic/fulcro "2.6.0-RC6"]
+  ]
 
  :launcher-override
  "launcher.jar"

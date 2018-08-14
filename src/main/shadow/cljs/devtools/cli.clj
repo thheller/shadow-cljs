@@ -241,6 +241,15 @@
       (print-main-error e)
       (System/exit 1))))
 
+(defn from-launcher [deps-loader-fn args]
+  (reset! api/reload-deps-fn-ref deps-loader-fn)
+  (try
+    (apply main "--via" "launcher" args)
+    (shutdown-agents)
+    (catch Exception e
+      (print-main-error e)
+      (System/exit 1))))
+
 (comment
   (defn autotest
     "no way to interrupt this, don't run this in nREPL"

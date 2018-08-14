@@ -32,6 +32,30 @@
 (def ^:dynamic *nrepl-active* false)
 (def ^:dynamic *nrepl-quit-signal* nil)
 
+(defonce reload-deps-fn-ref (atom nil))
+
+(defn reload-deps!
+  ([] (reload-deps! {}))
+  ([{:keys [deps ignore-conflicts] :as opts}]
+   (let [fn @reload-deps-fn-ref]
+     (if-not fn
+       ::standalone-only
+       (let [{:keys [conflicts new] :as result} (fn opts)]
+         (cond
+           (and (seq conflicts) (not (true? ignore-conflicts)))
+           (do (doseq [{:keys [dep before after]} conflicts]
+                 (println "Could not load:" dep (:mvn/version after) "version" (:mvn/version before) "is already loaded!"))
+               ::conflicts)
+
+           (seq new)
+           (do (doseq [dep new]
+                 (println "Loaded:" dep))
+               ::loaded)
+
+           :else
+           ::no-changes
+           ))))))
+
 (defn get-worker
   [id]
   {:pre [(keyword? id)]}

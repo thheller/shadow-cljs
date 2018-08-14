@@ -15,6 +15,9 @@ import java.lang.reflect.Method;
  */
 public class Main {
 
+    // FIXME: turn this into a standalone file that uses URLClassLoader
+    // and loads the actual uberjar. eventually want to be able to
+    // completely "restart" without exiting the JVM though
     public static void main(String[] args) throws Exception {
         DynamicClassLoader dyncl = new DynamicClassLoader();
 

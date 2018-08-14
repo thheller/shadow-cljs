@@ -10,6 +10,10 @@
   (:import [java.io File]
            [clojure.lang DynamicClassLoader]))
 
+(def config-defaults
+  {:cache-root ".shadow-cljs"
+   :dependencies []})
+
 (def unwanted-deps
   '#{org.clojure/clojure ;; can't run on 1.8
      ;; provided by launcher
@@ -23,35 +27,34 @@
      org.clojure/clojurescript ;; we will always be on the latest version
      })
 
-(defn drop-unwanted-deps [dependencies]
-  (->> dependencies
-       (remove (fn [[dep-id & _]]
-                 (contains? unwanted-deps dep-id)))
-       (into [])))
+(defn drop-unwanted-deps [lib-map]
+  (apply dissoc lib-map unwanted-deps))
 
 (defn add-exclusions [dependencies]
-  (->> dependencies
-       (map (fn [[dep-id version & modifiers :as dep]]
-              (let [mods
-                    (-> (apply hash-map modifiers)
-                        (update :exclusions (fn [excl]
-                                              (->> excl
-                                                   (concat unwanted-deps)
-                                                   (distinct)
-                                                   (into [])))))]
-                (reduce-kv conj [dep-id version] mods))))
-       (into [])))
+  (reduce-kv
+    (fn [m lib {:keys [exclusions] :as data}]
+      (assoc m lib (assoc data :exclusions (->> exclusions
+                                                (concat unwanted-deps)
+                                                (distinct)
+                                                (into [])))))
+    dependencies
+    dependencies))
 
 (defn modified-dependencies? [cp config]
   (or (not= (:version cp) (:version config))
-      (not= (:dependencies cp) (:dependencies config))))
+      (not= (:input-deps cp) (:input-deps config))))
+
+(defn as-qualified-symbol [dep]
+  (if (qualified-symbol? dep)
+    dep
+    (symbol (name dep) (name dep))))
 
 ;; transform lein-style [foo/bar "1.2.3] into {foo/bar {:mvn/version "1.2.3"}}
 (defn as-lib-map [deps]
   (reduce
     (fn [m [dep version & kv-pairs :as x]]
       (assoc m
-        dep
+        (as-qualified-symbol dep)
         (-> {:mvn/version version}
             (cond->
               (seq kv-pairs)
@@ -60,13 +63,10 @@
     {}
     deps))
 
-(defn resolve-deps [{:keys [dependencies repositories] :as config}]
-  (let [deps
-        (as-lib-map dependencies)
-
-        resolved-deps
+(defn resolve-deps [{:keys [input-deps repositories] :as config}]
+  (let [resolved-deps
         (tdeps/resolve-deps
-          {:deps deps
+          {:deps input-deps
            :mvn/repos (merge mvn/standard-repos repositories)}
           {})]
 
@@ -89,25 +89,77 @@
            (into [])))
     ))
 
-(defn get-classpath [project-root {:keys [cache-root version extra-cli-deps] :as config}]
-  (let [cp-file
+(defn clean-deps [{:keys [dependencies extra-cli-deps] :as config}]
+  (let [deps
+        (cond
+          (vector? dependencies)
+          (as-lib-map dependencies)
+
+          (map? dependencies)
+          (reduce-kv
+            (fn [m k v]
+              (assoc m (as-qualified-symbol k) v))
+            {}
+            dependencies)
+
+          :else
+          (throw (ex-info "invalid dependencies" {})))]
+
+    (-> (apply merge deps extra-cli-deps)
+        (drop-unwanted-deps)
+        (add-exclusions)
+        )))
+
+(comment
+  (clean-deps {:dependencies '[[reagent "0.8.1"]]})
+  (clean-deps {:dependencies '{reagent {:mvn/version "0.8.1"}}}))
+
+(defn get-classpath [project-root {:keys [extra-deps] :as extra-config}]
+  (let [project-config-file
+        (io/file project-root "shadow-cljs.edn")
+
+        project-config
+        (-> (slurp project-config-file)
+            (read-string))
+
+        package-json-file
+        (io/file project-root "node_modules" "shadow-cljs" "package.json")
+
+        version
+        (or (:version project-config)
+            (System/getProperty "shadow.cljs.jar-version")
+            (when (.exists package-json-file)
+              (-> (slurp package-json-file)
+                  (json/read-str)
+                  (get "jar-version")))
+            (throw (ex-info "could not find which shadow-cljs version to use." {})))
+
+        {:keys [cache-root] :as project-config}
+        (merge
+          config-defaults
+          {:version version}
+          project-config
+          extra-config)
+
+        cp-file
         (io/file project-root cache-root "classpath.edn")
 
         use-aot
-        (not (false? (get config :aot true)))
+        (not (false? (get project-config :aot true)))
 
-        shadow-artifact
-        (-> ['thheller/shadow-cljs version]
+        deps
+        (-> (clean-deps project-config)
             (cond->
-              use-aot
-              (conj :classifier "aot")))
+              (seq extra-deps)
+              (merge (clean-deps {:dependencies extra-deps})))
+            (assoc 'thheller/shadow-cljs
+                   (-> {:mvn/version version}
+                       (cond->
+                         use-aot
+                         (assoc :classifier "aot")))))
 
         classpath-config
-        (-> config
-            (update :dependencies into extra-cli-deps)
-            (update :dependencies drop-unwanted-deps)
-            (update :dependencies add-exclusions)
-            (update :dependencies #(into [shadow-artifact] %)))
+        (assoc project-config :input-deps deps)
 
         cached-classpath-data
         (when (.exists cp-file)
@@ -115,13 +167,13 @@
               (read-string)))
 
         {:keys [files] :as classpath-data}
-        (if (and (not (true? (:no-classpath-cache config)))
+        (if (and (not (true? (:no-classpath-cache project-config)))
                  cached-classpath-data
                  (not (modified-dependencies? cached-classpath-data classpath-config)))
           cached-classpath-data
           (let [data (resolve-deps classpath-config)]
-            (io/make-parents cp-file)
-            (when (not (true? (:no-classpath-cache config)))
+            (when-not (true? (:no-classpath-cache project-config))
+              (io/make-parents cp-file)
               (spit cp-file (pr-str data)))
             data))]
 
@@ -132,23 +184,19 @@
       ;; if anything is missing delete the classpath.edn and start over
       (do (.delete cp-file)
           (println "WARN: missing dependencies, reconstructing classpath.")
-          (recur project-root config)))))
-
-(def config-defaults
-  {:cache-root ".shadow-cljs"
-   :dependencies []})
+          (recur project-root extra-config)))))
 
 (comment
-  (get-classpath
-    (io/file "target")
-    '{:cache-root "fake-cache-root"
-      :version "2.4.33"
-      :no-classpath-cache true
-      :dependencies []}))
+  (doseq [[dep data]
+          (-> (get-classpath
+                (io/file ".." "..")
+                {:no-classpath-cache true})
+              (:resolved-deps))]
+    (println dep " --- " (:dependents data))))
 
 (defn parse-cli-dep [dep-str]
   (let [[sym ver] (str/split dep-str #":")]
-    [(symbol sym) ver]))
+    {(symbol sym) {:mvn/version ver}}))
 
 (defn extract-cli-deps [args]
   (loop [[head & tail] args
@@ -169,7 +217,11 @@
       :else
       (recur tail cli-deps))))
 
-;; will the called by the Main.class
+(defn add-file-to-classloader [dyncl file]
+  (let [url (-> file .toURI .toURL)]
+    (.addURL dyncl url)))
+
+;; will be called by the Main.class
 (defn -main [& args]
   (let [^DynamicClassLoader dyncl
         (-> (Thread/currentThread)
@@ -178,25 +230,6 @@
         project-root
         (-> (io/file ".")
             (.getCanonicalFile))
-
-        project-config-file
-        (io/file project-root "shadow-cljs.edn")
-
-        package-json-file
-        (io/file project-root "node_modules" "shadow-cljs" "package.json")
-
-        project-config
-        (-> (slurp project-config-file)
-            (read-string))
-
-        version
-        (or (:version project-config)
-            (System/getProperty "shadow.cljs.jar-version")
-            (when (.exists package-json-file)
-              (-> (slurp package-json-file)
-                  (json/read-str)
-                  (get "jar-version")))
-            (throw (ex-info "could not find which shadow-cljs version to use." {})))
 
         ;; shadow-cljs run something.foo deps-only
         ;; is not actually calling our deps-only
@@ -208,20 +241,71 @@
                 (not= "clj-run" %))
           args)
 
-        {:keys [source-paths] :as project-config}
-        (merge
-          config-defaults
-          {:version version}
-          project-config
-          {:extra-cli-deps (extract-cli-deps cli-args)})
+        extra-cli-deps
+        (extract-cli-deps cli-args)
 
-        {:keys [files resolved-deps] :as result}
-        (get-classpath project-root project-config)
+        {:keys [source-paths files resolved-deps] :as config}
+        (get-classpath project-root {:extra-cli-deps extra-cli-deps})
 
         classpath-files
         (->> (concat source-paths files)
              (map io/file)
-             (into []))]
+             (into []))
+
+        active-deps-ref
+        (atom resolved-deps)
+
+        reload-deps-fn
+        (fn reload-deps-fn [{:keys [ignore-conflicts deps] :as opts}]
+          (let [{:keys [resolved-deps] :as new-config}
+                (get-classpath project-root {:extra-cli-deps extra-cli-deps
+                                             :extra-deps deps})
+
+                prev-deps
+                @active-deps-ref
+
+                {:keys [conflicts new] :as result}
+                (reduce-kv
+                  (fn [result dep data]
+                    (cond
+                      (not (contains? prev-deps dep))
+                      (update result :new conj dep)
+
+                      (= (:paths data)
+                         (get-in prev-deps [dep :paths]))
+                      result
+
+                      :else
+                      (update result :conflicts conj {:dep dep
+                                                      :before (get prev-deps dep)
+                                                      :after data})))
+                  {:new []
+                   :conflicts []}
+                  resolved-deps)]
+
+            (if (and (seq conflicts) (not (true? ignore-conflicts)))
+              result
+              (let [new-deps
+                    (reduce
+                      (fn [deps dep]
+                        (assoc deps dep (get resolved-deps dep)))
+                      {}
+                      new)]
+
+                (->> (vals new-deps)
+                     (mapcat :paths)
+                     (map io/file)
+                     (map (fn [file]
+                            (System/setProperty "shadow.class.path"
+                              (str (System/getProperty "shadow.class.path")
+                                   File/pathSeparator
+                                   (.getAbsolutePath file)))
+                            (add-file-to-classloader dyncl file)))
+                     (doall))
+
+                (swap! active-deps-ref merge new-deps)
+
+                result))))]
 
     (cond
       (some #(= "deps-only" %) cli-args)
@@ -233,8 +317,7 @@
       :else
       (do (doseq [file classpath-files]
             ;; (println "classpath:" (.getAbsolutePath file))
-            (let [url (-> file .toURI .toURL)]
-              (.addURL dyncl url)))
+            (add-file-to-classloader dyncl file))
 
           (let [cp-string
                 (->> classpath-files
@@ -244,6 +327,5 @@
             (System/setProperty "shadow.class.path" cp-string))
 
           (require 'shadow.cljs.devtools.cli)
-          (apply (find-var 'shadow.cljs.devtools.cli/-main) args))
+          ((find-var 'shadow.cljs.devtools.cli/from-launcher) reload-deps-fn args))
       )))
-
