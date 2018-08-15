@@ -94,6 +94,12 @@
    :aot
    {:aot [repl]}
 
+   :uberjar
+   {:aot [shadow.cljs.devtools.cli
+          shadow.cljs.devtools.api
+          shadow.cljs.devtools.server]
+    :main shadow.cljs.devtools.cli}
+
    :cljs
    {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
     :dependencies

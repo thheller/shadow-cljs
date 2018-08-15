@@ -266,7 +266,7 @@
   (-> ns-info
       (update :deps conj-distinct sym)
       (cond->
-        (contains? flags :reload)
+        (seq (:require flags))
         (update :reload-deps conj-distinct sym)
         )))
 
@@ -369,6 +369,7 @@
   (let [{:keys [clause requires flags]} clause]
     (-> ns-info
         (update :seen conj clause)
+        ;; need to remember if :require or :require-macros had :reload/:reload-all
         (update :flags assoc clause (into #{} flags))
         (cond->
           (= :require clause)
@@ -445,7 +446,13 @@
    :use-macros nil
    :renames {} ;; seems to be only one that is never nil in cljs.core
    :rename-macros nil
-   :js-deps {}})
+   :js-deps {}
+   ;; map of which clause had which flags
+   ;; (:require [foo.bar] :reload)
+   ;; (:require-macros [foo.bar] :reload-all)
+   ;; {:require #{:reload}
+   ;;  :require-macros #{:reload-all}}
+   :flags {}})
 
 (defn parse
   ([form]
@@ -509,8 +516,8 @@
           conformed]
 
       (-> ns-info
-          (assoc :flags (into #{} flags)
-                 :reload-deps [])
+          (assoc-in [:flags :require] (into #{} flags))
+          (assoc :reload-deps [])
           (reduce->
             reduce-require
             (map :require quoted-requires)

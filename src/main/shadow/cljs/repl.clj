@@ -69,11 +69,13 @@
 
         current-ns-info
         (-> (get-in compiler-env [::ana/namespaces ns])
-            (dissoc :defs))
+            (dissoc :defs :flags))
 
         {:keys [name requires deps] :as ns-info}
         (if current-ns-info
-          (ns-form/parse current-ns-info ns-form)
+          (-> current-ns-info
+              (dissoc :flags)
+              (ns-form/parse ns-form))
           (ns-form/parse ns-form))]
 
     (assoc rc
@@ -152,6 +154,8 @@
   (cljs-bridge/with-compiler-env state
     (let [full-ns-info
           (-> new-ns-info
+              ;; anyone interested in flags must have used them by now
+              (dissoc :flags)
               (macros/load-macros)
               (macros/infer-macro-require)
               (macros/infer-macro-use))]
@@ -193,7 +197,7 @@
 
         ;; can only rewrite after resolving since that discovers what needs to be rewritten
         ;; which may have created a new alias for a string
-        new-ns-info
+        {:keys [flags] :as new-ns-info}
         (-> new-ns-info
             (ns-form/rewrite-ns-aliases state)
             (ns-form/rewrite-js-deps state))
@@ -207,7 +211,7 @@
         (-> {:type :repl/require
              :sources new-sources
              :reload-namespaces (into #{} reload-deps)
-             :flags (:flags new-ns-info)}
+             :flags (:require flags)}
             (cond->
               (= :shadow (get-in state [:js-options :js-provider]))
               (assoc :js-requires
@@ -327,7 +331,7 @@
         ns-requires
         {:type :repl/require
          :sources build-sources
-         :reload-namespaces #{}}
+         :reload-namespaces (into #{} (:reload-deps ns-info))}
 
         ns-provide
         {:type :repl/invoke

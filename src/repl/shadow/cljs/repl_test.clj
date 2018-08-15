@@ -111,3 +111,22 @@
         last
         :js
         (println))))
+
+(deftest test-repl-ns-flags
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(ns hello.world (:require clojure.string :reload))"))]
+
+    (pprint repl-state)))
+
+(deftest test-repl-require-current-ns
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(require 'demo.browser)")
+            (repl/process-input "(in-ns 'demo.browser)")
+            (repl/process-input "(require 'demo.browser :reload)")
+            )]
+
+    (pprint repl-state)))
