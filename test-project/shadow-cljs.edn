@@ -2,6 +2,9 @@
 {:source-paths
  ["src/main"]
 
+ :log
+ {:level :debug}
+
  :dependencies
  [[reagent "0.8.1"]
   ;; [re-frame "0.10.5"]
@@ -19,5 +22,6 @@
 
   :test-node
   {:target :node-test
-   :output-to "out/test-node/script.js"}
+   :output-to "out/test-node/script.js"
+   :compiler-options {:infer-externs :auto}}
   }}

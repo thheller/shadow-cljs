@@ -1,11 +1,12 @@
 (ns shadow.build.cljs-hacks
   (:require
+    [clojure.string :as str]
     [cljs.analyzer :as ana]
     [cljs.compiler :as comp]
     [cljs.env :as env]
-    [clojure.string :as str]
-    [cljs.core]
-    [cljs.test]))
+    [cljs.core :as core]
+    [cljs.test :as test]
+    [shadow.jvm-log :as log]))
 
 ;; replacing some internal cljs.analyzer/compiler fns
 ;; since they aren't configurable/extendable enough
@@ -22,7 +23,11 @@
   {:pre [(symbol? current-ns)
          (string? prop)]}
   (when-not (or (= prop "prototype")
-                (str/starts-with? prop "cljs$"))
+                (str/starts-with? prop "cljs$")
+                ;; should never collect any protocol properties
+                ;; extending protocols on JS objects
+                (some #(str/starts-with? prop %) (:shadow/protocol-prefixes @env/*compiler*)))
+
     (swap! env/*compiler* update-in
       [::ana/namespaces current-ns :shadow/js-access-properties] conj-to-set prop)))
 
@@ -47,7 +52,7 @@
     ;; :goog shim files for :require should always generate though
     (when (or (= :shadow-js type)
               (is-shadow-shim? ns))
-      (shadow.build.cljs-hacks/shadow-js-access-property current-ns prop))
+      (shadow-js-access-property current-ns prop))
 
     {:name qname
      :tag 'js
@@ -112,114 +117,116 @@
 (defn shadow-resolve-var
   "Resolve a var. Accepts a side-effecting confirm fn for producing
    warnings about unresolved vars."
-  [env sym confirm]
-  (let [locals (:locals env)
-        current-ns (-> env :ns :name)
-        sym-ns-str (namespace sym)]
+  ([env sym]
+   (shadow-resolve-var env sym nil))
+  ([env sym confirm]
+   (let [locals (:locals env)
+         current-ns (-> env :ns :name)
+         sym-ns-str (namespace sym)]
 
-    (if (= "js" sym-ns-str)
-      (do (when (contains? locals (-> sym name symbol))
-            (ana/warning :js-shadowed-by-local env {:name sym}))
+     (if (= "js" sym-ns-str)
+       (do (when (contains? locals (-> sym name symbol))
+             (ana/warning :js-shadowed-by-local env {:name sym}))
 
-          ;; always record all fully qualified js/foo.bar calls
-          ;; except for the code emitted by cljs.core/exists?
-          ;; (exists? some.foo/bar)
-          ;; checks js/some, js/some.foo, js/some.foo.bar
-          (when-not (-> sym meta ::ana/no-resolve)
-            (let [[global & props]
-                  (str/split (name sym) #"\.")]
+           ;; always record all fully qualified js/foo.bar calls
+           ;; except for the code emitted by cljs.core/exists?
+           ;; (exists? some.foo/bar)
+           ;; checks js/some, js/some.foo, js/some.foo.bar
+           (when-not (-> sym meta ::ana/no-resolve)
+             (let [[global & props]
+                   (str/split (name sym) #"\.")]
 
-              ;; do not record access to
-              ;; js/goog.string.format
-              ;; js/cljs.core.assoc
-              ;; just in case someone does that, we won't need externs for those
-              (when-not (contains? known-safe-js-globals global)
-                (shadow-js-access-global current-ns global)
-                (when (seq props)
-                  (doseq [prop props]
-                    (shadow-js-access-property current-ns prop))))))
+               ;; do not record access to
+               ;; js/goog.string.format
+               ;; js/cljs.core.assoc
+               ;; just in case someone does that, we won't need externs for those
+               (when-not (contains? known-safe-js-globals global)
+                 (shadow-js-access-global current-ns global)
+                 (when (seq props)
+                   (doseq [prop props]
+                     (shadow-js-access-property current-ns prop))))))
 
-          {:name sym
-           :ns 'js
-           :tag 'js
-           :ret-tag 'js})
+           {:name sym
+            :ns 'js
+            :tag 'js
+            :ret-tag 'js})
 
-      (let [s (str sym)
-            lb (get locals sym)
-            current-ns-info (ana/gets @env/*compiler* ::ana/namespaces current-ns)]
+       (let [s (str sym)
+             lb (get locals sym)
+             current-ns-info (ana/gets @env/*compiler* ::ana/namespaces current-ns)]
 
-        (cond
-          (some? lb) lb
+         (cond
+           (some? lb) lb
 
-          (some? sym-ns-str)
-          (let [ns sym-ns-str
-                ns (symbol (if (= "clojure.core" ns) "cljs.core" ns))
-                ;; thheller: remove the or
-                full-ns (ana/resolve-ns-alias env ns (symbol ns))
-                ;; strip ns
-                sym (symbol (name sym))]
-            (when (some? confirm)
-              (when (not= current-ns full-ns)
-                (ana/confirm-ns env full-ns))
-              (confirm env full-ns sym))
-            (resolve-ns-var full-ns sym current-ns))
+           (some? sym-ns-str)
+           (let [ns sym-ns-str
+                 ns (symbol (if (= "clojure.core" ns) "cljs.core" ns))
+                 ;; thheller: remove the or
+                 full-ns (ana/resolve-ns-alias env ns (symbol ns))
+                 ;; strip ns
+                 sym (symbol (name sym))]
+             (when (some? confirm)
+               (when (not= current-ns full-ns)
+                 (ana/confirm-ns env full-ns))
+               (confirm env full-ns sym))
+             (resolve-ns-var full-ns sym current-ns))
 
-          ;; FIXME: would this not be better handled if checked before calling resolve-var
-          ;; and analyzing this properly?
-          (ana/dotted-symbol? sym)
-          (let [idx (.indexOf s ".")
-                prefix (symbol (subs s 0 idx))
-                suffix (subs s (inc idx))]
-            (if-some [lb (get locals prefix)]
-              {:name (symbol (str (:name lb)) suffix)}
-              (if-some [full-ns (ana/gets current-ns-info :imports prefix)]
-                {:name (symbol (str full-ns) suffix)}
-                (if-some [info (ana/gets current-ns-info :defs prefix)]
-                  (merge info
-                    {:name (symbol (str current-ns) (str sym))
-                     :ns current-ns})
-                  (merge (ana/gets @env/*compiler* ::ana/namespaces prefix :defs (symbol suffix))
-                    {:name (if (= "" prefix) (symbol suffix) (symbol (str prefix) suffix))
-                     :ns prefix})))))
+           ;; FIXME: would this not be better handled if checked before calling resolve-var
+           ;; and analyzing this properly?
+           (ana/dotted-symbol? sym)
+           (let [idx (.indexOf s ".")
+                 prefix (symbol (subs s 0 idx))
+                 suffix (subs s (inc idx))]
+             (if-some [lb (get locals prefix)]
+               {:name (symbol (str (:name lb)) suffix)}
+               (if-some [full-ns (ana/gets current-ns-info :imports prefix)]
+                 {:name (symbol (str full-ns) suffix)}
+                 (if-some [info (ana/gets current-ns-info :defs prefix)]
+                   (merge info
+                     {:name (symbol (str current-ns) (str sym))
+                      :ns current-ns})
+                   (merge (ana/gets @env/*compiler* ::ana/namespaces prefix :defs (symbol suffix))
+                     {:name (if (= "" prefix) (symbol suffix) (symbol (str prefix) suffix))
+                      :ns prefix})))))
 
-          (some? (ana/gets current-ns-info :uses sym))
-          (let [full-ns (ana/gets current-ns-info :uses sym)]
-            (resolve-ns-var full-ns sym current-ns))
+           (some? (ana/gets current-ns-info :uses sym))
+           (let [full-ns (ana/gets current-ns-info :uses sym)]
+             (resolve-ns-var full-ns sym current-ns))
 
-          (some? (ana/gets current-ns-info :renames sym))
-          (let [qualified-symbol (ana/gets current-ns-info :renames sym)
-                full-ns (symbol (namespace qualified-symbol))
-                sym (symbol (name qualified-symbol))]
-            (resolve-ns-var full-ns sym current-ns))
+           (some? (ana/gets current-ns-info :renames sym))
+           (let [qualified-symbol (ana/gets current-ns-info :renames sym)
+                 full-ns (symbol (namespace qualified-symbol))
+                 sym (symbol (name qualified-symbol))]
+             (resolve-ns-var full-ns sym current-ns))
 
-          (some? (ana/gets current-ns-info :imports sym))
-          (recur env (ana/gets current-ns-info :imports sym) confirm)
+           (some? (ana/gets current-ns-info :imports sym))
+           (recur env (ana/gets current-ns-info :imports sym) confirm)
 
-          (some? (ana/gets current-ns-info :defs sym))
-          (do (when (some? confirm)
-                (confirm env current-ns sym))
-              (resolve-cljs-var current-ns sym))
+           (some? (ana/gets current-ns-info :defs sym))
+           (do (when (some? confirm)
+                 (confirm env current-ns sym))
+               (resolve-cljs-var current-ns sym))
 
-          ;; https://dev.clojure.org/jira/browse/CLJS-2380
-          ;; not sure if correct fix
-          ;; cljs.core/Object is used by parse-type so using that here
-          (= 'Object sym)
-          '{:name cljs.core/Object
-            :ns cljs.core}
+           ;; https://dev.clojure.org/jira/browse/CLJS-2380
+           ;; not sure if correct fix
+           ;; cljs.core/Object is used by parse-type so using that here
+           (= 'Object sym)
+           '{:name cljs.core/Object
+             :ns cljs.core}
 
-          (ana/core-name? env sym)
-          (do (when (some? confirm)
-                (confirm env 'cljs.core sym))
-              (resolve-cljs-var 'cljs.core sym))
+           (ana/core-name? env sym)
+           (do (when (some? confirm)
+                 (confirm env 'cljs.core sym))
+               (resolve-cljs-var 'cljs.core sym))
 
-          (invokeable-ns? s env)
-          (resolve-invokeable-ns s current-ns env)
+           (invokeable-ns? s env)
+           (resolve-invokeable-ns s current-ns env)
 
-          :else
-          (do (when (some? confirm)
-                (confirm env current-ns sym))
-              (resolve-cljs-var current-ns sym)
-              ))))))
+           :else
+           (do (when (some? confirm)
+                 (confirm env current-ns sym))
+               (resolve-cljs-var current-ns sym)
+               )))))))
 
 (defn infer-externs-dot
   [{:keys [form form-meta method field target-tag env prop tag] :as ast}
@@ -250,8 +257,7 @@
                    (or (nil? target-tag) (= 'any target-tag))
                    ;; protocol fns, never need externs for those
                    (not (str/includes? sprop "$arity$"))
-                   ;; set in cljs.core/extend-prefix hack below
-                   (not (some-> prop meta :shadow/protocol-prop))
+                   (not (contains? (:shadow/protocol-prefixes @env/*compiler*) sprop))
                    (not shadow-object-fn)
                    ;; no immediate ideas how to annotate these so it doesn't warn
                    (not= form '(. cljs.core/List -EMPTY))
@@ -396,19 +402,6 @@
                 (not= form 'js/-Infinity)
                 (comp/munge)))))))))
 
-(in-ns 'cljs.analyzer)
-
-;; noop load-core since its called a bajillion times otherwise and should only be called once
-;; also fixes the race condition in load-core
-(defn load-core [])
-
-(defn resolve-var
-  ([env sym]
-   (shadow.build.cljs-hacks/shadow-resolve-var env sym nil))
-  ([env sym confirm]
-   (shadow.build.cljs-hacks/shadow-resolve-var env sym confirm)))
-
-(in-ns 'cljs.compiler)
 
 ;; no perf impact, just easier to read
 (defn source-map-inc-col [{:keys [gen-col] :as m} n]
@@ -424,202 +417,32 @@
   (cond
     (nil? x) nil
     (string? x)
-    (do (when-not (nil? *source-map-data*)
-          (swap! *source-map-data* source-map-inc-col (count x)))
+    (do (when-not (nil? comp/*source-map-data*)
+          (swap! comp/*source-map-data* source-map-inc-col (count x)))
         (print x))
-    #?(:clj (map? x) :cljs (ana/cljs-map? x)) (emit x)
-    #?(:clj (seq? x) :cljs (ana/cljs-seq? x)) (run! emit1 x)
-    #?(:clj (fn? x) :cljs ^boolean (goog/isFunction x)) (x)
+    (map? x) (comp/emit x)
+    (seq? x) (run! emit1 x)
+    (fn? x) (x)
     :else (let [s (print-str x)]
-            (when-not (nil? *source-map-data*)
-              (swap! *source-map-data* source-map-inc-col (count s)))
+            (when-not (nil? comp/*source-map-data*)
+              (swap! comp/*source-map-data* source-map-inc-col (count s)))
             (print s))))
 
-(defn emits [& xs]
+(defn shadow-emits [& xs]
   (run! emit1 xs))
 
-(defn emitln [& xs]
+(defn shadow-emitln [& xs]
   (run! emit1 xs)
   (newline)
-  (when *source-map-data*
-    (swap! *source-map-data* source-map-inc-line))
+  (when comp/*source-map-data*
+    (swap! comp/*source-map-data* source-map-inc-line))
   nil)
 
-(in-ns 'cljs.core)
+;; noop
+(defn shadow-load-core [])
 
-(defn shadow-mark-protocol-prop [sym]
-  (with-meta sym {:shadow/protocol-prop true}))
-
-;; multimethod in core, although I don't see how this is ever going to go past 2 impls?
-;; also added the metadata for easier externs inference
-;; switched .. to nested . since .. looses form meta
-(defn- extend-prefix [tsym sym]
-  (let [prop-sym
-        (-> (to-property sym)
-            (cond->
-              ;; exploiting a "flaw" where extend-prefix is called with a string
-              ;; instead of a symbol for protocol impls
-              ;; adding the extra meta so we can use it for smarter externs inference
-              (core/string? sym)
-              (shadow-mark-protocol-prop)
-              ))]
-
-    (core/case (core/-> tsym meta :extend)
-      :instance
-      `(. ~tsym ~prop-sym)
-      ;; :default
-      `(. (. ~tsym ~'-prototype) ~prop-sym))))
-
-
-(core/defmacro implements?
-  "EXPERIMENTAL"
-  [psym x]
-  (core/let [p (:name (cljs.analyzer/resolve-var (dissoc &env :locals) psym))
-             prefix (protocol-prefix p)
-             ;; thheller: ensure things are tagged so externs inference knows this is a protocol prop
-             protocol-prop (shadow-mark-protocol-prop (symbol (core/str "-" prefix)))
-             xsym (bool-expr (gensym))
-             [part bit] (fast-path-protocols p)
-             msym (symbol
-                    (core/str "-cljs$lang$protocol_mask$partition" part "$"))]
-    (core/if-not (core/symbol? x)
-      `(let [~xsym ~x]
-         (if ~xsym
-           (if (or ~(if bit `(unsafe-bit-and (. ~xsym ~msym) ~bit) false)
-                   (identical? cljs.core/PROTOCOL_SENTINEL (. ~xsym ~protocol-prop)))
-             true
-             false)
-           false))
-      `(if-not (nil? ~x)
-         (if (or ~(if bit `(unsafe-bit-and (. ~x ~msym) ~bit) false)
-                 (identical? cljs.core/PROTOCOL_SENTINEL (. ~x ~protocol-prop)))
-           true
-           false)
-         false))))
-
-(core/defmacro satisfies?
-  "Returns true if x satisfies the protocol"
-  [psym x]
-  (core/let [p (:name
-                 (cljs.analyzer/resolve-var
-                   (dissoc &env :locals) psym))
-             prefix (protocol-prefix p)
-             ;; thheller: ensure things are tagged so externs inference knows this is a protocol prop
-             protocol-prop (shadow-mark-protocol-prop (symbol (core/str "-" prefix)))
-             xsym (bool-expr (gensym))
-             [part bit] (fast-path-protocols p)
-             msym (symbol
-                    (core/str "-cljs$lang$protocol_mask$partition" part "$"))]
-    (core/if-not (core/symbol? x)
-      `(let [~xsym ~x]
-         (if-not (nil? ~xsym)
-           (if (or ~(if bit `(unsafe-bit-and (. ~xsym ~msym) ~bit) false)
-                   (identical? cljs.core/PROTOCOL_SENTINEL (. ~xsym ~protocol-prop)))
-             true
-             (if (coercive-not (. ~xsym ~msym))
-               (cljs.core/native-satisfies? ~psym ~xsym)
-               false))
-           (cljs.core/native-satisfies? ~psym ~xsym)))
-      `(if-not (nil? ~x)
-         (if (or ~(if bit `(unsafe-bit-and (. ~x ~msym) ~bit) false)
-                 (identical? cljs.core/PROTOCOL_SENTINEL (. ~x ~protocol-prop)))
-           true
-           (if (coercive-not (. ~x ~msym))
-             (cljs.core/native-satisfies? ~psym ~x)
-             false))
-         (cljs.core/native-satisfies? ~psym ~x)))))
-
-
-(core/defmacro case
-  "Takes an expression, and a set of clauses.
-
-  Each clause can take the form of either:
-
-  test-constant result-expr
-
-  (test-constant1 ... test-constantN)  result-expr
-
-  The test-constants are not evaluated. They must be compile-time
-  literals, and need not be quoted.  If the expression is equal to a
-  test-constant, the corresponding result-expr is returned. A single
-  default expression can follow the clauses, and its value will be
-  returned if no clause matches. If no default expression is provided
-  and no clause matches, an Error is thrown.
-
-  Unlike cond and condp, case does a constant-time dispatch, the
-  clauses are not considered sequentially.  All manner of constant
-  expressions are acceptable in case, including numbers, strings,
-  symbols, keywords, and (ClojureScript) composites thereof. Note that since
-  lists are used to group multiple constants that map to the same
-  expression, a vector can be used to match a list if needed. The
-  test-constants need not be all of the same type."
-  [e & clauses]
-  (core/let [esym (gensym)
-             default (if (odd? (count clauses))
-                       (last clauses)
-                       `(throw
-                          (js/Error.
-                            (cljs.core/str "No matching clause: " ~esym))))
-             env &env
-             pairs (reduce
-                     (core/fn [m [test expr]]
-                       (core/cond
-                         (seq? test)
-                         (reduce
-                           (core/fn [m test]
-                             (core/let [test (if (core/symbol? test)
-                                               (core/list 'quote test)
-                                               test)]
-                               (assoc-test m test expr env)))
-                           m test)
-                         (core/symbol? test)
-                         (assoc-test m (core/list 'quote test) expr env)
-                         :else
-                         (assoc-test m test expr env)))
-                     {} (partition 2 clauses))
-             tests (keys pairs)]
-    (core/cond
-      (every? (some-fn core/number? core/string? #?(:clj core/char? :cljs (core/fnil core/char? :nonchar)) #(const? env %)) tests)
-      (core/let [no-default (if (odd? (count clauses)) (butlast clauses) clauses)
-                 tests (mapv #(if (seq? %) (vec %) [%]) (take-nth 2 no-default))
-                 thens (vec (take-nth 2 (drop 1 no-default)))]
-        `(let [~esym ~e] (case* ~esym ~tests ~thens ~default)))
-
-      (every? core/keyword? tests)
-      (core/let [no-default (if (odd? (count clauses)) (butlast clauses) clauses)
-                 kw-str #(.substring (core/str %) 1)
-                 tests (mapv #(if (seq? %) (mapv kw-str %) [(kw-str %)]) (take-nth 2 no-default))
-                 thens (vec (take-nth 2 (drop 1 no-default)))]
-        `(let [~esym ~e
-               ;; thheller: added clj tag
-               ~esym (if (keyword? ~esym) ^clj (.-fqn ~esym) nil)]
-           (case* ~esym ~tests ~thens ~default)))
-
-      ;; equality
-      :else
-      `(let [~esym ~e]
-         (cond
-           ~@(mapcat (core/fn [[m c]] `((cljs.core/= ~m ~esym) ~c)) pairs)
-           :else ~default)))))
-
-(core/defn- add-obj-methods [type type-sym sigs]
-  (map (core/fn [[f & meths :as form]]
-         (core/let [[f meths] (if (vector? (first meths))
-                                [f [(rest form)]]
-                                [f meths])]
-           `(set! ~(with-meta
-                     (extend-prefix type-sym f)
-                     {:shadow/object-fn f})
-              ~(with-meta `(fn ~@(map #(adapt-obj-params type %) meths)) (meta form)))))
-    sigs))
-
-(in-ns 'cljs.test)
-
-;; why does it go into the :test metadata?
-;; there are far too many macros in cljs.test
-;; instead of relying on the analyzer data all tests are registered at runtime
-;; so they can be handled more dynamically and don't rely on the macro being recompiled
-(defmacro deftest
+;; cljs.test tweaks
+(defmacro shadow-deftest
   "Defines a test function with no arguments.  Test functions may call
   other tests, so tests may be composed.  If you compose tests, you
   should also define a function named test-ns-hook; run-tests will
@@ -641,6 +464,55 @@
          (shadow.test.env/register-test (quote ~(symbol (str *ns*))) (quote ~name) the-var#)
          ))))
 
-(defmacro use-fixtures [type & fns]
+(defmacro shadow-use-fixtures [type & fns]
   {:pre [(contains? #{:once :each} type)]}
   `(shadow.test.env/register-fixtures (quote ~(symbol (str *ns*))) ~type [~@fns]))
+
+
+(defn replace-fn! [the-var the-fn]
+  (when (not= @the-var the-fn)
+    (log/debug ::replace-fn! {:the-var the-var})
+    (alter-var-root the-var (fn [_] the-fn))))
+
+(defn install-hacks! []
+  ;; cljs.analyzer tweaks
+  (replace-fn! #'ana/load-core shadow-load-core)
+  (replace-fn! #'ana/resolve-var shadow-resolve-var)
+
+  ;; cljs.compiler tweaks
+  (replace-fn! #'comp/emits shadow-emits)
+  (replace-fn! #'comp/emitln shadow-emitln)
+
+  (replace-fn! #'test/deftest @#'shadow-deftest)
+  (replace-fn! #'test/use-fixtures @#'shadow-use-fixtures))
+
+;; FIXME: patch this in CLJS. its the only externs inference call I can't work around
+;; cljs will blindly generate (set! (.. Thing -prototype -something) ...) for
+;; (deftype Thing []
+;;   Object
+;;   (something [...] ...))
+;; but doesn't keep any kind of meta that something is being defined on Object
+;; and that we should generate externs for it
+(in-ns 'cljs.core)
+
+;; multimethod in core, although I don't see how this is ever going to go past 2 impls?
+;; also added the metadata for easier externs inference
+;; switched .. to nested . since .. looses form meta
+(defn- extend-prefix [tsym sym]
+  (let [prop-sym (to-property sym)]
+    (core/case (core/-> tsym meta :extend)
+      :instance
+      `(. ~tsym ~prop-sym)
+      ;; :default
+      `(. (. ~tsym ~'-prototype) ~prop-sym))))
+
+(core/defn- add-obj-methods [type type-sym sigs]
+  (map (core/fn [[f & meths :as form]]
+         (core/let [[f meths] (if (vector? (first meths))
+                                [f [(rest form)]]
+                                [f meths])]
+           `(set! ~(with-meta
+                     (extend-prefix type-sym f)
+                     {:shadow/object-fn f})
+              ~(with-meta `(fn ~@(map #(adapt-obj-params type %) meths)) (meta form)))))
+    sigs))

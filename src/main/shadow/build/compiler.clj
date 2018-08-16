@@ -16,6 +16,7 @@
             [shadow.build.warnings :as warnings]
             [shadow.build.macros :as macros]
             [shadow.build.cache :as cache]
+            [shadow.build.cljs-hacks :as cljs-hacks]
             [shadow.build.cljs-bridge :as cljs-bridge]
             [shadow.build.resource :as rc]
             [shadow.build.ns-form :as ns-form]
@@ -99,6 +100,34 @@
           (:macros-ns opts)
           (update :name #(symbol (str % "$macros"))))
         (assoc :env env :form form :op :ns))))
+
+;; private in cljs.core
+(defn protocol-prefix [psym]
+  (str (-> (str psym)
+           (.replace \. \$)
+           (.replace \/ \$))
+       "$"))
+
+(defn find-protocols-pass [env ast opts]
+  (when (= :def (:op ast))
+    ;; (def sym ...)
+    ;; sym will have a :protocol some.ns/sym metadata
+    ;; if defined by defprotocol
+    ;; the ast otherwise doesn't keep a hint since its all
+    ;; in the analyzer data
+    (let [def-sym (-> ast :form second)
+          {:keys [protocol] :as sym-meta} (meta def-sym)]
+      (when (symbol? protocol)
+        (let [protocol-prop def-sym
+              protocol-ns (-> env :ns :name)
+              pprefix (protocol-prefix protocol)]
+
+          ;; assoc into ns so cache can restore it
+          (swap! env/*compiler* update-in [::cljs-ana/namespaces protocol-ns :shadow/protocol-prefixes] util/set-conj pprefix)
+          ;; used by externs inference since it otherwise can't identify protocol properties
+          (swap! env/*compiler* update :shadow/protocol-prefixes util/set-conj pprefix)
+          ))))
+  ast)
 
 ;; I don't want to use with-redefs but I also don't want to replace the default
 ;; keep a reference to the default impl and dispatch based on binding
@@ -515,6 +544,7 @@
               ;; restore analysis data
               (let [ana-data (:analyzer cache-data)]
                 (swap! env/*compiler* update-in [::ana/namespaces (:ns cache-data)] merge ana-data)
+                (swap! env/*compiler* update :shadow/protocol-prefixes set/union (:shadow/protocol-prefixes ana-data))
                 (macros/load-macros ana-data))
 
               ;; restore specs
@@ -935,6 +965,8 @@
     ;; throwing js parser errors here so they match other error sources
     ;; as other errors will be thrown later on in this method as well
    (throw-js-errors-now! state)
+
+   (cljs-hacks/install-hacks!)
 
    (let [state
          (reduce ensure-cache-invalidation-on-resolve-changes state source-ids)

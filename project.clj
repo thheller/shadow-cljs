@@ -8,12 +8,6 @@
   {"clojars" {:url "https://clojars.org/repo"
               :sign-releases false}}
 
-  :jvm-opts
-  ~(-> ["-Dfile.encoding=UTF-8"]
-     (cond->
-       (-> (System/getProperty "java.version") (.startsWith "9."))
-       (conj "--add-modules" "java.xml.bind")))
-
   :javac-options
   ["-target" "1.8"
    "-source" "1.8"]
@@ -109,7 +103,7 @@
      [reagent "0.8.1"]]
     :repl-options
     {:init-ns shadow.user
-     :nrepl-middleware
+     #_#_:nrepl-middleware
      [shadow.cljs.devtools.server.nrepl/cljs-load-file
       shadow.cljs.devtools.server.nrepl/cljs-eval
       shadow.cljs.devtools.server.nrepl/cljs-select
