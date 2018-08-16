@@ -54,6 +54,9 @@
       :repl/too-many-runtimes
       (println "There are too many connected processes.")
 
+      :repl/worker-stop
+      (println "The REPL worker has stopped.")
+
       (prn [:result result]))
     (flush)))
 
@@ -168,7 +171,8 @@
               :else
               (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
                 (print-result result)
-                (when (not= :repl/interrupt (:type result))
+                (when (and (not= :repl/interrupt (:type result))
+                           (not= :repl/worker-stop (:type result)))
                   (recur))))))))
     (async/close! print-chan)
 
@@ -242,7 +246,8 @@
       ;; node process might crash which should stop the worker
       (async/thread
         (try
-          (.waitFor node-proc)
+          (let [code (.waitFor node-proc)]
+            (log/info ::node-repl-exit {:code code}))
           (finally
             (super/stop-worker supervisor :node-repl)
             )))

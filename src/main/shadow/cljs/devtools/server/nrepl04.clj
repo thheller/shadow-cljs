@@ -72,12 +72,14 @@
 
             (= :repl/quit form)
             (do (do-repl-quit session)
-                (send msg {:value :repl/quit
+                (send msg {:value ":repl/quit"
+                           :printed-value 1
                            :ns (-> *ns* ns-name str)}))
 
             (= :cljs/quit form)
             (do (do-repl-quit session)
-                (send msg {:value :cljs/quit
+                (send msg {:value ":cljs/quit"
+                           :printed-value 1
                            :ns (-> *ns* ns-name str)}))
 
             ;; Cursive supports
@@ -125,7 +127,14 @@
                   (send msg {:err (with-out-str
                                     (errors/user-friendly-error (:ex result)))})
 
-                  :else
+                  :repl/worker-stop
+                  (do (do-repl-quit session)
+                      (send msg {:err "The REPL worker has stopped.\n"})
+                      (send msg {:value ":cljs/quit"
+                                 :printed-value 1
+                                 :ns (-> *ns* ns-name str)}))
+
+                  ;; :else
                   (send msg {:err (pr-str [:FIXME result])})))
 
               (recur))

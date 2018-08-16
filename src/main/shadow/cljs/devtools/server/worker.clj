@@ -116,7 +116,7 @@
 
     runtime-in))
 
-(defn worker-request [{:keys [proc-control state-ref] :as worker} request]
+(defn worker-request [{:keys [proc-stop proc-control state-ref] :as worker} request]
   {:pre [(impl/proc? worker)
          (map? request)
          (keyword? (:type request))]}
@@ -132,6 +132,11 @@
       (alt!!
         result-chan
         ([x] x)
+
+        ;; check if the worker stopped while waiting for result
+        proc-stop
+        ([_]
+          {:type :repl/worker-stop})
 
         ;; FIXME: things that actually take >10s will timeout and never show their result
         (async/timeout repl-timeout)
