@@ -129,6 +129,13 @@
               [prepend
 
                (str "var SHADOW_IMPORT_PATH = __dirname + '/" rel-path "';")
+               ;; special case for node-repl which doesn't execute a file
+               ;; but instead executes the code via stdin pipe
+               (str "if (__dirname == '.') { SHADOW_IMPORT_PATH = "
+                    (-> (data/output-file state cljs-runtime-path)
+                        (.getAbsolutePath)
+                        (pr-str))
+                    "; }")
 
                "global.$CLJS = global;"
 
