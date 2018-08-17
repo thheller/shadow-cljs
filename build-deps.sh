@@ -7,4 +7,4 @@ set -e
 
 lein with-profiles +cljs deps
 
-cd packages/shadow-cljs-jar; lein deps
+cd packages/shadow-cljs-jar; mkdir bin; lein uberjar
