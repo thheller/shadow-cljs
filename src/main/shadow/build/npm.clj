@@ -392,6 +392,23 @@
       (contains? asset-exts ext)
       )))
 
+(defn disambiguate-module-name
+  "the variable names chosen by closure are not unique enough
+   object.assign creates the same variable as object-assign
+   so this makes the name more unique to avoid the clash"
+  [name]
+  (let [slash-idx (str/index-of name "/")]
+    (if-not slash-idx
+      name
+      (let [module-name (subs name 0 slash-idx)]
+        (str (str/replace module-name #"\." "_DOT_")
+             (subs name slash-idx))))))
+
+(comment
+  (disambiguate-module-name "object.assign/index.js")
+  (disambiguate-module-name "object-assign/index.js")
+  )
+
 (defn get-file-info*
   "extract some basic information from a given file, does not resolve dependencies"
   [{:keys [compiler ^File node-modules-dir ^File project-dir] :as npm} ^File file]
@@ -421,6 +438,7 @@
           (->> (.relativize node-modules-path file-path)
                (str)
                (rc/normalize-name)
+               (disambiguate-module-name)
                (str "node_modules/"))
           (->> (.relativize abs-path file-path)
                (str)
