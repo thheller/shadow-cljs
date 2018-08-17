@@ -28,6 +28,7 @@
     "install": "node ./cli/runner.js aot"
   },
   "dependencies": {
+    "shadow-cljs-jar": "1.1.2",
     "babel-core": "^6.26.0",
     "babel-preset-env": "^1.6.0",
     "mkdirp": "^0.5.1",

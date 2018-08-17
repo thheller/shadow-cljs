@@ -30,11 +30,9 @@ jobs:
             - ~/.m2
           key: m2-deps-{{ checksum "project.clj" }}
 
-      - run: lein do test, install
+      - run: lein do test, install, run -m shadow.cljs.devtools.cli release cli
 
-      - run: sh build-cli.sh
-
-      - run: sh build-launcher.sh
+      - run: cd packages/shadow-cljs-jar; lein uberjar
 
       - run: cd test-project; sh ci-run.sh
 

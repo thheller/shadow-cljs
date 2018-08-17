@@ -7,7 +7,6 @@
     ["child_process" :as cp]
     ["readline-sync" :as rl-sync] ;; FIXME: drop this?
     ["mkdirp" :as mkdirp]
-    ["https" :as https]
     ["net" :as node-net]
     [cljs.core.async :as async :refer (go go-loop alt!)]
     #_[cljs.tools.reader :as reader]
@@ -143,6 +142,89 @@
       config
       )))
 
+(defn modified-dependencies? [cp-file config]
+  (let [cp (-> (util/slurp cp-file)
+               (reader/read-string))]
+
+    (or (not= (:version cp) (:version config))
+        (not= (:dependencies cp) (:dependencies config))
+        )))
+
+;; these might cause trouble when using different versions
+;; than expected by shadow-cljs.
+(def unwanted-deps
+  '#{org.clojure/clojurescript ;; we will always be on the latest version
+     org.clojure/clojure ;; can't run on 1.8
+     thheller/shadow-cljs ;; just in case, added later
+     })
+
+(defn drop-unwanted-deps [dependencies]
+  (->> dependencies
+       (remove (fn [[dep-id & _]]
+                 (contains? unwanted-deps dep-id)))
+       (into [])))
+
+(defn add-exclusions [dependencies]
+  (->> dependencies
+       (map (fn [[dep-id version & modifiers :as dep]]
+              (let [mods
+                    (-> (apply hash-map modifiers)
+                        (update :exclusions (fn [excl]
+                                              (->> excl
+                                                   (concat unwanted-deps)
+                                                   (distinct)
+                                                   (into [])))))]
+                (reduce-kv conj [dep-id version] mods))))
+       (into [])))
+
+(defn get-classpath [project-root {:keys [cache-root] :as config}]
+  (let [cp-file
+        (path/resolve project-root cache-root "classpath.edn")
+
+        use-aot
+        (not (false? (get config :aot true)))
+
+        shadow-artifact
+        (-> ['thheller/shadow-cljs jar-version]
+            (cond->
+              use-aot
+              (conj :classifier "aot")))
+
+        classpath-config
+        (-> config
+            (update :dependencies drop-unwanted-deps)
+            (update :dependencies add-exclusions)
+            (update :dependencies #(into [shadow-artifact] %)))
+
+        ;; only need to rebuild the classpath if :dependencies
+        ;; or the version changed
+        updated?
+        (when (or (not (fs/existsSync cp-file))
+                  (modified-dependencies? cp-file classpath-config))
+          ;; re-create classpath by running the java helper
+          (let [jar (js/require "shadow-cljs-jar/path")]
+            (run-java
+              project-root
+              ["-jar" jar]
+              {:input (pr-str classpath-config)
+               :stdio [nil js/process.stdout js/process.stderr]})
+            true))
+
+        {:keys [files] :as classpath-data}
+        (-> (util/slurp cp-file)
+            (reader/read-string)
+            (assoc :updated? updated?))]
+
+    ;; if something in the ~/.m2 directory is deleted we need to re-fetch it
+    ;; otherwise we end up with weird errors at runtime
+    (if (every? #(fs/existsSync %) files)
+      classpath-data
+      ;; if anything is missing delete the classpath.edn and start over
+      (do (fs/unlinkSync cp-file)
+          (log "WARN: missing dependencies, reconstructing classpath.")
+          (recur project-root config)
+          ))))
+
 (defn print-error [ex]
   (let [{:keys [tag] :as data}
         (ex-data ex)]
@@ -152,104 +234,30 @@
     ))
 
 (defn get-shared-home []
-  (let [path (path/resolve (os/homedir) ".shadow-cljs")]
-    (mkdirp/sync path)
-    path
-    ))
+  (path/resolve (os/homedir) ".shadow-cljs" jar-version))
 
-(defn get-jvm-opts [{:keys [launcher-file config] :as state}]
-  (let [{:keys [jvm-opts]}
-        config]
+(defn get-jvm-opts [project-root {:keys [source-paths jvm-opts] :as config}]
+  (let [classpath
+        (get-classpath project-root config)
 
-    (-> [(str "-Dshadow.cljs.jar-version=" jar-version)]
+        classpath-str
+        (->> (:files classpath)
+             (concat source-paths)
+             (str/join cp-separator))]
+
+    (-> []
         (into jvm-opts)
-        (conj "-jar" launcher-file)
+        (conj "-cp" classpath-str)
         )))
 
-(defn run-standalone*
-  [{:keys [project-root launcher-version launcher-override args] :as state}]
+(defn run-standalone [project-root config args opts]
   (let [cli-args
-        (-> (get-jvm-opts state)
-            (conj "--npm")
+        (-> (get-jvm-opts project-root config)
+            (conj "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
-    (log "shadow-cljs - starting" jar-version "with launcher" (or launcher-version launcher-override) "...")
+    (log "shadow-cljs - starting ...")
     (run! project-root "java" cli-args {})))
-
-;; https://github.com/thheller/shadow-cljs/releases/download/launcher-2.0.0/shadow-cljs-launcher-2.0.0.jar
-(defn download-launcher [{:keys [launcher-version launcher-file] :as state} callback]
-  (let [launcher-url
-        (str "https://github.com/thheller/shadow-cljs/releases/download/launcher-"
-             launcher-version
-             "/shadow-cljs-launcher-"
-             launcher-version
-             ".jar")
-
-        tmp-file
-        (str launcher-file ".tmp")
-
-        file-out
-        (fs/createWriteStream tmp-file)
-
-        res-handler
-        (fn res-handler [^js res]
-          (let [redir-url (gobj/getValueByKeys res "headers" "location")]
-            ;; github redirects to some AWS url
-            (cond
-              (and (<= 300 (.-statusCode res) 400) (seq redir-url))
-              (https/get redir-url res-handler)
-
-              (= 404 (.-statusCode res))
-              (log "shadow-cljs - launcher download not found!")
-
-              :else
-              (let [dl-size (gobj/getValueByKeys res "headers" "content-length")]
-
-                (.on res "data"
-                  (fn [buf]
-                    ;; FIXME: show some kind of download progress
-                    #_(log "got some bytes" (.-length buf))))
-
-                (.on res "end"
-                  (fn []
-                    (fs/renameSync tmp-file launcher-file)
-                    (callback state)))
-
-                ;; start the actual download
-                (.pipe res file-out)))))]
-
-    (log "shadow-cljs - downloading launcher" launcher-version "from" launcher-url)
-    (https/get launcher-url res-handler)))
-
-(defn ensure-launcher [state callback]
-  (let [override
-        (some->
-          (get-in state [:config :launcher-override])
-          (path/resolve))]
-
-    (if (and override (fs/existsSync override))
-      (do (println "launcher-override:" override)
-          (callback (assoc state :launcher-file override)))
-      (let [launcher-version
-            (or (get-in state [:config :launcher-version])
-                (-> (js/require "../../package.json")
-                    (gobj/get "launcher-version")))
-
-            launcher-file
-            (path/resolve (get-shared-home) (str "shadow-cljs-launcher-" launcher-version ".jar"))
-
-            state
-            (assoc state
-              :launcher-version launcher-version
-              :launcher-file launcher-file)]
-
-        ;; FIXME: validate launcher-file?
-        (if (fs/existsSync launcher-file)
-          (callback state)
-          (download-launcher state callback))))))
-
-(defn run-standalone [state]
-  (ensure-launcher state run-standalone*))
 
 (defn get-lein-args [{:keys [lein] :as config} opts]
   (let [{:keys [profile] :as lein-config}
@@ -344,28 +352,26 @@
         (js/setTimeout #(wait-for-server-start! port-file proc) 250))
     ))
 
-(defn server-start [{:keys [project-root config args opts] :as state}]
-  (let [{:keys [lein deps cache-root]}
-        config
-
-        [server-cmd server-args]
+(defn server-start [project-root {:keys [lein deps cache-root] :as config} args opts]
+  (let [[server-cmd server-args]
         (cond
           deps
           ["clojure"
            (-> (get-clojure-args project-root config opts)
-               (conj "-m" "shadow.cljs.devtools.cli"))]
+               (conj "-m"))]
 
           lein
           ["lein"
            (-> (get-lein-args config opts)
-               (conj "run" "-m" "shadow.cljs.devtools.cli"))]
+               (conj "run" "-m"))]
 
           :else
           ["java"
-           (get-jvm-opts state)])
+           (-> (get-jvm-opts project-root config)
+               (conj "clojure.main" "-m"))])
 
         server-args
-        (conj server-args "--npm" "server")]
+        (conj server-args "shadow.cljs.devtools.cli" "--npm" "server")]
 
     (js/process.stderr.write "shadow-cljs - server starting ")
 
@@ -629,7 +635,7 @@
              false
              )))))
 
-(defn do-start [{:keys [project-root config args opts] :as state}]
+(defn do-start [project-root config args opts]
   (cond
     (:deps config)
     (run-clojure project-root config args opts)
@@ -638,7 +644,7 @@
     (run-lein project-root config args opts)
 
     :else
-    (run-standalone state)))
+    (run-standalone project-root config args opts)))
 
 (defn ^:export main [args]
 
@@ -689,15 +695,7 @@
 
                   server-running?
                   (and (fs/existsSync server-port-file)
-                       (fs/existsSync server-pid-file))
-
-                  state
-                  {:project-root project-root
-                   :args args
-                   :config config
-                   :server-port-file server-port-file
-                   :server-pid-file server-pid-file
-                   :server-running? server-running?}]
+                       (fs/existsSync server-pid-file))]
 
               (mkdirp/sync (path/resolve project-root cache-root))
 
@@ -718,7 +716,7 @@
                 (= :start action)
                 (if server-running?
                   (log "shadow-cljs - server already running")
-                  (server-start state))
+                  (server-start project-root config args opts))
 
                 (= :stop action)
                 (if-not server-running?
@@ -728,14 +726,14 @@
                 (= :restart action)
                 (go (when server-running?
                       (<! (server-stop project-root config server-port-file server-pid-file args opts)))
-                    (server-start state))
+                    (server-start project-root config args opts))
 
                 (and server-running? (not (:force-spawn options)))
                 (client/run project-root config server-port-file opts args
-                  #(do-start state))
+                  #(do-start project-root config args opts))
 
                 :else
-                (do-start state)
+                (do-start project-root config args opts)
                 ))))))
     (catch :default ex
       (print-error ex)

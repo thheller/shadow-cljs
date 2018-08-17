@@ -1,5 +1,5 @@
 {
-  "name": "browser-reagent",
+  "name": "test-project",
   "version": "1.0.0",
   "private": true,
   "description": "",
@@ -14,6 +14,7 @@
     "create-react-class": "^15.6.3",
     "react": "^16.4.2",
     "react-dom": "^16.4.2",
+    "shadow-cljs-jar": "file:../packages/shadow-cljs-jar",
     "shadow-cljs": "file:../packages/shadow-cljs"
   }
 }
