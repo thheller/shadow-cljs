@@ -26,8 +26,7 @@
  :builds
  {:cli
   {:target :npm-module
-   :entries [shadow.cljs.npm.cli
-             shadow.cljs.npm.transform]
+   :entries [shadow.cljs.npm.cli]
    :output-dir "packages/shadow-cljs/cli/dist"
 
    :compiler-options
@@ -41,6 +40,13 @@
   {:target :node-script
    :main shadow.cljs.npm.create/main
    :output-to "packages/create-cljs-project/dist/script.js"
+   :compiler-options {:infer-externs :auto}
+   :devtools {:enabled false}}
+
+  :babel-worker
+  {:target :node-script
+   :main shadow.cljs.npm.babel-worker/main
+   :output-to "src/ui-release/shadow/cljs/dist/babel-worker.js"
    :compiler-options {:infer-externs :auto}
    :devtools {:enabled false}}
 

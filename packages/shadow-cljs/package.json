@@ -28,8 +28,6 @@
   },
   "dependencies": {
     "shadow-cljs-jar": "1.1.2",
-    "babel-core": "^6.26.0",
-    "babel-preset-env": "^1.6.0",
     "mkdirp": "^0.5.1",
     "node-libs-browser": "^2.0.0",
     "readline-sync": "^1.4.7",

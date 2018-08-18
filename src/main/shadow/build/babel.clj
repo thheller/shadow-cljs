@@ -4,7 +4,9 @@
             [shadow.build.log :as cljs-log]
             [shadow.cljs.util :as util]
             [shadow.core-ext :as core-ext]
-            [shadow.jvm-log :as log])
+            [shadow.jvm-log :as log]
+            [clojure.data.json :as json]
+            [clojure.string :as str])
   (:import (java.io PushbackReader Writer InputStreamReader BufferedReader IOException)))
 
 (defn service? [x]
@@ -25,26 +27,86 @@
               (.printStackTrace e *err*))))
         (recur buf)))))
 
+(defn babel-install [work-dir cmd]
+
+  (let [cmd
+        (if (str/includes? (System/getProperty "os.name") "Windows")
+          (into ["cmd" "/C"] cmd)
+          cmd)
+
+        _ (log/debug ::babel-install {:work-dir work-dir
+                                      :cmd cmd})
+
+        pb
+        (-> (ProcessBuilder. cmd)
+            (.directory work-dir))
+
+        proc
+        (.start pb)]
+
+    (.start (Thread. (bound-fn [] (pipe proc (.getInputStream proc) *out*))))
+    (.start (Thread. (bound-fn [] (pipe proc (.getErrorStream proc) *err*))))
+
+    (let [exit (.waitFor proc)]
+      (log/debug ::babel-install-exit {:code exit})
+
+      (when-not (zero? exit)
+        (throw (ex-info "babel install failed!" {:work-dir work-dir
+                                                 :cmd cmd
+                                                 :exit exit}))
+        ))))
+
+(def worker-package-json
+  {"name" "babel-worker"
+   "version" "0.0.1"
+   "private" true
+   "dependencies"
+   {"babel-core" "^6.26.0"
+    "babel-preset-env" "^1.6.0"}})
+
 (defn maybe-start-proc [{:keys [proc] :as state}]
   (if (and proc (.isAlive proc))
     state
-    (let [proc
-          (-> (ProcessBuilder.
-                ;; let node resolve where the actual worker file is
-                ;; this can either be in the project, any parent path or a global install
-                ;; all should work fine
-                (into-array ["node" "--eval" "require('shadow-cljs/cli/dist/shadow.cljs.npm.transform')"]))
-              (.directory nil)
-              (.start))]
+    (let [worker-dir ;; FIXME: use proper :cache-root config
+          (-> (io/file ".shadow-cljs" "babel-worker")
+              (.getCanonicalFile))
 
-      ;; FIXME: errors need to go somewhere else, this is not reliable
-      (.start (Thread. (bound-fn [] (pipe proc (.getErrorStream proc) *err*))))
+          package-json-file
+          (io/file worker-dir "package.json")
 
-      (assoc state
-        :proc proc
-        :in (PushbackReader. (io/reader (.getInputStream proc)))
-        :out (io/writer (.getOutputStream proc)))
-      )))
+          worker-file
+          (io/file worker-dir "babel-worker.js")]
+
+      (when-not (and (.exists package-json-file)
+                     (.exists worker-file)
+                     (= worker-package-json (-> package-json-file slurp json/read-str)))
+
+        (log/info ::setup {})
+
+        (io/make-parents package-json-file)
+        (spit package-json-file (json/write-str worker-package-json))
+
+        (babel-install worker-dir ["npm" "install" "--loglevel" "error"])
+
+        (spit
+          worker-file
+          (slurp (io/resource "shadow/cljs/dist/babel-worker.js"))))
+
+      (log/debug ::start {})
+
+      (let [proc
+            (-> (ProcessBuilder. ["node" (.getAbsolutePath worker-file)])
+                (.directory nil)
+                (.start))]
+
+        ;; FIXME: errors need to go somewhere else, this is not reliable
+        (.start (Thread. (bound-fn [] (pipe proc (.getErrorStream proc) *err*))))
+
+        (assoc state
+          :proc proc
+          :in (PushbackReader. (io/reader (.getInputStream proc)))
+          :out (io/writer (.getOutputStream proc)))
+        ))))
 
 (defn babel-transform! [state {::keys [reply-to] :as req}]
   (try

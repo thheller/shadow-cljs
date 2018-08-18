@@ -1,4 +1,4 @@
-(ns shadow.cljs.npm.transform
+(ns shadow.cljs.npm.babel-worker
   (:require
     [clojure.string :as str]
     [cljs.core.async :as async :refer (go)]
@@ -61,17 +61,20 @@
         (recur "" (subs chunk (inc nl))))
       )))
 
-(def stdin (async/chan))
+(defn main [& args]
+  (let [stdin
+        (async/chan)
 
-(def main-loop
-  (go (loop [buffer ""]
-        (when-some [chunk (<! stdin)]
-          (recur (process-chunk buffer chunk))
-          ))))
+        main-loop
+        (go (loop [buffer ""]
+              (when-some [chunk (<! stdin)]
+                (recur (process-chunk buffer chunk))
+                )))
 
-(defn stdin-data [buf]
-  (let [chunk (.toString buf)]
-    (async/put! stdin chunk)))
+        stdin-data
+        (fn stdin-data [buf]
+          (let [chunk (.toString buf)]
+            (async/put! stdin chunk)))]
 
-(js/process.stdin.on "data" stdin-data)
-(js/process.stdin.on "close" #(async/close! stdin))
+    (js/process.stdin.on "data" stdin-data)
+    (js/process.stdin.on "close" #(async/close! stdin))))
