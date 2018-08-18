@@ -10,7 +10,7 @@
             [shadow.cljs.devtools.server.web.common :as common]
             [shadow.build.classpath :as cp]
             [shadow.build.npm :as npm]
-            [shadow.cljs.devtools.server.fs-watch-hawk :as fs-watch]
+            [shadow.cljs.devtools.server.fs-watch :as fs-watch]
             [shadow.build.babel :as babel])
   (:import (java.util UUID)))
 
