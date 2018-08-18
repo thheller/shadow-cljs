@@ -16,5 +16,5 @@
   ],
   "license": "ISC",
   "main": "./dist/script.js",
-  "version": "0.0.12"
+  "version": "0.0.15"
 }

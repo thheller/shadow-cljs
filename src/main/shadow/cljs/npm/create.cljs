@@ -64,6 +64,9 @@
   (make-dirs dir)
   (next!))
 
+(defn is-windows? []
+  (str/includes? js/process.platform "win32"))
+
 (defmethod run-action! ::execute
   [{:keys [project-root] :as state} {:keys [label command args]}]
   (println "----")
@@ -73,8 +76,12 @@
         (cp/spawnSync
           command
           (into-array args)
-          #js {:stdio "inherit"
-               :cwd project-root})]
+          (-> {:stdio "inherit"
+               :cwd project-root}
+              (cond->
+                (is-windows?)
+                (assoc :shell true :windowsVerbatimArguments true))
+              (clj->js)))]
 
     (if-not (zero? (.-status result))
       (println "Command unsuccessful. Aborting ...")
