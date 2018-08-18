@@ -103,7 +103,7 @@
      [reagent "0.8.1"]]
     :repl-options
     {:init-ns shadow.user
-     #_#_:nrepl-middleware
+     :nrepl-middleware
      [shadow.cljs.devtools.server.nrepl/cljs-load-file
       shadow.cljs.devtools.server.nrepl/cljs-eval
       shadow.cljs.devtools.server.nrepl/cljs-select

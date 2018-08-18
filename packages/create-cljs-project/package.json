@@ -1,0 +1,20 @@
+{
+  "name": "create-cljs-project",
+  "author": {
+    "name": "Thomas Heller"
+  },
+  "bin": {
+    "create-cljs-project": "./dist/script.js"
+  },
+  "dependencies": {
+  },
+  "description": "",
+  "keywords": [
+    "clojurescript",
+    "cljs",
+    "shadow-cljs"
+  ],
+  "license": "ISC",
+  "main": "./dist/script.js",
+  "version": "0.0.12"
+}

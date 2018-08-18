@@ -37,6 +37,13 @@
    :devtools
    {:enabled false}}
 
+  :create-cli
+  {:target :node-script
+   :main shadow.cljs.npm.create/main
+   :output-to "packages/create-cljs-project/dist/script.js"
+   :compiler-options {:infer-externs :auto}
+   :devtools {:enabled false}}
+
   :ui
   {:target :browser
 
