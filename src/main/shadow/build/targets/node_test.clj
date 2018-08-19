@@ -36,7 +36,8 @@
 
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
-            (into (:preloads config))
+            (into (when (= :dev mode)
+                    (get-in config [:devtools :preloads])))
             (into test-namespaces)
             (conj (or (when-let [main (:main config)]
                         (-> main namespace symbol))
