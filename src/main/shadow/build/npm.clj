@@ -515,7 +515,8 @@
             ;; moment.js has require('./locale/' + name); inside a function
             ;; it shouldn't otherwise hurt though
             (when (seq js-invalid-requires)
-              (log/info ::js-invalid-requires {:requires js-invalid-requires}))
+              (log/info ::js-invalid-requires {:resource-name resource-name
+                                               :requires js-invalid-requires}))
 
             (-> info
                 (assoc
