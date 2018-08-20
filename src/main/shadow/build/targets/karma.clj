@@ -61,6 +61,9 @@
 
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
+            (cond->
+              (= :dev mode)
+              (into (get-in config [:devtools :preloads])))
             (into test-namespaces)
             (conj runner-ns))]
 
