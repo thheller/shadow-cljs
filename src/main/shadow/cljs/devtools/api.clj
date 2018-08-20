@@ -31,6 +31,9 @@
 (def ^:dynamic *nrepl-clj-ns* nil)
 (def ^:dynamic *nrepl-active* false)
 (def ^:dynamic *nrepl-quit-signal* nil)
+(def ^:dynamic *nrepl-session* nil)
+(def ^:dynamic *nrepl-msg* nil)
+(def ^:dynamic *nrepl-worker-exit* nil)
 
 (defonce reload-deps-fn-ref (atom nil))
 
@@ -357,7 +360,7 @@
   ([id]
    (nrepl-select id {}))
   ([id {:keys [skip-repl-out] :as opts}]
-   (let [worker (get-worker id)]
+   (let [{:keys [proc-stop] :as worker} (get-worker id)]
      (cond
        (nil? worker)
        [:no-worker id]
@@ -369,6 +372,16 @@
            (set! *nrepl-clj-ns* *ns*)
            (let [repl-ns (some-> worker :state-ref deref :build-state :repl-state :current :ns)]
              (set! *ns* (create-ns (or repl-ns 'cljs.user))))
+
+           (go (alt!
+                 *nrepl-quit-signal*
+                 ([_]
+                   :quit)
+
+                 proc-stop
+                 ([_]
+                   (*nrepl-worker-exit*)
+                   :quit)))
 
            ;; calling (node-repl) in a REPL will cause the stdout and the repl prn forward
            ;; to both print which is not what we want

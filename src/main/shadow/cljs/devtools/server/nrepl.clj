@@ -143,6 +143,13 @@
     (send msg {:status :done})
     ))
 
+(defn worker-exit [session msg]
+  (do (do-repl-quit session)
+      (send msg {:err "\nThe REPL worker has stopped.\n"})
+      (send msg {:value ":cljs/quit"
+                 :printed-value 1
+                 :ns (-> *ns* ns-name str)})))
+
 (defn cljs-select [next]
   (fn [{:keys [session op transport] :as msg}]
 
@@ -153,6 +160,11 @@
           #'api/*nrepl-quit-signal* (async/chan)
           #'api/*nrepl-active* true
           #'api/*nrepl-clj-ns* nil))
+
+      (swap! session assoc
+        #'api/*nrepl-worker-exit* #(worker-exit session msg)
+        #'api/*nrepl-session* session
+        #'api/*nrepl-msg* msg)
 
       (let [build-id
             (get @session repl-var)
