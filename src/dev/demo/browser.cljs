@@ -15,7 +15,6 @@
     #_["/demo/myComponent" :refer (myComponent)]
     [demo.never-load]
     [demo.always-load]
-    ["antd/es"]
     ))
 
 (js/console.log "▶❤◀")

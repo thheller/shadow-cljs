@@ -36,11 +36,6 @@
   (when-not (fs/existsSync dir)
     (fs/mkdirSync dir)))
 
-(def cp-separator
-  (if (str/starts-with? js/process.platform "win")
-    ";"
-    ":"))
-
 (defn is-directory? [path]
   (-> (fs/lstatSync path)
       (.isDirectory)))
@@ -256,7 +251,7 @@
         classpath-str
         (->> (:files classpath)
              (concat source-paths)
-             (str/join cp-separator))]
+             (str/join path/delimiter))]
 
     (-> []
         (into jvm-opts)

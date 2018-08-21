@@ -2,12 +2,14 @@
   #?(:clj
      (:require
        [clojure.tools.cli :as cli]
+       [shadow.cli-util :as cli-util]
        [clojure.string :as str])
      :cljs
      (:require
        [goog.string.format]
        [goog.string :refer (format)]
        [cljs.tools.cli :as cli]
+       [shadow.cli-util :as cli-util]
        [clojure.string :as str])))
 
 (defn parse-dep [dep-str]
@@ -40,6 +42,7 @@
    [nil "--cli-info" "prints a bunch of information"]
    [nil "--via VIA" "internal option, used by node script" :parse-fn keyword]
    ["-h" "--help"]])
+
 
 (def action-help
   ;; per action help for: shadow-cljs compile -h
@@ -140,3 +143,91 @@
       parsed
       (parse-arguments parsed)
       )))
+
+(def cli-config
+  {:aliases
+   {"v" :verbose
+    "h" :help}
+
+   :init-command
+   :global
+
+   :commands
+   {:global
+    {:args-mode :none
+     :aliases
+     {"d" :dependency}
+     :flags
+     #{:force-spawn
+       :npm
+       :cli-info}
+     :options
+     {:dependency
+      {:multiple true
+       :parse-fn parse-dep}}}
+
+    :help
+    {:args-mode :none}
+
+    :server
+    {:args-mode :none}
+
+    :node-repl
+    {:args-mode :none
+     :options
+     {:node-arg
+      {:multiple true}}}
+
+    :browser-repl
+    {:args-mode :none}
+
+    :clj-repl
+    {:args-mode :none}
+
+    :run
+    {:args-mode :eat-all}
+
+    :clj-run
+    {:alias-of :run}
+
+    :compile
+    {:args-mode :at-least-one}
+
+    :watch
+    {:args-mode :at-least-one}
+
+    :release
+    {:args-mode :at-least-one
+     :flags
+     #{:source-maps
+       :pseudo-names
+       :debug}}
+    }})
+
+(defn upgrade-args
+  "rewrite old style args to new style"
+  [old]
+  (loop [[head & tail] old
+         new []]
+    (cond
+      (nil? head)
+      new
+
+      (or (= head "-d")
+          (= head "--dependency"))
+      (let [dep (first tail)]
+        (if (or (not dep)
+                (str/starts-with? dep "-"))
+          (throw (ex-info "invalid argument" {:arg head
+                                              :dep dep
+                                              :old old
+                                              :new new}))
+          (recur (rest tail) (conj new (str "--dependency=" dep)))
+          ))
+
+      :else
+      (recur tail (conj new head))
+      )))
+
+(defn parse-main-cli [args]
+  (cli-util/parse-args cli-config (upgrade-args args)))

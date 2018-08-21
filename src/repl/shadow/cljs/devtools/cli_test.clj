@@ -47,6 +47,26 @@
     (is (= '[[foo/bar "1.2.3"]] (:dependencies options)))
     ))
 
+(deftest test-add-dependency
+  (let [args ["-d" "foo/bar:1.2.3" "compile" "cli"]
+
+        {:keys [arguments options summary errors action builds] :as parsed}
+        (cli-opts/parse args)]
+
+    (is (empty? errors))
+    (is (= '[[foo/bar "1.2.3"]] (:dependencies options)))
+    ))
+
+(deftest test-add-dependency-new
+  (let [args ["-d" "foo/bar:1.2.3" "compile" "cli"]
+
+        result
+        (cli-opts/parse-main-cli args)]
+
+    (pprint result)
+
+    ))
+
 (deftest test-aliases
   (let [args ["-A:foo:bar:test" "compile" "cli"]
 

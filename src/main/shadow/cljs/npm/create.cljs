@@ -3,15 +3,22 @@
     ["child_process" :as cp]
     ["fs" :as fs]
     ["path" :as path]
+    [goog.string :as gstr]
+    [clojure.string :as str]
     [cljs.tools.cli :as cli]
     [cljs.pprint :refer (pprint)]
     [cljs.core.async :as async :refer (go)]
-    [goog.string :as gstr]
-    [clojure.string :as str]))
+    [shadow.cli-util :refer (parse-args)]
+    ))
 
-(def cli-spec
-  [["-p" "--pretend" "pretend only, don't run/create anything"]
-   ["-h" "--help" "no help here"]])
+(def cli-config
+  {:aliases
+   {"h" :help}
+
+   :init-command :create
+
+   :commands
+   {:create {:args-mode :single}}})
 
 (defonce state-ref
   (atom {:queue []}))
@@ -117,8 +124,13 @@
      {:name output-name
       :content (str (fs/readFileSync (path/resolve js/__dirname ".." "files" template-name)))})))
 
-(defn create-project [project-name args options]
-  (let [project-root (path/resolve project-name)]
+
+(defn create-project [{:keys [arguments flags options] :as cli-args}]
+
+  (let [[project-path] arguments
+        project-root (path/resolve project-path)
+        project-name (path/basename project-root)]
+
     (swap! state-ref assoc :project-root project-root)
 
     (if (fs/existsSync project-root)
@@ -145,40 +157,21 @@
               {:label "Running shadow-cljs to initialize project."
                :command "npx"
                :args (into ["shadow-cljs" "run" "shadow.cljs.project/init"] args)})
+
+          (flush!)
           ))))
 
 (defn main [& args]
-  (let [{:keys [errors summary arguments options] :as parsed}
-        (cli/parse-opts args cli-spec)
+  (let [{:keys [error] :as result}
+        (parse-args cli-config args)]
 
-        [project-name & more-arguments]
-        arguments]
-
-    (js/process.on "SIGINT"
-      (fn []
-        (swap! state-ref :abort true)))
-
-    (cond
-      (seq errors)
-      (do (println "Invalid Arguments:")
-          (println)
-          (doseq [err errors]
-            (println err))
-          (println)
-          (println "Usage: npx create-cljs-project <project-name>")
-          (println summary)
+    (if error
+      (do (println (:msg error))
           (js/process.exit 1))
 
-      (not (seq project-name))
-      (do (println "Please specify a project name!")
-          (println "Usage: npx create-cljs-project <project-name>")
-          (js/process.exit 2))
+      (do (js/process.on "SIGINT"
+            (fn []
+              (swap! state-ref :abort true)))
 
-      (seq more-arguments)
-      (do (println "Too many arguments!")
-          (prn more-arguments)
-          (js/process.exit 3))
-
-      :else
-      (do (create-project project-name args options)
-          (flush!)))))
+          (create-project result)
+          ))))
