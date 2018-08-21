@@ -485,14 +485,14 @@
     (println (path/resolve project-root source-path)))
   (println)
 
-  (println "=== Dependencies")
   (when (and (not (:lein config))
              (not (:deps config)))
+    (println "=== Dependencies")
     (let [{:keys [deps-hierarchy] :as cp-data}
           (get-classpath project-root config)]
 
-      (print-classpath-tree deps-hierarchy)))
-  (println))
+      (print-classpath-tree deps-hierarchy))
+    (println)))
 
 (defn- getenv [envname]
   (str (aget js/process.env envname)))
