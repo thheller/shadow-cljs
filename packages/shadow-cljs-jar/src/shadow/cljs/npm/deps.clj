@@ -17,6 +17,9 @@
         nil))))
 
 (defn -main []
+  (aether/register-wagon-factory! "s3" #(org.springframework.build.aws.maven.SimpleStorageServiceWagon.))
+  (aether/register-wagon-factory! "s3p" #(org.springframework.build.aws.maven.PrivateS3Wagon.))
+
   (try
     (let [{:keys [cache-root repositories proxy local-repo dependencies mirrors version]
            :or {dependencies []
