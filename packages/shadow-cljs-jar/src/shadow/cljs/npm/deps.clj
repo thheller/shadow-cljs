@@ -32,61 +32,85 @@
     repos
     repos))
 
+(defn get-deps
+  [{:keys [cache-root repositories proxy local-repo dependencies mirrors version]
+    :or {dependencies []
+         repositories {}
+         cache-root ".shadow-cljs"}
+    :as state}]
+
+  (println "shadow-cljs - updating dependencies")
+
+  ;; FIXME: resolve conflicts?
+  (let [resolve-args
+        (-> {:coordinates
+             dependencies
+             :repositories
+             (merge
+               aether/maven-central
+               {"clojars" "https://clojars.org/repo"}
+               (ensure-s3p-private-key-file repositories))
+             :transfer-listener
+             transfer-listener}
+            (cond->
+              mirrors
+              (assoc :mirrors mirrors)
+              proxy
+              (assoc :proxy proxy)
+              local-repo
+              (assoc :local-repo local-repo)
+              ))
+
+        deps
+        (apply aether/resolve-dependencies (into [] (mapcat identity) resolve-args))]
+
+    (println "shadow-cljs - dependencies updated")
+
+    (assoc state
+      :deps-resolved deps
+      :deps-hierarchy (aether/dependency-hierarchy dependencies deps))))
+
+(comment
+  (get-deps '{:dependencies
+              [[thheller/shadow-cljs "2.6.2"]]}))
+
+(defn write-classpath-edn
+  [{:keys [cache-root
+           dependencies
+           version
+           deps-hierarchy
+           deps-resolved]
+    :or {cache-root ".shadow-cljs"}
+    :as state}]
+
+  (let [files
+        (into [] (map #(.getAbsolutePath %)) (aether/dependency-files deps-resolved))
+
+        result
+        {:dependencies dependencies
+         :version version
+         :files files
+         :deps-hierarchy deps-hierarchy
+         :deps-resolved deps-resolved}
+
+        classpath-file
+        (io/file cache-root "classpath.edn")]
+
+    (io/make-parents classpath-file)
+
+    (spit classpath-file (pr-str result))
+
+    state
+    ))
+
 (defn -main []
-  (aether/register-wagon-factory! "s3" #(org.springframework.build.aws.maven.SimpleStorageServiceWagon.))
-  (aether/register-wagon-factory! "s3p" #(org.springframework.build.aws.maven.PrivateS3Wagon.))
-
   (try
-    (let [{:keys [cache-root repositories proxy local-repo dependencies mirrors version]
-           :or {dependencies []
-                repositories {}
-                cache-root "target/shadow-cljs"}
-           :as config}
-          (read *in*)]
+    (aether/register-wagon-factory! "s3" #(org.springframework.build.aws.maven.SimpleStorageServiceWagon.))
+    (aether/register-wagon-factory! "s3p" #(org.springframework.build.aws.maven.PrivateS3Wagon.))
 
-      (println "shadow-cljs - updating dependencies")
-
-      ;; FIXME: resolve conflicts?
-      (let [resolve-args
-            (-> {:coordinates
-                 dependencies
-                 :repositories
-                 (merge
-                   aether/maven-central
-                   {"clojars" "https://clojars.org/repo"}
-                   (ensure-s3p-private-key-file repositories))
-                 :transfer-listener
-                 transfer-listener}
-                (cond->
-                  mirrors
-                  (assoc :mirrors mirrors)
-                  proxy
-                  (assoc :proxy proxy)
-                  local-repo
-                  (assoc :local-repo local-repo)
-                  ))
-
-            deps
-            (apply aether/resolve-dependencies (into [] (mapcat identity) resolve-args))
-
-            files
-            (into [] (map #(.getAbsolutePath %)) (aether/dependency-files deps))
-
-            result
-            {:dependencies dependencies
-             :version version
-             :files files
-             :deps deps}
-
-            classpath-file
-            (io/file cache-root "classpath.edn")]
-
-        (io/make-parents classpath-file)
-
-        (spit classpath-file (pr-str result)))
-
-      (println "shadow-cljs - dependencies updated"))
-
+    (-> (read *in*)
+        (get-deps)
+        (write-classpath-edn))
     (catch Exception e
       (println "shadow-cljs - dependency update failed -" (.getMessage e))
       (pst e)

@@ -1,4 +1,4 @@
-(defproject shadow-cljs-jar "1.0.1"
+(defproject shadow-cljs-jar "1.3.0"
   :dependencies
   [[org.clojure/clojure "1.9.0"]
    [com.cemerick/pomegranate "1.0.0"]

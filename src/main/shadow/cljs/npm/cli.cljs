@@ -445,12 +445,16 @@
           (update :dependencies into dependencies)
           ))))
 
-(defn prettier-m2-path [path]
-  (if-let [idx (str/index-of path ".m2")]
-    ;; strip .m2/repository/
-    (str "[maven] " (subs path (+ idx 15)))
-    path
-    ))
+(defn print-classpath-tree
+  ([deps]
+   (print-classpath-tree deps 0))
+  ([deps level]
+   (doseq [[coord coord-deps] deps]
+     (print (->> (repeat level "")
+                 (str/join "  ")))
+     (prn coord)
+     (when coord-deps
+       (print-classpath-tree coord-deps (inc level))))))
 
 (defn print-cli-info [project-root config-path {:keys [cache-root source-paths] :as config} opts]
   (println "=== Version")
@@ -480,12 +484,11 @@
   (let [cp-file (path/resolve project-root cache-root "classpath.edn")]
     (println "cache-file:" cp-file)
     (when (fs/existsSync cp-file)
-      (let [{:keys [files] :as cp-data}
+      (let [{:keys [deps-hierarchy] :as cp-data}
             (-> (util/slurp cp-file)
                 (reader/read-string))]
 
-        (doseq [file files]
-          (println (prettier-m2-path file)))
+        (print-classpath-tree deps-hierarchy)
         )))
   (println))
 
