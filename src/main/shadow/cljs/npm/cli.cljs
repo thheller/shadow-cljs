@@ -450,17 +450,22 @@
    (print-classpath-tree deps 0))
   ([deps level]
    (doseq [[coord coord-deps] deps]
-     (print (->> (repeat level "")
-                 (str/join "  ")))
-     (prn coord)
+     (println
+       (str
+         (when (pos? level)
+           (->> (repeat level "")
+                (str/join "  ")))
+         (pr-str coord)))
      (when coord-deps
        (print-classpath-tree coord-deps (inc level))))))
 
 (defn print-cli-info [project-root config-path {:keys [cache-root source-paths] :as config} opts]
   (println "=== Version")
+  (println "jar:           " jar-version)
   (println "cli:           " (-> (js/require "../../package.json")
                                  (gobj/get "version")))
-  (println "jar-version:   " jar-version)
+  (println "deps:          " (-> (js/require "shadow-cljs-jar/package.json")
+                                 (gobj/get "version")))
   (println "config-version:" (:version config))
   (println)
 
@@ -481,15 +486,12 @@
   (println)
 
   (println "=== Dependencies")
-  (let [cp-file (path/resolve project-root cache-root "classpath.edn")]
-    (println "cache-file:" cp-file)
-    (when (fs/existsSync cp-file)
-      (let [{:keys [deps-hierarchy] :as cp-data}
-            (-> (util/slurp cp-file)
-                (reader/read-string))]
+  (when (and (not (:lein config))
+             (not (:deps config)))
+    (let [{:keys [deps-hierarchy] :as cp-data}
+          (get-classpath project-root config)]
 
-        (print-classpath-tree deps-hierarchy)
-        )))
+      (print-classpath-tree deps-hierarchy)))
   (println))
 
 (defn- getenv [envname]
