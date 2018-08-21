@@ -571,15 +571,18 @@
               ;; will invalidate the cache
               (when (= CACHE-TIMESTAMP (::CACHE-TIMESTAMP cache))
                 cache))
-            (catch Exception e
-              (log/info-ex e ::manifest-ex {:file mfile})
+            (catch Throwable e
+              (log/info-ex e ::jar-cache-read-ex {:file mfile})
               nil)))
 
         (let [jar-contents
               (->> (find-jar-resources* cp jar-file)
                    (process-root-contents cp jar-file))]
           (io/make-parents mfile)
-          (cache/write-file mfile (assoc jar-contents ::CACHE-TIMESTAMP CACHE-TIMESTAMP))
+          (try
+            (cache/write-file mfile (assoc jar-contents ::CACHE-TIMESTAMP CACHE-TIMESTAMP))
+            (catch Throwable e
+              (log/info-ex e ::jar-cache-write-ex {:file mfile})))
           jar-contents))))
 
 (defn make-fs-resource [^File file name]

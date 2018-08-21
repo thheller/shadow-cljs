@@ -156,12 +156,25 @@
   '#{org.clojure/clojurescript ;; we will always be on the latest version
      org.clojure/clojure ;; can't run on 1.8
      thheller/shadow-cljs ;; just in case, added later
+
+     ;; brought in by shadow-cljs
+     ;; breaks cache when ending up with older version
+     com.cognitect/transit-clj
+     com.cognitect/transit-java
+
+     ;; spec for 1.8, never required
+     clojure-future-spec/clojure-future-spec
      })
 
 (defn drop-unwanted-deps [dependencies]
   (->> dependencies
        (remove (fn [[dep-id & _]]
-                 (contains? unwanted-deps dep-id)))
+                 (let [fq-dep-id
+                       (if (namespace dep-id)
+                         dep-id
+                         (symbol (name dep-id) (name dep-id)))]
+                   (or (contains? unwanted-deps dep-id)
+                       (contains? unwanted-deps fq-dep-id)))))
        (into [])))
 
 (defn add-exclusions [dependencies]
