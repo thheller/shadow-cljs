@@ -3,7 +3,8 @@
   (:require
     [clojure.java.io :as io]
     [cemerick.pomegranate.aether :as aether]
-    ))
+    [clojure.repl :refer (pst)]
+    [clojure.string :as str]))
 
 (defn transfer-listener
   [{:keys [type error resource] :as info}]
@@ -15,6 +16,21 @@
         ;; :succeeded
         :corrupted (when error (println (.getMessage error)))
         nil))))
+
+;; https://github.com/technomancy/leiningen/blob/da695d4104f1df567e4cd3421dc193f906f27ae6/leiningen-core/src/leiningen/core/classpath.clj#L195-L203
+;; s3 fails with Caused by: java.lang.IllegalArgumentException: Secret key cannot be null.
+;; if :private-key-file is not set
+(defn ensure-s3p-private-key-file [repos]
+  (reduce-kv
+    (fn [repos name repo]
+      (if (and (map? repo)
+               (:url repo)
+               (str/starts-with? (:url repo) "s3p"))
+        (assoc repos name (merge {:private-key-file ""} repo))
+        repos
+        ))
+    repos
+    repos))
 
 (defn -main []
   (aether/register-wagon-factory! "s3" #(org.springframework.build.aws.maven.SimpleStorageServiceWagon.))
@@ -35,7 +51,10 @@
             (-> {:coordinates
                  dependencies
                  :repositories
-                 (merge aether/maven-central {"clojars" "https://clojars.org/repo"} repositories)
+                 (merge
+                   aether/maven-central
+                   {"clojars" "https://clojars.org/repo"}
+                   (ensure-s3p-private-key-file repositories))
                  :transfer-listener
                  transfer-listener}
                 (cond->
@@ -70,5 +89,6 @@
 
     (catch Exception e
       (println "shadow-cljs - dependency update failed -" (.getMessage e))
+      (pst e)
       (System/exit 1)
       )))

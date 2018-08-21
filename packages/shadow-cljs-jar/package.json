@@ -1,6 +1,6 @@
 {
   "name": "shadow-cljs-jar",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "shadow-cljs dependency resolver/downloader",
   "author": "Thomas Heller",
   "license": "ISC",
