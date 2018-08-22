@@ -516,3 +516,25 @@
                      {:shadow/object-fn f})
               ~(with-meta `(fn ~@(map #(adapt-obj-params type %) meths)) (meta form)))))
     sigs))
+
+;; not a super critical issue but foo may resolve to js/module$foo...
+;; which ends up emitting a bad code check
+;; if((typeof js !== 'undefined') && (typeof js.module$foo !== 'undefined')){
+;; temp fix till I can sort it out in resolve-var directly
+(core/defmacro exists?
+  "Return true if argument exists, analogous to usage of typeof operator
+   in JavaScript."
+  [x]
+  (if (core/symbol? x)
+    (core/let [resolved (:name (cljs.analyzer/resolve-var &env x))
+               y     (core/cond-> resolved
+                       (= "js" (namespace resolved)) name)
+               segs  (string/split (core/str (string/replace (core/str y) "/" ".")) #"\.")
+               n     (count segs)
+               syms  (map
+                       #(vary-meta (symbol "js" (string/join "." %))
+                          assoc :cljs.analyzer/no-resolve true)
+                       (reverse (take n (iterate butlast segs))))
+               js    (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
+      (bool-expr (concat (core/list 'js* js) syms)))
+    `(some? ~x)))

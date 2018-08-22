@@ -279,12 +279,11 @@
               {:infer-externs :auto}
 
               :build-options
-              {:cache-blockers #{shadow.dom
-                                 demo.browser}}
+              {:cache-blockers #{demo.stuff}}
 
               :modules
               {:base
-               {:entries [demo.browser]}}
+               {:entries [demo.stuff]}}
 
               :js-options
               {}}
@@ -292,6 +291,11 @@
 
 
       #_(pprint (->> (get-in compiler-env [:shadow/js-properties])))
+
+      (-> (get-in state [:output [:shadow.build.classpath/resource "demo/stuff.cljs"]])
+          (:js)
+          (println)
+          )
 
       (doseq [ns-info (->> '[demo.browser]
                            (map #(get-in compiler-env [:cljs.analyzer/namespaces %])))]
