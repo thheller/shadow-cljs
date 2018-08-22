@@ -19,6 +19,8 @@
   #(or (simple-symbol? %)
        (string? %)))
 
+(s/def ::ns-name simple-symbol?)
+
 (s/def ::syms
   (s/coll-of simple-symbol?))
 
@@ -40,7 +42,12 @@
 
 (s/def ::refer
   (s/cat
-    :key #{:refer :refer-macros}
+    :key #{:refer}
+    :value ::syms))
+
+(s/def ::refer-macros
+  (s/cat
+    :key #{:refer-macros}
     :value ::syms))
 
 (s/def ::only
@@ -64,7 +71,7 @@
   (s/alt
     :as ::as
     :refer ::refer
-    :refer-macros ::refer
+    :refer-macros ::refer-macros
     :rename ::rename
     :default ::default
     :include-macros ::include-macros
@@ -85,9 +92,35 @@
   (s/spec
     (s/cat
       :clause
-      #{:require :require-macros}
+      #{:require}
       :requires
       (s/* ::require)
+      :flags
+      (s/* ::require-flag)
+      )))
+
+(s/def ::require-macros-opt
+  (s/alt
+    :as ::as
+    :refer ::refer
+    :rename ::rename))
+
+(s/def ::require-macros
+  (s/or
+    :sym
+    simple-symbol?
+    :seq
+    (s/cat
+      :lib ::ns-name
+      :opts (s/* ::require-macros-opt))))
+
+(s/def ::ns-require-macros
+  (s/spec
+    (s/cat
+      :clause
+      #{:require-macros}
+      :requires
+      (s/* ::require-macros)
       :flags
       (s/* ::require-flag)
       )))
@@ -193,6 +226,7 @@
     (s/alt
       :refer-clojure ::ns-refer-clojure
       :require ::ns-require
+      :require-macros ::ns-require-macros
       :import ::ns-import
       :use-macros ::ns-use-macros
       :use ::ns-use)))
@@ -366,17 +400,21 @@
             rename)))))
 
 (defmethod reduce-ns-clause :require [ns-info [_ clause]]
-  (let [{:keys [clause requires flags]} clause]
+  (let [{:keys [requires flags]} clause]
     (-> ns-info
-        (update :seen conj clause)
+        (update :seen conj :require)
         ;; need to remember if :require or :require-macros had :reload/:reload-all
-        (update :flags assoc clause (into #{} flags))
-        (cond->
-          (= :require clause)
-          (reduce-> reduce-require requires)
-          (= :require-macros clause)
-          (reduce-> reduce-require-macros requires)
-          ))))
+        (update :flags assoc :require (into #{} flags))
+        (reduce-> reduce-require requires))))
+
+(defmethod reduce-ns-clause :require-macros [ns-info [_ clause]]
+  (let [{:keys [requires flags]} clause]
+    (-> ns-info
+        (update :seen conj :require-macros)
+        ;; need to remember if :require or :require-macros had :reload/:reload-all
+        (update :flags assoc :require-macros (into #{} flags))
+        (reduce-> reduce-require-macros requires)
+        )))
 
 (defn reduce-import [ns-info [key import]]
   (case key

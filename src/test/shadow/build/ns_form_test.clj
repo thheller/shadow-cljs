@@ -9,7 +9,9 @@
             [clojure.java.io :as io]
             [cljs.compiler :as cljs-comp]
             [shadow.cljs.util :as util]
-            [shadow.build.resolve :as res])
+            [shadow.build.resolve :as res]
+            [expound.alpha :as expound]
+            )
   (:import (clojure.lang ExceptionInfo)
            (java.nio.file FileSystems Paths)))
 (comment
@@ -116,6 +118,32 @@
     (is (= '{:as react} (get js-deps "react")))
     ;; (pprint ast)
     ))
+
+(deftest test-require-macros-plus-refer-macros
+  (let [test
+        '(ns something
+           (:require-macros [cljs.test :refer-macros (deftest)]))]
+
+    (is (thrown? ExceptionInfo (ns-form/parse test)))
+
+    (comment
+      (try
+        (let [ast (ns-form/parse test)]
+          (pprint ast))
+        (catch Exception e
+          (expound/printer (ex-data e))
+          )))))
+
+(deftest test-require-refer-macros
+  (let [test
+        '(ns something
+           (:require [cljs.test :refer-macros (deftest) :refer (is)]))
+
+        {:keys [use-macros uses] :as ast}
+        (ns-form/parse test)]
+
+    (is (= '{deftest cljs.test} use-macros))
+    (is (= '{is cljs.test} uses))))
 
 (deftest test-parse-and-rewrite-string
   (let [test
