@@ -154,7 +154,8 @@
 ;; capture this once because the path may change via pushState
 (def ^goog page-load-uri
   (when js/goog.global.document
-    (goog.Uri/parse js/document.location.href)))
+    (let [uri (goog.Uri/parse js/document.location.href)]
+      (if (= (.getScheme uri) "file") (.setPath uri "/") uri))))
 
 (defn handle-asset-watch [{:keys [updates] :as msg}]
   (doseq [path updates
@@ -170,7 +171,7 @@
 
       (let [new-link
             (doto (.cloneNode node true)
-              (.setAttribute "href" (str path "?r=" (rand))))]
+              (.setAttribute "href" (str (.getPath node-uri) "#" (rand))))]
 
         (devtools-msg "load CSS" path)
         (gdom/insertSiblingAfter new-link node)
