@@ -2,30 +2,25 @@
   (:require
     [clojure.core.async :as async :refer (thread go <!)]
     [clojure.java.io :as io]
-    [shadow.jvm-log :as log]
     [clojure.string :as str]
-    [ring.middleware.file :as ring-file]
-    [ring.middleware.params :as ring-params]
-    [ring.middleware.content-type :as ring-content-type]
-    [ring.middleware.resource :as ring-resource]
+    [shadow.jvm-log :as log]
     [shadow.repl :as r]
     [shadow.http.router :as http]
     [shadow.runtime.services :as rt]
     [shadow.undertow :as undertow]
     [shadow.build.classpath :as build-classpath]
     [shadow.cljs.devtools.api :as api]
-    [shadow.cljs.devtools.server.web :as web]
     [shadow.cljs.devtools.server.config-watch :as config-watch]
     [shadow.cljs.devtools.server.fs-watch :as fs-watch]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.common :as common]
     [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.server.ns-explorer :as ns-explorer]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.util :as util]
     [shadow.cljs.devtools.server.socket-repl :as socket-repl]
     [shadow.cljs.devtools.server.runtime :as runtime]
     [shadow.cljs.devtools.server.dev-http :as dev-http]
-    [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
     [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.reload-macros :as reload-macros]
@@ -34,8 +29,6 @@
   (:import (java.net BindException)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
-
-
 
 (defn wait-for [app-ref]
   (or @app-ref
@@ -46,33 +39,37 @@
               ::timeout
               (recur (inc x)))))))
 
+;; delay loading the web namespace since it has a bunch of dependencies
+;; that take a bit of time to load but are only relevant when someone
+;; actually accesses the webserver. also skips generating AOT classes
+;; which we don't really want for pathom+ring stuff anyways
+(def require-web-ns (delay (require 'shadow.cljs.devtools.server.web)))
+
 (defn get-ring-handler [app-ref]
-  (fn [ring-map]
-    (let [app (wait-for app-ref)]
-      (if (= app ::timeout)
-        {:status 501
-         :body "App not ready!"}
-        (-> app
-            (assoc :ring-request ring-map)
-            (http/prepare)
-            (web/root))))))
+  (let [web-root-var
+        (delay
+          @web-require-ns
+          (find-var 'shadow.cljs.devtools.server.web/root))]
 
-(defn get-ring-middleware
-  [{:keys [dev-mode cache-root] :as config} handler]
-  (let [ui-root
-        (io/file cache-root "ui")]
+    (fn [ring-map]
+      (let [app (wait-for app-ref)]
+        (if (= app ::timeout)
+          {:status 501
+           :body "App not ready!"}
+          (-> app
+              (assoc :ring-request ring-map)
+              (http/prepare)
+              (@web-root-var)))))))
 
-    (-> handler
-        (ring-resource/wrap-resource "shadow/cljs/ui/dist")
-        (cond->
-          (.exists ui-root)
-          (ring-file/wrap-file ui-root))
+(defn get-ring-middleware [config handler]
+  (let [middleware-fn-delay
+        (delay
+          @require-web-ns
+          (let [factory (find-var 'shadow.cljs.devtools.server.web/get-ring-middleware)]
+            (factory config handler)))]
 
-        (ring-resource/wrap-resource "shadow/cljs/devtools/server/web/resources")
-        (ring-content-type/wrap-content-type)
-        (ring-params/wrap-params)
-        (ring-gzip/wrap-gzip)
-        )))
+    (fn [ring-map]
+      (@middleware-fn-delay ring-map))))
 
 ;; println may fail if the socket already disconnected
 ;; just discard the print if it fails
@@ -360,6 +357,11 @@
                    :start config-watch/start
                    :stop config-watch/stop}
 
+                  :ns-explorer
+                  {:depends-on [:config :npm :babel :classpath :build-executor]
+                   :start ns-explorer/start
+                   :stop ns-explorer/stop}
+
                   :reload-classpath
                   {:depends-on [:system-bus :classpath]
                    :start reload-classpath/start
@@ -408,6 +410,9 @@
                  (find-version-from-pom pom-xml))]
 
            (log/debug ::start)
+
+           ;; require the web stuff async
+           (future @require-web-ns)
 
            (println (str "shadow-cljs - server version: " version))
            (println (str "shadow-cljs - server running at http" (when ssl-context "s") "://" http-host ":" (:port http)))

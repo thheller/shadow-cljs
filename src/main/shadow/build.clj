@@ -1,5 +1,5 @@
 (ns shadow.build
-  (:refer-clojure :exclude (compile flush))
+  (:refer-clojure :exclude (resolve compile flush))
   (:require
     [clojure.java.io :as io]
     [clojure.spec.alpha :as s]
@@ -338,29 +338,28 @@
 (defn compile-complete [state]
   (assoc-in state [::build-info :compile-complete] (System/currentTimeMillis)))
 
+(defn resolve [state]
+  (if (or (not (modules/configured? state))
+          (get-in state [:build-options :dynamic-resolve]))
+    ;; flat build, no modules
+    (process-stage state :resolve false)
+    ;; :modules based build
+    (modules/analyze state)))
+
 (defn compile
   [{::keys [mode] :as state}]
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
-  (let [state
-        (compile-start state)
-
-        state
-        (if (or (not (modules/configured? state))
-                (get-in state [:build-options :dynamic-resolve]))
-          ;; flat build, no modules
-          (process-stage state :resolve false)
-          ;; :modules based build
-          (modules/analyze state))]
-
-    (-> state
-        (extract-build-macros)
-        (process-stage :compile-prepare true)
-        (update-build-info-from-modules)
-        (build-api/compile-sources)
-        (update-build-info-after-compile)
-        (process-stage :compile-finish true)
-        (compile-complete))))
+  (-> state
+      (compile-start)
+      (resolve)
+      (extract-build-macros)
+      (process-stage :compile-prepare true)
+      (update-build-info-from-modules)
+      (build-api/compile-sources)
+      (update-build-info-after-compile)
+      (process-stage :compile-finish true)
+      (compile-complete)))
 
 (defn optimize
   [{::keys [mode skip-optimize] :as state}]

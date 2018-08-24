@@ -4,6 +4,7 @@
     [clojure.java.shell :as sh]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.web.common :as common]
+    [shadow.cljs.devtools.server.web.graph :as graph]
     [shadow.build.closure :as closure]
     [shadow.http.router :as http]
     [shadow.repl :as repl]
@@ -31,9 +32,9 @@
   (-> root
       (select-keys [::repl/root-id ::repl/type])
       (assoc ::repl/levels
-        (->> levels
-             (map transform-level)
-             (into [])))))
+             (->> levels
+                  (map transform-level)
+                  (into [])))))
 
 (defn repl-roots [req]
   (common/edn req
@@ -100,9 +101,12 @@
       {:status 503
        :body "Build failed."})))
 
+
+
 (defn root* [req]
   (http/route req
     (:GET "" index-page)
+    (:POST "/graph" graph/serve)
     (:GET "/repl" repl-roots)
     (:GET "/repl/{root-id:long}" repl-root root-id)
     (:GET "/repl/{root-id:long}/{level-id:long}" repl-level root-id level-id)

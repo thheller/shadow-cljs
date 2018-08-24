@@ -1,19 +1,21 @@
 (ns shadow.cljs.devtools.server.dev-http
   "provides a basic static http server per build"
-  (:require [clojure.java.io :as io]
-            [clojure.core.async :as async :refer (>!! <!!)]
-            [shadow.cljs.devtools.server.web.common :as common]
-            [ring.middleware.resource :as ring-resource]
-            [ring.middleware.file :as ring-file]
-            [ring.middleware.file-info :as ring-file-info]
-            [ring.middleware.content-type :as ring-content-type]
-            [shadow.jvm-log :as log]
-            [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg]
-            [shadow.undertow :as undertow]
-            [shadow.http.push-state :as push-state])
+  (:require
+    [clojure.java.io :as io]
+    [clojure.core.async :as async :refer (>!! <!!)]
+    [shadow.jvm-log :as log]
+    [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]
+    [shadow.cljs.devtools.server.system-msg :as sys-msg]
+    [shadow.undertow :as undertow]
+    [shadow.http.push-state :as push-state]
+    ;; FIXME: delay loading ring.* until first request here too
+    ;; don't want to AOT these
+    [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
+    [ring.middleware.resource :as ring-resource]
+    [ring.middleware.file :as ring-file]
+    [ring.middleware.file-info :as ring-file-info]
+    [ring.middleware.content-type :as ring-content-type])
   (:import [io.undertow.server.handlers.proxy ProxyHandler LoadBalancingProxyClient]
            [java.net URI]))
 
@@ -70,13 +72,13 @@
 
           :else
           (do
-              (or (try
-                    (require (symbol (namespace http-handler)))
-                    (find-var http-handler)
-                    (catch Exception e
-                      (log/warn-ex e ::handler-load-ex {:http-handler http-handler})))
-                  (do (log/warn ::handler-not-found {:http-handler http-handler})
-                      #'push-state/handle))))
+            (or (try
+                  (require (symbol (namespace http-handler)))
+                  (find-var http-handler)
+                  (catch Exception e
+                    (log/warn-ex e ::handler-load-ex {:http-handler http-handler})))
+                (do (log/warn ::handler-not-found {:http-handler http-handler})
+                    #'push-state/handle))))
 
         http-info-ref
         (atom {})

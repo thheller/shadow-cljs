@@ -31,8 +31,19 @@
    :cache-root
    {:depends-on [:config]
     :start (fn [{:keys [cache-root]}]
-             (io/file cache-root))
+             (io/file  cache-root))
     :stop (fn [cache-root])}
+
+   :transit-read
+   {:depends-on []
+    :start
+    (fn []
+      (fn [in]
+        (let [r (transit/reader in :json)]
+          (transit/read r)
+          )))
+    :stop
+    (fn [x])}
 
    :transit-str
    {:depends-on []

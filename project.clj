@@ -53,6 +53,15 @@
    [expound "0.7.1"]
    [fipp "0.6.12"]
 
+   [com.wsscode/pathom "2.1.2"
+    :exclusions
+    [org.clojure/data.json
+     fulcrologic/fulcro
+     ;; org.clojure/test.check
+     camel-snake-kebab]]
+   ;; for pathom
+   [org.clojure/test.check "0.10.0-alpha3"]
+
    ;; experimental
    [hawk "0.2.11"]
    [thheller/shadow-cljsjs "0.0.15"]]
