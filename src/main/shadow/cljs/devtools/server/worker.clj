@@ -7,7 +7,6 @@
             [shadow.cljs.devtools.server.system-msg :as sys-msg]
             [shadow.cljs.devtools.server.worker.impl :as impl]
             [shadow.cljs.devtools.server.util :as util]
-            [shadow.cljs.devtools.server.web.common :as common]
             [shadow.build.classpath :as cp]
             [shadow.build.npm :as npm]
             [shadow.cljs.devtools.server.fs-watch :as fs-watch]
