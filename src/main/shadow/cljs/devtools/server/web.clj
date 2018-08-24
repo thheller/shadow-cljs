@@ -20,7 +20,8 @@
     [ring.middleware.resource :as ring-resource]
     [ring.middleware.content-type :as ring-content-type]
     [ring.middleware.params :as ring-params]
-    [shadow.cljs.devtools.server.ring-gzip :as ring-gzip])
+    [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
+    [shadow.cljs.devtools.config :as config])
   (:import [java.util UUID]))
 
 (defn index-page [{:keys [dev-http] :as req}]
@@ -156,6 +157,77 @@
               [:script {:src "/cache/browser-repl/js/repl.js" :defer true}]])})
         (no-cache!))))
 
+(defn browser-test-page [{:keys [supervisor] :as req}]
+  (let [worker (super/get-worker supervisor :browser-test)]
+
+    (when-not worker
+      (let [config
+            {:build-id :browser-test
+             :target :browser-test
+             :devtools {:loader-mode :eval}
+             :asset-path "/cache/browser-test/out/js"
+             :test-dir ".shadow-cljs/builds/browser-test/out"}]
+
+        (log/debug ::browser-test-start config)
+
+        (-> (super/start-worker supervisor config)
+            (worker/start-autobuild)
+            (worker/sync!))))
+
+    {:status 200
+     :headers {"content-type" "text/html; charset=utf-8"}
+     :body
+     (html5
+       {:lang "en"}
+       [:head
+        [:title "browser-test"]
+        [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]]
+       [:body
+        [:pre#log]
+        [:script {:src "/cache/browser-test/out/js/test.js"}]
+        [:script "shadow.test.browser.init();"]])}))
+
+(defn workspaces-page [{:keys [supervisor] :as req}]
+  (if-not (io/resource "nubank/workspaces/core.cljs")
+    {:status 404
+     :headers {"content-type" "text/plain; charset=utf-8"}
+     :body "nubank.workspaces.core namespace not found on classpath!"}
+
+    (let [worker
+          (or (super/get-worker supervisor :workspaces)
+              (let [config
+                    {:build-id :workspaces
+                     :target :browser-test
+                     :ns-regexp "-cards$"
+                     :runner-ns 'shadow.test.workspaces
+                     :devtools {:loader-mode :eval}
+                     :asset-path "/cache/workspaces/out/js"
+                     :test-dir ".shadow-cljs/builds/workspaces/out"}]
+
+                (log/debug ::workspaces-start config)
+
+                (-> (super/start-worker supervisor config)
+                    (worker/start-autobuild))))]
+
+      (worker/sync! worker)
+
+      {:status 200
+       :headers {"content-type" "text/html; charset=utf-8"}
+       :body
+       (html5
+         {:lang "en"}
+         [:head
+          [:title "workspaces"]
+          [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+          ;; FIXME: local copy?
+          [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css?family=Open+Sans"}]
+          [:link {:rel "stylesheet" :href "//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css"}]]
+         [:body
+          [:div#app]
+          [:script {:src "/cache/workspaces/out/js/test.js"}]
+          [:script "shadow.test.workspaces.init();"]
+          ])})))
+
 ;; add SameSite cookie to protect UI websockets later
 (defn add-secret-header [{:keys [status] :as res} {:keys [server-secret] :as req}]
   (let [cookie (get-in req [:ring-request :headers "cookie"])]
@@ -172,6 +244,8 @@
         (:GET "^/cache" serve-cache-file)
         (:GET "/repl" repl-page)
         (:GET "/browser-repl-js" browser-repl-js)
+        (:GET "/browser-test" browser-test-page)
+        (:GET "/workspaces" workspaces-page)
         common/not-found)
       (add-secret-header req)))
 

@@ -109,7 +109,8 @@
     [[cider/cider-nrepl "0.18.0"]
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
-     [reagent "0.8.1"]]
+     [reagent "0.8.1"]
+     [nubank/workspaces "1.0.0-preview8"]]
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware
