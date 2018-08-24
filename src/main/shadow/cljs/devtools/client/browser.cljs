@@ -156,23 +156,35 @@
   (when js/goog.global.document
     (goog.Uri/parse js/document.location.href)))
 
+(defn match-paths [old new]
+  (if (= "file" (.getScheme page-load-uri))
+    ;; new is always an absolute path, strip first /
+    ;; FIXME: assuming that old is always relative
+    (let [rel-new (subs new 1)]
+      (and (= old rel-new) rel-new))
+    ;; special handling for browsers including relative css
+    (let [^goog node-uri (goog.Uri/parse old)
+          node-uri-resolved (.resolve page-load-uri node-uri)
+          node-abs (.getPath ^goog node-uri-resolved)]
+
+      (and (or (= (.hasSameDomainAs page-load-uri node-uri))
+               (not (.hasDomain node-uri)))
+           (= node-abs new)
+           new))))
+
 (defn handle-asset-watch [{:keys [updates] :as msg}]
   (doseq [path updates
           ;; FIXME: could support images?
           :when (str/ends-with? path "css")]
     (doseq [node (array-seq (js/document.querySelectorAll "link[rel=\"stylesheet\"]"))
-            :let [^goog node-uri (goog.Uri/parse (.getAttribute node "href"))
-                  node-uri-resolved (.resolve page-load-uri node-uri)
-                  node-abs (.getPath ^goog node-uri-resolved)]
-            :when (and (or (= (.hasSameDomainAs page-load-uri node-uri))
-                           (not (.hasDomain node-uri)))
-                       (= node-abs path))]
+            :let [path-match (match-paths (.getAttribute node "href") path)]
+            :when path-match]
 
       (let [new-link
             (doto (.cloneNode node true)
-              (.setAttribute "href" (str path "?r=" (rand))))]
+              (.setAttribute "href" (str path-match "?r=" (rand))))]
 
-        (devtools-msg "load CSS" path)
+        (devtools-msg "load CSS" path-match)
         (gdom/insertSiblingAfter new-link node)
         (gdom/removeNode node)
         ))))
