@@ -48,7 +48,7 @@
 (defn get-ring-handler [app-ref]
   (let [web-root-var
         (delay
-          @web-require-ns
+          @require-web-ns
           (find-var 'shadow.cljs.devtools.server.web/root))]
 
     (fn [ring-map]
