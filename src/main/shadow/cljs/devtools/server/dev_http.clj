@@ -6,7 +6,7 @@
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.api.system :as sys-msg]
+    [shadow.cljs.model :as m]
     [shadow.undertow :as undertow]
     [shadow.http.push-state :as push-state]
     ;; FIXME: delay loading ring.* until first request here too
@@ -206,7 +206,7 @@
             (async/chan))
 
         sub
-        (sys-bus/sub sys-bus ::sys-msg/config-watch sub-chan true)
+        (sys-bus/sub sys-bus ::m/config-watch sub-chan true)
 
         state-ref
         (-> (start-servers config ssl-context out)

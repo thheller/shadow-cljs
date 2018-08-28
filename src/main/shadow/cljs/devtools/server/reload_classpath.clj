@@ -5,7 +5,7 @@
             [shadow.jvm-log :as log]
             [shadow.build.classpath :as cp]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.api.system :as sys-msg]
+            [shadow.cljs.model :as m]
             [shadow.cljs.util :as util]
             [shadow.build.resource :as rc]
             [clojure.set :as set]))
@@ -82,8 +82,8 @@
          :updated provides-updated
          :added provides-new}]
 
-    (log/debug ::sys-msg/resource-update update-msg)
-    (sys-bus/publish! system-bus ::sys-msg/resource-update update-msg)
+    (log/debug ::m/resource-update update-msg)
+    (sys-bus/publish! system-bus ::m/resource-update update-msg)
 
     state
     ))
@@ -111,7 +111,7 @@
         control-chan
         (async/chan)]
 
-    (sys-bus/sub system-bus ::sys-msg/cljs-watch watch-chan true)
+    (sys-bus/sub system-bus ::m/cljs-watch watch-chan true)
 
     {:system-bus system-bus
      :classpath classpath

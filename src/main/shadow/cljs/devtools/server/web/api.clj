@@ -11,7 +11,7 @@
     [shadow.cljs.devtools.server.util :as server-util]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.util :as util]
-    [shadow.cljs.api.ws :as api-ws]
+    [shadow.cljs.model :as m]
     [hiccup.page :refer (html5)]
     [clojure.java.io :as io]
     [clojure.core.async :as async :refer (go >! <! >!! <!!)]
@@ -104,17 +104,17 @@
       {:status 503
        :body "Build failed."})))
 
-(defmulti process-api-msg (fn [state msg] (::api-ws/op msg)) :default ::default)
+(defmulti process-api-msg (fn [state msg] (::m/op msg)) :default ::default)
 
 (defmethod process-api-msg ::default
   [{:keys [ws-out] :as state} msg]
   (log/warn ::unknown-msg {:msg msg})
-  (>!! ws-out {::api-ws/op ::api-ws/unknown-msg
-               ::api-ws/input msg})
+  (>!! ws-out {::m/op ::m/unknown-msg
+               ::m/input msg})
   state)
 
-(defmethod process-api-msg ::api-ws/subscribe
-  [{:keys [system-bus ws-out] :as state} {::api-ws/keys [topic]}]
+(defmethod process-api-msg ::m/subscribe
+  [{:keys [system-bus ws-out] :as state} {::m/keys [topic]}]
   (let [sub-chan
         (-> (async/sliding-buffer 100)
             (async/chan))]
@@ -126,12 +126,12 @@
     (go (loop []
           (when-some [msg (<! sub-chan)]
             (>! ws-out (assoc msg
-                         ::api-ws/op ::api-ws/sub-msg
-                         ::api-ws/topic topic))
+                         ::m/op ::m/sub-msg
+                         ::m/topic topic))
             (recur)))
 
-        (>! ws-out {::api-ws/op ::api-ws/sub-close
-                    ::api-ws/topic topic}))
+        (>! ws-out {::m/op ::m/sub-close
+                    ::m/topic topic}))
 
     (update state ::subs conj sub-chan)))
 

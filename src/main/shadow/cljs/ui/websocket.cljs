@@ -2,8 +2,7 @@
   (:require
     [cljs.core.async :as async :refer (go)]
     [fulcro.client.primitives :as fp]
-    [shadow.cljs.api.ws :as api-ws]
-    [shadow.cljs.api.system :as api-sys]
+    [shadow.cljs.model :as m]
     [shadow.cljs.ui.env :as env]
     [shadow.cljs.ui.transactions :as tx]))
 
@@ -17,20 +16,20 @@
 (defn process-supervisor [rc msg]
   (fp/transact! rc [(tx/process-supervisor msg)]))
 
-(defn process-ws-subscription [rc {::api-ws/keys [topic] :as msg}]
+(defn process-ws-subscription [rc {::m/keys [topic] :as msg}]
   (let [topic-id (if (vector? topic) (first topic) topic)]
     (case topic-id
-      ::api-sys/supervisor
+      ::m/supervisor
       (process-supervisor rc msg)
 
-      ::api-ws/worker-output
+      ::m/worker-output
       (process-worker-output rc msg)
 
       (js/console.warn ::unknown-subscription msg))))
 
-(defn process-ws [rc {::api-ws/keys [op] :as msg}]
+(defn process-ws [rc {::m/keys [op] :as msg}]
   (case op
-    ::api-ws/sub-msg
+    ::m/sub-msg
     (process-ws-subscription rc msg)
 
     nil))

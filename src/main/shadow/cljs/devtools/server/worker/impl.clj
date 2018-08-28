@@ -7,6 +7,7 @@
             [cljs.compiler :as cljs-comp]
             [cljs.analyzer :as cljs-ana]
             [shadow.cljs.repl :as repl]
+            [shadow.cljs.model :as m]
             [shadow.cljs.util :refer (reduce->)]
             [shadow.build :as build]
             [shadow.build.api :as build-api]
@@ -14,11 +15,9 @@
             [shadow.build.compiler :as build-comp]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.api.system :as sys-msg]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as errors]
             [shadow.build.warnings :as warnings]
-            [shadow.cljs.api.ws :as api-ws]
             [shadow.debug :as dbg]
             [shadow.build.data :as data]
             [shadow.build.resource :as rc]
@@ -63,7 +62,7 @@
 
   (let [msg (assoc msg :build-id build-id)
         output (get-in worker-state [:channels :output])]
-    (sys-bus/publish! system-bus [::api-ws/worker-output build-id] msg)
+    (sys-bus/publish! system-bus [::m/worker-output build-id] msg)
 
     (>!! output msg)
     worker-state))
@@ -128,7 +127,7 @@
                   (log* [this build-state log-event]
                     (build-log/log* async-logger build-state log-event)
                     ;; make sure websocket subscriptions get log messages
-                    (sys-bus/publish! system-bus [::api-ws/worker-output build-id] {:type :build-log
+                    (sys-bus/publish! system-bus [::m/worker-output build-id] {:type :build-log
                                                                                     :build-id build-id
                                                                                     :event log-event})
                     )))

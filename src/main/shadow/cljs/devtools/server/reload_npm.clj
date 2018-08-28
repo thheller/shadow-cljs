@@ -5,7 +5,7 @@
             [shadow.jvm-log :as log]
             [shadow.build.npm :as npm]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.api.system :as sys-msg]
+            [shadow.cljs.model :as m]
             [shadow.cljs.util :as util]))
 
 (defn dissoc-all [m files]
@@ -46,7 +46,7 @@
       (let [modified-provides
             (into #{} (map :provides) modified-resources)]
 
-        (sys-bus/publish! system-bus ::sys-msg/resource-update {:provides modified-provides})
+        (sys-bus/publish! system-bus ::m/resource-update {:provides modified-provides})
         ))))
 
 (defn watch-loop [system-bus npm control-chan]

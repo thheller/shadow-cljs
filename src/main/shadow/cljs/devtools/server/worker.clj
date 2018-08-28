@@ -4,7 +4,7 @@
             [shadow.jvm-log :as log]
             [clojure.java.io :as io]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.api.system :as sys-msg]
+            [shadow.cljs.model :as m]
             [shadow.cljs.devtools.server.worker.impl :as impl]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.build.classpath :as cp]
@@ -310,9 +310,9 @@
                          (io/make-parents (io/file watch-dir "dummy.html")))
                        (fs-watch/start (:fs-watch config) [watch-dir] watch-exts #(async/>!! asset-update %))))))]
 
-    (sys-bus/sub system-bus ::sys-msg/resource-update resource-update)
-    (sys-bus/sub system-bus ::sys-msg/macro-update macro-update)
-    (sys-bus/sub system-bus [::sys-msg/config-watch build-id] config-watch)
+    (sys-bus/sub system-bus ::m/resource-update resource-update)
+    (sys-bus/sub system-bus ::m/macro-update macro-update)
+    (sys-bus/sub system-bus [::m/config-watch build-id] config-watch)
 
     ;; ensure all channels are cleaned up properly
     (go (<! thread-ref)

@@ -1,10 +1,10 @@
 (ns shadow.cljs.devtools.server.reload-macros
   (:require [clojure.core.async :as async :refer (thread alt!!)]
             [shadow.jvm-log :as log]
-            [shadow.build.macros :as m]
+            [shadow.build.macros :as bm]
             [clojure.java.io :as io]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.api.system :as sys-msg]
+            [shadow.cljs.model :as m]
             [shadow.cljs.util :as util])
   (:import [java.net URLConnection]))
 
@@ -34,16 +34,16 @@
       )))
 
 (defn check-macros! [system-bus]
-  (let [active-macros @m/active-macros-ref
+  (let [active-macros @bm/active-macros-ref
 
         reloaded
         (reduce-kv
           (fn [updated ns-sym last-loaded]
             (if-not (macro-ns-modified? ns-sym last-loaded)
               updated
-              (locking m/require-lock
+              (locking bm/require-lock
                 ;; always update timestamp so it doesn't reload failing macros constantly
-                (swap! m/active-macros-ref assoc ns-sym (System/currentTimeMillis))
+                (swap! bm/active-macros-ref assoc ns-sym (System/currentTimeMillis))
                 (try
                   (require ns-sym :reload)
                   (conj updated ns-sym)
@@ -56,7 +56,7 @@
 
     (when (seq reloaded)
       (log/debug ::macro-reload {:reloaded reloaded})
-      (sys-bus/publish! system-bus ::sys-msg/macro-update {:macro-namespaces reloaded}))
+      (sys-bus/publish! system-bus ::m/macro-update {:macro-namespaces reloaded}))
 
     ))
 

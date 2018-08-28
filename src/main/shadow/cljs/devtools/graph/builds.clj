@@ -14,7 +14,6 @@
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.errors :as errors]
-    [shadow.cljs.api.ws :as api-ws]
     [shadow.build.log :as build-log]))
 
 (def config-attrs
@@ -117,7 +116,7 @@
       (let [build-config (config/get-build build-id)
             pub-msg
             (fn [msg]
-              (sys-bus/publish! system-bus [::api-ws/worker-output build-id] msg))]
+              (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
         (try
           ;; not at all useful to send this message but want to match worker message flow for now
           (pub-msg {:type :build-configure

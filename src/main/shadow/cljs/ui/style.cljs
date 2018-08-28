@@ -67,7 +67,7 @@
    :display "flex"})
 
 (defstyled main-nav :div [env]
-  {:width 180})
+  {:width 200})
 
 (def header-styles
   {:padding [20 10]

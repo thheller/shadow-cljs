@@ -6,7 +6,7 @@
     [shadow.user]
     [shadow.build.output :as output]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.api.system :as sys-msg]
+    [shadow.cljs.model :as m]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.build :as comp]
@@ -25,7 +25,7 @@
 
     ;; FIXME: the client should probably trigger this
     ;; a node-repl isn't interested in this at all
-    (sys-bus/sub system-bus ::sys-msg/css-reload out false)
+    (sys-bus/sub system-bus ::m/css-reload out false)
 
     (loop [client-state client-state]
 

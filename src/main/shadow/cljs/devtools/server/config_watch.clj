@@ -4,7 +4,7 @@
             [clojure.java.io :as io]
             [clojure.core.async :as async :refer (thread <!!)]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.api.system :as sys-msg]
+            [shadow.cljs.model :as m]
             [shadow.jvm-log :as log]))
 
 (defn- service? [x]
@@ -35,12 +35,12 @@
 
               (when (not= new-config config)
                 (log/debug ::update-global)
-                (sys-bus/publish! system-bus ::sys-msg/config-watch {:config new-config}))
+                (sys-bus/publish! system-bus ::m/config-watch {:config new-config}))
 
               (doseq [{:keys [build-id] :as new} (-> new-config :builds (vals))
                       :when (not= new (get-in config [:builds build-id]))]
                 (log/debug ::update-build {:build-id build-id})
-                (sys-bus/publish! system-bus [::sys-msg/config-watch build-id] {:config new}))
+                (sys-bus/publish! system-bus [::m/config-watch build-id] {:config new}))
 
               (reset! env/dependencies-modified-ref (not= dependencies (:dependencies new-config)))
 

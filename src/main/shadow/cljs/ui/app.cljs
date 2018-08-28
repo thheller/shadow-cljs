@@ -16,8 +16,6 @@
     [shadow.cljs.ui.style :as s]
     [shadow.cljs.ui.env :as env]
     [shadow.cljs.ui.websocket :as ws]
-    [shadow.cljs.api.ws :as api-ws]
-    [shadow.cljs.api.system :as api-sys]
     [cognitect.transit :as transit]
     [cljs.reader :as reader]
     [cljs.core.async :as async :refer (go)]
@@ -67,40 +65,54 @@
 
 (def ui-build-overview (fp/factory BuildOverview {:keyfn ::m/build-id}))
 
-(defsc MainNav [this {::keys [active-build build-list] :as props}]
+(defsc MainNavBuild [this {::m/keys [build-id worker-active] :as props}]
+  {:ident
+   (fn []
+     (js/console.log ::main-nav-build-ident props)
+     [::m/build-by-id build-id])
+   :query
+   (fn []
+     [::m/build-id
+      ::m/worker-active
+      [::active-build '_]
+      ])}
+
+  (when build-id
+    (s/nav-sub-item
+      {:key build-id
+       :classes {:selected (= (::active-build props) build-id)}}
+
+      (html/input
+        {:type "checkbox"
+         :checked worker-active
+         :onChange
+         (fn [e]
+           (fp/transact! this [(if (.. e -target -checked)
+                                 (tx/build-watch-start {:build-id build-id})
+                                 (tx/build-watch-stop {:build-id build-id}))]))})
+
+      (html/a {:href (str "/builds/" (name build-id))} (name build-id)))))
+
+(def ui-main-nav-build (fp/factory MainNavBuild {:keyfn ::m/build-id}))
+
+(defsc MainNav [this {::keys [build-list] :as props}]
   {:query
    (fn []
-     '[::active-build
-       {[::build-list _]
-        [::m/build-id
-         ::m/worker-active]}])
+     [{[::build-list '_]
+       (fp/get-query MainNavBuild)}])
 
    :initial-state
    (fn [props]
-     {})}
+     {::build-list []})}
 
+  (js/console.log ::main-nav-render)
   (s/nav-items
     (s/nav-item
       (html/a {:href "/dashboard"} "Dashboard"))
 
     (s/nav-item "Builds")
-    (html/for [{::m/keys [build-id worker-active]} build-list]
-      (s/nav-sub-item
-        {:key build-id
-         :classes {:selected (= active-build build-id)}
-         ;; :onClick #(fp/transact! this [(tx/select-build {:build-id build-id})])
-         }
-        (html/input
-          {:type "checkbox"
-           :checked worker-active
-           :onChange
-           (fn [e]
-             (fp/transact! this [(if (.. e -target -checked)
-                                   (tx/build-watch-start {:build-id build-id})
-                                   (tx/build-watch-stop {:build-id build-id}))]))})
-        (html/a {:href (str "/builds/" (name build-id))}
-          (name build-id)))
-      )))
+    (html/for [build build-list]
+      (ui-main-nav-build build))))
 
 (def ui-main-nav (fp/factory MainNav {}))
 
@@ -170,8 +182,8 @@
     (let [screen-ident [:PAGE/build-page build-id]]
 
       (when-not (contains? subscriptions build-id)
-        (ws/send env {::api-ws/op ::api-ws/subscribe
-                      ::api-ws/topic [::api-ws/worker-output build-id]}))
+        (ws/send env {::m/op ::m/subscribe
+                      ::m/topic [::m/worker-output build-id]}))
 
       (-> state
           (update ::subscriptions conj build-id)
@@ -308,8 +320,8 @@
             (fn [{:keys [reconciler] :as app}]
               (ws/open reconciler ws-in ws-out)
               (setup-history reconciler history)
-              (async/put! ws-out {::api-ws/op ::api-ws/subscribe
-                                  ::api-ws/topic ::api-sys/supervisor})
+              (async/put! ws-out {::m/op ::m/subscribe
+                                  ::m/topic ::m/supervisor})
               (fdf/load app ::m/build-configs BuildOverview {:target [::build-list]}))
 
             :initial-state

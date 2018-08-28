@@ -9,6 +9,7 @@
     [shadow.runtime.services :as rt]
     [shadow.undertow :as undertow]
     [shadow.build.classpath :as build-classpath]
+    [shadow.cljs.model :as m]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.config-watch :as config-watch]
     [shadow.cljs.devtools.server.fs-watch :as fs-watch]
@@ -24,7 +25,6 @@
     [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.reload-macros :as reload-macros]
-    [shadow.cljs.api.system :as system-msg]
     [shadow.cljs.devtools.server.system-bus :as system-bus])
   (:import (java.net BindException)
            [java.lang.management ManagementFactory]
@@ -348,7 +348,7 @@
                                    (into []))
                               ;; no longer watches .clj files, reload-macros directly looks at used macros
                               ["cljs" "cljc" "js"]
-                              #(system-bus/publish! system-bus ::system-msg/cljs-watch {:updates %})
+                              #(system-bus/publish! system-bus ::m/cljs-watch {:updates %})
                               ))
                    :stop fs-watch/stop}
 

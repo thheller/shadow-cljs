@@ -3,7 +3,6 @@
             [clojure.core.async :as async :refer (alt!! thread >!!)]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as system-bus]
-            [shadow.cljs.api.system :as system-msg]
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import (shadow.util FileWatcher)
