@@ -34,6 +34,15 @@
 (defn service? [x]
   (and (map? x) (::service x)))
 
+(defn absolute-file
+  ".getCanonicalFile resolves links but we just want to replace . and .."
+  ^File [^File x]
+  (-> x
+      (.toPath)
+      (.toAbsolutePath)
+      (.normalize)
+      (.toFile)))
+
 (defn read-package-json
   "this caches the contents package.json files since we may access them quite often when resolving deps"
   [{:keys [index-ref] :as state} ^File file]
@@ -93,7 +102,7 @@
   (when name
     (let [file
           (-> (io/file dir name)
-              (.getCanonicalFile))]
+              (absolute-file))]
       (when (.exists file)
         file))))
 
@@ -249,7 +258,7 @@
                   ;; didn't even know that was allowed but node seems to resolve this
                   ;; by looking at the package and picking the main
                   ;; so we mimick that
-                  (find-package-require npm (-> file (.getCanonicalFile) (.getName)))
+                  (find-package-require npm (-> file (absolute-file) (.getName)))
                   )))
 
           :else
@@ -586,7 +595,7 @@
         (-> (if (and (= :release mode) (seq file-min))
               (io/file file-min)
               (io/file file))
-            (.getCanonicalFile))]
+            (absolute-file))]
     (when-not (.exists file)
       (throw (ex-info "file override for require doesn't exist" {:file file :require require :config cfg})))
 
@@ -645,7 +654,7 @@
                (util/is-relative? override))
           (let [override-file
                 (-> (io/file package-dir override)
-                    (.getCanonicalFile))]
+                    (absolute-file))]
 
             (when-not (.exists override-file)
               (throw (ex-info "override to file that doesn't exist"
@@ -713,12 +722,12 @@
 
         project-dir
         (-> (io/file "")
-            (.getAbsoluteFile))
+            (absolute-file))
 
         node-modules-dir
         (if (seq node-modules-dir)
           (-> (io/file node-modules-dir)
-              (.getAbsoluteFile))
+              (absolute-file))
           (io/file project-dir "node_modules"))]
 
     {::service true
