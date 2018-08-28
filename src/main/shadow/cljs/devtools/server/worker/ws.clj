@@ -6,7 +6,7 @@
     [shadow.user]
     [shadow.build.output :as output]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.devtools.server.system-msg :as sys-msg]
+    [shadow.cljs.api.system :as sys-msg]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.build :as comp]
@@ -56,7 +56,8 @@
 (defn ws-connect
   [{:keys [ring-request] :as ctx} worker-proc runtime-id runtime-type]
 
-  (let [{:keys [ws-in ws-out]} ring-request
+  (let [ws-in (async/chan 10 (map edn/read-string))
+        ws-out (async/chan 10 (map pr-str))
 
         ;; messages put on this must be forwarded to the runtime
         runtime-out
@@ -98,50 +99,10 @@
          :runtime-in runtime-in
          :watch-chan watch-chan}]
 
-    (thread (ws-loop! client-state))
+    {:ws-in ws-in
+     :ws-out ws-out
+     :ws-loop (thread (ws-loop! client-state))}
     ))
-
-(defn ws-listener-connect
-  [{:keys [ring-request] :as ctx}
-   {:keys [output] :as worker-proc} client-id]
-
-  (let [{:keys [ws-in ws-out]} ring-request
-
-        ;; FIXME: let the client decide?
-        watch-ignore
-        #{:build-log
-          :repl/result
-          :repl/error ;; server-side error
-          :repl/action
-          :repl/runtime-connect
-          :repl/runtime-disconnect
-          :repl/client-start
-          :repl/client-stop}
-
-        watch-chan
-        (-> (async/sliding-buffer 10)
-            (async/chan
-              (remove #(contains? watch-ignore (:type %)))))]
-
-    (worker/watch worker-proc watch-chan true)
-
-    (let [last-known-state
-          (-> worker-proc :state-ref deref :build-state ::comp/build-info)]
-      (>!! ws-out {:type :build-init
-                   :info last-known-state}))
-
-    ;; close watch when websocket closes
-    (go (loop []
-          (when-some [msg (<! ws-in)]
-            (log/warn ::ignored-listener-msg {:msg msg})
-            (recur)))
-        (async/close! watch-chan))
-
-    (go (loop []
-          (when-some [msg (<! watch-chan)]
-            (>! ws-out msg)
-            (recur))
-          ))))
 
 (defn compile-req
   [{:keys [ring-request] :as ctx} worker-proc]
@@ -301,6 +262,12 @@
          :headers {"content-type" "text/plain"}
          :body "Not found."}))))
 
+(defn send-ws-error [error-code]
+  (let [ws-out (async/chan 1 (map pr-str))]
+    {:ws-in (async/chan)
+     :ws-out ws-out
+     :ws-loop
+     (go (>! ws-out {:type error-code}))}))
 
 (defn process-ws
   [{::http/keys [path-tokens] :keys [supervisor] :as ctx}]
@@ -318,15 +285,12 @@
         runtime-type
         (keyword runtime-type)
 
-        ws-out
-        (get-in ctx [:ring-request :ws-out])
-
         worker-proc
         (super/get-worker supervisor build-id)]
 
     (cond
       (nil? worker-proc)
-      (go (>! ws-out {:type :client/no-worker}))
+      (send-ws-error :client/no-worker)
       ;; can't send {:status 404 :body "no worker"}
       ;; as there appears to be no way to access either the status code or body
       ;; on the client via the WebSocket API to know why a websocket connection failed
@@ -334,15 +298,12 @@
       ;; so instead we pretend to handshake properly, send one message and disconnect
 
       (not= proc-id (:proc-id worker-proc))
-      (go (>! ws-out {:type :client/stale}))
+      (send-ws-error :client/stale)
 
       :else
       (case action
         "worker"
         (ws-connect ctx worker-proc runtime-id runtime-type)
-
-        "listener"
-        (ws-listener-connect ctx worker-proc runtime-id)
 
         :else
         nil

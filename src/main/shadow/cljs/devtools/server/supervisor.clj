@@ -2,6 +2,7 @@
   (:require [shadow.cljs.devtools.server.worker :as worker]
             [clojure.core.async :as async :refer (go <! alt!)]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
+            [shadow.cljs.api.system :as sys-msg]
             [shadow.jvm-log :as log]))
 
 (defn get-worker
@@ -26,9 +27,14 @@
     (let [{:keys [proc-stop] :as proc}
           (worker/start config system-bus executor cache-root http classpath npm babel build-config)]
 
+      (sys-bus/publish! system-bus ::sys-msg/supervisor {:op :worker-start
+                                                         :build-id build-id})
+
       (vswap! workers-ref assoc build-id proc)
 
       (go (<! proc-stop)
+          (sys-bus/publish! system-bus ::sys-msg/supervisor {:op :worker-stop
+                                                             :build-id build-id})
           (vswap! workers-ref dissoc build-id))
 
       proc

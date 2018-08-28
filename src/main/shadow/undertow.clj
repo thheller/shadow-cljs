@@ -68,8 +68,7 @@
                     (fn [channel msg]
                       (if-not (some? msg)
                         (async/close! ws-in)
-                        ;; FIXME: don't hardcode edn, should use transit
-                        (async/put! ws-in (edn/read-string msg))))
+                        (async/put! ws-in msg)))
 
                     close-task
                     (reify ChannelListener
@@ -92,7 +91,7 @@
                             (async/close! ws-in)
                             ;; try to send message, close everything if that fails
                             (do (try
-                                  (WebSockets/sendTextBlocking (core-ext/safe-pr-str msg) channel)
+                                  (WebSockets/sendTextBlocking msg channel)
                                   ;; just ignore sending to a closed channel
                                   (catch ClosedChannelException e
                                     (async/close! ws-in)
@@ -111,25 +110,23 @@
 
     (ring*
       (fn [{::impl/keys [exchange] :as ring-request}]
-        (let [ws-in (async/chan 10) ;; FIXME: allow config of these, maybe even use proper buffers
-              ws-out (async/chan 10)
-              ws-req (assoc ring-request
-                       ::ws true
-                       :ws-in ws-in
-                       :ws-out ws-out)
-              ws-loop (ring-handler ws-req)]
+        (let [ws-req (assoc ring-request ::ws true)
 
-          ;; ws request handlers should return a go loop channel
-          (if (satisfies? async-prot/ReadPort ws-loop)
+              {:keys [ws-in ws-out ws-loop] :as res}
+              (ring-handler ws-req)]
+
+          ;; expecting map with :ws-loop :ws-in :ws-out keys
+          (if (and (satisfies? async-prot/ReadPort ws-loop)
+                   (satisfies? async-prot/ReadPort ws-in)
+                   (satisfies? async-prot/ReadPort ws-out))
             (do (.putAttachment exchange WS-LOOP ws-loop)
                 (.putAttachment exchange WS-IN ws-in)
                 (.putAttachment exchange WS-OUT ws-out)
                 (.handleRequest ws-handler exchange)
                 ::async)
-            ;; didn't return a loop. close channels just in case and respond normally
-            (do (async/close! ws-in)
-                (async/close! ws-out)
-                ws-loop)
+
+            ;; didn't return a loop. respond without upgrade.
+            res
             ))))))
 
 (defn make-ssl-context [ssl-config]

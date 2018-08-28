@@ -148,7 +148,10 @@
 
           (if-not (seq sources-to-get)
             (hud/load-end-success)
-            (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success hud/load-failure))
+            (do (when-not (seq (get-in msg [:reload-info :after-load]))
+                  (devtools-msg "reloading code but no :after-load hooks are configured!"
+                    "https://shadow-cljs.github.io/docs/UsersGuide.html#_lifecycle_hooks"))
+                (load-sources sources-to-get #(do-js-reload msg % hud/load-end-success hud/load-failure)))
             ))))))
 
 ;; capture this once because the path may change via pushState

@@ -250,7 +250,7 @@
   (config/get-build! id))
 
 (defn build-finish [{::build/keys [build-info] :as state} config]
-  (util/print-build-complete build-info config)
+  (util/print-build-complete {:info build-info :build-id (:build-id config)})
   (let [rt (::runtime state)]
     (when (::once rt)
       (let [{:keys [babel npm]} rt]

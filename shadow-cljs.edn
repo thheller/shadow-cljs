@@ -60,17 +60,16 @@
    :compiler-options
    {:infer-externs :auto}
 
+   :js-options
+   {:node-modules-dir "packages/ui"}
+
+   ;; FIXME: code split this later
    :modules
-   {:shared
-    {:entries []}
-    :app
-    {:entries
-     [shadow.cljs.ui.app]
-     :depends-on #{:shared}}
-    :repl
-    {:entries
-     [shadow.cljs.ui.repl]
-     :depends-on #{:shared}}}}
+   {:app {:entries [shadow.cljs.ui.app]}}
+
+   :devtools
+   {:preloads [fulcro.inspect.preload]
+    :loader-mode :eval}}
 
   :build-report
   {:target :browser
@@ -81,6 +80,9 @@
 
    :modules
    {:main {:entries [shadow.cljs.build-report.ui]}}
+
+   :js-options
+   {:node-modules-dir "packages/ui"}
 
    :devtools
    {:enabled false}}

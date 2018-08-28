@@ -4,7 +4,7 @@
             [shadow.jvm-log :as log]
             [clojure.java.io :as io]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg]
+            [shadow.cljs.api.system :as sys-msg]
             [shadow.cljs.devtools.server.worker.impl :as impl]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.build.classpath :as cp]
@@ -236,6 +236,7 @@
          :npm npm
          :babel babel
          :proc-id proc-id
+         :build-id build-id
          :build-config build-config
          :autobuild false
          :eval-clients {}

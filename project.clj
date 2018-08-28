@@ -106,7 +106,13 @@
    :cljs
    {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
     :dependencies
-    [[cider/cider-nrepl "0.18.0"]
+    [[fulcrologic/fulcro "2.6.0"
+      :exclusions
+      [clojure-future-spec
+       com.stuartsierra/component
+       garden]]
+     [fulcrologic/fulcro-inspect "2.2.2"]
+
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
      [reagent "0.8.1"]

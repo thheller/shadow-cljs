@@ -203,14 +203,20 @@
 
 (def ^{:dynamic true} *time-depth* 0)
 
+(defonce timer-seq (volatile! 0))
+
 (defmacro with-logged-time
   [[state msg] & body]
   `(let [msg# ~msg
          start# (System/currentTimeMillis)
 
+         timing-id#
+         (vswap! timer-seq inc)
+
          evt#
          (assoc msg#
            :timing :enter
+           :timing-id timing-id#
            :start start#
            :depth *time-depth*)]
      (log ~state evt#)
@@ -224,6 +230,7 @@
            evt#
            (assoc msg#
              :timing :exit
+             :timing-id timing-id#
              :depth *time-depth*
              :stop stop#
              :duration (- stop# start#))]

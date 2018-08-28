@@ -3,7 +3,9 @@
             [hiccup.page :refer (html5)]
             [hiccup.core :refer (html)]
             [clojure.java.io :as io]
-            [shadow.core-ext :as core-ext]))
+            [shadow.core-ext :as core-ext]
+            [cljs.compiler :as cljs-comp]
+            [clojure.data.json :as json]))
 
 (defn not-found
   ([req]
@@ -24,7 +26,7 @@
    :body (core-ext/safe-pr-str data)})
 
 (defn page-boilerplate
-  [req {:keys [modules headers]} ^String content]
+  [req {:keys [modules body-class headers init-call]} ^String content]
   {:status 200
    :headers (merge {"content-type" "text/html; charset=utf-8"} headers)
    :body
@@ -32,14 +34,16 @@
      {:lang "en"}
      [:head
       ;; lol preload for local dev
-      [:link {:as "script" :href "/js/shared.js" :rel "preload"}]
+      [:link {:as "script" :href "/js/app.js" :rel "preload"}]
       [:title "shadow-cljs"]
-      [:link {:rel "stylesheet" :href "/css/main.css"}]]
-     [:body
+      [:link {:rel "stylesheet" :href "/css/main.css"}]
+      [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
+     [:body {:class body-class}
       content
-      [:script {:src "/js/shared.js" :defer true}]
       (for [x modules]
-        [:script {:src (str "/js/" (name x) ".js") :defer true}])
+        [:script {:src (str "/js/" (name x) ".js")}])
+      (when-let [[fn-sym fn-arg] init-call]
+        [:script (str (cljs-comp/munge fn-sym) "(" (pr-str (pr-str fn-arg)) ");")])
       ])})
 
 (defn nav []

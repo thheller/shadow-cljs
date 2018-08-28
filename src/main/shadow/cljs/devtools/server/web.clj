@@ -21,33 +21,43 @@
     [ring.middleware.content-type :as ring-content-type]
     [ring.middleware.params :as ring-params]
     [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-    [shadow.cljs.devtools.config :as config])
+    [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.graph.env :as genv]
+    [clojure.data.json :as json])
   (:import [java.util UUID]))
 
 (defn index-page [{:keys [dev-http] :as req}]
-  (common/page-boilerplate req
-    {:modules [:app]}
-    (html
-      [:h1 "shadow-cljs"]
-      [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
+  (let [init-data
+        {:mutations
+         (-> (:com.wsscode.pathom.connect/mutations @genv/index-ref)
+             (keys)
+             (set))}]
 
-      (let [{:keys [servers]} @dev-http]
-        (when (seq servers)
-          (html
-            [:h2 "HTTP Servers"]
-            [:ul
-             (for [{:keys [build-id instance] :as srv} servers
-                   :let [{:keys [http-port https-port]} instance]]
-               (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
-                 [:li [:a {:href url} (str url " - " (pr-str build-id))]]))])))
+    (common/page-boilerplate req
+      {:modules [:app]
+       :body-class "app-frame"
+       :init-call ['shadow.cljs.ui.app/init init-data]}
+      (html
+        (comment
+          [:h1 "shadow-cljs"]
+          [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
 
-      [:div#root]
-      (assets/js-queue :none 'shadow.cljs.ui.app/init)
-      )))
+          (let [{:keys [servers]} @dev-http]
+            (when (seq servers)
+              (html
+                [:h2 "HTTP Servers"]
+                [:ul
+                 (for [{:keys [build-id instance] :as srv} servers
+                       :let [{:keys [http-port https-port]} instance]]
+                   (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
+                     [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]))))
+
+        [:div#root]
+        ))))
 
 (defn repl-page [{:keys [config] :as req}]
   (common/page-boilerplate req
-    {:modules [:repl]}
+    {:modules [:app]}
     (html
       [:div#root]
       (assets/js-queue :none 'shadow.cljs.ui.repl/init))))
@@ -246,11 +256,13 @@
         (:GET "/browser-repl-js" browser-repl-js)
         (:GET "/browser-test" browser-test-page)
         (:GET "/workspaces" workspaces-page)
-        common/not-found)
+        index-page #_ common/not-found)
       (add-secret-header req)))
 
 (defn root [req]
   (http/route req
+    ;; temp fix for middleware problem
+    (:ANY "/api/ws" web-api/api-ws)
     (:ANY "^/api" web-api/root)
     (:ANY "^/ws" ws/process-ws)
     (:ANY "^/worker" ws/process-req)

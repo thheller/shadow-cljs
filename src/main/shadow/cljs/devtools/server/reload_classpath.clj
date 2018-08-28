@@ -5,7 +5,7 @@
             [shadow.jvm-log :as log]
             [shadow.build.classpath :as cp]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg]
+            [shadow.cljs.api.system :as sys-msg]
             [shadow.cljs.util :as util]
             [shadow.build.resource :as rc]
             [clojure.set :as set]))

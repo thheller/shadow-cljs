@@ -6,7 +6,7 @@
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.devtools.server.system-msg :as sys-msg]
+    [shadow.cljs.api.system :as sys-msg]
     [shadow.undertow :as undertow]
     [shadow.http.push-state :as push-state]
     ;; FIXME: delay loading ring.* until first request here too

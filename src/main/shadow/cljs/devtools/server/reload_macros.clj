@@ -4,7 +4,7 @@
             [shadow.build.macros :as m]
             [clojure.java.io :as io]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg]
+            [shadow.cljs.api.system :as sys-msg]
             [shadow.cljs.util :as util])
   (:import [java.net URLConnection]))
 

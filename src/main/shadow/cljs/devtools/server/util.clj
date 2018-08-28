@@ -51,13 +51,17 @@
             (cond
               (and (str/ends-with? nmd "node_modules")
                    (.exists nmdf))
-              nmdf
+              (.getAbsoluteFile nmdf)
 
               (.exists (io/file nmdf "node_modules"))
-              (io/file nmdf "node_modules")
+              (-> (io/file nmdf "node_modules")
+                  (.getAbsoluteFile))
+
+              (.exists nmdf)
+              (.getAbsoluteFile nmdf)
 
               :else
-              nmdf)))
+              (throw (ex-info "invalid :node-modules-dir" {:node-modules-dir nmd})))))
 
         npm
         (-> (select-keys (:js-options build-config) [:main-keys :extensions])
@@ -93,12 +97,12 @@
   (doseq [{:keys [msg line column source-name] :as w} warnings]
     (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
 
-(defn print-build-start [build-config]
-  (println (format "[%s] Compiling ..." (:build-id build-config))))
+(defn print-build-start [{:keys [build-id] :as x}]
+  (println (format "[%s] Compiling ..." build-id)))
 
-(defn print-build-complete [build-info build-config]
+(defn print-build-complete [{:keys [build-id info] :as x}]
   (let [{:keys [sources compiled]}
-        build-info
+        info
 
         warnings
         (->> (for [{:keys [warnings resource-name]} sources
@@ -107,13 +111,13 @@
              (into []))]
 
     (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings, %.2fs)"
-               (:build-id build-config)
+               build-id
                (count sources)
                (count compiled)
                (count warnings)
-               (-> (- (or (get build-info :flush-complete)
-                          (get build-info :compile-complete))
-                      (get build-info :compile-start))
+               (-> (- (or (get info :flush-complete)
+                          (get info :compile-complete))
+                      (get info :compile-start))
                    (double)
                    (/ 1000))))
 
@@ -123,8 +127,8 @@
 
       )))
 
-(defn print-build-failure [{:keys [build-config e] :as x}]
-  (println (format "[%s] Build failure:" (:build-id build-config)))
+(defn print-build-failure [{:keys [build-id e] :as x}]
+  (println (format "[%s] Build failure:" build-id))
   (errors/user-friendly-error e))
 
 (defn print-worker-out [x verbose]
@@ -136,18 +140,16 @@
           (println (build-log/event-text (:event x))))
 
         :build-configure
-        (let [{:keys [build-config]} x]
-          (println (format "[%s] Configuring build." (:build-id build-config))))
+        (println (format "[%s] Configuring build." (:build-id x)))
 
         :build-start
-        (print-build-start (:build-config x))
+        (print-build-start x)
 
         :build-failure
         (print-build-failure x)
 
         :build-complete
-        (let [{:keys [info build-config]} x]
-          (print-build-complete info build-config))
+        (print-build-complete x)
 
         :build-shutdown
         (println "Build shutdown.")

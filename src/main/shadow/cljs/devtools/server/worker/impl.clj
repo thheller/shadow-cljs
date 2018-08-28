@@ -14,13 +14,15 @@
             [shadow.build.compiler :as build-comp]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.server.system-msg :as sys-msg]
+            [shadow.cljs.api.system :as sys-msg]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as errors]
             [shadow.build.warnings :as warnings]
+            [shadow.cljs.api.ws :as api-ws]
             [shadow.debug :as dbg]
             [shadow.build.data :as data]
-            [shadow.build.resource :as rc]))
+            [shadow.build.resource :as rc]
+            [shadow.build.log :as build-log]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -55,11 +57,14 @@
 (defmethod transform-repl-action :repl/require [state action]
   (update action :sources repl-sources-as-client-resources state))
 
-(defn >!!output [{:keys [system-bus] :as worker-state} msg]
+(defn >!!output [{:keys [system-bus build-id] :as worker-state} msg]
   {:pre [(map? msg)
          (:type msg)]}
 
-  (let [output (get-in worker-state [:channels :output])]
+  (let [msg (assoc msg :build-id build-id)
+        output (get-in worker-state [:channels :output])]
+    (sys-bus/publish! system-bus [::api-ws/worker-output build-id] msg)
+
     (>!! output msg)
     worker-state))
 
@@ -89,7 +94,6 @@
           (update :build-state build-api/reset-resources resource-ids))
         (>!!output
           {:type :build-failure
-           :build-config build-config
            :report
            (binding [warnings/*color* false]
              (errors/error-format e))
@@ -98,7 +102,7 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config proc-id http] :as worker-state}]
+  [{:keys [system-bus build-id build-config proc-id http] :as worker-state}]
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
@@ -113,9 +117,21 @@
            :port (:port http)
            :ssl (:ssl http)}
 
+          async-logger
+          (util/async-logger (-> worker-state :channels :output))
+
           {:keys [extra-config-files] :as build-state}
           (-> (util/new-build build-config :dev {})
-              (build-api/with-logger (util/async-logger (-> worker-state :channels :output)))
+              (build-api/with-logger
+                (reify
+                  build-log/BuildLog
+                  (log* [this build-state log-event]
+                    (build-log/log* async-logger build-state log-event)
+                    ;; make sure websocket subscriptions get log messages
+                    (sys-bus/publish! system-bus [::api-ws/worker-output build-id] {:type :build-log
+                                                                                    :build-id build-id
+                                                                                    :event log-event})
+                    )))
               (assoc
                 :worker-info worker-info
                 :mode :dev
@@ -224,8 +240,7 @@
   (if (nil? build-state)
     worker-state
     (try
-      (>!!output worker-state {:type :build-start
-                               :build-config (::build/config build-state)})
+      (>!!output worker-state {:type :build-start})
 
       (let [{:keys [build-sources build-macros] :as build-state}
             (-> build-state
@@ -237,7 +252,6 @@
 
         (>!!output worker-state
           {:type :build-complete
-           :build-config (::build/config build-state)
            :info (::build/build-info build-state)
            :reload-info (extract-reload-info build-state)})
 

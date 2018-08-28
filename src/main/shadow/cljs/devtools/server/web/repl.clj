@@ -2,7 +2,8 @@
   (:require
     [clojure.core.async :as async :refer (go <! >! thread alt!! <!! >!!)]
     [shadow.jvm-log :as log]
-    [clojure.string :as str])
+    [clojure.string :as str]
+    [clojure.edn :as edn])
   (:import [java.io Writer InputStreamReader BufferedReader IOException OutputStreamWriter BufferedWriter]
            [java.net Socket NetworkInterface]))
 
@@ -76,8 +77,11 @@
 
 (defn repl-ws
   [{:keys [server-secret ring-request] :as ctx}]
-  (let [{:keys [ws-in ws-out]}
-        ring-request
+  (let [ws-in
+        (async/chan 10 (map edn/read-string))
+
+        ws-out
+        (async/chan 10 (map pr-str))
 
         cookie
         (get-in ctx [:ring-request :headers "cookie"])
@@ -112,26 +116,30 @@
       ;; FIXME: safe enough? not sure what else to do
       :else
       (let [out-fn #(>!! ws-out %)]
-        (thread
-          ;; FIXME: send interesting infos to the client
-          (>!! ws-out {:tag :welcome})
+        {:status 200
+         :ws-in ws-in
+         :ws-out ws-out
+         :ws-loop
+         (thread
+           ;; FIXME: send interesting infos to the client
+           (>!! ws-out {:tag :welcome})
 
-          (log/debug ::loop-start)
+           (log/debug ::loop-start)
 
-          (let [init-state
-                (-> (assoc ctx
-                      ::client-state true
-                      ::ws-in ws-in
-                      ::ws-out ws-out
-                      ::out-fn out-fn)
-                    (repl-connect))
+           (let [init-state
+                 (-> (assoc ctx
+                       ::client-state true
+                       ::ws-in ws-in
+                       ::ws-out ws-out
+                       ::out-fn out-fn)
+                     (repl-connect))
 
-                exit-state
-                (loop [state init-state]
-                  (when-some [msg (<!! ws-in)]
-                    (-> state
-                        (ws-process msg)
-                        (recur))))]
+                 exit-state
+                 (loop [state init-state]
+                   (when-some [msg (<!! ws-in)]
+                     (-> state
+                         (ws-process msg)
+                         (recur))))]
 
-            (repl-cleanup exit-state)
-            (log/debug ::loop-end)))))))
+             (repl-cleanup exit-state)
+             (log/debug ::loop-end)))}))))

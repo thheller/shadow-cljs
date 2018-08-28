@@ -10,7 +10,7 @@
     [shadow.build.npm :as build-npm]
     [shadow.build.babel :as babel]
     [shadow.cljs.devtools.plugin-manager :as plugin-mgr])
-  (:import (java.io ByteArrayOutputStream InputStream)
+  (:import (java.io ByteArrayOutputStream InputStream ByteArrayInputStream)
            (java.util.concurrent Executors TimeUnit)))
 
 (def app-config
@@ -31,7 +31,7 @@
    :cache-root
    {:depends-on [:config]
     :start (fn [{:keys [cache-root]}]
-             (io/file  cache-root))
+             (io/file cache-root))
     :stop (fn [cache-root])}
 
    :transit-read
@@ -39,7 +39,11 @@
     :start
     (fn []
       (fn [in]
-        (let [r (transit/reader in :json)]
+        (let [r (transit/reader
+                  (if (string? in)
+                    (ByteArrayInputStream. (.getBytes in))
+                    in)
+                  :json)]
           (transit/read r)
           )))
     :stop

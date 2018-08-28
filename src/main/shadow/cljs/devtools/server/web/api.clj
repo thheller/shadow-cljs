@@ -11,9 +11,12 @@
     [shadow.cljs.devtools.server.util :as server-util]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.util :as util]
+    [shadow.cljs.api.ws :as api-ws]
     [hiccup.page :refer (html5)]
     [clojure.java.io :as io]
-    [shadow.core-ext :as core-ext]))
+    [clojure.core.async :as async :refer (go >! <! >!! <!!)]
+    [shadow.core-ext :as core-ext]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]))
 
 (defn index-page [req]
   {:status 200
@@ -101,7 +104,64 @@
       {:status 503
        :body "Build failed."})))
 
+(defmulti process-api-msg (fn [state msg] (::api-ws/op msg)) :default ::default)
 
+(defmethod process-api-msg ::default
+  [{:keys [ws-out] :as state} msg]
+  (log/warn ::unknown-msg {:msg msg})
+  (>!! ws-out {::api-ws/op ::api-ws/unknown-msg
+               ::api-ws/input msg})
+  state)
+
+(defmethod process-api-msg ::api-ws/subscribe
+  [{:keys [system-bus ws-out] :as state} {::api-ws/keys [topic]}]
+  (let [sub-chan
+        (-> (async/sliding-buffer 100)
+            (async/chan))]
+
+    (log/debug ::ws-subscribe {:topic topic})
+
+    (sys-bus/sub system-bus topic sub-chan)
+
+    (go (loop []
+          (when-some [msg (<! sub-chan)]
+            (>! ws-out (assoc msg
+                         ::api-ws/op ::api-ws/sub-msg
+                         ::api-ws/topic topic))
+            (recur)))
+
+        (>! ws-out {::api-ws/op ::api-ws/sub-close
+                    ::api-ws/topic topic}))
+
+    (update state ::subs conj sub-chan)))
+
+(defn api-ws-loop! [ws-state]
+  (let [{:keys [subs] :as final-state}
+        (loop [{:keys [ws-in] :as ws-state} ws-state]
+          (let [msg (<!! ws-in)]
+            (if-not (some? msg)
+              ws-state
+              (-> ws-state
+                  (process-api-msg msg)
+                  (recur)))))]
+
+    (doseq [sub subs]
+      (async/close! sub))
+
+    ::done))
+
+(defn api-ws [{:keys [transit-read transit-str] :as req}]
+  ;; FIXME: negotiate encoding somehow? could just as well use edn
+  (let [ws-in (async/chan 10 (map transit-read))
+        ws-out (async/chan 10 (map transit-str))]
+    {:ws-in ws-in
+     :ws-out ws-out
+     :ws-loop
+     (async/thread
+       (api-ws-loop! (assoc req
+                       ::subs []
+                       :ws-in ws-in
+                       :ws-out ws-out)))}))
 
 (defn root* [req]
   (http/route req
@@ -126,6 +186,7 @@
     (if-not (= :options (:request-method ring-request))
       (-> req
           (root*)
+          ;; FIXME: can't do this when websockets connect
           (update :headers merge headers))
       {:status 200
        :headers headers

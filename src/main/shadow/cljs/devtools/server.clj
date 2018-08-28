@@ -24,7 +24,7 @@
     [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.reload-macros :as reload-macros]
-    [shadow.cljs.devtools.server.system-msg :as system-msg]
+    [shadow.cljs.api.system :as system-msg]
     [shadow.cljs.devtools.server.system-bus :as system-bus])
   (:import (java.net BindException)
            [java.lang.management ManagementFactory]
