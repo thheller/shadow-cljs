@@ -27,7 +27,7 @@
     (with-out-str
       (pprint obj))))
 
-(defsc BuildOverview [this {::m/keys [build-id build-state build-config-raw worker-active] :as props}]
+(defsc BuildOverview [this {::m/keys [build-id build-state build-config-raw build-worker-active] :as props}]
   {:ident
    [::m/build-by-id ::m/build-id]
 
@@ -35,8 +35,9 @@
    [::m/build-config-raw
     ::m/build-id
     ::m/build-state
-    ::m/worker-active]}
+    ::m/build-worker-active]}
 
+  (js/console.log ::build-overview props)
   (if-not build-id
     (html/div "Loading ...")
     (s/build-item {}
@@ -44,7 +45,7 @@
 
       (s/build-section "Actions")
       (s/build-toolbar
-        (if worker-active
+        (if build-worker-active
           (s/build-actions
             (s/build-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
             (s/build-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
@@ -65,37 +66,39 @@
 
 (def ui-build-overview (fp/factory BuildOverview {:keyfn ::m/build-id}))
 
-(defsc MainNavBuild [this {::m/keys [build-id worker-active] :as props}]
+(defsc MainNavBuild [this props]
   {:ident
    (fn []
      (js/console.log ::main-nav-build-ident props)
-     [::m/build-by-id build-id])
+     (if (map-entry? props)
+       [::active-build '_]
+       [::m/build-by-id (::m/build-id props)]))
    :query
    (fn []
      [::m/build-id
-      ::m/worker-active
-      [::active-build '_]
-      ])}
+      ::m/build-worker-active
+      [::active-build '_]])}
 
-  (when build-id
-    (s/nav-sub-item
-      {:key build-id
-       :classes {:selected (= (::active-build props) build-id)}}
+  (let [{::m/keys [build-id build-worker-active]} props]
+    (when build-id
+      (s/nav-sub-item
+        {:key build-id
+         :classes {:selected (= (::active-build props) build-id)}}
 
-      (html/input
-        {:type "checkbox"
-         :checked worker-active
-         :onChange
-         (fn [e]
-           (fp/transact! this [(if (.. e -target -checked)
-                                 (tx/build-watch-start {:build-id build-id})
-                                 (tx/build-watch-stop {:build-id build-id}))]))})
+        (html/input
+          {:type "checkbox"
+           :checked build-worker-active
+           :onChange
+           (fn [e]
+             (fp/transact! this [(if (.. e -target -checked)
+                                   (tx/build-watch-start {:build-id build-id})
+                                   (tx/build-watch-stop {:build-id build-id}))]))})
 
-      (html/a {:href (str "/builds/" (name build-id))} (name build-id)))))
+        (html/a {:href (str "/builds/" (name build-id))} (name build-id))))))
 
 (def ui-main-nav-build (fp/factory MainNavBuild {:keyfn ::m/build-id}))
 
-(defsc MainNav [this {::keys [build-list] :as props}]
+(defsc MainNav [this props]
   {:query
    (fn []
      [{[::build-list '_]
@@ -105,14 +108,15 @@
    (fn [props]
      {::build-list []})}
 
-  (js/console.log ::main-nav-render)
-  (s/nav-items
-    (s/nav-item
-      (html/a {:href "/dashboard"} "Dashboard"))
+  (let [{::keys [build-list]} props]
+    (js/console.log ::main-nav-render props)
+    (s/nav-items
+      (s/nav-item
+        (html/a {:href "/dashboard"} "Dashboard"))
 
-    (s/nav-item "Builds")
-    (html/for [build build-list]
-      (ui-main-nav-build build))))
+      (s/nav-item "Builds")
+      (html/for [build build-list]
+        (ui-main-nav-build build)))))
 
 (def ui-main-nav (fp/factory MainNav {}))
 
@@ -221,9 +225,9 @@
   (fn [state env {:keys [op build-id] :as params}]
     (case op
       :worker-start
-      (assoc-in state [::m/build-by-id build-id ::m/worker-active] true)
+      (assoc-in state [::m/build-by-id build-id ::m/build-worker-active] true)
       :worker-stop
-      (assoc-in state [::m/build-by-id build-id ::m/worker-active] false)
+      (assoc-in state [::m/build-by-id build-id ::m/build-worker-active] false)
       )))
 
 (fm/add-mutation tx/process-worker-output

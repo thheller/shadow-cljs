@@ -64,11 +64,11 @@
 
 (add-resolver `build-worker
   {::pc/input #{::m/build-id}
-   ::pc/output [::m/worker-active
+   ::pc/output [::m/build-worker-active
                 ::m/build-state]}
   (fn [{:keys [supervisor] :as env} {::m/keys [build-id] :as input}]
     (let [worker (super/get-worker supervisor build-id)]
-      {::m/worker-active (some? worker)
+      {::m/build-worker-active (some? worker)
        ::m/build-state {:status :TBD}}
       )))
 
@@ -77,23 +77,23 @@
 (add-mutation 'shadow.cljs.ui.transactions/build-watch-start
   {::pc/input #{:build-id}
    ::pc/output [::m/build-id
-                ::m/worker-active]}
+                ::m/build-worker-active]}
   (fn [{:keys [supervisor] :as env} {:keys [build-id] :as input}]
     (let [config (config/get-build build-id)
           worker (super/start-worker supervisor config)]
       (worker/start-autobuild worker))
 
     {::m/build-id build-id
-     ::m/worker-active true}))
+     ::m/build-worker-active true}))
 
 (add-mutation 'shadow.cljs.ui.transactions/build-watch-stop
   {::pc/input #{:build-id}
    ::pc/output [::m/build-id
-                ::m/worker-active]}
+                ::m/build-worker-active]}
   (fn [{:keys [supervisor] :as env} {:keys [build-id] :as input}]
     (super/stop-worker supervisor build-id)
     {::m/build-id build-id
-     ::m/worker-active false}
+     ::m/build-worker-active false}
     ))
 
 (add-mutation 'shadow.cljs.ui.transactions/build-watch-compile
