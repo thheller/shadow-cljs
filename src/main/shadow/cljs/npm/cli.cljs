@@ -156,9 +156,6 @@
      ;; breaks cache when ending up with older version
      com.cognitect/transit-clj
      com.cognitect/transit-java
-
-     ;; spec for 1.8, never required
-     clojure-future-spec/clojure-future-spec
      })
 
 (defn drop-unwanted-deps [dependencies]
