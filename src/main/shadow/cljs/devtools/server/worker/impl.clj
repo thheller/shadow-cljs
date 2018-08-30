@@ -234,7 +234,7 @@
     build-sources))
 
 (defn build-compile
-  [{:keys [build-state] :as worker-state}]
+  [{:keys [build-state namespaces-modified] :as worker-state}]
   ;; this may be nil if configure failed, just silently do nothing for now
   (if (nil? build-state)
     worker-state
@@ -243,6 +243,9 @@
 
       (let [{:keys [build-sources build-macros] :as build-state}
             (-> build-state
+                (cond->
+                  (seq namespaces-modified)
+                  (build-api/reset-namespaces namespaces-modified))
                 (build-api/reset-always-compile-namespaces)
                 (build/compile)
                 (build/flush)
@@ -256,6 +259,9 @@
 
         (assoc worker-state
           :build-state build-state
+          ;; tracking added/modified namespaces since we finished compiling
+          :namespaces-added #{}
+          :namespaces-modified #{}
           :last-build-provides (-> build-state :sym->id keys set)
           :last-build-sources build-sources
           :last-build-macros build-macros))
@@ -554,10 +560,8 @@
   [{:keys [autobuild last-build-provides build-state] :as worker-state}
    {:keys [namespaces added] :as msg}]
 
-  ;; configuration errors mean to build state, no updates affect this
   (if-not build-state
     worker-state
-
     (let [namespaces-used-by-build
           (->> namespaces
                (filter #(contains? last-build-provides %))
@@ -579,14 +583,17 @@
         worker-state
 
         :else
-        (let [build-state (build-api/reset-namespaces build-state namespaces-used-by-build)]
-
-          (-> worker-state
-              (assoc :build-state build-state)
-              (cond->
-                autobuild
-                (build-compile))))
-        ))))
+        (-> worker-state
+            ;; only record which namespaces where added/changed
+            ;; delay doing actual work until next compilation
+            ;; which may not happen immediately if autobuild is off
+            ;; the REPL may still trigger compilations independently
+            ;; which break if the state is already half cleaned
+            (update :namespaces-added set/union added)
+            (update :namespaces-modified set/union added namespaces)
+            (cond->
+              autobuild
+              (build-compile)))))))
 
 (defn do-asset-update
   [{:keys [runtimes] :as worker-state} updates]

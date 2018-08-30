@@ -336,6 +336,7 @@
   (let [source-ids
         (->> provides
              (map #(get-in state [:sym->id %]))
+             (remove nil?)
              (into #{}))]
 
     (reset-resources state source-ids)))
