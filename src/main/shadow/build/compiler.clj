@@ -273,9 +273,6 @@
           (comp/emitln "var " ns "=" (npm/shadow-js-require rc))
           )))))
 
-(defn- progress-bump [x]
-  (Math/max x (System/currentTimeMillis)))
-
 (defn default-compile-cljs
   [{:keys [last-progress-ref] :as state} {:keys [ns macros-ns] :as compile-state} form]
   ;; ignore (defmacro ...) in normal cljs compilation since they otherwise end
@@ -294,7 +291,7 @@
             (shadow-emit state ast))]
 
       ;; bump for every compiled form might be overkill
-      (swap! last-progress-ref progress-bump)
+      (vreset! last-progress-ref (System/currentTimeMillis))
 
       (-> compile-state
           (update-in [:js] str js)
@@ -794,6 +791,7 @@
             output)
 
           (catch Throwable e ;; asserts not covered by Exception
+            (log/debug-ex e ::par-compile-ex {:resource-id resource-id})
             (swap! errors-ref assoc resource-id e)
             src
             ))))))
@@ -869,7 +867,10 @@
       (::closure/extern-properties state) ;; from CC externs
       )))
 
-(defn compile-cljs-sources [{:keys [executor] :as state} sources non-cljs-provides]
+(defn compile-cljs-sources [{:keys [executor last-progress-ref] :as state} sources non-cljs-provides]
+  ;; bump when starting a compile so watch doesn't cause timeouts
+  (vreset! last-progress-ref (System/currentTimeMillis))
+
   (-> state
       (closure/load-extern-properties)
       (use-extern-properties)
@@ -961,7 +962,7 @@
    eg. you cannot just compile clojure.string as it requires other files to be compiled first "
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
-  ([{:keys [build-sources last-progress-ref] :as state} source-ids]
+  ([{:keys [build-sources] :as state} source-ids]
     ;; throwing js parser errors here so they match other error sources
     ;; as other errors will be thrown later on in this method as well
    (throw-js-errors-now! state)
@@ -993,8 +994,6 @@
            (or (nil? x)
                (not= x :none)))]
 
-     ;; bump when starting a compile so watch doesn't cause timeouts
-     (swap! last-progress-ref progress-bump)
 
      (-> state
          (assoc :compile-start (System/currentTimeMillis))

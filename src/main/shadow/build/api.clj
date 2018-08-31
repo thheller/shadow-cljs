@@ -166,7 +166,7 @@
        (atom [])
 
        :last-progress-ref
-       (atom (System/currentTimeMillis))
+       (volatile! (System/currentTimeMillis))
 
        ;; FIXME: should these ever be configurable?
        :analyzer-passes
