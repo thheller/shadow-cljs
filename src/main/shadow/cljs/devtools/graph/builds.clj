@@ -65,12 +65,13 @@
 (add-resolver `build-worker
   {::pc/input #{::m/build-id}
    ::pc/output [::m/build-worker-active
-                ::m/build-state]}
+                ::m/build-status]}
   (fn [{:keys [supervisor] :as env} {::m/keys [build-id] :as input}]
-    (let [worker (super/get-worker supervisor build-id)]
+    (let [{:keys [status-ref] :as worker} (super/get-worker supervisor build-id)]
       {::m/build-worker-active (some? worker)
-       ::m/build-state {:status :TBD}}
-      )))
+       ::m/build-status (if worker
+                          @status-ref
+                          {:status :inactive})})))
 
 ;; FIXME: move deftx to a shared namespace
 
@@ -98,18 +99,16 @@
 
 (add-mutation 'shadow.cljs.ui.transactions/build-watch-compile
   {::pc/input #{:build-id}
-   ::pc/output [::m/build-id
-                ::m/build-state]}
+   ::pc/output [::m/build-id]}
   (fn [{:keys [supervisor] :as env} {:keys [build-id] :as input}]
     (let [worker (super/get-worker supervisor build-id)]
       (worker/compile worker))
-    {::m/build-id build-id
-     ::m/build-state {:status :CLICKED-WATCH-COMPILE}}))
+    ;; FIXME: can this return something useful?
+    {::m/build-id build-id}))
 
 (add-mutation 'shadow.cljs.ui.transactions/build-compile
   {::pc/input #{:build-id}
-   ::pc/output [::m/build-id
-                ::m/build-state]}
+   ::pc/output [::m/build-id]}
   (fn [{:keys [system-bus] :as env} {:keys [build-id] :as input}]
 
     (future
@@ -150,16 +149,12 @@
                                 (errors/error-format e))
                       })))))
 
-    {::m/build-id build-id
-     ::m/build-state {:status :CLICKED-COMPILE}}
+    {::m/build-id build-id}
     ))
 
 (add-mutation 'shadow.cljs.ui.transactions/build-release
   {::pc/input #{:build-id}
-   ::pc/output [::m/build-id
-                ::m/build-state]}
+   ::pc/output [::m/build-id]}
   (fn [env {:keys [build-id] :as input}]
     (log/warn ::build-compile {:input input})
-    {::m/build-id build-id
-     ::m/build-state {:status :CLICKED-RELEASE}}
-    ))
+    {::m/build-id build-id}))

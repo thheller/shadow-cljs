@@ -27,17 +27,16 @@
     (with-out-str
       (pprint obj))))
 
-(defsc BuildOverview [this {::m/keys [build-id build-state build-config-raw build-worker-active] :as props}]
+(defsc BuildOverview [this {::m/keys [build-id build-status build-config-raw build-worker-active] :as props}]
   {:ident
-   [::m/build-by-id ::m/build-id]
+   [::m/build-id ::m/build-id]
 
    :query
    [::m/build-config-raw
     ::m/build-id
-    ::m/build-state
+    ::m/build-status
     ::m/build-worker-active]}
 
-  (js/console.log ::build-overview props)
   (if-not build-id
     (html/div "Loading ...")
     (s/build-item {}
@@ -57,7 +56,7 @@
             )))
 
       (s/build-section "Status")
-      (dump build-state)
+      (dump build-status)
 
       (s/build-section "Config")
       (s/build-config
@@ -66,24 +65,20 @@
 
 (def ui-build-overview (fp/factory BuildOverview {:keyfn ::m/build-id}))
 
-(defsc MainNavBuild [this props]
+(defsc MainNavBuild [this props {:keys [selected]}]
   {:ident
    (fn []
-     (js/console.log ::main-nav-build-ident props)
-     (if (map-entry? props)
-       [::active-build '_]
-       [::m/build-by-id (::m/build-id props)]))
+     [::m/build-id (::m/build-id props)])
    :query
    (fn []
      [::m/build-id
-      ::m/build-worker-active
-      [::active-build '_]])}
+      ::m/build-worker-active])}
 
   (let [{::m/keys [build-id build-worker-active]} props]
     (when build-id
       (s/nav-sub-item
         {:key build-id
-         :classes {:selected (= (::active-build props) build-id)}}
+         :classes {:selected selected}}
 
         (html/input
           {:type "checkbox"
@@ -101,102 +96,105 @@
 (defsc MainNav [this props]
   {:query
    (fn []
-     [{[::build-list '_]
-       (fp/get-query MainNavBuild)}])
+     [{::build-list (fp/get-query MainNavBuild)}
+      ::active-build])
+
+   :ident
+   (fn []
+     [::globals ::nav])
 
    :initial-state
    (fn [props]
      {::build-list []})}
 
-  (let [{::keys [build-list]} props]
-    (js/console.log ::main-nav-render props)
+  (let [{::keys [active-build build-list]} props]
     (s/nav-items
       (s/nav-item
         (html/a {:href "/dashboard"} "Dashboard"))
 
       (s/nav-item "Builds")
-      (html/for [build build-list]
-        (ui-main-nav-build build)))))
+      (html/for [{::m/keys [build-id] :as build} build-list]
+        (ui-main-nav-build
+          (fp/computed build {:selected (= build-id active-build)}))))))
 
 (def ui-main-nav (fp/factory MainNav {}))
 
-(defsc BuildPage [this {:keys [router/id router/page] :as props}]
-  {:ident (fn [] [page id])
+(defsc Dashboard [this props]
+  {:ident (fn [] [:PAGE/dashboard 1])
 
-   :query
-   [:router/id
-    :router/page
-    {::build (fp/get-query BuildOverview)}]
+   :query []
 
-   :initial-state
-   (fn [props]
-     {:router/id 1
-      :router/page :PAGE/build-page})}
-
-  (when-let [x (::build props)]
-    (ui-build-overview x)))
-
-(defsc Dashboard [this {:keys [router/id router/page] :as props}]
-  {:ident (fn [] [page id])
-
-   :query
-   [:router/id
-    :router/page]
-
-   :initial-state
-   {:router/id 1
-    :router/page :PAGE/dashboard}}
+   :initial-state {}}
 
   (html/div "dashboard"))
 
-(defrouter RootRouter ::router
-  ; OR (fn [t p] [(:router/page p) (:db/id p)])
-  [:router/page :router/id]
-  :PAGE/dashboard Dashboard
-  :PAGE/build-page BuildPage)
+(def ui-dashboard (fp/factory Dashboard {}))
 
-(def ui-root-router (fp/factory RootRouter))
+(fp/defsc RootRouter
+  [this props]
+  {:ident
+   (fn []
+     (if-let [build-id (::m/build-id props)]
+       [::m/build-id build-id]
+       [:PAGE/dashboard :dashboard]))
+   :query
+   (fn []
+     {::m/build-id (fp/get-query BuildOverview)
+      :PAGE/dashboard (fp/get-query Dashboard)})
+   :initial-state
+   (fn [p]
+     {:PAGE/dashboard 1})}
 
-(defsc Root [this {::keys [main-nav router] :as props}]
+  (case (first (fp/get-ident this))
+    ::m/build-id (ui-build-overview props)
+    :PAGE/dashboard (ui-dashboard props)
+    (html/div "unknown page")))
+
+(def ui-root-router (fp/factory RootRouter {:keyfn #(or (::m/build-id %)
+                                                        (:PAGE/dashboard %))}))
+
+(defsc Root [this {::keys [main-nav router builds-loaded] :as props}]
   {:initial-state
    (fn [p] {::router (fp/get-initial-state RootRouter {})
             ::main-nav (fp/get-initial-state MainNav {})
+            ::builds-loaded false
             ::env/ws-connected false})
 
    :query
    [::env/ws-connected
+    ::builds-loaded
     {::router (fp/get-query RootRouter)}
     {::main-nav (fp/get-query MainNav)}
     ]}
 
-  (s/page-container
-    (s/main-nav
-      (s/main-nav-header
-        (s/main-nav-title "shadow-cljs"))
-      (ui-main-nav main-nav))
+  (if-not builds-loaded
+    (html/div "Loading ...")
+    (s/page-container
+      (s/main-nav
+        (s/main-nav-header
+          (s/main-nav-title "shadow-cljs"))
+        (ui-main-nav main-nav))
 
-    (s/main-contents
-      (s/main-header
-        (s/page-icons
-          (html/div (if (::env/ws-connected props) "✔" "WS DISCONNECTED!"))))
-      (ui-root-router router))))
+      (s/main-contents
+        (s/main-header
+          (s/page-icons
+            (html/div (if (::env/ws-connected props) "✔" "WS DISCONNECTED!"))))
+        (ui-root-router router)))))
 
 (fm/add-mutation tx/select-build
-  (fn [{::keys [active-build subscriptions] :as state} {:keys [ref] :as env} {:keys [build-id] :as params}]
-    (let [screen-ident [:PAGE/build-page build-id]]
+  (fn [{::keys [subscriptions] :as state} {:keys [ref] :as env} {:keys [build-id] :as params}]
+    (when-not (contains? subscriptions build-id)
+      (ws/send env {::m/op ::m/subscribe
+                    ::m/topic [::m/worker-output build-id]}))
 
-      (when-not (contains? subscriptions build-id)
-        (ws/send env {::m/op ::m/subscribe
-                      ::m/topic [::m/worker-output build-id]}))
+    (-> state
+        (update ::subscriptions conj build-id)
+        (assoc-in [::globals ::nav ::active-build] build-id)
+        (assoc ::router [::m/build-id build-id]))))
 
-      (-> state
-          (update ::subscriptions conj build-id)
-          (assoc ::active-build build-id)
-          ;; FIXME: this doesn't feel right
-          (update-in screen-ident merge {::build [::m/build-by-id build-id]
-                                         :router/id build-id
-                                         :router/page :PAGE/build-page})
-          (froute/set-route* ::router screen-ident)))))
+(fm/add-mutation tx/set-page
+  (fn [state env {:keys [page] :as params}]
+    (assoc state ::router page)))
 
 (fm/add-mutation tx/ws-open
   (fn [state env params]
@@ -205,6 +203,10 @@
 (fm/add-mutation tx/ws-close
   (fn [state env params]
     (assoc state ::env/ws-connected false)))
+
+(fm/add-mutation tx/builds-loaded
+  (fn [state env params]
+    (assoc state ::builds-loaded true)))
 
 (fm/add-mutation tx/build-watch-start
   {:remote-returning BuildOverview})
@@ -225,16 +227,18 @@
   (fn [state env {:keys [op build-id] :as params}]
     (case op
       :worker-start
-      (assoc-in state [::m/build-by-id build-id ::m/build-worker-active] true)
+      (assoc-in state [::m/build-id build-id ::m/build-worker-active] true)
       :worker-stop
-      (assoc-in state [::m/build-by-id build-id ::m/build-worker-active] false)
+      (assoc-in state [::m/build-id build-id ::m/build-worker-active] false)
       )))
 
 (fm/add-mutation tx/process-worker-output
   (fn [state env {:keys [build-id type] :as params}]
-    ;; (js/console.log "worker-output" params)
-    (assoc-in state [::m/build-by-id build-id ::m/build-state :status] type)
-    ))
+    (case type
+      :build-status
+      (assoc-in state [::m/build-id build-id ::m/build-status] (:state params))
+      ;; ignore
+      state)))
 
 (defn start
   {:dev/after-load true}
@@ -260,9 +264,7 @@
   (let [[main & more :as tokens] (str/split token #"/")]
     (case main
       "dashboard"
-      (fp/transact! r `[(froute/set-route
-                          {:router ::router
-                           :target [:PAGE/dashboard 1]})])
+      (fp/transact! r [(tx/set-page {:page [:PAGE/dashboard 1]})])
 
       "builds"
       (let [[build-id] more]
@@ -326,7 +328,10 @@
               (setup-history reconciler history)
               (async/put! ws-out {::m/op ::m/subscribe
                                   ::m/topic ::m/supervisor})
-              (fdf/load app ::m/build-configs BuildOverview {:target [::build-list]}))
+              (fdf/load app ::m/build-configs BuildOverview
+                {:target [::globals ::nav ::build-list]
+                 :post-mutation `tx/builds-loaded
+                 :refresh [::builds-loaded]}))
 
             :initial-state
             (-> (fp/get-initial-state Root {})

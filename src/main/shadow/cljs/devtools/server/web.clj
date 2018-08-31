@@ -52,7 +52,8 @@
                    (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
                      [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]))))
 
-        [:div#root]
+        [:div#root
+         [:div "Loading ..."]]
         ))))
 
 (defn repl-page [{:keys [config] :as req}]

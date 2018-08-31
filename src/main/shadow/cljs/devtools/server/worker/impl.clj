@@ -101,7 +101,7 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [system-bus build-id build-config proc-id http] :as worker-state}]
+  [{:keys [build-config proc-id http] :as worker-state}]
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
@@ -126,11 +126,18 @@
                   build-log/BuildLog
                   (log* [this build-state log-event]
                     (build-log/log* async-logger build-state log-event)
+
                     ;; make sure websocket subscriptions get log messages
-                    (sys-bus/publish! system-bus [::m/worker-output build-id] {:type :build-log
-                                                                                    :build-id build-id
-                                                                                    :event log-event})
+                    ;; FIXME: this is too spammy to directly send to the clients
+                    ;; instead performing the rollup on the server and only
+                    ;; sending partial updates on demand
+                    #_(sys-bus/publish! system-bus
+                        [::m/worker-output build-id]
+                        {:type :build-log
+                         :build-id build-id
+                         :event log-event})
                     )))
+
               (assoc
                 :worker-info worker-info
                 :mode :dev

@@ -3,6 +3,14 @@
 
 (deftx select-build)
 
+(deftx builds-loaded
+  "the original build list finished loading"
+  {})
+
+(deftx set-page
+  "sets current router page"
+  {:page ident?})
+
 (deftx ws-open
   "the api websocket connected"
   {})

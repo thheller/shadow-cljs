@@ -10,7 +10,8 @@
             [shadow.build.classpath :as cp]
             [shadow.build.npm :as npm]
             [shadow.cljs.devtools.server.fs-watch :as fs-watch]
-            [shadow.build.babel :as babel])
+            [shadow.build.babel :as babel]
+            [shadow.build.log :as build-log])
   (:import (java.util UUID)))
 
 (defn compile
@@ -164,6 +165,60 @@
      :source source
      :file-path file-path}))
 
+(defn update-build-status [state {:keys [type] :as msg}]
+  (case type
+    :build-configure
+    {:status :configured}
+    :build-start
+    {:status :compiling
+     :active {}
+     :log []}
+
+    :build-complete
+    (let [{:keys [sources compiled] :as info}
+          (:info msg)
+
+          warnings
+          (->> (for [{:keys [warnings resource-name]} sources
+                     warning warnings]
+                 (assoc warning :resource-name resource-name))
+               (into []))]
+
+      (assoc state
+        :status :completed
+        :resources (count sources)
+        :compiled (count compiled)
+        :warnings warnings
+        :duration
+        (-> (- (or (get info :flush-complete)
+                   (get info :compile-complete))
+               (get info :compile-start))
+            (double)
+            (/ 1000))))
+
+    ;; FIXME: how to transfer error? just the report?
+    :build-failure
+    (assoc state :status :failed :active {})
+
+    :build-log
+    (let [{:keys [timing-id timing] :as event} (:event msg)]
+      (cond
+        (not timing-id)
+        (update state :log conj (build-log/event->str event))
+
+        (= :enter timing)
+        (update state :active assoc timing-id event)
+
+        (= :exit timing)
+        (update state :active dissoc timing-id)
+
+        :else
+        state))
+
+    ;; ignore all the rest for now
+    ;; mostly REPL related things
+    state))
+
 ;; SERVICE API
 
 (defn start
@@ -288,6 +343,9 @@
         (or watch-dir
             (get-in build-config [:devtools :http-root]))
 
+        status-ref
+        (atom {:status :pending})
+
         worker-proc
         (-> {::impl/proc true
              :http http
@@ -299,6 +357,7 @@
              :macro-update macro-update
              :output output
              :output-mult output-mult
+             :status-ref status-ref
              :thread-ref thread-ref
              :state-ref state-ref}
             (cond->
@@ -308,7 +367,37 @@
                                          (.getCanonicalFile))]
                        (when-not (.exists watch-dir)
                          (io/make-parents (io/file watch-dir "dummy.html")))
-                       (fs-watch/start (:fs-watch config) [watch-dir] watch-exts #(async/>!! asset-update %))))))]
+                       (fs-watch/start (:fs-watch config) [watch-dir] watch-exts #(async/>!! asset-update %))))))
+
+        build-status-chan
+        (-> (async/sliding-buffer 10)
+            (async/chan))]
+
+    (async/tap output-mult build-status-chan true)
+
+    ;; FIXME: figure out which update frequency makes sense for the UI
+    ;; 10fps is probably more than enough?
+    (let [flush-delay 100]
+      (go (loop [state {}
+                 needs-flush? false
+                 timeout (async/timeout flush-delay)]
+            (alt!
+              timeout
+              ([_]
+                (when needs-flush?
+                  (reset! status-ref state)
+                  (sys-bus/publish! system-bus [::m/worker-output build-id] {:type :build-status
+                                                                             :build-id build-id
+                                                                             :state state}))
+
+                (recur state false (async/timeout flush-delay)))
+
+              build-status-chan
+              ([msg]
+                (when msg
+                  (-> state
+                      (update-build-status msg)
+                      (recur true timeout))))))))
 
     (sys-bus/sub system-bus ::m/resource-update resource-update)
     (sys-bus/sub system-bus ::m/macro-update macro-update)
