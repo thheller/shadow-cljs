@@ -134,13 +134,8 @@
 
    :js-options
    {:js-provider :shadow
-    :pretty-print true
-    :optimizations :whitespace
     :resolve
-    {#_"d3"
-     #_{:target :npm
-        :require "d3/build/d3"}
-     "circular-test"
+    {"circular-test"
      {:target :file
       :file "test/dummy/circular-a.js"}
      "babel-test"

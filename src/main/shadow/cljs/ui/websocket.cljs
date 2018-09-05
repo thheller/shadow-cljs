@@ -10,8 +10,8 @@
 ;; doing all the work in a TX means we can't easily push it to a worker
 ;; this might get a whole bunch of messages all the time
 ;; don't want it to lag the UI
-(defn process-worker-output [rc msg]
-  (fp/transact! rc [(tx/process-worker-output msg)]))
+(defn process-worker-broadcast [rc msg]
+  (fp/transact! rc [(tx/process-worker-broadcast msg)]))
 
 (defn process-supervisor [rc msg]
   (fp/transact! rc [(tx/process-supervisor msg)]))
@@ -22,8 +22,8 @@
       ::m/supervisor
       (process-supervisor rc msg)
 
-      ::m/worker-output
-      (process-worker-output rc msg)
+      ::m/worker-broadcast
+      (process-worker-broadcast rc msg)
 
       (js/console.warn ::unknown-subscription msg))))
 

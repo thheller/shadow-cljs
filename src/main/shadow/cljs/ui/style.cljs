@@ -1,5 +1,5 @@
 (ns shadow.cljs.ui.style
-  {:shadow.markup.css/alias "ui"}
+  ;; {:shadow.markup.css/alias "ui"}
 
   (:require [shadow.markup.react :as html :refer (defstyled)]))
 
@@ -22,7 +22,7 @@
 (defstyled build-items :div [env]
   {:padding 10})
 
-(defstyled build-item :div [env]
+(defstyled build-overview :div [env]
   {:margin-bottom 10
    :padding 10})
 
@@ -32,18 +32,23 @@
    :font-weight "bold"
    :padding [10 0]})
 
-(defstyled build-actions :div
+(defstyled toolbar-actions :div
   [env]
   {})
 
-(defstyled build-action :button
+(defstyled toolbar-action :button
   [env]
   {:display "inline-block"
    :margin-right 10})
 
-(defstyled build-toolbar :div
+(defstyled simple-toolbar :div
   [env]
-  {})
+  {:display "flex"})
+
+(defstyled toolbar-right :div
+  [env]
+  {:text-align "right"
+   :flex 1})
 
 (defstyled build-config :div
   [env]
@@ -64,10 +69,12 @@
    :left 0
    :bottom 0
    :right 0
+   :overflow "hidden"
    :display "flex"})
 
 (defstyled main-nav :div [env]
-  {:width 200})
+  {:width 200
+   :overflow-y "auto"})
 
 (def header-styles
   {:padding [20 10]
@@ -80,8 +87,14 @@
 (defstyled main-nav-header :div [env]
   header-styles)
 
+(defstyled main-page :div [env]
+  {:flex 1
+   :display "flex"
+   :flex-direction "column"})
+
 (defstyled main-contents :div [env]
-  {:flex 1})
+  {:flex 1
+   :overflow "auto"})
 
 (defstyled main-header :div [env]
   header-styles)
@@ -100,11 +113,37 @@
   {})
 
 (defstyled nav-item :div [env]
-  {:padding 10
-   :font-size 18
-   })
+  {:padding 10})
+
+(defstyled nav-item-title :div [env]
+  {:font-size 18})
+
+(defstyled nav-sub-items :div [env]
+  {})
 
 (defstyled nav-sub-item :div [env]
-  {:padding [5 10]
-   :font-size 14
-   })
+  {:padding [5 0]
+   :font-size 14})
+
+(defstyled source-excerpt-container :div
+  [env]
+  {})
+
+(defstyled source-line :pre
+  [env]
+  {:margin 0
+   :padding 0})
+
+(defstyled source-line-highlight :pre
+  [env]
+  {:margin 0
+   :padding 0
+   :font-weight "bold"})
+
+(defstyled source-line-msg :pre
+  [env]
+  {:margin 0
+   :padding [5 0]
+   :font-weight "bold"
+   :border-top "1px solid #ccc"
+   :border-bottom "1px solid #ccc"})

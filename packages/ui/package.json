@@ -2,6 +2,7 @@
   "name": "shadow-cljs-ui-packages",
   "private": true,
   "dependencies": {
+    "antd": "^3.9.0",
     "codemirror": "^5.37.0",
     "parinfer-codemirror": "^1.4.2",
     "react": "^16.0.0",

@@ -12,3 +12,5 @@ i-dont-exist
 (+ "a" 1)
 
 (have-some-more-warnings foo)
+
+(defn main [])

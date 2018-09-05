@@ -115,6 +115,7 @@
       (let [build-config (config/get-build build-id)
             pub-msg
             (fn [msg]
+              (sys-bus/publish! system-bus ::m/worker-broadcast msg)
               (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
         (try
           ;; not at all useful to send this message but want to match worker message flow for now

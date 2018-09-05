@@ -125,9 +125,8 @@
 
     (go (loop []
           (when-some [msg (<! sub-chan)]
-            (>! ws-out (assoc msg
-                         ::m/op ::m/sub-msg
-                         ::m/topic topic))
+            ;; msg already contains ::m/topic due to sys-bus
+            (>! ws-out (assoc msg ::m/op ::m/sub-msg))
             (recur)))
 
         (>! ws-out {::m/op ::m/sub-close

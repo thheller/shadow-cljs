@@ -6,27 +6,13 @@
 
 (defonce tx-config-ref (atom {}))
 
-(defn init-remote-tx! [keys]
-  {:pre [(every? symbol? keys)]}
-  (swap! tx-config-ref
-    (fn [tx-config]
-      (reduce
-        (fn [tx-config tx-id]
-          ;; don't overwrite what we have configured previously
-          (if (not= ::nothing (get-in tx-config [tx-id :remote] ::nothing))
-            tx-config
-            (assoc-in tx-config [tx-id :remote] true)))
-        tx-config
-        keys))))
-
 (defn do-state-action [{:keys [state] :as env} client-action params]
   (swap! state client-action env params))
 
 (defn do-remote [env remote-fn params]
   (remote-fn env params))
 
-;; this is probably a bad idea, overriding the :default handler is never good
-(defmethod fmut/mutate :default [{:keys [target] :as env} tx-id params]
+(defn handle-mutation* [{:keys [target] :as env} tx-id params]
   (let [{:keys [action state-action remote remote-returning] :as tx-config}
         (get-in @tx-config-ref [tx-id])]
 
@@ -51,19 +37,34 @@
             (assoc :action #(do-state-action env state-action params))
             )))))
 
+(defn do-state-actions [fns state env params]
+  (reduce
+    (fn [state state-action]
+      (state-action state env params))
+    state
+    fns))
+
 ;; defmutation has too much macro in it for my tastes
-(defn add-mutation [tx-def mdef]
+(defn handle-mutation [tx-def mdef]
   {:pre [(graph-util/tx-def? tx-def)]}
-  (cond
-    ;; shortcut for functions that just want to update the state
-    (fn? mdef)
-    (swap! tx-config-ref assoc-in [(:tx-id tx-def) :state-action] mdef)
+  (let [tx-id (:tx-id tx-def)]
+    (cond
+      ;; shortcut for functions that just want to update the state
+      (fn? mdef)
+      (swap! tx-config-ref assoc-in [tx-id :state-action] mdef)
 
-    ;; more complex options passed in as map
-    (map? mdef)
-    (swap! tx-config-ref update (:tx-id tx-def) merge mdef)
+      (vector? mdef)
+      (swap! tx-config-ref assoc-in [tx-id :state-action] #(do-state-actions mdef %1 %2 %3))
 
-    :else
-    (do (js/console.warn "illegal argument passed to add-mutation" mdef)
-        (throw (ex-info "illegal argument passed to add-mutation" {})))))
+      ;; more complex options passed in as map
+      (map? mdef)
+      (swap! tx-config-ref update tx-id merge mdef)
+
+      :else
+      (do (js/console.warn "illegal argument passed to add-mutation" mdef)
+          (throw (ex-info "illegal argument passed to add-mutation" {}))))
+
+    ;; fake multimethod dispatch since we keep our own dispatch
+    (-add-method fmut/mutate tx-id handle-mutation*)
+    ))
 

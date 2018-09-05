@@ -11,7 +11,9 @@
             [shadow.build.npm :as npm]
             [shadow.cljs.devtools.server.fs-watch :as fs-watch]
             [shadow.build.babel :as babel]
-            [shadow.build.log :as build-log])
+            [shadow.build.log :as build-log]
+            [shadow.build.warnings :as warnings]
+            [shadow.cljs.devtools.errors :as errors])
   (:import (java.util UUID)))
 
 (defn compile
@@ -198,7 +200,11 @@
 
     ;; FIXME: how to transfer error? just the report?
     :build-failure
-    (assoc state :status :failed :active {})
+    (let [{:keys [e]} msg]
+      (assoc state
+        :status :failed
+        :report (binding [warnings/*color* false]
+                  (errors/error-format e))))
 
     :build-log
     (let [{:keys [timing-id timing] :as event} (:event msg)]
@@ -207,10 +213,14 @@
         (update state :log conj (build-log/event->str event))
 
         (= :enter timing)
-        (update state :active assoc timing-id event)
+        (update state :active assoc timing-id (assoc event ::m/msg (build-log/event->str event)))
 
         (= :exit timing)
-        (update state :active dissoc timing-id)
+        (-> state
+            (update :active dissoc timing-id)
+            (update :log conj (format "%s (%dms)"
+                                (build-log/event->str event)
+                                (:duration event))))
 
         :else
         state))
@@ -386,9 +396,11 @@
               ([_]
                 (when needs-flush?
                   (reset! status-ref state)
-                  (sys-bus/publish! system-bus [::m/worker-output build-id] {:type :build-status
-                                                                             :build-id build-id
-                                                                             :state state}))
+                  (let [msg {:type :build-status
+                             :build-id build-id
+                             :state state}]
+                    (sys-bus/publish! system-bus ::m/worker-broadcast msg)
+                    (sys-bus/publish! system-bus [::m/worker-output build-id] msg)))
 
                 (recur state false (async/timeout flush-delay)))
 

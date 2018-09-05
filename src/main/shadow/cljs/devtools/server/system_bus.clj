@@ -1,5 +1,7 @@
 (ns shadow.cljs.devtools.server.system-bus
-  (:require [clojure.core.async :as async]))
+  (:require
+    [shadow.cljs.model :as m]
+    [clojure.core.async :as async]))
 
 (defn svc? [x]
   (and (map? x) (::service x)))
@@ -31,7 +33,7 @@
   [{:keys [bus-pub-chan] :as svc} topic msg]
   {:pre [(svc? svc)
          (map? msg)]}
-  (async/>!! bus-pub-chan (assoc msg ::topic topic)))
+  (async/>!! bus-pub-chan (assoc msg ::m/topic topic)))
 
 (defn start []
   (let [bus-mult-chan
@@ -44,7 +46,7 @@
         (async/chan)
 
         bus-pub
-        (async/pub bus-pub-chan ::topic)]
+        (async/pub bus-pub-chan ::m/topic)]
 
     {::service true
      :bus-mult-chan bus-mult-chan

@@ -27,34 +27,28 @@
   (:import [java.util UUID]))
 
 (defn index-page [{:keys [dev-http] :as req}]
-  (let [init-data
-        {:mutations
-         (-> (:com.wsscode.pathom.connect/mutations @genv/index-ref)
-             (keys)
-             (set))}]
+  (common/page-boilerplate req
+    {:modules [:app]
+     :body-class "app-frame"
+     :init-call ['shadow.cljs.ui.app/init]}
+    (html
+      (comment
+        [:h1 "shadow-cljs"]
+        [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
 
-    (common/page-boilerplate req
-      {:modules [:app]
-       :body-class "app-frame"
-       :init-call ['shadow.cljs.ui.app/init init-data]}
-      (html
-        (comment
-          [:h1 "shadow-cljs"]
-          [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
+        (let [{:keys [servers]} @dev-http]
+          (when (seq servers)
+            (html
+              [:h2 "HTTP Servers"]
+              [:ul
+               (for [{:keys [build-id instance] :as srv} servers
+                     :let [{:keys [http-port https-port]} instance]]
+                 (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
+                   [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]))))
 
-          (let [{:keys [servers]} @dev-http]
-            (when (seq servers)
-              (html
-                [:h2 "HTTP Servers"]
-                [:ul
-                 (for [{:keys [build-id instance] :as srv} servers
-                       :let [{:keys [http-port https-port]} instance]]
-                   (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
-                     [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]))))
-
-        [:div#root
-         [:div "Loading ..."]]
-        ))))
+      [:div#root
+       [:div "Loading ..."]]
+      )))
 
 (defn repl-page [{:keys [config] :as req}]
   (common/page-boilerplate req
@@ -248,16 +242,21 @@
       ;; not using ring cookies middleware due to its dependency on clj-time, overkill anyways.
       (assoc-in res [:headers "Set-Cookie"] (str "secret=" server-secret "; HttpOnly; SameSite=Strict;")))))
 
+(defn maybe-index-page [req]
+  (let [accept (get-in req [:ring-request :headers "accept"])]
+    (if (and accept (not (str/includes? accept "text/html")))
+      (common/not-found req)
+      (index-page req))))
+
 (defn pages [req]
   (-> req
       (http/route
         (:GET "" index-page)
         (:GET "^/cache" serve-cache-file)
-        (:GET "/repl" repl-page)
         (:GET "/browser-repl-js" browser-repl-js)
         (:GET "/browser-test" browser-test-page)
         (:GET "/workspaces" workspaces-page)
-        index-page #_ common/not-found)
+        maybe-index-page #_common/not-found)
       (add-secret-header req)))
 
 (defn root [req]

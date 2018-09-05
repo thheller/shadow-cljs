@@ -62,6 +62,8 @@
 
   (let [msg (assoc msg :build-id build-id)
         output (get-in worker-state [:channels :output])]
+
+    (sys-bus/publish! system-bus ::m/worker-broadcast msg)
     (sys-bus/publish! system-bus [::m/worker-output build-id] msg)
 
     (>!! output msg)
@@ -121,22 +123,7 @@
 
           {:keys [extra-config-files] :as build-state}
           (-> (util/new-build build-config :dev {})
-              (build-api/with-logger
-                (reify
-                  build-log/BuildLog
-                  (log* [this build-state log-event]
-                    (build-log/log* async-logger build-state log-event)
-
-                    ;; make sure websocket subscriptions get log messages
-                    ;; FIXME: this is too spammy to directly send to the clients
-                    ;; instead performing the rollup on the server and only
-                    ;; sending partial updates on demand
-                    #_(sys-bus/publish! system-bus
-                        [::m/worker-output build-id]
-                        {:type :build-log
-                         :build-id build-id
-                         :event log-event})
-                    )))
+              (build-api/with-logger async-logger)
 
               (assoc
                 :worker-info worker-info

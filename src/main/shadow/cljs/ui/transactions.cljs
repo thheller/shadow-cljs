@@ -40,7 +40,7 @@
   "(shadow/release build-id)"
   {:build-id keyword?})
 
-(deftx process-worker-output
+(deftx process-worker-broadcast
   "any update from a build worker"
   {:build-id keyword?
    :type keyword?})
@@ -49,3 +49,6 @@
   "a build worker was started/stopped"
   {:op #{:worker-start :worker-stop}
    :build-id keyword?})
+
+(deftx process-repl-input
+  {:text string?})
