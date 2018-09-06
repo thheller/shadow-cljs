@@ -22,13 +22,9 @@
 (defstyled build-items :div [env]
   {:padding 10})
 
-(defstyled build-overview :div [env]
-  {:margin-bottom 10
-   :padding 10})
-
-(defstyled build-title :div
+(defstyled page-title :div
   [env]
-  {:font-size "1.4em"
+  {:font-size "1.8em"
    :font-weight "bold"
    :padding [10 0]})
 
@@ -64,28 +60,23 @@
    :padding [10 0]})
 
 (defstyled page-container :div [env]
-  {:position "absolute"
+  {:position "fixed"
    :top 0
    :left 0
-   :bottom 0
-   :right 0
-   :overflow "hidden"
-   :display "flex"})
+   :width "100%"
+   :height "100%"
+   :display "flex"
+   :flex-direction "column"})
 
 (defstyled main-nav :div [env]
-  {:width 200
-   :overflow-y "auto"})
-
-(def header-styles
-  {:padding [20 10]
-   :line-height 20
-   :font-size 20
-   :color "rgba(255,255,255,.87)"
+  {:color "rgba(255,255,255,.87)"
    :background-color "#1A237E"
-   :display "flex"})
+   :display "flex"
+   :border-bottom "2px solid #ccc"
+   :margin-bottom 5})
 
 (defstyled main-nav-header :div [env]
-  header-styles)
+  {})
 
 (defstyled main-page :div [env]
   {:flex 1
@@ -94,32 +85,54 @@
 
 (defstyled main-contents :div [env]
   {:flex 1
-   :overflow "auto"})
+   :overflow "auto"
+   :padding 10})
 
 (defstyled main-header :div [env]
-  header-styles)
+  {})
 
 (defstyled page-contents :div [env]
   {})
 
 (defstyled main-nav-title :div [env]
   {:font-weight "bold"
-   :flex 1})
+   :padding 10
+   :font-size 18})
 
 (defstyled page-icons :div [env]
   {:text-align "right"})
 
 (defstyled nav-items :div [env]
-  {})
+  {:display "flex"})
+
+(defstyled nav-fill :div [env]
+  {:flex 1})
 
 (defstyled nav-item :div [env]
-  {:padding 10})
+  {:padding 10
+   :position "relative"})
+
+(defstyled nav-link :a [env]
+  {:color "#fff"})
 
 (defstyled nav-item-title :div [env]
   {:font-size 18})
 
 (defstyled nav-sub-items :div [env]
-  {})
+  {:position "absolute"
+   :top 42
+   :left -10
+   :width 280
+   :background-color "#fff"
+   :padding 20
+   :z-index 100
+   :display "none"
+   :box-shadow "0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23)"
+   :overflow "auto"
+   :max-height 500
+
+   [nav-item ":hover"]
+   {:display "block"}})
 
 (defstyled nav-sub-item :div [env]
   {:padding [5 0]

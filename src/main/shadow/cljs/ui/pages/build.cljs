@@ -28,8 +28,6 @@
                         (sort-by :timing-id))]
           (html/div {:key timing-id} (::m/msg item))
           )))
-
-    (render-build-log build-status)
     ))
 
 (defn render-source-line
@@ -64,18 +62,14 @@
         (html/div (str (count warnings) " Warnings"))
         (html/for [[idx warning] (map-indexed vector warnings)]
           (html/div {:key idx}
-            (render-build-warning warning)))))
-
-    (render-build-log build-status)))
+            (render-build-warning warning)))))))
 
 (defn render-failed-status [{:keys [report] :as build-status}]
   (html/div
     (html/div
       (str "X Compilation failed."))
 
-    (html/pre report)
-
-    (render-build-log build-status)))
+    (html/pre report)))
 
 (defn render-build-status [{:keys [status] :as build-status}]
   (case status
@@ -97,6 +91,9 @@
     (do (js/console.warn "unhandled status" build-status)
         (util/dump build-status))))
 
+(defn render-build-status-detail [build-status]
+  (util/dump build-status))
+
 (defsc BuildOverview [this {::m/keys [build-id build-status build-config-raw build-worker-active] :as props}]
   {:ident
    [::m/build-id ::m/build-id]
@@ -105,35 +102,35 @@
    [::m/build-config-raw
     ::m/build-id
     ::m/build-status
+    ::m/build-http-server
     ::m/build-worker-active]}
 
   (if-not build-id
     (html/div "Loading ...")
     (s/main-contents
-      (s/build-overview
-        (s/build-title (name build-id))
+      (s/page-title (name build-id))
 
-        (s/build-section "Actions")
-        (s/simple-toolbar
-          (if build-worker-active
-            (s/toolbar-actions
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
+      (s/build-section "Actions")
+      (s/simple-toolbar
+        (if build-worker-active
+          (s/toolbar-actions
+            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
+            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
 
-            (s/toolbar-actions
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-release {:build-id build-id})])} "release")
-              )))
+          (s/toolbar-actions
+            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
+            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
+            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-release {:build-id build-id})])} "release")
+            )))
 
-        (s/build-section "Status")
-        (render-build-status build-status)
+      (s/build-section "Status")
+      (render-build-status build-status)
 
-        #_(html/div
-            (s/build-section "Config")
-            (s/build-config
-              (util/dump build-config-raw)
-              ))))))
+      #_(html/div
+          (s/build-section "Config")
+          (s/build-config
+            (util/dump build-config-raw)
+            )))))
 
 (def ui-build-overview (fp/factory BuildOverview {:keyfn ::m/build-id}))
 

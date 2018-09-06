@@ -146,23 +146,33 @@
                   )))
 
             display-host
-            (if (= "0.0.0.0" http-host) "localhost" http-host)]
+            (if (= "0.0.0.0" http-host) "localhost" http-host)
+
+            https-url
+            (when https-port
+              (format "https://%s:%s" display-host https-port))
+
+            http-url
+            (when http-port
+              (format "http://%s:%s" display-host http-port))]
 
         (swap! http-info-ref merge {:port http-port})
 
         (when https-port
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - HTTP server for %s available at https://%s:%s" build-id display-host https-port)}))
+                    :msg (format "shadow-cljs - HTTP server for %s available at %s" build-id https-url)}))
 
         (when http-port
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - HTTP server for %s available at http://%s:%s" build-id display-host http-port)}))
+                    :msg (format "shadow-cljs - HTTP server for %s available at %s" build-id http-url)}))
 
         (log/debug ::http-serve (-> server
                                     (dissoc :instance)
                                     (assoc :build-id build-id)))
 
         {:build-id build-id
+         :http-url http-url
+         :https-url https-url
          :instance server})
 
       (catch Exception e

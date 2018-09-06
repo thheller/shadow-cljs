@@ -62,6 +62,23 @@
             (map adapt-build-config)
             (into []))})))
 
+(add-resolver `http-servers
+  {::pc/output [{::m/http-servers [::m/http-server-id
+                                   ::m/http-url
+                                   ::m/https-url]}]}
+  (fn [{:keys [dev-http] :as env} _]
+    (let [servers
+          (->> (:servers @dev-http)
+               (sort-by :build-id)
+               (map (fn [{:keys [http-url https-url build-id]}]
+                      {::m/http-server-id build-id
+                       ::m/build {::m/build-id build-id}
+                       ::m/http-url http-url
+                       ::m/https-url https-url}))
+               (into []))]
+
+      {::m/http-servers servers})))
+
 (add-resolver `build-worker
   {::pc/input #{::m/build-id}
    ::pc/output [::m/build-worker-active

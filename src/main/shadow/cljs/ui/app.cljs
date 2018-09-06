@@ -54,7 +54,7 @@
   {:query
    (fn []
      [{::ui-model/build-list (fp/get-query MainNavBuild)}
-      ::ui-model/active-build])
+      [::ui-model/ws-connected '_]])
 
    :ident
    (fn []
@@ -65,16 +65,25 @@
      {::ui-model/build-list []})}
 
   (let [{::ui-model/keys [active-build build-list]} props]
-    (s/nav-items
-      (s/nav-item (s/nav-item-title (html/a {:href "/dashboard"} "Dashboard")))
-      (s/nav-item (s/nav-item-title (html/a {:href "/repl"} "REPL")))
+    (s/main-nav
+      (s/main-nav-title
+        (s/nav-link {:href "/dashboard"} "shadow-cljs"))
 
       (s/nav-item
-        (s/nav-item-title "Builds")
+        (s/nav-item-title
+          (s/nav-link {:href "/repl"} "REPL")))
+
+      (s/nav-item
+        (s/nav-item-title
+          (s/nav-link {:href "/dashboard"} "Builds"))
         (s/nav-sub-items
           (html/for [{::m/keys [build-id] :as build} build-list]
             (ui-main-nav-build
-              (fp/computed build {:selected (= build-id active-build)}))))))))
+              (fp/computed build {:selected (= build-id active-build)})))))
+
+      (s/nav-fill {})
+      (s/nav-item
+        (html/div (if (::ui-model/ws-connected props) "✔" "WS DISCONNECTED!"))))))
 
 (def ui-main-nav (fp/factory MainNav {}))
 
@@ -114,29 +123,19 @@
    (fn [p]
      {::ui-model/router (fp/get-initial-state RootRouter {})
       ::ui-model/main-nav (fp/get-initial-state MainNav {})
-      ::ui-model/builds-loaded false
-      ::ui-model/ws-connected false})
+      ::ui-model/builds-loaded false})
 
    :query
-   [::ui-model/ws-connected
-    ::ui-model/builds-loaded
+   [::ui-model/builds-loaded
     {::ui-model/router (fp/get-query RootRouter)}
-    {::ui-model/main-nav (fp/get-query MainNav)}
-    ]}
+    {::ui-model/main-nav (fp/get-query MainNav)}]}
 
   (if-not builds-loaded
     (html/div "Loading ...")
-    (s/page-container
-      (s/main-nav
-        (s/main-nav-header
-          (s/main-nav-title "shadow-cljs"))
-        (ui-main-nav main-nav))
 
-      (s/main-page
-        (s/main-header
-          (s/page-icons
-            (html/div (if (::ui-model/ws-connected props) "✔" "WS DISCONNECTED!"))))
-        (ui-root-router router)))))
+    (s/page-container
+      (ui-main-nav main-nav)
+      (ui-root-router router))))
 
 (fm/handle-mutation tx/select-build
   (fn [state {:keys [ref] :as env} {:keys [build-id] :as params}]
@@ -253,6 +252,9 @@
             (async/put! ws-out
               {::m/op ::m/subscribe
                ::m/topic ::m/worker-broadcast})
+
+            (fdf/load app ::m/http-servers page-dashboard/HttpServer
+              {:target [:PAGE/dashboard 1 ::ui-model/http-servers]})
 
             (fdf/load app ::m/build-configs page-build/BuildOverview
               {:target [::ui-model/globals ::ui-model/nav ::ui-model/build-list]

@@ -158,7 +158,7 @@
   (js/console.log ::container props)
 
   (html-container
-    (html-toolbar "[ALPHA] REPL")
+    (html-toolbar "REPL")
     (term-container {:ref (util/comp-fn this ::term-ref attach-terminal)})
     (editor-container
       (html/input {:ref (util/comp-fn this ::editor-ref attach-codemirror)}))
