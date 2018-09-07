@@ -109,11 +109,12 @@
   {:flex 1})
 
 (defstyled nav-item :div [env]
-  {:padding 10
+  {:padding [10 20]
    :position "relative"})
 
 (defstyled nav-link :a [env]
-  {:color "#fff"})
+  {:color "#fff"
+   :text-decoration "none"})
 
 (defstyled nav-item-title :div [env]
   {:font-size 18})
@@ -124,7 +125,6 @@
    :left -10
    :width 280
    :background-color "#fff"
-   :padding 20
    :z-index 100
    :display "none"
    :box-shadow "0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23)"
@@ -135,8 +135,20 @@
    {:display "block"}})
 
 (defstyled nav-sub-item :div [env]
-  {:padding [5 0]
-   :font-size 14})
+  {:padding 10})
+
+(defstyled nav-build-item :div [env]
+  {:display "flex"
+   "&:hover"
+   {:background-color "#efefef"
+    :font-weight "bold"}})
+
+(defstyled nav-build-checkbox :div [env]
+  {:padding 10})
+
+(defstyled nav-build-link :a [env]
+  {:flex 1
+   :padding [10 0]})
 
 (defstyled source-excerpt-container :div
   [env]

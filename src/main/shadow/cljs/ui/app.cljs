@@ -33,20 +33,19 @@
 
   (let [{::m/keys [build-id build-worker-active]} props]
     (when build-id
-      (s/nav-sub-item
-        {:key build-id
-         :classes {:selected selected}}
+      (s/nav-build-item {:key build-id}
+        (s/nav-build-checkbox
+          (html/input
+            {:type "checkbox"
+             :checked build-worker-active
+             :onChange
+             (fn [e]
+               (fp/transact! this [(if (.. e -target -checked)
+                                     (tx/build-watch-start {:build-id build-id})
+                                     (tx/build-watch-stop {:build-id build-id}))]))}))
 
-        (html/input
-          {:type "checkbox"
-           :checked build-worker-active
-           :onChange
-           (fn [e]
-             (fp/transact! this [(if (.. e -target -checked)
-                                   (tx/build-watch-start {:build-id build-id})
-                                   (tx/build-watch-stop {:build-id build-id}))]))})
+        (s/nav-build-link {:href (str "/builds/" (name build-id))} (name build-id))))))
 
-        (html/a {:href (str "/builds/" (name build-id))} (name build-id))))))
 
 (def ui-main-nav-build (fp/factory MainNavBuild {:keyfn ::m/build-id}))
 
@@ -64,7 +63,7 @@
    (fn [props]
      {::ui-model/build-list []})}
 
-  (let [{::ui-model/keys [active-build build-list]} props]
+  (let [{::ui-model/keys [build-list]} props]
     (s/main-nav
       (s/main-nav-title
         (s/nav-link {:href "/dashboard"} "shadow-cljs"))
@@ -78,8 +77,7 @@
           (s/nav-link {:href "/dashboard"} "Builds"))
         (s/nav-sub-items
           (html/for [{::m/keys [build-id] :as build} build-list]
-            (ui-main-nav-build
-              (fp/computed build {:selected (= build-id active-build)})))))
+            (ui-main-nav-build build))))
 
       (s/nav-fill {})
       (s/nav-item
