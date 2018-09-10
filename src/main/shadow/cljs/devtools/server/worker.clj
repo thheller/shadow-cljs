@@ -170,11 +170,16 @@
 (defn update-build-status [state {:keys [type] :as msg}]
   (case type
     :build-configure
-    {:status :configured}
+    (assoc state
+      :status :compiling
+      :active {}
+      :log [])
+
     :build-start
-    {:status :compiling
-     :active {}
-     :log []}
+    (assoc state
+      :status :compiling
+      :active {}
+      :log [])
 
     :build-complete
     (let [{:keys [sources compiled] :as info}
@@ -228,6 +233,37 @@
     ;; ignore all the rest for now
     ;; mostly REPL related things
     state))
+
+(defn build-status-loop [system-bus build-id status-ref build-status-chan]
+  (let [flush-delay 100
+        flush-fn
+        (fn [state]
+          (let [msg {:type :build-status
+                     :build-id build-id
+                     :state state}]
+            (sys-bus/publish! system-bus ::m/worker-broadcast msg)
+            (sys-bus/publish! system-bus [::m/worker-output build-id] msg)))]
+
+    (go (loop [state {}
+               needs-flush? false
+               timeout (async/timeout flush-delay)]
+          (alt!
+            timeout
+            ([_]
+              (when needs-flush?
+                (reset! status-ref state)
+                (flush-fn state))
+
+              (recur state false (async/timeout flush-delay)))
+
+            build-status-chan
+            ([msg]
+              (if-not msg
+                (when needs-flush?
+                  (flush-fn state))
+                (-> state
+                    (update-build-status msg)
+                    (recur true timeout)))))))))
 
 ;; SERVICE API
 
@@ -354,7 +390,9 @@
             (get-in build-config [:devtools :http-root]))
 
         status-ref
-        (atom {:status :pending})
+        (atom {:status :pending
+               :build-id build-id
+               :mode :dev})
 
         worker-proc
         (-> {::impl/proc true
@@ -387,29 +425,7 @@
 
     ;; FIXME: figure out which update frequency makes sense for the UI
     ;; 10fps is probably more than enough?
-    (let [flush-delay 100]
-      (go (loop [state {}
-                 needs-flush? false
-                 timeout (async/timeout flush-delay)]
-            (alt!
-              timeout
-              ([_]
-                (when needs-flush?
-                  (reset! status-ref state)
-                  (let [msg {:type :build-status
-                             :build-id build-id
-                             :state state}]
-                    (sys-bus/publish! system-bus ::m/worker-broadcast msg)
-                    (sys-bus/publish! system-bus [::m/worker-output build-id] msg)))
-
-                (recur state false (async/timeout flush-delay)))
-
-              build-status-chan
-              ([msg]
-                (when msg
-                  (-> state
-                      (update-build-status msg)
-                      (recur true timeout))))))))
+    (build-status-loop system-bus build-id status-ref build-status-chan)
 
     (sys-bus/sub system-bus ::m/resource-update resource-update)
     (sys-bus/sub system-bus ::m/macro-update macro-update)

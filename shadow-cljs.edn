@@ -63,9 +63,11 @@
    :js-options
    {:node-modules-dir "packages/ui"}
 
-   ;; FIXME: code split this later
+   :module-loader true
    :modules
-   {:app {:entries [shadow.cljs.ui.app]}}
+   {:app {:entries [shadow.cljs.ui.app]}
+    :repl {:entries [shadow.cljs.ui.pages.repl]
+           :depends-on #{:app}}}
 
    :devtools
    {:preloads [fulcro.inspect.preload]

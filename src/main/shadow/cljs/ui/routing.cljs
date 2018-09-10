@@ -2,22 +2,110 @@
   (:require
     [clojure.string :as str]
     [fulcro.client.primitives :as fp]
-    [shadow.cljs.ui.transactions :as tx]))
+    [shadow.cljs.ui.transactions :as tx]
+    [shadow.cljs.ui.model :as ui-model]
+    [shadow.cljs.model :as m]
+    [shadow.cljs.ui.fulcro-mods :as fm :refer (deftx)]
+    [shadow.cljs.ui.util :as util]
+    [shadow.loader :as sl]))
 
-(defn navigate-to-token! [r token]
+(defonce routes-ref
+  (atom {:loading #{}
+         :active {}
+         :routers {}}))
+
+(defn check-active! [router-id]
+  (when-not (get-in @routes-ref [:active router-id])
+    (throw (ex-info "router not active" {}))))
+
+(defn render [router-id component props]
+  (check-active! router-id)
+  (let [[route-key route-id]
+        (get-in @routes-ref [:active router-id])
+
+        {:keys [factory]}
+        (get-in @routes-ref [:routers router-id :routes route-key])]
+
+    (factory (get props router-id))))
+
+(defn get-query [router-id]
+  (check-active! router-id)
+  (let [[route-key route-id]
+        (get-in @routes-ref [:active router-id])
+
+        {:keys [class] :as config}
+        (get-in @routes-ref [:routers router-id :routes route-key])]
+
+    (fp/get-query class)))
+
+(defn get-ident [router-id props]
+  (check-active! router-id)
+  (let [route-id
+        (get-in @routes-ref [:active router-id])]
+
+    [router-id route-id]))
+
+(defn register [router-id route-key {:keys [default] :as router-config}]
+  (swap! routes-ref
+    (fn [routes]
+      (-> routes
+          (update-in [:routers router-id :routes route-key] merge (assoc router-config :route-key route-key))
+          (cond->
+            default
+            (assoc-in [:routers router-id :default] route-key)
+
+            (and default (not (get-in routes [:active router-id])))
+            (update :active assoc router-id [route-key 1])
+            )))))
+
+(defn select!
+  [router-id ident]
+  {:pre [(vector? ident)]}
+  (swap! routes-ref update :active assoc router-id ident))
+
+(deftx set-route
+  {:router-id keyword?
+   :route-key keyword?
+   :route-id any?})
+
+(defn set-route* [state router ident]
+  (assoc state router ident))
+
+(fm/handle-mutation set-route
+  (fn [state env {:keys [router ident] :as params}]
+    ;; FIXME: figure out how to store this only in app-db
+    (select! router ident)
+    (set-route* state router ident)))
+
+(defn navigate-to-token! [{:keys [state] :as r} token]
   (js/console.log "NAVIGATE" token)
 
   (let [[main & more :as tokens] (str/split token #"/")]
     (case main
       "dashboard"
-      (fp/transact! r [(tx/set-page {:page [:PAGE/dashboard 1]})])
+      (fp/transact! r [(set-route {:router ::ui-model/root-router
+                                   :ident [::ui-model/page-dashboard 1]})])
 
       "repl"
-      (fp/transact! r [(tx/set-page {:page [:PAGE/repl 1]})])
+      (do (when-not (sl/loaded? "repl")
+            ;; FIXME: only do this after a timeout, load should be more or less instant always here
+            (swap! routes-ref update :loading util/conj-set ::ui-model/root-router)
+            (fp/transact! r [(set-route {:router ::ui-model/root-router
+                                         :ident [::ui-model/page-loading 1]})]))
+          (-> (sl/load "repl")
+              (.then (fn []
+                       (swap! routes-ref update :loading disj ::ui-model/root-router)
+                       ;; (resolve 'shadow.cljs.ui.pages.repl/route)
+                       ;; FIXME: there should be a resolve variant that doesn't include all the useless meta
+                       ;; js/shadow.cljs... will add externs
+                       (js* "shadow.cljs.ui.pages.repl.route(~{}, ~{});" r more)))))
 
       "builds"
       (let [[build-id] more]
-        (fp/transact! r [(tx/select-build {:build-id (keyword build-id)})])
+        (fp/transact! r
+          [(tx/select-build {:build-id (keyword build-id)})
+           (set-route {:router ::ui-model/root-router
+                       :ident [::m/build-id (keyword build-id)]})])
         ))))
 
 (defn setup-history [reconciler ^goog history]

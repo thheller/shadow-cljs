@@ -94,6 +94,9 @@
 (defn render-build-status-detail [build-status]
   (util/dump build-status))
 
+(def build-http-server
+  (util/ident-gen ::m/http-server-id))
+
 (defsc BuildOverview [this {::m/keys [build-id build-status build-config-raw build-worker-active] :as props}]
   {:ident
    [::m/build-id ::m/build-id]
@@ -102,7 +105,8 @@
    [::m/build-config-raw
     ::m/build-id
     ::m/build-status
-    ::m/build-http-server
+    {::m/build-http-server (build-http-server
+                             [::m/http-url])}
     ::m/build-worker-active]}
 
   (if-not build-id
@@ -110,21 +114,30 @@
     (s/main-contents
       (s/page-title (name build-id))
 
-      (s/build-section "Actions")
-      (s/simple-toolbar
-        (if build-worker-active
-          (s/toolbar-actions
-            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
-            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
+      (s/build-section
+        (s/build-section-title "Actions")
+        (s/simple-toolbar
+          (if build-worker-active
+            (s/toolbar-actions
+              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
+              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
 
-          (s/toolbar-actions
-            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
-            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
-            (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-release {:build-id build-id})])} "release")
+            (s/toolbar-actions
+              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
+              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
+              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-release {:build-id build-id})])} "release")
+              ))))
+
+      (let [{::m/keys [http-url]} (::m/build-http-server props)]
+        (when http-url
+          (s/build-section
+            (s/build-section-title "HTTP")
+            (html/a {:href http-url :target "_blank"} http-url)
             )))
 
-      (s/build-section "Status")
-      (render-build-status build-status)
+      (s/build-section
+        (s/build-section-title "Status")
+        (render-build-status build-status))
 
       #_(html/div
           (s/build-section "Config")

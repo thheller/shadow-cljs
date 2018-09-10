@@ -17,8 +17,8 @@
     [shadow.cljs.ui.websocket :as ws]
     [shadow.cljs.ui.util :as util]
     [shadow.cljs.ui.routing :as routing]
+    [shadow.cljs.ui.pages.loading :as page-loading]
     [shadow.cljs.ui.pages.dashboard :as page-dashboard]
-    [shadow.cljs.ui.pages.repl :as page-repl]
     [shadow.cljs.ui.pages.build :as page-build])
   (:import [goog.history Html5History]))
 
@@ -85,47 +85,30 @@
 
 (def ui-main-nav (fp/factory MainNav {}))
 
-(fp/defsc RootRouter
-  [this props]
-  {:ident
-   (fn []
-     (if-let [id (::m/build-id props)]
-       [::m/build-id id]
-       (if-let [id (:PAGE/repl props)]
-         [:PAGE/repl id]
-         [:PAGE/dashboard 1])))
+(routing/register ::ui-model/root-router ::m/build-id
+  {:class page-build/BuildOverview
+   :factory page-build/ui-build-overview
+   :keyfn ::m/build-id})
 
-   :query
-   (fn []
-     {::m/build-id (fp/get-query page-build/BuildOverview)
-      :PAGE/repl (fp/get-query page-repl/Page)
-      :PAGE/dashboard (fp/get-query page-dashboard/Page)})
+(routing/register ::ui-model/root-router ::ui-model/page-dashboard
+  {:class page-dashboard/Page
+   :factory page-dashboard/ui-page})
 
-   :initial-state
-   (fn [p]
-     {:PAGE/dashboard 1
-      :PAGE/id 1})}
+(routing/register ::ui-model/root-router ::ui-model/page-loading
+  {:class page-loading/Page
+   :factory page-loading/ui-page
+   :default true})
 
-  (case (first (fp/get-ident this))
-    ::m/build-id (page-build/ui-build-overview props)
-    :PAGE/repl (page-repl/ui-page props)
-    :PAGE/dashboard (page-dashboard/ui-page props)
-    (html/div "unknown page")))
-
-(def ui-root-router (fp/factory RootRouter {:keyfn #(or (::m/build-id %)
-                                                        (:PAGE/repl %)
-                                                        (:PAGE/dashboard %))}))
-
-(defsc Root [this {::ui-model/keys [main-nav router builds-loaded] :as props}]
+(defsc Root [this {::ui-model/keys [main-nav builds-loaded] :as props}]
   {:initial-state
    (fn [p]
-     {::ui-model/router (fp/get-initial-state RootRouter {})
+     {::ui-model/root-router {}
       ::ui-model/main-nav (fp/get-initial-state MainNav {})
       ::ui-model/builds-loaded false})
 
    :query
    [::ui-model/builds-loaded
-    {::ui-model/router (fp/get-query RootRouter)}
+    {::ui-model/root-router (routing/get-query ::ui-model/root-router)}
     {::ui-model/main-nav (fp/get-query MainNav)}]}
 
   (if-not builds-loaded
@@ -133,17 +116,12 @@
 
     (s/page-container
       (ui-main-nav main-nav)
-      (ui-root-router router))))
+      (routing/render ::ui-model/root-router this props))))
 
 (fm/handle-mutation tx/select-build
   (fn [state {:keys [ref] :as env} {:keys [build-id] :as params}]
     (-> state
-        (assoc-in [::ui-model/globals ::ui-model/nav ::ui-model/active-build] build-id)
-        (assoc ::ui-model/router [::m/build-id build-id]))))
-
-(fm/handle-mutation tx/set-page
-  (fn [state env {:keys [page] :as params}]
-    (assoc state ::ui-model/router page)))
+        (assoc-in [::ui-model/globals ::ui-model/nav ::ui-model/active-build] build-id))))
 
 (fm/handle-mutation tx/ws-open
   (fn [state env params]
@@ -184,7 +162,7 @@
              (sort-by ::m/build-id)
              (map #(vector ::m/build-id (::m/build-id %)))
              (into []))]
-    (assoc-in state [:PAGE/dashboard 1 ::ui-model/active-builds] active-builds)))
+    (assoc-in state [::ui-model/page-dashboard 1 ::ui-model/active-builds] active-builds)))
 
 (fm/handle-mutation tx/builds-loaded
   [(fn [state env params]
@@ -216,8 +194,6 @@
 (defn stop [])
 
 (defn ^:export init []
-  ;; ws-in is easily overloaded due to spammy server
-  ;; may need to reduce the events server side
   (let [ws-in
         (-> (async/sliding-buffer 10)
             (async/chan (map util/transit-read)))
@@ -252,7 +228,7 @@
                ::m/topic ::m/worker-broadcast})
 
             (fdf/load app ::m/http-servers page-dashboard/HttpServer
-              {:target [:PAGE/dashboard 1 ::ui-model/http-servers]})
+              {:target [::ui-model/page-dashboard 1 ::ui-model/http-servers]})
 
             (fdf/load app ::m/build-configs page-build/BuildOverview
               {:target [::ui-model/globals ::ui-model/nav ::ui-model/build-list]
@@ -260,11 +236,7 @@
                :refresh [::ui-model/builds-loaded]}))
 
           :initial-state
-          (-> (fp/get-initial-state Root {})
-              ;; FIXME: doing something wrong in the router
-              ;; it blows up if this is not populated properly
-              (fp/merge-component page-repl/Page {:PAGE/repl 1
-                                                  :PAGE/id 1}))
+          (fp/get-initial-state Root {})
 
           :reconciler-options
           {:shared
@@ -279,9 +251,5 @@
            :root-unmount
            #(rdom/unmountComponentAtNode %)})]
 
-    ;; FIXME: figure out how much I can do before first mound
-    ;; reconciler doesn't seem to exist yet so can't transact?
     (reset! env/app-ref app)
-
-
     (start)))

@@ -22,40 +22,6 @@
   {:status 200
    :body "foo"})
 
-(defn transform-level
-  [{::repl/keys [root-id level-id lang] :as level}]
-  (-> level
-      (select-keys [::repl/root-id ::repl/level-id ::repl/lang])
-      (assoc ::repl/ops (->> level
-                             (keys)
-                             (into #{})))))
-
-(defn transform-root
-  [{::repl/keys [type levels] :as root}]
-  (-> root
-      (select-keys [::repl/root-id ::repl/type])
-      (assoc ::repl/levels
-             (->> levels
-                  (map transform-level)
-                  (into [])))))
-
-(defn repl-roots [req]
-  (common/edn req
-    (->> (repl/roots)
-         (vals)
-         (map transform-root)
-         (into []))))
-
-(defn repl-root [req root-id]
-  (common/edn req
-    (-> (repl/root root-id)
-        (transform-root))))
-
-(defn repl-level [req root-id level-id]
-  (common/edn req
-    (-> (repl/level root-id level-id)
-        (transform-level))))
-
 (defn open-file [{:keys [config ring-request] :as req}]
 
   (let [data
@@ -88,21 +54,6 @@
     {:status 200
      :headers {"content-type" "application/edn; charset=utf-8"}
      :body (core-ext/safe-pr-str result)}))
-
-(defn get-bundle-info [{:keys [config] :as req} build-id]
-  (try
-    (let [file (io/file (:cache-root config) "builds" (name build-id) "release" "bundle-info.edn")]
-      (if (.exists file)
-        {:status 200
-         :header {"content-type" "application/edn"}
-         :body (slurp file)}
-
-        ;; could generate this on-depend but that might take a long time
-        {:status 404
-         :body "Report not found. Run shadow-cljs release."}))
-    (catch Exception e
-      {:status 503
-       :body "Build failed."})))
 
 (defmulti process-api-msg (fn [state msg] (::m/op msg)) :default ::default)
 
@@ -166,10 +117,6 @@
   (http/route req
     (:GET "" index-page)
     (:POST "/graph" graph/serve)
-    (:GET "/repl" repl-roots)
-    (:GET "/repl/{root-id:long}" repl-root root-id)
-    (:GET "/repl/{root-id:long}/{level-id:long}" repl-level root-id level-id)
-    (:GET "/bundle-info/{build-id:keyword}" get-bundle-info build-id)
     (:POST "/open-file" open-file)
     common/not-found))
 

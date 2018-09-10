@@ -52,7 +52,7 @@
 (defn json [obj]
   (json/write-str obj :escape-slash false))
 
-(defn module-loader-data [{::build/keys [mode] :keys [build-options] :as state}]
+(defn module-loader-data [{::build/keys [mode config] :keys [build-options] :as state}]
   (let [release?
         (= :release mode)
 
@@ -76,7 +76,7 @@
         (reduce
           (fn [m {:keys [module-id foreign-files sources] :as module}]
             (let [uris
-                  (if release?
+                  (if (or release? (= :eval (get-in config [:devtools :loader-mode])))
                     [(str asset-path "/" (:output-name module))]
 
                     ;; :dev, never bundles foreign

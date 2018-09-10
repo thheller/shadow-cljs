@@ -32,6 +32,12 @@
   [env]
   {})
 
+(defstyled toolbar-title :div
+  [env]
+  {:display "inline-block"
+   :font-size 18
+   :margin-right 20})
+
 (defstyled toolbar-action :button
   [env]
   {:display "inline-block"
@@ -56,8 +62,11 @@
 
 (defstyled build-section :div
   [env]
-  {:font-weight "bold"
-   :padding [10 0]})
+  {:padding [10 0]})
+
+(defstyled build-section-title :div
+  [env]
+  {:font-weight "bold"})
 
 (defstyled page-container :div [env]
   {:position "fixed"
@@ -96,7 +105,7 @@
 
 (defstyled main-nav-title :div [env]
   {:font-weight "bold"
-   :padding 10
+   :padding [10 20]
    :font-size 18})
 
 (defstyled page-icons :div [env]
@@ -121,7 +130,7 @@
 
 (defstyled nav-sub-items :div [env]
   {:position "absolute"
-   :top 42
+   :top 40
    :left -10
    :width 280
    :background-color "#fff"

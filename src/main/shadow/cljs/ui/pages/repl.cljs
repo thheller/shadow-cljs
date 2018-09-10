@@ -7,6 +7,7 @@
     [shadow.markup.react :as html :refer (defstyled)]
     [shadow.cljs.ui.env :as env]
     [shadow.cljs.ui.util :as util]
+    [shadow.cljs.ui.model :as ui-model]
     [shadow.cljs.ui.style :as s]
     [cljs.core.async :as async :refer (go alt!)]
     [cljs.reader :as reader]
@@ -17,7 +18,8 @@
     ["xterm" :as xterm]
     ["xterm/lib/addons/fit/fit" :as xterm-fit]
     [fulcro.client.primitives :as fp :refer (defsc)]
-    [shadow.cljs.ui.transactions :as tx]))
+    [shadow.cljs.ui.transactions :as tx]
+    [shadow.cljs.ui.routing :as routing]))
 
 (defn send-msg [{:keys [ws-out] :as state} msg]
   (let [msg-id
@@ -155,8 +157,6 @@
      (let [{::keys [term]} (util/get-local! this)]
        ))}
 
-  (js/console.log ::container props)
-
   (html-container
     (html-toolbar "REPL")
     (term-container {:ref (util/comp-fn this ::term-ref attach-terminal)})
@@ -181,13 +181,30 @@
 (def ui-container (fp/factory Container {}))
 
 (defsc Page [this props]
-  {:ident (fn [] [:PAGE/repl (:PAGE/repl props)])
+  {:ident
+   (fn []
+     [::ui-model/page-repl 1])
 
-   :query [:PAGE/repl]
+   :query
+   (fn []
+     [])
 
-   :initial-state {:PAGE/repl 1}}
+   :initial-state
+   (fn [p]
+     {})}
 
   (ui-container {}))
 
 (def ui-page (fp/factory Page {}))
+
+(routing/register ::ui-model/root-router ::ui-model/page-repl
+  {:class Page
+   :factory ui-page})
+
+(defn route [r]
+  (fp/transact! r
+    [(routing/set-route
+       {:router ::ui-model/root-router
+        :ident [::ui-model/page-repl 1]})]))
+
 

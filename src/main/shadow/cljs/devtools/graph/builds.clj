@@ -14,7 +14,8 @@
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.errors :as errors]
-    [shadow.build.log :as build-log]))
+    [shadow.build.log :as build-log]
+    [clojure.core.async :as async :refer (>!!)]))
 
 (def config-attrs
   [::m/build-id
@@ -79,6 +80,24 @@
 
       {::m/http-servers servers})))
 
+(add-resolver `build-http-servers
+  {::pc/input #{::m/build-id}
+   ::pc/output [{::m/build-http-server [::m/http-server-id
+                                        ::m/http-url
+                                        ::m/https-url]}]}
+  (fn [{:keys [dev-http] :as env} {::m/keys [build-id] :as params}]
+    (let [server
+          (->> (:servers @dev-http)
+               (filter #(= build-id (:build-id %)))
+               (map (fn [{:keys [http-url https-url build-id]}]
+                      {::m/http-server-id build-id
+                       ::m/build-id {::m/build-id build-id}
+                       ::m/http-url http-url
+                       ::m/https-url https-url}))
+               (first))]
+
+      {::m/build-http-server server})))
+
 (add-resolver `build-worker
   {::pc/input #{::m/build-id}
    ::pc/output [::m/build-worker-active
@@ -123,50 +142,65 @@
     ;; FIXME: can this return something useful?
     {::m/build-id build-id}))
 
+(defn do-build [{:keys [system-bus] :as env} build-id mode]
+  (future
+    (let [build-config
+          (config/get-build build-id)
+
+          status-ref
+          (atom {:status :pending
+                 :mode mode
+                 :log []})
+
+          log-chan
+          (async/chan 10)
+
+          loop
+          (worker/build-status-loop system-bus build-id status-ref log-chan)
+
+          pub-msg
+          (fn [msg]
+            (>!! log-chan msg)
+            (sys-bus/publish! system-bus ::m/worker-broadcast msg)
+            (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
+      (try
+        ;; not at all useful to send this message but want to match worker message flow for now
+        (pub-msg {:type :build-configure
+                  :build-id build-id
+                  :build-config build-config})
+
+        (pub-msg {:type :build-start
+                  :build-id build-id})
+
+        (let [build-state
+              (-> (util/new-build build-config mode {})
+                  (build-api/with-logger
+                    (util/async-logger log-chan))
+                  (build/configure mode build-config)
+                  (build/compile)
+                  (cond->
+                    (= :release mode)
+                    (build/optimize))
+                  (build/flush))]
+
+          (pub-msg {:type :build-complete
+                    :build-id build-id
+                    :info (::build/build-info build-state)}))
+
+        (catch Exception e
+          (pub-msg {:type :build-failure
+                    :build-id build-id
+                    :report (binding [warnings/*color* false]
+                              (errors/error-format e))
+                    }))
+        (finally
+          (async/close! log-chan))))))
+
 (add-mutation 'shadow.cljs.ui.transactions/build-compile
   {::pc/input #{:build-id}
    ::pc/output [::m/build-id]}
-  (fn [{:keys [system-bus] :as env} {:keys [build-id] :as input}]
-
-    (future
-      (let [build-config (config/get-build build-id)
-            pub-msg
-            (fn [msg]
-              (sys-bus/publish! system-bus ::m/worker-broadcast msg)
-              (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
-        (try
-          ;; not at all useful to send this message but want to match worker message flow for now
-          (pub-msg {:type :build-configure
-                    :build-id build-id
-                    :build-config build-config})
-
-          (pub-msg {:type :build-start
-                    :build-id build-id})
-
-          (let [build-state
-                (-> (util/new-build build-config :dev {})
-                    (build-api/with-logger
-                      (reify
-                        build-log/BuildLog
-                        (log* [this build-state log-event]
-                          (pub-msg {:type :build-log
-                                    :build-id build-id
-                                    :event log-event}))))
-                    (build/configure :dev build-config)
-                    (build/compile)
-                    (build/flush))]
-
-            (pub-msg {:type :build-complete
-                      :build-id build-id
-                      :info (::build/build-info build-state)}))
-
-          (catch Exception e
-            (pub-msg {:type :build-failure
-                      :build-id build-id
-                      :report (binding [warnings/*color* false]
-                                (errors/error-format e))
-                      })))))
-
+  (fn [env {:keys [build-id] :as input}]
+    (do-build env build-id :dev)
     {::m/build-id build-id}
     ))
 
@@ -174,5 +208,5 @@
   {::pc/input #{:build-id}
    ::pc/output [::m/build-id]}
   (fn [env {:keys [build-id] :as input}]
-    (log/warn ::build-compile {:input input})
+    (do-build env build-id :release)
     {::m/build-id build-id}))
