@@ -161,6 +161,7 @@
           pub-msg
           (fn [msg]
             (>!! log-chan msg)
+            ;; FIXME: this is not worker output but adding an extra channel seems like overkill
             (sys-bus/publish! system-bus ::m/worker-broadcast msg)
             (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
       (try

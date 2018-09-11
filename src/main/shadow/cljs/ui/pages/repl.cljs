@@ -143,19 +143,18 @@
   {:padding 10
    :display "flex"})
 
-(defsc Container [this props]
+(defsc Page [this props]
   {:ident
    (fn []
-     [::container 1])
+     [::ui-model/page-repl 1])
 
    :query
    (fn []
-     [::history])
+     [])
 
-   :componentWillUnmount
-   (fn []
-     (let [{::keys [term]} (util/get-local! this)]
-       ))}
+   :initial-state
+   (fn [p]
+     {})}
 
   (html-container
     (html-toolbar "REPL")
@@ -177,23 +176,6 @@
            :title "ctrl+e"}
           "history")
         ))))
-
-(def ui-container (fp/factory Container {}))
-
-(defsc Page [this props]
-  {:ident
-   (fn []
-     [::ui-model/page-repl 1])
-
-   :query
-   (fn []
-     [])
-
-   :initial-state
-   (fn [p]
-     {})}
-
-  (ui-container {}))
 
 (def ui-page (fp/factory Page {}))
 
