@@ -871,16 +871,17 @@
   ;; bump when starting a compile so watch doesn't cause timeouts
   (vreset! last-progress-ref (System/currentTimeMillis))
 
-  (-> state
-      (closure/load-extern-properties)
-      (use-extern-properties)
-      (cond->
-        executor
-        (par-compile-cljs-sources sources non-cljs-provides)
+  (let [parallel-build (get-in state [:compiler-options :parallel-build])]
+    (-> state
+        (closure/load-extern-properties)
+        (use-extern-properties)
+        (cond->
+          (and executor (not (false? parallel-build)))
+          (par-compile-cljs-sources sources non-cljs-provides)
 
-        ;; seq compile doesn't really need the provides since it doesn't need to coordinate threads
-        (not executor)
-        (seq-compile-cljs-sources sources))))
+          ;; seq compile doesn't really need the provides since it doesn't need to coordinate threads
+          (or (false? parallel-build) (not executor))
+          (seq-compile-cljs-sources sources)))))
 
 (defn copy-source-to-output [state sources]
   (reduce
