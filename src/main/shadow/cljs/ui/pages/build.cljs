@@ -7,7 +7,8 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.util :as util]
     [shadow.cljs.ui.style :as s]
-    [shadow.cljs.ui.transactions :as tx]))
+    [shadow.cljs.ui.transactions :as tx]
+    [clojure.string :as str]))
 
 (defn render-build-log [{:keys [log] :as build-status}]
   ;; FIXME: are these useful at all?
@@ -32,13 +33,18 @@
 
 (defn render-source-line
   [el start-idx lines]
-  (html/for [[idx text] (map-indexed vector lines)]
-    (el (format "%4d | %s" (+ 1 idx start-idx) text))))
-
-(defn render-build-warning [{:keys [source-excerpt file msg resource-name] :as warning}]
   (html/div
-    (html/div (str "Warning in ")
-      (html/a {:href file} resource-name))
+    (html/for [[idx body] (map-indexed vector lines)]
+      (el {:key idx}
+        (format "%4d | " (+ 1 idx start-idx))
+        body))))
+
+(defn render-build-warning [{:keys [source-excerpt file line column msg resource-name] :as warning}]
+  (s/build-warning-container
+    (s/build-warning-title (str "Warning in ")
+      (html/a {:href file} resource-name)
+      " at " line ":" column)
+    (s/build-warning-message msg)
 
     (if-not source-excerpt
       (util/dump warning)
@@ -46,8 +52,30 @@
       (let [{:keys [start-idx before line after]} source-excerpt]
         (s/source-excerpt-container
           (render-source-line s/source-line start-idx before)
-          (render-source-line s/source-line-highlight (+ start-idx (count before)) [line])
-          (s/source-line-msg (str "       " msg))
+          (if-not column
+            (s/source-line-highlight
+              (format "%4d | " (+ 1 (count before) start-idx))
+              (s/source-line-part-highlight line))
+            (let [prefix (subs line 0 (dec column))
+                  suffix (subs line (dec column))
+                  [highlight suffix]
+                  (if-let [m (.exec #"[^\w-]" suffix)]
+                    (let [idx (.-index m)]
+                      ;; (+ 1 "a") will have idx 0, make sure at least one char is highlighted
+                      (if (pos? idx)
+                        [(subs suffix 0 idx)
+                         (subs suffix idx)]
+                        [(subs suffix 0 1)
+                         (subs suffix 1)]
+                        ))
+                    [suffix ""])]
+
+              (s/source-line-highlight
+                (format "%4d | " (+ 1 (count before) start-idx))
+                (s/source-line-part prefix)
+                (s/source-line-part-highlight highlight)
+                (s/source-line-part suffix))))
+
           (render-source-line s/source-line (+ start-idx 1 (count before)) after)
           )))))
 

@@ -244,26 +244,27 @@
             (sys-bus/publish! system-bus ::m/worker-broadcast msg)
             (sys-bus/publish! system-bus [::m/worker-output build-id] msg)))]
 
-    (go (loop [state {}
-               needs-flush? false
+    (go (loop [state @status-ref
+               last-flush nil
                timeout (async/timeout flush-delay)]
+          (reset! status-ref state)
           (alt!
             timeout
             ([_]
-              (when needs-flush?
-                (reset! status-ref state)
-                (flush-fn state))
+              ;; don't include :log for regular updates since it gets too big
+              ;; FIXME: should really look into only sending incremental updates
+              (let [flush-state (dissoc state :log)]
+                (when (not= flush-state last-flush)
+                  (flush-fn flush-state))
 
-              (recur state false (async/timeout flush-delay)))
+                (recur state flush-state (async/timeout flush-delay))))
 
             build-status-chan
             ([msg]
               (if-not msg
-                (when needs-flush?
-                  (flush-fn state))
-                (-> state
-                    (update-build-status msg)
-                    (recur true timeout)))))))))
+                (flush-fn state)
+                (let [after (update-build-status state msg)]
+                  (recur after last-flush timeout)))))))))
 
 ;; SERVICE API
 

@@ -159,9 +159,25 @@
   {:flex 1
    :padding [10 0]})
 
+(defstyled build-warning-container :div
+  [env]
+  {:padding [10 0]})
+
+(defstyled build-warning-title :div
+  [env]
+  {:font-weight "bold"
+   :padding [5 0 0 0]})
+
+(defstyled build-warning-message :div
+  [env]
+  {:padding [10 0]
+   :font-size "1.4em"})
+
 (defstyled source-excerpt-container :div
   [env]
-  {})
+  {:padding [10 0]
+   :border "1px solid #eee"
+   :overflow-x "auto"})
 
 (defstyled source-line :pre
   [env]
@@ -174,10 +190,19 @@
    :padding 0
    :font-weight "bold"})
 
+(defstyled source-line-part :span
+  [env]
+  {})
+
+;; FIXME: warnings probably should not be red
+(defstyled source-line-part-highlight :span
+  [env]
+  {:color "red"
+   :border-bottom "2px solid red"})
+
 (defstyled source-line-msg :pre
   [env]
   {:margin 0
-   :padding [5 0]
+   :padding [10 0]
    :font-weight "bold"
-   :border-top "1px solid #ccc"
-   :border-bottom "1px solid #ccc"})
+   :background-color "#eee" })
