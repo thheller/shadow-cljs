@@ -54,7 +54,8 @@
               (is-shadow-shim? ns))
       (shadow-js-access-property current-ns prop))
 
-    {:name qname
+    {:op :js-var
+     :name qname
      :tag 'js
      :ret-tag 'js
      :ns 'js}))
@@ -71,7 +72,8 @@
 
 (defn resolve-cljs-var [ns sym]
   (merge (ana/gets @env/*compiler* ::ana/namespaces ns :defs sym)
-    {:name (symbol (str ns) (str sym))
+    {:op :var
+     :name (symbol (str ns) (str sym))
      :ns ns}))
 
 (defn resolve-ns-var [ns sym current-ns]
@@ -85,7 +87,8 @@
     (resolve-js-var ns sym current-ns)
 
     (contains? (:goog-names @env/*compiler*) ns)
-    {:name (symbol (str ns) (str sym))
+    {:op :js-var
+     :name (symbol (str ns) (str sym))
      :ns ns}
 
     :else
@@ -103,10 +106,21 @@
 
 (defn resolve-invokeable-ns [alias current-ns env]
   (let [ns (ana/resolve-ns-alias env alias)]
-    {:name (symbol "js" (str ns))
+    {:op :js-var
+     :name (symbol "js" (str ns))
      :tag 'js
      :ret-tag 'js
      :ns 'js}))
+
+;; core.async calls `macroexpand-1` manually with an ill-formed
+;; :locals map. Normally :locals maps symbols maps, but
+;; core.async adds entries mapping symbols to symbols. We work
+;; around that specific case here. This is called defensively
+;; every time we lookup the :locals map.
+(defn handle-symbol-local [sym lb]
+  (if (symbol? lb)
+    {:name sym}
+    lb))
 
 (def known-safe-js-globals
   "symbols known to be closureJS compliant namespaces"
@@ -125,38 +139,46 @@
          sym-ns-str (namespace sym)]
 
      (if (= "js" sym-ns-str)
-       (do (when (contains? locals (-> sym name symbol))
-             (ana/warning :js-shadowed-by-local env {:name sym}))
+       ;; js/... vars
+       (let [symn (-> sym name symbol)
+             shadowed-by-local (handle-symbol-local symn (get locals symn))]
+         (cond
+           (some? shadowed-by-local)
+           (do (ana/warning :js-shadowed-by-local env {:name sym})
+               (assoc shadowed-by-local :op :local))
 
+           :else
            ;; always record all fully qualified js/foo.bar calls
            ;; except for the code emitted by cljs.core/exists?
            ;; (exists? some.foo/bar)
            ;; checks js/some, js/some.foo, js/some.foo.bar
-           (when-not (-> sym meta ::ana/no-resolve)
-             (let [[global & props]
-                   (str/split (name sym) #"\.")]
+           (do (when-not (-> sym meta ::ana/no-resolve)
+                 (let [[global & props]
+                       (str/split (name sym) #"\.")]
 
-               ;; do not record access to
-               ;; js/goog.string.format
-               ;; js/cljs.core.assoc
-               ;; just in case someone does that, we won't need externs for those
-               (when-not (contains? known-safe-js-globals global)
-                 (shadow-js-access-global current-ns global)
-                 (when (seq props)
-                   (doseq [prop props]
-                     (shadow-js-access-property current-ns prop))))))
+                   ;; do not record access to
+                   ;; js/goog.string.format
+                   ;; js/cljs.core.assoc
+                   ;; just in case someone does that, we won't need externs for those
+                   (when-not (contains? known-safe-js-globals global)
+                     (shadow-js-access-global current-ns global)
+                     (when (seq props)
+                       (doseq [prop props]
+                         (shadow-js-access-property current-ns prop))))))
 
-           {:name sym
-            :ns 'js
-            :tag 'js
-            :ret-tag 'js})
+               {:op :js-var
+                :name sym
+                :ns 'js
+                :tag 'js
+                :ret-tag 'js})))
 
+       ;; none js/... vars
        (let [s (str sym)
-             lb (get locals sym)
+             lb (handle-symbol-local sym (get locals sym))
              current-ns-info (ana/gets @env/*compiler* ::ana/namespaces current-ns)]
 
          (cond
-           (some? lb) lb
+           (some? lb) (assoc lb :op :local)
 
            (some? sym-ns-str)
            (let [ns sym-ns-str
@@ -177,16 +199,20 @@
            (let [idx (.indexOf s ".")
                  prefix (symbol (subs s 0 idx))
                  suffix (subs s (inc idx))]
-             (if-some [lb (get locals prefix)]
-               {:name (symbol (str (:name lb)) suffix)}
+             (if-some [lb (handle-symbol-local prefix (get locals prefix))]
+               {:op :local
+                :name (symbol (str (:name lb)) suffix)}
                (if-some [full-ns (ana/gets current-ns-info :imports prefix)]
-                 {:name (symbol (str full-ns) suffix)}
+                 {:op :local
+                  :name (symbol (str full-ns) suffix)}
                  (if-some [info (ana/gets current-ns-info :defs prefix)]
                    (merge info
-                     {:name (symbol (str current-ns) (str sym))
+                     {:op :local
+                      :name (symbol (str current-ns) (str sym))
                       :ns current-ns})
                    (merge (ana/gets @env/*compiler* ::ana/namespaces prefix :defs (symbol suffix))
-                     {:name (if (= "" prefix) (symbol suffix) (symbol (str prefix) suffix))
+                     {:op :local
+                      :name (if (= "" prefix) (symbol suffix) (symbol (str prefix) suffix))
                       :ns prefix})))))
 
            (some? (ana/gets current-ns-info :uses sym))
@@ -211,7 +237,8 @@
            ;; not sure if correct fix
            ;; cljs.core/Object is used by parse-type so using that here
            (= 'Object sym)
-           '{:name cljs.core/Object
+           '{:op :var
+             :name cljs.core/Object
              :ns cljs.core}
 
            (ana/core-name? env sym)
@@ -227,6 +254,14 @@
                  (confirm env current-ns sym))
                (resolve-cljs-var current-ns sym)
                )))))))
+
+(defn shadow-resolve-var-checked
+  ([env sym]
+   {:post [(contains? % :op)]}
+   (shadow-resolve-var env sym nil))
+  ([env sym confirm]
+   {:post [(contains? % :op)]}
+   (shadow-resolve-var env sym confirm)))
 
 (defn infer-externs-dot
   [{:keys [form form-meta method field target-tag env prop tag] :as ast}
@@ -527,14 +562,14 @@
   [x]
   (if (core/symbol? x)
     (core/let [resolved (:name (cljs.analyzer/resolve-var &env x))
-               y     (core/cond-> resolved
-                       (= "js" (namespace resolved)) name)
-               segs  (string/split (core/str (string/replace (core/str y) "/" ".")) #"\.")
-               n     (count segs)
-               syms  (map
-                       #(vary-meta (symbol "js" (string/join "." %))
-                          assoc :cljs.analyzer/no-resolve true)
-                       (reverse (take n (iterate butlast segs))))
-               js    (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
+               y (core/cond-> resolved
+                   (= "js" (namespace resolved)) name)
+               segs (string/split (core/str (string/replace (core/str y) "/" ".")) #"\.")
+               n (count segs)
+               syms (map
+                      #(vary-meta (symbol "js" (string/join "." %))
+                         assoc :cljs.analyzer/no-resolve true)
+                      (reverse (take n (iterate butlast segs))))
+               js (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
       (bool-expr (concat (core/list 'js* js) syms)))
     `(some? ~x)))
