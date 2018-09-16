@@ -75,22 +75,27 @@
           (io/file worker-dir "package.json")
 
           worker-file
-          (io/file worker-dir "babel-worker.js")]
+          (io/file worker-dir "babel-worker.js")
 
-      (when-not (and (.exists package-json-file)
-                     (.exists worker-file)
-                     (= worker-package-json (-> package-json-file slurp json/read-str)))
+          dist-content
+          (slurp (io/resource "shadow/cljs/dist/babel-worker.js"))]
 
-        (log/info ::setup {})
+      ;; compare package.json and install if missing or different
+      (when (or (not (.exists package-json-file))
+                (not= worker-package-json (-> package-json-file slurp json/read-str)))
+
+        (log/debug ::babel-install {})
 
         (io/make-parents package-json-file)
         (spit package-json-file (json/write-str worker-package-json))
 
-        (babel-install worker-dir ["npm" "install" "--loglevel" "error"])
+        (babel-install worker-dir ["npm" "install" "--loglevel" "error"]))
 
-        (spit
-          worker-file
-          (slurp (io/resource "shadow/cljs/dist/babel-worker.js"))))
+      ;; compare babel-worker.js independently because that may change even though the deps didn't
+      (when (or (not (.exists worker-file))
+                (not= dist-content (slurp worker-file)))
+        (log/debug ::worker-copy {})
+        (spit worker-file dist-content))
 
       (log/debug ::start {})
 
