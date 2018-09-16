@@ -74,6 +74,7 @@
               :default true}
              :bg-shared
              {:entries []
+              :output-type :chrome/shared
               :depends-on #{:shared}}}
             (extract-outputs outputs))
 
@@ -103,54 +104,55 @@
 
         (browser/configure-modules mode (assoc config :modules modules)))))
 
-(defn flush-base [state {:keys [output-type output-name] :as mod}]
+(defn dev-header [state]
+  (str "var shadow$provide = {};\n"
+
+       (let [{:keys [polyfill-js]} state]
+         (when (seq polyfill-js)
+           (str "\n" polyfill-js)))
+
+       (output/closure-defines-and-base state)
+
+       "var $CLJS = this;\n"
+       "goog.global[\"$CLJS\"] = $CLJS;\n"))
+
+(defn flush-dev-module [state {:keys [output-type output-name] :as mod}]
   (spit (data/output-file state output-name)
-    (str "var shadow$provide = {};\n"
+    (case output-type
+      ;; these are controlled via the scripts/js properties and
+      ;; support loading multiple files so no loader support is required
+      (:chrome/background :chrome/content-script)
+      (str (dev-header state)
+           (slurp (io/resource "shadow/boot/static.js")))
 
-         (let [{:keys [polyfill-js]} state]
-           (when (seq polyfill-js)
-             (str "\n" polyfill-js)))
-
-         (output/closure-defines-and-base state)
-
-         "var $CLJS = this;\n"
-         "goog.global[\"$CLJS\"] = $CLJS;\n"
-
-         (case output-type
-           ;; these are controlled via the scripts/js properties and
-           ;; support loading multiple files so no loader support is required
-           (:chrome/background :chrome/content-script)
+      ;; special case for thing that require on isolated file
+      ;; specifically chrome.tabs.executeScript(id, {file: "something.js"})
+      :chrome/single-file
+      (str (dev-header state)
            (slurp (io/resource "shadow/boot/static.js"))
+           (let [mods (-> (browser/get-all-module-deps state mod)
+                          (conj mod))]
+             (->> mods
+                  (mapcat :sources)
+                  (remove #{output/goog-base-id})
+                  (map #(data/get-source-by-id state %))
+                  (map #(data/get-output! state %))
+                  (map :js)
+                  (str/join "\n"))))
 
-           ;; special case for thing that require on isolated file
-           ;; specifically chrome.tabs.executeScript(id, {file: "something.js"})
-           :chrome/single-file
-           (str (slurp (io/resource "shadow/boot/static.js"))
-                (let [mods (-> (browser/get-all-module-deps state mod)
-                               (conj mod))]
-                  (->> mods
-                       (mapcat :sources)
-                       (remove #{output/goog-base-id})
-                       (map #(data/get-source-by-id state %))
-                       (map #(data/get-output! state %))
-                       (map :js)
-                       (str/join "\n"))
-                  ))
 
-           ;; anything else assumes that can load files via normal browser methods
-           (str (slurp (io/resource "shadow/boot/browser.js"))
-                (let [mods (-> (browser/get-all-module-deps state mod)
-                               (conj mod))
+      :chrome/shared
+      (browser/eval-load-sources state (:sources mod))
 
-                      require-files
-                      (->> mods
-                           (mapcat :sources)
-                           (remove #{output/goog-base-id})
-                           (map #(data/get-source-by-id state %))
-                           (map :output-name))]
-                  (str "SHADOW_ENV.load({}, " (json/write-str require-files) ");\n")))
-
-           ))))
+      ;; anything else assumes that can load files via normal browser methods
+      (str (dev-header state)
+           (slurp (io/resource "shadow/boot/browser.js"))
+           (let [mods (-> (browser/get-all-module-deps state mod)
+                          (conj mod))]
+             (->> mods
+                  (mapcat :sources)
+                  (browser/eval-load-sources state))
+             )))))
 
 (defn mod-files [{::b/keys [mode] :as state} {:keys [output-name sources] :as mod}]
   (let [mods (browser/get-all-module-deps state mod)]
@@ -260,12 +262,16 @@
   [state mod]
   (output/flush-optimized-module state (assoc mod :output-type ::output/default)))
 
+(defmethod output/flush-optimized-module :chrome/shared
+  [state mod]
+  (output/flush-optimized-module state (assoc mod :output-type ::output/default)))
+
 
 (defn flush-dev
   [{:keys [build-modules] :as state}]
   (output/flush-sources state)
-  (doseq [mod (rest build-modules)]
-    (flush-base state mod))
+  (doseq [mod build-modules]
+    (flush-dev-module state mod))
   (flush-manifest state))
 
 (defn process

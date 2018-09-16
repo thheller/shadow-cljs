@@ -89,6 +89,16 @@
    :devtools
    {:enabled false}}
 
+  :devtools-ext
+  {:target :chrome-extension
+   :extension-dir "packages/chrome-ext"
+   :manifest-file "packages/chrome-ext/chrome-manifest.edn"
+   :outputs
+   {:devtools {:output-type :chrome/shared
+               :init-fn shadow.cljs.ui.chrome-ext.devtools/init}
+    :panel {:output-type :chrome/shared
+            :init-fn shadow.cljs.ui.chrome-ext.panel/init}}}
+
   ;; test builds
 
   :browser

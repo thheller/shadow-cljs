@@ -1,0 +1,19 @@
+{:name "shadow-cljs devtools"
+ :version "1.0"
+ :description "Accesses shadow-cljs UI in the Chrome Devtools"
+ :manifest-version 2
+
+ :devtools-page "shadow-cljs.html"
+
+ :content-security-policy
+ ["default-src 'self';"
+  ;; FIXME: unsafe-eval should be injected for dev, user shouldn't have to write this
+  "script-src 'self' 'unsafe-eval' http://localhost:9630;"
+  "connect-src * data: blob: filesystem:;"
+  "style-src 'self' data: chrome-extension-resource: 'unsafe-inline';"
+  "img-src 'self' data: chrome-extension-resource:;"
+  ;; FIXME: localhost only? don't want to allow any origin though
+  "frame-src 'self' http://localhost:* data: chrome-extension-resource:;"
+  "font-src 'self' data: chrome-extension-resource:;"
+  "media-src * data: blob: filesystem:;"]}
+

@@ -7,7 +7,7 @@
     ))
 
 ;; FIXME: make this persistent somehow?
-(defonce runtime-id (random-uuid))
+(defonce runtime-id (str (random-uuid)))
 
 (goog-define enabled false)
 
@@ -34,6 +34,13 @@
 (goog-define ssl false)
 
 (goog-define ignore-warnings false)
+
+(defn devtools-info []
+  #js {:server-port server-port
+       :server-host server-host
+       :build-id build-id
+       :proc-id proc-id
+       :runtime-id runtime-id})
 
 (defn get-server-host []
   (cond

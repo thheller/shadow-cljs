@@ -425,6 +425,20 @@
 (def ^Escaper js-escaper
   (SourceCodeEscapers/javascriptEscaper))
 
+(defn eval-load-sources [state sources]
+  (->> sources
+       (remove #{output/goog-base-id})
+       (map #(data/get-source-by-id state %))
+       (map (fn [{:keys [output-name] :as rc}]
+              (let [{:keys [js] :as output} (data/get-output! state rc)
+
+                    source-map?
+                    (boolean (or (contains? output :source-map)
+                                 (contains? output :source-map-json)))]
+                (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")
+                )))
+       (str/join "\n")))
+
 (defn flush-unoptimized-module-eval!
   [{:keys [unoptimizable build-options] :as state}
    {:keys [goog-base output-name prepend append sources web-worker] :as mod}
@@ -439,18 +453,7 @@
                 (into sources))))
 
         source-loads
-        (->> sources
-             (remove #{output/goog-base-id})
-             (map #(data/get-source-by-id state %))
-             (map (fn [{:keys [output-name] :as rc}]
-                    (let [{:keys [js] :as output} (data/get-output! state rc)
-
-                          source-map?
-                          (boolean (or (contains? output :source-map)
-                                       (contains? output :source-map-json)))]
-                      (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")
-                      )))
-             (str/join "\n"))
+        (eval-load-sources state sources)
 
         out
         (str prepend

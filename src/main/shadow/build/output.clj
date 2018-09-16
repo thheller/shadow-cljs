@@ -286,68 +286,69 @@
 
 (defmethod flush-optimized-module ::default
   [state {:keys [dead source-map-json module-id output-name] :as mod}]
-  (if dead
-    (util/log state {:type :dead-module
-                     :module-id module-id
-                     :output-name output-name})
+  (let [{:keys [output prepend-offset shadow-js-outputs]}
+        (finalize-module-output state mod)
 
-    (let [{:keys [output prepend-offset shadow-js-outputs]}
-          (finalize-module-output state mod)
+        target
+        (data/output-file state output-name)]
 
-          target
-          (data/output-file state output-name)
+    (io/make-parents target)
 
-          source-map-name
-          (str output-name ".map")
+    (if dead
+      ;; always create the file even if empty
+      ;; otherwise breaks html which expects to load the modules and wasn't optimized
+      ;; to skip dead modules
+      (spit target "")
 
-          final-output
-          (str output
-               (when source-map-json
-                 (str "\n//# sourceMappingURL=" source-map-name "\n")))]
+      (let [source-map-name
+            (str output-name ".map")
 
-      (io/make-parents target)
+            final-output
+            (str output
+                 (when source-map-json
+                   (str "\n//# sourceMappingURL=" source-map-name "\n")))]
 
-      (spit target final-output)
+        (spit target final-output)
 
-      (util/log state {:type :flush-module
-                       :module-id module-id
-                       :output-name output-name
-                       :js-size (count final-output)})
+        (util/log state {:type :flush-module
+                         :module-id module-id
+                         :output-name output-name
+                         :js-size (count final-output)})
 
-      (when source-map-json
-        (let [sm-index
-              (-> {:version 3
-                   :file output-name
-                   :offset prepend-offset
-                   :sections []}
-                  (util/reduce->
-                    (fn [{:keys [offset] :as sm-index}
-                         {:keys [js source-map-json] :as src}]
+        (when source-map-json
+          (let [sm-index
+                (-> {:version 3
+                     :file output-name
+                     :offset prepend-offset
+                     :sections []}
+                    (util/reduce->
+                      (fn [{:keys [offset] :as sm-index}
+                           {:keys [js source-map-json] :as src}]
 
-                      (let [sm
-                            (json/read-str (or source-map-json "{}"))
+                        (let [sm
+                              (json/read-str (or source-map-json "{}"))
 
-                            lines
-                            (line-count js)]
-                        (-> sm-index
-                            (update :offset + lines)
-                            (update :sections conj {:offset {:line offset :column 0}
-                                                    :map sm}))))
+                              lines
+                              (line-count js)]
+                          (-> sm-index
+                              (update :offset + lines)
+                              (update :sections conj {:offset {:line offset :column 0}
+                                                      :map sm}))))
 
-                    shadow-js-outputs))
+                      shadow-js-outputs))
 
-              sm
-              (json/read-str source-map-json)
+                sm
+                (json/read-str source-map-json)
 
-              sm-index
-              (-> sm-index
-                  (update :sections conj {:offset {:line (:offset sm-index) :column 0} :map sm})
-                  (dissoc :offset))
+                sm-index
+                (-> sm-index
+                    (update :sections conj {:offset {:line (:offset sm-index) :column 0} :map sm})
+                    (dissoc :offset))
 
-              target
-              (data/output-file state source-map-name)]
-          (spit target
-            (json/write-str sm-index)))))))
+                target
+                (data/output-file state source-map-name)]
+            (spit target
+              (json/write-str sm-index))))))))
 
 (defn flush-optimized
   ;; FIXME: can't alias this due to cyclic dependency
