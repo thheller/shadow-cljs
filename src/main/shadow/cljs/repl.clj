@@ -177,20 +177,8 @@
         {:keys [reload-deps] :as new-ns-info}
         (ns-form/merge-repl-require ns-info require-form)
 
-        known-deps
-        (-> #{}
-            (into (:deps ns-info))
-            ;; :deps already had the string aliased
-            ;; need to remember which strings we aliased
-            ;; so we don't reimport the whole thing again
-            (into (keys (:js-deps ns-info)))
-            ;; (require 'the.thing :reload)
-            (util/reduce-> disj reload-deps))
-
         new-deps
-        (->> (:deps new-ns-info)
-             (remove known-deps)
-             (into []))
+        (:deps new-ns-info)
 
         [new-sources state]
         (res/resolve-repl state (:name new-ns-info) new-deps)
