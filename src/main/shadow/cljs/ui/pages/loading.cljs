@@ -21,7 +21,7 @@
      {})}
 
   (s/main-contents
-    (html/div "Loading ...")))
+    (html/div {:id "page-loading"} "Loading ...")))
 
 (def ui-page (fp/factory Page {}))
 

@@ -14,9 +14,11 @@
     [shadow.cljs.model :as m]
     [hiccup.page :refer (html5)]
     [clojure.java.io :as io]
-    [clojure.core.async :as async :refer (go >! <! >!! <!!)]
+    [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
     [shadow.core-ext :as core-ext]
-    [shadow.cljs.devtools.server.system-bus :as sys-bus]))
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]
+    [shadow.cljs.devtools.server.repl-system :as repl-system])
+  (:import [java.util UUID]))
 
 (defn index-page [req]
   {:status 200
@@ -85,15 +87,51 @@
 
     (update state ::subs conj sub-chan)))
 
-(defn api-ws-loop! [ws-state]
-  (let [{:keys [subs] :as final-state}
-        (loop [{:keys [ws-in] :as ws-state} ws-state]
-          (let [msg (<!! ws-in)]
-            (if-not (some? msg)
-              ws-state
-              (-> ws-state
-                  (process-api-msg msg)
-                  (recur)))))]
+(defn tool-forward*
+  [{:keys [tool-in] :as state} msg]
+  (>!! tool-in msg)
+  state)
+
+(defn tool-forward [id]
+  (.addMethod process-api-msg id tool-forward*))
+
+(tool-forward ::m/session-start)
+(tool-forward ::m/session-eval)
+
+(defn api-ws-loop! [{:keys [repl-system ws-out] :as ws-state}]
+  (let [tool-in
+        (async/chan 10)
+
+        tool-id
+        (str (UUID/randomUUID))
+
+        tool-out
+        (repl-system/tool-connect repl-system tool-id tool-in)
+
+        {:keys [subs] :as final-state}
+        (loop [{:keys [ws-in] :as ws-state}
+               (assoc ws-state
+                 :tool-id tool-id
+                 :tool-in tool-in)]
+          (alt!!
+            ws-in
+            ([msg]
+              (if-not (some? msg)
+                ws-state
+                (-> ws-state
+                    (process-api-msg msg)
+                    (recur))))
+
+            tool-out
+            ([msg]
+              (if-not (some? msg)
+                ws-state
+                (do (>!! ws-out {::m/op ::m/tool-msg
+                                 ::m/tool-msg msg})
+
+                    (recur ws-state))))))]
+
+    (async/close! tool-in)
 
     (doseq [sub subs]
       (async/close! sub))

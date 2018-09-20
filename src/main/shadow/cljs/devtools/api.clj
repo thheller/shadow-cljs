@@ -353,9 +353,6 @@
      (catch Exception e
        (e/user-friendly-error e)))))
 
-(defn repl-client-connected? [worker]
-  (not (empty? (-> worker :state-ref deref :eval-clients))))
-
 (defn nrepl-select
   ([id]
    (nrepl-select id {}))

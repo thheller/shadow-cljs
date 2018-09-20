@@ -13,7 +13,7 @@
   (remote-fn env params))
 
 (defn handle-mutation* [{:keys [target] :as env} tx-id params]
-  (let [{:keys [action state-action remote remote-returning] :as tx-config}
+  (let [{:keys [action state-action remote remote-returning refresh] :as tx-config}
         (get-in @tx-config-ref [tx-id])]
 
     (if-not tx-config
@@ -29,6 +29,9 @@
 
             remote-returning
             (assoc :remote (fmut/returning (:ast env) (:state env) remote-returning))
+
+            (and (nil? target) refresh)
+            (assoc :refresh (refresh env params))
 
             (and (nil? target) action)
             (assoc :action #(action env params))

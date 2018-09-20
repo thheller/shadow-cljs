@@ -6,6 +6,7 @@
     [shadow.cljs.ui.model :as ui-model]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.fulcro-mods :as fm :refer (deftx)]
+    [shadow.cljs.ui.env :as env]
     [shadow.cljs.ui.util :as util]
     [shadow.loader :as sl]))
 
@@ -72,10 +73,14 @@
   (assoc state router ident))
 
 (fm/handle-mutation set-route
-  (fn [state env {:keys [router ident] :as params}]
-    ;; FIXME: figure out how to store this only in app-db
-    (select! router ident)
-    (set-route* state router ident)))
+  {:refresh
+   (fn [env {:keys [router] :as params}]
+     [router])
+   :state-action
+   (fn [state env {:keys [router ident] :as params}]
+     ;; FIXME: figure out how to store this only in app-db
+     (select! router ident)
+     (set-route* state router ident))})
 
 (defn navigate-to-token! [{:keys [state] :as r} token]
   (js/console.log "NAVIGATE" token)
@@ -134,3 +139,8 @@
   (.setEnabled history true))
 
 
+(defn set-token! [env new-token]
+  (let [^goog history (get-in env [:shared ::env/history])]
+    (js/console.log "set-token!" env new-token)
+    (.setToken history new-token)
+    ))

@@ -49,10 +49,9 @@
         (build-api/with-build-options {:output-dir (io/file output-dir)})
 
         (and (= :dev mode) (:worker-info state))
-        (-> (repl/setup)
-            (shared/merge-repl-defines
-              (update config :devtools merge {:autolaod false ;; doesn't work yet, use built-in for now
-                                              :use-document-host false})))
+        (shared/merge-repl-defines
+          (update config :devtools merge {:autolaod false ;; doesn't work yet, use built-in for now
+                                          :use-document-host false}))
         )))
 
 (defn resolve* [module-config {:keys [classpath] :as state} mode {:keys [entries runtime] :as config}]

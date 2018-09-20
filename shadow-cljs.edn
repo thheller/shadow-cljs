@@ -65,8 +65,8 @@
 
    :module-loader true
    :modules
-   {:app {:entries [shadow.cljs.ui.app]}
-    :repl {:entries [shadow.cljs.ui.pages.repl]
+   {:app {:init-fn shadow.cljs.ui.app/init}
+    :repl {:init-fn shadow.cljs.ui.pages.repl/init
            :depends-on #{:app}}}
 
    :devtools
@@ -147,7 +147,10 @@
    :js-options
    {:js-provider :shadow
     :resolve
-    {"circular-test"
+    {"moment"
+     false
+
+     "circular-test"
      {:target :file
       :file "test/dummy/circular-a.js"}
      "babel-test"

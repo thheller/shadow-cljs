@@ -109,6 +109,24 @@
                           @status-ref
                           {:status :inactive})})))
 
+(add-resolver `repl-runtimes
+  {::pc/output [{::m/repl-runtimes
+                 [::m/runtime-id
+                  ::m/runtime-active
+                  ::m/runtime-info]}]}
+  (fn [{:keys [repl-system] :as env} input]
+    {::m/repl-runtimes
+     (->> (:state-ref repl-system)
+          (deref)
+          (:runtimes)
+          (vals)
+          (sort-by #(get-in % [:runtime-info :build-id]))
+          (map (fn [{:keys [runtime-id runtime-info] :as x}]
+                 {::m/runtime-id runtime-id
+                  ::m/runtime-active true
+                  ::m/runtime-info runtime-info}))
+          (into []))}))
+
 ;; FIXME: move deftx to a shared namespace
 
 (add-mutation 'shadow.cljs.ui.transactions/build-watch-start

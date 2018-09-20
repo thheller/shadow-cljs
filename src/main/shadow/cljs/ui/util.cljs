@@ -6,6 +6,9 @@
     [shadow.markup.react :as html]
     [fulcro.client.primitives :as fp]))
 
+(defn gen-id []
+  (str (random-uuid)))
+
 ;; this is probably the worst idea ever
 ;; defsc generates way too much code for just an ident though
 (defn ident-gen [prop]

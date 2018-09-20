@@ -281,8 +281,7 @@
           (build-api/with-js-options {:js-provider :shadow})
 
           (and (= :dev mode) (:worker-info state))
-          (-> (repl/setup)
-              (shared/merge-repl-defines config)))
+          (shared/merge-repl-defines config))
 
         (configure-modules mode config)
         )))

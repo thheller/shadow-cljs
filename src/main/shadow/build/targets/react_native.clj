@@ -78,8 +78,7 @@
 
         (cond->
           (:worker-info state)
-          (-> (repl/setup)
-              (shared/merge-repl-defines config)
+          (-> (shared/merge-repl-defines config)
               (set-server-host config)
               (update-in [::modules/config :index :entries] shared/prepend
                 '[cljs.user

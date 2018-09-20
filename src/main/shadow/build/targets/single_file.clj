@@ -52,8 +52,7 @@
 
         (cond->
           (and (= :dev mode) (:worker-info state))
-          (-> (repl/setup)
-              (shared/merge-repl-defines config)))
+          (shared/merge-repl-defines config))
 
         (modules/configure {:main module-config})
         )))

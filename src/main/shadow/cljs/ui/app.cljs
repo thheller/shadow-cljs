@@ -173,11 +173,6 @@
   [update-worker-active
    update-dashboard])
 
-(fm/handle-mutation tx/process-repl-input
-  (fn [state {:keys [ref] :as env} {:keys [text] :as params}]
-    (update-in state (conj ref ::ui-model/repl-history) util/conj-vec text)
-    ))
-
 (fm/handle-mutation tx/process-worker-broadcast
   (fn [state env {:keys [build-id type] :as params}]
     (case type
@@ -186,6 +181,80 @@
       ;; ignore
       state)))
 
+(defn update-runtimes [{::m/keys [runtime-id] :as state}]
+  (let [all
+        (->> (get state ::m/runtime-id)
+             (vals)
+             (filter ::m/runtime-active)
+             (sort-by #(get-in % [::m/runtime-info :since]))
+             (map (fn [{::m/keys [runtime-id]}]
+                    [::m/runtime-id runtime-id]))
+             (into []))]
+
+    (assoc-in state [::ui-model/page-repl 1 ::ui-model/runtimes] all)
+    ))
+
+(defn broadcast [env topic msg]
+  (let [msg
+        (assoc msg ::ui-model/topic topic)
+
+        ch
+        (get-in env [:shared ::env/broadcast-chan])]
+
+    (js/console.log ::broadcast msg)
+    (when-not (async/offer! ch msg)
+      (js/console.warn "broadcast overloaded" msg)
+      )))
+
+(fm/handle-mutation tx/process-tool-msg
+  [(fn [state env {::m/keys [op runtime-id] :as msg}]
+     (case op
+       ::m/runtime-connect
+       (update-in state [::m/runtime-id runtime-id] merge (-> msg
+                                                              (assoc ::m/runtime-active true)
+                                                              (dissoc msg ::m/op)))
+
+       ::m/runtime-disconnect
+       (update-in state [::m/runtime-id runtime-id] assoc ::m/runtime-active false)
+
+
+       ::m/session-started
+       (let [{::m/keys [session-id session-ns]} msg]
+         (update-in state [::m/session-id session-id] merge {::m/session-status :started
+                                                             ::m/session-ns session-ns}))
+
+       ::m/session-result
+       (let [{::m/keys [printed-result result-id session-id]} msg]
+         (broadcast env [::ui-model/session-out session-id] {::m/text printed-result})
+         (-> state
+             (assoc-in [::m/result-id result-id]
+               {::m/result-id result-id
+                ::m/session [::m/session-id session-id]
+                ::m/printed-result printed-result})
+             (update-in [::m/session-id session-id ::m/results] util/conj-vec [::m/result-id result-id])))
+
+       ::m/session-update
+       (let [{::m/keys [session-id session-ns]} msg]
+         (broadcast env [::ui-model/session-out session-id] {::m/text (str "Switched namespace to: " session-ns)})
+         (-> state
+             (assoc-in [::m/session-id session-id ::m/session-ns] session-ns)
+             ))
+
+       ::m/session-out
+       (let [{::m/keys [session-id session-out]} msg]
+         (broadcast env [::ui-model/session-out session-id] {::m/text session-out})
+         state)
+
+       ::m/session-err
+       (let [{::m/keys [session-id session-err]} msg]
+         (broadcast env [::ui-model/session-out session-id] {::m/text session-err})
+         state)
+
+       ;; unhandled
+       (do (js/console.log ::unknown-tool-msg msg)
+           state)))
+   update-runtimes])
+
 (defn start
   {:dev/after-load true}
   []
@@ -193,13 +262,25 @@
 
 (defn stop [])
 
-(defn ^:export init []
+(defn init []
   (let [ws-in
         (-> (async/sliding-buffer 10)
             (async/chan (map util/transit-read)))
 
         ws-out
         (async/chan 10 (map util/transit-str))
+
+        ws-url
+        (str "ws://" js/document.location.host "/api/ws")
+
+        graph-url
+        "/api/graph"
+
+        broadcast-chan
+        (async/chan 10)
+
+        broadcast-pub
+        (async/pub broadcast-chan ::ui-model/topic)
 
         history
         (doto (Html5History.)
@@ -209,13 +290,13 @@
         app
         (fc/new-fulcro-client
           :networking
-          (fnet/make-fulcro-network "/api/graph"
+          (fnet/make-fulcro-network graph-url
             :global-error-callback
             (fn [& args] (js/console.warn "GLOBAL ERROR" args)))
 
           :started-callback
           (fn [{:keys [reconciler] :as app}]
-            (ws/open reconciler ws-in ws-out)
+            (ws/open reconciler ws-url ws-in ws-out)
 
             (routing/setup-history reconciler history)
 
@@ -242,7 +323,9 @@
           {:shared
            {::env/ws-in ws-in
             ::env/ws-out ws-out
-            ::env/history history}
+            ::env/history history
+            ::env/broadcast-chan broadcast-chan
+            ::env/broadcast-pub broadcast-pub}
 
            ;; the defaults access js/ReactDOM global which we don't have/want
            :root-render

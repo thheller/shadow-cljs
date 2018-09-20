@@ -40,8 +40,7 @@
 
       (cond->
         (:worker-info state)
-        (-> (repl/setup)
-            (shared/inject-node-repl config))
+        (shared/inject-node-repl config)
 
         (= :dev mode)
         (shared/inject-preloads :main config)

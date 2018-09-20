@@ -16,6 +16,7 @@
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.common :as common]
     [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.server.repl-system :as repl-system]
     [shadow.cljs.devtools.server.ns-explorer :as ns-explorer]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.util :as util]
@@ -381,6 +382,11 @@
                   {:depends-on [:config :system-bus :build-executor :cache-root :http :classpath :npm :babel]
                    :start super/start
                    :stop super/stop}
+
+                  :repl-system
+                  {:depends-on []
+                   :start repl-system/start
+                   :stop repl-system/stop}
 
                   :out
                   {:depends-on [:config]

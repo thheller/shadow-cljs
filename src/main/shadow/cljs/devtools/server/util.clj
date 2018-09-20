@@ -1,18 +1,22 @@
 (ns shadow.cljs.devtools.server.util
-  (:require [clojure.core.async :as async :refer (go <! >! alt!! alts!!)]
-            [clojure.string :as str]
-            [clojure.java.io :as io]
-            [shadow.jvm-log :as log]
-            [shadow.build.log :as build-log]
-            [shadow.build.api :as cljs]
-            [shadow.build.warnings :as warnings]
-            [shadow.build.api :as build-api]
-            [shadow.cljs.devtools.errors :as errors]
-            [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.server.runtime :as runtime]
-            [clojure.set :as set]
-            [shadow.debug :as dbg])
+  (:require
+    [clojure.core.async :as async :refer (go <! >! alt!! alts!!)]
+    [clojure.string :as str]
+    [clojure.java.io :as io]
+    [shadow.jvm-log :as log]
+    [shadow.build.log :as build-log]
+    [shadow.build.api :as cljs]
+    [shadow.build.warnings :as warnings]
+    [shadow.build.api :as build-api]
+    [shadow.cljs.devtools.errors :as errors]
+    [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.server.runtime :as runtime]
+    [clojure.set :as set]
+    [clojure.core.async.impl.protocols :as async-prot])
   (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream)))
+
+(defn chan? [x]
+  (satisfies? async-prot/ReadPort x))
 
 (defn async-logger [ch]
   (reify

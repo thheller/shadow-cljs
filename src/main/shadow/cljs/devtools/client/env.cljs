@@ -92,18 +92,28 @@
         (.hasOwnProperty e "stack")
         (assoc :stack (.-stack e)))))
 
+(defonce repl-results-ref (atom {}))
+
 (defn repl-call [repl-expr repl-error]
   (try
-    (let [result {:type :repl/result}
+    (let [result-id (str (random-uuid))
+          result {:type :repl/result
+                  :result-id result-id}
           ret (repl-expr)]
+
+      ;; FIXME: this needs some kind of GC, shouldn't keep every single result forever
+      (swap! repl-results-ref assoc result-id {:timestamp (js/Date.now)
+                                               :result ret})
+
+      ;; FIXME: these are nonsense with multiple sessions. refactor this properly
       (set! *3 *2)
       (set! *2 *1)
       (set! *1 ret)
 
       (try
-
-        (assoc result
-          :value (repl-print-fn ret))
+        (let [printed (repl-print-fn ret)]
+          (swap! repl-results-ref assoc-in [result-id :printed] printed)
+          (assoc result :value printed))
         (catch :default e
           (js/console.log "encoding of result failed" e ret)
           (assoc result :error "ENCODING FAILED"))))

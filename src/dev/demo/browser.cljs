@@ -15,9 +15,10 @@
     #_["/demo/myComponent" :refer (myComponent)]
     [demo.never-load]
     [demo.always-load]
+    ["moment" :as x]
     ))
 
-(js/console.log "▶❤◀")
+(js/console.log "▶❤◀" x)
 
 (js/console.log "or" (or nil js/document.body))
 

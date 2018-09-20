@@ -18,16 +18,19 @@
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as errors]
             [shadow.build.warnings :as warnings]
-            [shadow.debug :as dbg]
             [shadow.build.data :as data]
             [shadow.build.resource :as rc]
-            [shadow.build.log :as build-log]))
+            [shadow.build.log :as build-log])
+  (:import [java.util UUID]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
 
 (defn worker-state? [x]
   (and (map? x) (::worker-state x)))
+
+(defn gen-msg-id []
+  (str (UUID/randomUUID)))
 
 (defn repl-sources-as-client-resources
   "transforms a seq of resource-ids to return more info about the resource
@@ -124,11 +127,12 @@
           {:keys [extra-config-files] :as build-state}
           (-> (util/new-build build-config :dev {})
               (build-api/with-logger async-logger)
-
-              (assoc
-                :worker-info worker-info
-                :mode :dev
-                ::compile-attempt 0)
+              (merge {:worker-info worker-info
+                      :mode :dev
+                      ::compile-attempt 0})
+              ;; FIXME: this should be done on session-start
+              ;; only keeping it until everything uses new repl-system
+              (repl/setup)
               (build/configure :dev build-config))
 
           extra-config-files
@@ -263,24 +267,30 @@
         (build-failure worker-state e)))))
 
 (defn process-repl-result
-  [{:keys [pending-results] :as worker-state} {:keys [id] :as result}]
+  [worker-state {:keys [id] :as result}]
 
   ;; forward everything to out as well
+  ;; FIXME: probably remove this?
   (>!!output worker-state {:type :repl/result :result result})
 
-  (let [reply-to
-        (get pending-results id)]
+  (let [pending-action (get-in worker-state [:pending-results id])
+        worker-state (update worker-state :pending-results dissoc id)]
 
-    (log/debug ::repl-result {:id id
-                              :reply-to reply-to
-                              :result result})
-
-    (if (nil? reply-to)
+    (cond
+      (nil? pending-action)
       worker-state
 
-      (do (>!! reply-to result)
-          (update worker-state :pending-results dissoc id))
-      )))
+      (fn? pending-action)
+      (pending-action worker-state result)
+
+      (util/chan? pending-action)
+      (do (>!! pending-action result)
+          worker-state)
+
+      :else
+      (do (log/warn ::invalid-pending-result {:id id :pending pending-action})
+          worker-state
+          ))))
 
 (defmulti do-proc-control
   (fn [worker-state {:keys [type] :as msg}]
@@ -299,7 +309,7 @@
                     (-> (:repl-state build-state)
                         (update :repl-sources repl-sources-as-client-resources build-state))})
 
-  (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
+  ;; (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
   (update worker-state :runtimes assoc runtime-id
     {:runtime-id runtime-id
      :runtime-out runtime-out
@@ -309,20 +319,23 @@
 (defmethod do-proc-control :runtime-disconnect
   [worker-state {:keys [runtime-id]}]
   (log/debug ::runtime-disconnect {:runtime-id runtime-id})
-  (>!!output worker-state {:type :repl/runtime-disconnect :runtime-id runtime-id})
-  (update worker-state :runtimes dissoc runtime-id))
+  ;; (>!!output worker-state {:type :repl/runtime-disconnect :runtime-id runtime-id})
+  (-> worker-state
+      (update :runtimes dissoc runtime-id)
+      ;; clean all sessions for that runtime
+      (update :repl-sessions (fn [sessions]
+                               (reduce-kv
+                                 (fn [sessions session-id session-info]
 
-(defmethod do-proc-control :client-start
-  [worker-state {:keys [id in]}]
-  (log/debug ::client-start {:client-id id})
-  (>!!output worker-state {:type :repl/client-start :id id})
-  (update worker-state :repl-clients assoc id {:id id :in in}))
-
-(defmethod do-proc-control :client-stop
-  [worker-state {:keys [id]}]
-  (log/debug ::client-stop {:client-id id})
-  (>!!output worker-state {:type :repl/client-stop :id id})
-  (update worker-state :repl-clients dissoc id))
+                                   (if (not= runtime-id (:runtime-id session-info))
+                                     sessions
+                                     (do (log/debug ::session-removal-runtime-disconnect
+                                           {:session-id session-id
+                                            :runtime-id runtime-id})
+                                         (dissoc sessions session-id))))
+                                 sessions
+                                 sessions
+                                 )))))
 
 ;; messages received from the runtime
 (defmethod do-proc-control :runtime-msg
@@ -351,6 +364,178 @@
     ;; unknown message
     (do (log/warn ::unknown-runtime-msg {:runtime-id runtime-id :msg msg})
         worker-state)))
+
+(defn handle-session-start-result [worker-state {:keys [type] :as result} {:keys [tool-out msg] :as envelope}]
+  (case type
+    :repl/init-complete
+    (let [{::m/keys [session-id tool-id]} msg
+
+          session-ns
+          (get-in worker-state [:repl-sessions session-id :repl-state :current :ns])]
+
+      (>!! tool-out {::m/op ::m/session-started
+                     ::m/session-id session-id
+                     ::m/tool-id tool-id
+                     ::m/session-ns session-ns})
+      worker-state)
+
+    (do (log/warn ::unexpected-session-start-result {:result result :envelope envelope})
+        worker-state)))
+
+(defmethod do-proc-control ::m/session-start
+  [{:keys [build-state] :as worker-state} {:keys [msg runtime-id runtime-out tool-out] :as envelope}]
+  (log/debug ::tool-msg envelope)
+
+  (let [{::m/keys [session-id tool-id]} msg]
+    ;; if session already exists do nothing?
+    (if (get-in worker-state [:repl-sessions session-id])
+      (do (log/warn ::session-already-exists msg)
+          worker-state)
+
+      ;; otherwise create session and initialize client
+      (let [default-repl-state ;; FIXME: this shouldn't exist at all
+            (:repl-state worker-state)
+
+            msg-id
+            (gen-msg-id)
+
+            {:keys [repl-state] :as build-state}
+            (-> build-state
+                (dissoc :repl-state)
+                (repl/prepare)
+                (update :repl-state assoc :session-id session-id))]
+
+        ;; FIXME: the reply for this could arrive before the state is updated!
+        (>!! runtime-out {:type :repl/session-start
+                          :id msg-id
+                          :repl-state
+                          (update repl-state :repl-sources repl-sources-as-client-resources build-state)})
+
+        (-> worker-state
+            (assoc-in [:repl-sessions session-id]
+              {:tool-out tool-out
+               :tool-id tool-id
+               :session-id session-id
+               :runtime-id runtime-id
+               :repl-state repl-state})
+
+            (assoc :build-state (assoc build-state :repl-state default-repl-state))
+            (update :pending-results assoc msg-id #(handle-session-start-result %1 %2 envelope))
+            )))))
+
+(defmethod do-proc-control ::m/tool-disconnect
+  [worker-state {::m/keys [tool-id] :as msg}]
+  worker-state
+  ;; FIXME: should this actually clean out the session or just wait for tool reconnect maybe?
+  #_(update worker-state :repl-sessions (fn [x]
+                                          (reduce-kv
+                                            (fn [x session-id session-info]
+                                              (if (not= tool-id (:tool-id session-info))
+                                                x
+                                                ;; FIXME: something to cleanup on session-end?
+                                                (do (log/debug ::tool-disconnect {:tool-id tool-id :session-id session-id})
+                                                    (dissoc x session-id))))
+                                            x
+                                            x))))
+
+(defn select-repl-state [worker-state session]
+  (-> worker-state
+      (assoc ::default-repl-state (get-in worker-state [:build-state :repl-state]))
+      (assoc-in [:build-state :repl-state] (:repl-state session))))
+
+(defn pop-repl-state [worker-state session-id]
+  (let [repl-state (get-in worker-state [:build-state :repl-state])
+        default-state (get-in worker-state [:build-state ::default-repl-state])]
+
+    (-> worker-state
+        (update :build-state assoc :repl-state default-state)
+        (update :build-state dissoc ::m/default-repl-state)
+        (assoc-in [:repl-sessions session-id :repl-state] repl-state)
+        )))
+
+(defn handle-repl-action-result
+  [worker-state {:keys [type value result-id] :as result} {:keys [tool-out msg] :as envelope} action]
+  (let [{::m/keys [session-id tool-id]} msg]
+    (case type
+      :repl/result
+      (do (>!! tool-out {::m/op ::m/session-result
+                         ::m/session-id session-id
+                         ::m/tool-id tool-id
+                         ::m/result-id result-id
+                         ::m/printed-result value})
+          worker-state)
+
+      :repl/set-ns-complete
+      (let [session-ns (get-in worker-state [:repl-sessions session-id :repl-state :current :ns])]
+        (>!! tool-out {::m/op ::m/session-update
+                       ::m/session-id session-id
+                       ::m/session-ns session-ns})
+        worker-state)
+
+      (do (log/warn ::unexpected-repl-action-result {:result result :envelope envelope})
+          worker-state))))
+
+(defmethod do-proc-control ::m/session-eval
+  [{:keys [build-state] :as worker-state}
+   {:keys [msg tool-out] :as envelope}]
+
+  (log/debug ::session-eval msg)
+  (let [{::m/keys [session-id input-text]} msg
+
+        {:keys [runtime-id] :as session}
+        (get-in worker-state [:repl-sessions session-id])
+
+        {:keys [runtime-out] :as runtime}
+        (get-in worker-state [:runtimes runtime-id])]
+
+    (cond
+      (nil? build-state)
+      (do (>!! tool-out {:type :repl/illegal-state})
+          worker-state)
+
+      (not session)
+      (do (log/debug ::session-missing msg)
+          worker-state)
+
+      (not runtime)
+      (do (log/debug ::runtime-missing msg)
+          worker-state)
+
+      :else
+      (try
+        (let [{:keys [build-state] :as worker-state}
+              (select-repl-state worker-state session)
+
+              start-idx
+              (count (get-in build-state [:repl-state :repl-actions]))
+
+              {:keys [repl-state] :as build-state}
+              (repl/process-input build-state input-text)
+
+              new-actions
+              (->> (subvec (:repl-actions repl-state) start-idx)
+                   (map (fn [x] (assoc x :id (gen-msg-id)))))
+
+              worker-state
+              (reduce
+                (fn [worker-state {:keys [id] :as action}]
+                  (update worker-state :pending-results assoc id #(handle-repl-action-result %1 %2 envelope action)))
+                worker-state
+                new-actions)]
+
+          (doseq [action new-actions]
+            (>!! runtime-out (-> (transform-repl-action build-state action)
+                                 (assoc :session-id session-id))))
+
+          (-> worker-state
+              (assoc :build-state build-state)
+              (pop-repl-state session-id)))
+
+        (catch Exception e
+          (let [msg (repl-error e)]
+            (>!! tool-out msg)
+            (>!!output worker-state msg))
+          worker-state)))))
 
 (defmethod do-proc-control :start-autobuild
   [{:keys [build-config autobuild] :as worker-state} msg]
@@ -427,8 +612,9 @@
           (doseq [[idx action] (map-indexed vector new-actions)
                   :let [idx (+ idx start-idx)
                         action (assoc action :id idx)]]
-            (>!!output worker-state {:type :repl/action
-                                     :action action})
+            ;; FIXME: this should be removed, only the runtime and tool should be notified
+            (>!!output worker-state {:type :repl/action :action action})
+
             (>!! runtime-out (transform-repl-action build-state action)))
 
           (-> worker-state

@@ -83,8 +83,7 @@
           (assoc-in [:js-options :require-fn] "shadow$require")
 
           (:worker-info state)
-          (-> (repl/setup)
-              (shared/merge-repl-defines (assoc-in config [:devtools :autoload] true))
+          (-> (shared/merge-repl-defines (assoc-in config [:devtools :autoload] true))
               (update-in [::modules/config :index :entries] shared/prepend
                 '[cljs.user
                   shadow.expo.keep-awake

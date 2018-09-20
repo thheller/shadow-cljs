@@ -5,10 +5,10 @@
     [clojure.edn :as edn]
     [shadow.user]
     [shadow.build.output :as output]
-    [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.model :as m]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
+    [shadow.cljs.devtools.server.repl-system :as repl-sys]
     [shadow.build :as comp]
     [shadow.http.router :as http]
     [shadow.build.data :as data]
@@ -18,60 +18,11 @@
   (:import (java.util UUID)))
 
 (defn ws-loop!
-  [{:keys [worker-proc watch-chan in out runtime-out runtime-in] :as client-state}]
-  (let [{:keys [system-bus]} worker-proc]
+  "this loop just ensures that all messages get routed to the correct places"
+  [{:keys [repl-system worker-proc runtime-id runtime-info ws-in ws-out] :as ws-state}]
+  ;; no need to forward :build-log messages to the client
+  (let [{:keys [proc-stop proc-control]} worker-proc
 
-    (worker/watch worker-proc watch-chan true)
-
-    ;; FIXME: the client should probably trigger this
-    ;; a node-repl isn't interested in this at all
-    (sys-bus/sub system-bus ::m/css-reload out false)
-
-    (loop [client-state client-state]
-
-      (alt!!
-        runtime-out
-        ([msg]
-          (when-not (nil? msg)
-            (>!! out msg)
-            (recur client-state)))
-
-        ;; forward some build watch messages to the client
-        watch-chan
-        ([msg]
-          (when-not (nil? msg)
-            (>!! out msg)
-            (recur client-state)
-            ))
-
-        in
-        ([msg]
-          (when-not (nil? msg)
-            (>!! runtime-in msg)
-            (recur client-state))
-          )))
-
-    (async/close! runtime-in)))
-
-(defn ws-connect
-  [{:keys [ring-request] :as ctx} worker-proc runtime-id runtime-type]
-
-  (let [ws-in (async/chan 10 (map edn/read-string))
-        ws-out (async/chan 10 (map pr-str))
-
-        ;; messages put on this must be forwarded to the runtime
-        runtime-out
-        (-> (async/sliding-buffer 10)
-            (async/chan))
-
-        ;; messages coming from the runtime must be put on runtime-in
-        runtime-in
-        (worker/repl-runtime-connect worker-proc runtime-id runtime-out
-          {:runtime-type runtime-type
-           :user-agent (get-in ctx [:ring-request :headers "user-agent"])
-           :remote-addr (:remote-addr ring-request)})
-
-        ;; no need to forward :build-log messages to the client
         watch-ignore
         #{:build-log
           :repl/out
@@ -89,19 +40,94 @@
             (async/chan
               (remove #(contains? watch-ignore (:type %)))))
 
-        client-state
-        {:worker-proc worker-proc
+        ;; tool-out is for messages coming from the worker forwarded to the tools
+        ;; will be closed when either the worker stops or the runtime disconnects
+        tool-out
+        (async/chan 10)
+
+        ;; tool-in is forwarding messages from tools to the worker
+        tool-in
+        (repl-sys/runtime-connect repl-system runtime-id runtime-info tool-out)]
+
+    (>!! proc-control {:type :runtime-connect
+                       :runtime-id runtime-id
+                       :runtime-out ws-out
+                       :runtime-info runtime-info
+                       :tool-out tool-out})
+
+    (worker/watch worker-proc watch-chan true)
+
+    (loop []
+
+      (alt!!
+        ;; worker exit
+        proc-stop
+        ([msg]
+          ::stopped)
+
+        ;; repl-system -> worker
+        tool-in
+        ([msg]
+          (when-not (nil? msg)
+            (>!! proc-control {:type (::m/op msg)
+                               :runtime-id runtime-id
+                               :runtime-out ws-out
+                               :tool-id (::m/tool-id msg)
+                               :tool-out tool-out
+                               :msg msg})
+            (recur)))
+
+        ;; forward some build watch messages to the client
+        watch-chan
+        ([msg]
+          (when-not (nil? msg)
+            (>!! ws-out msg)
+            (recur)))
+
+        ;; ws -> worker
+        ws-in
+        ([msg]
+          (when-not (nil? msg)
+            (>!! proc-control {:type :runtime-msg
+                               :runtime-id runtime-id
+                               :runtime-out ws-out
+                               :msg msg})
+            (recur)))))
+
+    ;; FIXME: don't need to send this if proc-stop triggered the loop exit
+    (>!! proc-control {:type :runtime-disconnect
+                       :runtime-id runtime-id})
+
+    (async/close! tool-out)
+    (async/close! watch-chan)
+    ))
+
+(defn ws-connect
+  [{:keys [ring-request repl-system system-bus] :as ctx} worker-proc runtime-id runtime-type]
+
+  (let [ws-in (async/chan 10 (map edn/read-string))
+        ws-out (async/chan 10 (map pr-str))
+
+        runtime-info
+        {:runtime-type runtime-type
+         :lang :cljs
+         :build-id (:build-id worker-proc)
+         :user-agent (get-in ctx [:ring-request :headers "user-agent"])
+         :remote-addr (:remote-addr ring-request)}
+
+        ws-state
+        {:repl-system repl-system
+         :system-bus system-bus
+         :worker-proc worker-proc
          :runtime-id runtime-id
          :runtime-type runtime-type
-         :in ws-in
-         :out ws-out
-         :runtime-out runtime-out
-         :runtime-in runtime-in
-         :watch-chan watch-chan}]
+         :runtime-info runtime-info
+         :ws-in ws-in
+         :ws-out ws-out}]
 
     {:ws-in ws-in
      :ws-out ws-out
-     :ws-loop (thread (ws-loop! client-state))}
+     :ws-loop (thread (ws-loop! ws-state))}
     ))
 
 (defn compile-req

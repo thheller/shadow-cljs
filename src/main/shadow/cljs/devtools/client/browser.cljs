@@ -240,7 +240,6 @@
         ))))
 
 (defn repl-init [{:keys [repl-state id]}]
-  (reset! repl-ns-ref (get-in repl-state [:current :ns]))
   (load-sources
     ;; maybe need to load some missing files to init REPL
     (->> (:repl-sources repl-state)
@@ -249,10 +248,9 @@
     (fn [sources]
       (do-js-load sources)
       (ws-msg {:type :repl/init-complete :id id})
-      (devtools-msg "REPL init successful"))))
+      (devtools-msg "REPL session start successful"))))
 
 (defn repl-set-ns [{:keys [id ns]}]
-  (reset! repl-ns-ref ns)
   (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
 
 (def close-reason-ref (volatile! nil))
@@ -275,6 +273,9 @@
     (repl-set-ns msg)
 
     :repl/init
+    (repl-init msg)
+
+    :repl/session-start
     (repl-init msg)
 
     :build-complete

@@ -23,14 +23,14 @@
     [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.graph.env :as genv]
-    [clojure.data.json :as json])
+    [clojure.data.json :as json]
+    [shadow.cljs.devtools.server.dev-http :as dev-http])
   (:import [java.util UUID]))
 
 (defn index-page [{:keys [dev-http] :as req}]
   (common/page-boilerplate req
     {:modules [:app]
-     :body-class "app-frame"
-     :init-call ['shadow.cljs.ui.app/init]}
+     :body-class "app-frame"}
     (html
       (comment
         [:h1 "shadow-cljs"]
@@ -132,14 +132,6 @@
           {:status 404
            :header {"content-type" "text/plain"}
            :body "browser-repl not running."}
-
-          ;; test twice in case the websocket disconnect happened concurrently (ie. reload)
-          (and (not (empty? (get-in @state-ref [:eval-clients])))
-               (do (Thread/sleep 500)
-                   (not (empty? (get-in @state-ref [:eval-clients])))))
-          {:status 503
-           :header {"content-type" "text/plain"}
-           :body "browser-repl already open elsewhere."}
 
           :else
           {:status 200
@@ -286,4 +278,5 @@
         (ring-content-type/wrap-content-type)
         (ring-params/wrap-params)
         (ring-gzip/wrap-gzip)
+        (dev-http/disable-all-kinds-of-caching)
         )))

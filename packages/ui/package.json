@@ -2,12 +2,11 @@
   "name": "shadow-cljs-ui-packages",
   "private": true,
   "dependencies": {
-    "antd": "^3.9.0",
     "codemirror": "^5.37.0",
     "parinfer-codemirror": "^1.4.2",
     "react": "^16.0.0",
     "react-dom": "^16.0.0",
     "react-table": "^6.8.2",
-    "xterm": "^3.3.0"
+    "xterm": "3.7.0"
   }
 }

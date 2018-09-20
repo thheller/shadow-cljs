@@ -27,15 +27,21 @@
 
       (js/console.warn ::unknown-subscription msg))))
 
+(defn process-tool-msg [rc {::m/keys [tool-msg] :as msg}]
+  (fp/transact! rc [(tx/process-tool-msg tool-msg)]))
+
 (defn process-ws [rc {::m/keys [op] :as msg}]
   (case op
     ::m/sub-msg
     (process-ws-subscription rc msg)
 
-    nil))
+    ::m/tool-msg
+    (process-tool-msg rc msg)
 
-(defn open [reconciler ws-in ws-out]
-  (let [ws (js/WebSocket. (str "ws://" js/document.location.host "/api/ws"))]
+    (js/console.log ::unhandled-msg msg)))
+
+(defn open [reconciler ws-url ws-in ws-out]
+  (let [ws (js/WebSocket. ws-url)]
 
     (.addEventListener ws "open"
       (fn [e]

@@ -50,5 +50,11 @@
   {:op #{:worker-start :worker-stop}
    :build-id keyword?})
 
+(deftx process-tool-msg
+  {:op #{:runtime-connect :runtime-disconnect}})
+
 (deftx process-repl-input
   {:text string?})
+
+(deftx repl-session-start
+  {:runtime-id some?})
