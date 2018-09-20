@@ -313,7 +313,7 @@
    "zlib" "browserify-zlib"})
 
 (def empty-rc
-  (let [ns 'shadow.empty]
+  (let [ns 'shadow$empty]
     {:resource-id [::empty "shadow$empty.js"]
      :resource-name "shadow$empty.js"
      :output-name "shadow$empty.js"

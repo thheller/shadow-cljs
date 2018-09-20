@@ -91,8 +91,12 @@
   ;; "./something.js" would override anything from any package
   ;; just assume ppl will only override packages for now
   (let [resolve-cfg
-        (or (get-in require-ctx [:resolve require])
-            (get global-resolve-config require))]
+        (let [x (get-in require-ctx [:resolve require])]
+          ;; can't use `or` since `false` is a legal return
+          (if-not (nil? x)
+            x
+            (get global-resolve-config require)
+            ))]
 
     (if (false? resolve-cfg)
       npm/empty-rc
