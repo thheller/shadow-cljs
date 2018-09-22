@@ -24,11 +24,9 @@
             [shadow.build.closure :as closure]
             [shadow.build.npm :as npm]
             [shadow.jvm-log :as log]
-            [cljs.compiler :as cljs-comp]
-            [shadow.build.js-support :as js-support]
             [shadow.build.async :as async])
-  (:import (java.util.concurrent ExecutorService Executors)
-           (java.io File StringReader PushbackReader StringWriter)))
+  (:import (java.util.concurrent ExecutorService)
+           (java.io File StringReader PushbackReader)))
 
 (def SHADOW-TIMESTAMP
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches

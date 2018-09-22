@@ -390,7 +390,7 @@
      :ecmascript-2015 :ecmascript6-typed :ecmascript-2016 :ecmascript-2017
      :ecmascript-next]))
 
-(defmethod comp/emit* :var
+(defn shadow-emit-var
   [{:keys [info env form] :as ast}]
   (if-let [const-expr (:const-expr ast)]
     (comp/emit (assoc const-expr :env env))
@@ -437,6 +437,10 @@
                 (not= form 'js/-Infinity)
                 (comp/munge)))))))))
 
+(defmethod comp/emit* :var [expr] (shadow-emit-var expr))
+(defmethod comp/emit* :binding [expr] (shadow-emit-var expr))
+(defmethod comp/emit* :js-var [expr] (shadow-emit-var expr))
+(defmethod comp/emit* :local [expr] (shadow-emit-var expr))
 
 ;; no perf impact, just easier to read
 (defn source-map-inc-col [{:keys [gen-col] :as m} n]
