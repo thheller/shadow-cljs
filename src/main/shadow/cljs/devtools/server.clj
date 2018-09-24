@@ -8,6 +8,7 @@
     [shadow.http.router :as http]
     [shadow.runtime.services :as rt]
     [shadow.undertow :as undertow]
+    [shadow.build :as sb]
     [shadow.build.classpath :as build-classpath]
     [shadow.cljs.model :as m]
     [shadow.cljs.devtools.api :as api]
@@ -44,7 +45,13 @@
 ;; that take a bit of time to load but are only relevant when someone
 ;; actually accesses the webserver. also skips generating AOT classes
 ;; which we don't really want for pathom+ring stuff anyways
-(def require-web-ns (delay (require 'shadow.cljs.devtools.server.web)))
+(def require-web-ns
+  (delay
+    ;; locking so that dynamically loading build targets can't happen while this is still loading
+    ;; should prevent a race condition where `shadow-cljs watch browser-test-build` would try
+    ;; to use hiccup.page while its still loading
+    (locking sb/target-require-lock
+      (require 'shadow.cljs.devtools.server.web))))
 
 (defn get-ring-handler [app-ref]
   (let [web-root-var
@@ -220,9 +227,9 @@
 
                   (when-let [the-ns (find-ns 'cider.nrepl)]
                     (= 'clojure.tools.nrepl.server
-                       (-> (.getAliases the-ns)
-                           (.get 'nrepl-server)
-                           (.getName)))))
+                      (-> (.getAliases the-ns)
+                          (.get 'nrepl-server)
+                          (.getName)))))
 
                 nrepl-ns
                 (if use-old-nrepl?
