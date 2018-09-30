@@ -65,9 +65,14 @@
 
    :module-loader true
    :modules
-   {:app {:init-fn shadow.cljs.ui.app/init}
-    :repl {:init-fn shadow.cljs.ui.pages.repl/init
-           :depends-on #{:app}}}
+   {:app
+    {:init-fn shadow.cljs.ui.app/init}
+    :repl
+    {:init-fn shadow.cljs.ui.pages.repl/init
+     :depends-on #{:app}}
+    :build
+    {:init-fn shadow.cljs.ui.pages.build/init
+     :depends-on #{:app}}}
 
    :devtools
    {:preloads [fulcro.inspect.preload]
@@ -98,6 +103,25 @@
                :init-fn shadow.cljs.ui.chrome-ext.devtools/init}
     :panel {:output-type :chrome/shared
             :init-fn shadow.cljs.ui.chrome-ext.panel/init}}}
+
+  :launcher-main
+  {:target :node-script
+   :output-to "packages/launcher/dist/main.js"
+   :main shadow.cljs.launcher.main/init
+   :devtools
+   {:autoload true}}
+
+  :launcher-renderer
+  {:target :browser
+   :output-dir "packages/launcher/web/js"
+   :asset-path "js"
+   :js-options
+   {:js-provider :require}
+   :modules
+   {:ui
+    {:init-fn shadow.cljs.launcher.ui/init}}
+   :devtools
+   {:loader-mode :eval}}
 
   ;; test builds
 

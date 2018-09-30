@@ -121,11 +121,17 @@
     :repl/require
     (repl-require msg)
 
+    :build-configure
+    :ignored
+
     :build-start
     :ignored
 
     :build-complete
     (build-complete msg)
+
+    :build-failure
+    :ignored
 
     :worker-shutdown
     (.terminate @ws-ref)

@@ -79,7 +79,7 @@
         build-sources
         (->> (:build-sources state)
              (map (fn [src-id]
-                    (let [{:keys [resource-name type output-name from-jar ns provides] :as rc}
+                    (let [{:keys [resource-name type output-name from-jar ns provides deps] :as rc}
                           (data/get-source-by-id state src-id)]
                       {:resource-id src-id
                        :resource-name resource-name
@@ -87,17 +87,15 @@
                        :type type
                        :ns ns
                        :provides provides
+                       :deps (data/deps->syms state rc)
                        :module (get source->module src-id)
                        :warnings (enhance-warnings state rc)
                        :from-jar from-jar})))
              (into []))]
 
     {:sources build-sources
+     :modules (:build-modules state)
      :compiled compiled-sources}))
-
-(defn- update-build-info-from-modules
-  [{:keys [build-modules] :as state}]
-  (update state ::build-info merge {:modules build-modules}))
 
 (defn- update-build-info-after-compile
   [state]
@@ -355,7 +353,6 @@
       (resolve)
       (extract-build-macros)
       (process-stage :compile-prepare true)
-      (update-build-info-from-modules)
       (build-api/compile-sources)
       (update-build-info-after-compile)
       (process-stage :compile-finish true)

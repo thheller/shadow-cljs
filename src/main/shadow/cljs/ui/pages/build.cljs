@@ -1,131 +1,143 @@
 (ns shadow.cljs.ui.pages.build
   (:require
-    [goog.string.format]
-    [goog.string :refer (format)]
     [fulcro.client.primitives :as fp :refer (defsc)]
-    [shadow.markup.react :as html]
+    [shadow.markup.react :as html :refer (defstyled $)]
     [shadow.cljs.model :as m]
+    [shadow.cljs.ui.model :as ui-model]
     [shadow.cljs.ui.util :as util]
     [shadow.cljs.ui.style :as s]
     [shadow.cljs.ui.transactions :as tx]
-    [clojure.string :as str]))
+    [shadow.cljs.ui.components.build-status :as build-status]
+    ["react-table" :as rt :default ReactTable]
+    [clojure.string :as str]
+    [shadow.cljs.ui.routing :as routing]
+    [shadow.cljs.ui.fulcro-mods :as fm]))
 
-(defn render-build-log [{:keys [log] :as build-status}]
-  ;; FIXME: are these useful at all?
-  (when (seq log)
-    (html/div
-      (html/div (str (count log) " Log messages"))
-      (html/for [entry log]
-        (html/div {:key entry} entry)))))
-
-(defn render-compiling-status [{:keys [active] :as build-status}]
-  (html/div
-    (html/div "Compiling ...")
-
-    (when (seq active)
-      (html/div
-        (html/for [{:keys [timing-id] :as item}
-                   (->> (vals active)
-                        (sort-by :timing-id))]
-          (html/div {:key timing-id} (::m/msg item))
-          )))
-    ))
-
-(defn render-source-line
-  [el start-idx lines]
-  (html/div
-    (html/for [[idx body] (map-indexed vector lines)]
-      (el {:key idx}
-        (format "%4d | " (+ 1 idx start-idx))
-        body))))
-
-(defn render-build-warning [{:keys [source-excerpt file line column msg resource-name] :as warning}]
-  (s/build-warning-container
-    (s/build-warning-title (str "Warning in ")
-      (html/a {:href file} resource-name)
-      " at " line ":" column)
-    (s/build-warning-message msg)
-
-    (if-not source-excerpt
-      (util/dump warning)
-
-      (let [{:keys [start-idx before line after]} source-excerpt]
-        (s/source-excerpt-container
-          (render-source-line s/source-line start-idx before)
-          (if-not column
-            (s/source-line-highlight
-              (format "%4d | " (+ 1 (count before) start-idx))
-              (s/source-line-part-highlight line))
-            (let [prefix (subs line 0 (dec column))
-                  suffix (subs line (dec column))
-                  [highlight suffix]
-                  (if-let [m (.exec #"[^\w-]" suffix)]
-                    (let [idx (.-index m)]
-                      ;; (+ 1 "a") will have idx 0, make sure at least one char is highlighted
-                      (if (pos? idx)
-                        [(subs suffix 0 idx)
-                         (subs suffix idx)]
-                        [(subs suffix 0 1)
-                         (subs suffix 1)]
-                        ))
-                    [suffix ""])]
-
-              (s/source-line-highlight
-                (format "%4d | " (+ 1 (count before) start-idx))
-                (s/source-line-part prefix)
-                (s/source-line-part-highlight highlight)
-                (s/source-line-part suffix))))
-
-          (render-source-line s/source-line (+ start-idx 1 (count before)) after)
-          )))))
-
-(defn render-completed-status [{:keys [duration warnings] :as build-status}]
-  (html/div
-    (html/div
-      (str (if (seq warnings) "!" "✔")
-           " Compilation completed in " duration " seconds."))
-
-    (when (seq warnings)
-      (html/div
-        (html/div (str (count warnings) " Warnings"))
-        (html/for [[idx warning] (map-indexed vector warnings)]
-          (html/div {:key idx}
-            (render-build-warning warning)))))))
-
-(defn render-failed-status [{:keys [report] :as build-status}]
-  (html/div
-    (html/div
-      (str "X Compilation failed."))
-
-    (html/pre report)))
-
-(defn render-build-status [{:keys [status] :as build-status}]
-  (case status
-    :compiling
-    (render-compiling-status build-status)
-
-    :completed
-    (render-completed-status build-status)
-
-    :failed
-    (render-failed-status build-status)
-
-    :inactive
-    (html/div "Watch not active.")
-
-    :pending
-    (html/div "Watch starting ...")
-
-    (do (js/console.warn "unhandled status" build-status)
-        (util/dump build-status))))
 
 (defn render-build-status-detail [build-status]
   (util/dump build-status))
 
+(defstyled html-module-deps :div
+  [env]
+  {})
+
+(defstyled html-module-dep :div
+  [env]
+  {:display "inline-block"
+   :border "1px solid #ccc"
+   :padding [0 5]})
+
+(def rt-columns
+  (-> [{:id "group-name"
+        :Header "Name"
+        :Cell (fn [^js row-obj]
+                (let [{:keys [module-id] :as row}
+                      (.-original row-obj)]
+                  (name module-id)))}
+       {:id "depends-on"
+        :Header "Depends On"
+        :Cell (fn [^js row-obj]
+                (let [deps (.-value row-obj)]
+                  (html-module-deps
+                    (html/for [dep deps]
+                      (html-module-dep {:key dep} (name dep))))))
+
+        :accessor #(-> % :depends-on)}
+       {:id "sources"
+        :Header "Sources"
+        :headerClassName "numeric"
+        :className "numeric"
+        :maxWidth 120
+        :Cell (fn [^js row-obj]
+                (.-value row-obj))
+        :accessor #(-> % :sources count)}]
+      (clj->js)))
+
+(defn filter-row-by-type [filter ^js row]
+  (or (= "all" (.-value filter))
+      (= (.-value filter) (-> row .-_original :type name))))
+
+(defn filter-row-by-resource-name [filter ^js row]
+  (or (= "" (.-value filter))
+      (str/includes? (-> row .-_original :resource-name) (.-value filter))))
+
+(defn render-filter-by-type [^js x]
+  (html/select
+    {:onChange (fn [^js e]
+                 (.onChange x (-> e .-target .-value)))
+     :value (.-value x)}
+
+    (html/option {:value "all"} "All")
+    (html/option {:value "cljs"} "CLJS")
+    (html/option {:value "goog"} "Closure JS")
+    (html/option {:value "js"} "JS")
+    (html/option {:value "shadow-js"} "shadow-js")))
+
+(defn render-build-info [{:keys [sources modules] :as build-info}]
+  (let [src-by-id
+        (reduce #(assoc %1 (:resource-id %2) %2) {} sources)
+
+        rt-sub-columns
+        (-> [{:id "type"
+              :Header "Type"
+              :maxWidth 120
+              :filterMethod filter-row-by-type
+              :Filter render-filter-by-type
+              :accessor #(pr-str (:type %))}
+             {:id "resource-name"
+              :Header "Name"
+              :filterMethod filter-row-by-resource-name
+              :Cell (fn [^js row-obj]
+                      (.-value row-obj))
+              :accessor #(:resource-name %)}]
+            (clj->js))
+
+        sub-row
+        (fn sub-row [^js row]
+          (let [{:keys [sources] :as row} (.-original row)
+
+                source-arr
+                (->> sources
+                     (map (fn [src-id]
+                            (get src-by-id src-id)))
+                     (into-array))]
+
+            (html/div
+              ($ ReactTable
+                #js {:data source-arr
+                     :filterable true
+                     :defaultFilterMethod (constantly true)
+                     :columns rt-sub-columns
+                     :showPagination false
+                     :defaultPageSize (count sources)
+                     :minRows 0
+                     :className "-striped -highlight"}))))]
+
+    (html/div
+      (html/h1 "Build Info")
+      (let [cm (count modules)]
+        (if (> cm 1)
+          (html/p (str (count sources) " Sources split into " cm " Modules"))
+          (html/p (str (count sources) " Sources in one Module"))))
+
+      ($ ReactTable
+        #js {:data (into-array modules)
+             :columns rt-columns
+             :showPagination false
+             :defaultPageSize (count modules)
+             :minRows 0
+             :expanderDefaults #js {:width 40}
+             :className "-striped -highlight"
+             :SubComponent sub-row
+             })
+      )))
+
 (def build-http-server
   (util/ident-gen ::m/http-server-id))
 
-(defsc BuildOverview [this {::m/keys [build-id build-status build-config-raw build-worker-active] :as props}]
+(defsc BuildOverview
+  [this
+   {::m/keys [build-id build-status build-info build-config-raw build-worker-active] :as props}]
   {:ident
    [::m/build-id ::m/build-id]
 
@@ -133,6 +145,7 @@
    [::m/build-config-raw
     ::m/build-id
     ::m/build-status
+    ::m/build-info
     {::m/build-http-server (build-http-server
                              [::m/http-url])}
     ::m/build-worker-active]}
@@ -165,8 +178,11 @@
 
       (s/build-section
         (s/build-section-title "Status")
-        (render-build-status build-status))
+        (build-status/render-build-status build-status))
 
+      (when (and (= :completed (:status build-status))
+                 (map? build-info))
+        (render-build-info build-info))
       #_(html/div
           (s/build-section "Config")
           (s/build-config
@@ -175,3 +191,19 @@
 
 (def ui-build-overview (fp/factory BuildOverview {:keyfn ::m/build-id}))
 
+(routing/register ::ui-model/root-router ::m/build-id
+  {:class BuildOverview
+   :factory ui-build-overview
+   :keyfn ::m/build-id})
+
+
+
+
+(defn route [r [build-id :as tokens]]
+  (fp/transact! r
+    [(tx/select-build {:build-id (keyword build-id)})
+     (routing/set-route {:router ::ui-model/root-router
+
+                         :ident [::m/build-id (keyword build-id)]})]))
+
+(defn init [])

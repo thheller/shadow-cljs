@@ -101,7 +101,6 @@
            :report
            (binding [warnings/*color* false]
              (errors/error-format e))
-           :e e
            }))))
 
 (defn build-configure

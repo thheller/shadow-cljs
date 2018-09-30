@@ -18,8 +18,7 @@
     [shadow.cljs.ui.util :as util]
     [shadow.cljs.ui.routing :as routing]
     [shadow.cljs.ui.pages.loading :as page-loading]
-    [shadow.cljs.ui.pages.dashboard :as page-dashboard]
-    [shadow.cljs.ui.pages.build :as page-build])
+    [shadow.cljs.ui.pages.dashboard :as page-dashboard])
   (:import [goog.history Html5History]))
 
 (defsc MainNavBuild [this props {:keys [selected]}]
@@ -29,6 +28,7 @@
    :query
    (fn []
      [::m/build-id
+      ::m/build-status
       ::m/build-worker-active])}
 
   (let [{::m/keys [build-id build-worker-active]} props]
@@ -85,11 +85,6 @@
 
 (def ui-main-nav (fp/factory MainNav {}))
 
-(routing/register ::ui-model/root-router ::m/build-id
-  {:class page-build/BuildOverview
-   :factory page-build/ui-build-overview
-   :keyfn ::m/build-id})
-
 (routing/register ::ui-model/root-router ::ui-model/page-dashboard
   {:class page-dashboard/Page
    :factory page-dashboard/ui-page})
@@ -131,21 +126,6 @@
   (fn [state env params]
     (assoc state ::ui-model/ws-connected false)))
 
-(fm/handle-mutation tx/build-watch-start
-  {:remote-returning page-build/BuildOverview})
-
-(fm/handle-mutation tx/build-watch-stop
-  {:remote-returning page-build/BuildOverview})
-
-(fm/handle-mutation tx/build-watch-compile
-  {:remote-returning page-build/BuildOverview})
-
-(fm/handle-mutation tx/build-compile
-  {:remote-returning page-build/BuildOverview})
-
-(fm/handle-mutation tx/build-release
-  {:remote-returning page-build/BuildOverview})
-
 (defn update-worker-active [state env {:keys [op build-id] :as params}]
   (case op
     :worker-start
@@ -176,6 +156,9 @@
 (fm/handle-mutation tx/process-worker-broadcast
   (fn [state env {:keys [build-id type] :as params}]
     (case type
+      :build-complete
+      (assoc-in state [::m/build-id build-id ::m/build-info] (:info params))
+
       :build-status
       (assoc-in state [::m/build-id build-id ::m/build-status] (:state params))
       ;; ignore
@@ -255,6 +238,21 @@
            state)))
    update-runtimes])
 
+(fm/handle-mutation tx/build-watch-start
+  {:remote-returning MainNavBuild})
+
+(fm/handle-mutation tx/build-watch-stop
+  {:remote-returning MainNavBuild})
+
+(fm/handle-mutation tx/build-watch-compile
+  {:remote-returning MainNavBuild})
+
+(fm/handle-mutation tx/build-compile
+  {:remote-returning MainNavBuild})
+
+(fm/handle-mutation tx/build-release
+  {:remote-returning MainNavBuild})
+
 (defn start
   {:dev/after-load true}
   []
@@ -311,8 +309,9 @@
             (fdf/load app ::m/http-servers page-dashboard/HttpServer
               {:target [::ui-model/page-dashboard 1 ::ui-model/http-servers]})
 
-            (fdf/load app ::m/build-configs page-build/BuildOverview
+            (fdf/load app ::m/build-configs MainNavBuild
               {:target [::ui-model/globals ::ui-model/nav ::ui-model/build-list]
+               :without #{::m/build-info}
                :post-mutation `tx/builds-loaded
                :refresh [::ui-model/builds-loaded]}))
 

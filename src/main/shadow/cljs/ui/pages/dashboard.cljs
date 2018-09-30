@@ -5,9 +5,8 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.model :as ui-model]
     [shadow.cljs.ui.style :as s]
-    [shadow.cljs.ui.util :as util]
-    [shadow.cljs.ui.pages.build :as page-build]
-    [shadow.cljs.ui.transactions :as tx]))
+    [shadow.cljs.ui.transactions :as tx]
+    [shadow.cljs.ui.components.build-status :as build-status]))
 
 (defsc HttpServer [this props]
   {:ident
@@ -62,7 +61,7 @@
       (build-panel-toolbar
         (build-panel-label (html/a {:href (str "/builds/" (name build-id))} (name build-id))))
 
-      (page-build/render-build-status build-status))))
+      (build-status/render-build-status build-status))))
 
 (def ui-build-panel (fp/factory BuildPanel {:keyfn ::m/build-id}))
 

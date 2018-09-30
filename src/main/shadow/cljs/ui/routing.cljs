@@ -82,6 +82,17 @@
      (select! router ident)
      (set-route* state router ident))})
 
+(defn load-module [r module-id]
+  (when-not (sl/loaded? module-id)
+    ;; FIXME: only do this after a timeout, load should be more or less instant always here
+    (swap! routes-ref update :loading util/conj-set ::ui-model/root-router)
+    (fp/transact! r [(set-route {:router ::ui-model/root-router
+                                 :ident [::ui-model/page-loading 1]})]))
+
+  (-> (sl/load module-id)
+      (.then (fn []
+               (swap! routes-ref update :loading disj ::ui-model/root-router)))))
+
 (defn navigate-to-token! [{:keys [state] :as r} token]
   (js/console.log "NAVIGATE" token)
 
@@ -92,26 +103,13 @@
                                    :ident [::ui-model/page-dashboard 1]})])
 
       "repl"
-      (do (when-not (sl/loaded? "repl")
-            ;; FIXME: only do this after a timeout, load should be more or less instant always here
-            (swap! routes-ref update :loading util/conj-set ::ui-model/root-router)
-            (fp/transact! r [(set-route {:router ::ui-model/root-router
-                                         :ident [::ui-model/page-loading 1]})]))
-          (-> (sl/load "repl")
-              (.then (fn []
-                       (swap! routes-ref update :loading disj ::ui-model/root-router)
-                       ;; (resolve 'shadow.cljs.ui.pages.repl/route)
-                       ;; FIXME: there should be a resolve variant that doesn't include all the useless meta
-                       ;; js/shadow.cljs... will add externs
-                       (js* "shadow.cljs.ui.pages.repl.route(~{}, ~{});" r more)))))
+      (-> (load-module r "repl")
+          (.then #(js* "shadow.cljs.ui.pages.repl.route(~{}, ~{});" r more)))
 
       "builds"
-      (let [[build-id] more]
-        (fp/transact! r
-          [(tx/select-build {:build-id (keyword build-id)})
-           (set-route {:router ::ui-model/root-router
-                       :ident [::m/build-id (keyword build-id)]})])
-        ))))
+      (-> (load-module r "build")
+          (.then #(js* "shadow.cljs.ui.pages.build.route(~{}, ~{});" r more)))
+      )))
 
 (defn setup-history [reconciler ^goog history]
   (let [start-token "dashboard"

@@ -900,7 +900,7 @@
     state
     (convert-fn state npm)))
 
-(defn remove-dead-js-deps [{:keys [build-sources dead-js-deps] :as state}]
+(defn remove-dead-js-deps [{:keys [dead-js-deps] :as state}]
   (let [remove-fn
         (fn [sources]
           (->> sources

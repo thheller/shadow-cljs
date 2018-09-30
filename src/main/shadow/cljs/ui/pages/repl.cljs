@@ -1,8 +1,6 @@
 (ns shadow.cljs.ui.pages.repl
   (:require
     [clojure.string :as str]
-    [shadow.api :refer (ns-ready)]
-    [shadow.dom :as dom]
     [shadow.react.component :as comp]
     [shadow.markup.react :as html :refer (defstyled)]
     [shadow.cljs.model :as m]
@@ -11,7 +9,6 @@
     [shadow.cljs.ui.model :as ui-model]
     [shadow.cljs.ui.style :as s]
     [cljs.core.async :as async :refer (go alt!)]
-    [cljs.reader :as reader]
     ["react-dom" :as rd]
     ["codemirror" :as cm]
     ["codemirror/mode/clojure/clojure"]
