@@ -149,9 +149,10 @@
         s))))
 
 
-;; taken from clojure/core/server.clj 1.10 alphas
+;; taken from clojure/core/server.clj 1.10 alphas PrintWriter_on
+;; renamed to prevent name collision
 
-(defn ^java.io.PrintWriter PrintWriter-on
+(defn ^java.io.PrintWriter writer->fn
   "implements java.io.PrintWriter given flush-fn, which will be called
   when .flush() is called, with a string built up since the last call to .flush().
   if not nil, close-fn will be called with no arguments when .close is called"
@@ -186,7 +187,6 @@
             (InputStreamReader.)
             (LineNumberingPushbackReader.))
 
-
         send-msg
         (fn [msg]
           (let [msg (assoc msg
@@ -197,14 +197,14 @@
               (log/warn ::clj-session-overload msg))))
 
         session-out
-        (PrintWriter-on
+        (writer->fn
           (fn [text]
             (send-msg {::m/op ::m/session-out
                        ::m/session-out text}))
           nil)
 
         session-err
-        (PrintWriter-on
+        (writer->fn
           (fn [text]
             (send-msg {::m/op ::m/session-err
                        ::m/session-err text}))
