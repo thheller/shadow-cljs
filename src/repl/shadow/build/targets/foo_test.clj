@@ -8,6 +8,11 @@
             {:worker-info {:host "localhost" :port 1234}
              :js-options {:js-provider :require}}
             :dev
-            '{:modules {:main {:entries [my.app]}}})]
+            '{:modules {:main {:entries [my.app]}
+                        :blubb {:entries [foo.bar]
+                                :preloads [foo.preload]
+                                :depends-on #{:main}}}
+              :devtools
+              {:preloads [app.preload]}})]
     (pprint x)
     ))

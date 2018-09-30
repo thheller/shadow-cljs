@@ -194,7 +194,7 @@
 
   (let [default-module (pick-default-module-from-config modules)]
     (reduce-kv
-      (fn [mods module-id {:keys [web-worker init-fn] :as module-config}]
+      (fn [mods module-id {:keys [web-worker init-fn preloads] :as module-config}]
         (let [default?
               (= default-module module-id)
 
@@ -211,9 +211,6 @@
                     (and default? (= :dev mode) worker-info)
                     (inject-repl-client state config)
 
-                    ;; DEVTOOLS console, it is prepended so it loads first in case anything wants to log
-                    (and default? (= :dev mode))
-                    (inject-devtools-console state config)
 
                     (and worker-info (not web-worker) (not (false? (get-in config [:devtools :enabled]))))
                     (update :append-js str "\nshadow.cljs.devtools.client.browser.module_loaded('" (name module-id) "');\n")
@@ -227,9 +224,17 @@
                     (and module-loader (not (or default? web-worker)))
                     (update :append-js str "\nshadow.loader.set_loaded('" (name module-id) "');")
 
-                    (= :dev mode)
+                    ;; per module :preloads
+                    (and (seq preloads))
+                    (update :entries shared/prepend preloads)
+
+                    ;; global :devtools :preloads
+                    (and default? (= :dev mode))
                     (inject-preloads state config)
-                    ))]
+
+                    ;; DEVTOOLS console, it is prepended so it loads first in case anything wants to log
+                    (and default? (= :dev mode))
+                    (inject-devtools-console state config)))]
 
           (assoc mods module-id module-config)))
       {}
