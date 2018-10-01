@@ -225,7 +225,7 @@
                     (update :append-js str "\nshadow.loader.set_loaded('" (name module-id) "');")
 
                     ;; per module :preloads
-                    (and (seq preloads))
+                    (and (seq preloads) (= :dev mode))
                     (update :entries shared/prepend preloads)
 
                     ;; global :devtools :preloads
