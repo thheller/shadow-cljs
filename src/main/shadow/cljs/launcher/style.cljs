@@ -26,6 +26,10 @@
   [env]
   {:padding [10 10 0 10]})
 
+(defstyled right-action-button :button
+  [env]
+  {:float "right"})
+
 (defstyled project-info-item :div
   [env]
   {:margin-bottom 10
@@ -41,13 +45,28 @@
   [env]
   {})
 
+(defstyled project-console-container :div
+  [env]
+  {:flex 1
+   :background-color "white"
+   :border-top "2px solid #ccc"
+   :margin-top 10
+   :display "flex"
+   :flex-direction "column"})
+
+(defstyled project-console-header :div
+  [env]
+  {:padding [5 10]
+   :font-weight "bold"})
+
 (defstyled project-console :div
   [env]
   {:flex 1
-   :padding 10})
+   :padding [0 10]})
 
 (defstyled main-sidebar :div [env]
-  {:position "fixed"
+  {:z-index 100
+   :position "fixed"
    :top 0
    :left 0
    :width 400
