@@ -106,6 +106,11 @@
         full-cmd
         (into install-cmd args)
 
+        full-cmd
+        (if (str/includes? (System/getProperty "os.name") "Windows")
+          (into ["cmd" "/C"] full-cmd)
+          full-cmd)
+
         _ (println (str "running: " (str/join " " full-cmd)))
 
         proc
