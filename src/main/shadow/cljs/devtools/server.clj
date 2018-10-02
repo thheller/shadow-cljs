@@ -258,7 +258,10 @@
         (atom nil)
 
         shutdown-hook
-        (Thread. stop!)
+        (Thread.
+          (fn []
+            (println "Running shutdown hook.")
+            (stop!)))
 
         app
         (-> {::started (System/currentTimeMillis)

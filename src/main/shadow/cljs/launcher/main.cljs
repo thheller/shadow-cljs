@@ -9,7 +9,8 @@
     [cognitect.transit :as transit]
     [shadow.cljs.model :as m]
     [cljs.tools.reader :as reader]
-    [clojure.string :as str]))
+    [clojure.string :as str]
+    [shadow.cljs.npm.util :as util]))
 
 ;; FIXME: combine these
 (defonce state-ref (atom {}))
@@ -292,6 +293,15 @@
                ::m/project-server-url (str "http://localhost:" port)})
             ))))))
 
+(defmethod handle-ipc ::m/project-kill [{:keys [project-id] :as query}]
+  (let [proc (get @procs-ref project-id)]
+    (if-not proc
+      (ipc-send ::m/project-not-managed {:project-id project-id})
+
+      (do (util/kill-proc proc)
+          (ipc-send ::m/project-killed {:project-id project-id}))
+      )))
+
 (defmethod handle-ipc ::m/state-load [_]
   (ipc-send ::m/state-loaded {:data @state-ref}))
 
@@ -332,12 +342,12 @@
   (.on app "window-all-closed"
     (fn []
       (when (not= "darwin" js/process.platform)
-        ;; FIXME: do proper shutdown here
-        (doseq [proc (vals @procs-ref)]
-          (.. proc -stdin (end))
-          (.kill proc))
-
         (.quit app))))
+
+  (.on app "will-quit"
+    (fn []
+      (doseq [proc (vals @procs-ref)]
+        (util/kill-proc proc))))
 
   (.on app "activate"
     (fn []

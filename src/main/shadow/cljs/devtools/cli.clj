@@ -11,9 +11,11 @@
             [shadow.build.node :as node]
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
             [shadow.cljs.devtools.server.env :as env]
-            [shadow.cljs.devtools.server.runtime :as runtime])
+            [shadow.cljs.devtools.server.runtime :as runtime]
+            [shadow.jvm-log :as log])
   (:import (clojure.lang LineNumberingPushbackReader)
-           (java.io StringReader)))
+           (java.io StringReader)
+           [java.net Socket]))
 
 ;; delayed require to we can improve startup time a bit
 (defn lazy-invoke [var-sym & args]

@@ -8,6 +8,7 @@
     ["readline-sync" :as rl-sync] ;; FIXME: drop this?
     ["mkdirp" :as mkdirp]
     ["net" :as node-net]
+    ["signal-exit" :as signal-exit]
     [cljs.core.async :as async :refer (go go-loop alt!)]
     #_[cljs.tools.reader :as reader]
     [cljs.reader :as reader]
@@ -62,27 +63,37 @@
 ;; same as run! but preserves the exit code of the process
 ;; must be run as the last step since it will kill the node process after
 (defn run! [project-root cmd args proc-opts]
-  (let [^js result (run project-root cmd args proc-opts)
+  (let [spawn-opts
+        (-> {:cwd project-root
+             :stdio "inherit"}
+            (cond->
+              ;; can't figure out why lein won't work without this in windows cmd
+              ;; probably similar issue with tools.deps but that doesn't exist for windows yet
+              ;; need to verify first
+              (and (= "lein" cmd) (is-windows?))
+              (assoc :shell true
+                     :windowsVerbatimArguments true))
+            (merge proc-opts)
+            (clj->js))
 
-        error
-        (.-error result)
+        ^js proc
+        (cp/spawn cmd (into-array args) spawn-opts)]
 
-        status
-        (.-status result)]
+    ;; this supposedly catches all possible ways for this process to exit
+    (signal-exit
+      (fn [code signal]
+        (util/kill-proc proc)
+        ))
 
-    (cond
-      (and error (= "ENOENT" (. error -errno)))
-      (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
+    (.on proc "error"
+      (fn [^js error]
+        (if (and error (= "ENOENT" (. error -errno)))
+          (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
+          (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
 
-      error
-      (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message)))
-
-      (number? status)
-      (js/process.exit status)
-
-      :else
-      (log (str "shadow-cljs - command completed without status " (pr-str result)))
-      )))
+    (.on proc "exit"
+      (fn [code signal]
+        (js/process.exit code)))))
 
 (defn run-java [project-root args opts]
   (let [^js result
@@ -663,8 +674,6 @@
   ;; that do not exit when the node process is killed (by closing the terminal)
   ;; just adding this causes the java processes to exit properly ...
   ;; I do not understand why ... but I can still use spawnSync this way so I'll take it
-  (let [onExit (js/require "signal-exit")]
-    (onExit (fn [code signal])))
 
   (try
     (let [{:keys [action options] :as opts}

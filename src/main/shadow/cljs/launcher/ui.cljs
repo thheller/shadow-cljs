@@ -395,6 +395,7 @@
 
   (fp/transact! r [(tx-set-project-status {::m/project-id project-id
                                            ::m/project-status :starting
+                                           ::show-info nil
                                            ::m/project-pid pid})]))
 
 (defn ipc->tx [ipc-op tx]
