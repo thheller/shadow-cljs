@@ -31,7 +31,7 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
         for (CompilerInput input : ShadowAccess.getInputsInOrder(compiler)) {
             // clj/cljs/cljc files only, clj because of self-host macros
             if (input.getName().indexOf(".clj") != -1) {
-                NodeTraversal.traverseEs6(compiler, input.getAstRoot(compiler), this);
+                NodeTraversal.traverse(compiler, input.getAstRoot(compiler), this);
             }
         }
 

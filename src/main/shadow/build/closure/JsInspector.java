@@ -164,7 +164,7 @@ public class JsInspector {
 
         // FIXME: don't do this if result has errors?
         FileInfo fileInfo = new FileInfo(result, features);
-        NodeTraversal.traverseEs6(cc, node, fileInfo);
+        NodeTraversal.traverse(cc, node, fileInfo);
 
         return fileInfo;
     }

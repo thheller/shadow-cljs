@@ -52,7 +52,7 @@ public class NodeStuffInlinePass extends NodeTraversal.AbstractPostOrderCallback
 
         // FIXME: don't do this if result has errors?
         NodeTraversal.Callback pass = new NodeStuffInlinePass(cc);
-        NodeTraversal.traverseEs6(cc, node, pass);
+        NodeTraversal.traverse(cc, node, pass);
 
         return node;
     }

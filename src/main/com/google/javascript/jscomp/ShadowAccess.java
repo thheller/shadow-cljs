@@ -11,7 +11,7 @@ import java.util.Set;
  * FIXME: PR to closure to get these public?
  */
 public class ShadowAccess {
-    public static List<CompilerInput> getInputsInOrder(AbstractCompiler comp) {
+    public static Iterable<CompilerInput> getInputsInOrder(AbstractCompiler comp) {
         return comp.getInputsInOrder();
     }
 

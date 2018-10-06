@@ -22,7 +22,7 @@ public class ReplaceRequirePassTest {
         outer.put("test.js", nested);
 
         NodeTraversal.Callback pass = new ReplaceRequirePass(cc, outer);
-        NodeTraversal.traverseEs6(cc, node, pass);
+        NodeTraversal.traverse(cc, node, pass);
 
         return node;
     }

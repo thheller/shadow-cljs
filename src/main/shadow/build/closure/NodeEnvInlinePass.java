@@ -36,7 +36,7 @@ public class NodeEnvInlinePass extends NodeTraversal.AbstractPostOrderCallback i
 
     @Override
     public void process(Node externs, Node root) {
-        NodeTraversal.traverseEs6(compiler, root, this);
+        NodeTraversal.traverse(compiler, root, this);
     }
 
     public static Node process(Compiler cc, SourceFile srcFile) {
@@ -47,7 +47,7 @@ public class NodeEnvInlinePass extends NodeTraversal.AbstractPostOrderCallback i
 
         // FIXME: don't do this if result has errors?
         NodeTraversal.Callback pass = new NodeEnvInlinePass(cc, "production");
-        NodeTraversal.traverseEs6(cc, node, pass);
+        NodeTraversal.traverse(cc, node, pass);
 
         return node;
     }

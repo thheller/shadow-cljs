@@ -129,7 +129,7 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
     }
 
     public void process(Node externs, Node root) {
-        NodeTraversal.traverseEs6(compiler, root, this);
+        NodeTraversal.traverse(compiler, root, this);
     }
 
     public static Node process(Compiler cc, SourceFile srcFile) {
@@ -139,7 +139,7 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         JsAst.ParseResult result = (JsAst.ParseResult) node.getProp(Node.PARSE_RESULTS);
 
         PropertyCollector pass = new PropertyCollector(cc);
-        NodeTraversal.traverseEs6(cc, node, pass);
+        NodeTraversal.traverse(cc, node, pass);
 
 
         System.out.println(pass.properties);
