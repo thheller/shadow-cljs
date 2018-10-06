@@ -1,3 +1,4 @@
 dist/
 web/js/
 node_modules/
+index.js

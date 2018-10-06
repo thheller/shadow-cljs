@@ -66,11 +66,7 @@
   (let [{::ui-model/keys [build-list]} props]
     (s/main-nav
       (s/main-nav-title
-        (s/nav-link {:href "/dashboard"} "shadow-cljs"))
-
-      (s/nav-item
-        (s/nav-item-title
-          (s/nav-link {:href "/repl"} "REPL")))
+        (s/nav-link {:href "/dashboard"} "Dashboard"))
 
       (s/nav-item
         (s/nav-item-title
@@ -78,6 +74,10 @@
         (s/nav-sub-items
           (html/for [{::m/keys [build-id] :as build} build-list]
             (ui-main-nav-build build))))
+
+      (s/nav-item
+        (s/nav-item-title
+          (s/nav-link {:href "/repl"} "REPL")))
 
       (s/nav-fill {})
       (s/nav-item

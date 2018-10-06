@@ -93,7 +93,10 @@
 
     (.on proc "exit"
       (fn [code signal]
-        (js/process.exit code)))))
+        (js/process.exit code)))
+
+    proc
+    ))
 
 (defn run-java [project-root args opts]
   (let [^js result
@@ -120,21 +123,24 @@
 (def default-config
   (reader/read-string default-config-str))
 
+(def ^:binding *project-config* nil)
+
 (defn ensure-config []
-  (loop [root (path/resolve)]
-    (let [config (path/resolve root "shadow-cljs.edn")]
-      (cond
-        (fs/existsSync config)
-        config
+  (or *project-config*
+      (loop [root (path/resolve)]
+        (let [config (path/resolve root "shadow-cljs.edn")]
+          (cond
+            (fs/existsSync config)
+            config
 
-        ;; check parent directory
-        ;; might be in $PROJECT/src/demo it should find $PROJECT/shadow-cljs.edn
-        (not= root (path/resolve root ".."))
-        (recur (path/resolve root ".."))
+            ;; check parent directory
+            ;; might be in $PROJECT/src/demo it should find $PROJECT/shadow-cljs.edn
+            (not= root (path/resolve root ".."))
+            (recur (path/resolve root ".."))
 
-        :else ;; ask to create default config in current dir
-        false
-        ))))
+            :else ;; ask to create default config in current dir
+            false
+            )))))
 
 (defn run-init [opts]
   (let [config (path/resolve "shadow-cljs.edn")]

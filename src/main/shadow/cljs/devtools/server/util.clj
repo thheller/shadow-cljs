@@ -18,6 +18,20 @@
 (defn chan? [x]
   (satisfies? async-prot/ReadPort x))
 
+(defn find-version-from-pom [pom-xml]
+  (let [[_ version :as m]
+        (->> (slurp pom-xml)
+             (re-find #"<version>([^<]+)</version>"))]
+    (when m
+      version)))
+
+(defn find-version []
+  (let [pom-xml (io/resource "META-INF/maven/thheller/shadow-cljs/pom.xml")]
+
+    (if (nil? pom-xml)
+      "<snapshot>"
+      (find-version-from-pom pom-xml))))
+
 (defn async-logger [ch]
   (reify
     build-log/BuildLog

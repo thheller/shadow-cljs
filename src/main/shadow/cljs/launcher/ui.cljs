@@ -49,8 +49,8 @@
    :data state?})
 
 (deftx tx-set-project-status
-  {::m/project-id ident?
-   ::m/project-status some?})
+  {:project-id ident?
+   :data project-data?})
 
 (defn ipc-send
   ([op]
@@ -85,6 +85,8 @@
        (.preventDefault e)
        (ipc-send ::m/project-shutdown {:project-id project-id}))}
     "Shutdown"))
+
+
 
 (defsc ProjectInfo [this {::m/keys [project-id] :as props}]
   {:ident
@@ -121,6 +123,16 @@
                      (ipc-send ::m/open-item {:path project-path}))}
             project-path)))
 
+      (s/project-info-item
+        (s/project-info-label "NPM")
+        (s/project-info-value
+          (html/button
+            {:onClick
+             (fn [e]
+               (.preventDefault e)
+               (ipc-send ::m/project-npm-install {:project-id project-id :project-path project-path}))}
+            "Run 'npm install'")))
+
       (case project-status
         :running
         (s/project-info-item
@@ -139,8 +151,8 @@
                 {:onClick
                  (fn [e]
                    (.preventDefault e)
-                   (ipc-send ::m/project-start {::m/project-id project-id
-                                                ::m/project-path project-path}))}
+                   (ipc-send ::m/project-start {:project-id project-id
+                                                :project-path project-path}))}
                 "Start"))))
 
         :starting
@@ -175,7 +187,7 @@
   ;; (js/console.log ::attach-terminal term-div comp)
 
   (if-not term-div
-    (let [{::keys [term term-resize]} (util/get-local! comp)]
+    (let [{::keys [^js term term-resize]} (util/get-local! comp)]
       (swap! server-buffers-ref update project-id dissoc :term)
       (when term-resize
         (js/window.removeEventListener "resize" term-resize))
@@ -185,8 +197,7 @@
 
     ;; fresh mount
     (let [term
-          (doto (xterm/Terminal. #js {:disableStdin true
-                                      :convertEol true
+          (doto (xterm/Terminal. #js {:convertEol true
                                       :fontFamily "monospace"
                                       :fontSize 14
                                       :theme #js {:foreground "#000000"
@@ -229,7 +240,7 @@
       ::m/project-pid
       ::m/project-server-url])}
 
-  (let [{::m/keys [project-name project-server-url project-status]} props
+  (let [{::m/keys [project-name project-short-path project-server-url project-status]} props
 
         show-iframe?
         (and (seq project-server-url)
@@ -237,8 +248,7 @@
 
         show-console?
         (or (::show-console props)
-            (and (not show-iframe?)
-                 (contains? #{:managed :starting} project-status)))]
+            (not show-iframe?))]
 
     (s/project-container
       (s/project-toolbar
@@ -254,7 +264,7 @@
              (fn [e]
                (.preventDefault e)
                (fp/transact! this [(tx-toggle-project-info {:project-id project-id})]))} "I"))
-        (s/project-title project-name)
+        (s/project-title project-short-path)
         (s/project-actions
           (s/project-action {:onClick #(fp/transact! this [(tx-show-reload-project-ui)])} "R")))
 
@@ -264,7 +274,7 @@
 
       (when show-console?
         (s/project-console-container
-          (s/project-console-header "Server Output")
+          (s/project-console-header "Project Output")
           (s/project-console
             {:ref (util/comp-fn this ::term-ref attach-terminal project-id)})
           )))))
@@ -393,10 +403,11 @@
   (when-let [term (get-in @server-buffers-ref [project-id :term])]
     (.clear term))
 
-  (fp/transact! r [(tx-set-project-status {::m/project-id project-id
-                                           ::m/project-status :starting
-                                           ::show-info nil
-                                           ::m/project-pid pid})]))
+  (fp/transact! r [(tx-set-project-status {:project-id project-id
+                                           :data
+                                           {::m/project-status :starting
+                                            ::show-info nil
+                                            ::m/project-pid pid}})]))
 
 (defn ipc->tx [ipc-op tx]
   (-add-method handle-ipc ipc-op
@@ -440,7 +451,8 @@
 
 (defn query-project-status [project-data]
   (ipc-send ::m/project-status
-    (select-keys project-data [::m/project-id ::m/project-path])))
+    {:project-id (::m/project-id project-data)
+     :project-path (::m/project-path project-data)}))
 
 (defn log-state [state]
   (js/console.log "current-state" state)
@@ -490,8 +502,8 @@
      [::m/project-status])
 
    :state-action
-   (fn [state env {::m/keys [project-id] :as params}]
-     (update-in state [::m/project-id project-id] merge (dissoc params ::m/project-id ::m/op)))})
+   (fn [state env {:keys [project-id data] :as params}]
+     (update-in state [::m/project-id project-id] merge data))})
 
 (fm/handle-mutation tx-proc-exit
   {:refresh

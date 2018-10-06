@@ -31,18 +31,22 @@
 
 (defstyled build-panel-container :div
   [env]
-  {:padding [0 0 20 0]})
+  {:padding 20
+   :border-radius 4
+   :margin-bottom 10
+   :background-color "#fff"
+   :box-shadow "0 3px 1px -2px rgba(0,0,0,.2), 0 2px 2px 0 rgba(0,0,0,.14), 0 1px 5px 0 rgba(0,0,0,.12)"})
 
 (defstyled build-panel-toolbar :div
   [env]
   {:padding [0 0 10 0]})
 
-(defstyled build-panel-label :div
+(defstyled build-panel-label :a
   [env]
-  {:display "inline-block"
+  {:text-decoration "none"
    :font-weight "bold"
-   :min-width 100
-   :padding-right 20})
+   :font-size "1.2em"
+   })
 
 (defsc BuildPanel [this props]
   {:ident
@@ -59,7 +63,7 @@
   (let [{::m/keys [build-id build-status]} props]
     (build-panel-container
       (build-panel-toolbar
-        (build-panel-label (html/a {:href (str "/builds/" (name build-id))} (name build-id))))
+        (build-panel-label {:href (str "/builds/" (name build-id))} (name build-id)))
 
       (build-status/render-build-status build-status))))
 
@@ -81,14 +85,14 @@
       ::ui-model/active-builds []})}
 
   (s/main-contents
-    (s/page-title "Active HTTP Servers")
+    #_ (s/page-title "Active HTTP Servers")
 
-    (html/table
-      (html/tbody
-        (html/for [server (::ui-model/http-servers props)]
-          (ui-http-server server))))
+    #_(html/table
+        (html/tbody
+          (html/for [server (::ui-model/http-servers props)]
+            (ui-http-server server))))
 
-    (s/page-title "Active Builds")
+    (s/cards-title "Active Builds")
     (html/for [build (::ui-model/active-builds props)]
       (ui-build-panel build))))
 

@@ -75,9 +75,11 @@
    :builds {}})
 
 (def default-builds
-  {:npm {:build-id :npm
-         :target :npm-module
-         :output-dir "node_modules/shadow-cljs"}})
+  {:npm
+   ^:generated
+   {:build-id :npm
+    :target :npm-module
+    :output-dir "node_modules/shadow-cljs"}})
 
 (defn- getenv [envname]
   (System/getenv envname))

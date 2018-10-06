@@ -1,19 +1,36 @@
 {
-  "name": "launcher",
-  "version": "1.0.0",
-  "description": "",
+  "name": "shadow-cljs",
+  "version": "0.1.0",
+  "description": "shadow-cljs Launcher",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "pack": "electron-builder --dir",
+    "dist-mac": "electron-builder -m",
+    "dist": "electron-builder -wl"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Thomas Heller",
+  "license": "EPL",
+  "devDependencies": {
+    "electron-builder": "^20.28.4"
+  },
   "dependencies": {
-    "electron": "^3.0.1",
     "react": "^16.5.2",
     "react-dom": "^16.5.2",
     "ws": "^6.0.0",
     "xterm": "^3.7.0"
+  },
+  "build": {
+    "appId": "com.thheller.shadow-cljs",
+    "electronVersion": "3.0.2",
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target":"zip"
+    },
+    "linux":{
+      "target":"tar.gz"
+    }
   }
 }

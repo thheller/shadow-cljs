@@ -151,9 +151,26 @@
                        :ws-in ws-in
                        :ws-out ws-out)))}))
 
+(defn project-info [{:keys [transit-read transit-str] :as req}]
+  (let [project-config
+        (-> (io/file "shadow-cljs.edn")
+            (.getAbsoluteFile))
+
+        project-home
+        (-> project-config
+            (.getParentFile)
+            (.getAbsolutePath))]
+
+    {:status 200
+     :headers {"content-type" "application/transit+json; charset=utf-8"}
+     :body (transit-str {:project-config (.getAbsolutePath project-config)
+                         :project-home project-home
+                         :version (server-util/find-version)})}))
+
 (defn root* [req]
   (http/route req
     (:GET "" index-page)
+    (:GET "/project-info" project-info)
     (:POST "/graph" graph/serve)
     (:POST "/open-file" open-file)
     common/not-found))

@@ -60,6 +60,7 @@
       {::m/build-configs
        (->> (vals builds)
             (sort-by :build-id)
+            (remove #(-> % meta :generated))
             (map adapt-build-config)
             (into []))})))
 

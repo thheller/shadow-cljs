@@ -31,6 +31,9 @@
     (fs/mkdirSync path)
     ))
 
+(defn get-main-win ^js []
+  (:main-win @windows-ref))
+
 (defn launcher-data-path []
   (let [home-dir
         (os/homedir)
@@ -74,8 +77,8 @@
          msg (transit-str data)]
      (js/console.log "ipc-main-out" (pr-str data))
      (some->
-       (:main-win @windows-ref)
-       (.-webContents)
+       (get-main-win)
+       ^js (.-webContents)
        (.send "msg" msg)))))
 
 (defn create-main-window []
@@ -88,7 +91,7 @@
              :minWidth 400
              :minHeight 400
              :title "shadow-cljs"
-             :icon (path/resolve js/__dirname ".." "web" "img" "shadow-cljs.png")
+             :icon "web/img/shadow-cljs.png"
              :show false
              :autoHideMenuBar true}
             (cond->
@@ -97,7 +100,7 @@
             (clj->js)
             (e/BrowserWindow.))]
 
-    (.loadURL main-win (str "file://" (path/resolve js/__dirname ".." "web" "ui.html")))
+    (.loadFile main-win "web/ui.html")
 
     (.on main-win "closed"
       (fn []
@@ -152,27 +155,32 @@
                  project-dir)))))))
 
 (defmethod handle-ipc ::m/project-find [_]
-  (-> {:title "Open Project Directory"
-       :properties ["openDirectory"]}
-      (clj->js)
-      (e/dialog.showOpenDialog did-project-find)))
+  (let [opts
+        (-> {:title "Open Project Directory"
+             :properties ["openDirectory"]}
+            (clj->js))]
+
+    (e/dialog.showOpenDialog (get-main-win) opts did-project-find)))
 
 (defmethod handle-ipc ::m/project-create [_]
-  (e/dialog.showMessageBox
-    (-> {:type "info"
-         :title "TBD"
-         :message "Coming soon ... I hope ..."}
-        (clj->js))))
+  (let [opts
+        (-> {:type "info"
+             :title "TBD"
+             :message "Coming soon ... I hope ..."}
+            (clj->js))]
+
+    (e/dialog.showMessageBox (get-main-win) opts)))
 
 (defmethod handle-ipc ::m/open-item [{:keys [path]}]
   (e/shell.openItem path))
 
-(defmethod handle-ipc ::m/project-status [{::m/keys [project-id project-path] :as query}]
+(defmethod handle-ipc ::m/project-status [{:keys [project-id project-path] :as query}]
   (let [result-fn
         (fn [status data]
-          (ipc-send ::m/project-status (assoc data
-                                         ::m/project-status status
-                                         ::m/project-id project-id)))
+          (ipc-send ::m/project-status {:project-id project-id
+                                        :data (assoc data
+                                                ::m/project-status status
+                                                ::m/project-id project-id)}))
 
         server-port-file
         (path/resolve project-path ".shadow-cljs" "http.port")]
@@ -205,7 +213,7 @@
             (result-fn :timeout {})))
 
         (.on req "response"
-          (fn [res]
+          (fn [^js res]
             (let [status (.-statusCode res)]
               (if (= 200 status)
                 (result-fn :running {::m/project-server-url server-url})
@@ -223,75 +231,122 @@
         (cb)
         ))))
 
-(defmethod handle-ipc ::m/project-start [{::m/keys [project-id project-path] :as query}]
-  (if (get @procs-ref project-id)
-    (ipc-send ::m/project-already-managed {::m/project-id project-id})
-    (let [spawn-opts
-          #js {:cwd project-path
-               :shell true
-               :windowsHide true}
+(defn spawn-forward
+  "spawn cmd and forward all output to UI"
+  [project-id project-path cmd args]
+  (let [spawn-opts
+        #js {:cwd project-path
+             :shell true
+             :windowsHide true}
 
-          http-port-file
+        ^js proc
+        (cp/spawn cmd (into-array args) spawn-opts)]
+
+    (.on (. proc -stdout)
+      "data"
+      (fn [buf]
+        (ipc-send ::m/proc-stdout
+          {:project-id project-id
+           :data (str buf)})))
+
+    (.on (. proc -stderr)
+      "data"
+      (fn [buf]
+        (ipc-send ::m/proc-stderr
+          {:project-id project-id
+           :data (str buf)})))
+
+    proc))
+
+(defmethod handle-ipc ::m/project-npm-install [{:keys [project-id project-path] :as query}]
+  (let [^js proc
+        (spawn-forward project-id project-path "npm" ["install"])]
+
+    (ipc-send ::m/proc-stdout
+      {:project-id project-id
+       :data "Starting 'npm install'\n\n"})
+
+    (.on proc
+      "error"
+      (fn [^js err]
+        (ipc-send ::m/npm-install-error
+          {:project-id project-id
+           :error-message (.-message err)})))
+
+    (.on proc
+      "close"
+      (fn [code]
+        (ipc-send ::m/proc-stdout
+          {:project-id project-id
+           :data (str "Command exit with status " code "\n")})
+
+        (ipc-send ::m/npm-install-result {:project-id project-id
+                                          :exit-code code})
+        ))))
+
+(defmethod handle-ipc ::m/project-start [{:keys [project-id project-path] :as query}]
+  (if (get @procs-ref project-id)
+    (ipc-send ::m/project-already-managed {:project-id project-id})
+    (let [http-port-file
           (path/resolve project-path ".shadow-cljs" "http.port")
 
-          ;; FIXME: don't go through npx, use re-use cli code instead
-          ;; maybe even bundle deps downloader
-          ^js proc
-          (cp/spawn "npx" #js ["shadow-cljs" "server"] spawn-opts)]
+          runner-file
+          (path/resolve project-path "node_modules" "shadow-cljs" "cli" "runner.js")]
 
-      ;; in case an old one exists but the process is dead
-      ;; FIXME: check if actually dead
-      (when (fs/existsSync http-port-file)
-        (fs/unlinkSync http-port-file))
+      (if-not (fs/existsSync runner-file)
+        (ipc-send ::m/project-not-installed {:project-id project-id})
 
-      (swap! procs-ref assoc project-id proc)
+        (let [^js proc
+              (spawn-forward project-id project-path "node" [runner-file "server"])]
 
-      (ipc-send ::m/proc-starting
-        {:project-id project-id
-         :pid (.-pid proc)})
-
-      (.on (. proc -stdout)
-        "data"
-        (fn [buf]
           (ipc-send ::m/proc-stdout
             {:project-id project-id
-             :data (str buf)})))
+             :data "Starting shadow-cljs server instance ...\n\n"})
 
-      (.on (. proc -stderr)
-        "data"
-        (fn [buf]
-          (ipc-send ::m/proc-stderr
+          ;; in case an old one exists but the process is dead
+          ;; FIXME: check if actually dead
+          (when (fs/existsSync http-port-file)
+            (fs/unlinkSync http-port-file))
+
+          (swap! procs-ref assoc project-id proc)
+
+          (ipc-send ::m/proc-starting
             {:project-id project-id
-             :data (str buf)})))
+             :pid (.-pid proc)})
 
-      (.on proc
-        "error"
-        (fn [^js err]
-          (ipc-send ::m/proc-error
-            {:project-id project-id
-             :error-message (.-message err)})
-          ))
+          (.on proc
+            "error"
+            (fn [^js err]
+              (ipc-send ::m/proc-error
+                {:project-id project-id
+                 :error-message (.-message err)})
+              ))
 
-      (.on proc
-        "close"
-        (fn [code]
-          (ipc-send ::m/proc-exit {:project-id project-id
-                                   :exit-code code})
-          (swap! procs-ref dissoc project-id)))
+          (.on proc
+            "close"
+            (fn [code]
+              (ipc-send ::m/proc-stdout
+                {:project-id project-id
+                 :data (str "Command exit with status " code "\n")})
 
-      (wait-for-file http-port-file
-        (fn []
-          (let [port
-                (-> (fs/readFileSync http-port-file)
-                    (str)
-                    (js/parseInt 10))]
+              (ipc-send ::m/proc-exit {:project-id project-id
+                                       :exit-code code})
+              (swap! procs-ref dissoc project-id)))
 
-            (ipc-send ::m/project-status
-              {::m/project-id project-id
-               ::m/project-status :managed
-               ::m/project-pid (.-pid proc)
-               ::m/project-server-url (str "http://localhost:" port)})
-            ))))))
+          (wait-for-file http-port-file
+            (fn []
+              (let [port
+                    (-> (fs/readFileSync http-port-file)
+                        (str)
+                        (js/parseInt 10))]
+
+                (ipc-send ::m/project-status
+                  {:project-id project-id
+                   :data
+                   {::m/project-status :managed
+                    ::m/project-pid (.-pid proc)
+                    ::m/project-server-url (str "http://localhost:" port)}})
+                ))))))))
 
 (defmethod handle-ipc ::m/project-kill [{:keys [project-id] :as query}]
   (let [proc (get @procs-ref project-id)]

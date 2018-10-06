@@ -1,0 +1,5 @@
+# the build uses require and doesn't process the JS
+# so these props get renamed in fulcro since its not typehinted
+props
+state
+displayName

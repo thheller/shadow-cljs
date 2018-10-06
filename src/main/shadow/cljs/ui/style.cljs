@@ -28,6 +28,12 @@
    :font-weight "bold"
    :padding [10 0]})
 
+(defstyled cards-title :div
+  [env]
+  {:font-size "1.8em"
+   :font-weight "bold"
+   :padding [10 0 10 20]})
+
 (defstyled toolbar-actions :div
   [env]
   {})

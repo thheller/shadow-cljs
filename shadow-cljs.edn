@@ -106,8 +106,10 @@
 
   :launcher-main
   {:target :node-script
-   :output-to "packages/launcher/dist/main.js"
+   :output-to "packages/launcher/index.js"
    :main shadow.cljs.launcher.main/init
+   :compiler-options
+   {:infer-externs :auto}
    :devtools
    {:autoload true}}
 
@@ -115,6 +117,8 @@
   {:target :browser
    :output-dir "packages/launcher/web/js"
    :asset-path "js"
+   :compiler-options
+   {:infer-externs :auto}
    :js-options
    {:js-provider :require}
    :modules

@@ -322,13 +322,6 @@
       ;; system config doesn't need build infos
       (dissoc :builds)))
 
-(defn find-version-from-pom [pom-xml]
-  (let [[_ version :as m]
-        (->> (slurp pom-xml)
-             (re-find #"<version>([^<]+)</version>"))]
-    (when m
-      version)))
-
 (defn start!
   ([]
    (let [config (load-config)]
@@ -411,9 +404,6 @@
                {:keys [http ssl-context socket-repl nrepl config] :as app}
                @app-ref
 
-               pom-xml
-               (io/resource "META-INF/maven/thheller/shadow-cljs/pom.xml")
-
                http-host
                (let [host (:host http)]
                  (if (= host "0.0.0.0")
@@ -421,9 +411,7 @@
                    host))
 
                version
-               (if (nil? pom-xml)
-                 "<snapshot>"
-                 (find-version-from-pom pom-xml))]
+               (util/find-version)]
 
            (log/debug ::start)
 
