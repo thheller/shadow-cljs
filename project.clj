@@ -23,9 +23,9 @@
    [org.clojure/data.json "0.2.6"]
    [org.clojure/tools.cli "0.3.7"]
    [org.clojure/tools.reader "1.3.0"]
-   [nrepl "0.4.4"]
+   [nrepl "0.4.5"]
 
-   [com.cognitect/transit-clj "0.8.309"]
+   [com.cognitect/transit-clj "0.8.313"]
    [com.cognitect/transit-cljs "0.8.256"]
 
    [org.clojure/core.async "0.4.474"]
@@ -37,23 +37,23 @@
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20180805"]
+   [com.google.javascript/closure-compiler-unshaded "v20180910"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.11.Final"]
+   [io.undertow/undertow-core "2.0.13.Final"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.6.3"
+   [ring/ring-core "1.7.0"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
    [expound "0.7.1"]
-   [fipp "0.6.12"]
+   [fipp "0.6.13"]
 
-   [com.wsscode/pathom "2.1.2"
+   [com.wsscode/pathom "2.1.3"
     :exclusions
     [org.clojure/data.json
      fulcrologic/fulcro
@@ -106,7 +106,7 @@
    :cljs
    {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
     :dependencies
-    [[fulcrologic/fulcro "2.6.4"
+    [[fulcrologic/fulcro "2.6.6"
       :exclusions
       [clojure-future-spec
        com.stuartsierra/component
