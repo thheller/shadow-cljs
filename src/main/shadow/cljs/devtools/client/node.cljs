@@ -152,7 +152,7 @@
         (vreset! ws-ref client)))
 
     (.on client "unexpected-response"
-      (fn [req res]
+      (fn [req ^js res]
         (let [status (.-statusCode res)]
           (if (= 406 status)
             (js/console.log "REPL connection rejected, probably stale JS connecting to new server.")

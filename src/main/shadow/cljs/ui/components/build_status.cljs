@@ -2,11 +2,15 @@
   (:require
     [goog.string.format]
     [goog.string :refer (format)]
-    [shadow.markup.react :as html]
+    [shadow.markup.react :as html :refer (defstyled)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.model :as ui-model]
     [shadow.cljs.ui.style :as s]
     [shadow.cljs.ui.util :as util]))
+
+(defstyled error-container :pre
+  [env]
+  {:overflow "auto"})
 
 (defn render-build-log [{:keys [log] :as build-status}]
   ;; FIXME: are these useful at all?
@@ -94,7 +98,8 @@
     (html/div
       (str "X Compilation failed."))
 
-    (html/pre report)))
+    (error-container
+      report)))
 
 (defn render-build-status [{:keys [status] :as build-status}]
   (case status

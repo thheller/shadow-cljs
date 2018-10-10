@@ -17,6 +17,13 @@
 (defonce windows-ref (atom {}))
 (defonce procs-ref (atom {}))
 
+(def asar? (str/includes? js/__dirname ".asar"))
+
+(defn dist-file [name]
+  (if asar?
+    name
+    (path/resolve js/__dirname name)))
+
 (defn transit-read [msg]
   (let [r (transit/reader :json)]
     (transit/read r msg)))
@@ -75,7 +82,8 @@
   ([op data]
    (let [data (assoc data ::m/op op)
          msg (transit-str data)]
-     (js/console.log "ipc-main-out" (pr-str data))
+     (when-not asar?
+       (js/console.log "ipc-main-out" (pr-str data)))
      (some->
        (get-main-win)
        ^js (.-webContents)
@@ -91,7 +99,7 @@
              :minWidth 400
              :minHeight 400
              :title "shadow-cljs"
-             :icon "web/img/shadow-cljs.png"
+             :icon (dist-file "web/img/shadow-cljs.png")
              :show false
              :autoHideMenuBar true}
             (cond->
@@ -100,7 +108,7 @@
             (clj->js)
             (e/BrowserWindow.))]
 
-    (.loadFile main-win "web/ui.html")
+    (.loadFile main-win (dist-file "web/ui.html"))
 
     (.on main-win "closed"
       (fn []
@@ -125,7 +133,8 @@
       (fn []
         (.show main-win)))
 
-    (.. main-win -webContents (openDevTools #js {:mode "detach"}))
+    (when-not asar?
+      (.. main-win -webContents (openDevTools #js {:mode "detach"})))
 
     (swap! windows-ref assoc :main-win main-win)
 
@@ -388,7 +397,8 @@
   (.on ipcMain "msg"
     (fn [event arg]
       (let [msg (transit-read arg)]
-        (js/console.log "ipc-main" (pr-str msg))
+        (when-not asar?
+          (js/console.log "ipc-main" (pr-str msg)))
         (handle-ipc msg)
         )))
 

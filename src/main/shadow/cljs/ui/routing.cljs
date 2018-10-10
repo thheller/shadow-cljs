@@ -109,6 +109,10 @@
       "builds"
       (-> (load-module r "build")
           (.then #(js* "shadow.cljs.ui.pages.build.route(~{}, ~{});" r more)))
+
+      "build"
+      (-> (load-module r "build")
+          (.then #(js* "shadow.cljs.ui.pages.build.route_build(~{}, ~{});" r more)))
       )))
 
 (defn setup-history [reconciler ^goog history]

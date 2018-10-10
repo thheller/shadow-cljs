@@ -76,6 +76,7 @@
 
 (defstyled page-container :div [env]
   {:position "fixed"
+   :background-color "#f4f4f4"
    :top 0
    :left 0
    :width "100%"
@@ -84,8 +85,8 @@
    :flex-direction "column"})
 
 (defstyled main-nav :div [env]
-  {:color "rgba(255,255,255,.87)"
-   :background-color "#1A237E"
+  {:color "#000"
+   :background-color "#fff"
    :display "flex"
    :border-bottom "2px solid #ccc"
    :margin-bottom 5})
@@ -128,7 +129,7 @@
    :position "relative"})
 
 (defstyled nav-link :a [env]
-  {:color "#fff"
+  {:color "#000"
    :text-decoration "none"})
 
 (defstyled nav-item-title :div [env]

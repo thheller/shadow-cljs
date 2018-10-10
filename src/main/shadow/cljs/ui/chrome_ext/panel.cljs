@@ -12,5 +12,5 @@
             (dom/append [:h1 {:style "text-align: center;"} "Not a shadow-cljs development build."]))
         (dom/append
           [:iframe#frame
-           {:src (str "http://localhost:" (gobj/get info "server-port") "/builds/" (gobj/get info "build-id"))}]))
+           {:src (str "http://localhost:" (gobj/get info "server-port") "/build/" (gobj/get info "build-id"))}]))
       )))

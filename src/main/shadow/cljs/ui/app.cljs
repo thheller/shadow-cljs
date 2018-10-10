@@ -44,7 +44,7 @@
                                      (tx/build-watch-start {:build-id build-id})
                                      (tx/build-watch-stop {:build-id build-id}))]))}))
 
-        (s/nav-build-link {:href (str "/builds/" (name build-id))} (name build-id))))))
+        (s/nav-build-link {:href (str "/build/" (name build-id))} (name build-id))))))
 
 
 (def ui-main-nav-build (fp/factory MainNavBuild {:keyfn ::m/build-id}))
@@ -52,7 +52,8 @@
 (defsc MainNav [this props]
   {:query
    (fn []
-     [{::ui-model/build-list (fp/get-query MainNavBuild)}
+     [{[::ui-model/build-list '_]
+       (fp/get-query MainNavBuild)}
       [::ui-model/ws-connected '_]])
 
    :ident
@@ -70,7 +71,7 @@
 
       (s/nav-item
         (s/nav-item-title
-          (s/nav-link {:href "/dashboard"} "Builds"))
+          (s/nav-link {:href "/builds"} "Builds"))
         (s/nav-sub-items
           (html/for [{::m/keys [build-id] :as build} build-list]
             (ui-main-nav-build build))))
@@ -260,6 +261,8 @@
 
 (defn stop [])
 
+
+
 (defn init []
   (let [ws-in
         (-> (async/sliding-buffer 10)
@@ -310,13 +313,21 @@
               {:target [::ui-model/page-dashboard 1 ::ui-model/http-servers]})
 
             (fdf/load app ::m/build-configs MainNavBuild
-              {:target [::ui-model/globals ::ui-model/nav ::ui-model/build-list]
+              {:target [::ui-model/build-list]
                :without #{::m/build-info}
                :post-mutation `tx/builds-loaded
                :refresh [::ui-model/builds-loaded]}))
 
+          #_:read-local
+          #_(fn [env key params]
+              (env/read-local env key params))
+
           :initial-state
-          (fp/get-initial-state Root {})
+          (-> (fp/get-initial-state Root {})
+              (assoc-in [::ui-model/page-repl 1] {})
+              (assoc-in [::ui-model/page-builds 1] {})
+              (assoc-in [::ui-model/page-loading 1] {})
+              (assoc-in [::ui-model/page-dashboard 1] {}))
 
           :reconciler-options
           {:shared

@@ -24,7 +24,9 @@
 
 (defstyled project-info-container :div
   [env]
-  {:padding [10 10 0 10]})
+  {:padding [10 10 0 10]
+   :border-top "2px solid #ccc"
+   })
 
 (defstyled right-action-button :button
   [env]
@@ -139,7 +141,7 @@
 (defstyled project-toolbar :div [env]
   {:display "flex"
    :background-color "#fff"
-   :border-bottom "2px solid #ccc"})
+   })
 
 (defstyled project-listing-link :div [env]
   {:font-weight "bold"

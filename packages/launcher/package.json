@@ -12,6 +12,7 @@
   "author": "Thomas Heller",
   "license": "EPL",
   "devDependencies": {
+    "electron": "^3.0.3",
     "electron-builder": "^20.28.4"
   },
   "dependencies": {
@@ -22,15 +23,15 @@
   },
   "build": {
     "appId": "com.thheller.shadow-cljs",
-    "electronVersion": "3.0.2",
+    "electronVersion": "3.0.3",
     "mac": {
       "category": "public.app-category.developer-tools"
     },
     "win": {
-      "target":"zip"
+      "target": "zip"
     },
-    "linux":{
-      "target":"tar.gz"
+    "linux": {
+      "target": "tar.gz"
     }
   }
 }

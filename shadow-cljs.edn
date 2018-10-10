@@ -174,6 +174,7 @@
 
    :js-options
    {:js-provider :shadow
+    :variable-renaming :local
     :resolve
     {"moment"
      false
@@ -194,215 +195,215 @@
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 
-  :browser-single
-  {:target :browser
+  #_#_:browser-single
+      {:target :browser
 
-   :output-dir "out/demo-browser-single/public/js"
-   :asset-path "/js"
+       :output-dir "out/demo-browser-single/public/js"
+       :asset-path "/js"
 
-   :compiler-options
-   {:infer-externs :auto
-    :shadow-keywords true
-    :closure-defines {demo.browser/FOO "bar"}}
+       :compiler-options
+       {:infer-externs :auto
+        :shadow-keywords true
+        :closure-defines {demo.browser/FOO "bar"}}
 
-   :modules
-   {:demo {:entries [demo.browser]}}
+       :modules
+       {:demo {:entries [demo.browser]}}
 
-   :devtools
-   {:http-root "out/demo-browser-single/public"
-    :http-port 8602
-    :before-load-async demo.browser/stop-from-config
-    :after-load demo.browser/start-from-config}}
+       :devtools
+       {:http-root "out/demo-browser-single/public"
+        :http-port 8602
+        :before-load-async demo.browser/stop-from-config
+        :after-load demo.browser/start-from-config}}
 
-  :chrome-ext
-  {:target :chrome-extension
-   :extension-dir "out/chrome-ext"
-   :manifest-file "out/chrome-manifest.edn"}
+  #_#_:chrome-ext
+      {:target :chrome-extension
+       :extension-dir "out/chrome-ext"
+       :manifest-file "out/chrome-manifest.edn"}
 
-  :test-browser
-  {:target :browser-test
-   :test-dir "out/demo-test-browser"
-   :devtools
-   {:http-port 8606
-    :http-root "out/demo-test-browser"}}
+  #_#_:test-browser
+      {:target :browser-test
+       :test-dir "out/demo-test-browser"
+       :devtools
+       {:http-port 8606
+        :http-root "out/demo-test-browser"}}
 
-  :test-node
-  {:target :node-test
-   :output-to "out/demo-test-node/script.js"}
+  #_#_:test-node
+      {:target :node-test
+       :output-to "out/demo-test-node/script.js"}
 
-  :test-fail
-  {:target :node-test
-   :output-to "out/demo-test-node-fail/script.js"
-   :ns-regexp "demo.test-fail"}
+  #_#_:test-fail
+      {:target :node-test
+       :output-to "out/demo-test-node-fail/script.js"
+       :ns-regexp "demo.test-fail"}
 
-  :test-karma
-  {:target :karma
-   :output-to "out/demo-karma/test.js"}
+  #_#_:test-karma
+      {:target :karma
+       :output-to "out/demo-karma/test.js"}
 
-  :sm-test
-  {:target :browser
+  #_#_:sm-test
+      {:target :browser
 
-   :output-dir "out/demo-sm-test/public/js"
-   :asset-path "/js"
+       :output-dir "out/demo-sm-test/public/js"
+       :asset-path "/js"
 
-   :compiler-options
-   {:source-map true
-    :pretty-print false}
+       :compiler-options
+       {:source-map true
+        :pretty-print false}
 
-   :modules
-   {:base
-    {:entries
-     [cljs.core]
-     :depends-on
-     #{}}
+       :modules
+       {:base
+        {:entries
+         [cljs.core]
+         :depends-on
+         #{}}
 
-    :test
-    {:entries [demo.sm-test]
-     :depends-on #{:base}}}
+        :test
+        {:entries [demo.sm-test]
+         :depends-on #{:base}}}
 
-   :js-options
-   {:js-provider :shadow
-    :resolve
-    {"js-sm-test"
-     {:target :file
-      :file "test/cjs/js-sm-test.js"}}}
+       :js-options
+       {:js-provider :shadow
+        :resolve
+        {"js-sm-test"
+         {:target :file
+          :file "test/cjs/js-sm-test.js"}}}
 
-   :devtools
-   {:http-root "out/demo-sm-test/public"
-    :http-port 8605
-    :async-require true
-    :enabled false}}
+       :devtools
+       {:http-root "out/demo-sm-test/public"
+        :http-port 8605
+        :async-require true
+        :enabled false}}
 
-  :bootstrap-host
-  {:target :browser
+  #_#_:bootstrap-host
+      {:target :browser
 
-   :output-dir "out/demo-selfhost/public/simple/js"
-   :asset-path "/simple/js"
+       :output-dir "out/demo-selfhost/public/simple/js"
+       :asset-path "/simple/js"
 
-   :compiler-options
-   {:optimizations :simple}
+       :compiler-options
+       {:optimizations :simple}
 
-   :modules
-   {:base
-    {:entries [demo.selfhost.simple]}}
+       :modules
+       {:base
+        {:entries [demo.selfhost.simple]}}
 
-   :devtools
-   {:http-root "out/demo-selfhost/public"
-    :http-port 8610
-    :before-load demo.selfhost.simple/stop
-    :after-load demo.selfhost.simple/start}}
+       :devtools
+       {:http-root "out/demo-selfhost/public"
+        :http-port 8610
+        :before-load demo.selfhost.simple/stop
+        :after-load demo.selfhost.simple/start}}
 
-  :bootstrap-worker
-  {:target :browser
+  #_#_:bootstrap-worker
+      {:target :browser
 
-   :output-dir "out/demo-selfhost/public/worker/js"
-   :asset-path "/worker/js"
+       :output-dir "out/demo-selfhost/public/worker/js"
+       :asset-path "/worker/js"
 
-   :compiler-options
-   {:optimizations :simple}
+       :compiler-options
+       {:optimizations :simple}
 
-   :modules
-   {:base
-    {:entries [shadow.cljs.bootstrap.env
-               demo.selfhost.host]}
-    :worker
-    {:entries [demo.selfhost.worker]
-     :depends-on #{:base}
-     :web-worker true}}
+       :modules
+       {:base
+        {:entries [shadow.cljs.bootstrap.env
+                   demo.selfhost.host]}
+        :worker
+        {:entries [demo.selfhost.worker]
+         :depends-on #{:base}
+         :web-worker true}}
 
-   :devtools
-   {:before-load demo.selfhost.host/stop
-    :after-load demo.selfhost.host/start}}
+       :devtools
+       {:before-load demo.selfhost.host/stop
+        :after-load demo.selfhost.host/start}}
 
-  :bootstrap-support
-  {:target :bootstrap
-   :output-dir "out/demo-selfhost/public/bootstrap"
-   :exclude #{cljs.js}
-   :entries [cljs.js demo.macro demo.lib reagent.core]
-   :macros []}
+  #_#_:bootstrap-support
+      {:target :bootstrap
+       :output-dir "out/demo-selfhost/public/bootstrap"
+       :exclude #{cljs.js}
+       :entries [cljs.js demo.macro demo.lib reagent.core]
+       :macros []}
 
-  :js-only
-  {:target :browser
-   :output-dir "out/demo-js-only/public/js"
-   :asset-path "/js"
-   :compiler-options
-   {:optimizations :simple
-    :pretty-print true}
-   :modules {:base {:entries [cljs.core
-                              shadow.js]}
-             :main {:entries ["/test/cjs/entry.js"]
-                    :depends-on #{:base}}}
-   :devtools
-   {:enabled false
-    :console-support false}}
+  #_#_:js-only
+      {:target :browser
+       :output-dir "out/demo-js-only/public/js"
+       :asset-path "/js"
+       :compiler-options
+       {:optimizations :simple
+        :pretty-print true}
+       :modules {:base {:entries [cljs.core
+                                  shadow.js]}
+                 :main {:entries ["/test/cjs/entry.js"]
+                        :depends-on #{:base}}}
+       :devtools
+       {:enabled false
+        :console-support false}}
 
-  :closure
-  {:target :browser
-   :output-dir "out/demo-closure/public/js"
-   :asset-path "/js"
-   :modules {:base {:entries [cljs.core
-                              shadow.js]}
-             :main {:entries [demo.reagent]
-                    :depends-on #{:base}}}
-   :compiler-options
-   {:externs ["test/react.ext.js"
-              "test/react-dom.ext.js"]
-    :closure-warnings {:global-this :off}}
-   :js-options
-   {:js-provider :closure}
-   :devtools
-   {:http-root "out/demo-closure/public"
-    :http-port 7810
-    :autoload true}}
+  #_#_:closure
+      {:target :browser
+       :output-dir "out/demo-closure/public/js"
+       :asset-path "/js"
+       :modules {:base {:entries [cljs.core
+                                  shadow.js]}
+                 :main {:entries [demo.reagent]
+                        :depends-on #{:base}}}
+       :compiler-options
+       {:externs ["test/react.ext.js"
+                  "test/react-dom.ext.js"]
+        :closure-warnings {:global-this :off}}
+       :js-options
+       {:js-provider :closure}
+       :devtools
+       {:http-root "out/demo-closure/public"
+        :http-port 7810
+        :autoload true}}
 
-  :closure-es6
-  {:target :browser
-   :output-dir "out/demo-closure-es6/public/js"
-   :asset-path "/js"
-   :modules {:main {:entries [demo.closure]}}
-   :js-options
-   {:js-provider :closure}
-   :devtools
-   {:http-root "out/demo-closure-es6/public"
-    :http-port 7820
-    :autoload true}}
+  #_#_:closure-es6
+      {:target :browser
+       :output-dir "out/demo-closure-es6/public/js"
+       :asset-path "/js"
+       :modules {:main {:entries [demo.closure]}}
+       :js-options
+       {:js-provider :closure}
+       :devtools
+       {:http-root "out/demo-closure-es6/public"
+        :http-port 7820
+        :autoload true}}
 
-  :script
-  {:target :node-script
-   :main demo.script/main
-   :output-to "out/demo-script/script.js"
+  #_#_:script
+      {:target :node-script
+       :main demo.script/main
+       :output-to "out/demo-script/script.js"
 
-   :compiler-options
-   {:optimizations :advanced
-    :source-map-use-fs-paths true}
+       :compiler-options
+       {:optimizations :advanced
+        :source-map-use-fs-paths true}
 
-   :js-options
-   {:resolve
-    {"codemirror" false}}
+       :js-options
+       {:resolve
+        {"codemirror" false}}
 
-   :devtools
-   {:before-load-async demo.script/stop
-    :after-load demo.script/start
-    :preloads [demo.preload]}}
+       :devtools
+       {:before-load-async demo.script/stop
+        :after-load demo.script/start
+        :preloads [demo.preload]}}
 
-  :library
-  {:target :node-library
-   :output-to "out/demo-library/lib.js"
-   :exports
-   {:hello demo.lib/hello}}
+  #_#_:library
+      {:target :node-library
+       :output-to "out/demo-library/lib.js"
+       :exports
+       {:hello demo.lib/hello}}
 
-  :custom
-  {:target build/custom
+  #_#_:custom
+      {:target build/custom
 
-   :output-dir "out/demo-browser/js"
-   :asset-path "/js"
+       :output-dir "out/demo-browser/js"
+       :asset-path "/js"
 
-   :modules
-   {:demo {:entries [demo.browser]}}
+       :modules
+       {:demo {:entries [demo.browser]}}
 
-   :devtools
-   {:before-load demo.browser/stop
-    :after-load demo.browser/start}}
+       :devtools
+       {:before-load demo.browser/stop
+        :after-load demo.browser/start}}
 
   :warnings
   {:target :node-script
@@ -414,65 +415,65 @@
    :main demo.errors/main
    :output-to "out/demo-errors/script.js"}
 
-  :foreign
-  {:target :browser
-   :output-dir "out/demo-foreign/js"
-   :asset-path "/js"
-   :compiler-options
-   {:externs
-    ["src/dev/demo/foreign-ext.js"]}
-   :modules
-   {:main {:entries [demo.foreign]}}}
+  #_#_:foreign
+      {:target :browser
+       :output-dir "out/demo-foreign/js"
+       :asset-path "/js"
+       :compiler-options
+       {:externs
+        ["src/dev/demo/foreign-ext.js"]}
+       :modules
+       {:main {:entries [demo.foreign]}}}
 
-  :npm
-  {:target :npm-module
-   :output-dir "out/demo-npm/lib"
-   :entries [demo.npm
-             demo.rel-require]}
+  #_#_:npm
+      {:target :npm-module
+       :output-dir "out/demo-npm/lib"
+       :entries [demo.npm
+                 demo.rel-require]}
 
-  :azure-fn
-  {:target :azure-app
-   :fn-map {:simple demo.azure.simple/test-fn}
-   :app-dir "out/azure-fn"}
+  #_#_:azure-fn
+      {:target :azure-app
+       :fn-map {:simple demo.azure.simple/test-fn}
+       :app-dir "out/azure-fn"}
 
-  :expo-ios
-  {:target :react-native
-   :init-fn demo.rn/init
-   :output-to "out/testCRNA/index.js"
-   :devtools {:autoload true
-              :preload [shadow.expo.keep-awake]}}
+  #_#_:expo-ios
+      {:target :react-native
+       :init-fn demo.rn/init
+       :output-to "out/testCRNA/index.js"
+       :devtools {:autoload true
+                  :preload [shadow.expo.keep-awake]}}
 
-  :expo-android
-  {:target :expo
-   :init-fn demo.rn/init
-   :platform "android"
-   :expo-root "out/TestCRNA"
-   :output-dir "out/TestCRNA/out-android"
-   :devtools
-   {:http-port 19501
-    :http-root "out/TestCRNA/out-android"}}
+  #_#_:expo-android
+      {:target :expo
+       :init-fn demo.rn/init
+       :platform "android"
+       :expo-root "out/TestCRNA"
+       :output-dir "out/TestCRNA/out-android"
+       :devtools
+       {:http-port 19501
+        :http-root "out/TestCRNA/out-android"}}
 
-  :npm-web
-  {:target :npm-module
-   :runtime :browser
-   :entries [demo.browser]
-   :output-dir "out/npm-web/src/cljs"
-   :compiler-options
-   {:externs ["shadow/cljs/npm/externs.js"
-              "demo/browser-externs.js"]}}
+  #_#_:npm-web
+      {:target :npm-module
+       :runtime :browser
+       :entries [demo.browser]
+       :output-dir "out/npm-web/src/cljs"
+       :compiler-options
+       {:externs ["shadow/cljs/npm/externs.js"
+                  "demo/browser-externs.js"]}}
 
-  :node-repl-test
-  {:target :node-script
-   :main shadow.cljs.devtools.client.node-repl/main
-   :output-to "out/node-repl-dev/node-repl.js"}
+  #_#_:node-repl-test
+      {:target :node-script
+       :main shadow.cljs.devtools.client.node-repl/main
+       :output-to "out/node-repl-dev/node-repl.js"}
 
-  :dce
-  {:target :browser
-   :output-dir "target/dce-test"
-   :compiler-options
-   {:fn-invoke-direct true}
-   :modules
-   {:core {:entries [cljs.core]}
-    :main {:entries [demo.dce]
-           :depends-on #{:core}}}
-   }}}
+  #_#_:dce
+      {:target :browser
+       :output-dir "target/dce-test"
+       :compiler-options
+       {:fn-invoke-direct true}
+       :modules
+       {:core {:entries [cljs.core]}
+        :main {:entries [demo.dce]
+               :depends-on #{:core}}}
+       }}}

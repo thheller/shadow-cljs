@@ -11,7 +11,8 @@
     ["react-table" :as rt :default ReactTable]
     [clojure.string :as str]
     [shadow.cljs.ui.routing :as routing]
-    [shadow.cljs.ui.fulcro-mods :as fm]))
+    [shadow.cljs.ui.fulcro-mods :as fm]
+    [shadow.cljs.ui.components.build-panel :as build-panel]))
 
 
 (defn render-build-status-detail [build-status]
@@ -135,75 +136,106 @@
 (def build-http-server
   (util/ident-gen ::m/http-server-id))
 
-(defsc BuildOverview
-  [this
-   {::m/keys [build-id build-status build-info build-config-raw build-worker-active] :as props}]
+(defsc BuildPage
+  [this {::m/keys [build-id] :as props}]
   {:ident
-   [::m/build-id ::m/build-id]
+   (fn []
+     [::m/build-id build-id])
 
    :query
-   [::m/build-config-raw
-    ::m/build-id
-    ::m/build-status
-    ::m/build-info
-    {::m/build-http-server (build-http-server
-                             [::m/http-url])}
-    ::m/build-worker-active]}
+   (fn []
+     [::m/build-id
+      ::m/build-config-raw
+      ::m/build-status
+      ::m/build-info
+      {::m/build-http-server (build-http-server
+                               [::m/http-url])}
+      ::m/build-worker-active])}
 
-  (if-not build-id
-    (html/div "Loading ...")
-    (s/main-contents
-      (s/page-title (name build-id))
+  (let [{::m/keys [build-status build-info build-config-raw build-worker-active]} props]
 
-      (s/build-section
-        (s/build-section-title "Actions")
-        (s/simple-toolbar
-          (if build-worker-active
-            (s/toolbar-actions
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
+    (if-not build-id
+      (html/div "Loading ...")
+      (s/main-contents
+        (s/page-title (name build-id))
 
-            (s/toolbar-actions
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
-              (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-release {:build-id build-id})])} "release")
-              ))))
+        (s/build-section
+          (s/build-section-title "Actions")
+          (s/simple-toolbar
+            (if build-worker-active
+              (s/toolbar-actions
+                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
+                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
 
-      (let [{::m/keys [http-url]} (::m/build-http-server props)]
-        (when http-url
-          (s/build-section
-            (s/build-section-title "HTTP")
-            (html/a {:href http-url :target "_blank"} http-url)
-            )))
+              (s/toolbar-actions
+                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
+                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
+                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-release {:build-id build-id})])} "release")
+                ))))
 
-      (s/build-section
-        (s/build-section-title "Status")
-        (build-status/render-build-status build-status))
+        (let [{::m/keys [http-url]} (::m/build-http-server props)]
+          (when http-url
+            (s/build-section
+              (s/build-section-title "HTTP")
+              (html/a {:href http-url :target "_blank"} http-url)
+              )))
 
-      (when (and (= :completed (:status build-status))
-                 (map? build-info))
-        (render-build-info build-info))
-      #_(html/div
-          (s/build-section "Config")
-          (s/build-config
-            (util/dump build-config-raw)
-            )))))
+        (s/build-section
+          (s/build-section-title "Status")
+          (build-status/render-build-status build-status))
 
-(def ui-build-overview (fp/factory BuildOverview {:keyfn ::m/build-id}))
+        (when (and (= :completed (:status build-status))
+                   (map? build-info))
+          (render-build-info build-info))
+        #_(html/div
+            (s/build-section "Config")
+            (s/build-config
+              (util/dump build-config-raw)
+              ))))))
+
+(def ui-build-page (fp/factory BuildPage {:keyfn ::m/build-id}))
 
 (routing/register ::ui-model/root-router ::m/build-id
-  {:class BuildOverview
-   :factory ui-build-overview
+  {:class BuildPage
+   :factory ui-build-page
    :keyfn ::m/build-id})
 
+(defsc Page [this props]
+  {:ident
+   (fn []
+     [::ui-model/page-builds 1])
 
+   :query
+   (fn []
+     [{[::ui-model/build-list '_]
+       (fp/get-query build-panel/BuildPanel)}])
 
+   :initial-state
+   (fn [p]
+     {})}
+
+  (s/main-contents
+    (s/cards-title "Builds")
+
+    (html/for [build (::ui-model/build-list props)]
+      (build-panel/ui-build-panel build))))
+
+(def ui-page (fp/factory Page {}))
+
+(routing/register ::ui-model/root-router ::ui-model/page-builds
+  {:class Page
+   :factory ui-page})
 
 (defn route [r [build-id :as tokens]]
   (fp/transact! r
     [(tx/select-build {:build-id (keyword build-id)})
      (routing/set-route {:router ::ui-model/root-router
+                         :ident [::ui-model/page-builds 1]})]))
 
+(defn route-build [r [build-id :as tokens]]
+  (fp/transact! r
+    [(tx/select-build {:build-id (keyword build-id)})
+     (routing/set-route {:router ::ui-model/root-router
                          :ident [::m/build-id (keyword build-id)]})]))
 
 (defn init [])

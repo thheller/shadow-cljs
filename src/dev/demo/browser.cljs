@@ -16,9 +16,10 @@
     [demo.never-load]
     [demo.always-load]
     ["moment" :as x]
+    ["lodash/isBuffer" :as a]
     ))
 
-(js/console.log "▶❤◀" x)
+(js/console.log "▶❤◀" x a)
 
 (js/console.log "or" (or nil js/document.body))
 
