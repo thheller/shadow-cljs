@@ -4,4 +4,6 @@ set -e
 
 rm -rf packages/launcher/web/js
 
-lein run -m shadow.cljs.devtools.cli release laucher-main launcher-renderer
+lein with-profiles +cljs run -m shadow.cljs.devtools.cli release launcher-main launcher-renderer
+
+cd packages/launcher; yarn dist
