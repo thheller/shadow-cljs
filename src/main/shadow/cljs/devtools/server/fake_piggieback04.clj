@@ -8,7 +8,7 @@
 ;; https://github.com/clojure-emacs/cider-nrepl/blob/master/src/cider/nrepl/middleware/util/cljs.clj
 
 (ns cemerick.piggieback
-  (:require [nrepl.middleware :refer (set-descriptor!)]
+  (:require [nrepl.middleware]
             [shadow.cljs.devtools.api :as api]))
 
 ;; tools access this directly via resolve
@@ -31,7 +31,7 @@
     (next msg)))
 
 (ns cider.piggieback
-  (:require [nrepl.middleware :refer (set-descriptor!)]
+  (:require [nrepl.middleware]
             [shadow.cljs.devtools.api :as api]))
 
 ;; tools access this directly via resolve
