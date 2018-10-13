@@ -897,6 +897,10 @@
         index
         {:ignore-patterns
          #{#"node_modules/"
+           ;; temp files created by emacs are in the same directory
+           ;; named demo/.#foo.cljs are hidden and ignored on osx/linux
+           ;; but not hidden on windows so need to filter them
+           #"\.#"
            ;; cljs.core aot
            #"\.aot\.js$"
            ;; closure library test files
