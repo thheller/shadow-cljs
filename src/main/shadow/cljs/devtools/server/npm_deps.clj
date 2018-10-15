@@ -9,6 +9,7 @@
   (:import (javax.script ScriptEngineManager ScriptEngine Invocable)))
 
 (defn make-engine []
+  (System/setProperty "nashorn.args" "--no-deprecation-warning")
   (let [engine
         (-> (ScriptEngineManager.)
             (.getEngineByName "nashorn"))
