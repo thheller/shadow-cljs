@@ -28,7 +28,7 @@
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.reload-macros :as reload-macros]
     [shadow.cljs.devtools.server.system-bus :as system-bus])
-  (:import (java.net BindException)
+  (:import (java.net BindException Socket SocketException InetSocketAddress)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
 
@@ -165,6 +165,50 @@
 (defmethod log/log-msg ::nrepl-fallback [_ _]
   "Using tools.nrepl 0.2.* server!")
 
+(defn create-cli-checker [cli-port]
+  (let [cli-port (Long/valueOf cli-port)
+
+        keep-checking-ref
+        (atom true)
+
+        thread-fn
+        (fn []
+          (loop []
+            (when @keep-checking-ref
+              ;; check every sec so it doesn't take too long to exit after the node process disappeared
+              (Thread/sleep 1000)
+              (when (try
+                      (let [inet-address
+                            (InetSocketAddress. "localhost" cli-port)
+
+                            socket
+                            (Socket.)]
+
+                        ;; FIXME: what is a good timeout here?
+                        ;; 1000ms for a local socket connection is probably overkill
+                        (.connect socket inet-address 1000)
+
+                        (let [socket-in (.getInputStream socket)]
+                          ;; sends OK and closes, node will error out if we don't read this
+                          (.skip socket-in 2))
+
+                        ;; node will disconnect us also
+                        (.close socket)
+                        true)
+                      (catch Exception e
+                        (log/debug-ex e ::cli-check-failed {:cli-port cli-port})
+                        (stop!)
+                        false))
+                (recur)))))]
+
+    (log/debug ::cli-checker-start {:cli-port cli-port})
+
+    (doto (Thread. thread-fn)
+      (.start))
+
+    (fn []
+      (reset! keep-checking-ref false))))
+
 (defn start-system
   [app-ref app-config {:keys [cache-root] :as config}]
   (when @app-ref
@@ -214,6 +258,11 @@
         ;; because that prints/prompts for humans
         cli-repl
         (socket-repl/start cli-repl-config app-ref)
+
+        cli-checker
+        (when-let [cli-port (System/getenv "SHADOW_CLI_PORT")]
+          (let [cli-port (Long/valueOf cli-port)]
+            (create-cli-checker cli-port)))
 
         nrepl
         (try
@@ -270,6 +319,7 @@
              :config config
              :shutdown-hook shutdown-hook
              :ssl-context ssl-context
+             :cli-checker cli-checker
              :http {:port (or https-port http-port)
                     :http-port http-port
                     :https-port https-port

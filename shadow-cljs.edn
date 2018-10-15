@@ -4,7 +4,7 @@
  :launcher-version "2.0.0"
 
  ;; :deps {:aliases []}
- :xlein {:profile "+cljs"}
+ :lein {:profile "+cljs"}
 
  ;; target/shadow-cljs gets deleted by lein frequently which is rather annoying
  :cache-root ".shadow-cljs"

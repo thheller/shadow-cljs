@@ -63,40 +63,62 @@
 ;; same as run! but preserves the exit code of the process
 ;; must be run as the last step since it will kill the node process after
 (defn run! [project-root cmd args proc-opts]
-  (let [spawn-opts
-        (-> {:cwd project-root
-             :stdio "inherit"}
-            (cond->
-              ;; can't figure out why lein won't work without this in windows cmd
-              ;; probably similar issue with tools.deps but that doesn't exist for windows yet
-              ;; need to verify first
-              (and (= "lein" cmd) (is-windows?))
-              (assoc :shell true
-                     :windowsVerbatimArguments true))
-            (merge proc-opts)
-            (clj->js))
+  (let [node-server (node-net/Server.)]
 
-        ^js proc
-        (cp/spawn cmd (into-array args) spawn-opts)]
+    (.on node-server "connection"
+      (fn [^js socket]
+        ;; send OK and close socket
+        ;; this is not meant as a persistent connection as I need to verify first
+        ;; under which circumstances that may disconnect for "valid" reasons
+        ;; like switching the WiFi network, sleep mode etc
+        ;; instead just have the java proc periodically check if this is still alive
+        (.end socket "OK")
 
-    ;; this supposedly catches all possible ways for this process to exit
-    (signal-exit
-      (fn [code signal]
-        (util/kill-proc proc)
-        ))
+        (.on socket "error"
+          (fn [err]
+            (js/console.warn "node-server socket err" err))
+          )))
 
-    (.on proc "error"
-      (fn [^js error]
-        (if (and error (= "ENOENT" (. error -errno)))
-          (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
-          (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
+    (.on node-server "error"
+      (fn [err]
+        (js/console.warn "node-server err" err)))
 
-    (.on proc "exit"
-      (fn [code signal]
-        (js/process.exit code)))
+    (.listen node-server
+      (fn []
+        (let [cli-port
+              (-> node-server (.address) (.-port))
 
-    proc
-    ))
+              spawn-opts
+              (-> {:cwd project-root
+                   :env (-> #js {"SHADOW_CLI_PORT" cli-port}
+                            (js/Object.assign js/process.env))
+                   :stdio "inherit"}
+                  (cond->
+                    ;; can't figure out why lein won't work without this in windows cmd
+                    ;; probably similar issue with tools.deps but that doesn't exist for windows yet
+                    ;; need to verify first
+                    (and (= "lein" cmd) (is-windows?))
+                    (assoc :shell true
+                           :windowsVerbatimArguments true))
+                  (merge proc-opts)
+                  (clj->js))
+
+              ^js proc
+              (cp/spawn cmd (into-array args) spawn-opts)]
+
+          (.on proc "error"
+            (fn [^js error]
+              (if (and error (= "ENOENT" (. error -errno)))
+                (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
+                (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
+
+          (.on proc "exit"
+            (fn [code signal]
+              (.close node-server)
+              (js/process.exit code)))
+
+          proc
+          )))))
 
 (defn run-java [project-root args opts]
   (let [^js result
