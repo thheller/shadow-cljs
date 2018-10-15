@@ -93,7 +93,7 @@
        (log/warn-ex t# ::shutdown-ex {:form ~(pr-str body)})
        (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
-(defn shutdown-system [{:keys [shutdown-hook http port-files-ref socket-repl cli-repl nrepl] :as app}]
+(defn shutdown-system [{:keys [shutdown-hook http port-files-ref socket-repl cli-repl cli-checker nrepl] :as app}]
   (discard-println "shutting down ...")
   (try
     (. (Runtime/getRuntime) (removeShutdownHook shutdown-hook))
@@ -113,6 +113,9 @@
   (when nrepl
     (let [stop (::stop nrepl)]
       (do-shutdown (stop))))
+
+  (when cli-checker
+    (cli-checker))
 
   (do-shutdown (undertow/stop (:server http)))
 
@@ -203,7 +206,8 @@
 
     (log/debug ::cli-checker-start {:cli-port cli-port})
 
-    (doto (Thread. thread-fn)
+    (doto (Thread. thread-fn "shadow-cljs-npm-process-checker")
+      (.setDaemon true)
       (.start))
 
     (fn []
