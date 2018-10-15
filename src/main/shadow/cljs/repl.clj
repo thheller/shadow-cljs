@@ -10,6 +10,7 @@
             [cljs.tagged-literals :as tags]
             [cljs.compiler :as cljc-comp]
             [cljs.analyzer :as ana]
+            [shadow.jvm-log :as jvm-log]
             [shadow.build.log :as log]
             [shadow.cljs.util :as util]
             [shadow.build.api :as build-api]
@@ -106,7 +107,7 @@
               (data/add-source (make-repl-resource state cljs-user-ns))))
 
         repl-init-ns
-        (get-in state [:build-options :repl-init-ns] 'cljs.user)
+        (get-in state [:shadow.build/config :devtools :repl-init-ns] 'cljs.user)
 
         [repl-sources state]
         (-> state
@@ -117,10 +118,7 @@
 
         repl-state
         {::repl-state true
-         :current (select-keys repl-rc repl-current-attrs)
-
-         :reader-features
-         (data/get-reader-features state)
+         :current-ns repl-init-ns
 
          ;; the sources required to get the repl started
          :repl-sources
@@ -163,16 +161,15 @@
       ;; FIXME: util/check-uses!
       (-> state
           (cljs-bridge/swap-compiler-env! update-in [::ana/namespaces name] merge full-ns-info)
-          (assoc-in [:repl-state :current :ns-info] full-ns-info))
-      )))
+          ))))
 
 (defn repl-require
   [{:keys [repl-state] :as state} read-result require-form]
-  (let [{:keys [current]}
+  (let [{:keys [current-ns]}
         repl-state
 
         ns-info
-        (:ns-info current)
+        (get-in state [:compiler-env ::ana/namespaces current-ns])
 
         {:keys [reload-deps] :as new-ns-info}
         (ns-form/merge-repl-require ns-info require-form)
@@ -313,9 +310,6 @@
         {:keys [build-sources] :as state}
         (build-api/compile-sources state dep-sources)
 
-        new-repl-current
-        (assoc ns-rc :ns-info ns-info)
-
         ns-requires
         {:type :repl/require
          :sources build-sources
@@ -334,7 +328,7 @@
     (output/flush-sources state build-sources)
 
     (-> state
-        (assoc-in [:repl-state :current] new-repl-current)
+        (assoc-in [:repl-state :current-ns] ns)
         (update-in [:repl-state :repl-actions] conj ns-requires ns-provide ns-set))
     ))
 
@@ -347,8 +341,7 @@
       (do (prn [:did-not-find ns])
           state)
       (let [{:keys [resource-name] :as rc}
-            (-> (data/get-source-by-provide state ns)
-                (select-keys repl-current-attrs))
+            (data/get-source-by-provide state ns)
 
             set-ns-action
             {:type :repl/set-ns
@@ -356,7 +349,7 @@
              :resource-name resource-name}]
         (-> state
             ;; FIXME: do we need to ensure that the ns is compiled?
-            (assoc-in [:repl-state :current] rc)
+            (assoc-in [:repl-state :current-ns] ns)
             (update-in [:repl-state :repl-actions] conj set-ns-action)
             )))))
 
@@ -386,7 +379,7 @@
 
 (defn process-read-result
   [{:keys [repl-state] :as state}
-   {:keys [form source] :as read-result}]
+   {:keys [form source ns] :as read-result}]
 
   ;; cljs.env/default-compiler-env always populates 'cljs.user for some reason
   ;; we can't work with that as we need the analyzed version
@@ -427,8 +420,23 @@
                             ana/*cljs-warnings*
                             ana/*cljs-warnings*]
 
-                    (let [ast
-                          (comp/analyze state (:current repl-state) form true)
+                    (let [{:keys [current-ns]}
+                          repl-state
+
+                          {:keys [resource-name] :as rc}
+                          (data/get-source-by-provide state current-ns)
+
+                          ast
+                          (comp/analyze
+                            state
+                            {:ns (or ns current-ns)
+                             :resource-name resource-name
+                             :source source
+                             :cljc true ;; not actually but pretend to support evals from actual .cljc files
+                             :reader-features (data/get-reader-features state)
+                             :js ""}
+                            form
+                            true)
 
                           js
                           (with-out-str
@@ -454,34 +462,39 @@
             )))))
 
 (defn read-one
-  [repl-state reader {:keys [filename] :or {filename "repl-input.cljs"} :as opts}]
-  {:pre [(repl-state? repl-state)]}
+  [build-state reader {:keys [filename] :or {filename "repl-input.cljs"} :as opts}]
+  {:pre [(build-api/build-state? build-state)]}
+
   (try
-    (let [eof-sentinel
-          (Object.)
-
-          opts
-          {:eof eof-sentinel
-           :read-cond :allow
-           :features (:reader-features repl-state)}
-
-          in
+    (let [in
           (readers/source-logging-push-back-reader
             reader ;; (PushbackReader. reader (object-array buf-len) buf-len buf-len)
             1
             filename)
 
-          {:keys [ns ns-info] :as repl-rc}
-          (:current repl-state)
+          read-ns
+          (or (:ns opts)
+              (get-in build-state [:repl-state :current-ns]))
 
-          _ (assert (symbol? ns))
+          _ (assert (symbol? read-ns))
+
+          ns-info
+          (get-in build-state [:compiler-env ::ana/namespaces read-ns])
+
+          eof-sentinel
+          (Object.)
+
+          reader-opts
+          {:eof eof-sentinel
+           :read-cond :allow
+           :features (data/get-reader-features build-state)}
 
           form
           (binding [*ns*
-                    (create-ns ns)
+                    (create-ns read-ns)
 
                     ana/*cljs-ns*
-                    ns
+                    read-ns
 
                     ana/*cljs-file*
                     name
@@ -494,12 +507,13 @@
                       (:requires ns-info)
                       (:require-macros ns-info))]
 
-            (reader/read opts in))
+            (reader/read reader-opts in))
 
           eof?
           (identical? form eof-sentinel)]
 
-      (-> {:eof? eof?}
+      (-> {:eof? eof?
+           :ns read-ns}
           (cond->
             (not eof?)
             (assoc :form form
@@ -516,30 +530,32 @@
 
 (defn process-input
   "processes a string of forms, may read multiple forms"
-  [state ^String repl-input]
-  {:pre [(build-api/build-state? state)]}
-  (let [reader
-        (readers/string-reader repl-input)]
+  ([state repl-input]
+    (process-input state repl-input {}))
+  ([state ^String repl-input opts]
+   {:pre [(build-api/build-state? state)]}
+   (let [reader
+         (readers/string-reader repl-input)]
 
-    (loop [{:keys [repl-state] :as state} state]
+     (loop [state state]
 
-      (let [{:keys [eof?] :as read-result}
-            (read-one repl-state reader {})]
+       (let [{:keys [eof?] :as read-result}
+             (read-one state reader opts)]
 
-        (if eof?
-          state
-          (recur (process-read-result state read-result))))
-      )))
+         (if eof?
+           state
+           (recur (process-read-result state read-result))))
+       ))))
 
 (defn process-input-stream
   "reads one form of the input stream and calls process-form"
-  [{:keys [repl-state] :as state} input-stream]
+  [state input-stream]
   {:pre [(build-api/build-state? state)]}
   (let [reader
         (readers/input-stream-reader input-stream)
 
         {:keys [eof?] :as read-result}
-        (read-one repl-state reader {})]
+        (read-one state reader {})]
     (if eof?
       state
       (process-read-result state read-result))))

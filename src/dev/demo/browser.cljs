@@ -15,11 +15,11 @@
     #_["/demo/myComponent" :refer (myComponent)]
     [demo.never-load]
     [demo.always-load]
-    ["moment" :as x]
-    ["lodash/isBuffer" :as a]
     ))
 
-(js/console.log "▶❤◀" x a)
+::foo
+
+(js/console.log "▶❤◀")
 
 (js/console.log "or" (or nil js/document.body))
 

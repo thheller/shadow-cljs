@@ -60,8 +60,8 @@
       (prn [:result result]))
     (flush)))
 
-(defn worker-repl-state [worker]
-  (-> worker :state-ref deref :build-state :repl-state))
+(defn worker-build-state [worker]
+  (-> worker :state-ref deref :build-state))
 
 (defn worker-read-string [worker s]
   (let [rdr
@@ -69,15 +69,15 @@
             (StringReader.)
             (PushbackReader.))
 
-        repl-state
-        (worker-repl-state worker)]
+        build-state
+        (worker-build-state worker)]
 
-    (repl/read-one repl-state rdr {})))
+    (repl/read-one build-state rdr {})))
 
 (defn repl-level [worker]
   {::r/lang :cljs
    ::r/get-current-ns
-   #(:current (worker-repl-state worker))
+   #(get-in (worker-build-state worker) [:repl-state :current-ns])
 
    ::r/read-string
    #(worker-read-string worker %)
@@ -134,15 +134,15 @@
     (r/takeover (repl-level worker)
       (loop []
         ;; unlock stdin when we can't get repl-state, just in case
-        (when-let [repl-state (worker-repl-state worker)]
+        (when-let [build-state (worker-build-state worker)]
 
           ;; FIXME: inf-clojure fails when there is a space between \n and =>
-          (print (format "[%d:%d]~%s=> " r/*root-id* r/*level-id* (-> repl-state :current :ns)))
+          (print (format "[%d:%d]~%s=> " r/*root-id* r/*level-id* (-> build-state :repl-state :current-ns)))
           (flush)
 
           ;; need the repl state to properly support reading ::alias/foo
           (let [{:keys [eof? error? ex form] :as read-result}
-                (repl/read-one repl-state *in* {})]
+                (repl/read-one build-state *in* {})]
 
             (log/debug ::read-result read-result)
 
@@ -165,7 +165,7 @@
 
               (and (list? form)
                    (contains? repl-api-fns (first form)))
-              (do (do-repl-api-fn app worker repl-state read-result)
+              (do (do-repl-api-fn app worker build-state read-result)
                   (recur))
 
               :else

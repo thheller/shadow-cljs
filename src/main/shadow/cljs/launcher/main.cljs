@@ -19,6 +19,8 @@
 
 (def asar? (str/includes? js/__dirname ".asar"))
 
+(def win32? (= js/process.platform "win32"))
+
 (defn dist-file [name]
   (if asar?
     name
@@ -245,7 +247,9 @@
   [project-id project-path cmd args]
   (let [spawn-opts
         #js {:cwd project-path
-             :shell true
+             ;; no idea why this has to be used on windows
+             ;; but doesn't work on mac ...
+             :shell win32?
              :windowsHide true}
 
         ^js proc
@@ -293,9 +297,12 @@
                                           :exit-code code})
         ))))
 
+(defn show-error [message]
+  (e/dialog.showErrorBox "shadow-cljs Error" message))
+
 (defmethod handle-ipc ::m/project-start [{:keys [project-id project-path] :as query}]
   (if (get @procs-ref project-id)
-    (ipc-send ::m/project-already-managed {:project-id project-id})
+    (show-error "project is already managed!")
     (let [http-port-file
           (path/resolve project-path ".shadow-cljs" "http.port")
 
@@ -303,7 +310,7 @@
           (path/resolve project-path "node_modules" "shadow-cljs" "cli" "runner.js")]
 
       (if-not (fs/existsSync runner-file)
-        (ipc-send ::m/project-not-installed {:project-id project-id})
+        (show-error "shadow-cljs not installed in project. did you run npm install?")
 
         (let [^js proc
               (spawn-forward project-id project-path "node" [runner-file "server"])]

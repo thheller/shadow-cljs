@@ -46,18 +46,24 @@
       #'cider.piggieback/*cljs-compiler-env* nil
       #'cemerick.piggieback/*cljs-compiler-env* nil)))
 
-(defn do-cljs-eval [{::keys [build-id worker] :keys [session code runtime-id] :as msg}]
+(defn do-cljs-eval [{::keys [build-id worker] :keys [ns session code runtime-id] :as msg}]
   (let [reader (StringReader. code)
 
         session-id
         (-> session meta :id str)]
 
     (loop []
-      (when-let [repl-state (repl-impl/worker-repl-state worker)]
+      (when-let [build-state (repl-impl/worker-build-state worker)]
 
         ;; need the repl state to properly support reading ::alias/foo
-        (let [{:keys [eof? error? ex form] :as read-result}
-              (repl/read-one repl-state reader {})]
+        (let [read-opts
+              (-> {}
+                  (cond->
+                    (seq ns)
+                    (assoc :ns (symbol ns))))
+
+              {:keys [eof? error? ex form] :as read-result}
+              (repl/read-one build-state reader read-opts)]
 
           (cond
             eof?
@@ -88,8 +94,8 @@
             :else
             (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
               (log/debug ::eval-result {:result result})
-              (let [repl-state (repl-impl/worker-repl-state worker)
-                    repl-ns (-> repl-state :current :ns)]
+              (let [build-state (repl-impl/worker-build-state worker)
+                    repl-ns (-> build-state :repl-state :current-ns)]
 
                 (case (:type result)
                   :repl/result
