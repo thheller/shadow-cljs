@@ -991,11 +991,29 @@
          optimizing?
          (let [x (get-in state [:compiler-options :optimizations])]
            (or (nil? x)
-               (not= x :none)))]
+               (not= x :none)))
 
+         ns-roots
+         (->> sources
+              (mapcat :provides)
+              (into #{})
+              (map str)
+              (map (fn [ns]
+                     (if-let [idx (str/index-of ns ".")]
+                       (subs ns 0 idx)
+                       ns)))
+              (into #{}))]
 
      (-> state
          (assoc :compile-start (System/currentTimeMillis))
+
+         ;; cljs.compiler/munge needs to know which variables become namespace roots
+         ;; so that (let [thing ...] ...)
+         ;; doesn't clash with (ns thing.foo.bar)
+         ;; but due to parallel compilation the ns may not exist when munge decides to munge
+         ;; so we ensure the roots always exist even before compilation starts
+         (assoc-in [:compiler-env :shadow/ns-roots] ns-roots)
+
          ;; order of this is important
          ;; CLJS first since all it needs are the provided names
          (cond->

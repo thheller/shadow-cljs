@@ -507,6 +507,14 @@
   {:pre [(contains? #{:once :each} type)]}
   `(shadow.test.env/register-fixtures (quote ~(symbol (str *ns*))) ~type [~@fns]))
 
+;; CLJS by default iterates through all namespaces and checks if the first segment
+;; matches the var-name. since we know all namespace roots before compilation even
+;; starts we can do this by checking the set of ns-roots (strings) created in
+;; shadow.cljs.compiler/compile-all
+(defn shadow-find-ns-starts-with [var-name]
+  (let [ns-roots (:shadow/ns-roots @env/*compiler*)]
+    (assert (set? ns-roots))
+    (contains? ns-roots var-name)))
 
 (defn replace-fn! [the-var the-fn]
   (when (not= @the-var the-fn)
@@ -521,6 +529,8 @@
   ;; cljs.compiler tweaks
   (replace-fn! #'comp/emits shadow-emits)
   (replace-fn! #'comp/emitln shadow-emitln)
+
+  (replace-fn! #'comp/find-ns-starts-with shadow-find-ns-starts-with)
 
   (replace-fn! #'test/deftest @#'shadow-deftest)
   (replace-fn! #'test/use-fixtures @#'shadow-use-fixtures))
