@@ -994,7 +994,7 @@
                (not= x :none)))
 
          ns-roots
-         (->> sources
+         (->> (concat cljs goog)
               (mapcat :provides)
               (into #{})
               (map str)
