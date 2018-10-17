@@ -145,9 +145,11 @@
 
       )))
 
-(defn print-build-failure [{:keys [build-id e] :as x}]
+(defn print-build-failure [{:keys [build-id report] :as x}]
   (println (format "[%s] Build failure:" build-id))
-  (errors/user-friendly-error e))
+  (println report)
+  ;; no longer part of the message
+  #_ (errors/user-friendly-error e))
 
 (defn print-worker-out [x verbose]
   (locking build-log/stdout-lock
