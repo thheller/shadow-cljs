@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.6.12"
+(defproject thheller/shadow-cljs "2.6.13"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -106,12 +106,12 @@
    :cljs
    {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
     :dependencies
-    [[fulcrologic/fulcro "2.6.6"
+    [[fulcrologic/fulcro "2.6.7"
       :exclusions
       [clojure-future-spec
        com.stuartsierra/component
        garden]]
-     [fulcrologic/fulcro-inspect "2.2.3"]
+     [fulcrologic/fulcro-inspect "2.2.4"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
