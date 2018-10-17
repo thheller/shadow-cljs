@@ -292,10 +292,12 @@
       ::m/project-name
       ::m/project-short-path
       ::m/project-location
-      ::m/project-status])}
+      ::m/project-status
+      ::m/project-server-url])}
 
-  (let [{::m/keys [project-name project-short-path]} props]
-    (s/project-listing-item {:classes {:selected selected}
+  (let [{::m/keys [project-name project-short-path project-server-url]} props]
+    (s/project-listing-item {:classes {:selected selected
+                                       :active (seq project-server-url)}
                              :onClick
                              (fn [e]
                                (.preventDefault e)

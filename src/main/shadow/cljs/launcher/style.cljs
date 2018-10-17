@@ -108,6 +108,8 @@
 (defstyled project-listing-item :div
   [env]
   {:padding 10
+   "&.active"
+   {:color "green"}
    "&:hover, &.selected"
    {:background-color "#efefef"
     :cursor "pointer"}})

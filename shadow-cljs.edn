@@ -109,7 +109,8 @@
    :output-to "packages/launcher/index.js"
    :main shadow.cljs.launcher.main/init
    :compiler-options
-   {:infer-externs :auto}
+   {:infer-externs :auto
+    :source-map true}
    :devtools
    {:autoload true}}
 
@@ -118,7 +119,8 @@
    :output-dir "packages/launcher/web/js"
    :asset-path "js"
    :compiler-options
-   {:infer-externs :auto}
+   {:infer-externs :auto
+    :source-map true}
    :js-options
    {:js-provider :require}
    :modules

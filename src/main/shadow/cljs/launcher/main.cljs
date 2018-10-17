@@ -6,6 +6,7 @@
     ["http" :as node-http]
     ["child_process" :as cp]
     ["electron" :as e :refer (app ipcMain)]
+    ["@sentry/electron" :as sentry]
     [cognitect.transit :as transit]
     [shadow.cljs.model :as m]
     [cljs.tools.reader :as reader]
@@ -110,7 +111,9 @@
             (clj->js)
             (e/BrowserWindow.))]
 
-    (.loadFile main-win (dist-file "web/ui.html"))
+    (if asar?
+      (.loadFile main-win (dist-file "web/ui.html"))
+      (.loadURL main-win (dist-file "web/ui.html")))
 
     (.on main-win "closed"
       (fn []
@@ -386,6 +389,8 @@
   (js/console.log "code reloaded"))
 
 (defn init []
+  (sentry/init #js {:dsn "https://0895f25a03414777a4d15d78b9fa6d31@sentry.io/1302594"})
+
   (when (.-requestSingleInstanceLock app)
     (when-not (.requestSingleInstanceLock app)
       (.quit app)))
