@@ -16,9 +16,12 @@
     (conj x y)))
 
 (defn kill-proc [^js proc]
-  (case js/process.platform
-    "win32"
-    (cp/spawnSync "taskkill" #js ["/pid" (.-pid proc) "/f" "/t"])
+  ;; the java process should now always exit cleanly when the node process is killed
+  ;; so we just kill the node process to let the jvm shutdown cleanly
+  (.kill proc)
+  #_(case js/process.platform
+      "win32"
+      (cp/spawnSync "taskkill" #js ["/pid" (.-pid proc) "/f" #_"/t"])
 
-    (.kill proc)
-    ))
+      (.kill proc)
+      ))

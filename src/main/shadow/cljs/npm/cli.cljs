@@ -8,7 +8,7 @@
     ["readline-sync" :as rl-sync] ;; FIXME: drop this?
     ["mkdirp" :as mkdirp]
     ["net" :as node-net]
-    ["signal-exit" :as signal-exit]
+    ["which" :as which]
     [cljs.core.async :as async :refer (go go-loop alt!)]
     #_[cljs.tools.reader :as reader]
     [cljs.reader :as reader]
@@ -48,77 +48,83 @@
   (let [spawn-opts
         (-> {:cwd project-root
              :stdio "inherit"}
-            (cond->
-              ;; can't figure out why lein won't work without this in windows cmd
-              ;; probably similar issue with tools.deps but that doesn't exist for windows yet
-              ;; need to verify first
-              (and (= "lein" cmd) (is-windows?))
-              (assoc :shell true
-                     :windowsVerbatimArguments true))
             (merge proc-opts)
-            (clj->js))]
+            (clj->js))
 
-    (cp/spawnSync cmd (into-array args) spawn-opts)))
+        executable
+        (which/sync cmd #js {:nothrow true})]
+
+    (if-not executable
+      (throw (ex-info (str "Executable '" cmd "' not found on system path.") {:cmd cmd :args args}))
+      (cp/spawnSync executable (into-array args) spawn-opts))))
 
 ;; same as run! but preserves the exit code of the process
 ;; must be run as the last step since it will kill the node process after
 (defn run! [project-root cmd args proc-opts]
-  (let [node-server (node-net/Server.)]
+  (let [executable (which/sync cmd #js {:nothrow true})]
+    (if-not executable
+      (do (println (str "Executable '" executable "' not found on system path."))
+          (js/process.exit 1))
 
-    (.on node-server "connection"
-      (fn [^js socket]
-        ;; send OK and close socket
-        ;; this is not meant as a persistent connection as I need to verify first
-        ;; under which circumstances that may disconnect for "valid" reasons
-        ;; like switching the WiFi network, sleep mode etc
-        ;; instead just have the java proc periodically check if this is still alive
-        (.end socket "OK")
+      (let [node-server (node-net/Server.)]
 
-        (.on socket "error"
+        (.on node-server "connection"
+          (fn [^js socket]
+            ;; send OK and close socket
+            ;; this is not meant as a persistent connection as I need to verify first
+            ;; under which circumstances that may disconnect for "valid" reasons
+            ;; like switching the WiFi network, sleep mode etc
+            ;; instead just have the java proc periodically check if this is still alive
+            (.end socket "OK")
+
+            (.on socket "error"
+              (fn [err]
+                (js/console.warn "node-server socket err" err))
+              )))
+
+        (.on node-server "error"
           (fn [err]
-            (js/console.warn "node-server socket err" err))
-          )))
+            (js/console.warn "node-server err" err)))
 
-    (.on node-server "error"
-      (fn [err]
-        (js/console.warn "node-server err" err)))
+        (js/process.on "SIGTERM"
+          (fn []
+            (.close node-server)
+            (js/process.exit 0)))
 
-    (.listen node-server
-      (fn []
-        (let [cli-port
-              (-> node-server (.address) (.-port))
+        (js/process.on "SIGINT"
+          (fn []
+            (.close node-server)
+            (js/process.exit 0)))
 
-              spawn-opts
-              (-> {:cwd project-root
-                   :env (-> #js {"SHADOW_CLI_PORT" cli-port}
-                            (js/Object.assign js/process.env))
-                   :stdio "inherit"}
-                  (cond->
-                    ;; can't figure out why lein won't work without this in windows cmd
-                    ;; probably similar issue with tools.deps but that doesn't exist for windows yet
-                    ;; need to verify first
-                    (and (= "lein" cmd) (is-windows?))
-                    (assoc :shell true
-                           :windowsVerbatimArguments true))
-                  (merge proc-opts)
-                  (clj->js))
+        (.listen node-server
+          (fn []
+            (let [cli-port
+                  (-> node-server (.address) (.-port))
 
-              ^js proc
-              (cp/spawn cmd (into-array args) spawn-opts)]
+                  spawn-opts
+                  (-> {:cwd project-root
+                       :env (-> #js {"SHADOW_CLI_PORT" cli-port}
+                                (js/Object.assign js/process.env))
+                       :stdio "inherit"}
+                      (merge proc-opts)
+                      (clj->js))
 
-          (.on proc "error"
-            (fn [^js error]
-              (if (and error (= "ENOENT" (. error -errno)))
-                (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
-                (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
+                  ^js proc
+                  (cp/spawn executable (into-array args) spawn-opts)]
 
-          (.on proc "exit"
-            (fn [code signal]
-              (.close node-server)
-              (js/process.exit code)))
+              (.on proc "error"
+                (fn [^js error]
+                  (if (and error (= "ENOENT" (. error -errno)))
+                    (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
+                    (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
 
-          proc
-          )))))
+              (.on proc "exit"
+                (fn [code signal]
+                  (.close node-server)
+                  (js/process.exit code)))
+
+              proc
+              )))))))
 
 (defn run-java [project-root args opts]
   (let [^js result
@@ -696,12 +702,6 @@
     (run-standalone project-root config args opts)))
 
 (defn ^:export main [args]
-
-  ;; https://github.com/tapjs/signal-exit
-  ;; without this the shadow-cljs process leaves orphan java processes
-  ;; that do not exit when the node process is killed (by closing the terminal)
-  ;; just adding this causes the java processes to exit properly ...
-  ;; I do not understand why ... but I can still use spawnSync this way so I'll take it
 
   (try
     (let [{:keys [action options] :as opts}

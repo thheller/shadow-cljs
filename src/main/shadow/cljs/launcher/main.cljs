@@ -7,6 +7,7 @@
     ["child_process" :as cp]
     ["electron" :as e :refer (app ipcMain)]
     ["@sentry/electron" :as sentry]
+    ["which" :as which]
     [cognitect.transit :as transit]
     [shadow.cljs.model :as m]
     [cljs.tools.reader :as reader]
@@ -17,6 +18,10 @@
 (defonce state-ref (atom {}))
 (defonce windows-ref (atom {}))
 (defonce procs-ref (atom {}))
+
+(def node-executable (which/sync "node" #js {:nothrow true}))
+(def npm-executable (which/sync "npm" #js {:nothrow true}))
+(def java-executable (which/sync "java" #js {:nothrow true}))
 
 (def asar? (str/includes? js/__dirname ".asar"))
 
@@ -250,9 +255,7 @@
   [project-id project-path cmd args]
   (let [spawn-opts
         #js {:cwd project-path
-             ;; no idea why this has to be used on windows
-             ;; but doesn't work on mac ...
-             :shell win32?
+             :shell false
              :windowsHide true}
 
         ^js proc
@@ -276,7 +279,7 @@
 
 (defmethod handle-ipc ::m/project-npm-install [{:keys [project-id project-path] :as query}]
   (let [^js proc
-        (spawn-forward project-id project-path "npm" ["install"])]
+        (spawn-forward project-id project-path npm-executable ["install"])]
 
     (ipc-send ::m/proc-stdout
       {:project-id project-id
@@ -316,7 +319,7 @@
         (show-error "shadow-cljs not installed in project. did you run npm install?")
 
         (let [^js proc
-              (spawn-forward project-id project-path "node" [runner-file "server"])]
+              (spawn-forward project-id project-path node-executable [runner-file "server"])]
 
           (ipc-send ::m/proc-stdout
             {:project-id project-id
@@ -338,17 +341,17 @@
             (fn [^js err]
               (ipc-send ::m/proc-error
                 {:project-id project-id
-                 :error-message (.-message err)})
-              ))
+                 :error-message (.-message err)})))
 
           (.on proc
-            "close"
-            (fn [code]
+            "exit"
+            (fn [code signal]
               (ipc-send ::m/proc-stdout
                 {:project-id project-id
-                 :data (str "Command exit with status " code "\n")})
+                 :data (str "Command exit with status " (or code signal) "\n")})
 
               (ipc-send ::m/proc-exit {:project-id project-id
+                                       :exit-signal signal
                                        :exit-code code})
               (swap! procs-ref dissoc project-id)))
 
@@ -389,6 +392,7 @@
   (js/console.log "code reloaded"))
 
 (defn init []
+
   (sentry/init #js {:dsn "https://0895f25a03414777a4d15d78b9fa6d31@sentry.io/1302594"})
 
   (when (.-requestSingleInstanceLock app)
@@ -414,7 +418,34 @@
         (handle-ipc msg)
         )))
 
-  (.on app "ready" create-main-window)
+  (.on app "ready"
+    (fn []
+      (when-not node-executable
+        (e/dialog.showMessageBox
+          #js {:type "error"
+               :title "node not found."
+               :message "The 'node' executable was not found on your system path."}
+          (fn []
+            (.quit app))))
+
+      (when-not npm-executable
+        (e/dialog.showMessageBox
+          #js {:type "error"
+               :title "npm not found."
+               :message "The 'npm' executable was not found on your system path."}
+          (fn []
+            (.quit app))))
+
+      ;; this is not using this yet later commands will fail so we can test this early
+      (when-not java-executable
+        (e/dialog.showMessageBox
+          #js {:type "error"
+               :title "java not found."
+               :message "The 'java' executable was not found on your system path."}
+          (fn []
+            (.quit app))))
+
+      (create-main-window)))
 
   (.on app "window-all-closed"
     (fn []
