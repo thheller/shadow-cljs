@@ -218,7 +218,7 @@
                         (let [{:keys [output-name] :as rc}
                               (data/get-source-by-id state resource-id)
 
-                              {:keys [js compiled-at source-map source-map-json] :as output}
+                              {:keys [js compiled-at] :as output}
                               (data/get-output! state rc)
 
                               lines
@@ -228,7 +228,7 @@
                               (data/output-file state "sm" (str output-name ".map"))
 
                               has-map?
-                              (or source-map source-map-json)]
+                              (output/has-source-map? output)]
 
                           (when (and has-map?
                                      (or (not (.exists sm-file))

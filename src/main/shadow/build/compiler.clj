@@ -12,6 +12,7 @@
             [cljs.env :as env]
             [cljs.tagged-literals :as tags]
             [cljs.core] ;; do not remove, need to ensure this is loaded before compiling anything
+            [cljs.source-map :as sm]
             [shadow.cljs.util :as util]
             [shadow.build.warnings :as warnings]
             [shadow.build.macros :as macros]
@@ -647,6 +648,19 @@
               nil)
             ))))))
 
+(defn compact-source-map [{:keys [source-map] :as output}]
+  ;; the raw format is very verbose and takes a very long time to encode via transit
+  ;; we don't actually need the verbose format after compilation and just preserve
+  ;; the parts we really want for later when sources, sourcesContent get filled in
+  ;; and maybe a few prepend lines get added
+  (let [sm-compact
+        (-> (sm/encode* {"unused" source-map} {})
+            (select-keys ["mappings" "names"]))]
+
+    (-> output
+        (dissoc :source-map)
+        (assoc :source-map-compact sm-compact))))
+
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
    make sure you are in with-compiler-env"
@@ -670,7 +684,8 @@
 
               output
               (try
-                (do-compile-cljs-resource state rc source)
+                (-> (do-compile-cljs-resource state rc source)
+                    (compact-source-map))
                 (catch Exception e
                   (let [{:keys [type ex-kind line] :as data}
                         (ex-data e)

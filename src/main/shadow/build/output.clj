@@ -23,6 +23,11 @@
       (.delete file)
       )))
 
+(defn has-source-map? [output]
+  (or (contains? output :source-map-compact)
+      (contains? output :source-map-json)
+      (contains? output :source-map)))
+
 (defn closure-defines-json [state]
   (let [closure-defines
         (reduce-kv
@@ -118,36 +123,43 @@
 
 (defn encode-source-map
   [{:keys [resource-name prepend output-name] :as src}
-   {:keys [source source-map] :as output}]
-  (let [sm-opts
-        {;; :lines (line-count output)
-         :file output-name
-         :preamble-line-count (if-not (seq prepend)
-                                0
-                                (line-count prepend))
-         :sources-content [source]}]
+   {:keys [source source-map-compact source-map] :as output}]
+  (let [prepend-lines
+        (if-not (seq prepend)
+          ""
+          (->> (repeat (line-count prepend) ";")
+               (str/join "")))
 
-    (-> {output-name source-map}
-        (sm/encode* sm-opts)
-        (assoc "sources" [resource-name])
-        ;; its nil which closure doesn't like
-        (dissoc "lineCount"))))
+        sm
+        (or source-map-compact
+            (-> {output-name source-map}
+                (sm/encode* {})
+                (select-keys ["names" "mappings"])))]
+
+    (-> {"version" 3
+         "sources" [resource-name]
+         "sourcesContent" [source]}
+        (merge sm)
+        ;; prepend one ; for every line in prepend
+        (cond->
+          (seq prepend-lines)
+          (update "mappings" (fn [s] (str prepend-lines s)))))))
 
 (defn encode-source-map-json
-  [src output]
-  (-> (encode-source-map src output)
-      (json/write-str)))
+  [src {:keys [source-map-json] :as output}]
+  (or source-map-json
+      (-> (encode-source-map src output)
+          (json/write-str :escape-slash false))))
 
 (defn generate-source-map-inline
   [state
    src
-   {:keys [source-map source-map-json] :as output}
+   output
    prepend]
-  (when (or source-map source-map-json)
+  (when (has-source-map? output)
 
     (let [source-map-json
-          (or source-map-json
-              (encode-source-map-json src output))
+          (encode-source-map-json src output)
 
           b64
           (-> (Base64/getEncoder)
@@ -158,12 +170,12 @@
 (defn generate-source-map
   [state
    {:keys [resource-name output-name file input] :as src}
-   {:keys [source source-map source-map-json] :as output}
+   output
    js-file
    prepend]
   {:pre [(rc/valid-resource? src)
          (map? output)]}
-  (when (or source-map source-map-json)
+  (when (has-source-map? output)
     (let [sm-text
           (str "\n//# sourceMappingURL=" output-name ".map\n")
 
@@ -173,29 +185,17 @@
           use-fs-path?
           (true? (get-in state [:compiler-options :source-map-use-fs-paths]))
 
-          source-url
+          source-name
           (if (and use-fs-path? file)
             (.getAbsolutePath file)
             resource-name)
 
           ;; FIXME: make this use encode-source-map from above
           source-map-json
-          (or source-map-json
-              (let [sm-opts
-                    {;; :lines (line-count output)
-                     :file output-name
-                     :preamble-line-count (line-count prepend)
-                     :sources-content [source]}
-
-                    ;; yay or nay on using flat filenames for source maps?
-                    ;; personally I don't like seeing only the filename without the path
-                    source-map-v3
-                    (-> {(util/flat-filename resource-name) source-map}
-                        (sm/encode* sm-opts)
-                        (dissoc "lineCount") ;; its nil which closure doesn't like
-                        (assoc "sources" [source-url]))]
-
-                (json/write-str source-map-v3 :escape-slash false)))]
+          (encode-source-map-json
+            ;; ugly hack to change the "sources":["/absolute/path/to/file.cljs"] in source maps
+            (assoc src :resource-name source-name)
+            output)]
 
       (io/make-parents src-map-file)
       (spit src-map-file source-map-json)
@@ -242,7 +242,7 @@
     (get mod :output-type ::default)))
 
 (defn finalize-module-output
-  [state {:keys [goog-base prepend output append source-map-name source-map-json module-id output-name sources] :as mod}]
+  [state {:keys [goog-base prepend output append sources] :as mod}]
   (let [any-shadow-js?
         (->> (data/get-build-sources state)
              (some #(= :shadow-js (:type %))))

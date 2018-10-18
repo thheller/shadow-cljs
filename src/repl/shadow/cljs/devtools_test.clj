@@ -22,7 +22,8 @@
     [shadow.cljs.devtools.errors :as errors]
     [shadow.cljs.devtools.server.worker.impl :as worker]
     [shadow.build.data :as data]
-    [clojure.string :as str])
+    [clojure.string :as str]
+    [shadow.build.cache :as cache])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)
            (javax.net.ssl KeyManagerFactory)
            (java.io FileInputStream)
@@ -773,7 +774,7 @@
         (sh "node" "out/demo-test-node/script.js")]
     (println out)
     (println err)
-    (is (zero? exit))) )
+    (is (zero? exit))))
 
 (comment
   (defn load-from-disk [{:keys [public-dir build-sources] :as state}]

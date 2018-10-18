@@ -437,8 +437,7 @@
               (let [{:keys [js] :as output} (data/get-output! state rc)
 
                     source-map?
-                    (boolean (or (contains? output :source-map)
-                                 (contains? output :source-map-json)))]
+                    (output/has-source-map? output)]
                 (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")
                 )))
        (str/join "\n")))
