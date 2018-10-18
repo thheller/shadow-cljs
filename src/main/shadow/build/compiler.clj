@@ -844,8 +844,7 @@
           already-compiled
           (->> sources
                (filter (fn [{:keys [resource-id] :as src}]
-                         (let [output (get-in state [:output resource-id])]
-                           (and output (not (seq (:warnings output))))))))
+                         (map? (get-in state [:output resource-id])))))
 
           _ (doseq [src already-compiled]
               (ready-signal-fn src))
