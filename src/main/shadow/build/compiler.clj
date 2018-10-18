@@ -27,7 +27,7 @@
             [shadow.jvm-log :as log]
             [shadow.build.async :as async])
   (:import (java.util.concurrent ExecutorService)
-           (java.io File StringReader PushbackReader)))
+           (java.io File StringReader PushbackReader StringWriter)))
 
 (def SHADOW-TIMESTAMP
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
@@ -180,7 +180,7 @@
            (ana/analyze* form resource-name opts)
            (post-analyze state))))))
 
-(defn do-compile-cljs-string
+(defn do-analyze-cljs-string
   [{:keys [resource-name cljc reader-features] :as init} reduce-fn cljs-source]
   (let [eof-sentinel (Object.)
         opts (merge
@@ -189,46 +189,39 @@
                  {:read-cond :allow :features reader-features}))
         in (readers/indexing-push-back-reader (PushbackReader. (StringReader. cljs-source)) 1 resource-name)]
 
-    (binding [comp/*source-map-data*
-              (atom {:source-map (sorted-map)
-                     :gen-col 0
-                     :gen-line 0})]
+    (loop [{:keys [ns ns-info] :as compile-state} init]
+      (let [ns
+            (if-not (:macros-ns compile-state)
+              ns
+              (-> (str ns)
+                  (str/replace #"\$macros" "")
+                  (symbol)))
 
-      (let [result
-            (loop [{:keys [ns ns-info] :as compile-state} init]
-              (let [ns
-                    (if-not (:macros-ns compile-state)
+            form
+            (binding [*ns*
+                      (create-ns ns)
+
+                      ana/*cljs-ns*
                       ns
-                      (-> (str ns)
-                          (str/replace #"\$macros" "")
-                          (symbol)))
 
-                    form
-                    (binding [*ns*
-                              (create-ns ns)
+                      ana/*cljs-file*
+                      resource-name
 
-                              ana/*cljs-ns*
-                              ns
+                      reader/*data-readers*
+                      tags/*cljs-data-readers*
 
-                              ana/*cljs-file*
-                              resource-name
+                      reader/*alias-map*
+                      (merge reader/*alias-map*
+                        (:requires ns-info)
+                        (:require-macros ns-info))]
+              (reader/read opts in))]
 
-                              reader/*data-readers*
-                              tags/*cljs-data-readers*
+        (if (identical? form eof-sentinel)
+          ;; eof
+          compile-state
+          (recur (reduce-fn compile-state form)))))
 
-                              reader/*alias-map*
-                              (merge reader/*alias-map*
-                                (:requires ns-info)
-                                (:require-macros ns-info))]
-                      (reader/read opts in))]
-
-                (if (identical? form eof-sentinel)
-                  ;; eof
-                  compile-state
-                  (recur (reduce-fn compile-state form)))))]
-
-        (assoc result :source-map (:source-map @comp/*source-map-data*))
-        ))))
+    ))
 
 (defmulti shadow-emit
   (fn [build-state ast]
@@ -272,7 +265,7 @@
           (comp/emitln "var " ns "=" (npm/shadow-js-require rc))
           )))))
 
-(defn default-compile-cljs
+(defn default-analyze-cljs
   [{:keys [last-progress-ref] :as state} {:keys [ns macros-ns] :as compile-state} form]
   ;; ignore (defmacro ...) in normal cljs compilation since they otherwise end
   ;; up as normal vars and can be called as fns. compile as usual when compiling as macro ns
@@ -283,17 +276,13 @@
     compile-state
 
     (let [{:keys [op] :as ast}
-          (analyze state compile-state form)
-
-          js
-          (with-out-str
-            (shadow-emit state ast))]
+          (analyze state compile-state form)]
 
       ;; bump for every compiled form might be overkill
       (vreset! last-progress-ref (System/currentTimeMillis))
 
       (-> compile-state
-          (update-in [:js] str js)
+          (update-in [:ast] conj ast)
           (cond->
             (= op :ns)
             (assoc
@@ -348,19 +337,19 @@
 
      (assoc result# :warnings @warnings#)))
 
-(defn compile-cljs-string
+(defn analyze-cljs-string
   [state compile-state cljs-source]
   (with-warnings state
-    (do-compile-cljs-string
+    (do-analyze-cljs-string
       compile-state
-      (partial default-compile-cljs state)
+      (partial default-analyze-cljs state)
       cljs-source)))
 
-(defn compile-cljs-seq
+(defn analyze-cljs-seq
   [state compile-state cljs-forms]
   (with-warnings state
     (reduce
-      (partial default-compile-cljs state)
+      (partial default-analyze-cljs state)
       compile-state
       cljs-forms)))
 
@@ -370,6 +359,19 @@
     :none ""
     ;; default to console
     "cljs.core.enable_console_print_BANG_();\n"))
+
+
+(defn trigger-ready! [state rc]
+  (when-let [ready-signal-fn (:ready-signal-fn state)]
+    (ready-signal-fn rc)))
+
+(defn compact-source-map [source-map]
+  ;; the raw format is very verbose and takes a very long time to encode via transit
+  ;; we don't actually need the verbose format after compilation and just preserve
+  ;; the parts we really want for later when sources, sourcesContent get filled in
+  ;; and maybe a few prepend lines get added
+  (-> (sm/encode* {"unused" source-map} {})
+      (select-keys ["mappings" "names"])))
 
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}
@@ -417,30 +419,49 @@
                    :resource-name resource-name
                    :source (str source)
                    :ns 'cljs.user
-                   :js ""
+                   :ast []
                    :cljc (util/is-cljc? resource-name)
                    :reader-features (data/get-reader-features state)}
                   (cond->
                     (:macros-ns rc)
                     (assoc :macros-ns true)))
 
-              {:keys [ns] :as output}
+              {:keys [ns ast] :as output}
               (cond
                 (string? source)
-                (compile-cljs-string state compile-init source)
+                (analyze-cljs-string state compile-init source)
 
                 (vector? source)
-                (compile-cljs-seq state compile-init source)
+                (analyze-cljs-seq state compile-init source)
 
                 :else
                 (throw (ex-info "invalid cljs source type" {:resource-id resource-id :resource-name resource-name :source source})))]
 
-          (-> output
-              (assoc :compiled-at (System/currentTimeMillis))
-              (cond->
-                (= ns 'cljs.core)
-                (update :js str "\n" (make-runtime-setup state))
-                )))))))
+          ;; others can proceed compiling while we write output
+          (trigger-ready! state rc)
+
+          ;; 64kb initial capacity could probably be tuned
+          ;; default is 16 bytes and we are definitely going to need more than that
+          ;; safes a few array copies
+          (let [sw (StringWriter. 65536)
+                sm-ref (atom {:source-map (sorted-map)
+                              :gen-col 0
+                              :gen-line 0})]
+
+            (binding [comp/*source-map-data* sm-ref
+                      *out* sw]
+              (doseq [ast-entry ast]
+                (shadow-emit state ast-entry)))
+
+            (-> output
+                (assoc :js (.toString sw)
+                       :source-map-compact (compact-source-map (:source-map @sm-ref))
+                       :compiled-at (System/currentTimeMillis))
+                (dissoc :ast)
+                (cond->
+                  (= ns 'cljs.core)
+                  (update :js str "\n" (make-runtime-setup state))
+                  ))))))))
 
 (defn get-cache-file-for-rc
   ^File [state {:keys [resource-name] :as rc}]
@@ -624,42 +645,26 @@
 
       ;; FIXME: the write can still happen before flush
       ;; should maybe safe this data somewhere instead and actually flush in flush
-      (async/queue-task
-        state
-        (fn []
-          (try
-            (util/with-logged-time
-              [state {:type :cache-write
-                      :resource-id resource-id
-                      :resource-name resource-name
-                      :ns ns}]
+      (try
+        (util/with-logged-time
+          [state {:type :cache-write
+                  :resource-id resource-id
+                  :resource-name resource-name
+                  :ns ns}]
 
-              ;; FIXME: is this thread-safe?
-              (io/make-parents cache-file)
+          ;; FIXME: is this thread-safe?
+          (io/make-parents cache-file)
 
-              (cache/write-file cache-file cache-data))
+          (cache/write-file cache-file cache-data))
 
-            (catch Exception e
-              (util/warn state {:type :cache-error
-                                :action :write
-                                :ns ns
-                                :id resource-id
-                                :error e})
-              nil)
-            ))))))
-
-(defn compact-source-map [{:keys [source-map] :as output}]
-  ;; the raw format is very verbose and takes a very long time to encode via transit
-  ;; we don't actually need the verbose format after compilation and just preserve
-  ;; the parts we really want for later when sources, sourcesContent get filled in
-  ;; and maybe a few prepend lines get added
-  (let [sm-compact
-        (-> (sm/encode* {"unused" source-map} {})
-            (select-keys ["mappings" "names"]))]
-
-    (-> output
-        (dissoc :source-map)
-        (assoc :source-map-compact sm-compact))))
+        (catch Exception e
+          (util/warn state {:type :cache-error
+                            :action :write
+                            :ns ns
+                            :id resource-id
+                            :error e})
+          nil)
+        ))))
 
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
@@ -678,14 +683,15 @@
              (not (is-cache-blocked? state rc)))]
 
     (or (when (and cache? (not (contains? previously-compiled resource-id)))
-          (load-cached-cljs-resource state rc))
+          (when-let [output (load-cached-cljs-resource state rc)]
+            (trigger-ready! state rc)
+            output))
         (let [source
               (data/get-source-code state rc)
 
               output
               (try
-                (-> (do-compile-cljs-resource state rc source)
-                    (compact-source-map))
+                (do-compile-cljs-resource state rc source)
                 (catch Exception e
                   (let [{:keys [type ex-kind line] :as data}
                         (ex-data e)
@@ -729,7 +735,7 @@
           (assoc output :cached false)))))
 
 (defn generate-output-for-source
-  [state {:keys [resource-id type] :as src}]
+  [state {:keys [resource-id] :as src}]
   {:pre [(rc/valid-resource? src)]
    :post [(rc/valid-output? %)]}
 
@@ -782,26 +788,7 @@
 
         :ready-to-compile
         (try
-          (let [output (generate-output-for-source state src)
-
-                ;; FIXME: this does not seem ideal
-                ;; maybe generate-output-for-source should expose the actual provides it generated
-
-                ;; we need to mark aliases as ready as soon as a resource is ready
-                ;; cljs.spec.alpha also provides clojure.spec.alpha only
-                ;; if someone used the alias since that happened at resolve time
-                ;; the resource itself does not provide the alias
-                provides
-                (reduce
-                  (fn [provides provide]
-                    (if-let [alias (get-in state [:ns-aliases-reverse provide])]
-                      (conj provides alias)
-                      provides))
-                  provides
-                  provides)]
-
-            (swap! ready-ref set/union provides)
-            output)
+          (maybe-compile-cljs state src)
 
           (catch Throwable e ;; asserts not covered by Exception
             (log/debug-ex e ::par-compile-ex {:resource-id resource-id})
@@ -831,8 +818,49 @@
           errors
           (atom {})
 
+          ready-signal-fn
+          (fn [{:keys [provides] :as src}]
+            ;; FIXME: this does not seem ideal
+            ;; maybe generate-output-for-source should expose the actual provides it generated
+
+            ;; we need to mark aliases as ready as soon as a resource is ready
+            ;; cljs.spec.alpha also provides clojure.spec.alpha only
+            ;; if someone used the alias since that happened at resolve time
+            ;; the resource itself does not provide the alias
+            (let [provides
+                  (reduce
+                    (fn [provides provide]
+                      (if-let [alias (get-in state [:ns-aliases-reverse provide])]
+                        (conj provides alias)
+                        provides))
+                    provides
+                    provides)]
+
+              (swap! ready set/union provides)))
+
+          state
+          (assoc state :ready-signal-fn ready-signal-fn)
+
+          already-compiled
+          (->> sources
+               (filter (fn [{:keys [resource-id] :as src}]
+                         (let [output (get-in state [:output resource-id])]
+                           (and output (not (seq (:warnings output))))))))
+
+          _ (doseq [src already-compiled]
+              (ready-signal-fn src))
+
+          already-compiled-set
+          (->> already-compiled
+               (map :resource-id)
+               (into #{}))
+
+          requires-compile
+          (->> sources
+               (remove #(contains? already-compiled-set (:resource-id %))))
+
           task-results
-          (->> (for [src sources]
+          (->> (for [src requires-compile]
                  ;; bound-fn for with-compiler-state
                  (let [task-fn (bound-fn [] (par-compile-one state ready errors src))]
                    ;; things go WTF without the type tags, tasks will return nil
@@ -855,7 +883,7 @@
             (throw (ex-info "a compile task returned nil?" {})))
           (assert resource-id)
           (update state :output assoc resource-id output))
-        state
+        (dissoc state :ready-signal-fn)
         task-results)
       )))
 
