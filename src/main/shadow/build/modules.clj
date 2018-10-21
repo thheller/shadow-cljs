@@ -59,7 +59,7 @@
     (let [mod-id (ffirst modules)]
       (update-in state [::modules mod-id] assoc :goog-base true))
     ;; else: multiple modules must be sorted in dependency order
-    (let [src-refs
+    (let [src-refs ;; {src-id #{:mod-a :mod-b ...}, ...}
           (->> (for [mod-id module-order
                      :let [{:keys [sources depends-on] :as mod} (get modules mod-id)]
                      src sources]
@@ -101,28 +101,55 @@
                (distinct)
                (into []))
 
-          final-sources
+          ;; assign which source goes into which module
+          ;; {source-id mod-id, ...}
+          assigned
           (reduce
-            (fn [final src]
+            (fn [assigned src]
               (let [deps
                     (get src-refs src)
 
                     target-mod
                     (if (= 1 (count deps))
                       (first deps)
-                      (let [target-mod (find-closest-common-dependency src deps)]
+                      (find-closest-common-dependency src deps))]
 
-                        ;; only warn when a file is moved to a module it wouldn't be in naturally
-                        (when-not (contains? deps target-mod)
-                          (util/warn state {:type :module-move
-                                            :src src
-                                            :deps deps
-                                            :moved-to target-mod}))
-                        target-mod))]
+                (assoc assigned src target-mod)))
+            {}
+            all-sources)
 
+          ;; group modules, ordered in dependency order
+          ;; {module [src-a src-b ...]}
+          final-sources
+          (reduce
+            (fn [final src]
+              (let [target-mod (get assigned src)]
                 (update final target-mod util/vec-conj src)))
             {}
             all-sources)]
+
+      ;; validate that all declared :entries are still in the module that defined it
+      ;; otherwise means that a require moved it somewhere else which should
+      ;; never happen as the module becomes pointless
+      (doseq [{:keys [entries module-id] :as mod} (vals modules)
+              entry entries
+              ;; FIXME: strings (js-deps) can be moved too?
+              :when (symbol? entry)]
+        (let [src-id (data/get-source-id-by-provide state entry)
+              assigned-mod (get assigned src-id)
+              used-by (get src-refs src-id)]
+
+          (when (not= assigned-mod module-id)
+            (throw
+              (ex-info
+                (str "Module Entry \"" entry "\" was moved out of module \"" module-id "\".\n"
+                     "It was moved to \"" assigned-mod "\" and used by " used-by ".")
+                {:tag ::module-entry-moved
+                 :entry entry
+                 :expected module-id
+                 :moved-to assigned-mod
+                 :used-by used-by})
+              ))))
 
       (reduce
         (fn [state mod-id]

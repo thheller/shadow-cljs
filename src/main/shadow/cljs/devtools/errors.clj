@@ -302,6 +302,12 @@
           (w/print-source-excerpt-footer err)
           (println (w/sep-line)))))))
 
+
+(defmethod ex-data-format :shadow.build.modules/module-entry-moved
+  [w e {:keys [entry expected moved-to] :as data}]
+
+  (.write w (.getMessage e)))
+
 (defmethod ex-data-format :shadow.cljs.util/macro-load
   [w e {:keys [macro-ns] :as data}]
 
