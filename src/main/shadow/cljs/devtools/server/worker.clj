@@ -160,9 +160,8 @@
         (not timing-id)
         (update state :log conj (build-log/event->str event))
 
-        ;; not interested :enter after the fact
-        ;; (= :enter timing)
-        ;; (update state :active assoc timing-id (assoc event ::m/msg (build-log/event->str event)))
+        (= :enter timing)
+        (update state :active assoc timing-id (assoc event ::m/msg (build-log/event->str event)))
 
         (= :exit timing)
         (-> state
