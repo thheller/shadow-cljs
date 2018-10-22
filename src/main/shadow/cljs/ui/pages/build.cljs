@@ -152,7 +152,8 @@
                                [::m/http-url])}
       ::m/build-worker-active])}
 
-  (let [{::m/keys [build-status build-info build-config-raw build-worker-active]} props]
+  (let [{::m/keys [build-status build-info build-config-raw build-worker-active]} props
+        {:keys [status log]} build-status]
 
     (if-not build-id
       (html/div "Loading ...")
@@ -184,7 +185,15 @@
           (s/build-section-title "Status")
           (build-status/render-build-status build-status))
 
-        (when (and (= :completed (:status build-status))
+        (when (or (= :failed status)
+                  (= :completed status))
+
+          (s/build-section
+            (s/build-section-title "Log")
+            (html/for [msg log]
+              (s/build-log-entry {:key msg} msg))))
+
+        (when (and (= :completed status)
                    (map? build-info))
           (render-build-info build-info))
         #_(html/div

@@ -45,3 +45,6 @@
   (dump '[(::m/classpath-query {:type #{:cljs}
                                 :matching "demo/browser"})]))
 
+(deftest test-build-deps-for-entry
+  (dump '[{[::m/build-id :browser]
+           [(::m/entry-deps {:entry demo.browser})]}]))

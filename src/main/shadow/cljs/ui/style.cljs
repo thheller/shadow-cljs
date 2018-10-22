@@ -74,6 +74,10 @@
   [env]
   {:font-weight "bold"})
 
+(defstyled build-log-entry :div
+  [env]
+  {:font-family "monospace"})
+
 (defstyled page-container :div [env]
   {:position "fixed"
    :background-color "#f4f4f4"

@@ -230,3 +230,27 @@
   (fn [env {:keys [build-id] :as input}]
     (do-build env build-id :release)
     {::m/build-id build-id}))
+
+;; resolves dependencies of a given entry namespace
+;; based on the given build config
+(add-resolver `build-entry-deps
+  {::pc/input #{::m/build-id}
+   ::pc/output [{::m/entry-deps [::m/resource-id]}]}
+  (fn [env {::m/keys [build-id] :as input}]
+
+    (let [{:keys [entry mode] :or {mode :dev}}
+          (get-in env [:ast :params])
+
+          config
+          (config/get-build build-id)
+
+          [resolved state]
+          (-> (util/new-build config mode {})
+              (build-api/resolve-entries [entry]))]
+
+      {::m/entry-deps
+       (->> resolved
+            (map (fn [resource-id]
+                   {::m/resource-id resource-id}))
+            (into []))}
+      )))
