@@ -142,12 +142,37 @@
 (defmethod log/log-msg ::tcp-port-unavailable [_ {:keys [port]}]
   (format "TCP Port %d in use." port))
 
-(defn start-http [config {:keys [port strict] :as http-config} ring]
-  (let [middleware-fn #(get-ring-middleware config %)]
+(defn start-http [config {:keys [port strict] :as http-config} app-ref]
+  (let [ring-fn
+        (get-ring-handler app-ref)
+
+        ui-root
+        (io/file ".shadow-cljs" "ui")
+
+        req-handler
+        [::undertow/classpath {:root "shadow/cljs/ui/dist"}
+         [::undertow/classpath {:root "shadow/cljs/devtools/server/web/resources"}
+          [::undertow/blocking
+           [::undertow/ring {:handler-fn ring-fn}]]]]
+
+        req-handler
+        (if-not (.exists ui-root)
+          req-handler
+          [::undertow/file {:root-dir ui-root} req-handler])
+
+        handler-config
+        [::undertow/disable-cache
+         [::undertow/ws-upgrade
+          [::undertow/ws-ring {:handler-fn ring-fn}]
+          [::undertow/compress {}
+           req-handler]]]]
+
     (loop [port (or port 9630)]
       (let [srv
             (try
-              (undertow/start (assoc http-config :port port) ring middleware-fn)
+              (undertow/start
+                (assoc http-config :port port)
+                handler-config)
               (catch Exception e
                 (cond
                   strict
@@ -157,8 +182,8 @@
                   (log/warn ::tcp-port-unavailable {:port port})
 
                   :else
-                  (log/warn-ex e ::http-startup-ex)
-                  )))]
+                  (do (log/warn-ex e ::http-startup-ex)
+                      (throw e)))))]
 
         (or srv (recur (inc port)))
         ))))
@@ -228,9 +253,6 @@
             (first)
             (Long/valueOf))
 
-        ring
-        (get-ring-handler app-ref)
-
         {:keys [ssl-context] :as http-config}
         (-> {:host "0.0.0.0"}
             (merge http)
@@ -239,7 +261,7 @@
               (assoc :ssl-context (undertow/make-ssl-context ssl))))
 
         {:keys [http-port https-port] :as http}
-        (start-http config http-config ring)
+        (start-http config http-config app-ref)
 
         socket-repl-config
         (:socket-repl config)

@@ -17,15 +17,11 @@
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.api :as api]
     [shadow.jvm-log :as log]
-    [ring.middleware.resource :as ring-resource]
-    [ring.middleware.content-type :as ring-content-type]
     [ring.middleware.params :as ring-params]
-    [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.graph.env :as genv]
     [clojure.data.json :as json]
-    [shadow.cljs.devtools.server.dev-http :as dev-http])
-  (:import [java.util UUID]))
+    [shadow.cljs.devtools.server.dev-http :as dev-http]))
 
 (defn index-page [{:keys [dev-http] :as req}]
   (common/page-boilerplate req
@@ -252,31 +248,14 @@
       (add-secret-header req)))
 
 (defn root [req]
-  (http/route req
-    ;; temp fix for middleware problem
-    (:ANY "/api/ws" web-api/api-ws)
-    (:ANY "^/api" web-api/root)
-    (:ANY "^/ws" ws/process-ws)
-    (:ANY "^/worker" ws/process-req)
-    (:ANY "/repl-ws" web-repl/repl-ws)
-    (:GET "^/cache" serve-cache-file)
-    pages))
-
-(defn get-ring-middleware
-  [{:keys [cache-root] :as config} handler]
-  (let [ui-root (io/file cache-root "ui")]
-
-    (log/debug ::get-ring-middleware {:cache-root cache-root})
-
-    (-> handler
-        (ring-resource/wrap-resource "shadow/cljs/ui/dist")
-        (cond->
-          (.exists ui-root)
-          (ring-file/wrap-file ui-root))
-
-        (ring-resource/wrap-resource "shadow/cljs/devtools/server/web/resources")
-        (ring-content-type/wrap-content-type)
-        (ring-params/wrap-params)
-        (ring-gzip/wrap-gzip)
-        (dev-http/disable-all-kinds-of-caching)
-        )))
+  (-> req
+      (update :ring-request ring-params/params-request {})
+      (http/route
+        ;; temp fix for middleware problem
+        (:ANY "/api/ws" web-api/api-ws)
+        (:ANY "^/api" web-api/root)
+        (:ANY "^/ws" ws/process-ws)
+        (:ANY "^/worker" ws/process-req)
+        (:ANY "/repl-ws" web-repl/repl-ws)
+        (:GET "^/cache" serve-cache-file)
+        pages)))

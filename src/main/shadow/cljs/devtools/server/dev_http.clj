@@ -8,27 +8,9 @@
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.model :as m]
     [shadow.undertow :as undertow]
-    [shadow.http.push-state :as push-state]
-    ;; FIXME: delay loading ring.* until first request here too
-    ;; don't want to AOT these
-    [shadow.cljs.devtools.server.ring-gzip :as ring-gzip]
-    [ring.middleware.resource :as ring-resource]
-    [ring.middleware.file :as ring-file]
-    [ring.middleware.file-info :as ring-file-info]
-    [ring.middleware.content-type :as ring-content-type])
+    [shadow.http.push-state :as push-state])
   (:import [io.undertow.server.handlers.proxy ProxyHandler LoadBalancingProxyClient]
            [java.net URI]))
-
-(defn disable-all-kinds-of-caching [handler]
-  ;; this is strictly a dev server and caching is not wanted for anything
-  ;; basically emulates having devtools open with "Disable cache" active
-  (fn [req]
-    (-> req
-        (handler)
-        (update-in [:headers] assoc
-          "cache-control" "max-age=0, no-cache, no-store, must-revalidate"
-          "pragma" "no-cache"
-          "expires" "0"))))
 
 (defn start-build-server
   [config ssl-context out
@@ -96,27 +78,28 @@
       (io/make-parents (io/file root-dir "index.html")))
 
     (try
-      (let [middleware-fn
-            #(-> %
-                 ;; some default resources, only used if no file exists
-                 ;; currently only contains the CLJS logo as favicon.ico
-                 ;; pretty much only doing this because of the annoying
-                 ;; 404 chrome devtools show then no icon exists
-                 (ring-resource/wrap-resource "shadow/cljs/devtools/server/dev_http")
-                 (ring-content-type/wrap-content-type)
-                 (cond->
-                   (seq http-resource-root)
-                   (ring-resource/wrap-resource http-resource-root)
+      (let [req-handler
+            [::undertow/classpath {:root "shadow/cljs/devtools/server/dev_http"}
+             [::undertow/blocking
+              [::undertow/ring {:handler-fn http-handler-fn}]]]
 
-                   root-dir
-                   (ring-file/wrap-file root-dir {:allow-symlinks? true
-                                                  :index-files? true}))
-                 (ring-file-info/wrap-file-info
-                   ;; source maps
-                   {"map" "application/json"})
+            ;; serve resource before handler
+            req-handler
+            (if-not (seq http-resource-root)
+              req-handler
+              [::undertow/classpath {:root http-resource-root} req-handler])
 
-                 (ring-gzip/wrap-gzip)
-                 (disable-all-kinds-of-caching))
+            ;; serve files before resource or handler
+            req-handler
+            (if-not root-dir
+              req-handler
+              [::undertow/file {:root-dir root-dir} req-handler])
+
+            handler-config
+            [::undertow/disable-cache
+             [::undertow/ws-upgrade
+              [::undertow/ws-ring {:handler-fn http-handler-fn}]
+              [::undertow/compress {} req-handler]]]
 
             http-options
             (-> {:port http-port
@@ -129,7 +112,7 @@
             (loop [{:keys [port] :as http-options} http-options
                    fails 0]
               (let [srv (try
-                          (undertow/start http-options http-handler-fn middleware-fn)
+                          (undertow/start http-options handler-config)
                           (catch Exception e
                             (log/warn-ex e ::http-start-ex {:build-id build-id
                                                             :http-options http-options})

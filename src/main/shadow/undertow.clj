@@ -9,16 +9,19 @@
             [shadow.core-ext :as core-ext])
   (:import (io.undertow Undertow Handlers UndertowOptions)
            (io.undertow.websockets WebSocketConnectionCallback)
-           (io.undertow.server.handlers ResponseCodeHandler BlockingHandler)
+           (io.undertow.server.handlers BlockingHandler)
            (io.undertow.server HttpHandler)
-           (shadow.undertow WsTextReceiver)
+           (shadow.undertow WsTextReceiver ShadowResourceHandler)
            (io.undertow.websockets.core WebSockets)
            (javax.net.ssl SSLContext KeyManagerFactory)
-           (java.io FileInputStream)
+           (java.io FileInputStream File)
            (java.security KeyStore)
            [org.xnio ChannelListener]
            [java.nio.channels ClosedChannelException]
-           [io.undertow.util AttachmentKey]))
+           [io.undertow.util AttachmentKey MimeMappings Headers]
+           [io.undertow.server.handlers.resource PathResourceManager ClassPathResourceManager]
+           [io.undertow.predicate Predicates Predicate]
+           [io.undertow.server.handlers.encoding EncodingHandler ContentEncodingRepository GzipEncodingProvider DeflateEncodingProvider]))
 
 (defn ring* [handler-fn]
   (reify
@@ -50,12 +53,183 @@
   (-> (impl/exchange->ring (.get ws-exchange-field ex))
       (assoc ::channel channel)))
 
+
+(defn handler? [x]
+  (and x (instance? HttpHandler x)))
+
+(declare build)
+
+(defmulti build* (fn [state config] (first config)) :default ::default)
+
+(defmethod build* ::default [state [id :as config]]
+  (throw (ex-info (format "unknown handler: %s" id) {:config config})))
+
+(defmethod build* ::ws-upgrade [state [id upgrade-next next :as config]]
+  (when-not (and (vector? upgrade-next)
+                 (vector? next))
+    (throw (ex-info "ws-upgrade expects 2 paths" {:config config})))
+
+  (let [{upgrade-handler :handler :as state}
+        (build state upgrade-next)
+
+        {req-handler :handler :as state}
+        (build state next)]
+
+    (assert (handler? upgrade-handler))
+    (assert (handler? req-handler))
+
+    (assoc state
+      ;; default websocket handler tries to handshake every single request
+      ;; which seems like a bit of overkill
+      :handler
+      (reify HttpHandler
+        (handleRequest [this x]
+          (if (= "websocket" (-> (.getRequestHeaders x) (.getFirst "Upgrade")))
+            (.handleRequest upgrade-handler x)
+            (.handleRequest req-handler x)))))))
+
+(defmethod build* ::classpath
+  [{:keys [mime-mappings] :as state} [id props next :as config]]
+  (when-not (and (vector? next)
+                 (map? props))
+    (throw (ex-info "classpath expects props and next" {:config config})))
+
+  (let [{:keys [root classloader]}
+        props
+
+        _ (assert (seq root))
+
+        classloader
+        (or classloader
+            (-> (Thread/currentThread)
+                (.getContextClassLoader)))
+
+        {next :handler :as state}
+        (build state next)
+
+        rc-manager
+        (ClassPathResourceManager. classloader root)
+
+        handler
+        (doto (ShadowResourceHandler. rc-manager next)
+          (.setMimeMappings mime-mappings))]
+
+    (-> state
+        (update :managers conj rc-manager)
+        (assoc :handler handler))))
+
+(defmethod build* ::file [{:keys [mime-mappings] :as state} [id props next]]
+  (assert (vector? next))
+  (assert (map? props))
+
+  (let [{:keys [^File root-dir]}
+        props
+
+        _ (assert (instance? File root-dir))
+        _ (assert (.exists root-dir))
+        _ (assert (.isDirectory root-dir))
+
+        {next :handler :as state}
+        (build state next)
+
+        rc-manager
+        (PathResourceManager. (.toPath root-dir))
+
+        handler
+        (doto (ShadowResourceHandler. rc-manager next)
+          (.setMimeMappings mime-mappings)
+          (.setCachable (Predicates/falsePredicate))
+          (.setAllowed (Predicates/truePredicate)))]
+
+    (-> state
+        (update :managers conj rc-manager)
+        (assoc :handler handler)
+        )))
+
+(defmethod build* ::disable-cache [state [id next]]
+  (assert (vector? next))
+
+  (let [{next :handler :as state}
+        (build state next)]
+    (assoc state :handler (Handlers/disableCache next))))
+
+(defmethod build* ::blocking [state [id next]]
+  (assert (vector? next))
+
+  (let [{next :handler :as state}
+        (build state next)]
+    (assoc state :handler (BlockingHandler. next))))
+
+(def compressible-types
+  ["text/html"
+   "text/css"
+   "text/plain"
+   "text/javascript"
+   "application/javascript"
+   "application/json"
+   "application/json+transit"
+   "application/edn"])
+
+(defmethod build* ::compress [state [id props next]]
+  (assert (vector? next))
+
+  (let [{next :handler :as state}
+        (build state next)
+
+        compress-predicate
+        (reify
+          Predicate
+          (resolve [_ exchange]
+            (let [headers
+                  (.getResponseHeaders exchange)
+
+                  content-type
+                  (.getFirst headers Headers/CONTENT_TYPE)]
+
+              (if-not content-type
+                false
+                (boolean (some #(str/starts-with? content-type %) compressible-types))
+                ))))
+
+        cer
+        (doto (ContentEncodingRepository.)
+          (.addEncodingHandler "gzip" (GzipEncodingProvider.) 100 compress-predicate)
+          (.addEncodingHandler "deflate" (DeflateEncodingProvider.) 10 compress-predicate))
+
+        gzip-handler
+        (EncodingHandler. next cer)]
+
+    (assoc state :handler gzip-handler)))
+
+(defmethod build* ::ring [state [id props & next :as config]]
+  (when (seq next)
+    (throw (ex-info "ring doesn't support nested undertow handlers" {:config config})))
+
+  (let [{:keys [handler-fn]} props
+
+        handler
+        (reify
+          HttpHandler
+          (handleRequest [_ exchange]
+            (let [req (impl/exchange->ring exchange)
+                  res (handler-fn req)]
+              (when (and (map? res) (not (::handled res)))
+                (impl/ring->exchange exchange req res))
+              )))]
+
+    (assoc state :handler handler)))
+
 (defonce WS-LOOP (AttachmentKey/create Object))
 (defonce WS-IN (AttachmentKey/create Object))
 (defonce WS-OUT (AttachmentKey/create Object))
 
-(defn websocket [ring-handler]
-  (let [ws-handler
+(defmethod build* ::ws-ring [state [id props & next :as config]]
+  (when (seq next)
+    (throw (ex-info "ring doesn't support nested undertow handlers" {:config config})))
+
+  (let [{:keys [handler-fn]} props
+
+        ws-handler
         (Handlers/websocket
           (reify
             WebSocketConnectionCallback
@@ -106,28 +280,43 @@
                           (async/close! ws-in)
                           ))))
 
+                ))))
+
+        handler
+        (ring*
+          (fn [{::impl/keys [exchange] :as ring-request}]
+            (let [ws-req (assoc ring-request ::ws true)
+
+                  {:keys [ws-in ws-out ws-loop] :as res}
+                  (handler-fn ws-req)]
+
+              ;; expecting map with :ws-loop :ws-in :ws-out keys
+              (if (and (satisfies? async-prot/ReadPort ws-loop)
+                       (satisfies? async-prot/ReadPort ws-in)
+                       (satisfies? async-prot/ReadPort ws-out))
+                (do (.putAttachment exchange WS-LOOP ws-loop)
+                    (.putAttachment exchange WS-IN ws-in)
+                    (.putAttachment exchange WS-OUT ws-out)
+                    (.handleRequest ws-handler exchange)
+                    ::async)
+
+                ;; didn't return a loop. respond without upgrade.
+                res
                 ))))]
 
-    (ring*
-      (fn [{::impl/keys [exchange] :as ring-request}]
-        (let [ws-req (assoc ring-request ::ws true)
+    (assoc state :handler handler)))
 
-              {:keys [ws-in ws-out ws-loop] :as res}
-              (ring-handler ws-req)]
+(defn build [state config]
+  {:pre [(vector? config)
+         (map? state)]}
+  (build*
+    (assoc state :managers [])
+    (into [] (remove nil?) config)))
 
-          ;; expecting map with :ws-loop :ws-in :ws-out keys
-          (if (and (satisfies? async-prot/ReadPort ws-loop)
-                   (satisfies? async-prot/ReadPort ws-in)
-                   (satisfies? async-prot/ReadPort ws-out))
-            (do (.putAttachment exchange WS-LOOP ws-loop)
-                (.putAttachment exchange WS-IN ws-in)
-                (.putAttachment exchange WS-OUT ws-out)
-                (.handleRequest ws-handler exchange)
-                ::async)
 
-            ;; didn't return a loop. respond without upgrade.
-            res
-            ))))))
+(defn close-handlers [{:keys [managers] :as state}]
+  (doseq [mgr managers]
+    (.close mgr)))
 
 (defn make-ssl-context [ssl-config]
   (let [key-manager
@@ -150,54 +339,49 @@
       (.init (.getKeyManagers key-manager) nil nil)
       )))
 
-;; need to delay middleware instantiation since the ws don't ever need those
-;; and they aren't compatible with the way this does ws anyways
 (defn start
-  ([config req-handler]
-   (start config req-handler identity))
-  ([{:keys [port host ssl-port ssl-context] :or {host "0.0.0.0"} :as config} req-handler ring-middleware]
-   (let [ws-handler
-         (websocket req-handler)
+  [{:keys [port host ssl-port ssl-context] :or {host "0.0.0.0"} :as config} handler-config]
+  (let [mime-mappings
+        (-> (MimeMappings/builder)
+            ;; FIXME: make this configurable?
+            (.addMapping "map" "application/json")
+            (.addMapping "edn" "application/edn")
+            (.build))
 
-         ring-handler
-         (-> (ring-middleware req-handler)
-             (ring))
+        handler-state
+        {:mime-mappings mime-mappings}
 
-         handler
-         (reify HttpHandler
-           (handleRequest [this x]
-             (if (= "websocket" (-> (.getRequestHeaders x) (.getFirst "Upgrade")))
-               ;; some ring-middleware won't like the ::async response
-               ;; so this runs through a special handler without any middleware
-               (.handleRequest ws-handler x)
-               ;; serve request ring-style otherwise
-               (.handleRequest ring-handler x))))
+        {:keys [handler] :as handler-state}
+        (build handler-state handler-config)
 
-         instance
-         (doto (-> (Undertow/builder)
-                   (cond->
-                     ;; start http listener when no ssl-context is set
-                     ;; or if ssl-port is set in addition to port
-                     (or (not ssl-context)
-                         (and port ssl-port))
-                     (.addHttpListener port host)
+        instance
+        (doto (-> (Undertow/builder)
+                  (cond->
+                    ;; start http listener when no ssl-context is set
+                    ;; or if ssl-port is set in addition to port
+                    (or (not ssl-context)
+                        (and port ssl-port))
+                    (.addHttpListener port host)
 
-                     ;; listens in port unless ssl-port is set
-                     ssl-context
-                     (-> (.setServerOption UndertowOptions/ENABLE_HTTP2 true)
-                         (.addHttpsListener (or ssl-port port) host ssl-context)))
-                   (.setHandler handler)
-                   (.build))
-           (.start))]
+                    ;; listens in port unless ssl-port is set
+                    ssl-context
+                    (-> (.setServerOption UndertowOptions/ENABLE_HTTP2 true)
+                        (.addHttpsListener (or ssl-port port) host ssl-context)))
+                  (.setHandler handler)
+                  (.build))
+          (.start))]
 
-     (reduce
-       (fn [x listener]
-         (assoc x (keyword (str (.getProtcol listener) "-port")) (-> listener (.getAddress) (.getPort))))
-       {:instance instance}
-       (.getListenerInfo instance)))))
+    (reduce
+      (fn [x listener]
+        (assoc x (keyword (str (.getProtcol listener) "-port")) (-> listener (.getAddress) (.getPort))))
+      {:instance instance
+       :handler-state handler-state
+       :config config}
+      (.getListenerInfo instance))))
 
-(defn stop [{:keys [instance] :as srv}]
-  (.stop instance))
+(defn stop [{:keys [instance handler-state] :as srv}]
+  (.stop instance)
+  (close-handlers handler-state))
 
 (comment
   (require '[ring.middleware.file :as ring-file])
@@ -224,17 +408,17 @@
             :port 8800
             :ssl-port 8801
             :ssl-context (make-ssl-context {})}
-           test-ring
-           #(-> %
-                (ring-content-type/wrap-content-type)
-                (ring-file/wrap-file
-                  (io/file "out" "demo-browser" "public")
-                  {:allow-symlinks? true
-                   :index-files? true})
-                (ring-file-info/wrap-file-info
-                  ;; source maps
-                  {"map" "application/json"})
-                (ring-gzip/wrap-gzip))))
+           [::ring {:hander-fn
+                    (-> test-ring
+                        (ring-content-type/wrap-content-type)
+                        (ring-file/wrap-file
+                          (io/file "out" "demo-browser" "public")
+                          {:allow-symlinks? true
+                           :index-files? true})
+                        (ring-file-info/wrap-file-info
+                          ;; source maps
+                          {"map" "application/json"})
+                        (ring-gzip/wrap-gzip))}]))
 
   (prn x)
 
