@@ -142,20 +142,15 @@ public class ShadowResourceHandler implements HttpHandler {
 
     @Override
     public void handleRequest(final HttpServerExchange exchange) throws Exception {
-        if (exchange.getRequestMethod().equals(Methods.GET) ||
-                exchange.getRequestMethod().equals(Methods.POST)) {
+        HttpString method = exchange.getRequestMethod();
+        if (method.equals(Methods.GET) || method.equals(Methods.POST)) {
             serveResource(exchange, true);
-        } else if (exchange.getRequestMethod().equals(Methods.HEAD)) {
+        } else if (method.equals(Methods.HEAD)) {
             serveResource(exchange, false);
         } else {
-            if (KNOWN_METHODS.contains(exchange.getRequestMethod())) {
-                exchange.setStatusCode(StatusCodes.METHOD_NOT_ALLOWED);
-                exchange.getResponseHeaders().add(Headers.ALLOW,
-                        String.join(", ", Methods.GET_STRING, Methods.HEAD_STRING, Methods.POST_STRING));
-            } else {
-                exchange.setStatusCode(StatusCodes.NOT_IMPLEMENTED);
-            }
-            exchange.endExchange();
+            // OPTIONS and others just go straight to the next handler
+            // typically ring
+            next.handleRequest(exchange);
         }
     }
 
@@ -163,29 +158,6 @@ public class ShadowResourceHandler implements HttpHandler {
 
         if (DirectoryUtils.sendRequestedBlobs(exchange)) {
             return;
-        }
-
-        if (!allowed.resolve(exchange)) {
-            exchange.setStatusCode(StatusCodes.FORBIDDEN);
-            exchange.endExchange();
-            return;
-        }
-
-        ResponseCache cache = exchange.getAttachment(ResponseCache.ATTACHMENT_KEY);
-        final boolean cachable = this.cachable.resolve(exchange);
-
-        //we set caching headers before we try and serve from the cache
-        if (cachable && cacheTime != null) {
-            exchange.getResponseHeaders().put(Headers.CACHE_CONTROL, "public, max-age=" + cacheTime);
-            long date = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(cacheTime);
-            String dateHeader = DateUtils.toDateString(new Date(date));
-            exchange.getResponseHeaders().put(Headers.EXPIRES, dateHeader);
-        }
-
-        if (cache != null && cachable) {
-            if (cache.tryServeResponse()) {
-                return;
-            }
         }
 
         //we now dispatch to a worker thread
@@ -201,14 +173,12 @@ public class ShadowResourceHandler implements HttpHandler {
                         resource = resourceSupplier.getResource(exchange, canonicalize(exchange.getRelativePath()));
                     }
                 } catch (IOException e) {
-                    clearCacheHeaders(exchange);
                     UndertowLogger.REQUEST_IO_LOGGER.ioException(e);
                     exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
                     exchange.endExchange();
                     return;
                 }
                 if (resource == null) {
-                    clearCacheHeaders(exchange);
                     //usually a 404 handler
                     next.handleRequest(exchange);
                     return;
@@ -341,11 +311,6 @@ public class ShadowResourceHandler implements HttpHandler {
         } else {
             dispatchTask.handleRequest(exchange);
         }
-    }
-
-    private void clearCacheHeaders(HttpServerExchange exchange) {
-        exchange.getResponseHeaders().remove(Headers.CACHE_CONTROL);
-        exchange.getResponseHeaders().remove(Headers.EXPIRES);
     }
 
     private Resource getIndexFiles(HttpServerExchange exchange, ResourceSupplier resourceManager, final String base, List<String> possible) throws IOException {
