@@ -751,50 +751,54 @@
   [{:keys [last-progress-ref] :as state}
    ready-ref
    errors-ref
-   {:keys [resource-id type requires provides] :as src}]
+   {:keys [resource-id type requires extra-requires provides] :as src}]
   (assert (= :cljs type))
   (assert (set? requires))
   (assert (set? provides))
 
-  (loop [idle-count 1]
-    (let [ready @ready-ref]
-      (cond
-        ;; skip work if errors occured
-        (seq @errors-ref)
-        src
+  ;; test targets dynamically add namespaces that we need to wait for
+  ;; tracking this separately since messing with the ns dynamically is harder
+  (let [requires (set/union requires extra-requires)]
 
-        ;; only compile once all dependencies are compiled
-        ;; FIXME: sleep is not great, cljs.core takes a couple of sec to compile
-        ;; this will spin a couple hundred times, doing additional work
-        ;; don't increase the sleep time since many files compile in the 5-10 range
-        (not (set/superset? ready requires))
-        (do (Thread/sleep 5)
+    (loop [idle-count 1]
+      (let [ready @ready-ref]
+        (cond
+          ;; skip work if errors occured
+          (seq @errors-ref)
+          src
 
-            ;; forcefully abort compilation when no progress was made for a long time
-            ;; progress is measured by bumping last-progress-ref in default-compile-cljs
-            ;; otherwise the compilation runs forever with no way to abort in case of bugs
-            (when (> (- (System/currentTimeMillis) @last-progress-ref)
-                     (get-in state [:build-options :par-timeout] 60000))
-              (let [pending (set/difference requires ready)]
+          ;; only compile once all dependencies are compiled
+          ;; FIXME: sleep is not great, cljs.core takes a couple of sec to compile
+          ;; this will spin a couple hundred times, doing additional work
+          ;; don't increase the sleep time since many files compile in the 5-10 range
+          (not (set/superset? ready requires))
+          (do (Thread/sleep 5)
 
-                (swap! errors-ref assoc resource-id
-                  (ex-info (format "aborted par-compile, %s still waiting for %s"
-                             resource-id
-                             pending)
-                    {:aborted resource-id
-                     :pending pending}))))
+              ;; forcefully abort compilation when no progress was made for a long time
+              ;; progress is measured by bumping last-progress-ref in default-compile-cljs
+              ;; otherwise the compilation runs forever with no way to abort in case of bugs
+              (when (> (- (System/currentTimeMillis) @last-progress-ref)
+                       (get-in state [:build-options :par-timeout] 60000))
+                (let [pending (set/difference requires ready)]
 
-            (recur (inc idle-count)))
+                  (swap! errors-ref assoc resource-id
+                    (ex-info (format "aborted par-compile, %s still waiting for %s"
+                               resource-id
+                               pending)
+                      {:aborted resource-id
+                       :pending pending}))))
 
-        :ready-to-compile
-        (try
-          (maybe-compile-cljs state src)
+              (recur (inc idle-count)))
 
-          (catch Throwable e ;; asserts not covered by Exception
-            (log/debug-ex e ::par-compile-ex {:resource-id resource-id})
-            (swap! errors-ref assoc resource-id e)
-            src
-            ))))))
+          :ready-to-compile
+          (try
+            (maybe-compile-cljs state src)
+
+            (catch Throwable e ;; asserts not covered by Exception
+              (log/debug-ex e ::par-compile-ex {:resource-id resource-id})
+              (swap! errors-ref assoc resource-id e)
+              src
+              )))))))
 
 (defn load-core []
   ;; cljs.core is already required and loaded when this is called

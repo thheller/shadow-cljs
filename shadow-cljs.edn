@@ -222,12 +222,12 @@
        :extension-dir "out/chrome-ext"
        :manifest-file "out/chrome-manifest.edn"}
 
-  #_#_:test-browser
-      {:target :browser-test
-       :test-dir "out/demo-test-browser"
-       :devtools
-       {:http-port 8606
-        :http-root "out/demo-test-browser"}}
+  :test-browser
+  {:target :browser-test
+   :test-dir "out/demo-test-browser"
+   :devtools
+   {:http-port 8606
+    :http-root "out/demo-test-browser"}}
 
   #_#_:test-node
       {:target :node-test

@@ -1,17 +1,19 @@
 (ns shadow.build.targets.karma
   (:refer-clojure :exclude (compile flush resolve))
-  (:require [clojure.string :as str]
-            [shadow.build :as build]
-            [shadow.build.modules :as modules]
-            [shadow.build.classpath :as cp]
-            [shadow.build.targets.browser :as browser]
-            [shadow.cljs.util :as util]
-            [hiccup.page :refer (html5)]
-            [clojure.java.io :as io]
-            [cljs.compiler :as cljs-comp]
-            [shadow.build.api :as build-api]
-            [shadow.build.output :as output]
-            [shadow.build.data :as data]))
+  (:require
+    [clojure.string :as str]
+    [shadow.build :as build]
+    [shadow.build.modules :as modules]
+    [shadow.build.classpath :as cp]
+    [shadow.build.targets.browser :as browser]
+    [shadow.cljs.util :as util]
+    [hiccup.page :refer (html5)]
+    [clojure.java.io :as io]
+    [cljs.compiler :as cljs-comp]
+    [shadow.build.api :as build-api]
+    [shadow.build.output :as output]
+    [shadow.build.data :as data]
+    [shadow.build.test-util :as tu]))
 
 (defn configure [state mode {:keys [runner-ns output-to js-options] :or {runner-ns 'shadow.test.karma} :as config}]
   (let [output-to
@@ -24,7 +26,7 @@
 
     (-> state
         (assoc
-          ::runner-ns runner-ns
+          ::tu/runner-ns runner-ns
           ::output-to output-to)
         (build-api/with-compiler-options
           {:source-map true})
@@ -46,18 +48,12 @@
 ;; we delay setting the :entries until compile-prepare which is called every cycle
 ;; need to come up with a cleaner API for this
 (defn test-resolve
-  [{:keys [classpath] ::keys [runner-ns] :as state} mode config]
+  [{:keys [classpath] ::tu/keys [runner-ns] :as state} mode config]
   (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
         config
 
         test-namespaces
-        (->> (cp/get-all-resources classpath)
-             (filter :file) ;; only test with files, ie. not tests in jars.
-             (filter #(= :cljs (:type %)))
-             (map :ns)
-             (filter (fn [ns]
-                       (re-find (re-pattern ns-regexp) (str ns))))
-             (into []))
+        (tu/find-namespaces-by-regexp state ns-regexp)
 
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
@@ -72,9 +68,12 @@
                         :entries entries})
 
     (-> state
+        (assoc ::tu/test-namespaces test-namespaces)
         (assoc-in [::modules/config :test :entries] entries)
         ;; re-analyze modules since we modified the entries
-        (modules/analyze))))
+        (modules/analyze)
+        (tu/inject-extra-requires)
+        )))
 
 (defn flush-karma-test-file
   [{::keys [output-to] :keys [polyfill-js unoptimizable build-options build-sources] :as state} config]

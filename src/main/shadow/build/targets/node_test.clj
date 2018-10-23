@@ -1,38 +1,38 @@
 (ns shadow.build.targets.node-test
   (:refer-clojure :exclude (compile flush resolve))
-  (:require [clojure.string :as str]
-            [shadow.build :as build]
-            [shadow.build.modules :as modules]
-            [shadow.build.classpath :as cp]
-            [shadow.build.targets.node-script :as node-script]
-            [shadow.cljs.util :as util]
-            [shadow.cljs.devtools.server.util :refer (pipe)]
-            [shadow.build.async :as async]))
+  (:require
+    [clojure.string :as str]
+    [shadow.build :as build]
+    [shadow.build.modules :as modules]
+    [shadow.build.classpath :as cp]
+    [shadow.build.targets.node-script :as node-script]
+    [shadow.cljs.util :as util]
+    [shadow.cljs.devtools.server.util :refer (pipe)]
+    [shadow.build.async :as async]
+    [shadow.build.test-util :as tu]))
 
 (defn configure [{::build/keys [config mode] :as state}]
-  (-> state
-      (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
-      (update :build-options merge {:greedy true
-                                    :dynamic-resolve true})
-      (update ::build/config merge {:main (get config :main 'shadow.test.node/main)})
-      (update-in [::build/config :devtools] assoc :enabled false)))
+  (let [runner-ns (or (when-let [main (:main config)]
+                        (-> main namespace symbol))
+                      'shadow.test.node)]
+    (-> state
+        (assoc ::tu/runner-ns runner-ns)
+        (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
+        (update :build-options merge {:greedy true
+                                      :dynamic-resolve true})
+        (update ::build/config merge {:main (get config :main 'shadow.test.node/main)})
+        (update-in [::build/config :devtools] assoc :enabled false))))
 
 ;; since :configure is only called once in :dev
 ;; we delay setting the :entries until compile-prepare which is called every cycle
 ;; need to come up with a cleaner API for this
 (defn test-resolve
-  [{:keys [classpath] ::build/keys [mode config] :as state}]
+  [{::build/keys [mode config] :as state}]
   (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
         config
 
         test-namespaces
-        (->> (cp/get-all-resources classpath)
-             (filter :file) ;; only test with files, ie. not tests in jars.
-             (filter #(= :cljs (:type %)))
-             (map :ns)
-             (filter (fn [ns]
-                       (re-find (re-pattern ns-regexp) (str ns))))
-             (into []))
+        (tu/find-namespaces-by-regexp state ns-regexp)
 
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
@@ -40,14 +40,15 @@
               (= :dev mode)
               (into (get-in config [:devtools :preloads])))
             (into test-namespaces)
-            (conj (or (when-let [main (:main config)]
-                        (-> main namespace symbol))
-                      'shadow.test.node)))]
+            (conj (::tu/runner-ns state)))]
 
     (-> state
+        (assoc ::tu/test-namespaces test-namespaces)
         (assoc-in [::modules/config :main :entries] entries)
         ;; re-analyze modules since we modified the entries
-        (modules/analyze))))
+        (modules/analyze)
+        (tu/inject-extra-requires)
+        )))
 
 (defn autorun-test [{::build/keys [config] :as state}]
   (util/with-logged-time
