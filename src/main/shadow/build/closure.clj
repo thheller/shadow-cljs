@@ -1368,9 +1368,9 @@
         (.getSourceMap cc)
 
         injected-libs
-        (-> (.get injected-libraries-field cc)
-            (keys)
-            (into #{}))]
+        (->> (.get injected-libraries-field cc)
+             (keys)
+             (into #{}))]
 
     (throw-errors! state cc result)
 
