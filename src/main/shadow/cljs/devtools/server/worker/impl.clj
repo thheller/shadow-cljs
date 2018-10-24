@@ -132,10 +132,11 @@
                       ;; temp hack for repl/setup since it needs access to repl-init-ns but configure wasn't called yet
                       :shadow.build/config build-config
                       })
+              (build/configure :dev build-config)
               ;; FIXME: this should be done on session-start
               ;; only keeping it until everything uses new repl-system
-              (repl/setup)
-              (build/configure :dev build-config))
+              ;; must be done after config in case config has non-default resolve settings
+              (repl/setup))
 
           extra-config-files
           (reduce
