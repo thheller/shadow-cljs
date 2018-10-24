@@ -346,6 +346,7 @@
             ;; FIXME: make this configurable?
             (.addMapping "map" "application/json")
             (.addMapping "edn" "application/edn")
+            (.addMapping "wasm" "application/wasm")
             (.build))
 
         handler-state
