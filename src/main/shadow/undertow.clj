@@ -133,7 +133,13 @@
         (build state next)
 
         rc-manager
-        (PathResourceManager. (.toPath root-dir))
+        (-> (PathResourceManager/builder)
+            (.setBase (.toPath root-dir))
+            ;; FIXME: should probably make these configurable
+            (.setFollowLinks true)
+            ;; must not be nil, empty == followAll
+            (.setSafePaths (into-array String []))
+            (.build))
 
         handler
         (doto (ShadowResourceHandler. rc-manager next)
