@@ -24,50 +24,31 @@
     (apply var args)))
 
 (defn do-build-command [{:keys [action options] :as opts} build-config]
-  (try
-    (case action
-      :release
-      (api/release* build-config options)
+  (case action
+    :release
+    (api/release* build-config options)
 
-      :check
-      (api/check* build-config options)
+    :check
+    (api/check* build-config options)
 
-      :compile
-      (api/compile* build-config options))
+    :compile
+    (api/compile* build-config options)
 
-    :success
-    (catch Exception e
-      e)))
 
-(defn maybe-rethrow-exceptions [ex]
-  (case (count ex)
-    0 :success
-    1 (throw (first ex))
-    (throw (ex-info "multiple builds failed" {:exceptions ex}))
-    ))
+    (throw (ex-info "invalid action" {:opts opts :build-config  build-config}))))
 
 (defn do-build-commands
   [{:keys [builds] :as config} {:keys [action options] :as opts} build-ids]
-  ;; FIXME: this should start classpath/npm services so builds can use it
-  ;; if this is not a server instance
 
-  (->> build-ids
-       (map (fn [build-id]
-              (or (get builds build-id)
-                  (do (println (str "No config for build \"" (name build-id) "\" found."))
-                      ;; FIXME: don't repeat this
-                      (println (str "Available builds are: " (->> builds
-                                                                  (keys)
-                                                                  (map name)
-                                                                  (str/join ", "))))))))
-       (remove nil?)
-       (map #(future (do-build-command opts %)))
-       (into []) ;; force lazy seq
-       (map deref)
-       (remove #{:success})
-       (into []) ;; force again
-       ;; need to throw exceptions to ensure that cli commands can exit with proper exit codes
-       (maybe-rethrow-exceptions)))
+  ;; sequentially run the commands
+  (doseq [build-id build-ids]
+    (let [build-config (get builds build-id)]
+      (when-not build-config
+        (throw (ex-info (str "no build with id: " build-id)
+                 {:build-id build-id
+                  :known-builds (-> builds (keys) (set))})))
+      
+      (do-build-command opts build-config))))
 
 (defn do-clj-eval [config {:keys [arguments options] :as opts}]
   (let [in
