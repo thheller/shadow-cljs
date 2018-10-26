@@ -139,6 +139,8 @@
             (.setFollowLinks true)
             ;; must not be nil, empty == followAll
             (.setSafePaths (into-array String []))
+            ;; handle both junction and symlink on windows, refer to SystemUtils in Apache commons-lang3
+            (.setCaseSensitive (not (.startsWith (System/getProperty "os.name") "Windows")))
             (.build))
 
         handler
