@@ -13,7 +13,8 @@
     [shadow.cljs.devtools.server.runtime :as runtime]
     [clojure.set :as set]
     [clojure.core.async.impl.protocols :as async-prot])
-  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream)))
+  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream)
+           [java.net SocketException]))
 
 (defn chan? [x]
   (satisfies? async-prot/ReadPort x))
@@ -152,60 +153,71 @@
   #_ (errors/user-friendly-error e))
 
 (defn print-worker-out [x verbose]
-  (locking build-log/stdout-lock
-    (binding [*out* *err*]
-      (case (:type x)
-        :build-log
-        (when verbose
-          (println (build-log/event-text (:event x))))
+  (try
 
-        :build-configure
-        (println (format "[%s] Configuring build." (:build-id x)))
+    (locking build-log/stdout-lock
+      (binding [*out* *err*]
+        (case (:type x)
+          :build-log
+          (when verbose
+            (println (build-log/event-text (:event x))))
 
-        :build-start
-        (print-build-start x)
+          :build-configure
+          (println (format "[%s] Configuring build." (:build-id x)))
 
-        :build-failure
-        (print-build-failure x)
+          :build-start
+          (print-build-start x)
 
-        :build-complete
-        (print-build-complete x)
+          :build-failure
+          (print-build-failure x)
 
-        :build-shutdown
-        (println "Build shutdown.")
+          :build-complete
+          (print-build-complete x)
 
-        :repl/action
-        (let [warnings (get-in x [:action :warnings])]
-          (print-warnings warnings))
+          :build-shutdown
+          (println "Build shutdown.")
 
-        ;; should have been handled somewhere else
-        :repl/result
-        :ignored
+          :repl/action
+          (let [warnings (get-in x [:action :warnings])]
+            (print-warnings warnings))
 
-        :repl/error
-        :ignored ;; also handled by out
+          ;; should have been handled somewhere else
+          :repl/result
+          :ignored
 
-        :repl/runtime-connect
-        (println "JS runtime connected.")
+          :repl/error
+          :ignored ;; also handled by out
 
-        :repl/runtime-disconnect
-        (println "JS runtime disconnected.")
+          :repl/runtime-connect
+          (println "JS runtime connected.")
 
-        :worker-shutdown
-        (println "Worker shutdown.")
+          :repl/runtime-disconnect
+          (println "JS runtime disconnected.")
 
-        :println
-        (println (:msg x))
+          :worker-shutdown
+          (println "Worker shutdown.")
 
-        ;; handled in dedicated channel as they should not mix with build output
-        :repl/out
-        :ignored
+          :println
+          (println (:msg x))
 
-        :repl/err
-        :ignored
+          ;; handled in dedicated channel as they should not mix with build output
+          :repl/out
+          :ignored
 
-        ;; default
-        (prn [:log x])))))
+          :repl/err
+          :ignored
+
+          ;; default
+          (prn [:log x]))))
+
+    true
+    (catch SocketException e
+      ;; was printing to a socket that disconnected.
+      ;; no need to continue printing
+      false)
+    (catch Exception e
+      (log/debug-ex e ::stdout-ex {:x x})
+      true)))
 
 (defn stdout-dump [verbose]
   (let [chan
@@ -215,15 +227,10 @@
     (async/go
       (loop []
         (when-some [x (<! chan)]
-          (try
-            (print-worker-out x verbose)
-            (catch Exception e
-              (prn [:stdout-dump-ex e])))
-          (recur)
-          )))
+          (when (print-worker-out x verbose)
+            (recur)))))
 
-    chan
-    ))
+    chan))
 
 (defmacro thread
   "same as core async thread but does not preserve bindings"
