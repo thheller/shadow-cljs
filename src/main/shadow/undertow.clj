@@ -16,12 +16,16 @@
            (javax.net.ssl SSLContext KeyManagerFactory)
            (java.io FileInputStream File)
            (java.security KeyStore)
-           [org.xnio ChannelListener]
+           [org.xnio ChannelListener Xnio OptionMap]
            [java.nio.channels ClosedChannelException]
            [io.undertow.util AttachmentKey MimeMappings Headers]
            [io.undertow.server.handlers.resource PathResourceManager ClassPathResourceManager]
            [io.undertow.predicate Predicates Predicate]
-           [io.undertow.server.handlers.encoding EncodingHandler ContentEncodingRepository GzipEncodingProvider DeflateEncodingProvider]))
+           [io.undertow.server.handlers.encoding EncodingHandler ContentEncodingRepository GzipEncodingProvider DeflateEncodingProvider]
+           [io.undertow.server.handlers.proxy LoadBalancingProxyClient ProxyHandler]
+           [java.net URI]
+           [io.undertow.protocols.ssl UndertowXnioSsl]
+           [org.xnio.ssl XnioSsl]))
 
 (defn ring* [handler-fn]
   (reify
@@ -208,6 +212,41 @@
         (EncodingHandler. next cer)]
 
     (assoc state :handler gzip-handler)))
+
+(defmethod build* ::proxy [state [id props & next :as config]]
+  (when (seq next)
+    (throw (ex-info "proxy doesn't support nested undertow handlers" {:config config})))
+  (assert (map? props))
+
+  (let [{:keys [proxy-url]}
+        props
+
+        proxy-client
+        (LoadBalancingProxyClient.)
+
+        proxy-handler
+        (-> (ProxyHandler/builder)
+            (.setProxyClient proxy-client)
+            (.setMaxConnectionRetries (get props :proxy-max-connection-retries 1))
+            (.setMaxRequestTime (get props :proxy-max-request-time 30000))
+            (.setRewriteHostHeader (get props :proxy-rewrite-host-header true))
+            (.setReuseXForwarded (get props :proxy-reuse-x-forwarded false))
+            (.build))]
+
+    (if-not (str/starts-with? proxy-url "https")
+      (.addHost proxy-client (URI. proxy-url))
+      (let [xnio
+            (Xnio/getInstance)
+
+            xnio-ssl
+            (UndertowXnioSsl. xnio OptionMap/EMPTY)]
+
+        (.addHost proxy-client (URI. proxy-url) nil ^XnioSsl xnio-ssl)))
+
+    (-> state
+        (assoc :handler proxy-handler
+               ;; FIXME: not sure we actually need this. no way to shut this down anyways
+               :proxy-client proxy-client))))
 
 (defmethod build* ::ring [state [id props & next :as config]]
   (when (seq next)
