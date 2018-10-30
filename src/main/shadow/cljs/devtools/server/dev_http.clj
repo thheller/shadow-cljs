@@ -8,9 +8,41 @@
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.model :as m]
     [shadow.undertow :as undertow]
-    [shadow.http.push-state :as push-state])
+    [shadow.http.push-state :as push-state]
+    [clojure.string :as str])
   (:import [io.undertow.server.handlers.proxy ProxyHandler LoadBalancingProxyClient]
-           [java.net URI]))
+           [java.net URI]
+           [org.xnio Xnio OptionMap]
+           [io.undertow.protocols.ssl UndertowXnioSsl]
+           [org.xnio.ssl XnioSsl]))
+
+(defn make-proxy-handler [proxy-url]
+  (let [proxy-client
+        (LoadBalancingProxyClient.)
+
+        proxy-handler
+        (-> (ProxyHandler/builder)
+            (.setProxyClient proxy-client)
+            (.setMaxRequestTime 30000)
+            (.build))]
+
+    (if-not (str/starts-with? proxy-url "https")
+      (.addHost proxy-client (URI. proxy-url))
+      (let [xnio
+            (Xnio/getInstance)
+
+            xnio-ssl
+            (UndertowXnioSsl. xnio OptionMap/EMPTY)]
+
+        (.addHost proxy-client (URI. proxy-url) nil ^XnioSsl xnio-ssl)))
+
+    (fn [{ex :shadow.undertow.impl/exchange :as req}]
+      (.handleRequest proxy-handler ex)
+      ;; FIXME: cannot return ::undertow/async here
+      ;; the ring middleware blows up if this doesn't return a map
+      {:status 200
+       :body ""
+       ::undertow/handled true})))
 
 (defn start-build-server
   [config ssl-context out
@@ -31,23 +63,8 @@
         (cond
           ;; FIXME: there seems to be no proper way to close the proxy-client instance?
           (seq proxy-url)
-          (let [proxy-client
-                (-> (LoadBalancingProxyClient.)
-                    (.addHost (URI. proxy-url)))
+          (make-proxy-handler proxy-url)
 
-                proxy-handler
-                (-> (ProxyHandler/builder)
-                    (.setProxyClient proxy-client)
-                    (.setMaxRequestTime 30000)
-                    (.build))]
-
-            (fn [{ex :shadow.undertow.impl/exchange :as req}]
-              (.handleRequest proxy-handler ex)
-              ;; FIXME: cannot return ::undertow/async here
-              ;; the ring middleware blows up if this doesn't return a map
-              {:status 200
-               :body ""
-               ::undertow/handled true}))
 
           (nil? http-handler)
           #'push-state/handle
