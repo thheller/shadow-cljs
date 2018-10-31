@@ -31,7 +31,11 @@
             (into [] (distinct warnings))
 
             source-excerpts
-            (warnings/get-source-excerpts-for-rc state rc warnings)]
+            (try
+              (warnings/get-source-excerpts-for-rc state rc warnings)
+              (catch Exception e
+                (log/debug-ex e ::get-source-excerpts {:warnings warnings :resource-id resource-id})
+                nil))]
 
         (->> (map (fn [warning source-excerpt]
                     (-> warning
