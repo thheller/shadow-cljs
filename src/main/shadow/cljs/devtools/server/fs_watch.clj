@@ -10,13 +10,13 @@
 
 (defn start [config directories file-exts publish-fn]
   (let [ns-sym
-        (if (str/includes? os-name "Windows")
-          ;; jvm on windows supports watch fine
-          'shadow.cljs.devtools.server.fs-watch-jvm
+        (if (str/includes? os-name "Mac")
           ;; macOS doesn't have native support so it uses polling
           ;; which means 2sec delay, hawk does the native stuff
           ;; so its a lot faster but doesn't properly support delete
-          'shadow.cljs.devtools.server.fs-watch-hawk)]
+          'shadow.cljs.devtools.server.fs-watch-hawk
+          ;; jvm on windows/linux supports watch fine
+          'shadow.cljs.devtools.server.fs-watch-jvm)]
 
     (log/debug ::fs-watch {:ns ns-sym})
 
