@@ -1069,6 +1069,14 @@
              (.toString)
              (rc/normalize-name))]
 
+     (when (str/starts-with? path ".")
+       (throw (ex-info
+                (str "Cannot access \"" require "\" from \"" resource-name "\".\n"
+                     "Access outside the classpath is not allowed for relative requires.")
+                {:tag ::access-outside-classpath
+                 :require-from resource-name
+                 :require require})))
+
      (find-js-resource cp path)
      )))
 

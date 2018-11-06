@@ -160,6 +160,11 @@
   (write-msg w e)
   (error-format w (.getCause e)))
 
+
+(defmethod ex-data-format :shadow.build.classpath/access-outside-classpath
+  [w e data]
+  (write-msg w e))
+
 (defmethod ex-data-format ::reader-exception
   [w e data]
   (write-msg w e))
