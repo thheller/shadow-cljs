@@ -18,6 +18,131 @@
 
 ![overview-img](https://user-images.githubusercontent.com/116838/28730426-d32dc74a-7395-11e7-9cec-54275af35345.png)
 
+## Requirements
+
+- [node.js](https://nodejs.org) (v6.0.0+, most recent version preferred)
+- [npm](https://www.npmjs.com) (comes bundled with `node.js`) or [yarn](https://www.yarnpkg.com)
+- [Java SDK](https://adoptopenjdk.net/) (Version 8+, Hotspot)
+
+
+## Quick Start
+
+Creating your project can be done quickly using the `npx create-cljs-project` utility. `npx` is part of `npm` and lets us run utility scripts quickly without worrying about installing them first. The installer will create a basic project scaffold and install the latest version of `shadow-cljs` in the project.
+
+```text
+$ npx create-cljs-project acme-app
+npx: installed 1 in 5.887s
+shadow-cljs - creating project: .../acme-app
+Creating: .../acme-app/package.json
+Creating: .../acme-app/shadow-cljs.edn
+Creating: .../acme-app/.gitignore
+Creating: .../acme-app/src/main
+Creating: .../acme-app/src/test
+----
+Installing shadow-cljs in project.
+
+npm notice created a lockfile as package-lock.json. You should commit this file.
++ shadow-cljs@<version>
+added 88 packages from 103 contributors and audited 636 packages in 6.287s
+found 0 vulnerabilities
+
+----
+Done.
+----
+```
+
+The resulting project has the following structure
+
+```
+.
+├── node_modules (omitted ...)
+├── package.json
+├── package-lock.json
+├── shadow-cljs.edn
+└── src
+    ├── main
+    └── test
+```
+
+`shadow-cljs.edn` will be used to configure your CLJS builds and CLJS dependencies. `package.json` is used by `npm` to manage JS dependencies.
+
+Everything is ready to go if you just want to start playing with a REPL
+
+```bash
+$ npx shadow-cljs node-repl
+# or
+$ npx shadow-cljs browser-repl
+```
+
+When building actual projects we need to configure the build first and create at least one source file.
+
+The default source paths are configured to use `src/main` as the primary source directory. It is recommended to follow the [Java Naming Conventions](https://docs.oracle.com/javase/tutorial/java/package/namingpkgs.html) to organize your CLJS namespaces. It is recommended to start all namespaces with a unique enough prefix (eg. company name, project name) to avoid conflicts with generic names such as `app.core`. Suppose you were building a Web Frontend for [Acme Inc.](https://en.wikipedia.org/wiki/Acme_Corporation) using `acme.frontend.app` might be a good starting point as it can easily grow to include `acme.backend.*` later on.
+
+Using the above example the expected filename for `acme.frontend.app` is `src/main/acme/frontend/app.cljs`.
+
+Lets start with a simple example for a browser-based build.
+
+```clojure
+(ns acme.frontend.app)
+
+(defn init []
+  (println "Hello World"))
+```
+
+Inside the `shadow-cljs.edn` `:builds` section add
+
+```clojure
+{...
+ :builds
+ {:frontend
+  {:target :browser
+   :modules {:main {:init-fn acme.frontend.app/init}}
+   }}}
+```
+
+This config tells the compiler to call `(acme.frontend.app/init)` when the generated JS code is loaded. Since no `:output-dir` is configured the default `public/js` is used. You can start the development process by running:
+
+```bash
+$ npx shadow-cljs watch frontend
+...
+a few moments later ...
+...
+[:frontend] Build completed. (134 files, 35 compiled, 0 warnings, 5.80s)
+```
+
+The compilation will create the `public/js/main.js` we configured above (`:main` becomes `main.js` in the `:output-dir`). Since we want to load this in the browser we need to create a HTML file in `public/index.html`.
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <title>acme frontend</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="/js/main.js"></script>
+  </body>
+</html>
+```
+
+We also need a simple HTTP server to serve our HTML since modern Browsers all place a few restrictions on files loaded directly from disk which will lead to issues later. `shadow-cljs` provides such a server but you can use anything you like at this point. It only matters that the files from the `public` directory are served properly. To start the built-in web server just adjust the build config from above.
+
+```
+{...
+ :builds
+ {:frontend
+  {:target :browser
+   :modules {:main {:init-fn acme.frontend.app/init}}
+   :devtools
+   {:http-root "public"
+    :http-port 8080}
+   }}}
+```
+
+Once the config is saved the server will automatically start and serve the content at http://localhost:8080. There is no need to restart `shadow-cljs`. When opening the above URL the Browser Console should show "Hello World". 
+
+
+To be continued ...
 
 ## Documentation
 
