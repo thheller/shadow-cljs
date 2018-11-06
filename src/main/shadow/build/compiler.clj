@@ -213,7 +213,10 @@
                       reader/*alias-map*
                       (merge reader/*alias-map*
                         (:requires ns-info)
-                        (:require-macros ns-info))]
+                        (:require-macros ns-info))
+
+                      reader/resolve-symbol
+                      ana/resolve-symbol]
               (reader/read opts in))]
 
         (if (identical? form eof-sentinel)
