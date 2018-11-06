@@ -502,6 +502,12 @@
                     reader/*data-readers*
                     tags/*cljs-data-readers*
 
+                    ;; ana/resolve-symbol accesses the env
+                    ;; don't need with-compiler-env since it's read only and doesn't side effect
+                    ;; the compiler env like cljs.analyzer does
+                    env/*compiler*
+                    (atom (:compiler-env build-state))
+
                     reader/resolve-symbol
                     ana/resolve-symbol
 
