@@ -502,6 +502,9 @@
                     reader/*data-readers*
                     tags/*cljs-data-readers*
 
+                    reader/resolve-symbol
+                    ana/resolve-symbol
+
                     reader/*alias-map*
                     (merge reader/*alias-map*
                       (:requires ns-info)
