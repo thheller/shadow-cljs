@@ -193,28 +193,6 @@
                (confirm env full-ns sym))
              (resolve-ns-var full-ns sym current-ns))
 
-           ;; FIXME: would this not be better handled if checked before calling resolve-var
-           ;; and analyzing this properly?
-           (ana/dotted-symbol? sym)
-           (let [idx (.indexOf s ".")
-                 prefix (symbol (subs s 0 idx))
-                 suffix (subs s (inc idx))]
-             (if-some [lb (handle-symbol-local prefix (get locals prefix))]
-               {:op :local
-                :name (symbol (str (:name lb)) suffix)}
-               (if-some [full-ns (ana/gets current-ns-info :imports prefix)]
-                 {:op :local
-                  :name (symbol (str full-ns) suffix)}
-                 (if-some [info (ana/gets current-ns-info :defs prefix)]
-                   (merge info
-                     {:op :local
-                      :name (symbol (str current-ns) (str sym))
-                      :ns current-ns})
-                   (merge (ana/gets @env/*compiler* ::ana/namespaces prefix :defs (symbol suffix))
-                     {:op :local
-                      :name (if (= "" prefix) (symbol suffix) (symbol (str prefix) suffix))
-                      :ns prefix})))))
-
            (some? (ana/gets current-ns-info :uses sym))
            (let [full-ns (ana/gets current-ns-info :uses sym)]
              (resolve-ns-var full-ns sym current-ns))
@@ -248,6 +226,77 @@
 
            (invokeable-ns? s env)
            (resolve-invokeable-ns s current-ns env)
+
+           ;; any symbol with a dot but no namespace, already checked all renames/imports/requires
+           ;; so that (:require ["some-js" :as foo.bar]) (foo.bar)
+           ;; works properly and isn't desugared into anything else
+           (ana/dotted-symbol? sym)
+           (let [idx (.indexOf s ".")
+                 prefix (subs s 0 idx)
+                 prefix-sym (symbol prefix)
+                 suffix (subs s (inc idx))]
+             (if-some [lb (handle-symbol-local prefix-sym (get locals prefix-sym))]
+               {:op :local
+                :name (symbol (str (:name lb) "." suffix))}
+               (if-some [full-ns (ana/gets current-ns-info :imports prefix-sym)]
+                 {:op :local
+                  :name (symbol (str full-ns) suffix)}
+                 (if-some [info (ana/gets current-ns-info :defs prefix-sym)]
+                   (merge info
+                     {:op :local
+                      :name (symbol (str current-ns) (str sym))
+                      :ns current-ns})
+
+                   ;; attempt to fix
+                   ;; https://dev.clojure.org/jira/browse/CLJS-712
+                   ;; https://dev.clojure.org/jira/browse/CLJS-2957
+                   ;; FIXME: patch this properly in clojurescript so we don't need this hackery
+
+                   ;; CLJS defaults to just resolving everything with a dot in it and is completely broken
+                   ;; process.env.FOO ends up as process/env.FOO and never warns
+                   ;; cljs.core.-invoke ends up as cljs/core.-invoke
+                   ;; ANY symbol with a dot should not automatically resolve magically without any further checks
+
+                   ;; I don't see how this could ever resolve something useful but this is what CLJS does
+                   (if-let [last-hope (ana/gets @env/*compiler* ::ana/namespaces prefix-sym :defs (symbol suffix))]
+                     (merge last-hope
+                       {:op :local
+                        :name (if (= "" prefix-sym) (symbol suffix) (symbol (str prefix-sym) suffix))
+                        :ns prefix-sym})
+
+                     ;; cljs.core.-invoke was split into cljs | core.-invoke
+                     ;; if the prefix is a known namespace root at least try to turn it into a valid symbol
+                     ;; by using the last dot instead of first. cljs.core.-invoke -> cljs.core/-invoke
+                     (let [ns-roots (:shadow/ns-roots @env/*compiler*)]
+                       (if (contains? ns-roots prefix)
+                         (let [last-dot (str/last-index-of s ".")
+                               guessed-ns (symbol (subs s 0 last-dot))
+                               guessed-sym (symbol (subs s (inc last-dot)))]
+
+                           ;; this path happens way too often and should be fixed properly
+                           #_(log/debug ::autofix-symbol
+                               {:sym sym
+                                :prefix prefix
+                                :suffix suffix
+                                :guessed-ns guessed-ns
+                                :guessed-sym guessed-sym})
+
+                           (merge (ana/gets @env/*compiler* ::ana/namespaces guessed-ns :defs guessed-sym)
+                             {:op :var
+                              :name (symbol (str guessed-ns) (str guessed-sym))
+                              :ns guessed-ns}))
+
+                         ;; not known namespace root, resolve as js/ as a last ditch effort
+                         ;; this should probably hard fail instead but that would break too many builds
+                         ;; resolving as js/* is closer to the default behavior
+                         ;; and will most likely be for cases where we are actually accessing a global
+                         ;; ala process.env.FOO which will then warn properly
+                         (do (when (some? confirm)
+                               (confirm env current-ns sym))
+                             {:op :js-var
+                              :name (symbol "js" s)
+                              :ns 'js}
+                             ))))))))
 
            :else
            (do (when (some? confirm)
