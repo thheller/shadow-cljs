@@ -27,7 +27,8 @@
             [shadow.jvm-log :as log]
             [shadow.build.async :as async])
   (:import (java.util.concurrent ExecutorService)
-           (java.io File StringReader PushbackReader StringWriter)))
+           (java.io File StringReader PushbackReader StringWriter)
+           [java.util.concurrent.atomic AtomicLong]))
 
 (def SHADOW-TIMESTAMP
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
@@ -452,6 +453,7 @@
                               :gen-line 0})]
 
             (binding [comp/*source-map-data* sm-ref
+                      comp/*source-map-data-gen-col* (AtomicLong.)
                       *out* sw]
               (doseq [ast-entry ast]
                 (shadow-emit state ast-entry)))

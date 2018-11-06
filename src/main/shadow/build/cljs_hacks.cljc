@@ -380,12 +380,12 @@
                 nil)
 
         ast
-        {:op :dot
-         :env env
+        {:env env
          :form form
          :form-meta form-meta
          :target targetexpr
          :target-tag target-tag
+         :children [:target]
          :tag tag}
 
         ast
@@ -398,9 +398,12 @@
           ;; (. thing (foo 1 2 3))
           member-seq?
           (let [[method & args] member
-                argexprs (map #(ana/analyze enve %) args)
-                children (into [targetexpr] argexprs)]
-            (assoc ast :prop method :method method :args argexprs :children children))
+                argexprs (map #(ana/analyze enve %) args)]
+            (assoc ast :op :host-call
+                       :prop method
+                       :method method
+                       :children [:target :args]
+                       :args argexprs))
 
           ;; (. thing -foo 1 2 3)
           (and prop-access? (seq member+))
@@ -408,15 +411,19 @@
 
           ;; (. thing -foo)
           prop-access?
-          (let [children [targetexpr]]
-            (assoc ast :prop member :field (-> member (name) (subs 1) (symbol)) :children children))
+          (assoc ast :op :host-field
+                     :prop member
+                     :field (-> member (name) (subs 1) (symbol)))
 
           ;; (. thing foo)
           ;; (. thing foo 1 2 3)
           member-sym?
-          (let [argexprs (map #(ana/analyze enve %) member+)
-                children (into [targetexpr] argexprs)]
-            (assoc ast :prop member :method member :args argexprs :children children))
+          (let [argexprs (map #(ana/analyze enve %) member+)]
+            (assoc ast :op :host-call
+                       :prop member
+                       :method member
+                       :children [:target :args]
+                       :args argexprs))
 
           :else
           (throw (ex-info "invalid dot form" {:form form})))]
