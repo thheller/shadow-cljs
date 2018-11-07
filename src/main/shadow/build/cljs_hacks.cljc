@@ -156,16 +156,25 @@
                  (let [[global & props]
                        (str/split (name sym) #"\.")]
 
-                   ;; do not record access to
+                   ;; do not record access to known namespace roots
                    ;; js/goog.string.format
                    ;; js/cljs.core.assoc
                    ;; just in case someone does that, we won't need externs for those
-                   (when-not (contains? known-safe-js-globals global)
-                     (shadow-js-access-global current-ns global)
-                     (when (seq props)
-                       (doseq [prop props]
-                         (shadow-js-access-property current-ns prop))))))
+                   (let [ns-roots (:shadow/ns-roots @env/*compiler*)]
+                     (when-not (or (contains? ns-roots global)
+                                   ;; just in case ns-roots wasn't set properly
+                                   (contains? known-safe-js-globals global))
+                       (shadow-js-access-global current-ns global)
+                       (when (seq props)
+                         (doseq [prop props]
+                           (shadow-js-access-property current-ns prop)))))))
 
+               ;; FIXME: exists? ends up here since it will check all segments
+               ;; (defonce PROTOCOL-SENTINEL ...)
+               ;; js/cljs
+               ;; js/cljs.core
+               ;; js/cljs.core.PROTOCOL-SENTINEL
+               ;; they don't leak into the code but should technically not return :js-var for those?
                {:op :js-var
                 :name sym
                 :ns 'js
@@ -306,11 +315,13 @@
 
 (defn shadow-resolve-var-checked
   ([env sym]
-   {:post [(contains? % :op)]}
-   (shadow-resolve-var env sym nil))
+   (shadow-resolve-var-checked env sym nil))
   ([env sym confirm]
-   {:post [(contains? % :op)]}
-   (shadow-resolve-var env sym confirm)))
+   (let [info (shadow-resolve-var env sym confirm)]
+     (when-not (:op info)
+       (throw (ex-info "missing op" {:sym sym})))
+     info
+     )))
 
 (defn infer-externs-dot
   [{:keys [form form-meta method field target-tag env prop tag] :as ast}
