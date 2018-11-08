@@ -23,7 +23,8 @@
             [shadow.build.resolve :as res]
             [shadow.build.classpath :as classpath])
   (:import (java.io StringReader BufferedReader File)
-           [java.nio.file Paths]))
+           [java.nio.file Paths]
+           [java.util.concurrent.atomic AtomicLong]))
 
 (comment
   (def repl-state
@@ -409,6 +410,9 @@
                             (atom {:source-map (sorted-map)
                                    :gen-col 0
                                    :gen-line 0})
+
+                            cljc-comp/*source-map-data-gen-col*
+                            (AtomicLong.)
 
                             ana/*unchecked-if*
                             ana/*unchecked-if*
