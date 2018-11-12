@@ -313,12 +313,10 @@
 
   (.write w (.getMessage e)))
 
-(defmethod ex-data-format :shadow.cljs.util/macro-load
-  [w e {:keys [macro-ns] :as data}]
-
-  (.write w (.getMessage e))
-  (.write w "\n\nCaused by:\n")
-  (->> e (.getCause) (error-format w)))
+(defmethod ex-data-format :shadow.build.macros/macro-load
+  [w e data]
+  (write-msg w e)
+  (error-format w (.getCause e)))
 
 (defn error-format
   ([e]
