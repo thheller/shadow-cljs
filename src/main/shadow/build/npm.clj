@@ -170,24 +170,35 @@
         (->> main-keys
              (map #(get package-json %))
              (remove nil?)
-             (into []))]
+             (into []))
 
-    (reduce
-      (fn [_ entry]
-        ;; test file exts first, so we don't pick a directory over a file
-        ;; lib/jsdom
-        ;; lib/jsdom.js
-        (when-let [file (or (test-file-exts npm package-dir entry)
-                            (when-let [file-or-dir (test-file package-dir entry)]
-                              (if-not (.isDirectory file-or-dir)
-                                file-or-dir
-                                (let [index (io/file file-or-dir "index.js")]
-                                  (and (.exists index) index)))))]
+        entry-file
+        (reduce
+          (fn [_ entry]
+            ;; test file exts first, so we don't pick a directory over a file
+            ;; lib/jsdom
+            ;; lib/jsdom.js
+            (when-let [file (or (test-file-exts npm package-dir entry)
+                                (when-let [file-or-dir (test-file package-dir entry)]
+                                  (if-not (.isDirectory file-or-dir)
+                                    file-or-dir
+                                    (let [index (io/file file-or-dir "index.js")]
+                                      (and (.exists index) index)))))]
 
-          ;; we only want the first one in case more exist
-          (reduced file)))
-      nil
-      entries)))
+              ;; we only want the first one in case more exist
+              (reduced file)))
+          nil
+          entries)]
+
+    (when (and (seq entries)
+               (not entry-file))
+      (throw (ex-info
+               (str "package in " package-dir "specified entries but they were all missing")
+               {:tag ::missing-entries
+                :entries entries
+                :package-dir package-dir})))
+
+    entry-file))
 
 (defn find-package-require [{:keys [node-modules-dir] :as npm} require]
   {:pre [(not (util/is-relative? require))
@@ -737,8 +748,8 @@
      ;; JVM working dir always
      :project-dir project-dir
      :node-modules-dir node-modules-dir
-     :extensions [#_ ".mjs" ".js" ".json"]
-     :main-keys [#_#_ "module" "jsnext:main" "browser" "main"]
+     :extensions [#_".mjs" ".js" ".json"]
+     :main-keys [#_#_"module" "jsnext:main" "browser" "main"]
      }))
 
 (defn stop [npm])
