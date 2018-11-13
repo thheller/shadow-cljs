@@ -130,8 +130,7 @@
                   (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
 
                   :repl/error
-                  (send msg {:err (with-out-str
-                                    (errors/user-friendly-error (:ex result)))})
+                  (send msg {:err (errors/error-format (:ex result))})
 
                   :repl/worker-stop
                   (do (do-repl-quit session)
