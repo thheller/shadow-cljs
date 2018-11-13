@@ -92,7 +92,23 @@
       (let [yarn-lock (io/file "yarn.lock")]
         (when (.exists yarn-lock)
           :yarn))
+
       :npm))
+
+(defn fill-packages-placeholder [install-cmd packages]
+  (let [full-cmd
+        (reduce
+          (fn [x y]
+            (if (= y :packages)
+              (into x packages)
+              (conj x y)))
+          []
+          install-cmd)]
+
+    ;; if no :packages was replaced just append the packages
+    (if (not= full-cmd install-cmd)
+      full-cmd
+      (into install-cmd packages))))
 
 (defn install-deps [config deps]
   (let [args
@@ -100,15 +116,17 @@
           (str id "@" version))
 
         install-cmd
-        (case (guess-node-package-manager config)
-          :yarn
-          ["yarn" "add"]
-          :npm
-          ["npm" "install" "--save"])
+        (or (get-in config [:node-modules :install-cmd])
+            (case (guess-node-package-manager config)
+              :yarn
+              ["yarn" "add"]
+              :npm
+              ["npm" "install" "--save"]))
 
         full-cmd
-        (into install-cmd args)
+        (fill-packages-placeholder install-cmd args)
 
+        ;; FIXME: replace this on windows to properly locate npm/yarn binaries instead
         full-cmd
         (if (str/includes? (System/getProperty "os.name") "Windows")
           (into ["cmd" "/C"] full-cmd)
@@ -128,6 +146,13 @@
     (.start (Thread. (bound-fn [] (util/pipe proc (.getErrorStream proc) *err*))))
 
     (.waitFor proc)))
+
+(comment
+  (install-deps
+    {:node-modules
+     {:install-cmd ["hello" :packages "world"]}}
+    [{:id "hello"
+      :version "1.2.3"}]))
 
 (defn get-deps-from-classpath []
   (let [deps
