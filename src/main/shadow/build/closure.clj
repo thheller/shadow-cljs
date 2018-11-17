@@ -876,6 +876,7 @@
       (str/replace "window.module.exports", "/*****/module.exports")
       (str/replace "window.__filename", "/*****/__filename")
       (str/replace "window.__dirname", "/*****/__dirname")
+      (str/replace "window.global", "/*****/global")
       ))
 
 (defn dump-js-modules [modules]
