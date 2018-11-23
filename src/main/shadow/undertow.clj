@@ -138,7 +138,7 @@
 
         rc-manager
         (-> (PathResourceManager/builder)
-            (.setBase (.toPath root-dir))
+            (.setBase (-> root-dir (.getAbsoluteFile) (.toPath)))
             ;; FIXME: should probably make these configurable
             (.setFollowLinks true)
             ;; must not be nil, empty == followAll
