@@ -607,8 +607,9 @@
             :when (and (.isFile file)
                        (not (.isHidden file))
                        (util/is-cljs-resource? (.getName file)))
-            :let [file (.getCanonicalFile file)
-                  abs-path (.getCanonicalPath file)
+            :let [file (.getAbsoluteFile file)
+                  abs-path (.getAbsolutePath file)
+                  _ (assert (str/starts-with? abs-path root-path))
                   name (-> abs-path
                            (.substring root-len)
                            (rc/normalize-name))]

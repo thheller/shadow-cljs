@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,18 +38,22 @@ public class FileWatcher implements AutoCloseable {
     }
 
     private void registerAll(final Path start) throws IOException {
-        Files.walkFileTree(start, new SimpleFileVisitor<Path>() {
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                WatchKey key = dir.register(ws,
-                        new WatchEvent.Kind[]{
-                                ENTRY_CREATE,
-                                ENTRY_DELETE,
-                                ENTRY_MODIFY
-                        }, SensitivityWatchEventModifier.HIGH); // OSX is way too slow without this
-                keys.put(key, dir);
-                return FileVisitResult.CONTINUE;
-            }
-        });
+        Files.walkFileTree(
+                start,
+                EnumSet.allOf(FileVisitOption.class),
+                Integer.MAX_VALUE,
+                new SimpleFileVisitor<Path>() {
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                        WatchKey key = dir.register(ws,
+                                new WatchEvent.Kind[]{
+                                        ENTRY_CREATE,
+                                        ENTRY_DELETE,
+                                        ENTRY_MODIFY
+                                }, SensitivityWatchEventModifier.HIGH); // OSX is way too slow without this
+                        keys.put(key, dir);
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
     }
 
 
@@ -101,7 +106,7 @@ public class FileWatcher implements AutoCloseable {
                 Path child = root.relativize(resolvedName);
                 String childName = child.toString();
 
-                if (Files.isDirectory(child, NOFOLLOW_LINKS)) {
+                if (Files.isDirectory(child)) {
                     // monitor new directories
                     // deleted directories will cause the key to become invalid and removed later
                     // not interested in modify
