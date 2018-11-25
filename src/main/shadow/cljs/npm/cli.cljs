@@ -63,7 +63,7 @@
 (defn run! [project-root cmd args proc-opts]
   (let [executable (which/sync cmd #js {:nothrow true})]
     (if-not executable
-      (do (println (str "Executable '" executable "' not found on system path."))
+      (do (println (str "Executable '" cmd "' not found on system path."))
           (js/process.exit 1))
 
       (let [node-server (node-net/Server.)]
