@@ -12,6 +12,10 @@
   ["-target" "1.8"
    "-source" "1.8"]
 
+  :managed-dependencies [[commons-codec "1.11"]
+                         [com.google.errorprone/error_prone_annotations "2.1.3"]
+                         [com.google.code.findbugs/jsr305 "3.0.2"]]
+
   :dependencies
   [[org.clojure/clojure "1.9.0"]
    ;; java9, not required for java8
