@@ -19,6 +19,9 @@
 
 ::foo
 
+(defn yo [bar]
+  (.fromSimpleExterns bar))
+
 (js/console.log "▶❤◀")
 
 (js/console.log "or" (or nil js/document.body))

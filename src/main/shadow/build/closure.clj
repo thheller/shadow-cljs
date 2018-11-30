@@ -272,11 +272,27 @@
        (into #{} (map #(subs % 7)) globals)]
       )))
 
-(defn generate-externs [state]
+(defn load-simplified-externs [state]
   (let [[file-props file-globals]
         (externs-for-build state)
 
-        js-externs?
+        content
+        (str (->> file-globals
+                  (map #(cljs-comp/munge % #{}))
+                  (sort)
+                  (map #(str "/** @const {ShadowJS} */ var " % ";"))
+                  (str/join "\n"))
+             "\n"
+             (->> file-props
+                  (sort)
+                  (map #(cljs-comp/munge % #{}))
+                  (map #(str "ShadowJS.prototype." % ";"))
+                  (str/join "\n")))]
+
+    (SourceFile/fromCode "simplified-externs.js" content)))
+
+(defn generate-externs [state]
+  (let [js-externs?
         (and (true? (get-in state [:js-options :generate-externs]))
              (= :shadow (get-in state [:js-options :js-provider])))
 
@@ -284,17 +300,14 @@
         (set/union
           (when js-externs?
             (:js-properties state))
-          (extern-props-from-cljs state)
-          file-props)
+          (extern-props-from-cljs state))
 
         js-globals
         (set/union
-          (extern-globals-from-cljs state)
-          file-globals)
+          (extern-globals-from-cljs state))
 
         content
-        (str "/** @constructor */\nfunction ShadowJS() {};\n"
-             (->> js-globals
+        (str (->> js-globals
                   (remove known-js-globals)
                   (map #(cljs-comp/munge % #{}))
                   (sort)
@@ -352,11 +365,20 @@
                  (SourceFile/fromCode (str "EXTERNS:" deps-path "!/" resource-name) (slurp url)))
                (into [])))
 
+        simplified-externs
+        (load-simplified-externs state)
+
         all-externs
         (-> []
             (into default-externs)
             (into deps-externs)
             (into manual-externs)
+            ;; closure gets picky when things are defined multiple times
+            ;; both the simplified and generated externs need this
+            (conj (SourceFile/fromCode
+                    "externs-header.shadow.js"
+                    "/** @constructor */\nfunction ShadowJS() {};\n"))
+            (conj simplified-externs)
             (cond->
               generate?
               (conj (generate-externs state))))]
