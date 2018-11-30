@@ -422,7 +422,7 @@
 
                             ;; cljs-oops sets this in macros
                             ana/*cljs-warnings*
-                            ana/*cljs-warnings*]
+                            (merge ana/*cljs-warnings* (:compiler-options state))]
 
                     (let [{:keys [current-ns]}
                           repl-state

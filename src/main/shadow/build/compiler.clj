@@ -381,7 +381,7 @@
   [{:keys [compiler-options] :as state}
    {:keys [resource-id resource-name url file output-name] :as rc}
    source]
-  (let [{:keys [static-fns elide-asserts fn-invoke-direct infer-externs]}
+  (let [{:keys [warnings static-fns elide-asserts fn-invoke-direct infer-externs]}
         compiler-options]
 
     (binding [ana/*cljs-static-fns*
@@ -401,6 +401,7 @@
               ;; root binding for warnings so (set! *warn-on-infer* true) can work
               ana/*cljs-warnings*
               (-> ana/*cljs-warnings*
+                  (merge warnings)
                   (cond->
                     (or (and file (= :auto infer-externs))
                         (= :all infer-externs))
