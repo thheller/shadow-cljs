@@ -111,9 +111,12 @@
             (str/split #"//CLJS-HERE"))
 
         prepend
-        (cond-> prepend
-          umd-root-name
-          (str/replace #"root.returnExports" (str "root." umd-root-name)))]
+        (-> (when-let [prep (:prepend config)]
+              (str (str/trim prep) "\n"))
+            (str prepend)
+            (cond->
+              umd-root-name
+              (str/replace #"root.returnExports" (str "root." umd-root-name))))]
 
     (-> state
         (assoc :node-config node-config)
