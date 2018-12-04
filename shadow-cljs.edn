@@ -1,7 +1,6 @@
 {:verbose true
 
  :log {:level :debug}
- :launcher-version "2.0.0"
 
  ;; :deps {:aliases []}
  :lein {:profile "+cljs"}

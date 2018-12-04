@@ -151,24 +151,21 @@
 (def default-config
   (reader/read-string default-config-str))
 
-(def ^:binding *project-config* nil)
-
 (defn ensure-config []
-  (or *project-config*
-      (loop [root (path/resolve)]
-        (let [config (path/resolve root "shadow-cljs.edn")]
-          (cond
-            (fs/existsSync config)
-            config
+  (loop [root (path/resolve)]
+    (let [config (path/resolve root "shadow-cljs.edn")]
+      (cond
+        (fs/existsSync config)
+        config
 
-            ;; check parent directory
-            ;; might be in $PROJECT/src/demo it should find $PROJECT/shadow-cljs.edn
-            (not= root (path/resolve root ".."))
-            (recur (path/resolve root ".."))
+        ;; check parent directory
+        ;; might be in $PROJECT/src/demo it should find $PROJECT/shadow-cljs.edn
+        (not= root (path/resolve root ".."))
+        (recur (path/resolve root ".."))
 
-            :else ;; ask to create default config in current dir
-            false
-            )))))
+        :else ;; ask to create default config in current dir
+        false
+        ))))
 
 (defn run-init [opts]
   (let [config (path/resolve "shadow-cljs.edn")]
@@ -210,8 +207,12 @@
                        (if (namespace dep-id)
                          dep-id
                          (symbol (name dep-id) (name dep-id)))]
-                   (or (contains? unwanted-deps dep-id)
-                       (contains? unwanted-deps fq-dep-id)))))
+
+                   (when (or (contains? unwanted-deps dep-id)
+                             (contains? unwanted-deps fq-dep-id))
+                     (js/console.warn
+                       (str "WARNING: The " dep-id " dependency in shadow-cljs.edn was ignored. Default version is used and override is not allowed to ensure compatibility."))
+                     true))))
        (into [])))
 
 (defn add-exclusions [dependencies]
@@ -235,7 +236,8 @@
         (not (false? (get config :aot true)))
 
         shadow-artifact
-        (-> ['thheller/shadow-cljs jar-version]
+        (-> ['thheller/shadow-cljs (or (:version config)
+                                       jar-version)]
             (cond->
               use-aot
               (conj :classifier "aot")))
