@@ -32,7 +32,6 @@
           [:head
            [:title (str runner-ns)]
            [:body
-            [:pre#log]
             [:script {:src "/js/test.js"}]
             [:script (str (cljs-comp/munge runner-ns) ".init();")]]])))
 

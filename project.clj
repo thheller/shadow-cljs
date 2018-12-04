@@ -57,6 +57,8 @@
    [expound "0.7.1"]
    [fipp "0.6.14"]
 
+   [com.bhauman/cljs-test-display "0.1.1"]
+
    [com.wsscode/pathom "2.1.3"
     :exclusions
     [org.clojure/data.json
