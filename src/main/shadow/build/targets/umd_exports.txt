@@ -1,13 +1,15 @@
-(function (root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.returnExports = factory();
+(function(root, factory) {
+  if (typeof define === "function" && define.amd) {
+    define([], factory);
+  } else if (typeof module === "object" && module.exports) {
+    module.exports = factory();
+  } else {
+    root.returnExports = factory();
   }
-})(this, function () {
-    //CLJS-HERE
+})(this, function() {
+  var shadow$umd$export = null;
 
-    return shadow.umd_helper.get_exports();
+  //CLJS-HERE
+
+  return shadow$umd$export;
 });

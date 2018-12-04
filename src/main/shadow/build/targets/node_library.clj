@@ -88,7 +88,8 @@
          :ns 'shadow.umd-helper
          :source [`(~'ns ~'shadow.umd-helper
                      (:require ~@(mapv vector entries)))
-                  `(defn ~(with-meta 'get-exports {:export true}) [] ~get-exports)]
+                  `(defn ~'get-exports []
+                     ~get-exports)]
          :cache-key [(System/currentTimeMillis)]
          :last-modified (System/currentTimeMillis)
          :virtual true}
@@ -126,6 +127,7 @@
            {:entries '[shadow.umd-helper]
             :depends-on #{}
             :prepend prepend
+            :append-js "\nshadow$umd$export = shadow.umd_helper.get_exports();"
             :append append}}))))
 
 (defn check-exports!

@@ -387,11 +387,11 @@
         :after-load demo.script/start
         :preloads [demo.preload]}}
 
-  #_#_:library
-      {:target :node-library
-       :output-to "out/demo-library/lib.js"
-       :exports
-       {:hello demo.lib/hello}}
+  :library
+  {:target :node-library
+   :output-to "out/demo-library/lib.js"
+   :exports
+   {:hello demo.lib/hello}}
 
   #_#_:custom
       {:target build/custom
