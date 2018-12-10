@@ -106,9 +106,15 @@
         node-config
         {:output-to output-to}
 
+        wrapper-rc
+        (if (= :dev (:shadow.build/mode state))
+          (io/resource "shadow/build/targets/umd_exports_dev.txt")
+          (io/resource "shadow/build/targets/umd_exports.txt"))
+
         ;; based on https://github.com/umdjs/umd/blob/master/templates/returnExports.js
         [prepend append]
-        (-> (slurp (io/resource "shadow/build/targets/umd_exports.txt"))
+        (-> wrapper-rc
+            (slurp )
             (str/split #"//CLJS-HERE"))
 
         prepend
