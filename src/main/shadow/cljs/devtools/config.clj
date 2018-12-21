@@ -8,6 +8,9 @@
 
 (s/def ::builds (s/map-of keyword? ::build-config/build))
 
+(s/def ::aliases (s/coll-of keyword? :kind vector?))
+(s/def ::deps (s/keys :req-un [::aliases]))
+
 (s/def ::source-paths
   (s/coll-of string? :kind vector?))
 
@@ -31,7 +34,8 @@
     [::builds]
     :opt-un
     [::source-paths
-     ::dependencies]
+     ::dependencies
+     ::deps]
     ))
 
 (defn builds->map [builds]
@@ -97,11 +101,16 @@
       (read-config file)
       )))
 
+(defn deps-aliases-solver
+  [val-in val-latter]
+  (cond-> val-in
+    (:aliases val-in) (assoc :aliases (into (:aliases val-in) (:aliases val-latter)))))
+
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
     (if-not (.exists file)
       default-config
-      (merge
+      (merge-with deps-aliases-solver
         (load-system-config)
         (-> (read-config file)
             (normalize)
