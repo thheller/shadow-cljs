@@ -377,6 +377,9 @@
     (catch :default e
       (devtools-msg "WebSocket setup failed" e))))
 
+(defn delay-ws-connect [ms]
+  (js/setTimeout ws-connect ms))
+
 (when ^boolean env/enabled
   ;; disconnect an already connected socket, happens if this file is reloaded
   ;; pretty much only for me while working on this file
@@ -394,4 +397,6 @@
       (when-let [s @socket-ref]
         (.close s))))
 
-  (js/setTimeout ws-connect 10))
+  (if (= (.-readyState js/document) "loading")
+    (.addEventListener js/document "DOMContentLoaded" #(delay-ws-connect 10))
+    (delay-ws-connect 10)))
