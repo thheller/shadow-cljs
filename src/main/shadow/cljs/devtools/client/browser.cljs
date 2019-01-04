@@ -394,4 +394,7 @@
       (when-let [s @socket-ref]
         (.close s))))
 
-  (js/setTimeout ws-connect 10))
+  ;; async connect so other stuff while loading runs first
+  (if (and js/document (= "loading" js/document.readyState))
+    (js/window.addEventListener "DOMContentLoaded" ws-connect)
+    (js/setTimeout ws-connect 10)))
