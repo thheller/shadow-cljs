@@ -113,6 +113,8 @@
 
 (js/console.log (pr-str Foo) (pr-str (Foo. 1 2)) (Foo. 1 2))
 
+(js/console.log "test-macro" (test-macro 1 2 3))
+
 (comment
   (js/console.log (test-macro 1 2 3))
 

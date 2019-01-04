@@ -67,7 +67,22 @@
     ;; when thing/ns.clj and thing/ns.cljs both have different meta
 
     (when-let [the-ns (find-ns name)]
-      (.alterMeta ^clojure.lang.Namespace the-ns merge (seq [(meta name)])))
+
+      (let [{::keys [cljs-keys] :as ns-meta}
+            (meta the-ns)
+
+            new-meta
+            (meta name)
+
+            ;; remember and remove keys that the CLJS version of the ns added
+            ;; to ensure that live-update does not retain deleted metadata
+            ;; but does not remove metadata the CLJ version might have set
+            new-meta
+            (-> (apply dissoc ns-meta cljs-keys)
+                (merge new-meta)
+                (assoc ::cljs-keys (into #{} (keys new-meta))))]
+
+        (.resetMeta ^clojure.lang.Namespace the-ns new-meta)))
 
     ast))
 

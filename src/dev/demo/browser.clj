@@ -2,7 +2,7 @@
 
 (defmacro test-macro [a b c]
   ;;(throw (ex-info "macro bad" {}))
-  :foo)
+  (meta *ns*))
 
 (defmacro bad-macro [& args]
   (throw (ex-info "bad-macro is bad" {})))
