@@ -142,6 +142,22 @@
     (hijacked-parse-ns env form *current-resource* opts)
     (default-parse-ns op env form name opts)))
 
+(def ana-js-globals
+  (into {}
+    (map #(vector % {:op :js-var :name % :ns 'js})
+      '(alert window document console escape unescape
+         screen location navigator history location
+         global process require module exports))))
+
+(defn empty-env
+  "Construct an empty analysis environment. Required to analyze forms."
+  [ns]
+  {:ns (ana/get-namespace ns)
+   :context :statement
+   :locals {}
+   :fn-scope []
+   :js-globals ana-js-globals})
+
 (defn analyze
   ([state compile-state form]
    (analyze state compile-state form false))
@@ -169,7 +185,7 @@
                  (:macros-ns compile-state)
                  (assoc :macros-ns true)))]
 
-       (-> (ana/empty-env) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
+       (-> (empty-env ns) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
            (cond->
              repl-context?
              (assoc

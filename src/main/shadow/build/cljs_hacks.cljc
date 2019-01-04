@@ -152,7 +152,13 @@
            ;; except for the code emitted by cljs.core/exists?
            ;; (exists? some.foo/bar)
            ;; checks js/some, js/some.foo, js/some.foo.bar
-           (do (when-not (-> sym meta ::ana/no-resolve)
+           (do (when (and (not (-> sym meta ::ana/no-resolve))
+                          ;; when resolve is called from tools.reader to resolve syntax quotes
+                          ;; the reading env :ns is not set
+                          ;; as env won't be the analyzer env but the full compiler env
+                          ;; and we don't need to resolve externs just yet
+                          current-ns)
+
                  (let [[global & props]
                        (str/split (name sym) #"\.")]
 
@@ -164,6 +170,7 @@
                      (when-not (or (contains? ns-roots global)
                                    ;; just in case ns-roots wasn't set properly
                                    (contains? known-safe-js-globals global))
+
                        (shadow-js-access-global current-ns global)
                        (when (seq props)
                          (doseq [prop props]

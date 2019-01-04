@@ -316,12 +316,12 @@
        {:before-load demo.selfhost.host/stop
         :after-load demo.selfhost.host/start}}
 
-  #_#_:bootstrap-support
-      {:target :bootstrap
-       :output-dir "out/demo-selfhost/public/bootstrap"
-       :exclude #{cljs.js}
-       :entries [cljs.js demo.macro demo.lib reagent.core]
-       :macros []}
+  :bootstrap-support
+  {:target :bootstrap
+   :output-dir "out/demo-selfhost/public/bootstrap"
+   :exclude #{cljs.js}
+   :entries [cljs.js demo.macro demo.lib reagent.core]
+   :macros []}
 
   #_#_:js-only
       {:target :browser
