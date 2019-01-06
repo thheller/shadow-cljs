@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.7.10"
+(defproject thheller/shadow-cljs "2.7.11"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
