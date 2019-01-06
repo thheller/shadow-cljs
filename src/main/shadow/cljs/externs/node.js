@@ -37,6 +37,9 @@ var shadow$provide = {};
 var shadow$loader = {};
 
 
+var shadow$umd$export = {};
+
+
 /**
  * @param {string} name
  * @const
