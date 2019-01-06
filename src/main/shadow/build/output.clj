@@ -388,7 +388,8 @@
         (data/deps->syms state src)
 
         roots
-        (get-in state [:compiler-env :shadow/ns-roots])]
+        (->> (get-in state [:compiler-env :shadow/ns-roots])
+             (map comp/munge))]
 
     (str (when require?
            (str "var $CLJS = require(\"./cljs_env\");\n"
@@ -412,19 +413,12 @@
                 (str/join "\n")))
          "\n"
 
-         ;; require roots will exist
+         ;; take existing roots or create in case they don't exist yet
          (->> roots
-              (map (fn [root]
-                     (str "var " root "=$CLJS." root ";")))
-              (str/join "\n"))
-         "\n"
-         ;; provides may create new roots
-         (->> provides
-              (map js-module-root)
-              (remove roots)
               (map (fn [root]
                      (str "var " root "=$CLJS." root " || ($CLJS." root " = {});")))
               (str/join "\n"))
+         "\n"
          "\n$CLJS.SHADOW_ENV.setLoaded(" (pr-str output-name) ");\n"
          "\n")))
 
