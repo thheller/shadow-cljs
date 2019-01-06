@@ -427,11 +427,11 @@
        :modules
        {:main {:entries [demo.foreign]}}}
 
-  #_#_:npm
-      {:target :npm-module
-       :output-dir "out/demo-npm/lib"
-       :entries [demo.npm
-                 demo.rel-require]}
+  :npm
+  {:target :npm-module
+   :output-dir "out/demo-npm/lib"
+   :entries [demo.npm
+             #_ demo.rel-require]}
 
   #_#_:azure-fn
       {:target :azure-app

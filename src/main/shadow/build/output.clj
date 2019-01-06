@@ -388,7 +388,7 @@
         (data/deps->syms state src)
 
         roots
-        (into #{"goog"} (map js-module-root) dep-syms)]
+        (get-in state [:compiler-env :shadow/ns-roots])]
 
     (str (when require?
            (str "var $CLJS = require(\"./cljs_env\");\n"
