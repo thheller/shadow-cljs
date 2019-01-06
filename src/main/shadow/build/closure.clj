@@ -162,6 +162,18 @@
         :all-unquoted PropertyRenamingPolicy/ALL_UNQUOTED
         (throw (ex-info "invalid :property-renaming (use :off or :all-unquoted)" {})))))
 
+  (when (contains? opts :strip-types)
+    (.setStripTypes closure-opts (:strip-types opts)))
+
+  (when (contains? opts :strip-type-prefixes)
+    (.setStripTypePrefixes closure-opts (:strip-type-prefixes opts)))
+
+  (when (contains? opts :strip-name-prefixes)
+    (.setStripNamePrefixes closure-opts (:strip-name-prefixes opts)))
+
+  (when (contains? opts :strip-name-suffixes)
+    (.setStripNameSuffixes closure-opts (:strip-name-suffixes opts)))
+
   (when (contains? opts :rename-prefix)
     (.setRenamePrefix closure-opts (:rename-prefix opts)))
 
@@ -842,7 +854,7 @@
 
       ;; cut the goog.exportSymbol call CLJS may have generated
       ;; since they will still export to window which is not what we want
-      (set! (.-stripTypePrefixes closure-opts) #{"goog.exportSymbol"})
+      (.setStripTypePrefixes closure-opts (into #{"goog.exportSymbol"} (.-stripTypePrefixes closure-opts)))
       ;; can be anything but will be repeated a lot
       ;; $ vs $CLJS adds about 4kb to cljs.core alone but that is only 250 bytes after gzip
       ;; choosing $CLJS so the alias is the same in dev mode and avoiding potential conflicts

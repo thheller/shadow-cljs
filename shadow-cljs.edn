@@ -138,6 +138,7 @@
 
    :compiler-options
    {:infer-externs :auto
+    ;; :strip-type-prefixes #{"cljs.pprint"}
     :shadow-keywords true
     ;; :closure-output-charset "US-ASCII"
     :closure-defines
