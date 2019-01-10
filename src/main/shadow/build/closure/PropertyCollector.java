@@ -3,7 +3,7 @@ package shadow.build.closure;
 import com.google.javascript.jscomp.*;
 import com.google.javascript.jscomp.Compiler;
 import com.google.javascript.rhino.Node;
-import com.google.javascript.rhino.TokenUtil;
+import com.google.javascript.rhino.TokenStream;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,38 +24,6 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         return !node.isScript() || !t.getSourceName().endsWith(".json");
     }
 
-    // private in parser/Scanner.java
-    public static boolean isIdentifierStart(char ch) {
-        switch (ch) {
-            case '$':
-            case '_':
-                return true;
-            default:
-                // Workaround b/36459436
-                // When running under GWT, Character.isLetter only handles ASCII
-                // Angular relies heavily on U+0275 (Latin Barred O)
-                return ch == 0x0275
-                        // TODO: UnicodeLetter also includes Letter Number (NI)
-                        || Character.isLetter(ch);
-        }
-    }
-
-    // TokenUtil.isJSIdentifier is package protected ...
-    public static boolean isJSIdentifier(String s) {
-        int length = s.length();
-        if (length != 0 && isIdentifierStart(s.charAt(0))) {
-            for (int i = 1; i < length; ++i) {
-                if (Character.isIdentifierIgnorable(s.charAt(i)) || !Character.isJavaIdentifierPart(s.charAt(i))) {
-                    return false;
-                }
-            }
-
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     public final static Set<String> ignoredProps = new HashSet<>();
 
     static {
@@ -65,7 +33,7 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
     }
 
     private void addProperty(NodeTraversal t, String property) {
-        if (!property.equals("exports") && !property.equals("module") && isJSIdentifier(property)) {
+        if (!property.equals("exports") && !property.equals("module") && TokenStream.isJSIdentifier(property)) {
             String sourceName = t.getSourceName();
             Set<String> x = properties.get(sourceName);
             if (x == null) {
