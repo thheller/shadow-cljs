@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
     private final AbstractCompiler compiler;
@@ -32,8 +33,12 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         ignoredProps.add("prototype");
     }
 
+    public static boolean isJSIdentifier(String name) {
+        return TokenStream.isJSIdentifier(name);
+    }
+
     private void addProperty(NodeTraversal t, String property) {
-        if (!property.equals("exports") && !property.equals("module") && TokenStream.isJSIdentifier(property)) {
+        if (!property.equals("exports") && !property.equals("module") && isJSIdentifier(property)) {
             String sourceName = t.getSourceName();
             Set<String> x = properties.get(sourceName);
             if (x == null) {
@@ -82,10 +87,12 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
             for (int i = 0; i < node.getChildCount(); i++) {
                 Node keyNode = node.getChildAtIndex(i);
                 if (keyNode.isStringKey() || keyNode.isGetterDef() || keyNode.isSetterDef()) {
-                    addProperty(t, keyNode.getString());
-                } else {
-                    System.out.println("==== object-lit without string key");
-                    System.out.println(node.toStringTree());
+                    // only collect {foo:"foo"}, not {"foo":"foo"}
+                    // this is far too general already and should probably
+                    // only collect module.exports = {} ...
+                    if (!keyNode.isQuotedString()) {
+                        addProperty(t, keyNode.getString());
+                    }
                 }
             }
         } else if (NodeUtil.isCallTo(node,"Object.defineProperty")) {
@@ -122,6 +129,8 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
         co.setLanguageIn(CompilerOptions.LanguageMode.ECMASCRIPT_2017);
         co.setPrettyPrint(true);
         cc.initOptions(co);
+
+        System.out.println(isJSIdentifier("İ"));
 
         // SourceFile srcFile = SourceFile.fromFile("node_modules/@firebase/util/dist/cjs/src/crypt.js");
         SourceFile srcFile = SourceFile.fromFile("tmp/alex.js");
