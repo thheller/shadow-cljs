@@ -313,11 +313,52 @@
                         (update :repl-sources repl-sources-as-client-resources build-state))})
 
   ;; (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
-  (update worker-state :runtimes assoc runtime-id
-    {:runtime-id runtime-id
-     :runtime-out runtime-out
-     :runtime-info runtime-info
-     :init-sent true}))
+  (-> worker-state
+      (cond->
+        (zero? (count (:runtimes worker-state)))
+        (assoc :default-runtime-id runtime-id))
+      (update :runtimes assoc runtime-id
+        {:runtime-id runtime-id
+         :runtime-out runtime-out
+         :runtime-info runtime-info
+         :connected-since (System/currentTimeMillis)
+         :init-sent true})))
+
+(defn maybe-pick-different-default-runtime [{:keys [runtimes default-runtime-id] :as worker-state} runtime-id]
+  (cond
+    (not= default-runtime-id runtime-id)
+    worker-state
+
+    (empty? runtimes)
+    (dissoc worker-state :default-runtime-id)
+
+    :else
+    (assoc worker-state :default-runtime-id
+                        (->> (vals runtimes)
+                             (sort-by :connected-since)
+                             (first)
+                             :runtime-id))))
+
+(comment
+  ;; when a runtime disconnects and it was the default
+  ;; pick a new one if there are any
+  (maybe-pick-different-default-runtime
+    {:default-runtime-id 1
+     :runtimes {2 {:runtime-id 2 :connected-since 2}
+                3 {:runtime-id 3 :connected-since 3}}}
+    1)
+
+  ;; if there aren't any remove the default
+  (maybe-pick-different-default-runtime
+    {:default-runtime-id 1
+     :runtimes {}}
+    1)
+
+  ;; if it wasn't the default do nothing
+  (maybe-pick-different-default-runtime
+    {:default-runtime-id 2
+     :runtimes {}}
+    1))
 
 (defmethod do-proc-control :runtime-disconnect
   [worker-state {:keys [runtime-id]}]
@@ -325,6 +366,7 @@
   ;; (>!!output worker-state {:type :repl/runtime-disconnect :runtime-id runtime-id})
   (-> worker-state
       (update :runtimes dissoc runtime-id)
+      (maybe-pick-different-default-runtime runtime-id)
       ;; clean all sessions for that runtime
       (update :repl-sessions (fn [sessions]
                                (reduce-kv
@@ -655,10 +697,13 @@
       worker-state)))
 
 (defmethod do-proc-control :repl-eval
-  [{:keys [build-state runtimes] :as worker-state}
+  [{:keys [build-state runtimes default-runtime-id] :as worker-state}
    {:keys [result-chan input session-id runtime-id] :as msg}]
   (log/debug ::repl-eval {:session-id session-id :runtime-id runtime-id})
-  (let [runtime-count (count runtimes)]
+  (let [runtime-count (count runtimes)
+
+        runtime-id
+        (or runtime-id default-runtime-id)]
 
     (cond
       (nil? build-state)
