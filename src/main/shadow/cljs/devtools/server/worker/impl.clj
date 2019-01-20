@@ -830,7 +830,7 @@
 
         updates
         (->> updates
-             (filter #(= :mod (:event %)))
+             (filter #(contains? #{:mod :new} (:event %)))
              (map #(update % :name rc/normalize-name))
              (map #(str watch-path "/" (:name %)))
              (into []))]
