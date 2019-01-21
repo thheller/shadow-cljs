@@ -617,6 +617,12 @@
   [worker-state msg]
   (assoc worker-state :autobuild false))
 
+(defmethod do-proc-control :broadcast-msg
+  [{:keys [runtimes] :as worker-state} {:keys [payload] :as envelope}]
+  (doseq [{:keys [runtime-out] :as runtime} (vals runtimes)]
+    (>!! runtime-out {:type :custom-msg :payload payload}))
+  worker-state)
+
 (defmethod do-proc-control :load-file
   [{:keys [build-state runtimes] :as worker-state}
    {:keys [result-chan input] :as msg}]

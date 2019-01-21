@@ -92,6 +92,12 @@
       (catch InterruptedException e
         {:type :repl/interrupt}))))
 
+(defn send-to-runtimes! [{:keys [proc-control] :as proc} payload]
+  {:pre [(impl/proc? proc)]}
+  (>!! proc-control {:type :broadcast-msg
+                     :payload payload})
+  proc)
+
 (defn repl-compile [worker input]
   (worker-request worker
     {:type :repl-compile

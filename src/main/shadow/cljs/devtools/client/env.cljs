@@ -236,3 +236,15 @@
   (when (= :cljs type)
     (doseq [x js/goog.global.SHADOW_NS_RESET]
       (x ns))))
+
+(defonce custom-msg-subscribers-ref (atom {}))
+
+(defn subscribe! [sub-id callback]
+  (swap! custom-msg-subscribers-ref assoc sub-id callback))
+
+(defn publish! [msg]
+  (doseq [[id callback] @custom-msg-subscribers-ref]
+    (try
+      (callback msg)
+      (catch :default e
+        (js/console.warn "failed to handle custom msg" id msg)))))
