@@ -1,4 +1,5 @@
-(ns shadow.test.env)
+(ns shadow.test.env
+  (:require-macros [shadow.test.env]))
 
 ;; this should be how cljs.test works out of the box IMHO
 ;; all those macros don't compose and make writing testing utilities painful
@@ -6,27 +7,8 @@
 ;; only the macros were replaced, the functionality remains unchanged
 (defonce tests-ref (atom {:namespaces {}}))
 
-(when-not (:hooked @tests-ref)
-  ;; we want to remove all tests when a ns is reloaded
-  ;; since otherwise deleted tests stay in the atom
-  ;; the event is dispatched by shadow.cljs.devtools.client.env
-  ;; right before the source is loaded
-  (let [event-fn
-        (fn [ns]
-          (swap! tests-ref update :namespaces dissoc ns))]
-
-    (if-not js/goog.global.SHADOW_NS_RESET
-      (set! js/goog.global.SHADOW_NS_RESET [event-fn])
-      (set! js/goog.global.SHADOW_NS_RESET (conj js/goog.global.SHADOW_NS_RESET event-fn)))
-    (swap! tests-ref assoc :hooked true)))
-
-(defn register-test [test-ns test-name test-var]
-  ;; register by name so reloading replaces the old test
-  (swap! tests-ref assoc-in [:namespaces test-ns :vars test-name] test-var)
-  test-var)
-
-(defn register-fixtures [test-ns type fix]
-  (swap! tests-ref assoc-in [:namespaces test-ns :fixtures type] fix))
+(defn reset-test-data! [test-data]
+  (swap! tests-ref assoc :namespaces test-data))
 
 (defn get-tests []
   (get @tests-ref :namespaces))

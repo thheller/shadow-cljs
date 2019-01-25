@@ -291,6 +291,7 @@
             (-> (build-api/with-compiler-options
                   {:optimizations :advanced
                    :elide-asserts true
+                   :load-tests false
                    :pretty-print false})
                 (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG false}))
 

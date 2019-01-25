@@ -26,3 +26,6 @@
     (-> state
         (update-in [:sources runner-rc-id] assoc :extra-requires (set test-namespaces)))))
 
+
+(defn configure-common [state]
+  (assoc-in state [:compiler-options :load-tests] true))

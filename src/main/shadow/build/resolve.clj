@@ -458,15 +458,7 @@
                   (not (str/ends-with? resource-name ".cljc"))
                   (= reader-features #{:cljs}))
             rc
-            (reinspect-cljc-rc state rc reader-features))
-
-          rc
-          (if (not= ns 'cljs.test)
-            rc
-            ;; temp fix for the cljs.test deftest macro hack
-            ;; it calls shadow.test.env/register-test but cljs.test doesn't properly
-            ;; require shadow.test.env since its a hack
-            (update rc :deps #(into '[shadow.test.env] %)))]
+            (reinspect-cljc-rc state rc reader-features))]
 
       ;; react symbol may have resolved to a JS dependency
       ;; CLJS/goog do not allow circular dependencies, JS does

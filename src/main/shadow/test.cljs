@@ -57,7 +57,7 @@
 
 (defn test-all-vars-block [ns]
   (let [env (ct/get-current-env)
-        {:keys [fixtures each-fixtures vars] :as test-ns}
+        {:keys [fixtures vars] :as test-ns}
         (env/get-test-ns-info ns)]
 
     (-> [(fn []
@@ -68,10 +68,7 @@
            (when-let [fix (:each fixtures)]
              (ct/update-current-env! [:each-fixtures] assoc ns fix)))]
 
-        (into (ct/test-vars-block
-                (->> vars ;; vars is {test-name test-var}
-                     (vals)
-                     (sort-by #(-> % meta :line)))))
+        (into (ct/test-vars-block vars))
         #_(conj (fn []
                   (when (nil? env)
                     (ct/clear-env!)))))))

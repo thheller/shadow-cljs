@@ -234,9 +234,9 @@
    {:http-port 8606
     :http-root "out/demo-test-browser"}}
 
-  #_#_:test-node
-      {:target :node-test
-       :output-to "out/demo-test-node/script.js"}
+  :test-node
+  {:target :node-test
+   :output-to "out/demo-test-node/script.js"}
 
   #_#_:test-fail
       {:target :node-test
@@ -436,7 +436,7 @@
   {:target :npm-module
    :output-dir "out/demo-npm/lib"
    :entries [demo.npm
-             #_ demo.rel-require]}
+             #_demo.rel-require]}
 
   #_#_:azure-fn
       {:target :azure-app

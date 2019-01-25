@@ -4,6 +4,7 @@
   (:require-macros [demo.browser :refer (test-macro)])
   (:require
     #_["babel-test" :as babel-test :default Shape]
+    [cljs.test :as ct]
     [clojure.pprint :refer (pprint)]
     [clojure.spec.alpha :as s]
     [clojure.spec.gen.alpha :as gen]
@@ -19,7 +20,12 @@
 
 ::foo
 
-(defn yo [bar]
+(ct/deftest this-is-no-test
+  (ct/is (= "actually kind of" 1)))
+
+(defn yo
+  {:test #(ct/is (= "also kind of" 1))}
+  [bar]
   (.fromSimpleExterns bar))
 
 (js/console.log "▶❤◀")

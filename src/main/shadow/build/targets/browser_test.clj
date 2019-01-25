@@ -36,6 +36,7 @@
             [:script (str (cljs-comp/munge runner-ns) ".init();")]]])))
 
     (-> state
+        (tu/configure-common)
         (update ::build/config assoc :output-dir (str test-dir "/js"))
         (assoc-in [::build/config :modules :test] {:entries []})
         (assoc-in [::build/config :compiler-options :source-map] true) ;; always

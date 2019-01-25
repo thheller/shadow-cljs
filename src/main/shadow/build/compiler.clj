@@ -412,7 +412,7 @@
   [{:keys [compiler-options] :as state}
    {:keys [resource-id resource-name url file output-name] :as rc}
    source]
-  (let [{:keys [warnings static-fns elide-asserts fn-invoke-direct infer-externs]}
+  (let [{:keys [warnings static-fns elide-asserts load-tests fn-invoke-direct infer-externs]}
         compiler-options]
 
     (binding [ana/*cljs-static-fns*
@@ -443,6 +443,9 @@
 
               *assert*
               (not (true? elide-asserts))
+
+              ana/*load-tests*
+              (not (false? load-tests))
 
               *current-resource*
               rc]
@@ -535,6 +538,7 @@
    [:compiler-options :fn-invoke-direct]
    [:compiler-options :elide-asserts]
    [:compiler-options :reader-features]
+   [:compiler-options :load-tests]
    ;; some community macros seem to use this
    ;; hard to track side-effecting macros but even more annoying to run into caching bugs
    ;; so just let any change invalidate everything for safety reasons

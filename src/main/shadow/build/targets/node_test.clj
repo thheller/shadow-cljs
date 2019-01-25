@@ -16,6 +16,7 @@
                         (-> main namespace symbol))
                       'shadow.test.node)]
     (-> state
+        (tu/configure-common)
         (assoc ::tu/runner-ns runner-ns)
         (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
         (update :build-options merge {:greedy true

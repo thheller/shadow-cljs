@@ -1,4 +1,5 @@
 (ns shadow.test.node
+  {:dev/always true}
   (:require
     [shadow.test.env :as env]
     [cljs.test :as ct]
@@ -11,4 +12,6 @@
     (js/process.exit 1)))
 
 (defn main []
-   (st/run-all-tests))
+  (-> (env/get-test-data)
+      (env/reset-test-data!))
+  (st/run-all-tests))

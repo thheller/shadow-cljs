@@ -103,6 +103,10 @@
 (defn start []
   ;; (js/console.log "test env" @st/tests-ref)
   (js/__karma__.info #js {:total (env/get-test-count)})
+
+  (-> (env/get-test-data)
+      (env/reset-test-data!))
+
   (let [env (ct/empty-env ::karma)]
     (st/run-all-tests env)))
 

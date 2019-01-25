@@ -606,8 +606,10 @@
 
   (replace-fn! #'comp/find-ns-starts-with shadow-find-ns-starts-with)
 
-  (replace-fn! #'test/deftest @#'shadow-deftest)
-  (replace-fn! #'test/use-fixtures @#'shadow-use-fixtures))
+  ;; remove these for now, not worth the trouble
+  ;; (replace-fn! #'test/deftest @#'shadow-deftest)
+  ;; (replace-fn! #'test/use-fixtures @#'shadow-use-fixtures)
+  )
 
 ;; FIXME: patch this in CLJS. its the only externs inference call I can't work around
 ;; cljs will blindly generate (set! (.. Thing -prototype -something) ...) for

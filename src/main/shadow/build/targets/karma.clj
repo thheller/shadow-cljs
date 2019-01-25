@@ -25,6 +25,7 @@
     (io/make-parents output-to)
 
     (-> state
+        (tu/configure-common)
         (assoc
           ::tu/runner-ns runner-ns
           ::output-to output-to)
