@@ -82,13 +82,15 @@
 (defn set-options
   [^CompilerOptions closure-opts opts state]
 
-  (when-let [level
-             (case (:optimizations opts)
-               :advanced CompilationLevel/ADVANCED_OPTIMIZATIONS
-               :whitespace CompilationLevel/WHITESPACE_ONLY
-               :simple CompilationLevel/SIMPLE_OPTIMIZATIONS
-               nil)]
-    (.setOptionsForCompilationLevel level closure-opts))
+  (when-let [level-kw (:optimizations opts)]
+    (when-let [level
+               (case level-kw
+                 :advanced CompilationLevel/ADVANCED_OPTIMIZATIONS
+                 :whitespace (throw (ex-info ":whitespace optimizations are not supported, use :simple or :advanced." {}))
+                 :simple CompilationLevel/SIMPLE_OPTIMIZATIONS
+                 :none nil
+                 (throw (ex-info "invalid :optimizations level" opts)))]
+      (.setOptionsForCompilationLevel level closure-opts)))
 
   (when (contains? opts :pretty-print)
     (.setPrettyPrint closure-opts (:pretty-print opts)))
