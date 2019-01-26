@@ -430,7 +430,7 @@
           macros-ns
           (assoc :macros-ns true)))))
 
-(defn resolve-symbol-require [state require-from require]
+(defn resolve-symbol-require [{:keys [classpath] :as state} require-from require]
   {:pre [(data/build-state? state)]}
 
   (let [[{:keys [resource-id ns resource-name type] :as rc} state]
@@ -444,6 +444,7 @@
             (format "The required namespace \"%s\" is not available." require))
           {:tag ::missing-ns
            :stack (:resolved-stack state)
+           :foreign-provide? (cp/is-foreign-provide? classpath require)
            :require require
            :require-from (:resource-name require-from)})))
 

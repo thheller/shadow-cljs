@@ -833,12 +833,19 @@
         (index-rc-add index rc)
         ))))
 
+;; only remember which symbols where provided by foreign-libs
+;; so error messages can check if something was supposed to be a foreign-lib
+(defn merge-foreign-libs [state foreign-libs]
+  (update state :foreign-provides set/union (->> foreign-libs (mapcat :provides) (into #{}))))
+
 (defn index-path-merge [state source-path {:keys [externs foreign-libs resources] :as dir-contents}]
   (-> state
       (update :source-paths conj source-path)
       (update :deps-externs assoc source-path externs)
       (util/reduce-> index-rc-merge resources)
-      ;; (util/reduce-> index-rc-merge foreign-libs)
+      (cond->
+        (seq foreign-libs)
+        (merge-foreign-libs foreign-libs))
       ))
 
 (defn index-path*
@@ -1045,6 +1052,11 @@
   [{:keys [index-ref] :as cp}]
   (->> (:sources @index-ref)
        (vals)))
+
+(defn is-foreign-provide? [cp sym]
+  {:pre [(service? cp)
+         (symbol? sym)]}
+  (contains? (-> cp :index-ref deref :foreign-provides) sym))
 
 (defn find-js-resource
   ;; absolute require "/some/foo/bar.js" or "/some/foo/bar"

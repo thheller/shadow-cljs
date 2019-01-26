@@ -131,8 +131,17 @@
   (.write w (format ":source-paths is only valid globally and cannot be configured in build %s." (:build-id config))))
 
 (defmethod ex-data-format ::resolve/missing-ns
-  [w e {:keys [require] :as data}]
+  [w e {:keys [require foreign-provide?] :as data}]
   (write-msg w e)
+  (when foreign-provide?
+    (.write w (str "The namespace was provided via :foreign-libs which is not supported.\n"
+                   "Please refer to https://shadow-cljs.github.io/docs/UsersGuide.html#cljsjs fo more information."
+                   ;; for things that contain no dot it is likely that npm install may just work
+                   ;; eg. react but not cljsjs.highlight.langs.java
+                   ;; only newer foreign-libs provide namespaces that way and they often match npm packages
+                   (when-not (str/includes? (str require) ".")
+                     (str "\nYou may just need to run:\n  npm install " require)))))
+
   (let [filename (str (util/ns->path require) ".clj")]
     (when-let [rc (io/resource filename)]
       (.write w (str "\"" filename "\" was found on the classpath. Should this be a .cljs file?\n"))
