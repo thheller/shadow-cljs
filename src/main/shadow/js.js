@@ -93,9 +93,9 @@ shadow.js.jsRequire = function(name, opts) {
 
     // module must be created before calling moduleFn due to circular deps
     if (module === undefined) {
-      module = shadow.js.files[name] = {
-        exports: {}
-      };
+      module = {};
+      module["exports"] = {};
+      shadow.js.files[name] = module;
     }
 
     var moduleFn = shadow$provide[name];
