@@ -1108,8 +1108,6 @@
                        ns)))
               (into #{}))]
 
-     (prn [:cljs-provides cljs-provides])
-
      (-> state
          (assoc :compile-start (System/currentTimeMillis))
 
