@@ -500,7 +500,7 @@
 
 (defmethod build-log/event->str ::warnings
   [{:keys [warnings]}]
-  (warnings/print-warnings warnings))
+  (warnings/print-closure-warnings warnings))
 
 (defn js-error-xf [state ^com.google.javascript.jscomp.Compiler cc]
   (map (fn [^JSError err]

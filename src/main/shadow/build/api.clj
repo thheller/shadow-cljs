@@ -139,6 +139,8 @@
        :js-options
        default-js-options
 
+       ::compile-cycle 0
+
        ;; string property names collected while compiling JS
        ;; will be used to generate externs for closure
        :js-properties

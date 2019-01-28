@@ -142,37 +142,60 @@
               (when (pos-int? column)
                 (str ":" column))))))
 
-(defn print-warning
+(defn print-warning-header
   [{::keys [idx] :keys [resource-name file line column source-excerpt msg] :as warning}]
   (println (coded-str [:bold] (sep-line (str " WARNING #" idx " - " (:warning warning) " ") 6)))
-  (println " File:" (name-with-loc (or file resource-name) line column))
+  (print (if file
+           " File: "
+           " Resource: "))
+  (println (name-with-loc (or file resource-name) line column)))
 
-  (if (> idx 3)
-    (do (println (str " " (coded-str [:yellow :bold] msg)))
-        (println (sep-line)))
-    (if-not source-excerpt
-      (do #_ (println)
-          (println (str " " (coded-str [:yellow :bold] msg)))
-          (println (sep-line)))
+(defn print-warning-msg
+  [{::keys [idx] :keys [msg] :as warning}]
+  (println (str " " (coded-str [:yellow :bold] msg))))
 
-      (do (print-source-excerpt-header warning)
-          (println (str " " (coded-str [:yellow :bold] msg)))
-          (println (sep-line))
-          (print-source-excerpt-footer warning))))
-  (println))
+(defn print-warning
+  [warning]
+  (print-warning-header warning)
+  (print-source-excerpt-header warning)
+  (print-warning-msg warning)
+  (println (sep-line))
+  (print-source-excerpt-footer warning))
 
-(defn print-warnings
+(defn print-short-warning
+  [{:keys [msg] :as warning}]
+  (print-warning-header warning)
+  (println (str " " msg))
+  (println (sep-line)))
+
+;; printed after optimizations, only warnings from the closure compiler
+;; FIXME: should be handled elsewhere since they are printed before CLJS warnings
+(defn print-closure-warnings
   [warnings]
-  (doseq [[idx w] (map-indexed vector warnings)]
-    (print-warning (assoc w ::idx (inc idx)))))
+  (let [too-many? (> (count warnings) 3)]
+    (doseq [[idx {:keys [file source-excerpt] :as w}] (map-indexed vector warnings)
+            :let [w (assoc w ::idx (inc idx))]]
 
-(defn get-warnings-for-build [{:keys [build-sources sources output] :as state}]
-  (for [id build-sources
-        :let [{:keys [resource-name file url] :as rc} (data/get-source-by-id state id)
-              {:keys [warnings]} (data/get-output! state rc)]
-        warning warnings]
-    (assoc warning :source-id id :resource-name resource-name :file file :url url)))
+      (if (or (not source-excerpt)
+              (and too-many? (not file)))
+        (print-short-warning w)
+        (print-warning w)))))
 
-(defn print-warnings-for-build [state]
-  (->> (get-warnings-for-build state)
-       (print-warnings)))
+(defn print-warnings-for-build-info
+  [{:keys [compile-cycle sources] :as build-info}]
+  (let [warnings
+        (for [{:keys [warnings] :as src} sources
+              warning warnings]
+          warning)
+
+        too-many? (> (count warnings) 3)]
+
+    (doseq [[idx {:keys [file source-excerpt] :as w}] (map-indexed vector warnings)
+            :let [w (assoc w ::idx (inc idx))]]
+
+      (println)
+      (if (or (not source-excerpt)
+              (and too-many? (not file))
+              (and (not file) (pos? compile-cycle)))
+        (print-short-warning w)
+        (print-warning w)))))

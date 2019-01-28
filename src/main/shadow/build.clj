@@ -333,10 +333,13 @@
     ))
 
 (defn compile-start [state]
-  (assoc state ::build-info {:compile-start (System/currentTimeMillis)}))
+  (assoc state ::build-info {:compile-cycle (::build-api/compile-cycle state)
+                             :compile-start (System/currentTimeMillis)}))
 
 (defn compile-complete [state]
-  (assoc-in state [::build-info :compile-complete] (System/currentTimeMillis)))
+  (-> state
+      (update ::build-api/compile-cycle inc)
+      (assoc-in [::build-info :compile-complete] (System/currentTimeMillis))))
 
 (defn resolve [state]
   (if (or (not (modules/configured? state))

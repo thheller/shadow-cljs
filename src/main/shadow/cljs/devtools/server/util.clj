@@ -123,28 +123,24 @@
   (let [{:keys [sources compiled]}
         info
 
-        warnings
-        (->> (for [{:keys [warnings resource-name]} sources
-                   warning warnings]
-               (assoc warning :resource-name resource-name))
-             (into []))]
+        warning-count
+        (->> (for [{:keys [warnings]} sources]
+               (count warnings))
+             (reduce + 0))]
 
     (println (format "[%s] Build completed. (%d files, %d compiled, %d warnings, %.2fs)"
                build-id
                (count sources)
                (count compiled)
-               (count warnings)
+               warning-count
                (-> (- (or (get info :flush-complete)
                           (get info :compile-complete))
                       (get info :compile-start))
                    (double)
                    (/ 1000))))
 
-    (when (seq warnings)
-      (println)
-      (warnings/print-warnings warnings)
-
-      )))
+    (warnings/print-warnings-for-build-info info)
+    ))
 
 (defn print-build-failure [{:keys [build-id report] :as x}]
   (println (format "[%s] Build failure:" build-id))

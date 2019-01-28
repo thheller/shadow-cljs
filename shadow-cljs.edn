@@ -58,7 +58,7 @@
 
    :compiler-options
    {:infer-externs :auto
-    :warnings {:invalid-arithmetic false}}
+    :warnings {:invalid-arithmetic true}}
 
    :js-options
    {:node-modules-dir "packages/ui"}
