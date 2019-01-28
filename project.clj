@@ -119,6 +119,8 @@
        garden]]
      [fulcrologic/fulcro-inspect "2.2.5"]
      [aysylu/loom "1.0.2"]
+     [funcool/bide "1.6.0"]
+     [com.andrewmcveigh/cljs-time "0.5.2"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project

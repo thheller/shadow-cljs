@@ -7,6 +7,8 @@
 
  :dependencies
  [[reagent "0.8.1"]
+  [funcool/bide "1.6.0"]
+  [com.andrewmcveigh/cljs-time "0.5.2"]
   ;; [re-frame "0.10.5"]
   ;; [fulcrologic/fulcro "2.6.0-RC6"]
   ]
