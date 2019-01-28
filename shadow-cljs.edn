@@ -57,7 +57,8 @@
    :asset-path "/js"
 
    :compiler-options
-   {:infer-externs :auto}
+   {:infer-externs :auto
+    :warnings {:invalid-arithmetic false}}
 
    :js-options
    {:node-modules-dir "packages/ui"}

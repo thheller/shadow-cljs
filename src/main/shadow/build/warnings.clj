@@ -144,14 +144,14 @@
 
 (defn print-warning
   [{::keys [idx] :keys [resource-name file line column source-excerpt msg] :as warning}]
-  (println (coded-str [:bold] (sep-line (str " WARNING #" idx " ") 6)))
+  (println (coded-str [:bold] (sep-line (str " WARNING #" idx " - " (:warning warning) " ") 6)))
   (println " File:" (name-with-loc (or file resource-name) line column))
 
   (if (> idx 3)
     (do (println (str " " (coded-str [:yellow :bold] msg)))
         (println (sep-line)))
     (if-not source-excerpt
-      (do (println)
+      (do #_ (println)
           (println (str " " (coded-str [:yellow :bold] msg)))
           (println (sep-line)))
 

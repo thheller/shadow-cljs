@@ -112,17 +112,18 @@
    :cljs
    {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
     :dependencies
-    [[fulcrologic/fulcro "2.6.16"
+    [[fulcrologic/fulcro "2.8.0"
       :exclusions
       [clojure-future-spec
        com.stuartsierra/component
        garden]]
-     [fulcrologic/fulcro-inspect "2.2.4"]
+     [fulcrologic/fulcro-inspect "2.2.5"]
+     [aysylu/loom "1.0.2"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
      [reagent "0.8.1"]
-     [nubank/workspaces "1.0.1"]]
+     [nubank/workspaces "1.0.4"]]
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware

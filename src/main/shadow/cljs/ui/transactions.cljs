@@ -58,3 +58,6 @@
 
 (deftx repl-session-start
   {:runtime-id some?})
+
+(deftx inspect-build-ns
+  {:ns symbol?})

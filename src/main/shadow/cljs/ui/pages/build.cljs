@@ -9,6 +9,8 @@
     [shadow.cljs.ui.transactions :as tx]
     [shadow.cljs.ui.components.build-status :as build-status]
     ["react-table" :as rt :default ReactTable]
+    [loom.graph :as g]
+    [loom.alg :as ga]
     [clojure.string :as str]
     [shadow.cljs.ui.routing :as routing]
     [shadow.cljs.ui.fulcro-mods :as fm]
@@ -73,6 +75,33 @@
     (html/option {:value "goog"} "Closure JS")
     (html/option {:value "js"} "JS")
     (html/option {:value "shadow-js"} "shadow-js")))
+
+(defn render-build-provides [this {::m/keys [build-provides build-info build-ns-summary] :as props}]
+  (html/div
+    (html/h1 "Build Namespaces")
+    (html/select {:value (str (:ns build-ns-summary))
+                  :onChange
+                  (fn [^js e]
+                    (fp/transact! this [(tx/inspect-build-ns {:ns (-> e .-target .-value symbol)})]))}
+
+      (html/option {:key "" :value ""} "...")
+      (html/for [ns build-provides]
+        (html/option {:key ns :value (str ns)} (str ns))))
+
+    (when build-ns-summary
+      (let [{:keys [ns rc entry-paths]}
+            build-ns-summary
+
+            {:keys [resource-name]} rc]
+
+        (html/div
+          (html/h3 (str "Namespace: " ns " via: " resource-name))
+          (html/h3 "Entries that led to the inclusion of this namespace")
+          (html/for [path entry-paths]
+            (html/div (->> path
+                           (map str)
+                           (str/join " -> ")))
+            ))))))
 
 (defn render-build-info [{:keys [sources modules] :as build-info}]
   (let [src-by-id
@@ -148,11 +177,13 @@
       ::m/build-config-raw
       ::m/build-status
       ::m/build-info
+      ::m/build-provides
+      ::m/build-ns-summary
       {::m/build-http-server (build-http-server
                                [::m/http-url])}
       ::m/build-worker-active])}
 
-  (let [{::m/keys [build-status build-info build-config-raw build-worker-active]} props
+  (let [{::m/keys [build-status build-info build-provides build-config-raw build-worker-active]} props
         {:keys [status log]} build-status]
 
     (if-not build-id
@@ -195,7 +226,9 @@
 
         (when (and (= :completed status)
                    (map? build-info))
-          (render-build-info build-info))
+          (html/div
+            (render-build-provides this props)
+            (render-build-info build-info)))
         #_(html/div
             (s/build-section "Config")
             (s/build-config
@@ -246,5 +279,59 @@
     [(tx/select-build {:build-id (keyword build-id)})
      (routing/set-route {:router ::ui-model/root-router
                          :ident [::m/build-id (keyword build-id)]})]))
+
+(defn make-ns-summary [{:keys [modules sources] :as build-info} the-ns]
+  (let [entries
+        (->> modules
+             (mapcat :entries)
+             (into #{})
+             (sort)
+             (into []))
+
+        provide->source
+        (->> (for [{:keys [provides] :as rc} sources
+                   provide provides]
+               [provide rc])
+             (into {}))
+
+        the-rc
+        (get provide->source the-ns)
+
+        edges
+        (for [{:keys [deps provides]} sources
+              provide provides
+              dep deps]
+          [provide dep])
+
+        graph
+        (apply g/digraph edges)
+
+        entry-paths
+        (into []
+          (for [entry entries
+                :let [path (ga/shortest-path graph entry the-ns)]
+                :when (seq path)]
+            (vec path)))
+        ]
+
+    {:ns the-ns
+     :rc the-rc
+     :entry-paths entry-paths
+     }))
+
+(fm/handle-mutation tx/inspect-build-ns
+  {:refresh
+   (fn []
+     [::m/build-ns-summary])
+   :state-action
+   (fn [state {:keys [ref] :as env} {:keys [ns] :as params}]
+     (let [{::m/keys [build-info] :as obj}
+           (get-in state ref)
+
+           ns-summary
+           (make-ns-summary build-info ns)]
+
+       (update-in state ref assoc ::m/build-ns-summary ns-summary)
+       ))})
 
 (defn init [])

@@ -42,7 +42,7 @@
 
 (defn render-build-warning [{:keys [source-excerpt file line column msg resource-name] :as warning}]
   (s/build-warning-container
-    (s/build-warning-title (str "Warning in ")
+    (s/build-warning-title (str "Warning " (:warning warning) " in ")
       (html/a {:href file} resource-name)
       " at " line ":" column)
     (s/build-warning-message msg)

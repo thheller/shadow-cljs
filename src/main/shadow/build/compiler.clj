@@ -539,6 +539,7 @@
    [:compiler-options :elide-asserts]
    [:compiler-options :reader-features]
    [:compiler-options :load-tests]
+   [:compiler-options :warnings]
    ;; some community macros seem to use this
    ;; hard to track side-effecting macros but even more annoying to run into caching bugs
    ;; so just let any change invalidate everything for safety reasons

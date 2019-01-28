@@ -81,8 +81,8 @@
           (s/nav-link {:href "/repl"} "REPL")))
 
       (s/nav-fill {})
-      (s/nav-item
-        (html/div (if (::ui-model/ws-connected props) "✔" "WS DISCONNECTED!"))))))
+      #_(s/nav-item
+          (html/div (if (::ui-model/ws-connected props) "✔" "WS DISCONNECTED!"))))))
 
 (def ui-main-nav (fp/factory MainNav {}))
 
@@ -95,7 +95,7 @@
    :factory page-loading/ui-page
    :default true})
 
-(defsc Root [this {::ui-model/keys [main-nav builds-loaded] :as props}]
+(defsc Root [this {::ui-model/keys [ws-connected main-nav builds-loaded] :as props}]
   {:initial-state
    (fn [p]
      {::ui-model/root-router {}
@@ -104,12 +104,18 @@
 
    :query
    [::ui-model/builds-loaded
+    ::ui-model/ws-connected
     {::ui-model/root-router (routing/get-query ::ui-model/root-router)}
     {::ui-model/main-nav (fp/get-query MainNav)}]}
 
-  (if-not builds-loaded
+  (cond
+    (not builds-loaded)
     (html/div "Loading ...")
 
+    (not ws-connected)
+    (html/div "WebSocket not connected ...")
+
+    :else
     (s/page-container
       (ui-main-nav main-nav)
       (routing/render ::ui-model/root-router this props))))
@@ -155,10 +161,19 @@
    update-dashboard])
 
 (fm/handle-mutation tx/process-worker-broadcast
-  (fn [state env {:keys [build-id type] :as params}]
+  (fn [state env {:keys [build-id type info] :as params}]
     (case type
       :build-complete
-      (assoc-in state [::m/build-id build-id ::m/build-info] (:info params))
+      (-> state
+          (update-in [::m/build-id build-id] merge {::m/build-info info
+                                                    ;; FIXME: should actually update instead of just removing
+                                                    ;; but no access to the code from here
+                                                    ::m/build-ns-summary nil
+                                                    ::m/build-provides
+                                                    (->> (:sources info)
+                                                         (mapcat :provides)
+                                                         (sort)
+                                                         (into))}))
 
       :build-status
       (assoc-in state [::m/build-id build-id ::m/build-status] (:state params))
