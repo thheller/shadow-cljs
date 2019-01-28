@@ -1081,6 +1081,22 @@
            (or (nil? x)
                (not= x :none)))
 
+         ;; used by shadow-resolve-var to determine if rogue dotted symbols could be actual CLJS symbols
+         ;; sorted by descending length to avoid bailing too early
+         ;; some.foo.bar.thing should always hit some.foo.bar and never some.foo if both exist
+         cljs-provides
+         (->> cljs
+              (map :ns)
+              (sort-by #(-> % str count))
+              (reverse)
+              (into []))
+
+         goog-provides
+         (->> non-cljs-provides
+              (sort-by #(-> % str count))
+              (reverse)
+              (into []))
+
          ns-roots
          (->> (concat cljs goog)
               (mapcat :provides)
@@ -1092,6 +1108,8 @@
                        ns)))
               (into #{}))]
 
+     (prn [:cljs-provides cljs-provides])
+
      (-> state
          (assoc :compile-start (System/currentTimeMillis))
 
@@ -1100,7 +1118,9 @@
          ;; doesn't clash with (ns thing.foo.bar)
          ;; but due to parallel compilation the ns may not exist when munge decides to munge
          ;; so we ensure the roots always exist even before compilation starts
-         (assoc-in [:compiler-env :shadow/ns-roots] ns-roots)
+         (update :compiler-env merge {:shadow/ns-roots ns-roots
+                                      :shadow/cljs-provides cljs-provides
+                                      :shadow/goog-provides goog-provides})
 
          ;; order of this is important
          ;; CLJS first since all it needs are the provided names
