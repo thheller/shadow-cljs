@@ -2,6 +2,8 @@
   (:gen-class)
   (:require [clojure.string :as str]
             [clojure.main :as main]
+            [shadow.cljs.silence-default-loggers]
+            [shadow.jvm-log :as log]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.cli-opts :as opts]
             [shadow.cljs.devtools.api :as api]
@@ -11,11 +13,9 @@
             [shadow.build.node :as node]
             [shadow.cljs.devtools.server.socket-repl :as socket-repl]
             [shadow.cljs.devtools.server.env :as env]
-            [shadow.cljs.devtools.server.runtime :as runtime]
-            [shadow.jvm-log :as log])
+            [shadow.cljs.devtools.server.runtime :as runtime])
   (:import (clojure.lang LineNumberingPushbackReader)
-           (java.io StringReader)
-           [java.net Socket]))
+           (java.io StringReader)))
 
 ;; delayed require to we can improve startup time a bit
 (defn lazy-invoke [var-sym & args]

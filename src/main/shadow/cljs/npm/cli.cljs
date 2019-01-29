@@ -308,7 +308,7 @@
             (conj "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
-    (log "shadow-cljs - starting ...")
+    #_ (log "shadow-cljs - starting ...")
     (run! project-root "java" cli-args {})))
 
 (defn get-lein-args [{:keys [lein] :as config} opts]

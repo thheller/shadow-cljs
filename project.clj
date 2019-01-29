@@ -106,8 +106,8 @@
      "src/repl"]
 
     :dependencies
-    [[org.slf4j/slf4j-log4j12 "1.7.25"]
-     [log4j "1.2.17"]]}
+    [#_ [org.slf4j/slf4j-log4j12 "1.7.25"]
+     #_ [log4j "1.2.17"]]}
 
    :aot
    {:aot [repl]}
