@@ -331,10 +331,10 @@
                                      guessed-sym (symbol (subs s (-> hit str count inc)))]
 
                                  ;; this path happens way too often and should be fixed properly
-                                 (log/debug ::autofix-symbol
-                                   {:sym sym
-                                    :guessed-ns guessed-ns
-                                    :guessed-sym guessed-sym})
+                                 #_(log/debug ::autofix-symbol
+                                     {:sym sym
+                                      :guessed-ns guessed-ns
+                                      :guessed-sym guessed-sym})
 
                                  ;; although this split will sometimes produce valid matches it won't always work
                                  ;; cljs.core.-invoke works and ens up as cljs.core/-invoke

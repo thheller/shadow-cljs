@@ -27,7 +27,7 @@
    [org.clojure/data.json "0.2.6"]
    [org.clojure/tools.cli "0.3.7"]
    [org.clojure/tools.reader "1.3.2"]
-   [nrepl "0.4.5"]
+   [nrepl "0.5.3"]
 
    [com.cognitect/transit-clj "0.8.313"]
    [com.cognitect/transit-cljs "0.8.256"]
@@ -46,7 +46,16 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.16.Final"]
+   [io.undertow/undertow-core "2.0.17.Final"
+    :exclusions
+    [org.jboss.xnio/xnio-api
+     org.jboss.xnio/xnio-nio]]
+
+   [org.jboss.xnio/xnio-api "3.6.5.Final"]
+   [org.jboss.xnio/xnio-nio "3.6.5.Final"
+    :exlusions [org.jboss.threads/jboss-threads]]
+
+   [org.jboss.threads/jboss-threads "2.3.2.Final"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.7.1"
@@ -54,12 +63,12 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [expound "0.7.1"]
+   [expound "0.7.2"]
    [fipp "0.6.14"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
-   [com.wsscode/pathom "2.1.3"
+   [com.wsscode/pathom "2.2.7"
     :exclusions
     [org.clojure/data.json
      fulcrologic/fulcro
