@@ -161,7 +161,7 @@
           [::undertow/file {:root-dir ui-root} req-handler])
 
         handler-config
-        [::undertow/disable-cache
+        [::undertow/soft-cache
          [::undertow/ws-upgrade
           [::undertow/ws-ring {:handler-fn ring-fn}]
           [::undertow/compress {}
