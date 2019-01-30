@@ -81,7 +81,7 @@
 (defn ^:dev/after-load start []
   (js/console.log "browser-start")
   (set! (.-innerHTML (js/document.querySelector "h1")) "loaded!")
-  (let [worker (js/Worker. "/js/worker.js")]
+  #_ (let [worker (js/Worker. "/js/worker.js")]
     (reset! worker-ref worker)
 
     (.addEventListener worker "message"
@@ -96,7 +96,7 @@
   (start))
 
 (defn ^:dev/before-load stop-sync []
-  (.terminate @worker-ref)
+  #_ (.terminate @worker-ref)
   (js/console.log "browser-stop-sync"))
 
 (defn ^:dev/before-load-async stop [done]

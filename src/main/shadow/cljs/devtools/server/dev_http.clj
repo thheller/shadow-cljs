@@ -77,7 +77,7 @@
               [::undertow/file {:root-dir root-dir} req-handler])
 
             handler-config
-            [::undertow/disable-cache
+            [::undertow/soft-cache
              [::undertow/ws-upgrade
               [::undertow/ws-ring {:handler-fn http-handler-fn}]
               [::undertow/compress {} req-handler]]]

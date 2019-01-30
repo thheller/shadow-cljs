@@ -158,6 +158,24 @@
         (assoc :handler handler)
         )))
 
+(defmethod build* ::soft-cache [state [id next]]
+  (assert (vector? next))
+
+  (let [{next :handler :as state}
+        (build state next)
+
+        handler
+        (reify
+          HttpHandler
+          (handleRequest [_ ex]
+            (-> ex
+                (.getResponseHeaders)
+                ;; minimal caching headers that force the browser the revalidate
+                ;; undertow will respond with 304 Not Modified checking If-Modified-Since
+                (.add Headers/CACHE_CONTROL "private, no-cache"))
+            (.handleRequest next ex)))]
+    (assoc state :handler handler)))
+
 (defmethod build* ::disable-cache [state [id next]]
   (assert (vector? next))
 
