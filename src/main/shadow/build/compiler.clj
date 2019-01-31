@@ -1085,8 +1085,18 @@
          ;; sorted by descending length to avoid bailing too early
          ;; some.foo.bar.thing should always hit some.foo.bar and never some.foo if both exist
          cljs-provides
-         (->> cljs
-              (map :ns)
+         (into #{} (map :ns) cljs)
+
+         ;; work around problems where rrb-vector uses direct reference to
+         ;; clojure.core.rrb_vector.rrbt.Vector
+         ;; which will never be found in analyzer data since it should be
+         ;; clojure.core.rrb-vector.rrbt/Vector
+         ;; https://github.com/clojure/core.rrb-vector/blob/88c605a72f1176813ca71d664275d480285f634e/src/main/cljs/clojure/core/rrb_vector/macros.clj#L23-L24
+         ;; only doing this to relax warnings given that this is a probably-wont-fix in CLJS
+         cljs-provides
+         (->> cljs-provides
+              (map comp/munge)
+              (into cljs-provides)
               (sort-by #(-> % str count))
               (reverse)
               (into []))
