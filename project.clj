@@ -12,9 +12,10 @@
   ["-target" "1.8"
    "-source" "1.8"]
 
-  :managed-dependencies [[commons-codec "1.11"]
-                         [com.google.errorprone/error_prone_annotations "2.1.3"]
-                         [com.google.code.findbugs/jsr305 "3.0.2"]]
+  :managed-dependencies
+  [[commons-codec "1.11"]
+   [com.google.errorprone/error_prone_annotations "2.1.3"]
+   [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
   [[org.clojure/clojure "1.9.0"]
@@ -35,7 +36,7 @@
    [org.clojure/core.async "0.4.490"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.10.439"
+   [org.clojure/clojurescript "1.10.516"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded]]
 
@@ -106,8 +107,8 @@
      "src/repl"]
 
     :dependencies
-    [#_ [org.slf4j/slf4j-log4j12 "1.7.25"]
-     #_ [log4j "1.2.17"]]}
+    [#_[org.slf4j/slf4j-log4j12 "1.7.25"]
+     #_[log4j "1.2.17"]]}
 
    :aot
    {:aot [repl]}
