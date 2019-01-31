@@ -40,7 +40,7 @@
 (s/def ::ns-keys
   (s/tuple
     (s/and qualified-keyword? #(-> % name #{"keys" "syms"}))
-    (s/coll-of simple-symbol? :kind vector?)))
+    (s/coll-of ident? :kind vector?)))
 
 (s/def ::map-bindings
   (s/every (s/or :map-binding ::map-binding
