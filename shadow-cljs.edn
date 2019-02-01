@@ -203,6 +203,17 @@
    :exports-var demo.now/handler
    :output-to "out/demo-now/index.js"}
 
+  :self-contained-script
+  {:target :node-script
+   :main demo.script/main
+   :js-options
+   {:js-provider :shadow
+    :keep-native-requires true
+    ;; :keep-as-require #{"which"}
+    }
+
+   :output-to "out/demo-script-bundle/script.js"}
+
   #_#_:browser-single
       {:target :browser
 

@@ -6,6 +6,11 @@ goog.provide("shadow.js");
 shadow.js.files = {};
 
 /**
+ * @dict
+ */
+shadow.js.nativeRequires = {};
+
+/**
  * @nocollapse
  */
 shadow.js.process = {};
@@ -70,10 +75,19 @@ shadow.js.process["umask"] = function() {
 
 shadow.js.requireStack = [];
 
+shadow.js.add_native_require = function(name, obj) {
+  shadow.js.nativeRequires[name] = obj;
+};
+
 /**
  * @return {ShadowJS}
  */
 shadow.js.jsRequire = function(name, opts) {
+  var nativeObj = shadow.js.nativeRequires[name];
+  if (nativeObj !== undefined) {
+    return nativeObj;
+  }
+
   try {
     if (goog.DEBUG) {
       if (name.indexOf("/") != -1) {

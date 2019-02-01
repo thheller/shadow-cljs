@@ -1,7 +1,9 @@
 (ns demo.script
   (:require
     ["http" :as http]
-    ["./es6"]))
+    ["which" :as which]))
+
+(prn [:which (which/sync "java" #js {:nothrow true})])
 
 (defn request-handler [req res]
   (.end res "foo"))

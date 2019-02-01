@@ -77,6 +77,13 @@
   {"jquery"
    {:export-globals ["$", "jQuery"]}})
 
+(def native-node-modules
+  #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
+    "constants" "crypto" "_debugger" "dgram" "dns" "domain" "events" "freelist"
+    "fs" "http" "https" "_linklist" "module" "net" "os" "path" "punycode"
+    "querystring" "readline" "repl" "stream" "string_decoder" "sys" "timers"
+    "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
+
 (defn find-npm-resource
   [npm ^File require-from ^String require require-ctx]
   {:pre [(npm/service? npm)
@@ -183,70 +190,70 @@
 (defmethod find-resource-for-string :shadow
   [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
-  (let [abs? (util/is-absolute? require)
-        rel? (util/is-relative? require)
-        cp-rc? (when require-from
-                 (classpath-resource? require-from))]
+  (if (and (:keep-native-requires js-options)
+           (or (contains? native-node-modules require)
+               (contains? (:keep-as-require js-options) require)))
+    (js-support/shim-require-resource state require)
 
-    (when-let [{:keys [js-esm deps resource-name source] :as rc}
-               (cond
-                 ;; entry requires must always be absolute
-                 (and (nil? require-from) abs?)
-                 (cp/find-js-resource classpath require)
+    (let [abs? (util/is-absolute? require)
+          rel? (util/is-relative? require)
+          cp-rc? (when require-from
+                   (classpath-resource? require-from))]
 
-                 ;; requires from non classpath resources go directly to npm resolve
-                 ;; as do ambiguous requires, eg "react" not "./foo"
-                 (or (not cp-rc?)
-                     (and (not abs?)
-                          (not rel?)))
-                 (find-npm-resource (:npm state) file require
-                   (assoc js-options
-                     :mode (:mode state)
-                     :target :browser))
+      (when-let [{:keys [js-esm deps resource-name source] :as rc}
+                 (cond
+                   ;; entry requires must always be absolute
+                   (and (nil? require-from) abs?)
+                   (cp/find-js-resource classpath require)
 
-                 (util/is-absolute? require)
-                 (cp/find-js-resource classpath require)
+                   ;; requires from non classpath resources go directly to npm resolve
+                   ;; as do ambiguous requires, eg "react" not "./foo"
+                   (or (not cp-rc?)
+                       (and (not abs?)
+                            (not rel?)))
+                   (find-npm-resource (:npm state) file require
+                     (assoc js-options
+                       :mode (:mode state)
+                       :target :browser))
 
-                 (util/is-relative? require)
-                 (cp/find-js-resource classpath require-from require)
+                   (util/is-absolute? require)
+                   (cp/find-js-resource classpath require)
 
-                 :else
-                 (throw (ex-info "unsupported require" {:require require})))]
+                   (util/is-relative? require)
+                   (cp/find-js-resource classpath require-from require)
 
-      (if (and (:classpath rc) js-esm)
-        ;; es6 from the classpath is left as :js type so its gets processed by closure
-        rc
-        ;; es6 from node_modules and any commonjs is converted to :shadow-js
-        (let [babel-rewrite?
-              js-esm
+                   :else
+                   (throw (ex-info "unsupported require" {:require require})))]
 
-              deps
-              (-> '[shadow.js]
-                  (cond->
-                    babel-rewrite?
-                    (conj 'shadow.js.babel))
-                  (into deps))]
+        (if (and (:classpath rc) js-esm)
+          ;; es6 from the classpath is left as :js type so its gets processed by closure
+          rc
+          ;; es6 from node_modules and any commonjs is converted to :shadow-js
+          (let [babel-rewrite?
+                js-esm
 
-          (-> rc
-              (assoc :deps deps)
-              (assoc :type :shadow-js)
-              (cond->
-                babel-rewrite?
-                (-> (dissoc :source)
-                    ;; babel turns it into commonjs
-                    (assoc :source-fn
-                           (fn [state]
-                             (babel/convert-source babel state source resource-name)))
-                    )))))
+                deps
+                (-> '[shadow.js]
+                    (cond->
+                      babel-rewrite?
+                      (conj 'shadow.js.babel))
+                    (into deps))]
 
-      )))
+            (-> rc
+                (assoc :deps deps)
+                (assoc :type :shadow-js)
+                (cond->
+                  babel-rewrite?
+                  (-> (dissoc :source)
+                      ;; babel turns it into commonjs
+                      (assoc :source-fn
+                             (fn [state]
+                               (babel/convert-source babel state source resource-name)))
+                      )))))
 
-(def native-node-modules
-  #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
-    "constants" "crypto" "_debugger" "dgram" "dns" "domain" "events" "freelist"
-    "fs" "http" "https" "_linklist" "module" "net" "os" "path" "punycode"
-    "querystring" "readline" "repl" "stream" "string_decoder" "sys" "timers"
-    "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
+        ))))
+
+
 
 (defmethod find-resource-for-string :require
   [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]

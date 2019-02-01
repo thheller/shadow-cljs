@@ -195,7 +195,7 @@
   (api/release :browser {:pseudo-names true}))
 
 (deftest test-script
-  (api/compile :script))
+  (api/compile :self-contained-script))
 
 (deftest test-library
   (api/compile :library))

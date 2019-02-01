@@ -265,8 +265,18 @@
                    ";\n"))))
 
         final-output
-        (str (when (and any-shadow-js? goog-base)
+        (str (when (and any-shadow-js?
+                        goog-base
+                        ;; special case for node targets that use
+                        ;; prepend to prepend hashbang which must be first
+                        ;; FIXME: ugly hack, make this cleaner
+                        (or (nil? prepend)
+                            (not (str/includes? prepend "shadow$provide"))))
                "var shadow$provide = {};\n")
+             ;; FIXME: shadow$provide must come before prepend
+             ;; since output-wrapper uses prepend and we need this
+             ;; to be available cross module, we should however try to avoid
+             ;; leaking a global like that. just not sure how.
              prepend
              shadow-js-prepend
              output
