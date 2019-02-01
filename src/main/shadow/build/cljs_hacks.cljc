@@ -462,7 +462,7 @@
           ;; (. thing (foo 1 2 3))
           member-seq?
           (let [[method & args] member
-                argexprs (map #(ana/analyze enve %) args)]
+                argexprs (mapv #(ana/analyze enve %) args)]
             (assoc ast :op :host-call
                        :prop method
                        :method method
@@ -482,7 +482,7 @@
           ;; (. thing foo)
           ;; (. thing foo 1 2 3)
           member-sym?
-          (let [argexprs (map #(ana/analyze enve %) member+)]
+          (let [argexprs (mapv #(ana/analyze enve %) member+)]
             (assoc ast :op :host-call
                        :prop member
                        :method member
