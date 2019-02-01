@@ -409,7 +409,10 @@
   {:target :node-library
    :output-to "out/demo-library/lib.js"
    :exports
-   {:hello demo.lib/hello}}
+   {:hello demo.lib/hello}
+   :js-options
+   {:js-provider :shadow
+    :keep-native-requires true}}
 
   #_#_:custom
       {:target build/custom

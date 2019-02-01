@@ -1,8 +1,8 @@
 (ns demo.lib
-  (:require ["./es6"]))
+  (:require ["which" :as w]))
 
 (js/console.log "demo.lib")
 
 (defn hello []
-  "hello")
+  (w/sync "java" #js {:nothrow true}))
 

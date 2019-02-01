@@ -162,8 +162,6 @@
 
 (defn configure [state mode {:keys [id] :as config}]
   (-> state
-      ;; node builds should never attempt to import libs through closure
-      (assoc-in [:js-options :js-provider] :require)
       (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")
 
       (shared/set-output-dir mode config)

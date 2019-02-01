@@ -106,6 +106,7 @@
    })
 
 (def default-js-options
+  ;; don't change the :js-provider default, node targets assume it is :require
   {:js-provider :require ;; :closure, :require, :include maybe :webpack, maybe something
    :generate-externs true
    :packages {}})
