@@ -1,22 +1,15 @@
 (ns shadow.build.resolve
   "utility functions for resolving dependencies from entries"
-  (:require [clojure.string :as str]
-            [clojure.set :as set]
-            [clojure.java.io :as io]
-            [shadow.jvm-log :as log]
-            [cljs.analyzer :as cljs-ana]
-            [cljs.compiler :as cljs-comp]
-            [shadow.cljs.util :as util]
-            [shadow.build.resource :as rc]
-            [shadow.build.classpath :as cp]
-            [shadow.build.npm :as npm]
-            [shadow.build.data :as data]
-            [shadow.build.js-support :as js-support]
-            [shadow.build.cljs-bridge :as cljs-bridge]
-            [shadow.build.babel :as babel])
-  (:import (java.io File)
-           (java.net URL)
-           [java.nio.file Paths]))
+  (:require
+    [clojure.string :as str]
+    [shadow.cljs.util :as util]
+    [shadow.build.classpath :as cp]
+    [shadow.build.npm :as npm]
+    [shadow.build.data :as data]
+    [shadow.build.js-support :as js-support]
+    [shadow.build.cljs-bridge :as cljs-bridge]
+    [shadow.build.babel :as babel])
+  (:import (java.io File)))
 
 (defmulti resolve-deps*
   (fn [state {:keys [type]}]
@@ -85,12 +78,11 @@
     "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
 
 (defn find-npm-resource
-  [npm ^File require-from ^String require require-ctx]
+  [npm ^File require-from ^String require]
   {:pre [(npm/service? npm)
          (or (nil? require-from)
              (instance? File require-from))
-         (string? require)
-         (map? require-ctx)]}
+         (string? require)]}
 
   ;; per build :resolve config that may override where certain requires go
   ;; FIXME: should this only allow overriding package requires?
@@ -98,7 +90,7 @@
   ;; "./something.js" would override anything from any package
   ;; just assume ppl will only override packages for now
   (let [resolve-cfg
-        (let [x (get-in require-ctx [:resolve require])]
+        (let [x (get-in npm [:js-options :resolve require])]
           ;; can't use `or` since `false` is a legal return
           (if-not (nil? x)
             x
@@ -114,7 +106,7 @@
             (case target
               ;; no resolve config, or resolve config without :target
               nil
-              (npm/find-resource npm require-from require require-ctx)
+              (npm/find-resource npm require-from require)
 
               ;; {"react" {:target :global :global "React"}}
               :global
@@ -122,12 +114,12 @@
 
               ;; {"react" {:target :file :file "some/path.js"}}
               :file
-              (npm/js-resource-for-file npm require resolve-cfg require-ctx)
+              (npm/js-resource-for-file npm require resolve-cfg)
 
               ;; {"react" {:target :npm :require "preact"}}
               :npm
               (let [other
-                    (if (and (= :release (:mode require-ctx)) (contains? resolve-cfg :require-min))
+                    (if (and (= :release (get-in npm [:js-options :mode])) (contains? resolve-cfg :require-min))
                       (:require-min resolve-cfg)
                       (:require resolve-cfg))]
 
@@ -135,7 +127,7 @@
                 (when (= require other)
                   (throw (ex-info "can't resolve to self" {:require require :other other})))
 
-                (or (find-npm-resource npm require-from other require-ctx)
+                (or (find-npm-resource npm require-from other)
                     (throw (ex-info (format ":resolve override for \"%s\" to \"%s\" which does not exist" require other)
                              {:tag ::invalid-override
                               :require-from require-from
@@ -172,10 +164,7 @@
       (or (not cp-rc?)
           (and (not abs?)
                (not rel?)))
-      (find-npm-resource (:npm state) file require
-        (assoc js-options
-          :mode (:mode state)
-          :target :browser))
+      (find-npm-resource (:npm state) file require)
 
       (util/is-absolute? require)
       (cp/find-js-resource classpath require)
@@ -211,10 +200,7 @@
                    (or (not cp-rc?)
                        (and (not abs?)
                             (not rel?)))
-                   (find-npm-resource (:npm state) file require
-                     (assoc js-options
-                       :mode (:mode state)
-                       :target :browser))
+                   (find-npm-resource (:npm state) file require)
 
                    (util/is-absolute? require)
                    (cp/find-js-resource classpath require)

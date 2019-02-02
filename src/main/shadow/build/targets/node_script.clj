@@ -32,6 +32,8 @@
 (defn configure [state mode config]
   (-> state
       (shared/set-output-dir mode config)
+
+      (node/set-defaults)
       (node/configure config)
 
       (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "nodejs")

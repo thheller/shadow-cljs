@@ -106,14 +106,15 @@
       (when (.exists file)
         file))))
 
-(defn test-file-exts ^File [{:keys [extensions] :as npm} ^File dir name]
-  (reduce
-    (fn [_ ext]
-      (when-let [path (test-file dir (str name ext))]
-        (when (.isFile path)
-          (reduced path))))
-    nil
-    extensions))
+(defn test-file-exts ^File [npm ^File dir name]
+  (let [extensions (get-in npm [:js-options :extensions])]
+    (reduce
+      (fn [_ ext]
+        (when-let [path (test-file dir (str name ext))]
+          (when (.isFile path)
+            (reduced path))))
+      nil
+      extensions)))
 
 (defn find-package* [{:keys [node-modules-dir] :as npm} package-name]
   ;; this intentionally only checks
@@ -165,9 +166,9 @@
          (when (not= suffix "")
            suffix))])))
 
-(defn find-package-main [{:keys [main-keys] :as npm} {:keys [package-dir package-json] :as package}]
+(defn find-package-main [npm {:keys [package-dir package-json] :as package}]
   (let [entries
-        (->> main-keys
+        (->> (get-in npm [:js-options :entry-keys])
              (map #(get package-json %))
              (remove nil?)
              (into []))
@@ -339,56 +340,59 @@
 
 (defn find-file
   [npm ^File require-from ^String require]
-  (cond
-    (util/is-absolute? require)
-    (throw (ex-info "absolute require not allowed for node_modules files"
-             {:tag ::absolute-path
-              :require-from require-from
-              :require require}
-             ))
+  (let [use-browser-overrides (get-in npm [:js-options :use-browser-overrides])]
+    (cond
+      (util/is-absolute? require)
+      (throw (ex-info "absolute require not allowed for node_modules files"
+               {:tag ::absolute-path
+                :require-from require-from
+                :require require}
+               ))
 
-    (util/is-relative? require)
-    (find-relative npm require-from require)
+      (util/is-relative? require)
+      (find-relative npm require-from require)
 
-    :else
-    (let [require-from-pkg
-          (when require-from ;; no overrides for entries
-            (find-package-for-file npm require-from))
+      :else
+      (let [require-from-pkg
+            (when require-from ;; no overrides for entries
+              (find-package-for-file npm require-from))
 
-          browser-override
-          (and require-from-pkg
-               (get-in require-from-pkg [:browser-overrides require]))
-
-          override
-          (if (some? browser-override)
             browser-override
-            (get node-libs-browser require))]
+            (and use-browser-overrides
+                 require-from-pkg
+                 (get-in require-from-pkg [:browser-overrides require]))
 
-      (cond
-        (nil? override)
-        (find-package-require npm require)
+            override
+            (when use-browser-overrides
+              (if (some? browser-override)
+                browser-override
+                (get node-libs-browser require)))]
 
-        ;; "canvas": false
-        (false? override)
-        false
+        (cond
+          (nil? override)
+          (find-package-require npm require)
 
-        (not (string? override))
-        (throw (ex-info (format "invalid override in package: %s" require-from)
-                 {:require require
-                  :require-from require-from
-                  :override override}))
+          ;; "canvas": false
+          (false? override)
+          false
 
-        ;; jsdom
-        ;; "contextify": "./lib/jsdom/contextify-shim.js"
-        ;; overrides a package require from within the package to a local file
-        (util/is-relative? override)
-        (find-relative npm (:package-dir require-from-pkg) override)
+          (not (string? override))
+          (throw (ex-info (format "invalid override in package: %s" require-from)
+                   {:require require
+                    :require-from require-from
+                    :override override}))
 
-        ;; "foo":"bar"
-        ;; swap one package with the other
-        :else
-        (find-package-require npm override)
-        ))))
+          ;; jsdom
+          ;; "contextify": "./lib/jsdom/contextify-shim.js"
+          ;; overrides a package require from within the package to a local file
+          (util/is-relative? override)
+          (find-relative npm (:package-dir require-from-pkg) override)
+
+          ;; "foo":"bar"
+          ;; swap one package with the other
+          :else
+          (find-package-require npm override)
+          )))))
 
 (defn maybe-convert-goog [dep]
   (if-not (str/starts-with? dep "goog:")
@@ -601,8 +605,11 @@
   "if we want to include something that is not on npm or we want a custom thing
   {\"react\" {:type :file :file \"path/to/my/react.js\"}}"
 
-  [npm require {:keys [file file-min] :as cfg} {:keys [mode] :as require-ctx}]
-  (let [file
+  [npm require {:keys [file file-min] :as cfg}]
+  (let [mode
+        (get-in npm [:js-options :mode] :release)
+
+        file
         (-> (if (and (= :release mode) (seq file-min))
               (io/file file-min)
               (io/file file))
@@ -614,12 +621,11 @@
     ))
 
 (defn find-resource
-  [npm ^File require-from ^String require require-ctx]
+  [{:keys [js-options] :as npm} ^File require-from ^String require]
   {:pre [(service? npm)
          (or (nil? require-from)
              (instance? File require-from))
-         (string? require)
-         (map? require-ctx)]}
+         (string? require)]}
 
   (let [^File file (find-file npm require-from require)]
     (cond
@@ -635,7 +641,7 @@
 
             ;; the package may have "browser":{"./a":"./b"} overrides
             override
-            (when (and pkg (seq browser-overrides))
+            (when (and pkg (:use-browser-overrides js-options) (seq browser-overrides))
               (let [package-path
                     (.toPath package-dir)
 
@@ -708,7 +714,7 @@
 
     (str "shadow.js.require(\"" ns "\", " (json/write-str opts) ");")))
 
-;; FIXME: allow configuration of :extensions :main-keys
+;; FIXME: allow configuration of :extensions :entry-keys
 ;; maybe some closure opts
 (defn start [{:keys [node-modules-dir] :as config}]
   (let [index-ref
@@ -748,8 +754,12 @@
      ;; JVM working dir always
      :project-dir project-dir
      :node-modules-dir node-modules-dir
-     :extensions [#_".mjs" ".js" ".json"]
-     :main-keys [#_#_"module" "jsnext:main" "browser" "main"]
+
+     ;; browser defaults
+     :js-options {:extensions [#_".mjs" ".js" ".json"]
+                  :target :browser
+                  :use-browser-overrides true
+                  :entry-keys [#_#_"module" "jsnext:main" "browser" "main"]}
      }))
 
 (defn stop [npm])

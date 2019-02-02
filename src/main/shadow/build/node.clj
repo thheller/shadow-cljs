@@ -25,6 +25,14 @@
   {:pre [(symbol? main-fn)]}
   (str "\ncljs.core.apply.cljs$core$IFn$_invoke$arity$2(" (comp/munge main-fn) ", process.argv.slice(2));"))
 
+;; set node specific build defaults applicable to all node targets
+(defn set-defaults [state]
+  (build-api/with-js-options
+    state
+    {:target :node
+     :use-browser-overrides false
+     :entry-keys ["main"]}))
+
 (defn configure
   [state {:keys [main output-to] :as opts}]
   (let [main-ns

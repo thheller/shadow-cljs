@@ -17,7 +17,7 @@
 
 (deftest test-missing-package-returns-nil
   (with-npm [x {}]
-    (let [rc (find-npm-resource x nil "i-dont-exist" {})]
+    (let [rc (find-npm-resource x nil "i-dont-exist")]
       (is (nil? rc))
       )))
 
@@ -36,13 +36,28 @@
 (deftest test-browser-override
   (with-npm [x {}]
     (let [{:keys [resource-name ns file package-name] :as rc}
-          (find-npm-resource x nil "pkg-a" {})]
+          (find-npm-resource x nil "pkg-a")]
 
       ;; has browser override for index -> index-browser
       (is rc)
       (is (string? resource-name))
       (is (= 'module$node_modules$pkg_a$index_browser ns))
       (is (= "node_modules/pkg-a/index-browser.js" resource-name))
+      )))
+
+(deftest test-no-browser-override
+  (with-npm [x {}]
+    (let [{:keys [resource-name ns file package-name] :as rc}
+          (find-npm-resource
+            (update x :js-options merge {:use-browser-overrides false})
+            nil
+            "pkg-a")]
+
+      ;; has browser override for index -> index-browser
+      (is rc)
+      (is (string? resource-name))
+      (is (= 'module$node_modules$pkg_a$index ns))
+      (is (= "node_modules/pkg-a/index.js" resource-name))
       )))
 
 (comment (deftest test-babel-transform
@@ -55,11 +70,12 @@
 (deftest test-resolve-to-global
   (with-npm [x {}]
     (let [{:keys [ns type requires source] :as rc}
-          (find-npm-resource x nil "react"
-            {:target :browser
-             :resolve
-             {"react" {:target :global
-                       :global "React"}}})]
+          (find-npm-resource
+            (update x :js-options merge {:resolve
+                                         {"react" {:target :global
+                                                   :global "React"}}})
+            nil
+            "react")]
 
       (is rc)
       (is (= 'module$react ns))
@@ -71,12 +87,14 @@
 (deftest test-resolve-to-file
   (with-npm [x {}]
     (let [{:keys [ns resource-name] :as rc}
-          (find-npm-resource x nil "react"
-            {:mode :release
-             :resolve
-             {"react" {:target :file
-                       :file "test/dummy/react.dev.js"
-                       :file-min "test/dummy/react.min.js"}}})]
+          (find-npm-resource
+            (update x :js-options merge {:mode :release
+                                         :resolve
+                                         {"react" {:target :file
+                                                   :file "test/dummy/react.dev.js"
+                                                   :file-min "test/dummy/react.min.js"}}})
+            nil
+            "react")]
 
       (is rc)
       (is (= 'module$test$dummy$react_min ns))
@@ -85,11 +103,12 @@
 (deftest test-resolve-to-other
   (with-npm [x {}]
     (let [{:keys [ns resource-name] :as rc}
-          (find-npm-resource x nil "react"
-            {:target :browser
-             :resolve
-             {"react" {:target :npm
-                       :require "pkg-a"}}})]
+          (find-npm-resource
+            (update x :js-options merge {:resolve
+                                         {"react" {:target :npm
+                                                   :require "pkg-a"}}})
+            nil
+            "react")]
 
       (is rc)
       (is (string? resource-name))
@@ -104,7 +123,7 @@
           (find-npm-resource x
             (-> (io/file ".")
                 (.getCanonicalFile))
-            "./src/test/foo" {})]
+            "./src/test/foo")]
 
       (is rc)
       (is (= 'module$src$test$foo ns))
@@ -127,13 +146,11 @@
 
 (deftest test-require-dot-dot
   (with-npm [x {}]
-    (let [ctx {}
-
-          {:keys [file] :as rc1}
-          (find-npm-resource x nil "pkg-a/nested/thing" ctx)
+    (let [{:keys [file] :as rc1}
+          (find-npm-resource x nil "pkg-a/nested/thing")
 
           {:keys [ns resource-name] :as rc2}
-          (find-npm-resource x file ".." ctx)]
+          (find-npm-resource x file "..")]
 
       (is rc1)
       (is rc2)
@@ -145,10 +162,8 @@
 
 (deftest test-require-file-over-dir
   (with-npm [x {}]
-    (let [ctx {}
-
-          {:keys [resource-name] :as rc1}
-          (find-npm-resource x nil "file-over-dir/foo" ctx)]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "file-over-dir/foo")]
 
       (is rc1)
       (is (string? resource-name))
@@ -157,10 +172,8 @@
 
 (deftest test-require-file-over-dir-with-ext
   (with-npm [x {}]
-    (let [ctx {}
-
-          {:keys [resource-name] :as rc1}
-          (find-npm-resource x nil "file-over-dir/foo.js" ctx)]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "file-over-dir/foo.js")]
 
       (is rc1)
       (is (string? resource-name))
@@ -169,10 +182,8 @@
 
 (deftest test-require-entry-dir-with-index
   (with-npm [x {}]
-    (let [ctx {}
-
-          {:keys [resource-name] :as rc1}
-          (find-npm-resource x nil "entry-dir/foo" ctx)]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "entry-dir/foo")]
 
       (is rc1)
       (is (string? resource-name))
@@ -181,10 +192,8 @@
 
 (deftest test-main-as-dir
   (with-npm [x {}]
-    (let [ctx {}
-
-          {:keys [resource-name] :as rc1}
-          (find-npm-resource x nil "main-is-dir" ctx)]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "main-is-dir")]
 
       (is rc1)
       (is (string? resource-name))
@@ -193,23 +202,17 @@
 
 (deftest test-dir-dot-js
   (with-npm [x {}]
-    (let [ctx {}
-
-          ;; it should never try to pick dir.js
-          ;; node has asn1 and asn1.js packages
-          ;; and it should not pick the .js version over the other
-          rc1
-          (find-npm-resource x nil "dir" ctx)]
-
+    ;; it should never try to pick dir.js
+    ;; node has asn1 and asn1.js packages
+    ;; and it should not pick the .js version over the other
+    (let [rc1 (find-npm-resource x nil "dir")]
       (is (nil? rc1))
       )))
 
 (deftest test-nested-pkg
   (with-npm [x {}]
-    (let [ctx {}
-
-          {:keys [resource-name] :as rc1}
-          (find-npm-resource x nil "nested-pkg/nested" ctx)]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "nested-pkg/nested")]
 
       (is rc1)
       (is (string? resource-name))
@@ -218,10 +221,8 @@
 
 (deftest test-nested-pkg-without-main
   (with-npm [x {}]
-    (let [ctx {}
-
-          {:keys [resource-name] :as rc1}
-          (find-npm-resource x nil "nested-pkg/just-index" ctx)]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "nested-pkg/just-index")]
 
       (is rc1)
       (is (string? resource-name))
@@ -232,10 +233,8 @@
 ;; out they are just like any other nested pkg with special rules only for the registry
 (deftest test-scoped-pkg
   (with-npm [x {}]
-    (let [ctx {}
-
-          {:keys [resource-name] :as rc1}
-          (find-npm-resource x nil "@scoped/a" ctx)]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "@scoped/a")]
 
       (is rc1)
       (is (string? resource-name))

@@ -82,15 +82,17 @@
               :else
               (throw (ex-info "invalid :node-modules-dir" {:node-modules-dir nmd})))))
 
+        ;; FIXME: this should not happen here. move to more appropriate place
+        ;; somewhere in build targets maybe
         npm
-        (-> (select-keys (:js-options build-config) [:main-keys :extensions])
+        (-> (select-keys (:js-options build-config) [:entry-keys :extensions])
             (merge npm)
             (cond->
               node-modules-dir
               (assoc :node-modules-dir node-modules-dir)
 
               (get-in build-config [:js-options :prefer-esm])
-              (assoc :main-keys ["module" "jsnext:main" "browser" "main"]
+              (assoc :entry-keys ["module" "jsnext:main" "browser" "main"]
                      :extensions [".mjs" ".js" ".json"])))]
 
     (-> (build-api/init)

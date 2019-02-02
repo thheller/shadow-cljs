@@ -228,6 +228,10 @@
     state
     build-hooks))
 
+;; FIXME: this is kinda dirty but saves passing around a secondary js-options along npm
+(defn copy-js-options-to-npm [{:keys [mode js-options] :as state}]
+  (update-in state [:npm :js-options] merge js-options {:mode mode}))
+
 (defn configure
   [build-state mode {:keys [build-id target] :as config}]
   {:pre [(build-api/build-state? build-state)
@@ -265,6 +269,7 @@
             ::stage :init
             ::config config
             ::target-fn target-fn
+            :mode mode
             ::mode mode)
           ;; FIXME: not setting this for :release builds may cause errors
           ;; http://dev.clojure.org/jira/browse/CLJS-2002
@@ -320,6 +325,8 @@
           (cond->
             (= :dev mode)
             (assoc-in [:compiler-options :optimizations] :none))
+
+          (copy-js-options-to-npm)
           ))))
 
 (defn- extract-build-macros [{:keys [build-sources] :as state}]

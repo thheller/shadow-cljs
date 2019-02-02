@@ -1,7 +1,14 @@
 (ns demo.script
   (:require
     ["http" :as http]
+    ["request" :as req]
     ["which" :as which]))
+
+(req "https://www.google.com"
+  (fn [error res body]
+    (prn [:error error])
+    (prn [:res res])
+    (prn [:body body])))
 
 (prn [:which (which/sync "java" #js {:nothrow true})])
 
