@@ -17,13 +17,13 @@
    [com.google.errorprone/error_prone_annotations "2.1.3"]
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
+  ;; FIXME: not actually using any 1.10 features since I don't want
+  ;; not sure how to best handle this in a library situation
+  ;; can't use :scope "provided" since I otherwise need to track
+  ;; it manually in the npm launcher which just installs shadow-cljs
+  ;; and would be missing clojure then
   :dependencies
-  [[org.clojure/clojure "1.9.0"]
-   ;; java9, not required for java8
-   ;; [javax.xml.bind/jaxb-api "2.3.0"]
-
-   ;; [org.clojure/spec.alpha "0.1.108"]
-   ;; [org.clojure/core.specs.alpha "0.1.10"]
+  [[org.clojure/clojure "1.10.0"]
 
    [org.clojure/data.json "0.2.6"]
    [org.clojure/tools.cli "0.3.7"]
@@ -42,7 +42,7 @@
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20181125"]
+   [com.google.javascript/closure-compiler-unshaded "v20190121"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
