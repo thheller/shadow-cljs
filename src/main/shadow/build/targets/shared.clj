@@ -110,6 +110,31 @@
   {:pre [(vector? head)]}
   (into head tail))
 
+(defn hud-defines [hud]
+  (let [all-off
+        '{shadow.cljs.devtools.client.hud/show-warnings false
+          shadow.cljs.devtools.client.hud/show-progress false
+          shadow.cljs.devtools.client.hud/show-errors false}]
+
+    (cond
+      (true? hud)
+      {} ;; defaults to all true, no need to set them
+
+      (false? hud)
+      all-off
+
+      (set? hud)
+      (reduce
+        (fn [m key]
+          (assoc m
+            (symbol "shadow.cljs.devtools.client.hud" (str "show-" (name key)))
+            true))
+        all-off
+        hud))))
+
+(comment
+  (hud-defines #{:progress}))
+
 (defn repl-defines
   [{:keys [worker-info] :as state} build-config]
   (let [{:keys [proc-id ssl host port]}
@@ -125,45 +150,48 @@
                 after-load
                 autoload
                 use-document-host
-                repl-pprint]}
+                repl-pprint]
+         :as devtools}
         (:devtools build-config)]
 
-    {'shadow.cljs.devtools.client.env/enabled
-     true
+    (merge
+      {'shadow.cljs.devtools.client.env/enabled
+       true
 
-     'shadow.cljs.devtools.client.env/autoload
-     (or autoload (some? before-load) (some? after-load) (some? before-load-async))
+       'shadow.cljs.devtools.client.env/autoload
+       (or autoload (some? before-load) (some? after-load) (some? before-load-async))
 
-     'shadow.cljs.devtools.client.env/module-format
-     (name (get-in state [:build-options :module-format]))
+       'shadow.cljs.devtools.client.env/module-format
+       (name (get-in state [:build-options :module-format]))
 
-     'shadow.cljs.devtools.client.env/use-document-host
-     (not (false? use-document-host))
+       'shadow.cljs.devtools.client.env/use-document-host
+       (not (false? use-document-host))
 
-     'shadow.cljs.devtools.client.env/server-host
-     (or (and (not= host "0.0.0.0") host) "localhost")
+       'shadow.cljs.devtools.client.env/server-host
+       (or (and (not= host "0.0.0.0") host) "localhost")
 
-     'shadow.cljs.devtools.client.env/server-port
-     port
+       'shadow.cljs.devtools.client.env/server-port
+       port
 
-     'shadow.cljs.devtools.client.env/repl-pprint
-     (true? repl-pprint)
+       'shadow.cljs.devtools.client.env/repl-pprint
+       (true? repl-pprint)
 
-     'shadow.cljs.devtools.client.env/ignore-warnings
-     (true? ignore-warnings)
+       'shadow.cljs.devtools.client.env/ignore-warnings
+       (true? ignore-warnings)
 
-     'shadow.cljs.devtools.client.env/ssl
-     (true? ssl)
+       'shadow.cljs.devtools.client.env/ssl
+       (true? ssl)
 
-     'shadow.cljs.devtools.client.env/build-id
-     (name build-id)
+       'shadow.cljs.devtools.client.env/build-id
+       (name build-id)
 
-     'shadow.cljs.devtools.client.env/proc-id
-     (str proc-id)
+       'shadow.cljs.devtools.client.env/proc-id
+       (str proc-id)
 
-     'shadow.cljs.devtools.client.env/devtools-url
-     (or devtools-url "")
-     }))
+       'shadow.cljs.devtools.client.env/devtools-url
+       (or devtools-url "")}
+      (when (contains? devtools :hud)
+        (hud-defines (:hud devtools))))))
 
 (defn merge-repl-defines [state config]
   (update-in state [:compiler-options :closure-defines] merge (repl-defines state config)))

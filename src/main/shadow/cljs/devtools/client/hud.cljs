@@ -9,6 +9,12 @@
     [goog.string :refer (format)]
     [clojure.string :as str]))
 
+(goog-define show-progress true)
+
+(goog-define show-warnings true)
+
+(goog-define show-errors true)
+
 (defn open-file [file line column]
   (js/console.log "opening file" file line column)
 
@@ -93,34 +99,35 @@
          ]))))
 
 (defn load-start []
-  (dom-insert
-    [:div {:id load-id
-           :style {:position "fixed"
-                   :pointer-events "none"
-                   :left "0px"
-                   :bottom "20px"
-                   :z-index "10000"}}
-     [:div {:style {:background "#eee"
-                    :border-top-right-radius "40px"
-                    :border-bottom-right-radius "40px"
-                    :box-shadow "2px 2px 10px #aaa"
-                    :padding "10px"}}
-      @logo-svg]]))
+  (when show-progress
+    (dom-insert
+      [:div {:id load-id
+             :style {:position "fixed"
+                     :pointer-events "none"
+                     :left "0px"
+                     :bottom "20px"
+                     :z-index "10000"}}
+       [:div {:style {:background "#eee"
+                      :border-top-right-radius "40px"
+                      :border-bottom-right-radius "40px"
+                      :box-shadow "2px 2px 10px #aaa"
+                      :padding "10px"}}
+        @logo-svg]])))
 
 (defn load-end-success []
-  (when-some [container-el (dom/by-id load-id)]
-    (let [el (.-firstChild container-el)]
-      (anim/start 500 {el (anim/transition :background "#eee" "#40B400" "ease-out")})
-      (go (<! (async/timeout 250))
-          (<! (anim/start 250 {el (anim/transition :opacity "1" "0" "ease-in")}))
-          (dom/remove container-el)
+  (when show-progress
+    (when-some [container-el (dom/by-id load-id)]
+      (let [el (.-firstChild container-el)]
+        (anim/start 500 {el (anim/transition :background "#eee" "#40B400" "ease-out")})
+        (go (<! (async/timeout 250))
+            (<! (anim/start 250 {el (anim/transition :opacity "1" "0" "ease-in")}))
+            (dom/remove container-el)
 
-          ))))
+            )))))
 
 (defn load-end []
   (when-some [el (dom/by-id load-id)]
-    (dom/remove el)
-    ))
+    (dom/remove el)))
 
 (defn hud-hide []
   (when-some [d (dom/by-id hud-id)]
@@ -208,57 +215,59 @@
     (when (seq sources-with-warnings)
       ;; TODO: fancy transition from logo to warnings
       (load-end)
-      (dom-insert
-        [:div
-         {:id    hud-id
-          :style {:position       "fixed"
-                  :z-index        "10000"
-                  :left           "0px"
-                  :bottom         "0px"
-                  :right          "0px"
-                  :display        "flex"
-                  :flex-direction "column"
-                  :font-family    "monospace"
-                  :font-size      "12px"}}
-         [:div {:style {:align-self    "flex-end"
-                        :background    "#fff"
-                        :border        "2px solid #ccc"
-                        :border-bottom "0px"
-                        :cursor        "pointer"
-                        :padding       "6px"
-                        :margin-bottom "-2px"
-                        :z-index       "10000"}
-                :on    {:click hud-hide}}
-          "Close"]
-         [:div {:style {:background "#fff"
-                        :border-top "2px solid #ccc"
-                        :flex       "1"
-                        :max-height "300px"
-                        :padding    "10px 10px 0"
-                        :overflow   "auto"}}
-          (for [{:keys [warnings]} sources-with-warnings
-                warning warnings]
-            (html-for-warning warning))]]))))
+      (when show-warnings
+        (dom-insert
+          [:div
+           {:id hud-id
+            :style {:position "fixed"
+                    :z-index "10000"
+                    :left "0px"
+                    :bottom "0px"
+                    :right "0px"
+                    :display "flex"
+                    :flex-direction "column"
+                    :font-family "monospace"
+                    :font-size "12px"}}
+           [:div {:style {:align-self "flex-end"
+                          :background "#fff"
+                          :border "2px solid #ccc"
+                          :border-bottom "0px"
+                          :cursor "pointer"
+                          :padding "6px"
+                          :margin-bottom "-2px"
+                          :z-index "10000"}
+                  :on {:click hud-hide}}
+            "Close"]
+           [:div {:style {:background "#fff"
+                          :border-top "2px solid #ccc"
+                          :flex "1"
+                          :max-height "300px"
+                          :padding "10px 10px 0"
+                          :overflow "auto"}}
+            (for [{:keys [warnings]} sources-with-warnings
+                  warning warnings]
+              (html-for-warning warning))]])))))
 
 (defn hud-error [{:keys [report] :as msg}]
-  (dom-insert
-    [:div
-     {:id hud-id
-      :style {:position "fixed"
-              :left "0px"
-              :top "0px"
-              :bottom "0px"
-              :right "0px"
-              :color "#000"
-              :background-color "#fff"
-              :border "5px solid red"
-              :z-index "10000"
-              :padding "20px"
-              :overflow "auto"
-              :font-family "monospace"
-              :font-size "12px"}}
-     [:div {:style "color: red; margin-bottom: 10px; font-size: 2em;"} "Compilation failed!"]
-     [:pre report]]))
+  (when show-errors
+    (dom-insert
+      [:div
+       {:id hud-id
+        :style {:position "fixed"
+                :left "0px"
+                :top "0px"
+                :bottom "0px"
+                :right "0px"
+                :color "#000"
+                :background-color "#fff"
+                :border "5px solid red"
+                :z-index "10000"
+                :padding "20px"
+                :overflow "auto"
+                :font-family "monospace"
+                :font-size "12px"}}
+       [:div {:style "color: red; margin-bottom: 10px; font-size: 2em;"} "Compilation failed!"]
+       [:pre report]])))
 
 (def connection-error-id "shadow-connection-error")
 
@@ -267,24 +276,25 @@
     (dom/remove x)))
 
 (defn connection-error [msg]
-  (dom-insert
-    [:div {:id connection-error-id
-           :style {:position "fixed"
-                   :pointer-events "none"
-                   :left "0px"
-                   :bottom "20px"
-                   :z-index "10000"}}
-     [:div {:style {:background "#c00"
-                    :border-top-right-radius "40px"
-                    :border-bottom-right-radius "40px"
-                    :box-shadow "2px 2px 10px #aaa"
-                    :padding "10px"
-                    :font-family "monospace"
-                    :font-size "14px"
-                    :font-weight "bold"
-                    :color "#fff"}}
-      (str "shadow-cljs - " msg)
-      ]]))
+  (when show-errors
+    (dom-insert
+      [:div {:id connection-error-id
+             :style {:position "fixed"
+                     :pointer-events "none"
+                     :left "0px"
+                     :bottom "20px"
+                     :z-index "10000"}}
+       [:div {:style {:background "#c00"
+                      :border-top-right-radius "40px"
+                      :border-bottom-right-radius "40px"
+                      :box-shadow "2px 2px 10px #aaa"
+                      :padding "10px"
+                      :font-family "monospace"
+                      :font-size "14px"
+                      :font-weight "bold"
+                      :color "#fff"}}
+        (str "shadow-cljs - " msg)
+        ]])))
 
 (defn load-failure [error task remaining]
   (load-end)
