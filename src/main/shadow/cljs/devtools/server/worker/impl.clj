@@ -20,7 +20,8 @@
             [shadow.build.warnings :as warnings]
             [shadow.build.data :as data]
             [shadow.build.resource :as rc]
-            [shadow.build.log :as build-log])
+            [shadow.build.log :as build-log]
+            [clojure.java.io :as io])
   (:import [java.util UUID]))
 
 (defn proc? [x]
@@ -83,15 +84,33 @@
   {:type :repl/error
    :ex e})
 
+;; if the build fails due to a missing js dependency
+;; start watching package.json and attempt recompile on changes
+(defn init-package-json-watch [worker-state {:keys [node-modules-dir] :as data}]
+  (let [package-json-file
+        (-> node-modules-dir
+            (.getParentFile)
+            (io/file "package.json"))]
+    (if-not (.exists package-json-file)
+      worker-state
+      (assoc worker-state
+        :package-json-file package-json-file
+        :package-json-lastmod (.lastModified package-json-file))
+      )))
+
 (defn build-failure
   [{:keys [build-config] :as worker-state} e]
-  (let [{:keys [resource-id resource-ids]} (ex-data e)]
+  (let [{:keys [resource-id resource-ids tag] :as data} (ex-data e)]
     (-> worker-state
         ;; if any resource was responsible for the build failing we remove it completely
         ;; to ensure that all state is in proper order in the next compile and does not
         ;; contain remnants of the failed compile
         ;; FIXME: should probably check ex-data :tag
+        (assoc :failure-data data)
         (cond->
+          (= tag :shadow.build.resolve/missing-js)
+          (init-package-json-watch data)
+
           resource-id
           (update :build-state data/remove-source-by-id resource-id)
           resource-ids
@@ -258,14 +277,15 @@
            :info (::build/build-info build-state)
            :reload-info (extract-reload-info build-state)})
 
-        (assoc worker-state
-          :build-state build-state
-          ;; tracking added/modified namespaces since we finished compiling
-          :namespaces-added #{}
-          :namespaces-modified #{}
-          :last-build-provides (-> build-state :sym->id keys set)
-          :last-build-sources build-sources
-          :last-build-macros build-macros))
+        (-> worker-state
+            (dissoc :failure-data)
+            (assoc :build-state build-state
+                   ;; tracking added/modified namespaces since we finished compiling
+                   :namespaces-added #{}
+                   :namespaces-modified #{}
+                   :last-build-provides (-> build-state :sym->id keys set)
+                   :last-build-sources build-sources
+                   :last-build-macros build-macros)))
       (catch Exception e
         (build-failure worker-state e)))))
 
@@ -881,8 +901,27 @@
                     (build-compile)))
               )))))
 
-(defn do-idle [{:keys [extra-config-files] :as worker-state}]
+(defn maybe-recover-from-failure
+  [{:keys [package-json-file package-json-lastmod] :as worker-state}]
+  (if-not (and package-json-file package-json-lastmod)
+    worker-state
+    (let [newmod (.lastModified package-json-file)]
+      (if-not (> newmod package-json-lastmod)
+        worker-state
+        (do (log/debug ::package-json-modified)
+            (-> worker-state
+                (dissoc :package-json-file :package-json-lastmod)
+                (cond->
+                  (not (:build-state worker-state))
+                  (build-configure))
+                (build-compile)))))))
+
+(defn do-idle [{:keys [failure-data extra-config-files] :as worker-state}]
   (-> worker-state
       (cond->
         (seq extra-config-files)
-        (maybe-reload-config-files))))
+        (maybe-reload-config-files)
+
+        failure-data
+        (maybe-recover-from-failure)
+        )))
