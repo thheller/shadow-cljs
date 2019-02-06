@@ -632,8 +632,10 @@
     (and (.isFile file) (util/is-jar? (.getName file)))
     (find-jar-resources cp file)
 
+    ;; silently ignore all other cases since we can't do anything with them anyways
+    ;; don't throw since java doesn't throw either
     :else
-    (throw (ex-info "classpath entry that is not a directory or jar file" {:entry file}))))
+    {}))
 
 (defn should-exclude-classpath [exclude ^File file]
   (let [abs-path (.getAbsolutePath file)]
