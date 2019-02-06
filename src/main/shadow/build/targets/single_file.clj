@@ -72,7 +72,7 @@
         (if (some? source-map-info)
           state
           (let [sm
-                (or (and source-map (output/encode-source-map rc output))
+                (or (and source-map (output/encode-source-map state rc output))
                     (and (seq source-map-json) (json/read-str source-map-json))
                     {})
 

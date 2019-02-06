@@ -122,7 +122,8 @@
     (count (line-seq rdr))))
 
 (defn encode-source-map
-  [{:keys [resource-name prepend output-name] :as src}
+  [state
+   {:keys [resource-name prepend output-name] :as src}
    {:keys [source source-map-compact source-map] :as output}]
   (let [prepend-lines
         (if-not (seq prepend)
@@ -137,18 +138,20 @@
                 (select-keys ["names" "mappings"])))]
 
     (-> {"version" 3
-         "sources" [resource-name]
-         "sourcesContent" [source]}
+         "sources" [resource-name]}
         (merge sm)
         ;; prepend one ; for every line in prepend
         (cond->
+          (get-in state [:compiler-options :source-map-include-sources-content])
+          (assoc "sourcesContent" [source])
+
           (seq prepend-lines)
           (update "mappings" (fn [s] (str prepend-lines s)))))))
 
 (defn encode-source-map-json
-  [src {:keys [source-map-json] :as output}]
+  [state src {:keys [source-map-json] :as output}]
   (or source-map-json
-      (-> (encode-source-map src output)
+      (-> (encode-source-map state src output)
           (json/write-str :escape-slash false))))
 
 (defn generate-source-map-inline
@@ -159,7 +162,7 @@
   (when (has-source-map? output)
 
     (let [source-map-json
-          (encode-source-map-json src output)
+          (encode-source-map-json state src output)
 
           b64
           (-> (Base64/getEncoder)
@@ -193,6 +196,7 @@
           ;; FIXME: make this use encode-source-map from above
           source-map-json
           (encode-source-map-json
+            state
             ;; ugly hack to change the "sources":["/absolute/path/to/file.cljs"] in source maps
             (assoc src :resource-name source-name)
             output)]

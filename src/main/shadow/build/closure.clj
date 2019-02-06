@@ -98,7 +98,14 @@
   (when (:source-map opts)
     (doto closure-opts
       (.setSourceMapOutputPath "/dev/null")
-      (.setSourceMapDetailLevel SourceMap$DetailLevel/ALL)
+      (.setSourceMapDetailLevel
+        (let [lvl (:source-map-detail-level opts :all)]
+          (case lvl
+            :symbols SourceMap$DetailLevel/SYMBOLS
+            :all SourceMap$DetailLevel/ALL
+            (throw (ex-info "invalid value for :source-map-detail-level option" {:lvl lvl})))))
+      (.setSourceMapIncludeSourcesContent
+        (boolean (:source-map-include-sources-content opts true)))
       (.setSourceMapFormat SourceMap$Format/V3)))
 
   (when (contains? opts :pseudo-names)
@@ -578,7 +585,7 @@
           source-map-json
           (or source-map-json
               ;; source-map is CLJS source map data, need to encode it to json so closure can read it
-              (output/encode-source-map-json rc output))]
+              (output/encode-source-map-json state rc output))]
 
       ;; not using SourceFile/fromFile as the name that gets displayed in warnings sucks
       ;; public/js/cljs-runtime/cljs/core.cljs vs cljs/core.cljs
@@ -830,15 +837,8 @@
     ;; we do not need yet
     (.justSetOptions cc closure-opts)
 
-    (when source-map?
-      ;; FIXME: path is not used at all but needs to be set
-      ;; otherwise the applyInputSourceMaps will have no effect since it happens
-      ;; inside a if (sourceMapOutputPath != null)
-
-      (.setSourceMapOutputPath closure-opts "/dev/null")
-      (.setSourceMapIncludeSourcesContent closure-opts true)
+    (when (and source-map? (:source-map-include-sources-content compiler-options))
       (.setApplyInputSourceMaps closure-opts true)
-
       (add-input-source-maps state cc))
 
     (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
@@ -996,7 +996,8 @@
                           ;; must reset source map before calling .toSource
                           (when source-map
                             (.reset source-map)
-                            (add-sources-to-source-map state source-map))
+                            (when (get-in state [:compiler-options :source-map-include-sources-content])
+                              (add-sources-to-source-map state source-map)))
 
                           (let [js
                                 (if-not js-module ;; foreign only doesnt have JSModule instance
@@ -1787,7 +1788,8 @@
                   (when generate-source-map?
                     (let [sw (StringWriter.)]
                       ;; for sourcesContent
-                      (.addSourceFile source-map (.getName source-file) (.getCode source-file))
+                      (when (:source-map-include-sources-content co-opts)
+                        (.addSourceFile source-map (.getName source-file) (.getCode source-file)))
                       (.appendTo source-map sw output-name)
                       (.toString sw)))
 

@@ -69,6 +69,9 @@
    :closure-warnings
    {:check-types :off}
 
+   :source-map-include-sources-content true
+   :source-map-detail-level :all
+
    :closure-threads
    (-> (Runtime/getRuntime)
        (.availableProcessors))
@@ -109,7 +112,11 @@
   ;; don't change the :js-provider default, node targets assume it is :require
   {:js-provider :require ;; :closure, :require, :include maybe :webpack, maybe something
    :generate-externs true
-   :packages {}})
+   :packages {}
+
+   :source-map-include-sources-content true
+   :source-map-detail-level :all
+   })
 
 (defn init []
   (-> {:shadow.build/marker true

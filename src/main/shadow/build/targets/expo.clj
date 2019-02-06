@@ -235,7 +235,7 @@
                                          (< (.lastModified sm-file) compiled-at)))
 
                             (io/make-parents sm-file)
-                            (spit sm-file (output/encode-source-map-json rc output)))
+                            (spit sm-file (output/encode-source-map-json state rc output)))
 
                           (-> {:resource-id resource-id
                                :lines lines}
