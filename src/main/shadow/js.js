@@ -90,7 +90,7 @@ shadow.js.jsRequire = function(name, opts) {
 
   try {
     if (goog.DEBUG) {
-      if (name.indexOf("/") != -1) {
+      if (name instanceof String && name.indexOf("/") != -1) {
         console.warn(
           "Tried to dynamically require '" +
             name +

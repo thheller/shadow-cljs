@@ -29,6 +29,10 @@
    ;; since closure only works with names not ids
    :name->id {}
 
+   ;; numeric require mapped to its namespace and back
+   :require-id->sym {}
+   :sym->require-id {}
+
    ;; map of {resource-id #{resource-id ...}}
    ;; keeps track of immediate deps for each given source
    ;; used for cache invalidation and collecting all deps

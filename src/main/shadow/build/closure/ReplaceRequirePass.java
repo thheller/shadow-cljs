@@ -4,16 +4,32 @@ import com.google.javascript.jscomp.*;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
-import java.util.Map;
+import java.util.*;
 
 public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback implements CompilerPass {
 
     private final AbstractCompiler compiler;
     private final Map<String, Map<String, Object>> replacements;
 
+    public final List<ChangedRequire> changedRequires = new ArrayList<>();
+
     public ReplaceRequirePass(AbstractCompiler compiler, Map<String, Map<String, Object>> replacements) {
         this.compiler = compiler;
         this.replacements = replacements;
+    }
+
+    public static class ChangedRequire {
+        public final Node requireNode;
+        public final String sourceName;
+        public final String require;
+        public final Object replacement;
+
+        public ChangedRequire(Node requireNode, String sourceName, String require, Object replacement) {
+            this.requireNode = requireNode;
+            this.sourceName = sourceName;
+            this.require = require;
+            this.replacement = replacement;
+        }
     }
 
     @Override
@@ -39,7 +55,18 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
                             // might be a clj-sym or String
                             Object replacement = requires.get(require);
                             if (replacement != null) {
-                                requireString.replaceWith(IR.string(replacement.toString()));
+                                Node replacementNode = null;
+
+                                if (replacement instanceof Long) {
+                                    replacementNode = IR.number((Long) replacement);
+                                } else {
+                                    replacementNode = IR.string(replacement.toString());
+                                }
+
+                                requireString.replaceWith(replacementNode);
+
+                                changedRequires.add(new ChangedRequire(node, sfn, require, replacement));
+
                                 t.reportCodeChange();
                             }
                         }
@@ -47,6 +74,32 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
                 }
             }
         }
+    }
+
+    public static boolean isAlive(Node node) {
+        Node test = node;
+        while (true) {
+           if (test == null) {
+               return false;
+           } else if (test.isRoot()) {
+               break;
+           }
+           test = test.getParent();
+        }
+        return true;
+    }
+
+    // only call this after optimizations are done, otherwise everything will be alive
+    public Set<Object> getAliveReplacements() {
+        Set<Object> alive = new HashSet<>();
+
+        for (ChangedRequire req : changedRequires) {
+            if (isAlive(req.requireNode)) {
+                alive.add(req.replacement);
+            }
+        }
+
+        return alive;
     }
 
     @Override

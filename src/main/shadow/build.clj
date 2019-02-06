@@ -298,6 +298,8 @@
                    :elide-asserts true
                    :load-tests false
                    :pretty-print false})
+                (build-api/with-js-options
+                  {:minimize-require true})
                 (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG false}))
 
             closure-defines

@@ -1620,7 +1620,21 @@
       (let [rc-id
             (data/get-source-id-by-provide state ns)
             {:keys [resource-name] :as rc}
-            (data/get-source-by-id state rc-id)]
+            (data/get-source-by-id state rc-id)
+
+            require-map
+            (if-not (get-in state [:js-options :minimize-require])
+              require-map
+              (reduce-kv
+                (fn [m require target]
+                  (let [src-id (get sym->id target)
+                        src (get-in state [:sources src-id])]
+                    (if-not (and src (:require-id src))
+                      m
+                      (assoc m require (:require-id src)))))
+                require-map
+                require-map))]
+
         (assoc m resource-name require-map)))
     {}
     str->sym))
@@ -1629,10 +1643,14 @@
   "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
   [{:keys [project-dir js-options npm mode build-sources] :as state} sources]
   (let [source-files
-        (->> (for [{:keys [resource-id resource-name ns file deps] :as src} sources]
+        (->> (for [{:keys [resource-id resource-name ns require-id file deps] :as src} sources]
                (let [source (data/get-source-code state src)]
                  (closure-source-file resource-name
-                   (str "shadow$provide[\"" ns "\"] = function(global,process,require,module,exports,shadow$shims) {\n"
+                   (str "shadow$provide["
+                        (if (and require-id (:minimize-require js-options))
+                          (pr-str require-id)
+                          (str "\"" ns "\""))
+                        "] = function(global,process,require,module,exports,shadow$shims) {\n"
                         (if (str/ends-with? resource-name ".json")
                           (str "module.exports=(" source ");")
                           source)
@@ -1680,6 +1698,11 @@
         property-collector
         (PropertyCollector. cc)
 
+
+        replace-require-pass
+        (let [m (require-replacement-map state)]
+          (ReplaceRequirePass. cc m))
+
         closure-opts
         (doto (make-options)
           (set-options co-opts state)
@@ -1697,9 +1720,7 @@
           (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
             (NodeStuffInlinePass. cc))
 
-          (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
-            (let [m (require-replacement-map state)]
-              (ReplaceRequirePass. cc m)))
+          (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS replace-require-pass)
 
           (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
           (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
@@ -1736,7 +1757,10 @@
         _ (throw-errors! state cc result)
 
         source-map
-        (.getSourceMap cc)]
+        (.getSourceMap cc)
+
+        alive-replacements
+        (.getAliveReplacements replace-require-pass)]
 
     (-> state
         (log-warnings cc result)
@@ -1759,23 +1783,6 @@
                     (catch Exception e
                       (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
 
-                  ;; the :simple optimization may remove conditional requires
-                  ;; the JS inspector is not smart enough to detect this without optimizing itself
-                  ;; so instead just check if the compiled JS still contains the module name
-                  ;; the name is unique enough so it shouldn't run into something the user actually typed
-                  ;; module$node_modules$react$cjs$react_production_min
-                  ;; it is not done as a compiler pass since I cannot figure out how to do it
-                  ;; the require("thing") is renamed to b("thing") so I can't check NodeUtil.isCallTo("require")
-                  ;; no idea if I can get the original name after renaming, its not always b so can't use that
-                  ;; anyways this should be good enough and fixes the react conditional require issue
-                  removed-requires
-                  (->> (get-in state [:str->sym ns])
-                       (vals)
-                       ;; test at least for ("module$thing")
-                       ;; so it doesn't conflict with module$thing$b
-                       (remove #(str/includes? js (str "(\"" % "\")")))
-                       (into #{}))
-
                   sm-json
                   (when generate-source-map?
                     (let [sw (StringWriter.)]
@@ -1786,6 +1793,19 @@
 
                   deps
                   (data/deps->syms state rc)
+
+                  ;; conditional requires may be removed by :simple optimizations
+                  ;; the ReplaceRequirePass remembers all the require calls it modified
+                  ;; and after optimizations we can extract which ones are still alive
+                  removed-requires
+                  (->> (get-in state [:str->sym ns])
+                       (vals)
+                       (remove (fn [require-ns]
+                                 (or (contains? alive-replacements require-ns)
+                                     (let [require-id (get-in state [:sym->require-id require-ns])]
+                                       (and require-id (contains? alive-replacements require-id))))))
+                       (into #{}))
+
 
                   actual-requires
                   (into #{} (remove removed-requires) deps)

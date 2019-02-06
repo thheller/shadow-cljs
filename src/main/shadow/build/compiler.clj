@@ -1025,10 +1025,17 @@
    to ensure recompilation when their names change"
   [state resource-id]
   (let [rc (data/get-source-by-id state resource-id)
-        deps-syms (data/deps->syms state rc)]
+        deps-syms (data/deps->syms state rc)
+
+        require-ids
+        (->> deps-syms
+             (map #(get-in state [:sym->require-id %]))
+             (remove nil?)
+             (into #{}))]
+
     (update-in state [:sources resource-id :cache-key]
       (fn [key]
-        (->> (into key deps-syms)
+        (->> (into key (concat deps-syms require-ids))
              (distinct)
              (into []))))))
 
@@ -1041,6 +1048,48 @@
       (throw (ex-info "Invalid JS input" {:tag ::js-error
                                           :file file
                                           :js-errors merged})))))
+
+(defn assign-require-ids [state source-ids]
+  (loop [state state
+         [src-id & more] source-ids
+         idx 0]
+    (if-not src-id
+      state
+      (let [{:keys [ns type] :as src} (get-in state [:sources src-id])]
+        (if (not= :shadow-js type)
+          (recur state more idx)
+
+          ;; assign an alias to be used when setting up the provide and on each require
+          ;; shadow$provide[some-alias] = function(...) { require(some-alias); }
+          ;; typically defaults to the full namespace which has a pretty big impact on overall
+          ;; size on libraries that contains a lot of small files that all require each other in some way
+          ;;
+          ;; a simple numeric id is the best for overall size (after gzip) but doesn't cache well
+          ;; since every added JS dep may shift the ids and thus require recompiles
+          ;;
+          ;; using the file ns in hash form is overall shorter than most paths but downright hostile
+          ;; when it comes to gzip compression and thus not viable
+          ;;
+          ;; even a shortened hashes still basically nullify gains in gzip
+          ;;
+          ;; full hash    [JS: 825.62 KB] [GZIP: 205.61 KB]
+          ;; full path    [JS: 891.56 KB] [GZIP: 186.04 KB]
+          ;; short hash 8 [JS: 745.50 KB] [GZIP: 184.36 KB] (first 8 chars)
+          ;; short hash 6 [JS: 738.83 KB] [GZIP: 182.84 KB] (first 6 chars)
+          ;; numeric id   [JS: 719.89 KB] [GZIP: 177.36 KB]
+          ;;
+          ;; don't know how short the hash could be to reduce conflicts since each conflict
+          ;; would mean we need to recompile which then makes it worse than numeric ids
+          ;;
+          ;; wonder if there is something that is gzip-friendly but also cache-friendly
+
+          (let [alias idx #_ (subs (util/md5hex (str ns)) 0 6)]
+            (-> state
+                (update-in [:sources src-id] assoc :require-id alias)
+                (assoc-in [:require-id->sym alias] ns)
+                (assoc-in [:sym->require-id ns] alias)
+                (recur more (inc idx))
+                )))))))
 
 (defn compile-all
   "compile a list of sources by id,
@@ -1057,6 +1106,11 @@
    (cljs-hacks/install-hacks!)
 
    (let [state
+         (if-not (get-in state [:js-options :minimize-require])
+           state
+           (assign-require-ids state source-ids))
+
+         state
          (reduce ensure-cache-invalidation-on-resolve-changes state source-ids)
 
          sources

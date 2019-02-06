@@ -690,7 +690,7 @@
                     :require require
                     :override override})))))))
 
-(defn shadow-js-require [{:keys [ns resource-config] :as rc}]
+(defn shadow-js-require [{:keys [ns require-id resource-config] :as rc}]
   (let [{:keys [export-global export-globals]}
         resource-config
 
@@ -712,7 +712,11 @@
               (seq globals)
               (assoc :globals globals)))]
 
-    (str "shadow.js.require(\"" ns "\", " (json/write-str opts) ");")))
+    (str "shadow.js.require("
+         (if require-id
+           (pr-str require-id)
+           (str "\"" ns "\""))
+         ", " (json/write-str opts) ");")))
 
 ;; FIXME: allow configuration of :extensions :entry-keys
 ;; maybe some closure opts
