@@ -623,9 +623,17 @@
        (process-root-contents cp root)))
 
 (defn find-resources [cp ^File file]
-  (if (util/is-jar? (.getName file))
+  (cond
+    (not (.exists file))
+    {}
+
+    (.isDirectory file)
+    (find-fs-resources cp file)
+    (and (.isFile file) (util/is-jar? (.getName file)))
     (find-jar-resources cp file)
-    (find-fs-resources cp file)))
+
+    :else
+    (throw (ex-info "classpath entry that is not a directory or jar file" {:entry file}))))
 
 (defn should-exclude-classpath [exclude ^File file]
   (let [abs-path (.getAbsolutePath file)]
