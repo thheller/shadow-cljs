@@ -22,12 +22,21 @@ shadow.loader.getModuleLoader = function() {
   return shadow.loader.ml;
 };
 
+// allow calling (shadow.loader/load :with-a-keyword)
+shadow.loader.string_id = function(id) {
+  var result = id.toString();
+  if (result.charAt(0) == ':') {
+     result = result.substring(1);
+  }
+  return result;
+}
+
 shadow.loader.set_loaded = function(id) {
-  shadow.loader.mm.setLoaded(id);
+  shadow.loader.mm.setLoaded(shadow.loader.string_id(id));
 };
 
 shadow.loader.loaded_QMARK_ = function(id) {
-  return shadow.loader.mm.getModuleInfo(id).isLoaded();
+  return shadow.loader.mm.getModuleInfo(shadow.loader.string_id(id)).isLoaded();
 };
 
 shadow.loader.with_module = function(
@@ -39,7 +48,7 @@ shadow.loader.with_module = function(
   opt_preferSynchronous
 ) {
   return shadow.loader.mm.execOnLoad(
-    moduleId,
+    shadow.loader.string_id(moduleId),
     fn,
     opt_handler,
     opt_noLoad,
@@ -49,7 +58,7 @@ shadow.loader.with_module = function(
 };
 
 shadow.loader.load = function(id, opt_userInitiated) {
-  return shadow.loader.mm.load(id, opt_userInitiated);
+  return shadow.loader.mm.load(shadow.loader.string_id(id), opt_userInitiated);
 };
 
 shadow.loader.load_multiple = function(ids, opt_userInitiated) {
@@ -57,11 +66,11 @@ shadow.loader.load_multiple = function(ids, opt_userInitiated) {
 };
 
 shadow.loader.prefetch = function(id) {
-  shadow.loader.mm.prefetch(id);
+  shadow.loader.mm.prefetch(shadow.loader.string_id(id));
 };
 
 shadow.loader.preload = function(id) {
-  return shadow.loader.mm.preload(id);
+  return shadow.loader.mm.preload(shadow.loader.string_id(id));
 };
 
 // FIXME: not sure these should always be exported
