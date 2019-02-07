@@ -16,9 +16,14 @@
     #_["/demo/myComponent" :refer (myComponent)]
     [demo.never-load]
     [demo.always-load]
+    [shadow.resource :as rc]
     ))
 
 ::foo
+
+(def x (rc/inline "./test.md"))
+
+(js/console.log "test.md" x)
 
 (ct/deftest this-is-no-test
   (ct/is (= "actually kind of" 1)))

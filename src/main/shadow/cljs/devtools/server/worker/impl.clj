@@ -8,12 +8,12 @@
             [cljs.analyzer :as cljs-ana]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.model :as m]
-            [shadow.cljs.util :refer (reduce->)]
+            [shadow.cljs.util :as util :refer (set-conj reduce->)]
             [shadow.build :as build]
             [shadow.build.api :as build-api]
             [shadow.build.api :as cljs]
             [shadow.build.compiler :as build-comp]
-            [shadow.cljs.devtools.server.util :as util]
+            [shadow.cljs.devtools.server.util :as server-util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.devtools.config :as config]
             [shadow.cljs.devtools.errors :as errors]
@@ -140,10 +140,10 @@
            :ssl (:ssl http)}
 
           async-logger
-          (util/async-logger (-> worker-state :channels :output))
+          (server-util/async-logger (-> worker-state :channels :output))
 
           {:keys [extra-config-files] :as build-state}
-          (-> (util/new-build build-config :dev {})
+          (-> (server-util/new-build build-config :dev {})
               (build-api/with-logger async-logger)
               (merge {:worker-info worker-info
                       :mode :dev
@@ -253,6 +253,23 @@
     state
     build-sources))
 
+(defn collect-resource-refs [{:keys [build-sources compiler-env] :as build-state}]
+  (->> build-sources
+       (map #(get-in build-state [:sources %]))
+       (filter #(= :cljs (:type %)))
+       (reduce
+         (fn [m {:keys [ns] :as rc}]
+           (let [refs (get-in compiler-env [::cljs-ana/namespaces ns :shadow.resource/resource-refs])]
+             (reduce-kv
+               (fn [m path last-mod]
+                 (-> m
+                     (update-in [:used-by path] set-conj ns)
+                     (update :used-ts assoc path last-mod)))
+               m
+               refs)))
+         {:used-by {}
+          :used-ts {}})))
+
 (defn build-compile
   [{:keys [build-state namespaces-modified] :as worker-state}]
   ;; this may be nil if configure failed, just silently do nothing for now
@@ -277,15 +294,18 @@
            :info (::build/build-info build-state)
            :reload-info (extract-reload-info build-state)})
 
-        (-> worker-state
-            (dissoc :failure-data)
-            (assoc :build-state build-state
-                   ;; tracking added/modified namespaces since we finished compiling
-                   :namespaces-added #{}
-                   :namespaces-modified #{}
-                   :last-build-provides (-> build-state :sym->id keys set)
-                   :last-build-sources build-sources
-                   :last-build-macros build-macros)))
+        (let [none-code-resources (collect-resource-refs build-state)]
+
+          (-> worker-state
+              (dissoc :failure-data)
+              (assoc :build-state build-state
+                     ;; tracking added/modified namespaces since we finished compiling
+                     :namespaces-added #{}
+                     :namespaces-modified #{}
+                     :last-build-resources none-code-resources
+                     :last-build-provides (-> build-state :sym->id keys set)
+                     :last-build-sources build-sources
+                     :last-build-macros build-macros))))
       (catch Exception e
         (build-failure worker-state e)))))
 
@@ -306,7 +326,7 @@
       (fn? pending-action)
       (pending-action worker-state result)
 
-      (util/chan? pending-action)
+      (server-util/chan? pending-action)
       (do (>!! pending-action result)
           worker-state)
 
@@ -916,6 +936,30 @@
                   (build-configure))
                 (build-compile)))))))
 
+(defn check-none-code-resources [{:keys [last-build-resources] :as worker-state}]
+
+  (let [{:keys [used-ts used-by]} last-build-resources
+
+        modified-namespaces
+        (reduce-kv
+          (fn [namespaces path prev-mod]
+            (let [rc (io/resource path)]
+              (if (or (not rc)
+                      (not= prev-mod (util/url-last-modified rc)))
+                (let [used-by-namespaces (get used-by path)]
+                  (log/debug ::resource-modified {:path path :used-by used-by-namespaces})
+                  (into namespaces used-by-namespaces))
+                namespaces
+                )))
+          #{}
+          used-ts)]
+
+    (-> worker-state
+        (cond->
+          (seq modified-namespaces)
+          (-> (update :namespaces-modified into modified-namespaces)
+              (build-compile))))))
+
 (defn do-idle [{:keys [failure-data extra-config-files] :as worker-state}]
   (-> worker-state
       (cond->
@@ -924,4 +968,6 @@
 
         failure-data
         (maybe-recover-from-failure)
-        )))
+
+        (seq (get-in worker-state [:last-build-resources :used-ts]))
+        (check-none-code-resources))))

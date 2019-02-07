@@ -408,4 +408,3 @@
   (build-log/log* (:logger state) state log-event)
   state)
 
-

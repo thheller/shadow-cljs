@@ -581,7 +581,10 @@
                 (cache/read-cache cache-file)
 
                 cache-key-map
-                (make-cache-key-map state rc)]
+                (make-cache-key-map state rc)
+
+                ana-data
+                (:analyzer cache-data)]
 
             ;; just checking the "maximum" last-modified of all dependencies is not enough
             ;; must check times of all deps, mostly to guard against jar changes
@@ -596,15 +599,23 @@
                        (every?
                          #(= (get-in state %)
                             (get-in cache-data [:compiler-options %]))
-                         cache-affecting-options))
-
-
+                         cache-affecting-options)
+                       (let [resource-refs (:shadow.resource/resource-refs ana-data)]
+                         (reduce-kv
+                           (fn [_ path prev-mod]
+                             (let [rc (io/resource path)]
+                               ;; check if the timestamps still match
+                               ;; if the rc is gone or the timestamp changed invalidate the cache
+                               (if (and rc (= prev-mod (util/url-last-modified rc)))
+                                 true
+                                 (reduced false))))
+                           true
+                           resource-refs)))
 
               ;; restore analysis data
-              (let [ana-data (:analyzer cache-data)]
-                (swap! env/*compiler* update-in [::ana/namespaces (:ns cache-data)] merge ana-data)
-                (swap! env/*compiler* update :shadow/protocol-prefixes set/union (:shadow/protocol-prefixes ana-data))
-                (macros/load-macros ana-data))
+              (swap! env/*compiler* update-in [::ana/namespaces (:ns cache-data)] merge ana-data)
+              (swap! env/*compiler* update :shadow/protocol-prefixes set/union (:shadow/protocol-prefixes ana-data))
+              (macros/load-macros ana-data)
 
               ;; restore specs
               (let [{:keys [ns-specs ns-spec-vars]} cache-data]
