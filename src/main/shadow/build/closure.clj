@@ -21,7 +21,7 @@
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          Result ShadowAccess
                                          SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy PhaseOptimizer)
-           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass)
+           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass FindSurvivingRequireCalls)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (java.nio.charset Charset)
            [java.util.logging Logger Level]))
@@ -1699,10 +1699,11 @@
         property-collector
         (PropertyCollector. cc)
 
+        require-replacements
+        (require-replacement-map state)
 
         replace-require-pass
-        (let [m (require-replacement-map state)]
-          (ReplaceRequirePass. cc m))
+        (ReplaceRequirePass. cc require-replacements)
 
         closure-opts
         (doto (make-options)
@@ -1758,10 +1759,7 @@
         _ (throw-errors! state cc result)
 
         source-map
-        (.getSourceMap cc)
-
-        alive-replacements
-        (.getAliveReplacements replace-require-pass)]
+        (.getSourceMap cc)]
 
     (-> state
         (log-warnings cc result)
@@ -1796,18 +1794,23 @@
                   deps
                   (data/deps->syms state rc)
 
-                  ;; conditional requires may be removed by :simple optimizations
-                  ;; the ReplaceRequirePass remembers all the require calls it modified
-                  ;; and after optimizations we can extract which ones are still alive
-                  removed-requires
-                  (->> (get-in state [:str->sym ns])
-                       (vals)
-                       (remove (fn [require-ns]
-                                 (or (contains? alive-replacements require-ns)
-                                     (let [require-id (get-in state [:sym->require-id require-ns])]
-                                       (and require-id (contains? alive-replacements require-id))))))
-                       (into #{}))
+                  ;; the :simple optimization may remove conditional requires
+                  ;; so we need to walk the code again to find the remaining require calls
+                  alive-requires
+                  (FindSurvivingRequireCalls/find cc source-node)
 
+                  removed-requires
+                  (->> (get require-replacements name)
+                       (vals)
+                       (remove (fn [dep]
+                                 ;; may be symbol, number or string
+                                 (or (contains? alive-requires dep)
+                                     (contains? alive-requires (str dep)))))
+                       (map (fn [dep]
+                              (if (number? dep)
+                                (get-in state [:require-id->sym dep])
+                                dep)))
+                       (into #{}))
 
                   actual-requires
                   (into #{} (remove removed-requires) deps)
