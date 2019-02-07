@@ -82,7 +82,7 @@
     :output-dir "node_modules/shadow-cljs"}})
 
 (defn- getenv [envname]
-  (or (System/getenv envname) ""))
+  (System/getenv envname))
 
 (defn read-config-str [s]
   (edn/read-string {:readers {'shadow/env getenv}} s))

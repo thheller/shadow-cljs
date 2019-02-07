@@ -32,8 +32,10 @@
   (let [closure-defines
         (reduce-kv
           (fn [def key value]
-            (let [key (if (symbol? key) (str (comp/munge key)) key)]
-              (assoc def key value)))
+            (if (nil? value)
+              def
+              (let [key (if (symbol? key) (str (comp/munge key)) key)]
+                (assoc def key value))))
           {}
           (get-in state [:compiler-options :closure-defines] {}))]
 
