@@ -47,7 +47,7 @@
 
       {::m/build-sources
        (-> (util/new-build build-config mode {})
-           (build/configure mode build-config)
+           (build/configure mode build-config {})
            (build/resolve)
            :build-sources)})))
 
@@ -136,7 +136,8 @@
                 ::m/build-worker-active]}
   (fn [{:keys [supervisor] :as env} {:keys [build-id] :as input}]
     (let [config (config/get-build build-id)
-          worker (super/start-worker supervisor config)]
+          ;; FIXME: needs access to cli opts used to start server?
+          worker (super/start-worker supervisor config {})]
       (worker/start-autobuild worker))
 
     {::m/build-id build-id
@@ -196,7 +197,7 @@
               (-> (util/new-build build-config mode {})
                   (build-api/with-logger
                     (util/async-logger log-chan))
-                  (build/configure mode build-config)
+                  (build/configure mode build-config {})
                   (build/compile)
                   (cond->
                     (= :release mode)

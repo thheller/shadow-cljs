@@ -58,7 +58,7 @@
            }}
 
         state
-        (-> (comp/configure :release config)
+        (-> (comp/configure :release config {})
             (comp/compile)
             (comp/flush))]
 

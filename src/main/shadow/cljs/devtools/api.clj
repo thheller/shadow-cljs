@@ -115,14 +115,14 @@
 
     (if-let [worker (super/get-worker supervisor (:build-id build-config))]
       worker
-      (super/start-worker supervisor build-config)
+      (super/start-worker supervisor build-config opts)
       )))
 
 (defn- start-worker [build-config opts]
   (let [{:keys [supervisor] :as app}
         (runtime/get-instance!)]
 
-    (super/start-worker supervisor build-config)
+    (super/start-worker supervisor build-config opts)
     ))
 
 (defn worker-running? [build-id]
@@ -277,7 +277,7 @@
 (defn compile* [build-config opts]
   (util/print-build-start build-config)
   (-> (util/new-build build-config :dev opts)
-      (build/configure :dev build-config)
+      (build/configure :dev build-config opts)
       (build/compile)
       (build/flush)
       (build-finish build-config)))
@@ -310,7 +310,7 @@
   [build-config {:keys [debug source-maps pseudo-names] :as opts}]
   (util/print-build-start build-config)
   (-> (util/new-build build-config :release opts)
-      (build/configure :release build-config)
+      (build/configure :release build-config opts)
       (cond->
         (or debug source-maps)
         (build-api/enable-source-maps)
@@ -340,7 +340,7 @@
   ;; FIXME: pretend release mode so targets don't need to account for extra mode
   ;; in most cases we want exactly :release but not sure that is true for everything?
   (-> (util/new-build build-config :release opts)
-      (build/configure :release build-config)
+      (build/configure :release build-config opts)
       (as-> {:keys [cache-dir] :as X}
         (assoc X
           ;; using another dir because of source maps
@@ -574,7 +574,7 @@
          :devtools
          {:autoload false}}]
 
-    (super/start-worker supervisor cfg)))
+    (super/start-worker supervisor cfg {})))
 
 (defn browser-repl
   ([]

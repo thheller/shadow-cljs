@@ -84,11 +84,13 @@
 (defn- getenv [envname]
   (or (System/getenv envname) ""))
 
+(defn read-config-str [s]
+  (edn/read-string {:readers {'shadow/env getenv}} s))
+
 (defn read-config [file]
   (-> file
       (slurp)
-      (#(edn/read-string {:readers {'shadow/env getenv}} %))
-      ))
+      (read-config-str)))
 
 (defn load-system-config []
   (let [file (io/file (System/getProperty "user.home") ".shadow-cljs" "config.edn")]

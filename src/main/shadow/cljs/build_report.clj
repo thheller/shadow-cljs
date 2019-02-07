@@ -212,7 +212,7 @@
 
           state
           (-> (server-util/new-build build-config :release {})
-              (build/configure :release build-config)
+              (build/configure :release build-config opts)
               (build-api/enable-source-maps)
               (assoc-in [:build-options :output-dir] (io/file output-dir))
               (build/compile)

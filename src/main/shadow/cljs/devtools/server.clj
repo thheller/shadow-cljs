@@ -690,7 +690,7 @@
 
                       worker
                       (-> (or worker
-                              (-> (super/start-worker supervisor build-config)
+                              (-> (super/start-worker supervisor build-config options)
                                   (worker/compile)))
                           ;; need to sync in case it is still compiling
                           (worker/sync!))]

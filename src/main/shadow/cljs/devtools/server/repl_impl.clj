@@ -200,7 +200,7 @@
          :output-to script-name}
 
         {:keys [proc-stop] :as worker}
-        (super/start-worker supervisor build-config)
+        (super/start-worker supervisor build-config opts)
 
         result
         (worker/compile! worker)]

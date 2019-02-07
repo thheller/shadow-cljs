@@ -143,7 +143,7 @@
           (server-util/async-logger (-> worker-state :channels :output))
 
           {:keys [extra-config-files] :as build-state}
-          (-> (server-util/new-build build-config :dev {})
+          (-> (server-util/new-build build-config :dev (:cli-opts worker-state {}))
               (build-api/with-logger async-logger)
               (merge {:worker-info worker-info
                       :mode :dev
@@ -151,7 +151,7 @@
                       ;; temp hack for repl/setup since it needs access to repl-init-ns but configure wasn't called yet
                       :shadow.build/config build-config
                       })
-              (build/configure :dev build-config)
+              (build/configure :dev build-config (:cli-opts worker-state {}))
               ;; FIXME: this should be done on session-start
               ;; only keeping it until everything uses new repl-system
               ;; must be done after config in case config has non-default resolve settings

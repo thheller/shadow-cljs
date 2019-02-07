@@ -17,7 +17,18 @@
 (defonce super-lock (Object.))
 
 (defn start-worker
-  [{:keys [system-bus state-ref workers-ref executor cache-root http classpath npm babel config] :as svc} {:keys [build-id] :as build-config}]
+  [{:keys [system-bus
+           workers-ref
+           executor
+           cache-root
+           http
+           classpath
+           npm
+           babel
+           config]
+    :as svc}
+   {:keys [build-id] :as build-config}
+   cli-opts]
   {:pre [(keyword? build-id)]}
   ;; locking to prevent 2 threads starting the same build at the same time (unlikely but still)
   (locking super-lock
@@ -25,7 +36,17 @@
       (throw (ex-info "already started" {:build-id build-id})))
 
     (let [{:keys [proc-stop] :as proc}
-          (worker/start config system-bus executor cache-root http classpath npm babel build-config)]
+          (worker/start
+            config
+            system-bus
+            executor
+            cache-root
+            http
+            classpath
+            npm
+            babel
+            build-config
+            cli-opts)]
 
       (sys-bus/publish! system-bus ::m/supervisor {:op :worker-start
                                                          :build-id build-id})

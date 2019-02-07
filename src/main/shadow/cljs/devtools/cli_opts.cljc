@@ -3,6 +3,7 @@
      (:require
        [clojure.tools.cli :as cli]
        [shadow.cli-util :as cli-util]
+       [shadow.cljs.devtools.config :as config]
        [clojure.string :as str])
      :cljs
      (:require
@@ -16,6 +17,16 @@
   (let [[sym ver] (str/split dep-str #":")]
     [(symbol sym) ver]
     ))
+
+#?(:cljs
+   ;; don't actually need to parse this on the npm side
+   ;; since it never compiles anything
+   (defn parse-merge-data [edn-str]
+     edn-str)
+
+   :clj
+   (defn parse-merge-data [edn-str]
+     (config/read-config-str edn-str)))
 
 (defn conj-vec [x y]
   (if (nil? x)
@@ -31,6 +42,14 @@
     :assoc-fn
     (fn [opts k v]
       (update opts :dependencies conj-vec v))]
+
+   [nil "--config-merge DATA" "merges additional EDN data into the build config"
+    :parse-fn parse-merge-data
+    :assoc-fn
+    (fn [opts k v]
+      (when-not (map? v)
+        (throw (ex-info "--config-merge expects an EDN map argument" {:v v})))
+      (update opts :config-merge conj-vec v))]
    ;; generic
    ["-A" "--aliases ALIASES" "adds aliases for use with clj, only effective when using deps.edn"]
    [nil "--source-maps" "temporarily enable source-maps for release debugging"]

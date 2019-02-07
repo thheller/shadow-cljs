@@ -163,7 +163,8 @@
 
         (log/debug ::browser-test-start config)
 
-        (-> (super/start-worker supervisor config)
+        ;; FIXME: access to CLI opts from server start?
+        (-> (super/start-worker supervisor config {})
             (worker/start-autobuild)
             (worker/sync!))))
 
@@ -199,7 +200,7 @@
 
                 (log/debug ::workspaces-start config)
 
-                (-> (super/start-worker supervisor config)
+                (-> (super/start-worker supervisor config {})
                     (worker/start-autobuild))))]
 
       (worker/sync! worker)
