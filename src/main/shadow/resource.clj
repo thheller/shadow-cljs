@@ -27,7 +27,7 @@
                     (.getParent))]
 
             (when-not parent
-              (throw (ex-info (str "could not resolve " path " from " current-ns) {})))
+              (throw (ana/error env (str "Could not resolve " path " from " current-ns))))
 
             (-> parent
                 (.resolve path)
@@ -41,7 +41,7 @@
         rc (io/resource path)]
 
     (when-not rc
-      (throw (ex-info (str "Resource not found: " path) {:path path})))
+      (throw (ana/error env (str "Resource not found: " path))))
 
     ;; when used as part of a compilation record which namespace did so
     (when env/*compiler*
@@ -51,7 +51,23 @@
     (slurp rc)))
 
 (defmacro inline
-  "inlines the given resource path as a string value"
+  "Inlines the given resource path as a string value
+
+   will throw if the path is not found on the classpath.
+   relative paths will be resolved relative to the current namespace
+
+   (ns demo.app
+     (:require [shadow.resource :as rc]))
+
+   (def x (rc/inline \"./test.md\"))
+
+   this includes demo/test.md from the classpath and ends as
+
+   (def x \"contents of test.md\")
+
+   Cannot be used dynamically and should be limited to small files.
+   Larger files should be loaded dynamically at runtime."
   [path]
-  {:pre [(string? path)]}
+  (when-not (string? path)
+    (throw (ana/error &env (str "shadow.resource/inline must be called with a literal string argument"))))
   (slurp-resource &env path))
