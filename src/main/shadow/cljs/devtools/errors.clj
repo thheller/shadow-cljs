@@ -51,6 +51,8 @@
 
 (defn get-tag [data]
   (or (:tag data)
+      (and (:clojure.error/phase data)
+           ::error-detail)
       (when (= :reader-exception (:type data))
         ::reader-exception)
       (when (contains? data ::s/problems)
@@ -200,6 +202,24 @@
     (spec-explain w data)
     ))
 
+(defmethod ex-data-format ::error-detail
+  [w e {:clojure.error/keys [phase symbol]}]
+
+  (let [msg
+        (case phase
+          :macro-syntax-check
+          (format "Syntax error macroexpanding%s.%n" (if symbol (str " " symbol) ""))
+
+          :macroexpansion
+          (format "Encountered error when macroexpanding%s.%n"
+            (if symbol (str " " symbol) ""))
+
+          (format "Error in phase %s%n" phase))]
+
+    (.write w msg)
+
+    (error-format w (.getCause e))))
+
 (defmethod ex-data-format ::closure/errors
   [w e {:keys [errors] :as data}]
   (let [c (count errors)]
@@ -275,7 +295,8 @@
       (when source-excerpt
         (w/print-source-excerpt-header data))))
 
-  (->> e (.getCause) (error-format w))
+  (when-let [cause (.getCause e)]
+    (error-format w cause))
   (.write w "\n")
   (.write w (w/sep-line))
   (.write w "\n")

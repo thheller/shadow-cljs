@@ -746,11 +746,16 @@
               (try
                 (do-compile-cljs-resource state rc source)
                 (catch Exception e
-                  (let [{:keys [type ex-kind line] :as data}
+                  (let [{:keys [type ex-kind] :as data}
                         (ex-data e)
 
+                        line
+                        (or (:clojure.error/line data)
+                            (:line data))
+
                         column
-                        (or (:column data) ;; cljs.analyzer
+                        (or (:clojure.error/column data) ;; 1.10.516+
+                            (:column data) ;; cljs.analyzer
                             (:col data)) ;; tools.reader
 
                         err-data
@@ -758,7 +763,9 @@
                              :resource-id resource-id
                              :source-id resource-id
                              :url url
-                             :file file}
+                             :file file
+                             :ex-data data}
+
                             (cond->
                               ex-kind
                               (assoc :ex-kind ex-kind)
