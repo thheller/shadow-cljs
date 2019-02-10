@@ -121,7 +121,7 @@
 
   (do-shutdown (rt/stop-all app))
 
-  (discard-println "shutdown complete."))
+  #_ (discard-println "shutdown complete."))
 
 (defn make-port-files [cache-root ports]
   (io/make-parents (io/file cache-root "foo.txt"))
@@ -267,12 +267,13 @@
         (:socket-repl config)
 
         socket-repl
-        (try
-          (socket-repl/start socket-repl-config app-ref)
-          (catch Exception e
-            (log/warn-ex e ::socket-repl-ex)
-            nil
-            ))
+        (when-not (false? socket-repl-config)
+          (try
+            (socket-repl/start socket-repl-config app-ref)
+            (catch Exception e
+              (log/warn-ex e ::socket-repl-ex)
+              nil
+              )))
 
         cli-repl-config
         {:port 0 ;; random port, not for humans
@@ -291,43 +292,44 @@
             (create-cli-checker cli-port)))
 
         nrepl
-        (try
-          ;; problem child nrepl
-          ;; we need to start a 0.2 nrepl server
-          ;; if an older cider-nrepl version is used
-          ;; otherwise it should be fine to start 0.4
-          (let [use-old-nrepl?
-                (when (io/resource "cider/nrepl.clj")
-                  (require 'cider.nrepl)
+        (when-not (false? (:nrepl config))
+          (try
+            ;; problem child nrepl
+            ;; we need to start a 0.2 nrepl server
+            ;; if an older cider-nrepl version is used
+            ;; otherwise it should be fine to start 0.4
+            (let [use-old-nrepl?
+                  (when (io/resource "cider/nrepl.clj")
+                    (require 'cider.nrepl)
 
-                  (when-let [the-ns (find-ns 'cider.nrepl)]
-                    (= 'clojure.tools.nrepl.server
-                      (-> (.getAliases the-ns)
-                          (.get 'nrepl-server)
-                          (.getName)))))
+                    (when-let [the-ns (find-ns 'cider.nrepl)]
+                      (= 'clojure.tools.nrepl.server
+                        (-> (.getAliases the-ns)
+                            (.get 'nrepl-server)
+                            (.getName)))))
 
-                nrepl-ns
-                (if use-old-nrepl?
-                  (do (log/info ::nrepl-fallback)
-                      'shadow.cljs.devtools.server.nrepl)
-                  'shadow.cljs.devtools.server.nrepl04)
+                  nrepl-ns
+                  (if use-old-nrepl?
+                    (do (log/info ::nrepl-fallback)
+                        'shadow.cljs.devtools.server.nrepl)
+                    'shadow.cljs.devtools.server.nrepl04)
 
-                _ (require nrepl-ns)
+                  _ (require nrepl-ns)
 
-                nrepl-start
-                (ns-resolve nrepl-ns 'start)
+                  nrepl-start
+                  (ns-resolve nrepl-ns 'start)
 
-                nrepl-stop
-                (ns-resolve nrepl-ns 'stop)
+                  nrepl-stop
+                  (ns-resolve nrepl-ns 'stop)
 
-                server
-                (nrepl-start (:nrepl config))]
+                  server
+                  (nrepl-start (:nrepl config))]
 
-            ;; return a generic stop fn
-            (assoc server ::stop #(nrepl-stop server)))
-          (catch Exception e
-            (log/warn-ex e ::nrepl-ex)
-            nil))
+              ;; return a generic stop fn
+              (assoc server ::stop #(nrepl-stop server)))
+            (catch Exception e
+              (log/warn-ex e ::nrepl-ex)
+              nil)))
 
         port-files-ref
         (atom nil)
@@ -381,11 +383,12 @@
               (assoc :socket-repl (:port socket-repl)))
             )))
 
-    (let [nrepl-port-file (io/file ".nrepl-port")]
-      (when-not (.exists nrepl-port-file)
-        (spit nrepl-port-file (str (:port nrepl)))
-        (swap! port-files-ref assoc :nrepl-port nrepl-port-file)
-        (.deleteOnExit nrepl-port-file)))
+    (when nrepl
+      (let [nrepl-port-file (io/file ".nrepl-port")]
+        (when-not (.exists nrepl-port-file)
+          (spit nrepl-port-file (str (:port nrepl)))
+          (swap! port-files-ref assoc :nrepl-port nrepl-port-file)
+          (.deleteOnExit nrepl-port-file))))
 
     (. (Runtime/getRuntime) (addShutdownHook shutdown-hook))
 
@@ -499,7 +502,8 @@
                          " running at http" (when ssl-context "s") "://" http-host ":" (:port http)))
            #_ (println (str "shadow-cljs - socket REPL running on port " (:port socket-repl)))
            ;; must keep this message since cider looks for it
-           (println (str "shadow-cljs - nREPL server started on port " (:port nrepl)))
+           (when nrepl
+             (println (str "shadow-cljs - nREPL server started on port " (:port nrepl))))
 
            ::started
            )))))
