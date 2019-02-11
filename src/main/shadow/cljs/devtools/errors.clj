@@ -10,7 +10,6 @@
             [shadow.build.resolve :as resolve]
             [shadow.cljs.devtools.config :as config]
             [shadow.build.warnings :as w]
-            [expound.alpha :as expound]
             [shadow.jvm-log :as log]
             [shadow.cljs.util :as util]
             [clojure.java.io :as io])
@@ -114,9 +113,13 @@
         (.write w "\n")
         ))
 
-  (.write w (with-out-str
-              (expound/printer data)
-              #_(s/explain-out (select-keys data [::s/problems])))))
+  (locking comp/target-require-lock
+    (require 'expound.alpha)
+
+    (let [printer (resolve 'expound.alpha/printer)]
+      (.write w (with-out-str
+                  (printer data)
+                  #_(s/explain-out (select-keys data [::s/problems])))))))
 
 (defmethod ex-data-format ::ns-form/invalid-ns
   [w e {:keys [config] :as data}]
