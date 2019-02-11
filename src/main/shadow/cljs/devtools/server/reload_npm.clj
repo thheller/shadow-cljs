@@ -6,7 +6,8 @@
             [shadow.build.npm :as npm]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.model :as m]
-            [shadow.cljs.util :as util]))
+            [shadow.cljs.util :as util]
+            [clojure.set :as set]))
 
 (defn dissoc-all [m files]
   (reduce dissoc m files))
@@ -44,9 +45,12 @@
       (swap! index-ref invalidate-files modified-files)
 
       (let [modified-provides
-            (into #{} (map :provides) modified-resources)]
+            (->> modified-resources
+                 (map :provides)
+                 (reduce set/union #{}))]
 
-        (sys-bus/publish! system-bus ::m/resource-update {:provides modified-provides})
+        (sys-bus/publish! system-bus ::m/resource-update {:added #{}
+                                                          :namespaces modified-provides})
         ))))
 
 (defn watch-loop [system-bus npm control-chan]
