@@ -1042,7 +1042,7 @@
   "populates :cache-key of the resource with the resolved symbols of its deps
    to ensure recompilation when their names change"
   [state resource-id]
-  (let [rc (data/get-source-by-id state resource-id)
+  (let [{:keys [require-id] :as rc} (data/get-source-by-id state resource-id)
         deps-syms (data/deps->syms state rc)
 
         require-ids
@@ -1053,9 +1053,16 @@
 
     (update-in state [:sources resource-id :cache-key]
       (fn [key]
-        (->> (into key (concat deps-syms require-ids))
-             (distinct)
-             (into []))))))
+        ;; FIXME: this still isn't clean but nothing should be allowed to modify
+        ;; cache-key beyond this point
+        ;; must make sure we don't keep appending the same data in watch
+        (-> (take-while #(not= ::resolve %) key)
+            (vec)
+            (conj
+              ::resolve
+              {:require-id require-id
+               :deps-ids require-ids
+               :deps-syms deps-syms}))))))
 
 (defn throw-js-errors-now! [state]
   (doseq [{:keys [file js-errors source] :as src} (data/get-build-sources state)
@@ -1101,7 +1108,7 @@
           ;;
           ;; wonder if there is something that is gzip-friendly but also cache-friendly
 
-          (let [alias idx #_ (subs (util/md5hex (str ns)) 0 6)]
+          (let [alias idx #_(subs (util/md5hex (str ns)) 0 6)]
             (-> state
                 (update-in [:sources src-id] assoc :require-id alias)
                 (assoc-in [:require-id->sym alias] ns)
