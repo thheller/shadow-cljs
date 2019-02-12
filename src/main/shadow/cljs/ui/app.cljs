@@ -287,7 +287,11 @@
         (async/chan 10 (map util/transit-str))
 
         ws-url
-        (str "ws://" js/document.location.host "/api/ws")
+        (str "ws"
+             (if (= "https:" js/document.location.protocol) "s" "")
+             "://"
+             js/document.location.host
+             "/api/ws")
 
         graph-url
         "/api/graph"
