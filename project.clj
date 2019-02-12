@@ -95,7 +95,10 @@
   {:aot
    {:aot [shadow.cljs.devtools.cli
           shadow.cljs.devtools.api
-          shadow.cljs.devtools.server]}}
+          shadow.cljs.devtools.server]
+
+    :jar-exclusions
+    [#"^clojure/core"]}}
 
   :profiles
   {:provided
