@@ -164,7 +164,9 @@
     ;; new is always an absolute path, strip first /
     ;; FIXME: assuming that old is always relative
     (let [rel-new (subs new 1)]
-      (and (= old rel-new) rel-new))
+      (when (or (= old rel-new)
+                (str/starts-with? old (str rel-new "?")))
+        rel-new))
     ;; special handling for browsers including relative css
     (let [^goog node-uri (goog.Uri/parse old)
           node-uri-resolved (.resolve page-load-uri node-uri)

@@ -127,7 +127,8 @@
    {:ui
     {:init-fn shadow.cljs.launcher.ui/init}}
    :devtools
-   {:loader-mode :eval}}
+   {:loader-mode :eval
+    :watch-dir "packages/launcher/web"}}
 
   ;; test builds
 
