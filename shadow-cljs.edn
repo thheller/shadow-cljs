@@ -388,23 +388,43 @@
         :http-port 7820
         :autoload true}}
 
-  #_#_:script
-      {:target :node-script
-       :main demo.script/main
-       :output-to "out/demo-script/script.js"
+  :script
+  {:target :node-script
+   :main demo.script/main
+   :output-to "out/demo-script/script.js"
 
-       :compiler-options
-       {:optimizations :advanced
-        :source-map-use-fs-paths true}
+   :compiler-options
+   {:optimizations :simple
+    :source-map-use-fs-paths true}
 
-       :js-options
-       {:resolve
-        {"codemirror" false}}
+   :js-options
+   {:resolve
+    {"codemirror" false}}
 
-       :devtools
-       {:before-load-async demo.script/stop
-        :after-load demo.script/start
-        :preloads [demo.preload]}}
+   :devtools
+   {:before-load-async demo.script/stop
+    :after-load demo.script/start
+    :preloads [demo.preload]}}
+
+  :bootstrap-script-host
+  {:target :node-script
+   :main demo.bootstrap-script/main
+   :output-to "out/demo-bootstrap/script.js"
+
+   :compiler-options
+   {:optimizations :simple}
+
+   :devtools
+   {:enabled false}}
+
+  :bootstrap-script-support
+  {:target :bootstrap
+   :output-dir "out/demo-bootstrap/bootstrap"
+   :exclude #{cljs.js}
+   :entries [cljs.js demo.macro]
+   :macros []
+   :js-options
+   {:js-provider :require}}
 
   :library
   {:target :node-library

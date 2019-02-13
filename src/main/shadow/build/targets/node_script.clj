@@ -70,7 +70,11 @@
     (configure state mode config)
 
     :compile-finish
-    (check-main-exists! state)
+    (-> state
+        (check-main-exists!)
+        (cond->
+          (shared/bootstrap-host-build? state)
+          (shared/bootstrap-host-info)))
 
     :flush
     (flush state mode config)

@@ -16,8 +16,7 @@
             [cljs.compiler :as comp]
             [clojure.string :as str]
             [shadow.build.npm :as npm]
-            [shadow.build.output :as output])
-  (:import [java.net URLConnection]))
+            [shadow.build.output :as output]))
 
 (defn make-macro-resource [macro-ns]
   (let [path
@@ -252,7 +251,8 @@
       (build-api/with-build-options
         {:output-dir (io/file output-dir)})
       ;; FIXME: allow closure?
-      (assoc-in [:js-options :js-provider] :shadow)))
+      (assoc-in [:js-options :js-provider]
+        (get-in config [:js-options :js-provider] :shadow))))
 
 (defn process
   [{::build/keys [stage mode config] :as state}]

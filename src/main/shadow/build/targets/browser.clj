@@ -700,26 +700,6 @@
            (into [])
            ))))
 
-(defn bootstrap-host-build? [{:keys [sym->id] :as state}]
-  (contains? sym->id 'shadow.cljs.bootstrap.env))
-
-(defn bootstrap-host-info [state]
-  (reduce
-    (fn [state {:keys [module-id sources] :as mod}]
-      (let [all-provides
-            (->> sources
-                 (map #(data/get-source-by-id state %))
-                 (map :provides)
-                 (reduce set/union))
-
-            load-str
-            (str "shadow.cljs.bootstrap.env.set_loaded(" (json/write-str all-provides) ");")]
-
-        (update-in state [:output [:shadow.build.modules/append module-id] :js] str "\n" load-str "\n")
-        ))
-    state
-    (:build-modules state)))
-
 (defn maybe-inject-cljs-loader-constants
   [{:keys [sym->id] :as state} mode config]
   (if-not (contains? sym->id 'cljs.loader)
@@ -802,8 +782,8 @@
         (module-wrap)
         (check-npm-versions)
         (cond->
-          (bootstrap-host-build? state)
-          (bootstrap-host-info)))
+          (shared/bootstrap-host-build? state)
+          (shared/bootstrap-host-info)))
 
     :flush
     (flush state mode config)

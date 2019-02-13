@@ -191,7 +191,11 @@
     (configure state mode config)
 
     :compile-finish
-    (check-exports! state config)
+    (-> state
+        (check-exports! config)
+        (cond->
+          (shared/bootstrap-host-build? state)
+          (shared/bootstrap-host-info)))
 
     :flush
     (flush state mode config)
