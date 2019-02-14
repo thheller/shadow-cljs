@@ -13,6 +13,10 @@
  :http
  {}
 
+ :dev-http
+ {8600 "out/demo-browser/public"
+  8606 "out/demo-test-browser"}
+
  :plugins [demo.dummy-plugin]
 
  :nrepl {:port 8202 :middleware []}
@@ -192,9 +196,7 @@
      }}
 
    :devtools
-   {:http-root "out/demo-browser/public"
-    :http-port 8600
-    ;; :loader-mode :eval
+   {:loader-mode :eval
     :repl-init-ns demo.browser
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
@@ -230,9 +232,7 @@
        {:demo {:entries [demo.browser]}}
 
        :devtools
-       {:http-root "out/demo-browser-single/public"
-        :http-port 8602
-        :before-load-async demo.browser/stop-from-config
+       {:before-load-async demo.browser/stop-from-config
         :after-load demo.browser/start-from-config}}
 
   #_#_:chrome-ext
@@ -242,10 +242,7 @@
 
   :test-browser
   {:target :browser-test
-   :test-dir "out/demo-test-browser"
-   :devtools
-   {:http-port 8606
-    :http-root "out/demo-test-browser"}}
+   :test-dir "out/demo-test-browser" }
 
   :test-node
   {:target :node-test

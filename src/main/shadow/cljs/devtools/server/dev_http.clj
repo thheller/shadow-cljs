@@ -3,42 +3,39 @@
   (:require
     [clojure.java.io :as io]
     [clojure.core.async :as async :refer (>!! <!!)]
+    [clojure.spec.alpha :as s]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.model :as m]
     [shadow.undertow :as undertow]
     [shadow.http.push-state :as push-state]
-    ))
+    [clojure.string :as str]))
 
 (defn start-build-server
   [config ssl-context out
-   {:keys [build-id proxy-url http-root http-port http-host http-resource-root http-handler]
-    :or {http-port 0}
+   {:keys [proxy-url port host roots handler]
+    :or {port 0}
     :as config}]
 
-  (let [root-dir
-        (when (seq http-root)
-          (io/file http-root))
-
-        http-host
-        (or (and (seq http-host) http-host)
+  (let [http-host
+        (or (and (seq host) host)
             (get-in config [:http :host])
             "0.0.0.0")
 
-        http-handler-var
+        handler-var
         (cond
-          (nil? http-handler)
+          (nil? handler)
           #'push-state/handle
 
           :else
           (do
             (or (try
-                  (require (symbol (namespace http-handler)))
-                  (find-var http-handler)
+                  (require (symbol (namespace handler)))
+                  (find-var handler)
                   (catch Exception e
-                    (log/warn-ex e ::handler-load-ex {:http-handler http-handler})))
-                (do (log/warn ::handler-not-found {:http-handler http-handler})
+                    (log/warn-ex e ::handler-load-ex {:http-handler handler})))
+                (do (log/warn ::handler-not-found {:http-handler handler})
                     #'push-state/handle))))
 
         http-info-ref
@@ -47,14 +44,8 @@
         http-handler-fn
         (fn [req]
           (-> req
-              (assoc :http-root root-dir
-                     :http @http-info-ref
-                     :build-id build-id
-                     :devtools config)
-              (http-handler-var)))]
-
-    (when (and root-dir (not (.exists root-dir)))
-      (io/make-parents (io/file root-dir "index.html")))
+              (assoc :http @http-info-ref :http-config config)
+              (handler-var)))]
 
     (try
       (let [req-handler
@@ -64,17 +55,19 @@
                [::undertow/blocking
                 [::undertow/ring {:handler-fn http-handler-fn}]]])
 
-            ;; serve resource before handler
             req-handler
-            (if-not (seq http-resource-root)
-              req-handler
-              [::undertow/classpath {:root http-resource-root} req-handler])
+            (reduce
+              (fn [req-handler root]
+                (if (str/starts-with? root "classpath:")
+                  [::undertow/classpath {:root (subs root 10)} req-handler]
 
-            ;; serve files before resource or handler
-            req-handler
-            (if-not root-dir
+                  (let [root-dir (io/file root)]
+                    (if-not (or (.exists root-dir) (not (.isDirectory root-dir)))
+                      (do (log/warn ::root-not-found {:root root})
+                          req-handler)
+                      [::undertow/file {:root-dir root-dir} req-handler]))))
               req-handler
-              [::undertow/file {:root-dir root-dir} req-handler])
+              (reverse roots))
 
             handler-config
             [::undertow/soft-cache
@@ -83,7 +76,7 @@
               [::undertow/compress {} req-handler]]]
 
             http-options
-            (-> {:port http-port
+            (-> {:port port
                  :host http-host}
                 (cond->
                   ssl-context
@@ -95,8 +88,7 @@
               (let [srv (try
                           (undertow/start http-options handler-config)
                           (catch Exception e
-                            (log/warn-ex e ::http-start-ex {:build-id build-id
-                                                            :http-options http-options})
+                            (log/warn-ex e ::http-start-ex {:http-options http-options :config config})
                             nil))]
                 (cond
                   (some? srv)
@@ -124,38 +116,169 @@
 
         (when https-port
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - HTTP server for %s available at %s" build-id https-url)}))
+                    :msg (format "shadow-cljs - HTTP server available at %s" https-url)}))
 
         (when http-port
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - HTTP server for %s available at %s" build-id http-url)}))
+                    :msg (format "shadow-cljs - HTTP server available at %s" http-url)}))
 
-        (log/debug ::http-serve (-> server
-                                    (dissoc :instance)
-                                    (assoc :build-id build-id)))
+        (log/debug ::http-serve (dissoc server :instance))
 
-        {:build-id build-id
-         :http-url http-url
+        {:http-url http-url
          :https-url https-url
+         :config config
          :instance server})
 
       (catch Exception e
         (log/warn-ex e ::start-ex config)
         nil))))
 
-(defn get-server-configs []
-  (let [{:keys [builds] :as config}
-        (config/load-cljs-edn!)]
+(defn extract-http-config-from-build
+  [{:keys [http-root http-port https-port http-host http-resource-root http-handler proxy-url] :as build}]
+  (when (or http-port https-port)
 
-    (->> (vals builds)
-         (map (fn [{:keys [build-id devtools] :as build-config}]
-                (when (contains? devtools :http-root)
-                  (assoc devtools :build-id build-id))))
-         (remove nil?)
-         (into []))))
+    (-> {:roots []}
+        (cond->
+          http-port
+          (assoc :port http-port)
+
+          http-handler
+          (assoc :handler http-handler)
+
+          https-port
+          (assoc :ssl-port https-port)
+
+          (seq http-host)
+          (assoc :host http-host)
+
+          (seq http-root)
+          (update :roots conj http-root)
+
+          (seq http-resource-root)
+          (update :roots conj (str "classpath:" http-resource-root))
+
+          (seq proxy-url)
+          (assoc :proxy-url proxy-url)))))
+
+(defn desugar-http-config [input]
+  (cond
+    (not (seq input))
+    []
+
+    (map? input)
+    (reduce-kv
+      (fn [servers port config]
+        (let [config
+              (cond
+                (map? config)
+                config
+
+                (string? config)
+                {:roots [config]}
+
+                (and (vector? config)
+                     (every? string? config))
+                {:roots config}
+
+                (qualified-symbol? config)
+                {:handler config}
+
+                :else
+                (throw (ex-info "invalid value for :dev-http entry" {:key port :value config})))
+
+              config
+              (-> config
+                  (assoc :port port)
+                  (cond->
+                    (:root config)
+                    (-> (update :roots (fnil conj []) (:root config))
+                        (dissoc :root))))]
+
+          (if-not (s/valid? ::server-config config)
+            (do (log/warn ::invalid-server-config {:config config})
+                servers)
+            (conj servers config))))
+      []
+      input)
+
+    (vector? input)
+    input
+
+    :else
+    (throw (ex-info "invalid :dev-http value" {:input input}))
+    ))
+
+(s/def ::host string?)
+(s/def ::port pos-int?)
+
+(defn valid-http-root? [s]
+  (and (string? s) (seq s)))
+
+(s/def ::root valid-http-root?)
+
+(s/def ::roots (s/coll-of ::root :kind vector? :min-count 1))
+
+(s/def ::handler qualified-symbol?)
+
+
+(defn roots-or-handler? [x]
+  (or (seq (:roots x))
+      (:handler x)))
+
+(s/def ::server-config
+  (s/and
+    (s/keys
+      :req-un
+      [::port]
+      :opt-un
+      [::ssl-port
+       ::host
+       ::proxy-url
+       ::ssl-only
+       ::handler
+       ::roots])
+    roots-or-handler?))
+
+(s/def ::server-configs
+  (s/coll-of ::server-config :kind vector?))
+
+(defn transform-server-configs [{:keys [builds dev-http] :as config}]
+  (let [via-builds
+        (->> (vals builds)
+             (map (fn [{:keys [devtools] :as build-config}]
+                    (extract-http-config-from-build devtools)))
+             (remove nil?))
+
+        new-format
+        (desugar-http-config dev-http)]
+
+    (-> []
+        (into via-builds)
+        (into new-format)
+        (->> (sort-by :port)
+             (into [])))))
+
+(defn get-server-configs []
+  (-> (config/load-cljs-edn!)
+      (transform-server-configs)))
 
 (comment
-  (get-server-configs))
+  (clojure.pprint/pprint
+    (transform-server-configs
+      {:dev-http
+       {8000 "default-root"
+        8001 ["a"]
+        8002 {:ssl-port 8003}
+        8004 {:proxy-url "http://localhost:1234"}
+        8005 {:root ""} ;; invalid
+        8006 {} ;; invalid
+        8007 {:handler :foo} ;;invalid
+        8008 {:handler 'foo/bar}
+        }
+       :builds
+       {:foo
+        {:devtools
+         {:http-root "foo-root"}}}})))
 
 (defn start-servers [config ssl-context out]
   (let [configs
@@ -198,7 +321,7 @@
                 (when (not= configs (:configs @state-ref))
                   (log/debug ::config-change)
                   (>!! out {:type :println
-                            :msg "shadow-cljs - dev http config change, restarting servers"})
+                            :msg "shadow-cljs - HTTP config change, restarting servers"})
                   (swap! state-ref stop-servers)
                   (swap! state-ref merge (start-servers new-config ssl-context out))))
               (recur new-config))))]
