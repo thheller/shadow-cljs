@@ -7,7 +7,7 @@
    :headers {"content-type" "text/plain"}
    :body "Not found."})
 
-(defn handle [{:keys [uri http-root http-config] :as req}]
+(defn handle [{:keys [uri http-roots http-config] :as req}]
   (let [accept (get-in req [:headers "accept"])]
     (if (and accept (not (str/includes? accept "text/html")))
       not-found
@@ -18,8 +18,15 @@
             (get http-config :push-state/headers {"content-type" "text/html; charset=utf-8"})
 
             index-file
-            (io/file http-root index-name)]
-        (if-not (.exists index-file)
+            (reduce
+              (fn [_ http-root]
+                (let [file (io/file http-root index-name)]
+                  (when (and file (.exists file))
+                    (reduced file))))
+              nil
+              http-roots)]
+        
+        (if-not index-file
           ;; FIXME: serve some kind of default page instead
           (assoc not-found :body "Not found. Missing index.html.")
           {:status 200

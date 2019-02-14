@@ -71,7 +71,7 @@
         http-handler-fn
         (fn [req]
           (-> req
-              (assoc :http @http-info-ref :http-config config)
+              (assoc :http @http-info-ref :http-config config :http-roots roots)
               (handler-var)))]
 
     (try
