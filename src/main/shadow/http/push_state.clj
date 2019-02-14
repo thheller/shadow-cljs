@@ -25,7 +25,7 @@
                     (reduced file))))
               nil
               http-roots)]
-        
+
         (if-not index-file
           ;; FIXME: serve some kind of default page instead
           (assoc not-found :body "Not found. Missing index.html.")
