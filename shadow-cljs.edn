@@ -19,7 +19,7 @@
 
  :plugins [demo.dummy-plugin]
 
- :nrepl {:port 8202 :middleware []}
+ :nrepl false ;; {:port 8202 :middleware []}
 
  :source-paths
  ["src/dev"
@@ -242,7 +242,7 @@
 
   :test-browser
   {:target :browser-test
-   :test-dir "out/demo-test-browser" }
+   :test-dir "out/demo-test-browser"}
 
   :test-node
   {:target :node-test

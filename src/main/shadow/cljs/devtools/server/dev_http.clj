@@ -89,10 +89,9 @@
                   [::undertow/classpath {:root (subs root 10)} req-handler]
 
                   (let [root-dir (io/file root)]
-                    (if-not (or (.exists root-dir) (not (.isDirectory root-dir)))
-                      (do (log/warn ::root-not-found {:root root})
-                          req-handler)
-                      [::undertow/file {:root-dir root-dir} req-handler]))))
+                    (when-not (.exists root-dir)
+                      (io/make-parents (io/file root-dir "index.html")))
+                    [::undertow/file {:root-dir root-dir} req-handler])))
               req-handler
               (reverse roots))
 
