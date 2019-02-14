@@ -215,6 +215,12 @@
   (when (or http-port https-port)
 
     (-> {:roots []}
+        (merge (select-keys build [:proxy-rewrite-host-header
+                                   :proxy-reuse-x-forwarded
+                                   :proxy-max-connection-retries
+                                   :proxy-max-request-time
+                                   :push-state/headers
+                                   :push-state/index]))
         (cond->
           http-port
           (assoc :port http-port)
