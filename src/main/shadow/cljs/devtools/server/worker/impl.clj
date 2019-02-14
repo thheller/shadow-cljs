@@ -870,22 +870,13 @@
               (build-compile)))))))
 
 (defn do-asset-update
-  [{:keys [runtimes] :as worker-state} updates]
-  (let [watch-path
-        (get-in worker-state [:build-config :devtools :watch-path])
+  [{:keys [runtimes] :as worker-state} {:keys [updates] :as msg}]
 
-        updates
-        (->> updates
-             (filter #(contains? #{:mod :new} (:event %)))
-             (map #(update % :name rc/normalize-name))
-             (map #(str watch-path "/" (:name %)))
-             (into []))]
-    ;; only interested in file modifications
-    ;; don't need file instances, just the names
-    (when (seq updates)
-      (doseq [{:keys [runtime-out]} (vals runtimes)]
-        (>!! runtime-out {:type :asset-watch
-                          :updates updates}))))
+  (when (seq updates)
+    (doseq [{:keys [runtime-out]} (vals runtimes)]
+      (>!! runtime-out {:type :asset-watch
+                        :updates updates})))
+
 
   worker-state)
 

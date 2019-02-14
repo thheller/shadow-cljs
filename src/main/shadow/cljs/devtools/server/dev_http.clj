@@ -10,10 +10,37 @@
     [shadow.cljs.model :as m]
     [shadow.undertow :as undertow]
     [shadow.http.push-state :as push-state]
-    [clojure.string :as str]))
+    [clojure.string :as str])
+  (:import [io.undertow.server HttpHandler ExchangeCompletionListener]
+           [shadow.undertow ShadowResourceHandler]))
+
+(defmethod undertow/build* ::file-recorder [state [id {:keys [on-request] :as props} next]]
+  (assert (vector? next))
+
+  (let [{next :handler :as state}
+        (undertow/build state next)
+
+        completion-listener
+        (reify
+          ExchangeCompletionListener
+          (exchangeEvent [_ exchange next]
+            (when-let [rc (.getAttachment exchange ShadowResourceHandler/RESOURCE_KEY)]
+              (when-let [file (.getFile rc)]
+                (let [uri (.getRequestPath exchange)]
+                  (on-request uri file))))
+            (.proceed next)))
+
+        record-handler
+        (reify
+          HttpHandler
+          (handleRequest [_ exchange]
+            (.addExchangeCompleteListener exchange completion-listener)
+            (.handleRequest next exchange)))]
+
+    (assoc state :handler record-handler)))
 
 (defn start-build-server
-  [config ssl-context out
+  [sys-bus config ssl-context out
    {:keys [proxy-url port host roots handler]
     :or {port 0}
     :as config}]
@@ -69,11 +96,26 @@
               req-handler
               (reverse roots))
 
+            files-used-ref
+            (atom {})
+
+            file-request-fn
+            (fn [path file]
+              ;; FIXME: maybe add support for images
+              (when (str/ends-with? path ".css")
+                (let [key [path file]]
+                  (when-not (contains? @files-used-ref key)
+                    ;; doesn't matter if using timestamp of last modified of file
+                    ;; we only want to reload it when it was changed after the access
+                    ;; but don't always record last access since there may be multiple clients
+                    (swap! files-used-ref assoc key (System/currentTimeMillis))))))
+
             handler-config
-            [::undertow/soft-cache
-             [::undertow/ws-upgrade
-              [::undertow/ws-ring {:handler-fn http-handler-fn}]
-              [::undertow/compress {} req-handler]]]
+            [::file-recorder {:on-request file-request-fn}
+             [::undertow/soft-cache
+              [::undertow/ws-upgrade
+               [::undertow/ws-ring {:handler-fn http-handler-fn}]
+               [::undertow/compress {} req-handler]]]]
 
             http-options
             (-> {:port port
@@ -110,7 +152,39 @@
 
             http-url
             (when http-port
-              (format "http://%s:%s" display-host http-port))]
+              (format "http://%s:%s" display-host http-port))
+
+            file-watch-ref
+            (atom true)
+
+            file-watch-fn
+            (fn []
+              (while @file-watch-ref
+                (let [changed
+                      (reduce-kv
+                        (fn [changed key last-access]
+                          (let [[path file] key]
+                            (if-not (.exists file)
+                              ;; deleted files can not be reloaded, no need to notify anyone
+                              (do (swap! files-used-ref dissoc key)
+                                  changed)
+                              (let [new-mod (.lastModified file)]
+                                (if-not (> new-mod last-access)
+                                  changed
+                                  (do (swap! files-used-ref assoc key new-mod)
+                                      (conj changed path)))))))
+
+                        #{}
+                        @files-used-ref)]
+
+                  (when (seq changed)
+                    (sys-bus/publish! sys-bus ::m/asset-update {:updates changed})))
+                (Thread/sleep 500)))
+
+            file-watch-thread
+            (doto (Thread. file-watch-fn "dev-http-file-watch")
+              (.setDaemon true)
+              (.start))]
 
         (swap! http-info-ref merge {:port http-port})
 
@@ -127,7 +201,10 @@
         {:http-url http-url
          :https-url https-url
          :config config
-         :instance server})
+         :instance server
+         :file-watch-thread file-watch-thread
+         :file-watch-ref file-watch-ref
+         })
 
       (catch Exception e
         (log/warn-ex e ::start-ex config)
@@ -280,21 +357,23 @@
         {:devtools
          {:http-root "foo-root"}}}})))
 
-(defn start-servers [config ssl-context out]
+(defn start-servers [sys-bus config ssl-context out]
   (let [configs
         (get-server-configs)
 
         servers
-        (into [] (map #(start-build-server config ssl-context out %)) configs)]
+        (into [] (map #(start-build-server sys-bus config ssl-context out %)) configs)]
 
     {:servers servers
      :configs configs}
     ))
 
 (defn stop-servers [{:keys [servers] :as state}]
-  (doseq [{:keys [instance] :as srv} servers
-          :when instance]
-    (undertow/stop instance))
+  (doseq [{:keys [instance file-watch-ref] :as srv} servers]
+    (when instance
+      (undertow/stop instance))
+    (when file-watch-ref
+      (reset! file-watch-ref false)))
   (dissoc state :server :configs))
 
 (defn start [sys-bus config ssl-context out]
@@ -306,7 +385,7 @@
         (sys-bus/sub sys-bus ::m/config-watch sub-chan true)
 
         state-ref
-        (-> (start-servers config ssl-context out)
+        (-> (start-servers sys-bus config ssl-context out)
             (assoc :ssl-context ssl-context
                    :sub sub
                    :sub-chan sub-chan
@@ -323,7 +402,7 @@
                   (>!! out {:type :println
                             :msg "shadow-cljs - HTTP config change, restarting servers"})
                   (swap! state-ref stop-servers)
-                  (swap! state-ref merge (start-servers new-config ssl-context out))))
+                  (swap! state-ref merge (start-servers sys-bus new-config ssl-context out))))
               (recur new-config))))]
 
     (swap! state-ref assoc :loop-chan loop-chan)

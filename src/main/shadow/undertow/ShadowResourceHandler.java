@@ -45,17 +45,7 @@ import io.undertow.server.handlers.cache.ResponseCache;
 import io.undertow.server.handlers.encoding.ContentEncodedResource;
 import io.undertow.server.handlers.encoding.ContentEncodedResourceManager;
 import io.undertow.server.handlers.resource.*;
-import io.undertow.util.ByteRange;
-import io.undertow.util.CanonicalPathUtils;
-import io.undertow.util.DateUtils;
-import io.undertow.util.ETag;
-import io.undertow.util.ETagUtils;
-import io.undertow.util.Headers;
-import io.undertow.util.HttpString;
-import io.undertow.util.Methods;
-import io.undertow.util.MimeMappings;
-import io.undertow.util.RedirectBuilder;
-import io.undertow.util.StatusCodes;
+import io.undertow.util.*;
 
 /**
  * This is the default undertow ResourceHandler but modified so that missing index files
@@ -70,6 +60,8 @@ public class ShadowResourceHandler implements HttpHandler {
      * return NOT_IMPLEMENTED.
      */
     private static final Set<HttpString> KNOWN_METHODS = new HashSet<>();
+
+    public static final AttachmentKey RESOURCE_KEY = AttachmentKey.create(Resource.class);
 
     static {
         KNOWN_METHODS.add(Methods.OPTIONS);
@@ -218,6 +210,8 @@ public class ShadowResourceHandler implements HttpHandler {
                     exchange.endExchange();
                     return;
                 }
+
+                exchange.putAttachment(RESOURCE_KEY, resource);
 
                 final ETag etag = resource.getETag();
                 final Date lastModified = resource.getLastModified();

@@ -13,7 +13,8 @@
             [shadow.build.babel :as babel]
             [shadow.build.log :as build-log]
             [shadow.build.warnings :as warnings]
-            [shadow.cljs.devtools.errors :as errors])
+            [shadow.cljs.devtools.errors :as errors]
+            [shadow.build.resource :as rc])
   (:import (java.util UUID)))
 
 (defn compile
@@ -352,10 +353,6 @@
          :or {watch-exts #{"css"}}}
         (:devtools build-config)
 
-        watch-dir
-        (or watch-dir
-            (get-in build-config [:devtools :http-root]))
-
         status-ref
         (atom {:status :pending
                :build-id build-id
@@ -383,7 +380,25 @@
                                          (.getCanonicalFile))]
                        (when-not (.exists watch-dir)
                          (io/make-parents (io/file watch-dir "dummy.html")))
-                       (fs-watch/start (:fs-watch config) [watch-dir] watch-exts #(async/>!! asset-update %))))))
+
+                       (fs-watch/start
+                         (:fs-watch config)
+                         [watch-dir]
+                         watch-exts
+                         (fn [updates]
+                           (let [watch-path
+                                 (get-in @state-ref [:build-config :devtools :watch-path])
+
+                                 updates
+                                 (->> updates
+                                      (filter #(contains? #{:mod :new} (:event %)))
+                                      (map #(update % :name rc/normalize-name))
+                                      (map #(str watch-path "/" (:name %)))
+                                      (into []))]
+
+                             ;; only interested in file modifications
+                             ;; don't need file instances, just the names
+                             (async/>!! asset-update {:updates updates}))))))))
 
         build-status-chan
         (-> (async/sliding-buffer 10)
@@ -394,6 +409,7 @@
     (build-status-loop system-bus build-id status-ref build-status-chan)
 
     (sys-bus/sub system-bus ::m/resource-update resource-update)
+    (sys-bus/sub system-bus ::m/asset-update asset-update)
     (sys-bus/sub system-bus ::m/macro-update macro-update)
     (sys-bus/sub system-bus [::m/config-watch build-id] config-watch)
 
