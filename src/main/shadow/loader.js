@@ -66,11 +66,11 @@ shadow.loader.load_multiple = function(ids, opt_userInitiated) {
 };
 
 shadow.loader.prefetch = function(id) {
-  shadow.loader.mm.prefetch(shadow.loader.string_id(id));
+  shadow.loader.mm.prefetchModule(shadow.loader.string_id(id));
 };
 
 shadow.loader.preload = function(id) {
-  return shadow.loader.mm.preload(shadow.loader.string_id(id));
+  return shadow.loader.mm.preloadModule(shadow.loader.string_id(id));
 };
 
 // FIXME: not sure these should always be exported
