@@ -17,9 +17,14 @@
     [demo.never-load]
     [demo.always-load]
     [shadow.resource :as rc]
+    [shadow.loader :as sl]
+    [cljs.loader :as cl]
     ))
 
 ::foo
+
+(when-not (identical? sl/load cl/load)
+  (js/console.warn "cljs.loader NOT aliased to shadow.loader"))
 
 (def x (rc/inline "./test.md"))
 

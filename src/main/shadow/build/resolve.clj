@@ -358,6 +358,13 @@
   (or (when-let [rc-id (get-in state [:sym->id require])]
         [(get-in state [:sources rc-id]) state])
 
+      ;; check if ns is an alias
+      (when-let [alias (get-in state [:ns-aliases require])]
+        ;; if alias was previously used we already have all the data
+        (if-let [rc-id (get-in state [:sym->id alias])]
+          [(get-in state [:sources rc-id]) state]
+          (find-resource-for-symbol state require-from alias)))
+
       ;; otherwise check if the classpath provides a symbol
       (when-let [rc (cp/find-resource-for-provide classpath require)]
         [rc state])

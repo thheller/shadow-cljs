@@ -54,13 +54,10 @@
     (let [ana-info (dissoc ast :env :op :form)]
       (swap! env/*compiler* update-in [::ana/namespaces name] merge ana-info))
 
-    ;; FIXME: cljs.loader is bad, really do not like the implementation
-    ;; special case for cljs.loader which requires some consts that aren't actually in the source
-    ;; normally cljs.loader is compiled in a special pass AFTER everything else
-    ;; we already know everything we need to know but this is still pretty bad
-    (when (= name 'cljs.loader)
-      (let [{:keys [loader-constants]} build-state]
-        (swap! env/*compiler* ana/add-consts loader-constants)))
+    ;; no longer need the special case handling for cljs.loader since it is just aliased to shadow.loader
+    #_(when (= name 'cljs.loader)
+        (let [{:keys [loader-constants]} build-state]
+          (swap! env/*compiler* ana/add-consts loader-constants)))
 
     ;; FIXME: is this the correct location to do this?
     ;; FIXME: using alter instead of reset, to avoid completely removing meta
@@ -1155,6 +1152,14 @@
               (reduce set/union #{})
               (set/union (:magic-syms state)))
 
+         ;; is a non-cljs file is used as an alias we need to remember that for
+         ;; parallel compile since it will otherwise idle until failure
+         non-cljs-provides
+         (->> non-cljs-provides
+              (map #(get-in state [:ns-aliases-reverse %]))
+              (remove nil?)
+              (into non-cljs-provides))
+
          optimizing?
          (let [x (get-in state [:compiler-options :optimizations])]
            (or (nil? x)
@@ -1213,7 +1218,7 @@
          ;; CLJS first since all it needs are the provided names
          (cond->
            (seq goog)
-           (copy-source-to-output goog)
+           (maybe-closure-convert goog closure/convert-goog)
 
            ;; FIXME: removed foreign support
            ;; (seq foreign)

@@ -80,7 +80,8 @@
 
    :devtools
    {:preloads [fulcro.inspect.preload]
-    :loader-mode :eval}}
+    ;; :loader-mode :eval
+    }}
 
   :build-report
   {:target :browser
@@ -153,7 +154,7 @@
    :build-hooks
    [(demo.hooks/dummy 1 2 3)]
 
-   :module-loader false
+   :module-loader true
    ;; :module-hash-names true
    :modules
    {:base

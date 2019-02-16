@@ -40,11 +40,11 @@
 
    ;; map of {clojure.spec.alpha cljs.spec.alpha}
    ;; alias -> actual
-   :ns-aliases {}
+   :ns-aliases '{cljs.loader shadow.loader}
 
    ;; map of {cljs.spec.alpha clojure.spec.alpha}
    ;; actual -> alias, only needed by compiler for the extra provide it needs to account for
-   :ns-aliases-reverse {}
+   :ns-aliases-reverse '{shadow.loader cljs.loader}
 
    ;; a set to keep track of symbols that should be strings since they will never be compiled
    :magic-syms #{}

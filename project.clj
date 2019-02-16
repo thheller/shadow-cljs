@@ -38,11 +38,13 @@
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.10.520"
     :exclusions
-    [com.google.javascript/closure-compiler-unshaded]]
+    [com.google.javascript/closure-compiler-unshaded
+     org.clojure/google-closure-library]]
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
    [com.google.javascript/closure-compiler-unshaded "v20190121"]
+   [org.clojure/google-closure-library "0.0-20190213-2033d5d9"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]

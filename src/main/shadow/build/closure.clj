@@ -1975,3 +1975,119 @@
                  :dead-js-deps dead-js-deps
                  :live-js-deps live-js-deps))
       )))
+
+(defn convert-goog
+  "convert Closure Library code since it may contain a random mix of ClosureJS and Closure Modules"
+  [{:keys [js-options  mode] :as state} sources]
+  (let [source-files
+        (->> (for [{:keys [resource-name] :as src} sources]
+               (let [source (data/get-source-code state src)]
+                 (closure-source-file resource-name source)))
+             #_(map #(do (println (.getCode %)) %))
+             (into []))
+
+        ;; this includes all files (sources + package.json files)
+        source-files-by-name
+        (->> source-files
+             (map (juxt #(.getName %) identity))
+             (into {}))
+
+        ;; this only includes resources we actually want output for
+        resource-by-name
+        (->> sources
+             (map (juxt :resource-name identity))
+             (into {}))
+
+        cc
+        (data/make-closure-compiler)
+
+        co-opts
+        (merge
+          ;; :whitespace or :simple work but some patterns really require the DCE done by :simple
+          ;; eg some conditional imports done by react&friends
+          {:pretty-print true
+           :pseudo-names false
+           ;; es6+ is transformed by babel first
+           ;; but closure got real picky and complains about some things being es6 that aren't
+           ;; doesn't really impact much here anyways
+           :language-in :ecmascript-next
+           :language-out :ecmascript5}
+          ;; (dissoc js-options :resolve)
+          ;; always enable source-map, just skip emitting them later if desired
+          {:source-map true})
+
+        generate-source-map?
+        (not (false? (:source-map js-options)))
+
+        closure-opts
+        (doto (make-options)
+          (set-options co-opts state)
+          (.resetWarningsGuard)
+          (.setSkipNonTranspilationPasses true)
+          (.setPreserveTypeAnnotations true)
+          (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
+
+        ;; _ (.setOptionsForCompilationLevel CompilationLevel/WHITESPACE_ONLY closure-opts)
+
+        result
+        (try
+          (util/with-logged-time [state {:type ::goog-convert
+                                         :num-sources (count sources)}]
+            (.compile cc default-externs source-files closure-opts))
+          ;; catch internal closure errors
+          (catch Exception e
+            (throw (ex-info "failed to convert sources"
+                     {:tag ::convert-error
+                      :sources (into [] (map :resource-id) sources)}
+                     e))))
+
+        _ (throw-errors! state cc result)
+
+        source-map
+        (.getSourceMap cc)]
+
+    (-> state
+        (log-warnings cc result)
+        (util/reduce->
+          (fn [state source-node]
+            (.reset source-map)
+
+            (let [name
+                  (.getSourceFileName source-node)
+
+                  source-file
+                  (get source-files-by-name name)
+
+                  {:keys [resource-id ns output-name deps] :as rc}
+                  (get resource-by-name name)
+
+                  js
+                  (try
+                    (ShadowAccess/nodeToJs cc source-map source-node)
+                    (catch Exception e
+                      (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+
+                  sm-json
+                  (when generate-source-map?
+                    (let [sw (StringWriter.)]
+                      ;; for sourcesContent
+                      (when (:source-map-include-sources-content co-opts)
+                        (.addSourceFile source-map (.getName source-file) (.getCode source-file)))
+                      (.appendTo source-map sw output-name)
+                      (.toString sw)))
+
+                  output
+                  (-> {:resource-id resource-id
+                       :js js
+                       :source (.getCode source-file)
+                       :compiled-at (System/currentTimeMillis)}
+                      (cond->
+                        generate-source-map?
+                        (assoc :source-map-json sm-json)))]
+
+              (assoc-in state [:output resource-id] output)
+              ))
+
+          (->> (ShadowAccess/getJsRoot cc)
+               (.children) ;; the inputs
+               )))))

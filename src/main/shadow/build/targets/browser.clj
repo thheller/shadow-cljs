@@ -222,7 +222,8 @@
 
                     ;; other modules just need to tell the loader they finished loading
                     (and module-loader (not (or default? web-worker)))
-                    (update :append-js str "\nshadow.loader.set_loaded('" (name module-id) "');")
+                    (-> (update :prepend-js str "\nshadow.loader.set_load_start('" (name module-id) "');")
+                        (update :append-js str "\nshadow.loader.set_loaded();"))
 
                     ;; per module :preloads
                     (and (seq preloads) (= :dev mode))
@@ -770,7 +771,7 @@
 
     :compile-prepare
     (-> state
-        (maybe-inject-cljs-loader-constants mode config)
+        ;; (maybe-inject-cljs-loader-constants mode config)
         (cond->
           ;; only set this if any :shadow-js is used otherwise closure will complain
           (get-in state [:sym->id 'shadow.js])
