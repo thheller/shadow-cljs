@@ -14,7 +14,8 @@
     [shadow.build.data :as data]
     [shadow.build.npm :as npm]
     [shadow.build.cache :as cache]
-    [shadow.core-ext :as core-ext])
+    [shadow.core-ext :as core-ext]
+    [shadow.build.resource :as rc])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
@@ -1724,6 +1725,12 @@
 
           (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS replace-require-pass)
 
+          ;; google SourceMapResolver is broken since it always resolves source map files relative
+          ;; from the input name not from its original path. since we always use the resource-name
+          ;; as the input it can never find anything. can't use the full path as input as that
+          ;; affects the generated alias
+          (.setResolveSourceMapAnnotations false)
+
           (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
           (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
           ;; node_modules/@firebase/util/dist/cjs/src/constants.ts:26: ERROR - @define variable  assignment must be global
@@ -1976,9 +1983,9 @@
                  :live-js-deps live-js-deps))
       )))
 
-(defn convert-goog
+(defn convert-goog*
   "convert Closure Library code since it may contain a random mix of ClosureJS and Closure Modules"
-  [{:keys [js-options  mode] :as state} sources]
+  [{:keys [js-options mode] :as state} sources]
   (let [source-files
         (->> (for [{:keys [resource-name] :as src} sources]
                (let [source (data/get-source-code state src)]
@@ -2002,19 +2009,11 @@
         (data/make-closure-compiler)
 
         co-opts
-        (merge
-          ;; :whitespace or :simple work but some patterns really require the DCE done by :simple
-          ;; eg some conditional imports done by react&friends
-          {:pretty-print true
-           :pseudo-names false
-           ;; es6+ is transformed by babel first
-           ;; but closure got real picky and complains about some things being es6 that aren't
-           ;; doesn't really impact much here anyways
-           :language-in :ecmascript-next
-           :language-out :ecmascript5}
-          ;; (dissoc js-options :resolve)
-          ;; always enable source-map, just skip emitting them later if desired
-          {:source-map true})
+        {:pretty-print true
+         :pseudo-names false
+         :language-in :ecmascript-next
+         :language-out :ecmascript5
+         :source-map true}
 
         generate-source-map?
         (not (false? (:source-map js-options)))
@@ -2032,7 +2031,7 @@
         result
         (try
           (util/with-logged-time [state {:type ::goog-convert
-                                         :num-sources (count sources)}]
+                                         :num-files (count sources)}]
             (.compile cc default-externs source-files closure-opts))
           ;; catch internal closure errors
           (catch Exception e
@@ -2091,3 +2090,111 @@
           (->> (ShadowAccess/getJsRoot cc)
                (.children) ;; the inputs
                )))))
+
+(defn convert-goog
+  "convert and caches ClosureJS and ClosureModule sources"
+  [state sources]
+  (let [cache-index-file
+        (data/cache-file state "goog-js" "index.json.transit")
+
+        cache-index
+        (or (::shadow-js-cache state)
+            ;; read from disk
+            (and (.exists cache-index-file)
+                 (cache/read-cache cache-index-file))
+            ;; ensure that at least the directoy exists so we can write files into it later
+            (do (io/make-parents cache-index-file)
+                {}))
+
+        ;; FIXME: currently this doesn't accept any outside compiler options
+        cache-options
+        []
+
+        cache-files
+        (if (or (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
+                (not= cache-options (:CACHE-OPTIONS cache-index)))
+          ;; invalidate all cache when the timestamp of this file has changed
+          []
+          ;; compare each cache key
+          (->> (for [{:keys [resource-id cache-key] :as src} sources
+                     ;; FIXME: this should probably check if the file exists
+                     ;; never should delete individual cached files without also removing the index though
+                     :when (= cache-key (get cache-index resource-id))]
+                 src)
+               ;; need to preserve order for later
+               (into [])))
+
+        cache-files-set
+        (into #{} (map :resource-id) cache-files)
+
+        recompile-sources
+        (->> sources
+             (remove #(contains? cache-files-set (:resource-id %)))
+             (into []))
+
+        need-compile?
+        (boolean (seq recompile-sources))
+
+        ;; can't do a partial compile since goog is picky about missing names
+        ;; compile is fast so we can just recompile everything
+        state
+        (if-not need-compile?
+          state
+          (convert-goog* state sources))
+
+        cache-index-updated
+        (if-not need-compile?
+          cache-index
+          (util/with-logged-time [state {:type ::goog-cache-write
+                                         :num-files (count recompile-sources)}]
+            (reduce
+              (fn [idx {:keys [cache-key resource-id output-name] :as compiled-src}]
+                (let [output
+                      (data/get-output! state compiled-src)
+
+                      cache-file
+                      (data/cache-file state "goog-js" output-name)]
+
+                  (cache/write-file cache-file output)
+
+                  (assoc idx resource-id cache-key)))
+              (assoc cache-index
+                :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
+                :CACHE-OPTIONS cache-options)
+              sources)))]
+
+    (when need-compile?
+      (cache/write-file cache-index-file cache-index-updated))
+
+    ;; full compile always so never need to restore cache when compiled
+    (if need-compile?
+      state
+      (util/with-logged-time [state {:type ::goog-cache-read
+                                     :num-files (count cache-files)}]
+        (reduce
+          (fn [state {:keys [resource-id output-name] :as cached-rc}]
+            (if (get-in state [:output resource-id])
+              state
+              (let [cache-file
+                    (data/cache-file state "goog-js" output-name)
+
+                    {:keys [actual-requires] :as cached-output}
+                    (-> (cache/read-cache cache-file)
+                        (assoc :cached true))]
+
+                (assoc-in state [:output resource-id] cached-output)
+                )))
+          state
+          cache-files)))))
+
+(defmethod build-log/event->str ::goog-cache-read
+  [{:keys [num-files]}]
+  (format "Closure JS Cache read: %d JS files" num-files))
+
+(defmethod build-log/event->str ::goog-cache-write
+  [{:keys [num-files]}]
+  (format "Closure JS Cache write: %d JS files" num-files))
+
+(defmethod build-log/event->str ::goog-convert
+  [{:keys [num-files]}]
+  (format "Closure JS convert: %d JS files" num-files))
