@@ -92,7 +92,7 @@
       (slurp)
       (read-config-str)))
 
-(defn load-system-config []
+(defn load-user-config []
   (let [file (io/file (System/getProperty "user.home") ".shadow-cljs" "config.edn")]
     (if-not (.exists file)
       {}
@@ -103,13 +103,12 @@
   (let [file (io/file "shadow-cljs.edn")]
     (if-not (.exists file)
       default-config
-      (merge
-        (load-system-config)
-        (-> (read-config file)
-            (normalize)
-            (->> (merge default-config))
-            (update :builds #(merge default-builds %))
-            )))))
+      (-> (read-config file)
+          (normalize)
+          (->> (merge default-config))
+          (update :builds #(merge default-builds %))
+          (assoc :user-config (load-user-config))
+          ))))
 
 (defn load-cljs-edn! []
   (let [config (load-cljs-edn)]

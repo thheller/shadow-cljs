@@ -5,9 +5,6 @@
  ;; :deps {:aliases []}
  :lein {:profile "+cljs"}
 
- ;; target/shadow-cljs gets deleted by lein frequently which is rather annoying
- :cache-root ".shadow-cljs"
-
  ;; :ssl {}
 
  :http

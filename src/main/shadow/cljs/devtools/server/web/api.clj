@@ -32,8 +32,9 @@
             (slurp)
             (edn/read-string))
 
-        {:keys [open-file-command]}
-        config
+        open-file-command
+        (or (:open-file-command config)
+            (get-in config [:user-config :open-file-command]))
 
         result
         (try

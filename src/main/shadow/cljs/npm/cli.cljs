@@ -228,7 +228,7 @@
                 (reduce-kv conj [dep-id version] mods))))
        (into [])))
 
-(defn get-classpath [project-root {:keys [cache-root] :as config}]
+(defn get-classpath [project-root {:keys [cache-root user-config] :as config}]
   (let [cp-file
         (path/resolve project-root cache-root "classpath.edn")
 
@@ -242,8 +242,11 @@
               use-aot
               (conj :classifier "aot")))
 
+
         classpath-config
         (-> config
+            ;; allow the system config to add extra deps like cider-nrepl
+            (update :dependencies into (:dependencies user-config))
             (update :dependencies drop-unwanted-deps)
             (update :dependencies add-exclusions)
             (update :dependencies #(into [shadow-artifact] %)))
@@ -308,10 +311,10 @@
             (conj "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
-    #_ (log "shadow-cljs - starting ...")
+    #_(log "shadow-cljs - starting ...")
     (run! project-root "java" cli-args {})))
 
-(defn get-lein-args [{:keys [lein] :as config} opts]
+(defn get-lein-args [{:keys [lein user-config] :as config} opts]
   (let [{:keys [profile] :as lein-config}
         (cond
           (map? lein)
@@ -320,7 +323,9 @@
           {})
 
         extra-deps
-        (get-in opts [:options :dependencies])]
+        (-> []
+            (into (:dependencies user-config))
+            (into (get-in opts [:options :dependencies])))]
 
     (-> []
         (cond->
@@ -342,26 +347,34 @@
     (log "shadow-cljs - running: lein" (str/join " " lein-args))
     (run! project-root "lein" lein-args {})))
 
-(defn get-clojure-args [project-root {:keys [jvm-opts] :as config} opts]
+(defn get-clojure-args [project-root {:keys [jvm-opts user-config] :as config} opts]
   (let [{:keys [aliases inject]} (:deps config)
 
         inject?
         (not (false? inject))
 
         opt-aliases
-        (get-in opts [:options :aliases])
+        (-> []
+            (into (:deps-aliases user-config))
+            (into (get-in opts [:options :aliases])))
 
         aliases
         (if-not inject?
           aliases
           (conj aliases :shadow-cljs-inject))
 
+        extra-deps-vec
+        (-> []
+            (into (:dependencies user-config))
+            (into (get-in opts [:options :dependencies])))
+
         extra-deps
         (-> {'thheller/shadow-cljs {:mvn/version jar-version}}
             (util/reduce->
               (fn [m [id version]]
+                ;; FIXME: don't forget about extra kv args
                 (assoc m id {:mvn/version version}))
-              (get-in opts [:options :dependencies])))]
+              extra-deps-vec))]
 
     (-> []
         (cond->
@@ -536,15 +549,23 @@
 (defn- getenv [envname]
   (str (aget js/process.env envname)))
 
-(defn read-config [config-path opts]
+(defn read-config* [config-path]
   (try
     (-> (util/slurp config-path)
-        (#(reader/read-string {:readers {'shadow/env getenv}} %))
-        (merge-config-with-cli-opts opts))
+        (#(reader/read-string {:readers {'shadow/env getenv}} %)))
     (catch :default ex
       ;; FIXME: missing tools.reader location information
       ;; FIXME: show error location with excerpt like other warnings
       (throw (ex-info (format "failed reading config file: %s" config-path) {:config-path config-path} ex)))))
+
+(defn read-user-config []
+  (let [config-path (path/resolve (os/homedir) ".shadow-cljs" "config.edn")]
+    (when (fs/existsSync config-path)
+      (read-config* config-path))))
+
+(defn read-config [config-path opts]
+  (-> (read-config* config-path)
+      (merge-config-with-cli-opts opts)))
 
 (defn guess-node-package-manager [project-root config]
   (or (get-in config [:node-modules :managed-by])
@@ -730,11 +751,17 @@
                   args
                   (into [] args) ;; starts out as JS array
 
+                  user-config
+                  (read-user-config)
+
                   config
                   (read-config config-path opts)
 
                   {:keys [cache-root version] :as config}
-                  (merge defaults config)
+                  (-> (merge defaults config)
+                      (cond->
+                        user-config
+                        (assoc :user-config user-config)))
 
                   server-port-file
                   (path/resolve project-root cache-root "cli-repl.port")
