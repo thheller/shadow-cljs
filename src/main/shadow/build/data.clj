@@ -29,6 +29,9 @@
    ;; since closure only works with names not ids
    :name->id {}
 
+   ;; a set of resource-ids used as entry points for the build
+   :resolved-entries #{}
+
    ;; numeric require mapped to its namespace and back
    :require-id->sym {}
    :sym->require-id {}

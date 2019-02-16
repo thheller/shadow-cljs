@@ -332,7 +332,8 @@
               require-from-ns
               (data/add-string-lookup require-from-ns require ns)
               (nil? require-from)
-              (update :js-entries conj ns))
+              (-> (update :js-entries conj ns)
+                  (update :resolved-entries conj resource-id)))
             (resolve-deps rc)
             )))))
 
@@ -472,6 +473,9 @@
           ;; resolved twice but added once
           (data/maybe-add-source rc)
           (resolve-deps rc)
+          (cond->
+            (nil? require-from)
+            (update :resolved-entries conj resource-id))
           ))))
 
 (defn resolve-require [state require-from require]

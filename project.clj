@@ -68,6 +68,7 @@
 
    [expound "0.7.2"]
    [fipp "0.6.14"]
+   [aysylu/loom "1.0.2"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
@@ -133,7 +134,6 @@
        com.stuartsierra/component
        garden]]
      [fulcrologic/fulcro-inspect "2.2.5"]
-     [aysylu/loom "1.0.2"]
      [funcool/bide "1.6.0"]
      [com.andrewmcveigh/cljs-time "0.5.2"]
 

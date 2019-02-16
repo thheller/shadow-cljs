@@ -508,13 +508,13 @@
        :main shadow.cljs.devtools.client.node-repl/main
        :output-to "out/node-repl-dev/node-repl.js"}
 
-  #_#_:dce
-      {:target :browser
-       :output-dir "target/dce-test"
-       :compiler-options
-       {:fn-invoke-direct true}
-       :modules
-       {:core {:entries [cljs.core]}
-        :main {:entries [demo.dce]
-               :depends-on #{:core}}}
-       }}}
+  :dce
+  {:target :browser
+   :output-dir "target/dce-test"
+   :compiler-options
+   {:fn-invoke-direct true}
+   :modules
+   {:core {:entries [cljs.core]}
+    :main {:entries [demo.dce]
+           :depends-on #{:core}}}
+   }}}
