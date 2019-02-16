@@ -121,7 +121,7 @@
 
   (do-shutdown (rt/stop-all app))
 
-  #_ (discard-println "shutdown complete."))
+  #_(discard-println "shutdown complete."))
 
 (defn make-port-files [cache-root ports]
   (io/make-parents (io/file cache-root "foo.txt"))
@@ -291,8 +291,12 @@
           (let [cli-port (Long/valueOf cli-port)]
             (create-cli-checker cli-port)))
 
+        disable-nrepl?
+        (or (false? (:nrepl config))
+            (false? (get-in config [:system-config :nrepl])))
+
         nrepl
-        (when-not (false? (:nrepl config))
+        (when-not disable-nrepl?
           (try
             ;; problem child nrepl
             ;; we need to start a 0.2 nrepl server
@@ -500,7 +504,7 @@
            (println (str "shadow-cljs - server version: "
                          version
                          " running at http" (when ssl-context "s") "://" http-host ":" (:port http)))
-           #_ (println (str "shadow-cljs - socket REPL running on port " (:port socket-repl)))
+           #_(println (str "shadow-cljs - socket REPL running on port " (:port socket-repl)))
            ;; must keep this message since cider looks for it
            (when nrepl
              (println (str "shadow-cljs - nREPL server started on port " (:port nrepl))))
