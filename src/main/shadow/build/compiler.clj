@@ -1120,7 +1120,7 @@
    eg. you cannot just compile clojure.string as it requires other files to be compiled first "
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
-  ([{:keys [build-sources] :as state} source-ids]
+  ([{:keys [mode build-sources] :as state} source-ids]
     ;; throwing js parser errors here so they match other error sources
     ;; as other errors will be thrown later on in this method as well
    (throw-js-errors-now! state)
@@ -1217,7 +1217,11 @@
          ;; order of this is important
          ;; CLJS first since all it needs are the provided names
          (cond->
-           (seq goog)
+           ;; release builds go through the closure compiler and we want to avoid processing goog sources twice
+           (and (= :release mode) (seq goog))
+           (copy-source-to-output goog)
+
+           (and (= :dev mode) (seq goog))
            (maybe-closure-convert goog closure/convert-goog)
 
            ;; FIXME: removed foreign support

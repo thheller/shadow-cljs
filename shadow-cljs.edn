@@ -62,7 +62,8 @@
     :warnings {:invalid-arithmetic true}}
 
    :js-options
-   {:node-modules-dir "packages/ui"}
+   {:node-modules-dir "packages/ui"
+    :minimize-require true}
 
    :module-loader true
    :modules
