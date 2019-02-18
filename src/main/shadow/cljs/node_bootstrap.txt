@@ -10,6 +10,9 @@ var SHADOW_PROVIDE = function(name) {
 };
 
 var SHADOW_REQUIRE = function(name) {
+  if (goog.isInModuleLoader_()) {
+    return goog.module.getInternal_(name);
+  }
   return true;
 };
 
