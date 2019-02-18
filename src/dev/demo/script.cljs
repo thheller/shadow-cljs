@@ -4,11 +4,14 @@
     ["request" :as req]
     ["which" :as which]))
 
+(prn [:goog.global js/goog.global.setTimeout])
+
 (req "https://www.google.com"
   (fn [error res body]
     (prn [:error error])
     (prn [:res res])
-    (prn [:body body])))
+    ;; (prn [:body body])
+    ))
 
 (prn [:which (which/sync "java" #js {:nothrow true})])
 

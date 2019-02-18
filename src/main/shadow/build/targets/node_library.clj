@@ -190,6 +190,9 @@
     :configure
     (configure state mode config)
 
+    :compile-prepare
+    (node/replace-goog-global state)
+
     :compile-finish
     (-> state
         (check-exports! config)

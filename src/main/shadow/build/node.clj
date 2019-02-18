@@ -33,6 +33,10 @@
      :use-browser-overrides false
      :entry-keys ["main"]}))
 
+(defn replace-goog-global [state]
+  (update-in state [:sources output/goog-base-id :source]
+    str/replace "goog.global = this;" "goog.global = global;"))
+
 (defn configure
   [state {:keys [main output-to] :as opts}]
   (let [main-ns
