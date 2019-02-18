@@ -353,15 +353,16 @@
         inject?
         (not (false? inject))
 
+        ;; unparsed string arg
         opt-aliases
-        (-> []
-            (into (:deps-aliases user-config))
-            (into (get-in opts [:options :aliases])))
+        (get-in opts [:options :aliases])
 
         aliases
-        (if-not inject?
-          aliases
-          (conj aliases :shadow-cljs-inject))
+        (-> (or aliases [])
+            (into (:deps-aliases user-config))
+            (cond->
+              inject?
+              (conj :shadow-cljs-inject)))
 
         extra-deps-vec
         (-> []
@@ -383,7 +384,6 @@
             "-Sdeps"
             (pr-str {:aliases
                      {:shadow-cljs-inject
-                      ;; :extra-paths ["target/shadow-cljs/aot"]
                       (-> {:extra-deps extra-deps}
                           (cond->
                             (seq jvm-opts)
