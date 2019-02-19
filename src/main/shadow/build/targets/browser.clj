@@ -390,7 +390,7 @@
         (module-loader-data state)]
 
     (update-in state [:build-modules 0 :prepend]
-      str "\nvar shadow$loader = " (json {:uris module-uris :infos module-infos}) ";\n")
+      str "\nvar shadow$modules = " (json {:uris module-uris :infos module-infos}) ";\n")
     ))
 
 ;; in release just append to first (base) module
@@ -403,7 +403,7 @@
         ;; since prepending this text changes the md5 of the output
         ;; we need to re-hash that module again
         (-> mod
-            (update :prepend str "\nvar shadow$loader = " (json {:uris module-uris :infos module-infos}) ";\n")
+            (update :prepend str "\nvar shadow$modules = " (json {:uris module-uris :infos module-infos}) ";\n")
             (cond->
               module-hash-names
               ;; previous hash already changed the output-name, reset it back
@@ -474,7 +474,7 @@
                "var shadow$provide = {};\n"
 
                (when (and web-worker (get-in state [::build/config :module-loader]))
-                 "var shadow$loader = false;\n")
+                 "var shadow$modules = false;\n")
 
                (let [{:keys [polyfill-js]} state]
                  (when (and goog-base (seq polyfill-js))
@@ -571,7 +571,7 @@
                "var shadow$provide = {};\n"
 
                (when (and web-worker (get-in state [::build/config :module-loader]))
-                 "var shadow$loader = false;\n")
+                 "var shadow$modules = false;\n")
 
                (let [{:keys [polyfill-js]} state]
                  (when (and goog-base (seq polyfill-js))

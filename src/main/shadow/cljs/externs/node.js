@@ -34,7 +34,7 @@ var shadow$provide = {};
 /**
  * @dict
  */
-var shadow$loader = {};
+var shadow$modules = {};
 
 
 var shadow$umd$export = {};

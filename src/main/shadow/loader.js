@@ -14,12 +14,12 @@ shadow.loader.mm = goog.module.ModuleManager.getInstance();
 shadow.loader.mm.setLoader(shadow.loader.ml);
 
 // FIXME: this is too ugly, should just directly generate the trusted uris as constants instead of JSON
-if (goog.global.shadow$loader) {
+if (goog.global.shadow$modules) {
   (function() {
     var mm = shadow.loader.mm;
-    mm.setAllModuleInfo(goog.global.shadow$loader["infos"]);
+    mm.setAllModuleInfo(goog.global.shadow$modules["infos"]);
 
-    var uris = goog.global.shadow$loader["uris"];
+    var uris = goog.global.shadow$modules["uris"];
 
     if (mm.setModuleUris) {
       mm.setModuleUris(uris);
