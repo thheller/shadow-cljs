@@ -2223,7 +2223,18 @@
         state
         (if-not need-compile?
           state
-          (convert-goog* state sources))
+          (convert-goog* state (remove :virtual sources)))
+
+        ;; virtual sources should never be compiled and just be used as is
+        state
+        (->> sources
+             (filter :virtual)
+             (reduce
+               (fn [state {:keys [resource-id source] :as rc}]
+                 (update state :output assoc resource-id {:resource-id resource-id
+                                                          :source source
+                                                          :js source}))
+               state))
 
         cache-index-updated
         (if-not need-compile?
