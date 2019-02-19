@@ -64,7 +64,8 @@
    :elide-asserts false
    :closure-configurators []
    :infer-externs true
-   :language-in :ecmascript6
+   :language-in :ecmascript-next
+   :language-out :ecmascript5
 
    :closure-warnings
    {:check-types :off}
