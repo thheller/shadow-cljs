@@ -8,10 +8,24 @@
             [shadow.cljs.devtools.server.util :as util])
   (:import (javax.script ScriptEngineManager ScriptEngine Invocable)))
 
+(defn get-major-java-version []
+  (let [java-version
+        (or (System/getProperty "java.vm.specification.version") ;; not sure this was always available
+            (System/getProperty "java.version"))
+        dot
+        (str/index-of java-version ".")
+
+        java-version
+        (if-not dot java-version (subs 0 dot))]
+
+    ;; return 1 for 1.8, 1.9 which is fine ...
+    (Long/parseLong java-version)))
+
 (defn make-engine []
-  (let [java-version (System/getProperty "java.version")]
-    (when (= "11" java-version)
+  (let [java-version (get-major-java-version)]
+    (when (>= java-version 11)
       (System/setProperty "nashorn.args" "--no-deprecation-warning")))
+
   (let [engine
         (-> (ScriptEngineManager.)
             (.getEngineByName "nashorn"))
