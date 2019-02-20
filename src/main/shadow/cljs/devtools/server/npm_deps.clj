@@ -16,7 +16,7 @@
         (str/index-of java-version ".")
 
         java-version
-        (if-not dot java-version (subs 0 dot))]
+        (if-not dot java-version (subs java-version 0 dot))]
 
     ;; return 1 for 1.8, 1.9 which is fine ...
     (Long/parseLong java-version)))
