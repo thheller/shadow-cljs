@@ -1243,7 +1243,8 @@
             (= :js (get-in state [:build-options :module-format]))
             (-> (strip-dead-modules)
                 (module-wrap-npm)))
-          (handle-dead-js-requires)
+          ;; can't do this since there may be JS deps that are only there for the side effects
+          #_ (handle-dead-js-requires)
           (write-variable-maps)))))
 
 (def polyfill-name
