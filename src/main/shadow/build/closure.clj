@@ -853,7 +853,8 @@
 
 
     (let [require-clear-pass (ClearUnassignedJsRequires. cc)]
-      (.addCustomPass closure-opts CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP require-clear-pass)
+      ;; FIXME: can't use this until I figure out how to detect side-effect only JS requires
+      #_ (.addCustomPass closure-opts CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP require-clear-pass)
 
       ;; (fn [closure-compiler compiler-options state])
       (doseq [cfg (:closure-configurators compiler-options)]
