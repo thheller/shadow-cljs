@@ -7,8 +7,6 @@
     [cljs.compiler :as comp]
     [cljs.env :as env]
     [cljs.compiler :as cljs-comp]
-    [loom.graph :as lg]
-    [loom.alg :as la]
     [shadow.cljs.util :as util]
     [shadow.build.output :as output]
     [shadow.build.warnings :as warnings]
@@ -852,30 +850,25 @@
                                "development")))
 
 
-    (let [require-clear-pass (ClearUnassignedJsRequires. cc)]
-      ;; FIXME: can't use this until I figure out how to detect side-effect only JS requires
-      #_ (.addCustomPass closure-opts CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP require-clear-pass)
+    ;; (fn [closure-compiler compiler-options state])
+    (doseq [cfg (:closure-configurators compiler-options)]
+      (cfg cc closure-opts state))
 
-      ;; (fn [closure-compiler compiler-options state])
-      (doseq [cfg (:closure-configurators compiler-options)]
-        (cfg cc closure-opts state))
+    (when (= :js (get-in state [:build-options :module-format]))
 
-      (when (= :js (get-in state [:build-options :module-format]))
+      ;; cut the goog.exportSymbol call CLJS may have generated
+      ;; since they will still export to window which is not what we want
+      (.setStripTypePrefixes closure-opts (into #{"goog.exportSymbol"} (.-stripTypePrefixes closure-opts)))
+      ;; can be anything but will be repeated a lot
+      ;; $ vs $CLJS adds about 4kb to cljs.core alone but that is only 250 bytes after gzip
+      ;; choosing $CLJS so the alias is the same in dev mode and avoiding potential conflicts
+      ;; with jQuery or so when using only $
+      (.setRenamePrefixNamespace closure-opts "$CLJS"))
 
-        ;; cut the goog.exportSymbol call CLJS may have generated
-        ;; since they will still export to window which is not what we want
-        (.setStripTypePrefixes closure-opts (into #{"goog.exportSymbol"} (.-stripTypePrefixes closure-opts)))
-        ;; can be anything but will be repeated a lot
-        ;; $ vs $CLJS adds about 4kb to cljs.core alone but that is only 250 bytes after gzip
-        ;; choosing $CLJS so the alias is the same in dev mode and avoiding potential conflicts
-        ;; with jQuery or so when using only $
-        (.setRenamePrefixNamespace closure-opts "$CLJS"))
-
-      (assoc state
-        ::externs (load-externs state true)
-        ::compiler cc
-        ::require-clear-pass require-clear-pass
-        ::compiler-options closure-opts))))
+    (assoc state
+      ::externs (load-externs state true)
+      ::compiler cc
+      ::compiler-options closure-opts)))
 
 (defn load-extern-properties [{::keys [extern-properties] :as state}]
   (if extern-properties
@@ -1139,81 +1132,6 @@
   (and (= 1 (count build-modules))
        (:expand (first build-modules))))
 
-(defn handle-dead-js-requires [{:keys [build-sources] ::keys [require-clear-pass] :as state}]
-  ;; for every JS require call that was removed by :advanced we need to remove all other JS deps
-  ;; that were only brought in due to those removed requires but not those that are otherwise alive.
-  ;; eg. react can'd be removed if we only used react-dom directly
-  ;; unlikely to ever affect any real builds but better safe than bloated
-
-  (let [removed-deps ;; removed by advanced, mapping require-id back to sym
-        (->> (.getRemovedDeps require-clear-pass)
-             (map (fn [x]
-                    (cond
-                      (string? x)
-                      (symbol x)
-
-                      (number? x)
-                      (let [sym (get-in state [:require-id->sym x])]
-                        (when-not sym
-                          (throw (ex-info "failed to map require-id" {:x x})))
-                        sym)
-
-                      :else
-                      (throw (ex-info "unexpected require arg" {:x x})))))
-             (into #{}))
-
-        ;; ([ns req-a] [ns req-b] ...)
-        require-connections
-        (for [src-id build-sources
-              :let [{:keys [type provides] :as rc} (get-in state [:sources src-id])
-                    dep-syms (data/deps->syms state rc)]
-              dep-sym dep-syms
-              :when (or (= :shadow-js type)
-                        (not (contains? removed-deps dep-sym)))
-              provide provides]
-          [provide dep-sym])
-
-        graph
-        (apply lg/digraph require-connections)
-
-        ;; everything used by one of the entries must be kept
-        ;; FIXME: there must be a more efficient way to do this?
-        ;; traversing the graph once per entry will visit many entries multiple times
-        still-alive
-        (reduce
-          (fn [alive ns]
-            (into alive (la/pre-traverse graph ns)))
-          #{}
-          (for [src-id (:resolved-entries state)
-                :let [{:keys [provides] :as rc} (get-in state [:sources src-id])]
-                provide provides]
-            provide))
-
-        actually-dead
-        (into #{} (remove still-alive) (lg/nodes graph))
-
-        remove-sources-fn
-        (fn [sources]
-          (->> sources
-               (remove (fn [src-id]
-                         (let [{:keys [ns type]} (data/get-source-by-id state src-id)]
-                           (and (= :shadow-js type)
-                                (contains? actually-dead ns)))))
-               (into [])))
-
-        remove-from-modules-fn
-        (fn [mods]
-          (->> mods
-               (map #(update % :sources remove-sources-fn))
-               (into [])))]
-
-    (-> state
-        (update :build-sources remove-sources-fn)
-        ;; FIXME: why are there two of these again?
-        (update :build-modules remove-from-modules-fn)
-        (update ::modules remove-from-modules-fn)
-        )))
-
 (defn optimize
   "takes the current defined modules and runs it through the closure compiler"
   [{:keys [build-options build-modules] :as state}]
@@ -1244,8 +1162,6 @@
             (= :js (get-in state [:build-options :module-format]))
             (-> (strip-dead-modules)
                 (module-wrap-npm)))
-          ;; can't do this since there may be JS deps that are only there for the side effects
-          #_ (handle-dead-js-requires)
           (write-variable-maps)))))
 
 (def polyfill-name
