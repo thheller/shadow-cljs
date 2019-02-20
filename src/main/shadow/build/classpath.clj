@@ -932,7 +932,7 @@
            #"^jdk/nashorn/*"
            #"goog/transpile\.js"
            ;; just in case the :output-dir of a dev build is on the classpath
-           #"/cljs-runtime/"}
+           #"cljs-runtime/"}
 
          :classpath-excludes
          [#"resources(/?)$"
