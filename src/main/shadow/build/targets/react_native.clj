@@ -24,7 +24,7 @@
   (s/keys
     :req-un
     [::init-fn
-     ::shared/output-to]
+     ::shared/output-dir]
     ))
 
 (defmethod config/target-spec :react-native [_]
@@ -46,17 +46,17 @@
       [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]
       (str server-addr))))
 
-(defn configure [state mode {:keys [build-id init-fn output-to] :as config}]
-  (let [output-file
-        (io/file output-to)
+(defn configure [state mode {:keys [build-id init-fn output-dir] :as config}]
+  (let [output-dir
+        (io/file output-dir)
+
+        output-file
+        (io/file output-dir "index.js")
 
         dev?
-        (= :dev mode)
+        (= :dev mode)]
 
-        output-dir
-        (if dev?
-          (io/file (.getParentFile output-file) "cljs-dev" (name build-id))
-          (io/file (.getParentFile output-file)))]
+    (io/make-parents output-file)
 
     (-> state
         (build-api/with-build-options {:output-dir output-dir})
@@ -84,14 +84,14 @@
                 '[cljs.user
                   shadow.cljs.devtools.client.react-native]))))))
 
-(defn flush-dev-index [{::keys [output-file] :as state} {:keys [build-id init-fn] :as config}]
+(defn flush-dev-index [{::keys [output-file] :as state} {:keys [init-fn] :as config}]
   (spit output-file
-    (str "var CLJS = require(\"./cljs-dev/" (name build-id) "/cljs_env.js\");\n"
+    (str "var CLJS = require(\"./cljs_env.js\");\n"
          (->> (:build-sources state)
               (remove #{output/goog-base-id})
               (map #(data/get-source-by-id state %))
               (map :output-name)
-              (map #(str "require(\"./cljs-dev/" (name build-id) "/" % "\");" ))
+              (map #(str "require(\"./" % "\");" ))
               (str/join "\n"))
          "\nCLJS." (cljs-comp/munge init-fn) "();")))
 
