@@ -13,6 +13,7 @@
             [cljs.tagged-literals :as tags]
             [cljs.core] ;; do not remove, need to ensure this is loaded before compiling anything
             [cljs.source-map :as sm]
+            [shadow.lazy :as lazy]
             [shadow.cljs.util :as util]
             [shadow.build.warnings :as warnings]
             [shadow.build.macros :as macros]
@@ -561,7 +562,7 @@
               (some cache-blockers macro-requires))))))
 
 (defn load-cached-cljs-resource
-  [{:keys [build-options] :as state}
+  [{:keys [build-options compiler-env] :as state}
    {:keys [ns output-name resource-id resource-name] :as rc}]
   (let [{:keys [cljs-runtime-path]} build-options
         cache-file (get-cache-file-for-rc state rc)]
@@ -597,6 +598,17 @@
                          #(= (get-in state %)
                             (get-in cache-data [:compiler-options %]))
                          cache-affecting-options)
+
+                       ;; check if lazy loaded namespaces that a given ns uses were moved to different modules
+                       (let [lazy-refs (::lazy/ns-refs ana-data)]
+                         (reduce-kv
+                           (fn [_ ns assigned-module]
+                             (or (= assigned-module (lazy/module-for-ns compiler-env ns))
+                                 (reduced false)))
+                           true
+                           lazy-refs))
+
+                       ;; check if any of the referenced resources were updated
                        (let [resource-refs (:shadow.resource/resource-refs ana-data)]
                          (reduce-kv
                            (fn [_ path prev-mod]
@@ -1213,6 +1225,15 @@
          (update :compiler-env merge {:shadow/ns-roots ns-roots
                                       :shadow/cljs-provides cljs-provides
                                       :shadow/goog-provides goog-provides})
+
+         (assoc-in [:compiler-env ::lazy/ns->mod]
+           (->> (for [{:keys [module-id sources]} (:build-modules state)
+                      src-id sources
+                      :let [module-s (name module-id)
+                            {:keys [provides] :as rc} (get-in state [:sources src-id])]
+                      provide provides]
+                  [provide module-s])
+                (into {})))
 
          ;; order of this is important
          ;; CLJS first since all it needs are the provided names

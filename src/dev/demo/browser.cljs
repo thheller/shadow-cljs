@@ -19,7 +19,23 @@
     [shadow.resource :as rc]
     [shadow.loader :as sl]
     [cljs.loader :as cl]
+    [shadow.lazy :as lazy]
     ))
+
+(def lazy-x
+  (lazy/loadable demo.browser-extra/x))
+
+(def lazy-xy
+  (lazy/loadable
+    [demo.browser-extra/x
+     demo.browser-extra/y]))
+
+(def lazy-xym
+  (lazy/loadable
+    {:x demo.browser-extra/x
+     :y demo.browser-extra/y}))
+
+(js/console.log "x" lazy-x lazy-xy lazy-xym)
 
 ::foo
 
@@ -91,22 +107,27 @@
 (defn ^:dev/after-load start []
   (js/console.log "browser-start")
   (set! (.-innerHTML (js/document.querySelector "h1")) "loaded!")
-  #_ (let [worker (js/Worker. "/js/worker.js")]
-    (reset! worker-ref worker)
+  #_(let [worker (js/Worker. "/js/worker.js")]
+      (reset! worker-ref worker)
 
-    (.addEventListener worker "message"
-      (fn [e]
-        (js/console.log "mesage from worker" e)))))
+      (.addEventListener worker "message"
+        (fn [e]
+          (js/console.log "mesage from worker" e)))))
 
 (defn start-from-config []
   (js/console.log "browser-start-from-config"))
 
 (defn ^:export init []
   (js/console.log "browser-init")
+  (-> (lazy/load lazy-xym)
+      (.then
+        (fn [x] (js/console.log "finished loading" x))
+        (fn [err] (js/console.log "failed loading" err))))
+
   (start))
 
 (defn ^:dev/before-load stop-sync []
-  #_ (.terminate @worker-ref)
+  #_(.terminate @worker-ref)
   (js/console.log "browser-stop-sync"))
 
 (defn ^:dev/before-load-async stop [done]
