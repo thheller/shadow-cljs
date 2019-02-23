@@ -33,7 +33,8 @@
 (def lazy-xym
   (lazy/loadable
     {:x demo.browser-extra/x
-     :y demo.browser-extra/y}))
+     :y demo.browser/yo
+     :z cljs.core/assoc}))
 
 (js/console.log "x" lazy-x lazy-xy lazy-xym)
 

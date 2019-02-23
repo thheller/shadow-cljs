@@ -33,6 +33,7 @@
    {:pre [(instance? Loadable the-loadable)]}
    (let [all-mods (.-modules the-loadable)
 
+         ;; FIXME: extra path if only loading one?
          loading-map
          (l/load-multiple (into-array (map name) all-mods))
 
@@ -55,4 +56,10 @@
        (let [^js mod-deferred (gobj/get loading-map (name mod))]
          (.addCallbacks mod-deferred success-fn err-fn)))
 
-     combined)))
+     combined))
+  ([the-loadable call-fn]
+    (-> (load the-loadable)
+        (.then call-fn)))
+  ([the-loadable call-fn err-fn]
+   (-> (load the-loadable)
+       (.then call-fn err-fn))))

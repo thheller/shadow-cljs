@@ -63,23 +63,27 @@
         (or (::closure/modules state)
             (:build-modules state))
 
-        [loader-module & modules]
-        build-modules
+        loader-module
+        (first build-modules)
 
         modules
-        (remove :web-worker modules)
+        (remove :web-worker build-modules)
 
         loader-sources
         (into #{} (:sources loader-module))
 
         module-uris
         (reduce
-          (fn [m {:keys [module-id foreign-files sources] :as module}]
+          (fn [m {:keys [module-id default sources] :as module}]
             (let [uris
-                  (if (or release? (= :eval (get-in config [:devtools :loader-mode])))
+                  (cond
+                    default
+                    []
+
+                    (or release? (= :eval (get-in config [:devtools :loader-mode])))
                     [(str asset-path "/" (:output-name module))]
 
-                    ;; :dev, never bundles foreign
+                    :else ;; dev-mode
                     (->> sources
                          (remove loader-sources)
                          (map (fn [src-id]
@@ -94,7 +98,7 @@
         module-infos
         (reduce
           (fn [m {:keys [module-id depends-on]}]
-            (assoc m module-id (disj depends-on (:module-id loader-module))))
+            (assoc m module-id depends-on))
           {}
           modules)]
 
@@ -203,6 +207,15 @@
                   (assoc :force-append true
                          :default default?)
                   (cond->
+                    ;; MODULE-LOADER
+                    ;; default module brings in shadow.loader
+                    (and module-loader default?)
+                    (-> (update :entries #(into '[shadow.loader] %))
+                        (cond->
+                          (not (false? (:module-loader-init config)))
+                          ;; call this before init
+                          (update :append-js str "\nshadow.loader.init(\"\");")))
+
                     init-fn
                     (merge-init-fn init-fn)
 
@@ -211,14 +224,8 @@
                     (and default? (= :dev mode) worker-info)
                     (inject-repl-client state config)
 
-
                     (and worker-info (not web-worker) (not (false? (get-in config [:devtools :enabled]))))
                     (update :append-js str "\nshadow.cljs.devtools.client.browser.module_loaded('" (name module-id) "');\n")
-
-                    ;; MODULE-LOADER
-                    ;; default module brings in shadow.loader
-                    (and module-loader default?)
-                    (update :entries #(into '[shadow.loader] %))
 
                     ;; other modules just need to tell the loader they finished loading
                     (and module-loader (not (or default? web-worker)))
