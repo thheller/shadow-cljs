@@ -19,6 +19,7 @@
 ;; FIXME: make compiler check if loadable vars actually exist
 ;; FIXME: maybe best to emit a symbol only and assign that symbol later
 ;; cache invalidation otherwise is a bit messy. can't do this properly in one pass
+;; FIXME: maybe should use quoted arguments? this would be fine as a function in CLJ if quoted
 
 (defmacro loadable [thing]
   ;; FIXME: if expanding to CLJ code emit something with the same interface

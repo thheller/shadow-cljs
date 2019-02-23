@@ -8,7 +8,7 @@
     [shadow.cljs.ui.fulcro-mods :as fm :refer (deftx)]
     [shadow.cljs.ui.env :as env]
     [shadow.cljs.ui.util :as util]
-    [shadow.loader :as sl]))
+    [shadow.lazy :as sl]))
 
 (defonce routes-ref
   (atom {:loading #{}
@@ -82,16 +82,18 @@
      (select! router ident)
      (set-route* state router ident))})
 
-(defn load-module [r module-id]
-  (when-not (sl/loaded? module-id)
+(defn load [r loadable]
+  (when-not (sl/ready? loadable)
     ;; FIXME: only do this after a timeout, load should be more or less instant always here
     (swap! routes-ref update :loading util/conj-set ::ui-model/root-router)
     (fp/transact! r [(set-route {:router ::ui-model/root-router
                                  :ident [::ui-model/page-loading 1]})]))
 
-  (-> (sl/load module-id)
-      (.then (fn []
-               (swap! routes-ref update :loading disj ::ui-model/root-router)))))
+  (-> (sl/load loadable)
+      (.then (fn [x]
+               (swap! routes-ref update :loading disj ::ui-model/root-router)
+               x))))
+
 
 (defn navigate-to-token! [{:keys [state] :as r} token]
   (js/console.log "NAVIGATE" token)
@@ -103,16 +105,16 @@
                                    :ident [::ui-model/page-dashboard 1]})])
 
       "repl"
-      (-> (load-module r "repl")
-          (.then #(js* "shadow.cljs.ui.pages.repl.route(~{}, ~{});" r more)))
+      (-> (load r (sl/loadable shadow.cljs.ui.pages.repl/route))
+          (.then (fn [route] (route r more))))
 
       "builds"
-      (-> (load-module r "build")
-          (.then #(js* "shadow.cljs.ui.pages.build.route(~{}, ~{});" r more)))
+      (-> (load r (sl/loadable shadow.cljs.ui.pages.build/route))
+          (.then (fn [route] (route r more))))
 
       "build"
-      (-> (load-module r "build")
-          (.then #(js* "shadow.cljs.ui.pages.build.route_build(~{}, ~{});" r more)))
+      (-> (load r (sl/loadable shadow.cljs.ui.pages.build/route-build))
+          (.then (fn [route] (route r more))))
       )))
 
 (defn setup-history [reconciler ^goog history]
