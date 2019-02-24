@@ -144,6 +144,7 @@
    {:infer-externs :auto
     ;; :strip-type-prefixes #{"cljs.pprint"}
     :shadow-keywords true
+    :output-feature-set :es6
     ;; :closure-output-charset "US-ASCII"
     :closure-defines
     {demo.browser/FOO "bar"}}

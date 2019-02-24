@@ -12,5 +12,11 @@ async function someAsyncFn(thing)  {
   console.log("await value", value);
 }
 
+export class Thing {
+  constructor() {
+    console.log("hello world");
+  }
+}
+
 export { foo, someAsyncFn };
 export default "defaultExport";

@@ -65,7 +65,7 @@
    :closure-configurators []
    :infer-externs true
    :language-in :ecmascript-next
-   :language-out :ecmascript5
+   :output-feature-set :es5
 
    :closure-warnings
    {:check-types :off}

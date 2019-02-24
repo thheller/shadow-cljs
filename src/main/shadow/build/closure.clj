@@ -25,7 +25,8 @@
            (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass FindSurvivingRequireCalls ClearUnassignedJsRequires)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (java.nio.charset Charset)
-           [java.util.logging Logger Level]))
+           [java.util.logging Logger Level]
+           [com.google.javascript.jscomp.parsing.parser FeatureSet]))
 
 ;; get rid of some annoying/useless warning log messages
 ;; https://github.com/google/closure-compiler/pull/2998/files
@@ -80,6 +81,19 @@
     :ecmascript-2017 CompilerOptions$LanguageMode/ECMASCRIPT_2017
     :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT))
 
+(defn ^FeatureSet kw->feature-set [kw]
+  (case kw
+    :bare-minimum FeatureSet/BARE_MINIMUM
+    :es3 FeatureSet/ES3
+    :es5 FeatureSet/ES5
+    ;; FIXME: probably can't allow es6-modules variants since we can never load those
+    :es6 FeatureSet/ES6
+    :es7 FeatureSet/ES7
+    :es8 FeatureSet/ES8
+    :es2018 FeatureSet/ES2018
+    :es-next FeatureSet/ES_NEXT
+    (throw (ex-info "invalid :output-feature-set" {:val kw}))))
+
 (defn set-options
   [^CompilerOptions closure-opts opts state]
 
@@ -126,6 +140,11 @@
 
   (when-let [lang-key (:language-out opts)]
     (.setLanguageOut closure-opts (lang-key->lang-mode lang-key)))
+
+  ;; FIXME: maybe make this more customizable. may want es5 but allow class or so
+  (when-let [output-feature-set (:output-feature-set opts)]
+    (let [fs (kw->feature-set output-feature-set)]
+      (.setOutputFeatureSet closure-opts fs)))
 
   (when-let [extra-annotations (:closure-extra-annotations opts)]
     (. closure-opts (setExtraAnnotationNames (map name extra-annotations))))
@@ -1254,9 +1273,18 @@
              (make-location-mapping resource-name (.getAbsolutePath file)))
            (into [])))))
 
+(defn get-output-options [state]
+  (merge
+    (when-let [lo (get-in state [:compiler-options :language-out])]
+      {:language-out lo})
+    (when-let [ofs (get-in state [:compiler-options :output-feature-set])]
+      {:output-feature-set ofs})))
+
 (def cache-affecting-options
   [[:compiler-options :source-map-use-fs-paths]
    [:compiler-options :rewrite-polyfills]
+   [:compiler-options :language-out]
+   [:compiler-options :output-feature-set]
    [:js-options]])
 
 (defn convert-sources*
@@ -1333,10 +1361,12 @@
 
         ;; FIXME: are there more options we should take from the user?
         co-opts
-        {:pretty-print true
-         :source-map true
-         :language-in :ecmascript-next
-         :language-out :ecmascript5}
+        (merge
+          {:pretty-print true
+           :source-map true
+           :language-in :ecmascript-next
+           :output-feature-set :es5}
+          (get-output-options state))
 
         co
         (doto (make-options)
@@ -1690,7 +1720,9 @@
            ;; but closure got real picky and complains about some things being es6 that aren't
            ;; doesn't really impact much here anyways
            :language-in :ecmascript-next
-           :language-out :ecmascript5}
+           :output-feature-set :es5}
+          (get-output-options state)
+          ;; js-options should always override things pulled from :compiler-options
           (dissoc js-options :resolve)
           ;; always enable source-map, just skip emitting them later if desired
           {:source-map true})
@@ -2010,11 +2042,13 @@
         (data/make-closure-compiler)
 
         co-opts
-        {:pretty-print true
-         :pseudo-names false
-         :language-in :ecmascript-next
-         :language-out :ecmascript5
-         :source-map true}
+        (merge
+          {:pretty-print true
+           :pseudo-names false
+           :language-in :ecmascript-next
+           :output-feature-set :es5
+           :source-map true}
+          (get-output-options state))
 
         generate-source-map?
         (not (false? (:source-map js-options)))

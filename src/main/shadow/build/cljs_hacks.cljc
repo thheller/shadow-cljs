@@ -538,8 +538,8 @@
             (comp/emits (comp/munge head))
             (doseq [part tail]
               (cond
-                (and (= "default" part)
-                     (es5>= (:language-out options)))
+                ;; FIXME: should properly check if output is ES3
+                (= "default" part)
                 (comp/emits ".default")
 
                 (and (contains? ana/js-reserved part)
