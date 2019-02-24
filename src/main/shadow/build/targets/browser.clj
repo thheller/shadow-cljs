@@ -477,7 +477,7 @@
                  "var shadow$modules = false;\n")
 
                (let [{:keys [polyfill-js]} state]
-                 (when (and goog-base (seq polyfill-js))
+                 (when (and (or goog-base web-worker) (seq polyfill-js))
                    (str "\n" polyfill-js)))
 
                (-> state
