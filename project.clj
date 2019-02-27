@@ -127,7 +127,7 @@
    :cljs
    {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
     :dependencies
-    [[fulcrologic/fulcro "2.8.0"
+    [[fulcrologic/fulcro "2.8.3"
       :exclusions
       [clojure-future-spec
        com.stuartsierra/component

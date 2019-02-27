@@ -195,7 +195,7 @@
      }}
 
    :devtools
-   { ;; :loader-mode :eval
+   {;; :loader-mode :eval
     :repl-init-ns demo.browser
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
@@ -475,12 +475,12 @@
        :fn-map {:simple demo.azure.simple/test-fn}
        :app-dir "out/azure-fn"}
 
-  #_#_:expo-ios
-      {:target :react-native
-       :init-fn demo.rn/init
-       :output-to "out/testCRNA/index.js"
-       :devtools {:autoload true
-                  :preload [shadow.expo.keep-awake]}}
+  :expo-ios
+  {:target :react-native
+   :init-fn demo.fulcro-expo/init
+   :output-dir "out/ExpoTest/app"
+   :devtools {:autoload true
+              :preload [shadow.expo.keep-awake]}}
 
   #_#_:expo-android
       {:target :expo
