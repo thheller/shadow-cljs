@@ -111,6 +111,9 @@
     :configure
     (configure state mode config)
 
+    :compile-prepare
+    (node/replace-goog-global state)
+
     :flush
     (flush state mode config)
 
