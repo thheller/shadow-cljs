@@ -12,7 +12,8 @@
     [shadow.http.push-state :as push-state]
     [clojure.string :as str])
   (:import [io.undertow.server HttpHandler ExchangeCompletionListener]
-           [shadow.undertow ShadowResourceHandler]))
+           [shadow.undertow ShadowResourceHandler]
+           [java.net BindException]))
 
 (defmethod undertow/build* ::file-recorder [state [id {:keys [on-request] :as props} next]]
   (assert (vector? next))
@@ -129,7 +130,12 @@
               (let [srv (try
                           (undertow/start http-options handler-config)
                           (catch Exception e
-                            (log/warn-ex e ::http-start-ex {:http-options http-options :config config})
+                            (cond
+                              (instance? BindException (.getCause e))
+                              (log/warn :shadow.cljs.devtools.server/tcp-port-unavailable {:port port})
+
+                              :else
+                              (log/warn-ex e ::http-start-ex {:http-options http-options :config config}))
                             nil))]
                 (cond
                   (some? srv)
