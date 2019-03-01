@@ -10,7 +10,7 @@
 
 (defn start [config directories file-exts publish-fn]
   (let [ns-sym
-        (if (str/includes? os-name "Mac")
+        (if (and (str/includes? os-name "Mac") (not (false? (:hawk config))))
           ;; macOS doesn't have native support so it uses polling
           ;; which means 2sec delay, hawk does the native stuff
           ;; so its a lot faster but doesn't properly support delete
