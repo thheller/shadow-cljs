@@ -106,12 +106,12 @@ public class FileWatcher implements AutoCloseable {
                 Path child = root.relativize(resolvedName);
                 String childName = child.toString();
 
-                if (Files.isDirectory(child)) {
+                if (Files.isDirectory(resolvedName)) {
                     // monitor new directories
                     // deleted directories will cause the key to become invalid and removed later
                     // not interested in modify
                     if (kind == ENTRY_CREATE) {
-                        registerAll(child);
+                        registerAll(resolvedName);
                     }
                 } else if (matcher.matches(name)) {
                     if (kind == ENTRY_DELETE) {
