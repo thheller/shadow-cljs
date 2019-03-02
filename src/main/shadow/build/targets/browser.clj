@@ -15,6 +15,7 @@
             [shadow.build.config :as config]
             [shadow.build.output :as output]
             [shadow.build.closure :as closure]
+            [shadow.build.modules :as modules]
             [shadow.build.data :as data]
             [shadow.build.log :as log]
             [shadow.core-ext :as core-ext]
@@ -249,7 +250,7 @@
       modules)))
 
 (defn configure-modules
-  [{:keys [worker-info] :as state} mode {:keys [modules module-loader] :as config}]
+  [state mode config]
   (let [modules (rewrite-modules state mode config)]
     (build-api/configure-modules state modules)))
 
@@ -300,7 +301,7 @@
         )))
 
 (defn flush-manifest
-  [{:keys [build-options] :as state} include-foreign?]
+  [{:keys [build-options] :as state}]
   (let [data
         (->> (or (::closure/modules state)
                  (:build-modules state))
@@ -390,6 +391,23 @@
       (->> optimized
            (map #(hash-optimized-module % state module-hash-names))
            (into [])))))
+
+;; in case the module is loaded by shadow.loader and not via its generated index file
+(defn append-module-sources-set-loaded-calls [{:keys [build-modules] :as state}]
+  (reduce
+    (fn [state {:keys [module-id sources] :as mod}]
+      (let [set-loaded-info
+            (->> sources
+                 (map #(get-in state [:sources %]))
+                 (map #(str "SHADOW_ENV.setLoaded(" (pr-str (:output-name %)) ");"))
+                 (str/join "\n"))
+
+            append-id
+            [::modules/append module-id]]
+
+        (update-in state [:sources append-id :source] str ";\n" set-loaded-info)))
+    state
+    build-modules))
 
 (defn inject-loader-setup-dev
   [state config]
@@ -649,7 +667,7 @@
           (-> (inject-loader-setup-dev config)
               (flush-module-data)))
         (flush-unoptimized)
-        (flush-manifest false))
+        (flush-manifest))
     :release
     (-> state
         ;; must hash before adding loader since it needs to know the final uris of the modules
@@ -670,7 +688,7 @@
         (cond->
           module-loader
           (flush-module-data))
-        (flush-manifest true))))
+        (flush-manifest))))
 
 
 
@@ -780,6 +798,8 @@
     (-> state
         ;; (maybe-inject-cljs-loader-constants mode config)
         (cond->
+          (and (= :dev mode) (> (count (:modules config)) 1))
+          (append-module-sources-set-loaded-calls)
           ;; only set this if any :shadow-js is used otherwise closure will complain
           (get-in state [:sym->id 'shadow.js])
           (assoc-in [:compiler-options :closure-defines 'shadow.js.process.browser] true)
