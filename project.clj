@@ -43,19 +43,19 @@
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20190121"]
+   [com.google.javascript/closure-compiler-unshaded "v20190301"]
    [org.clojure/google-closure-library "0.0-20190213-2033d5d9"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.17.Final"
+   [io.undertow/undertow-core "2.0.19.Final"
     :exclusions
     [org.jboss.xnio/xnio-api
      org.jboss.xnio/xnio-nio]]
 
-   [org.jboss.xnio/xnio-api "3.6.5.Final"]
-   [org.jboss.xnio/xnio-nio "3.6.5.Final"
+   [org.jboss.xnio/xnio-api "3.7.0.Final"]
+   [org.jboss.xnio/xnio-nio "3.7.0.Final"
     :exlusions [org.jboss.threads/jboss-threads]]
 
    [org.jboss.threads/jboss-threads "2.3.2.Final"]
@@ -67,7 +67,7 @@
     [clj-time]]
 
    [expound "0.7.2"]
-   [fipp "0.6.14"]
+   [fipp "0.6.17"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
