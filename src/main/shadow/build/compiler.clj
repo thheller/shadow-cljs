@@ -1204,7 +1204,7 @@
               (into []))
 
          ns-roots
-         (->> (concat cljs goog)
+         (->> (concat cljs goog js)
               (mapcat :provides)
               (into #{})
               (map str)
