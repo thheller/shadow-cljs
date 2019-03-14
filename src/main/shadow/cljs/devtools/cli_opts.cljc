@@ -22,7 +22,7 @@
    ;; don't actually need to parse this on the npm side
    ;; since it never compiles anything
    (defn parse-merge-data [edn-str]
-     edn-str)
+     {})
 
    :clj
    (defn parse-merge-data [edn-str]
