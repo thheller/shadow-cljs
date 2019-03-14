@@ -10,7 +10,8 @@
     ["net" :as node-net]
     ["which" :as which]
     [cljs.core.async :as async :refer (go go-loop alt!)]
-    #_[cljs.tools.reader :as reader]
+    [cljs.tools.reader.reader-types :as rt]
+    [cljs.tools.reader.edn :as edn]
     [cljs.reader :as reader]
     [clojure.string :as str]
     [goog.object :as gobj]
@@ -284,8 +285,9 @@
   (let [{:keys [tag] :as data}
         (ex-data ex)]
 
-    (when (not= tag :java-exit)
-      (log "shadow-cljs - error" (.-message ex)))
+    (js/console.warn "===== ERROR =================")
+    (js/console.warn (.-message ex))
+    (js/console.warn "=============================")
     ))
 
 (defn get-shared-home []
@@ -551,12 +553,21 @@
 
 (defn read-config* [config-path]
   (try
-    (-> (util/slurp config-path)
-        (#(reader/read-string {:readers {'shadow/env getenv}} %)))
+    (let [reader-opts
+          {:readers {'shadow/env getenv}}
+
+          config-txt
+          (util/slurp config-path)
+
+          rdr
+          (rt/source-logging-push-back-reader config-txt)]
+
+      (edn/read reader-opts rdr))
+
     (catch :default ex
-      ;; FIXME: missing tools.reader location information
-      ;; FIXME: show error location with excerpt like other warnings
-      (throw (ex-info (format "failed reading config file: %s" config-path) {:config-path config-path} ex)))))
+      (throw (ex-info
+               (format "Failed to read config file: %s\n%s" config-path (.-message ex))
+               {:config-path config-path} ex)))))
 
 (defn read-user-config []
   (let [config-path (path/resolve (os/homedir) ".shadow-cljs" "config.edn")]
