@@ -13,8 +13,9 @@
     [shadow.cljs.devtools.server.runtime :as runtime]
     [clojure.set :as set]
     [clojure.core.async.impl.protocols :as async-prot])
-  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream)
-           [java.net SocketException]))
+  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream PrintWriter)
+           [java.net SocketException]
+           [java.util List]))
 
 (defn chan? [x]
   (satisfies? async-prot/ReadPort x))
@@ -148,7 +149,7 @@
   (println (format "[%s] Build failure:" build-id))
   (println report)
   ;; no longer part of the message
-  #_ (errors/user-friendly-error e))
+  #_(errors/user-friendly-error e))
 
 (defn print-worker-out [x verbose]
   (try
@@ -322,7 +323,7 @@
           (catch IOException e
             (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
               (when *err*
-                (.printStackTrace e *err*)))))
+                (.printStackTrace e ^PrintWriter *err*)))))
         (recur buf)))))
 
 (defn wsl-ify [path]
@@ -396,7 +397,7 @@
   "clojure.java.shell/sh replacement since kw-args suck"
   [args {:keys [pwd in] :as opts}]
   (let [proc
-        (-> (ProcessBuilder. (into-array args))
+        (-> (ProcessBuilder. ^List args)
             (.directory
               ;; nil defaults to JVM working dir
               (when pwd
@@ -414,15 +415,21 @@
 
     (when (string? in)
       (with-open [proc-in (.getOutputStream proc)
-                  bais (-> (.getBytes in) (ByteArrayInputStream.))]
+                  bais (-> (.getBytes ^String in) (ByteArrayInputStream.))]
         (io/copy bais proc-in)))
 
-    (let [result (.waitFor proc)]
+    (let [result (.waitFor proc)
+
+          ^String err-enc
+          (or (:err-enc opts)
+              (:enc opts)
+              "UTF-8")
+
+          ^String out-enc
+          (or (:out-enc opts)
+              (:enc opts)
+              "UTF-8")]
 
       {:exit result
-       :err (.toString proc-err (or (:err-enc opts)
-                                    (:enc opts)
-                                    "UTF-8"))
-       :out (.toString proc-out (or (:out-enc opts)
-                                    (:enc opts)
-                                    "UTF-8"))})))
+       :err (.toString proc-err err-enc)
+       :out (.toString proc-out out-enc)})))

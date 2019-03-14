@@ -7,7 +7,7 @@
             [shadow.jvm-log :as log]
             [clojure.data.json :as json]
             [clojure.string :as str])
-  (:import (java.io PushbackReader Writer InputStreamReader BufferedReader IOException)))
+  (:import (java.io PushbackReader Writer InputStreamReader BufferedReader IOException PrintWriter)))
 
 (defn service? [x]
   (and (map? x) (::service x)))
@@ -24,7 +24,7 @@
               (.flush out)))
           (catch IOException e
             (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
-              (.printStackTrace e *err*))))
+              (.printStackTrace e ^PrintWriter *err*))))
         (recur buf)))))
 
 (defn babel-install [work-dir cmd]
