@@ -31,9 +31,10 @@
           {}
           [:head
            [:title (str runner-ns)]
-           [:body
-            [:script {:src "/js/test.js"}]
-            [:script (str (cljs-comp/munge runner-ns) ".init();")]]])))
+           [:meta {:charset "utf-8"}]]
+          [:body
+           [:script {:src "/js/test.js"}]
+           [:script (str (cljs-comp/munge runner-ns) ".init();")]])))
 
     (-> state
         (tu/configure-common)
