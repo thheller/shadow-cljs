@@ -180,6 +180,7 @@
   "for every cljs build source collect all defs that are marked with special metadata"
   [{:keys [build-sources] :as build-state}]
   (-> {:never-load #{}
+       :always-load #{}
        :after-load []
        :before-load []}
       (reduce->
@@ -215,7 +216,12 @@
               (or (:dev/never-load meta)
                   (:dev/once meta) ;; can't decide on which meta to use
                   (:figwheel-noload meta))
-              (update :never-load conj name))
+              (update :never-load conj name)
+
+              (or (:dev/always-load meta)
+                  (:dev/always meta)
+                  (:figwheel-always meta))
+              (update :always-load conj name))
 
             (reduce-kv->
               (fn [info def-sym {:keys [name meta] :as def-info}]
