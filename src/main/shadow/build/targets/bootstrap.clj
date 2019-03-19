@@ -191,6 +191,8 @@
                        :requires (into #{} resolved-deps)
                        :deps resolved-deps
                        :ns ns
+                       :timestamp (or (:compiled-at output)
+                                      (:last-modified output))
                        :source-name source-name
                        :source source
                        :source-file source-file
@@ -233,15 +235,27 @@
     (doseq [{:keys [type
                     source-file source
                     js-file js
-                    ana-file ana-json] :as x}
+                    ana-file ana-json
+                    timestamp] :as x}
             output-data]
 
-      (spit source-file source)
-      (spit js-file js)
+      (when (or (not (.exists js-file))
+                (not (.exists source-file))
+                (not timestamp)
+                (zero? timestamp)
+                ;; timestamp
+                (> timestamp (.lastModified js-file))
+                (> timestamp (.lastModified source-file))
+                (and (= type :cljs)
+                     (or (not (.exists ana-file))
+                         (> timestamp (.lastModified ana-file)))))
 
-      (when (= type :cljs)
-        (spit ana-file ana-json)
-        )))
+        (spit source-file source)
+        (spit js-file js)
+
+        (when (= type :cljs)
+          (spit ana-file ana-json)
+          ))))
 
   state)
 
