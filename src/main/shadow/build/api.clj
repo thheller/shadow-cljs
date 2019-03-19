@@ -355,9 +355,11 @@
     (reset-resources state source-ids)))
 
 (defn- macro-test-fn [macros]
-  (fn [{:keys [type macro-requires] :as src}]
+  (fn [{:keys [type macro-requires source-ns] :as src}]
     (when (= :cljs type)
-      (seq (set/intersection macros macro-requires))
+      (or (seq (set/intersection macros macro-requires))
+          ;; bootstrap macros
+          (contains? macros source-ns))
       )))
 
 (defn build-affected-by-macros?

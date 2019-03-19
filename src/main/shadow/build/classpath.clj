@@ -195,7 +195,7 @@
             :deps deps)
           (cond->
             macros-ns
-            (assoc :macros-ns true))))
+            (assoc :macros-ns true :source-ns name))))
     (catch Exception e
       ;; when the ns form fails to parse or any other related error occurs
       ;; we guess the ns from the filename and proceed to the real error
