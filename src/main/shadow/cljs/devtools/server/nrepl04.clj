@@ -16,7 +16,8 @@
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.errors :as errors]
-    [shadow.cljs.devtools.config :as config])
+    [shadow.cljs.devtools.config :as config]
+    [clojure.java.io :as io])
   (:import (java.io StringReader)))
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
@@ -294,7 +295,7 @@
    :expects
    #{"eval"}})
 
-(defn middleware-load [sym]
+(defn load-middleware-sym [sym]
   {:pre [(qualified-symbol? sym)]}
   (let [sym-ns (-> sym (namespace) (symbol))]
     (require sym-ns)
@@ -302,40 +303,57 @@
         (println (format "nrepl middleware not found: %s" sym)))
     ))
 
-;; automatically add cider when on the classpath
-(defn get-cider-middleware []
-  (try
-    (require 'cider.nrepl)
-    (->> @(find-var 'cider.nrepl/cider-middleware)
-         (map find-var)
-         (into []))
-    (catch Exception e
-      [])))
+(defn load-middleware
+  "loads vars for a sequence of symbols, expands if var refers to a vector of symbols"
+  [input output]
+  (loop [[sym & more :as rem] input
+         output output]
+    (cond
+      (not (seq rem))
+      output
+
+      (not (qualified-symbol? sym))
+      (do (log/warn ::invalid-middleware {:sym sym})
+          (recur more output))
+
+      :else
+      (recur more
+        (try
+          (let [middleware-var (load-middleware-sym sym)
+                middleware @middleware-var]
+            (if (sequential? middleware)
+              (load-middleware middleware output)
+              (conj output middleware-var)))
+          (catch Exception e
+            (log/warn-ex e ::middleware-fail {:sym sym})
+            output))))))
 
 (defn make-middleware-stack [{:keys [cider middleware] :as config}]
   (-> []
-      (into (->> middleware
-                 (map middleware-load)
-                 (remove nil?)))
+      (into middleware)
+
       (cond->
-        (not (false? cider))
-        (into (get-cider-middleware)))
-      (into [#'nrepl.middleware/wrap-describe
-             #'nrepl.middleware.interruptible-eval/interruptible-eval
-             #'nrepl.middleware.load-file/wrap-load-file
+        (and (io/resource "cider/nrepl.clj")
+             (not (false? cider)))
+        (conj 'cider.nrepl/cider-middleware))
+
+      (into ['nrepl.middleware/wrap-describe
+             'nrepl.middleware.interruptible-eval/interruptible-eval
+             'nrepl.middleware.load-file/wrap-load-file
 
              ;; provided by fake-piggieback, only because tools expect piggieback
-             #'cemerick.piggieback/wrap-cljs-repl
-             #'cider.piggieback/wrap-cljs-repl
+             'cemerick.piggieback/wrap-cljs-repl
+             'cider.piggieback/wrap-cljs-repl
 
              ;; cljs support
-             #'cljs-load-file
-             #'cljs-eval
-             #'cljs-select
-             #'shadow-init
+             `cljs-load-file
+             `cljs-eval
+             `cljs-select
+             `shadow-init
 
-             #'nrepl.middleware.session/add-stdin
-             #'nrepl.middleware.session/session])
+             'nrepl.middleware.session/add-stdin
+             'nrepl.middleware.session/session])
+      (load-middleware [])
       (middleware/linearize-middleware-stack)))
 
 (defn start [config]
