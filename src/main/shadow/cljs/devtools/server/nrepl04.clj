@@ -7,7 +7,9 @@
     [nrepl.middleware :as middleware]
     [nrepl.transport :as transport]
     [nrepl.server :as server]
+    [nrepl.config :as nrepl-config]
     [shadow.jvm-log :as log]
+    [shadow.build.api :refer (deep-merge)]
     [shadow.cljs.repl :as repl]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.fake-piggieback04 :as fake-piggieback]
@@ -310,12 +312,14 @@
     (catch Exception e
       [])))
 
-(defn make-middleware-stack [extra-middleware]
+(defn make-middleware-stack [{:keys [cider middleware] :as config}]
   (-> []
-      (into (->> extra-middleware
+      (into (->> middleware
                  (map middleware-load)
                  (remove nil?)))
-      (into (get-cider-middleware))
+      (cond->
+        (not (false? cider))
+        (into (get-cider-middleware)))
       (into [#'nrepl.middleware/wrap-describe
              #'nrepl.middleware.interruptible-eval/interruptible-eval
              #'nrepl.middleware.load-file/wrap-load-file
@@ -334,17 +338,22 @@
              #'nrepl.middleware.session/session])
       (middleware/linearize-middleware-stack)))
 
-(defn start
-  [{:keys [host port middleware]
-    :or {host "0.0.0.0"
-         port 0}
-    :as config}]
+(defn start [config]
+  (let [merged-config
+        (deep-merge nrepl-config/config config)
 
-  (let [middleware-stack
-        (make-middleware-stack middleware)
+        middleware-stack
+        (make-middleware-stack merged-config)
 
         handler-fn
-        ((apply comp (reverse middleware-stack)) server/unknown-op)]
+        ((apply comp (reverse middleware-stack)) server/unknown-op)
+
+        {:keys [host port]
+         :or {host "0.0.0.0"
+              port 0}}
+        merged-config]
+
+    (log/debug ::config merged-config)
 
     (server/start-server
       :bind host
