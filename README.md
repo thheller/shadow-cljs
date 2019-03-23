@@ -9,12 +9,12 @@
 ## Features
 
 - Good configuration defaults so you don't have to sweat the details
-- Supporting various targets `:browser`, `:node-script`, `:npm-module`, `:react-native`(exprimental)...
+- Seamless `npm` integration
+- Fast builds, reliable caching, ...
+- Supporting various targets `:browser`, `:node-script`, `:npm-module`, `:react-native`, `:chrome-extension`, ...
 - Live Reload (CLJS + CSS)
 - CLJS REPL
-- Importing CommonJS & ES6 modules from npm or local JavaScript files
 - Code splitting (via `:modules`)
-- Fast builds, reliable caching, ...
 
 ![overview-img](https://user-images.githubusercontent.com/116838/28730426-d32dc74a-7395-11e7-9cec-54275af35345.png)
 
@@ -23,7 +23,6 @@
 - [node.js](https://nodejs.org) (v6.0.0+, most recent version preferred)
 - [npm](https://www.npmjs.com) (comes bundled with `node.js`) or [yarn](https://www.yarnpkg.com)
 - [Java SDK](https://adoptopenjdk.net/) (Version 8+, Hotspot)
-
 
 ## Quick Start
 
