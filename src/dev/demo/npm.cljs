@@ -9,3 +9,4 @@
 (defn ^:export test-file [name]
   (fs/existsSync name))
 
+(def ^:export default "hello world")

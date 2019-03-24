@@ -755,8 +755,11 @@
                          (filter #(get-in % [:meta :export]))
                          (map :name)
                          (map (fn [def]
-                                (let [export-name
-                                      (-> def name str comp/munge core-ext/safe-pr-str)]
+                                (let [export-name (-> def name str)
+                                      export-name
+                                      (if (= "default" export-name)
+                                        export-name
+                                        (-> export-name (comp/munge) (core-ext/safe-pr-str)))]
                                   (str export-name ":" (comp/munge def)))))
                          (str/join ",")
                          (as-module-exports))

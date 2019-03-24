@@ -5,6 +5,7 @@
     [clojure.set :as set]
     [clojure.string :as str]
     [cljs.compiler :as comp]
+    [cljs.analyzer :as ana]
     [clojure.data.json :as json]
     [shadow.jvm-log :as log]
     [shadow.build.data :as data]
@@ -447,7 +448,10 @@
              (map comp/munge)
              (first))]
 
-    (str "\nmodule.exports = " export ";\n")))
+    (str "\nmodule.exports = " export ";\n"
+         ;; work around cljs.compiler munging default to default$ unconditionally
+         (when (get-in state [:compiler-env ::ana/namespaces ns :defs 'default])
+           (str "Object.defineProperty(module.exports, \"default\", { get: function() { return " export ".default$; } });\n")))))
 
 (defn js-module-env
   [{:keys [polyfill-js] :as state} {:keys [runtime] :or {runtime :node} :as config}]
