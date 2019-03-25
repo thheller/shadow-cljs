@@ -2108,7 +2108,7 @@
                   (when generate-source-map?
                     (let [sw (StringWriter.)]
                       ;; for sourcesContent
-                      (when (:source-map-include-sources-content co-opts)
+                      (when-not (false? (get-in state [:compiler-options :source-map-include-sources-content]))
                         (.addSourceFile source-map (.getName source-file) (.getCode source-file)))
                       (.appendTo source-map sw output-name)
                       (.toString sw)))
