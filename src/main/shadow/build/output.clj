@@ -468,7 +468,7 @@
        ;; but we need it on $CLJS
        (-> (data/get-output! state {:resource-id goog-base-id})
            (get :js)
-           (str/replace "goog.global = this;" "goog.global = $CLJS;"))
+           (str/replace "goog.global = global;" "goog.global = $CLJS;"))
 
        (if (seq polyfill-js)
          (str "\n" polyfill-js
