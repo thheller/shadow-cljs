@@ -259,19 +259,16 @@
           ;; core-js/symbol is a directory
           ;; core-js/symbol.js is a file
           ;; so for each directory first test if there is file by the same name
+          ;; then if there is directory/index.js
+          ;; then if there is a directory/package.json with a main entry
           (.isDirectory file)
           (or (test-file-exts npm rel-dir require)
               (test-file-exts npm file "index")
               (let [package-json (io/file file "package.json")]
                 (when (.exists package-json)
-                  ;; node_modules/htmlparser2/lib/Stream.js
-                  ;; has a require("../") which resolves to node_modules/htmlparser2
-                  ;; which is the root of the package (without a index.js)
-                  ;; didn't even know that was allowed but node seems to resolve this
-                  ;; by looking at the package and picking the main
-                  ;; so we mimick that
-                  (find-package-require npm (-> file (absolute-file) (.getName)))
-                  )))
+                  (when-let [pkg (read-package-json npm package-json)]
+                    (find-package-main npm pkg)
+                    ))))
 
           :else
           file)]

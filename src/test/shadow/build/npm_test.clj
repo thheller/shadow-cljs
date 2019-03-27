@@ -219,6 +219,19 @@
       (is (= "node_modules/nested-pkg/nested/main.js" resource-name))
       )))
 
+(deftest test-nested-pkg-from-relative
+  (with-npm [x {}]
+    (let [file
+          (io/file "test-env" "nested-pkg" "relative" "index.js")
+
+          {:keys [resource-name] :as rc1}
+          (find-npm-resource x file "../nested")]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/nested-pkg/nested/main.js" resource-name))
+      )))
+
 (deftest test-nested-pkg-without-main
   (with-npm [x {}]
     (let [{:keys [resource-name] :as rc1}
