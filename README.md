@@ -173,6 +173,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [CryptoTwittos](https://github.com/teawaterwire/cryptotwittos) - reagent, re-frame, web3
 - [loganpowell/shadow-proto-starter](https://github.com/loganpowell/shadow-proto-starter) - shadow-cljs, Atom, Proto-REPL, node.js library
 - [manuel-uberti/boodle](https://github.com/manuel-uberti/boodle) - re-frame based Accounting SPA with `deps.edn` based backend
+- [shadow-cljs-kitchen-async-puppeteer](https://github.com/iku000888/shadow-cljs-kitchen-async-puppeteer) - Automated browser test with puppeteer and cljs.test, built with shadow-cljs
 - ... please let me know if you created something to include here
 
 ## License
