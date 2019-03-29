@@ -20,7 +20,7 @@
            (java.util.jar JarFile JarEntry)
            (java.net URL)
            (java.util.zip ZipException)
-           (shadow.build.closure ErrorCollector JsInspector)
+           (shadow.build.closure JsInspector)
            [java.nio.file Paths Path]
            [com.google.javascript.jscomp CompilerOptions$LanguageMode CompilerOptions SourceFile]
            [com.google.javascript.jscomp.deps ModuleNames]
@@ -45,31 +45,6 @@
 
 (defn service? [x]
   (and (map? x) (::service x)))
-
-#_(defn inspect-goog [state {:keys [resource-name url] :as rc}]
-    (let [errors-ref
-          (ErrorCollector.)
-
-          deps-info
-          (-> (doto (JsFileParser. errors-ref)
-                (.setIncludeGoogBase true))
-              (.parseFile resource-name resource-name (slurp url)))
-
-          ;; will be "es6" if it finds import/export, we filter those later
-          module-type
-          (-> deps-info (.getLoadFlags) (.get "module"))
-
-          deps
-          (into [] (map util/munge-goog-ns) (.getRequires deps-info))
-
-          provides
-          (into #{} (map util/munge-goog-ns) (.getProvides deps-info))]
-
-      (assoc rc
-        :deps deps
-        :requires (into #{} deps)
-        :provides provides
-        :module-type (or module-type "goog"))))
 
 (defn inspect-js [{:keys [compiler] :as state} {:keys [resource-name url] :as rc}]
   ;; avoid parsing cljsjs files since they are standalone bundles
