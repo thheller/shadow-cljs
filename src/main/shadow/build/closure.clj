@@ -64,8 +64,7 @@
                    keyword)]
         (assoc warnings kw group)))
     {}
-    (-> (DiagnosticGroups.)
-        (.getRegisteredGroups))))
+    (DiagnosticGroups/getRegisteredGroups)))
 
 (defn ^CompilerOptions$LanguageMode lang-key->lang-mode [key]
   (case (keyword (str/replace (name key) #"^es" "ecmascript"))
