@@ -16,7 +16,7 @@
 
  :plugins [demo.dummy-plugin]
 
- :nrepl false ;; {:port 8202 :middleware []}
+ :nrepl {:port 8202 :middleware []}
 
  :source-paths
  ["src/dev"

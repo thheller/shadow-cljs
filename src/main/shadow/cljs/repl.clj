@@ -320,7 +320,21 @@
         {:type :repl/invoke
          :name "<eval>"
          :js (with-out-str
-               (comp/shadow-emit state (assoc ns-info :op :ns)))}
+               (comp/shadow-emit state (assoc ns-info :op :ns))
+
+               ;; => (ns test.app)
+
+               ;; ends up emitting
+
+               ;; goog.provide('test.app');
+               ;; goog.require('cljs.core');
+               ;; ... potentially other requires
+
+               ;; which is correct but in newer closure library versions goog.require actually
+               ;; has a return value and will return that ns object which is then attempted to
+               ;; be printed by the REPL. we don't want that and manually fake it to return
+               ;; the symbol of the ns instead
+               (println (str "\ncljs.core.symbol(\"" (str ns) "\");")))}
 
         ns-set
         {:type :repl/set-ns
