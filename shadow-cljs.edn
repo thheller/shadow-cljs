@@ -47,6 +47,10 @@
   {:target :node-script
    :main shadow.cljs.npm.babel-worker/main
    :output-to "src/ui-release/shadow/cljs/dist/babel-worker.js"
+   :js-options
+   {:node-modules-dir "packages/babel-worker"
+    :js-provider :shadow
+    :keep-native-requires true}
    :compiler-options {:infer-externs :auto}
    :devtools {:enabled false}}
 

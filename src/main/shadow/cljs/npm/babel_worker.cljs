@@ -4,7 +4,7 @@
     [cljs.core.async :as async :refer (go)]
     [cljs.reader :refer (read-string)]
     ["babel-core" :as babel]
-    ["babel-preset-env" :as babel-preset-env]
+    ["babel-plugin-transform-es2015-modules-commonjs" :as babel-transform-esm]
     ))
 
 ;; why is this a plugin and not a config option?
@@ -15,24 +15,21 @@
 
 (defn babel-transform [{:keys [code resource-name]}]
   (let [presets
-        #js [babel-preset-env]
+        #js []
 
         plugins
-        #js [external-helpers-plugin]
+        #js [babel-transform-esm external-helpers-plugin]
 
         opts
         #js {:presets presets
              :plugins plugins
-             ;; only allow babelrc processing for project files
-             :babelrc (not (str/includes? resource-name "node_modules"))
+             :babelrc false
              :filename resource-name
              :highlightCode false
              :sourceMaps true}
 
         res
-        (babel/transform
-          code
-          opts)]
+        (babel/transform code opts)]
 
     {:code (.-code res)
      :source-map-json (js/JSON.stringify (.-map res))

@@ -56,14 +56,6 @@
                                                  :exit exit}))
         ))))
 
-(def worker-package-json
-  {"name" "babel-worker"
-   "version" "0.0.1"
-   "private" true
-   "dependencies"
-   {"babel-core" "^6.26.0"
-    "babel-preset-env" "^1.6.0"}})
-
 (defn maybe-start-proc [{:keys [proc] :as state}]
   (if (and proc (.isAlive proc))
     state
@@ -71,30 +63,16 @@
           (-> (io/file ".shadow-cljs" "babel-worker")
               (.getCanonicalFile))
 
-          package-json-file
-          (io/file worker-dir "package.json")
-
           worker-file
           (io/file worker-dir "babel-worker.js")
 
           dist-content
           (slurp (io/resource "shadow/cljs/dist/babel-worker.js"))]
 
-      ;; compare package.json and install if missing or different
-      (when (or (not (.exists package-json-file))
-                (not= worker-package-json (-> package-json-file slurp json/read-str)))
-
-        (log/debug ::babel-install {})
-
-        (io/make-parents package-json-file)
-        (spit package-json-file (json/write-str worker-package-json))
-
-        (babel-install worker-dir ["npm" "install" "--loglevel" "error"]))
-
-      ;; compare babel-worker.js independently because that may change even though the deps didn't
       (when (or (not (.exists worker-file))
                 (not= dist-content (slurp worker-file)))
         (log/debug ::worker-copy {})
+        (io/make-parents worker-file)
         (spit worker-file dist-content))
 
       (log/debug ::start {})

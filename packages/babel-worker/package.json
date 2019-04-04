@@ -1,0 +1,17 @@
+{
+  "name": "babel-worker",
+  "version": "1.0.0",
+  "private":true,
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "babel-core": "6.26.3",
+    "babel-plugin-transform-es2015-modules-commonjs": "6.26.2"
+  }
+}

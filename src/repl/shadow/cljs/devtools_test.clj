@@ -23,7 +23,8 @@
     [shadow.cljs.devtools.server.worker.impl :as worker]
     [shadow.build.data :as data]
     [clojure.string :as str]
-    [shadow.build.cache :as cache])
+    [shadow.build.cache :as cache]
+    [shadow.build.babel :as babel])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)
            (javax.net.ssl KeyManagerFactory)
            (java.io FileInputStream)
@@ -542,28 +543,13 @@
 
 
 (deftest test-babel-transform
-  (try
-    (let [build-state
-          (api/compile*
-            '{:build-id :babel-transform
-              :target :browser
+  (let [babel (babel/start)]
 
-              :output-dir "target/babel-transform/js"
-              :asset-path "/js"
-              :compiler-options
-              {:language-out :ecmascript5}
-
-              :modules
-              {:test {:entries ["/test/es6/babel.js"]}}
-
-              :js-options
-              {:js-provider :shadow}}
-            {:debug true})]
-
-      )
-
-    (catch Exception ex
-      (errors/user-friendly-error ex))))
+    (try
+      (prn (babel/transform babel {:code "import Foo from \"bar\";"
+                                   :resource-name "foo.js"}))
+      (finally
+        (babel/stop babel)))))
 
 
 (deftest test-browser-build-with-js
