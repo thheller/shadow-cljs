@@ -91,10 +91,7 @@
             (cond->
               node-modules-dir
               (assoc :node-modules-dir node-modules-dir)
-
-              (get-in build-config [:js-options :prefer-esm])
-              (assoc :entry-keys ["module" "jsnext:main" "browser" "main"]
-                     :extensions [".mjs" ".js" ".json"])))]
+              ))]
 
     (-> (build-api/init)
         (build-api/with-npm npm)
