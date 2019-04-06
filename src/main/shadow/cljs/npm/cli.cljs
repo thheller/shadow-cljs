@@ -76,12 +76,7 @@
             ;; under which circumstances that may disconnect for "valid" reasons
             ;; like switching the WiFi network, sleep mode etc
             ;; instead just have the java proc periodically check if this is still alive
-            (.end socket "OK")
-
-            (.on socket "error"
-              (fn [err]
-                (js/console.warn "node-server socket err" err))
-              )))
+            (.end socket "OK")))
 
         (.on node-server "error"
           (fn [err]
