@@ -27,6 +27,7 @@
     [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.reload-macros :as reload-macros]
+    [shadow.cljs.devtools.server.build-history :as build-history]
     [shadow.cljs.devtools.server.system-bus :as system-bus])
   (:import (java.net BindException Socket SocketException InetSocketAddress)
            [java.lang.management ManagementFactory]
@@ -458,6 +459,11 @@
                   {:depends-on [:system-bus :npm]
                    :start reload-npm/start
                    :stop reload-npm/stop}
+
+                  :build-history
+                  {:depends-on [:system-bus]
+                   :start build-history/start
+                   :stop build-history/stop}
 
                   :reload-macros
                   {:depends-on [:system-bus]

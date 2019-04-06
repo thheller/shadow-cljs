@@ -118,110 +118,6 @@
      :source source
      :file-path file-path}))
 
-(defn update-build-status [state {:keys [type] :as msg}]
-  (case type
-    :build-configure
-    (assoc state
-      :status :compiling
-      :active {}
-      :log [])
-
-    :build-start
-    (assoc state
-      :status :compiling
-      :active {}
-      :log [])
-
-    :build-complete
-    (let [{:keys [sources compiled] :as info}
-          (:info msg)
-
-          warnings
-          (->> (for [{:keys [warnings resource-name]} sources
-                     warning warnings]
-                 (assoc warning :resource-name resource-name))
-               (into []))]
-
-      (assoc state
-        :status :completed
-        :resources (count sources)
-        :compiled (count compiled)
-        :warnings warnings
-        :duration
-        (-> (- (or (get info :flush-complete)
-                   (get info :compile-complete))
-               (get info :compile-start))
-            (double)
-            (/ 1000))))
-
-    ;; FIXME: how to transfer error? just the report?
-    :build-failure
-    (let [{:keys [report]} msg]
-      (assoc state
-        :status :failed
-        :report report))
-
-    :build-log
-    (let [{:keys [timing-id timing] :as event} (:event msg)]
-      (cond
-        (not timing-id)
-        (update state :log conj (build-log/event->str event))
-
-        (= :enter timing)
-        (update state :active assoc timing-id (assoc event ::m/msg (build-log/event->str event)))
-
-        (= :exit timing)
-        (-> state
-            (update :active dissoc timing-id)
-            (update :log conj (format "%s (%dms)"
-                                (build-log/event->str event)
-                                (:duration event))))
-
-        :else
-        state))
-
-    ;; ignore all the rest for now
-    ;; mostly REPL related things
-    state))
-
-(defn build-status-loop [system-bus build-id status-ref build-status-chan]
-  ;; FIXME: figure out which update frequency makes sense for the UI
-  ;; 10fps is probably more than enough?
-  (let [flush-delay 100
-        flush-fn
-        (fn [state]
-          (let [msg {:type :build-status
-                     :build-id build-id
-                     :state state}]
-            (sys-bus/publish! system-bus ::m/worker-broadcast msg)
-            (sys-bus/publish! system-bus [::m/worker-output build-id] msg)))]
-
-    (go (loop [state @status-ref
-               last-flush nil
-               timeout (async/timeout flush-delay)]
-          (reset! status-ref state)
-          (alt!
-            timeout
-            ([_]
-              ;; don't include :log for regular updates since it gets too big
-              ;; FIXME: should really look into only sending incremental updates
-              (let [flush-state
-                    (-> state
-                        (cond->
-                          (not (contains? #{:failed :completed} (:status state)))
-                          (dissoc :log)))]
-                (when (not= flush-state last-flush)
-                  (flush-fn flush-state))
-
-                (recur state flush-state (async/timeout flush-delay))))
-
-            build-status-chan
-            ([msg]
-              (if-not msg
-                (flush-fn state)
-                (let [after (update-build-status state msg)]
-                  (recur after last-flush timeout)))))))))
-
 ;; SERVICE API
 
 ;; FIXME: too many damn args, use a map instead!
@@ -398,15 +294,7 @@
 
                              ;; only interested in file modifications
                              ;; don't need file instances, just the names
-                             (async/>!! asset-update {:updates updates}))))))))
-
-        build-status-chan
-        (-> (async/sliding-buffer 10)
-            (async/chan))]
-
-    (async/tap output-mult build-status-chan true)
-
-    (build-status-loop system-bus build-id status-ref build-status-chan)
+                             (async/>!! asset-update {:updates updates}))))))))]
 
     (sys-bus/sub system-bus ::m/resource-update resource-update)
     (sys-bus/sub system-bus ::m/asset-update asset-update)

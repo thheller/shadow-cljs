@@ -16,6 +16,9 @@
 (defn process-supervisor [rc msg]
   (fp/transact! rc [(tx/process-supervisor msg)]))
 
+(defn process-build-status-update [rc msg]
+  (fp/transact! rc [(tx/process-build-status-update msg)]))
+
 (defn process-ws-subscription [rc {::m/keys [topic] :as msg}]
   (let [topic-id (if (vector? topic) (first topic) topic)]
     (case topic-id
@@ -24,6 +27,9 @@
 
       ::m/worker-broadcast
       (process-worker-broadcast rc msg)
+
+      ::m/build-status-update
+      (process-build-status-update rc msg)
 
       (js/console.warn ::unknown-subscription msg))))
 

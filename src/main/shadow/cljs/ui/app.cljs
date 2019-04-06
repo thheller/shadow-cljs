@@ -175,10 +175,13 @@
                                                          (sort)
                                                          (into))}))
 
-      :build-status
-      (assoc-in state [::m/build-id build-id ::m/build-status] (:state params))
       ;; ignore
       state)))
+
+(fm/handle-mutation tx/process-build-status-update
+  (fn [state env {:keys [build-id build-status] :as params}]
+    (assoc-in state [::m/build-id build-id ::m/build-status] build-status)
+    ))
 
 (defn update-runtimes [{::m/keys [runtime-id] :as state}]
   (let [all
@@ -327,6 +330,10 @@
             (async/put! ws-out
               {::m/op ::m/subscribe
                ::m/topic ::m/worker-broadcast})
+
+            (async/put! ws-out
+              {::m/op ::m/subscribe
+               ::m/topic ::m/build-status-update})
 
             (fdf/load app ::m/http-servers page-dashboard/HttpServer
               {:target [::ui-model/page-dashboard 1 ::ui-model/http-servers]})

@@ -175,9 +175,6 @@
           log-chan
           (async/chan 10)
 
-          loop
-          (worker/build-status-loop system-bus build-id status-ref log-chan)
-
           pub-msg
           (fn [msg]
             (>!! log-chan msg)

@@ -124,7 +124,7 @@
 
 (defn build-configure
   "configure the build according to build-config in state"
-  [{:keys [build-config proc-id http] :as worker-state}]
+  [{:keys [system-bus build-id build-config proc-id http] :as worker-state}]
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
@@ -139,8 +139,19 @@
            :port (:port http)
            :ssl (:ssl http)}
 
+          log-chan
+          (-> worker-state :channels :output)
+
           async-logger
-          (server-util/async-logger (-> worker-state :channels :output))
+          (reify
+            build-log/BuildLog
+            (log*
+              [_ state event]
+              (sys-bus/publish! system-bus ::m/build-log {:type :build-log
+                                                          :build-id build-id
+                                                          :event event})
+              (async/offer! log-chan {:type :build-log :event event})))
+
 
           {:keys [extra-config-files] :as build-state}
           (-> (server-util/new-build build-config :dev (:cli-opts worker-state {}))

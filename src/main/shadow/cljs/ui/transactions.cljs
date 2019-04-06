@@ -45,6 +45,11 @@
   {:build-id keyword?
    :type keyword?})
 
+(deftx process-build-status-update
+  "updated build status"
+  {:build-id keyword?
+   :build-status any?})
+
 (deftx process-supervisor
   "a build worker was started/stopped"
   {:op #{:worker-start :worker-stop}
