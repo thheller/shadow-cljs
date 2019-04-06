@@ -352,9 +352,8 @@
   ;; form is (in-ns (quote the-ns))
   (let [[q ns] quoted-ns]
     (if (nil? (get-in state [:sym->id ns]))
-      ;; FIXME: create empty ns and switch to it
-      (do (prn [:did-not-find ns])
-          state)
+      ;; if (in-ns 'foo.bar) does not exist we just do (ns foo.bar) instead
+      (repl-ns state read-result (list 'ns ns))
       (let [{:keys [resource-name] :as rc}
             (data/get-source-by-provide state ns)
 
