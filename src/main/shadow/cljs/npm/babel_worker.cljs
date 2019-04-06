@@ -3,17 +3,19 @@
     [clojure.string :as str]
     [cljs.core.async :as async :refer (go)]
     [cljs.reader :refer (read-string)]
-    ["babel-core" :as babel]
-    ["babel-plugin-transform-es2015-modules-commonjs" :as babel-transform-esm]
+    ["@babel/core" :as babel]
+    ["@babel/plugin-transform-modules-commonjs" :as babel-transform-esm]
     ))
 
 ;; why is this a plugin and not a config option?
 (defn external-helpers-plugin [ref]
-  (let [t (.. ref -types)
-        id (.identifier t "global.shadow.js.babel")]
-    #js {:pre #(.set % "helpersNamespace" id)}))
+  (let [^js t (.. ref -types)]
+    #js {:pre #(.set % "helperGenerator" (fn [name]
+                                           (.memberExpression t
+                                             (.identifier t "global.shadow.js.babel")
+                                             (.identifier t name))))}))
 
-(defn babel-transform [{:keys [code resource-name]}]
+(defn babel-transform [{:keys [code file] :as req}]
   (let [presets
         #js []
 
@@ -24,8 +26,9 @@
         #js {:presets presets
              :plugins plugins
              :babelrc false
-             :filename resource-name
+             :filename file
              :highlightCode false
+             :inputSourceMap true
              :sourceMaps true}
 
         res
@@ -33,8 +36,7 @@
 
     {:code (.-code res)
      :source-map-json (js/JSON.stringify (.-map res))
-     :metadata (js->clj (.-metadata res) :keywordize-keys true)}
-    ))
+     }))
 
 (defn process-request [line]
   (let [req

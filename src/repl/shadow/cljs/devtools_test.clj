@@ -543,11 +543,24 @@
 
 
 (deftest test-babel-transform
-  (let [babel (babel/start)]
+  (let [babel (babel/start)
+
+        #_[test-file
+           (io/file "node_modules" "rxjs" "_esm5" "index.js")
+
+           req
+           {:code (slurp test-file)
+            :file (.getAbsolutePath test-file)}]
+
+        req
+        {:code "import thing from 'foo'; export class Foo {}; export async function foo () {}"
+         :file "foo.js"}]
 
     (try
-      (prn (babel/transform babel {:code "import Foo from \"bar\";"
-                                   :resource-name "foo.js"}))
+      (let [{:keys [code] :as result}
+            (babel/transform babel req)]
+
+        (println code))
       (finally
         (babel/stop babel)))))
 

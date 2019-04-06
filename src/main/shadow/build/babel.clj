@@ -140,31 +140,30 @@
 (defn transform [{:keys [babel-in] :as svc} req]
   {:pre [(map? req)
          (contains? req :code)
-         (contains? req :resource-name)]}
+         (contains? req :file)]}
   (let [reply-to (async/chan 1)
         req (assoc req ::reply-to reply-to)]
     (>!! babel-in req)
     (<!! reply-to)))
 
 (defmethod cljs-log/event->str ::transform
-  [{:keys [resource-name] :as event}]
-  (format "Babel transform: %s " resource-name))
+  [{:keys [file] :as event}]
+  (format "Babel transform: %s " file))
 
-(defn convert-source [babel state source resource-name]
+(defn convert-source [babel state source file-path]
   {:pre [(service? babel)
          (string? source)
-         (string? resource-name)]}
+         (string? file-path)]}
   (util/with-logged-time [state {:type ::transform
-                                 :resource-name resource-name}]
+                                 :file file-path}]
 
     (let [{:keys [code] :as result}
           (transform babel {:code source
-                            :resource-name resource-name})]
+                            :file file-path})]
       (when-not (seq code)
-        (throw (ex-info "babel failed?" (assoc result :resource-name resource-name))))
+        (throw (ex-info "babel failed?" (assoc result :file file-path))))
 
-      code
-      )))
+      result)))
 
 (comment
   (let [{:keys [babel-in] :as svc} (start)]
