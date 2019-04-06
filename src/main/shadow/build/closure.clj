@@ -1679,17 +1679,23 @@
   [{:keys [project-dir js-options npm mode build-sources] :as state} sources]
   (let [source-files
         (->> (for [{:keys [resource-id resource-name ns require-id file deps] :as src} sources]
-               (let [source (data/get-source-code state src)]
-                 (closure-source-file resource-name
-                   (str "shadow$provide["
-                        (if (and require-id (:minimize-require js-options))
-                          (pr-str require-id)
-                          (str "\"" ns "\""))
-                        "] = function(global,process,require,module,exports,shadow$shims) {\n"
-                        (if (str/ends-with? resource-name ".json")
-                          (str "module.exports=(" source ");")
-                          source)
-                        "\n};"))))
+               (let [source (data/get-source-code state src)
+                     source-file
+                     (closure-source-file resource-name
+                       (str "shadow$provide["
+                            (if (and require-id (:minimize-require js-options))
+                              (pr-str require-id)
+                              (str "\"" ns "\""))
+                            "] = function(global,process,require,module,exports,shadow$shims) {\n"
+                            (if (str/ends-with? resource-name ".json")
+                              (str "module.exports=(" source ");")
+                              source)
+                            "\n};"))]
+
+                 (when file
+                   (.setOriginalPath source-file (.getAbsolutePath file)))
+
+                 source-file))
              #_(map #(do (println (.getCode %)) %))
              (into []))
 

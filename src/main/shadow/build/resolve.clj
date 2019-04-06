@@ -176,6 +176,14 @@
       (throw (ex-info "unsupported require" {:require require}))
       )))
 
+(defn make-babel-source-fn [{:keys [source file] :as rc}]
+  (-> rc
+      (dissoc :source)
+      (assoc :source-fn
+             (fn [{:keys [babel] :as state}]
+               (babel/convert-source babel state source (.getAbsolutePath file))))
+      ))
+
 (defmethod find-resource-for-string :shadow
   [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
@@ -215,6 +223,8 @@
           ;; es6 from the classpath is left as :js type so its gets processed by closure
           rc
           ;; es6 from node_modules and any commonjs is converted to :shadow-js
+          ;; maybe rewritten by babel since closure doesn't support the __esModule convention
+          ;; that babel created and it is still to widely used to not support
           (let [babel-rewrite?
                 js-esm
 
@@ -230,14 +240,8 @@
                 (assoc :type :shadow-js)
                 (cond->
                   babel-rewrite?
-                  (-> (dissoc :source)
-                      ;; babel turns it into commonjs
-                      (assoc :source-fn
-                             (fn [state]
-                               (babel/convert-source babel state source resource-name)))
-                      )))))
-
-        ))))
+                  (make-babel-source-fn)
+                  ))))))))
 
 
 

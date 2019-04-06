@@ -163,7 +163,7 @@
       (when-not (seq code)
         (throw (ex-info "babel failed?" (assoc result :file file-path))))
 
-      result)))
+      code)))
 
 (comment
   (let [{:keys [babel-in] :as svc} (start)]
