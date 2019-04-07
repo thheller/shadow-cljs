@@ -1280,7 +1280,9 @@
     (when-let [lo (get-in state [:compiler-options :language-out])]
       {:language-out lo})
     (when-let [ofs (get-in state [:compiler-options :output-feature-set])]
-      {:output-feature-set ofs})))
+      {:output-feature-set ofs})
+    (when-let [charset (get-in state [:compiler-options :closure-output-charset])]
+      {:closure-output-charset charset})))
 
 (def cache-affecting-options
   [[:compiler-options :source-map-use-fs-paths]
