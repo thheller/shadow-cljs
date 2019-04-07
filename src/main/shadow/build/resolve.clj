@@ -230,9 +230,8 @@
 
                 deps
                 (-> '[shadow.js]
-                    (cond->
-                      babel-rewrite?
-                      (conj 'shadow.js.babel))
+                    ;; skip using global helpers for now
+                    #_ (cond-> babel-rewrite? (conj 'shadow.js.babel))
                     (into deps))]
 
             (-> rc

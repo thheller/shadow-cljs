@@ -186,6 +186,9 @@
    :js-options
    {:js-provider :shadow
     :variable-renaming :local
+    :babel-preset-config
+    {:targets {:safari 11}}
+
     :resolve
     {"moment"
      false

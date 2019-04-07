@@ -12,6 +12,6 @@
   "license": "ISC",
   "dependencies": {
     "@babel/core": "^7.4.3",
-    "@babel/plugin-transform-modules-commonjs": "^7.4.3"
+    "@babel/preset-env": "^7.4.3"
   }
 }

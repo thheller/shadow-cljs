@@ -24,7 +24,8 @@
     [shadow.build.data :as data]
     [clojure.string :as str]
     [shadow.build.cache :as cache]
-    [shadow.build.babel :as babel])
+    [shadow.build.babel :as babel]
+    [shadow.cljs.devtools.server.npm-deps :as npm-deps])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)
            (javax.net.ssl KeyManagerFactory)
            (java.io FileInputStream)
@@ -541,6 +542,21 @@
     (catch Exception ex
       (errors/user-friendly-error ex))))
 
+(deftest test-babel-standalone
+  (let [engine (npm-deps/make-engine*)
+
+
+        babel-file
+        (io/file "node_modules" "@babel" "standalone" "babel.js")
+
+        babel-src
+        (slurp babel-file)]
+
+    (time
+      ;; blows up since WeakMap is not defined
+      (.eval engine babel-src))
+
+    ))
 
 (deftest test-babel-transform
   (let [babel (babel/start)
@@ -554,7 +570,9 @@
 
         req
         {:code "import thing from 'foo'; export class Foo {}; export async function foo () {}"
-         :file "foo.js"}]
+         :file "foo.js"
+         :preset-config
+         {:targets {:safari 7}}}]
 
     (try
       (let [{:keys [code] :as result}

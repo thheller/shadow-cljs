@@ -159,7 +159,8 @@
 
     (let [{:keys [code] :as result}
           (transform babel {:code source
-                            :file file-path})]
+                            :file file-path
+                            :preset-config (get-in state [:js-options :babel-preset-config])})]
       (when-not (seq code)
         (throw (ex-info "babel failed?" (assoc result :file file-path))))
 

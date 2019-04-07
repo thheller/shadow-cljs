@@ -4,10 +4,13 @@
     [cljs.core.async :as async :refer (go)]
     [cljs.reader :refer (read-string)]
     ["@babel/core" :as babel]
-    ["@babel/plugin-transform-modules-commonjs" :as babel-transform-esm]
+    ["@babel/preset-env" :as babel-preset-env]
     ))
 
-;; why is this a plugin and not a config option?
+;; FIXME: generating all external helpers adds 44kb to the build
+;; given that we can't properly track which ones are used that is too much overhead
+;; so instead let it inject only the required helpers when needed
+;; FIXME: should probably try to track which helpers are used and generate them properly
 (defn external-helpers-plugin [ref]
   (let [^js t (.. ref -types)]
     #js {:pre #(.set % "helperGenerator" (fn [name]
@@ -15,12 +18,14 @@
                                              (.identifier t "global.shadow.js.babel")
                                              (.identifier t name))))}))
 
-(defn babel-transform [{:keys [code file] :as req}]
+(defn babel-transform [{:keys [code file preset-config] :or {preset-config {}} :as req}]
   (let [presets
-        #js []
+        (array
+          (array
+            babel-preset-env (clj->js preset-config)))
 
         plugins
-        #js [babel-transform-esm external-helpers-plugin]
+        #js []
 
         opts
         #js {:presets presets

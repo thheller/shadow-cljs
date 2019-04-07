@@ -21,14 +21,17 @@
     ;; return 1 for 1.8, 1.9 which is fine ...
     (Long/parseLong java-version)))
 
-(defn make-engine []
+(defn make-engine* []
   (let [java-version (get-major-java-version)]
     (when (>= java-version 11)
       (System/setProperty "nashorn.args" "--no-deprecation-warning")))
 
+  (-> (ScriptEngineManager.)
+      (.getEngineByName "nashorn")))
+
+(defn make-engine []
   (let [engine
-        (-> (ScriptEngineManager.)
-            (.getEngineByName "nashorn"))
+        (make-engine*)
 
         semver-js
         (slurp (io/resource "shadow/build/js/semver.js"))]
