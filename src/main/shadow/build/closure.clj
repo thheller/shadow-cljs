@@ -1317,8 +1317,10 @@
                       (case type
                         ;; don't need sources for shadow-js
                         ;; only need the file to exist so closure doesn't complain
+                        ;; using module.exports to make closure think this is commonjs
+                        ;; empty string will make it think SCRIPT and blow up
                         :shadow-js
-                        ""
+                        "module.exports = {};"
                         ;; just in case we add the goog.provide for cljs/closure namespaces
                         (:cljs :goog)
                         (str "goog.provide(\"" (cljs-comp/munge ns) "\");")
@@ -1329,9 +1331,12 @@
         (into #{} (map #(.getName %)) source-files)
 
         cached-source-files
-        (for [{:keys [resource-name] :as src} cached-sources
-              :let [{:keys [js] :as output} (data/get-output! state src)]]
-          (closure-source-file resource-name js))
+        (for [{:keys [resource-name ns] :as src} cached-sources]
+          ;; cannot pass the rewritten code in here again since closure identifies it as the wrong type
+          ;; previously it was an ES MODULE now its SCRIPT which blows up internally
+          ;; FIXME: figure out a more fool proof way of doing this or skip incremental compiles entirely
+          (closure-source-file resource-name
+            (str "goog.provide(\"" (cljs-comp/munge ns) "\");")))
 
         source-files
         ;; closure prepends polyfills to the first resource
