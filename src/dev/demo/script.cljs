@@ -2,7 +2,10 @@
   (:require
     ["http" :as http]
     ["request" :as req]
+    ["./cjs.js" :as cjs]
     ["which" :as which]))
+
+(js/console.log "cjs" cjs)
 
 (prn [:goog.global js/goog.global.setTimeout])
 

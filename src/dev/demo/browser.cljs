@@ -20,7 +20,10 @@
     [shadow.loader :as sl]
     [cljs.loader :as cl]
     [shadow.lazy :as lazy]
+    ["./cjs.js" :as cjs]
     ))
+
+(js/console.dir cjs)
 
 (def lazy-x
   (lazy/loadable demo.browser-extra/x))

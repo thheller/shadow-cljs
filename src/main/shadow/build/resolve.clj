@@ -184,6 +184,30 @@
                (babel/convert-source babel state source (.getAbsolutePath file))))
       ))
 
+(defn maybe-babel-rewrite [{:keys [js-esm deps] :as rc}]
+  (if (and (:classpath rc) js-esm)
+    ;; es6 from the classpath is left as :js type so its gets processed by closure
+    rc
+    ;; es6 from node_modules and any commonjs is converted to :shadow-js
+    ;; maybe rewritten by babel since closure doesn't support the __esModule convention
+    ;; that babel created and it is still to widely used to not support
+    (let [babel-rewrite?
+          js-esm
+
+          deps
+          (-> '[shadow.js]
+              ;; skip using global helpers for now
+              #_(cond-> babel-rewrite? (conj 'shadow.js.babel))
+              (into deps))]
+
+      (-> rc
+          (assoc :deps deps)
+          (assoc :type :shadow-js)
+          (cond->
+            babel-rewrite?
+            (make-babel-source-fn)
+            )))))
+
 (defmethod find-resource-for-string :shadow
   [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
@@ -197,7 +221,7 @@
           cp-rc? (when require-from
                    (classpath-resource? require-from))]
 
-      (when-let [{:keys [js-esm deps resource-name source] :as rc}
+      (when-let [rc
                  (cond
                    ;; entry requires must always be absolute
                    (and (nil? require-from) abs?)
@@ -219,30 +243,8 @@
                    :else
                    (throw (ex-info "unsupported require" {:require require})))]
 
-        (if (and (:classpath rc) js-esm)
-          ;; es6 from the classpath is left as :js type so its gets processed by closure
-          rc
-          ;; es6 from node_modules and any commonjs is converted to :shadow-js
-          ;; maybe rewritten by babel since closure doesn't support the __esModule convention
-          ;; that babel created and it is still to widely used to not support
-          (let [babel-rewrite?
-                js-esm
-
-                deps
-                (-> '[shadow.js]
-                    ;; skip using global helpers for now
-                    #_ (cond-> babel-rewrite? (conj 'shadow.js.babel))
-                    (into deps))]
-
-            (-> rc
-                (assoc :deps deps)
-                (assoc :type :shadow-js)
-                (cond->
-                  babel-rewrite?
-                  (make-babel-source-fn)
-                  ))))))))
-
-
+        (maybe-babel-rewrite rc)
+        ))))
 
 (defmethod find-resource-for-string :require
   [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
@@ -253,10 +255,10 @@
       (util/is-absolute? require)
       (if-not cp-rc?
         (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
-        (cp/find-js-resource classpath require))
+        (maybe-babel-rewrite (cp/find-js-resource classpath require)))
 
       (util/is-relative? require)
-      (cp/find-js-resource classpath require-from require)
+      (maybe-babel-rewrite (cp/find-js-resource classpath require-from require))
 
       :else
       (when (or (contains? native-node-modules require)
@@ -288,7 +290,7 @@
               (find-resource-for-string state require-from require false))
 
             (= :file (:target resolve-cfg))
-            (npm/js-resource-for-file npm require resolve-cfg {:mode mode})
+            (npm/js-resource-for-file npm require resolve-cfg)
 
             (= :global (:target resolve-cfg))
             (npm/js-resource-for-global require resolve-cfg)
