@@ -69,10 +69,9 @@
         module-opts
         (-> opts
             (select-keys [:prepend :append :prepend-js :append-js])
+            (update :prepend #(str "var shadow$provide = {};\n" %))
             (update :prepend #(str "(function(){\n" %))
             (cond->
-              (= :shadow (get-in state [:js-options :js-provider]))
-              (update :prepend #(str "var shadow$provide = {};\n" %))
               (not (false? (:hashbang opts)))
               (update :prepend #(str "#!/usr/bin/env node\n" %)))
             (update :append-js str "\n" main-call)
