@@ -66,3 +66,6 @@
 
 (deftx inspect-build-ns
   {:ns symbol?})
+
+(deftx toggle-notifications
+  {:wanted boolean?})

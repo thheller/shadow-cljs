@@ -18,7 +18,9 @@
     [shadow.cljs.ui.util :as util]
     [shadow.cljs.ui.routing :as routing]
     [shadow.cljs.ui.pages.loading :as page-loading]
-    [shadow.cljs.ui.pages.dashboard :as page-dashboard])
+    [shadow.cljs.ui.pages.dashboard :as page-dashboard]
+    [cljs-test-display.favicon :as favicon]
+    [clojure.string :as str])
   (:import [goog.history Html5History]))
 
 (defsc MainNavBuild [this props {:keys [selected]}]
@@ -54,6 +56,7 @@
    (fn []
      [{[::ui-model/build-list '_]
        (fp/get-query MainNavBuild)}
+      [::ui-model/notifications '_]
       [::ui-model/ws-connected '_]])
 
    :ident
@@ -81,6 +84,29 @@
           (s/nav-link {:href "/repl"} "REPL")))
 
       (s/nav-fill {})
+
+      (s/nav-item
+        (s/nav-item-title
+          (html/label
+            (html/input {:type "checkbox"
+                         :checked (::ui-model/notifications props)
+                         :onChange (fn [e]
+                                     (let [wanted (-> e .-target .-checked)
+                                           tx [(tx/toggle-notifications {:wanted wanted})]]
+
+                                       (cond
+                                         (not wanted)
+                                         (fp/transact! this tx)
+
+                                         (and wanted (= js/Notification.permission "granted"))
+                                         (fp/transact! this tx)
+
+                                         :no-permission
+                                         (-> (js/Notification.requestPermission)
+                                             (.then (fn [perm]
+                                                      (when (= "granted" perm)
+                                                        (fp/transact! this tx))))))))})
+            "Notifications")))
       #_(s/nav-item
           (html/div (if (::ui-model/ws-connected props) "✔" "WS DISCONNECTED!"))))))
 
@@ -129,6 +155,11 @@
   (fn [state env params]
     (assoc state ::ui-model/ws-connected true)))
 
+(fm/handle-mutation tx/toggle-notifications
+  (fn [state env {:keys [wanted] :as params}]
+    (assoc state ::ui-model/notifications wanted)
+    ))
+
 (fm/handle-mutation tx/ws-close
   (fn [state env params]
     (assoc state ::ui-model/ws-connected false)))
@@ -160,11 +191,68 @@
   [update-worker-active
    update-dashboard])
 
+(def icon-red (favicon/color-data-url "#d00" 16))
+(def icon-green (favicon/color-data-url "#0d0" 16))
+(def icon-yellow (favicon/color-data-url "#FFFF00" 16))
+
+(defn notification-summary [state]
+  (->> state
+       (sort-by first)
+       (map (fn [[build-id status]]
+              (str "[" build-id "]: " (case status
+                                        :failed
+                                        "FAILED!"
+                                        0
+                                        "Success."
+                                        1
+                                        "1 Warning."
+                                        (str status " Warnings.")))
+              ))
+       (str/join "\n")))
+
+(defn update-notification-state [state build-id status]
+  (let [before (::m/notification-state state)
+        after (assoc before build-id status)]
+    (if (= before after)
+      state
+      (do (js/console.log "state changed, fire notification" (pr-str after) (::ui-model/notifications state))
+          (let [icon
+                (cond
+                  (->> after (vals) (some #(= :failed %)))
+                  icon-red
+                  (->> after (vals) (some pos?))
+                  icon-yellow
+                  :else
+                  icon-green)]
+
+            (when (::ui-model/notifications state)
+              (let [n (js/Notification. "shadow-cljs"
+                        #js {:silent true
+                             :tag "shadow-cljs-build-status-notification"
+                             :renotify true
+                             :icon icon
+                             :body (notification-summary after)})]
+                (.addEventListener n "click"
+                  (fn [e]
+                    (js/goog.global.window.focus)))
+                )))
+
+          (assoc state ::m/notification-state after)))))
+
+
+(defn count-warnings [{:keys [sources] :as info}]
+  (reduce
+    (fn [c {:keys [warnings]}]
+      (+ c (count warnings)))
+    0
+    sources))
+
 (fm/handle-mutation tx/process-worker-broadcast
   (fn [state env {:keys [build-id type info] :as params}]
     (case type
       :build-complete
       (-> state
+          (update-notification-state build-id (count-warnings info))
           (update-in [::m/build-id build-id] merge {::m/build-info info
                                                     ;; FIXME: should actually update instead of just removing
                                                     ;; but no access to the code from here
@@ -175,8 +263,12 @@
                                                          (sort)
                                                          (into))}))
 
+      :build-failure
+      (update-notification-state state build-id :failed)
+
       ;; ignore
       state)))
+
 
 (fm/handle-mutation tx/process-build-status-update
   (fn [state env {:keys [build-id build-status] :as params}]
@@ -350,6 +442,7 @@
 
           :initial-state
           (-> (fp/get-initial-state Root {})
+              (assoc ::ui-model/notifications (= js/Notification.permission "granted"))
               (assoc-in [::ui-model/page-repl 1] {})
               (assoc-in [::ui-model/page-builds 1] {})
               (assoc-in [::ui-model/page-loading 1] {})
