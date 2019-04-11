@@ -11,7 +11,8 @@
             [shadow.cljs.repl :as repl]
             [shadow.build.targets.browser :as browser]
             [clojure.spec.alpha :as s]
-            [shadow.build.config :as config]))
+            [shadow.build.config :as config]
+            [shadow.build.node :as node]))
 
 (s/def ::runtime #{:node :browser :react-native})
 
@@ -96,6 +97,9 @@
 
     :resolve
     (resolve state mode config)
+
+    :compile-prepare
+    (node/replace-goog-global state)
 
     :flush
     (case mode
