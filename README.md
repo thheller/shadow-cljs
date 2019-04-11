@@ -115,6 +115,7 @@ The compilation will create the `public/js/main.js` we configured above (`:main`
 <!doctype html>
 <html>
   <head>
+    <meta charset="utf-8" />
     <title>acme frontend</title>
   </head>
   <body>
