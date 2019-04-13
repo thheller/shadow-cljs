@@ -9,7 +9,7 @@
 
 (defn not-found
   ([req]
-    (not-found req "Not found."))
+   (not-found req "Not found."))
   ([req msg]
    {:status 404
     :headers {"content-type" "text/plain"}
@@ -36,7 +36,9 @@
       ;; lol preload for local dev
       [:link {:as "script" :href "/js/app.js" :rel "preload"}]
       [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
-      [:title "shadow-cljs"]
+      [:title (-> (io/file ".")
+                  (.getCanonicalFile)
+                  (.getName))]
       [:link {:rel "stylesheet" :href "/css/main.css"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body {:class body-class}
