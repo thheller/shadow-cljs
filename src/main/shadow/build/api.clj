@@ -61,6 +61,7 @@
 (def default-compiler-options
   {:optimizations :none
    :static-fns true
+   :fn-invoke-direct true
    :elide-asserts false
    :closure-configurators []
    :infer-externs true
