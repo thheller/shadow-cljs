@@ -318,7 +318,11 @@
               (assoc :externs-file externs-file)
 
               js-options
-              (build-api/with-js-options js-options))
+              (build-api/with-js-options js-options)
+
+              (and (= :dev mode)
+                   (:keep-native-requires js-options))
+              (update-in [:js-options :keep-as-require] util/set-conj "ws"))
 
             ;; should do all configuration necessary
             (process-stage :configure true)
