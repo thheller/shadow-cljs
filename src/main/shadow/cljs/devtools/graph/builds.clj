@@ -172,12 +172,17 @@
                  :mode mode
                  :log []})
 
-          log-chan
-          (async/chan 10)
+          build-logger
+          (reify
+            build-log/BuildLog
+            (log*
+              [_ state event]
+              (sys-bus/publish! system-bus ::m/build-log {:type :build-log
+                                                          :build-id build-id
+                                                          :event event})))
 
           pub-msg
           (fn [msg]
-            (>!! log-chan msg)
             ;; FIXME: this is not worker output but adding an extra channel seems like overkill
             (sys-bus/publish! system-bus ::m/worker-broadcast msg)
             (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
@@ -192,8 +197,7 @@
 
         (let [build-state
               (-> (util/new-build build-config mode {})
-                  (build-api/with-logger
-                    (util/async-logger log-chan))
+                  (build-api/with-logger build-logger)
                   (build/configure mode build-config {})
                   (build/compile)
                   (cond->
@@ -211,8 +215,7 @@
                     :report (binding [warnings/*color* false]
                               (errors/error-format e))
                     }))
-        (finally
-          (async/close! log-chan))))))
+        ))))
 
 (add-mutation 'shadow.cljs.ui.transactions/build-compile
   {::pc/input #{:build-id}
