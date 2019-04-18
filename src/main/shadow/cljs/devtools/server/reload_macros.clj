@@ -23,6 +23,7 @@
       ;; FIXME: deleted macro files?
       (not rc-url)
       (do (log/warn ::macro-missing {:ns-sym ns-sym})
+          (swap! bm/active-macros-ref dissoc ns-sym)
           false)
 
       ;; do not reload macros from jars, only files
