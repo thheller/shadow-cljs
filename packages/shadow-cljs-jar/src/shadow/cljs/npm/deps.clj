@@ -4,10 +4,13 @@
     [clojure.java.io :as io]
     [cemerick.pomegranate.aether :as aether]
     [clojure.repl :refer (pst)]
-    [clojure.string :as str]))
+    [clojure.string :as str])
+  (:import [java.io File]))
+
+(set! *warn-on-reflection* true)
 
 (defn transfer-listener
-  [{:keys [type error resource] :as info}]
+  [{:keys [type ^Throwable error resource] :as info}]
   (let [{:keys [name repository]} resource]
     (binding [*out* *err*]
       (case type
@@ -33,23 +36,41 @@
     repos))
 
 (defn get-deps
-  [{:keys [cache-root repositories proxy local-repo dependencies mirrors version]
+  [{:keys [cache-root dependencies]
     :or {dependencies []
-         repositories {}
          cache-root ".shadow-cljs"}
-    :as state}]
+    :as config}]
 
   (println "shadow-cljs - updating dependencies")
 
   ;; FIXME: resolve conflicts?
-  (let [resolve-args
+  (let [repositories
+        (-> (merge aether/maven-central {"clojars" "https://clojars.org/repo"})
+            (merge (ensure-s3p-private-key-file (get-in config [:repositories])))
+            (merge (ensure-s3p-private-key-file (get-in config [:maven :repositories])))
+            (merge (ensure-s3p-private-key-file (get-in config [:user-config :maven :repositories]))))
+
+        mirrors
+        (merge
+          (get-in config [:mirrors])
+          (get-in config [:maven :mirrors])
+          (get-in config [:user-config :maven :mirrors]))
+
+        proxy
+        (or (get-in config [:proxy])
+            (get-in config [:maven :proxy])
+            (get-in config [:user-config :maven :proxy]))
+
+        local-repo
+        (or (get-in config [:local-repo])
+            (get-in config [:maven :local-repo])
+            (get-in config [:user-config :maven :local-repo]))
+
+        resolve-args
         (-> {:coordinates
              dependencies
              :repositories
-             (merge
-               aether/maven-central
-               {"clojars" "https://clojars.org/repo"}
-               (ensure-s3p-private-key-file repositories))
+             repositories
              :transfer-listener
              transfer-listener}
             (cond->
@@ -66,7 +87,7 @@
 
     (println "shadow-cljs - dependencies updated")
 
-    (assoc state
+    (assoc config
       :deps-resolved deps
       :deps-hierarchy (aether/dependency-hierarchy dependencies deps))))
 
@@ -84,7 +105,7 @@
     :as state}]
 
   (let [files
-        (into [] (map #(.getAbsolutePath %)) (aether/dependency-files deps-resolved))
+        (into [] (map #(.getAbsolutePath ^File %)) (aether/dependency-files deps-resolved))
 
         result
         {:dependencies dependencies
