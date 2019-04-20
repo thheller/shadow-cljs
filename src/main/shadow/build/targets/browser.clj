@@ -31,9 +31,11 @@
 (s/def ::target
   (s/keys
     :req-un
-    [::shared/modules]
+    []
     :opt-un
-    [::module-loader
+    [::shared/modules
+     ::shared/chunks
+     ::module-loader
      ::shared/output-dir
      ::shared/asset-path
      ::shared/public-dir
@@ -255,12 +257,20 @@
     (build-api/configure-modules state modules)))
 
 (defn configure
-  [state mode config]
+  [state mode {:keys [chunks modules] :as config}]
+  ;; accept :chunks as an alias for :modules since closure started calling them
+  ;; that internally as well and the name is a bit more clear given how overused
+  ;; :modules is in other contexts
+  (when (and modules chunks)
+    (throw (ex-info "can only have :modules OR :chunks not both" config)))
+
   (let [{:keys [output-dir asset-path public-dir public-path modules] :as config}
         (-> (merge default-browser-config config)
             (cond->
               (not (false? (get-in config [:devtools :autoload])))
-              (assoc-in [:devtools :autoload] true)))
+              (assoc-in [:devtools :autoload] true)
+              chunks
+              (assoc :modules chunks)))
 
         output-wrapper?
         (let [x (get-in state [:compiler-options :output-wrapper])]

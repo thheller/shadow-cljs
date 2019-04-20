@@ -103,7 +103,12 @@
 
 (s/def ::modules
   (s/map-of
-    keyword?
+    simple-keyword?
+    ::module))
+
+(s/def ::chunks
+  (s/map-of
+    simple-keyword?
     ::module))
 
 (defn prepend [tail head]
