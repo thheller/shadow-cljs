@@ -61,7 +61,10 @@
 (def default-compiler-options
   {:optimizations :none
    :static-fns true
-   :fn-invoke-direct true
+   ;; Seems to be causing issues in reagent
+   ;; TypeError: "'requestAnimationFrame' called on an object that does not implement interface Window"
+   ;; https://github.com/reagent-project/reagent/blob/901607c45fa82868c319fbf87d853b5bab3fa64e/src/reagent/impl/batching.cljs#L16-L24
+   ;; :fn-invoke-direct true
    :elide-asserts false
    :closure-configurators []
    :infer-externs true
