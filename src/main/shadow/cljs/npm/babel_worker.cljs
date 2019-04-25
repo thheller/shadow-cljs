@@ -18,11 +18,12 @@
                                              (.identifier t "global.shadow.js.babel")
                                              (.identifier t name))))}))
 
-(defn babel-transform [{:keys [code file preset-config] :or {preset-config {}} :as req}]
+(defn babel-transform [{:keys [code file preset-config] :as req}]
   (let [presets
         (array
-          (array
-            babel-preset-env (clj->js preset-config)))
+          (if-not preset-config
+            babel-preset-env
+            (array babel-preset-env (clj->js preset-config))))
 
         plugins
         #js []
