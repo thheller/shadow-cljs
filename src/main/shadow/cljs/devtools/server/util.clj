@@ -13,7 +13,7 @@
     [shadow.cljs.devtools.server.runtime :as runtime]
     [clojure.set :as set]
     [clojure.core.async.impl.protocols :as async-prot])
-  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream PrintWriter)
+  (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream PrintWriter File)
            [java.net SocketException]
            [java.util List]))
 
@@ -54,6 +54,16 @@
         (build-log/log* build-log/stdout state evt)
         ))))
 
+;; .getCanonicalFile also resolves symlinks which we want to keep
+;; and File itself doesn't have a way to only remove .. or . placeholders otherwise
+;; so going to path and back immediately to avoid having to deal with non-normalized
+;; paths later on
+(defn normalize-file [^File file]
+  (-> file
+      (.toPath)
+      (.normalize)
+      (.toFile)))
+
 (defn new-build
   [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
   (let [{:keys [npm classpath cache-root build-executor babel config] :as runtime}
@@ -67,21 +77,25 @@
 
         node-modules-dir
         (when-let [nmd (get-in build-config [:js-options :node-modules-dir])]
-          (let [nmdf (io/file nmd)]
-            (cond
-              (and (str/ends-with? nmd "node_modules")
-                   (.exists nmdf))
-              (.getAbsoluteFile nmdf)
+          (let [nmdf (io/file nmd)
+                abs-file
+                (cond
+                  (and (str/ends-with? nmd "node_modules")
+                       (.exists nmdf))
+                  (.getAbsoluteFile nmdf)
 
-              (.exists (io/file nmdf "node_modules"))
-              (-> (io/file nmdf "node_modules")
-                  (.getAbsoluteFile))
+                  (.exists (io/file nmdf "node_modules"))
+                  (-> (io/file nmdf "node_modules")
+                      (.getAbsoluteFile))
 
-              (.exists nmdf)
-              (.getAbsoluteFile nmdf)
+                  (.exists nmdf)
+                  (.getAbsoluteFile nmdf)
 
-              :else
-              (throw (ex-info "invalid :node-modules-dir" {:node-modules-dir nmd})))))
+                  :else
+                  (throw (ex-info "invalid :node-modules-dir" {:node-modules-dir nmd})))]
+
+            ;; :node-modules-dir can be a relative path like "./foo" or "../"
+            (normalize-file abs-file)))
 
         ;; FIXME: this should not happen here. move to more appropriate place
         ;; somewhere in build targets maybe
