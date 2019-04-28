@@ -129,13 +129,11 @@ We also need a simple HTTP server to serve our HTML since modern Browsers all pl
 
 ```
 {...
+ :dev-http {8080 "public"}
  :builds
  {:frontend
   {:target :browser
    :modules {:main {:init-fn acme.frontend.app/init}}
-   :devtools
-   {:http-root "public"
-    :http-port 8080}
    }}}
 ```
 
