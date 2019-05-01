@@ -1,4 +1,5 @@
 (ns shadow.test.karma
+  {:dev/always true}
   (:require [shadow.test :as st]
             [shadow.test.env :as env]
             [fipp.clojure :refer (pprint)]
