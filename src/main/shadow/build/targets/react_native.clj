@@ -82,7 +82,10 @@
               (set-server-host config)
               (update-in [::modules/config :index :entries] shared/prepend
                 '[cljs.user
-                  shadow.cljs.devtools.client.react-native]))))))
+                  shadow.cljs.devtools.client.react-native]))
+
+          dev?
+          (shared/inject-preloads :index config)))))
 
 (defn flush-dev-index [{::keys [output-file] :as state} {:keys [init-fn] :as config}]
   (spit output-file
