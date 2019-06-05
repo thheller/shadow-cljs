@@ -12,9 +12,10 @@
   "license": "ISC",
   "dependencies": {
     "create-react-class": "^15.6.3",
+    "node-libs-browser": "^2.2.0",
     "react": "^16.4.2",
     "react-dom": "^16.4.2",
-    "shadow-cljs-jar": "file:../packages/shadow-cljs-jar",
-    "shadow-cljs": "file:../packages/shadow-cljs"
+    "shadow-cljs": "file:../packages/shadow-cljs",
+    "shadow-cljs-jar": "file:../packages/shadow-cljs-jar"
   }
 }
