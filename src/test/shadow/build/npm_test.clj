@@ -254,6 +254,15 @@
       (is (= "node_modules/@scoped/a/index.js" resource-name))
       )))
 
+(deftest test-node-implicits
+  (with-npm [x {}]
+    (let [{:keys [uses-global-buffer uses-global-process deps] :as rc1}
+          (find-npm-resource x nil "implicits")]
+
+      (is uses-global-buffer)
+      (is uses-global-process)
+      (is (= ["buffer" "process"] deps)))))
+
 (comment
   ;; FIXME: write proper tests for these
 

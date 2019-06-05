@@ -809,11 +809,7 @@
         ;; (maybe-inject-cljs-loader-constants mode config)
         (cond->
           (and (= :dev mode) (> (count (:modules config)) 1))
-          (append-module-sources-set-loaded-calls)
-          ;; only set this if any :shadow-js is used otherwise closure will complain
-          (get-in state [:sym->id 'shadow.js])
-          (assoc-in [:compiler-options :closure-defines 'shadow.js.process.browser] true)
-          ))
+          (append-module-sources-set-loaded-calls)))
 
     :compile-finish
     (-> state

@@ -27,12 +27,6 @@ public class NodeStuffInlinePass extends NodeTraversal.AbstractPostOrderCallback
                 case "__dirname":
                     node.replaceWith(IR.string("/"));
                     break;
-                case "Buffer":
-                    if (t.getScope().getVar("Buffer") == null) {
-                        node.replaceWith(IR.getprop(IR.name("shadow$shims"), "Buffer"));
-                    }
-                    break;
-
                 default:
                     break;
             }

@@ -467,6 +467,8 @@
 
         ns (-> (ModuleNames/fileToModuleName resource-name)
                ;; (cljs-comp/munge) ;; FIXME: the above already does basically the same, does it cover everything?
+               ;; WTF node ppl ... node_modules/es5-ext/array/#/index.js
+               (str/replace #"#" "_HASH_")
                (symbol))
 
         last-modified
@@ -525,7 +527,9 @@
                 js-deps
                 (cond-> js-deps
                   (:uses-global-buffer info)
-                  (conj 'shadow.js.buffer-global))]
+                  (conj "buffer")
+                  (:uses-global-process info)
+                  (conj "process"))]
 
             (when (seq js-errors)
               (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))

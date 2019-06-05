@@ -42,6 +42,7 @@ public class JsInspector {
 
         boolean esm = false;
         boolean usesGlobalBuffer = false;
+        boolean usesGlobalProcess = false;
 
         String googModule = null;
 
@@ -113,6 +114,8 @@ public class JsInspector {
                 googModule = node.getLastChild().getString();
             } else if (node.isName() && node.getString().equals("Buffer") && t.getScope().getVar("Buffer") == null) {
                 usesGlobalBuffer = true;
+            } else if (node.isName() && node.getString().equals("process") && t.getScope().getVar("process") == null) {
+                usesGlobalProcess = true;
             }
 
         }
@@ -153,6 +156,7 @@ public class JsInspector {
     public static final Keyword KW_GOOG_REQUIRES = RT.keyword(NS, "goog-requires");
     public static final Keyword KW_GOOG_MODULE = RT.keyword(NS, "goog-module");
     public static final Keyword KW_USES_GLOBAL_BUFFER = RT.keyword(NS, "uses-global-buffer");
+    public static final Keyword KW_USES_GLOBAL_PROCESS = RT.keyword(NS, "uses-global-process");
 
     public static FileInfo getFileInfo(Compiler cc, SourceFile srcFile) {
         JsAst ast = new JsAst(srcFile);
@@ -186,7 +190,8 @@ public class JsInspector {
                 KW_INVALID_REQUIRES, fileInfo.invalidRequires.persistent(),
                 KW_LANGUAGE, fileInfo.features.version(),
                 KW_STR_OFFSETS, fileInfo.strOffsets.persistent(),
-                KW_USES_GLOBAL_BUFFER, fileInfo.usesGlobalBuffer
+                KW_USES_GLOBAL_BUFFER, fileInfo.usesGlobalBuffer,
+                KW_USES_GLOBAL_PROCESS, fileInfo.usesGlobalProcess
         );
 
         if (fileInfo.parseResult != null) {

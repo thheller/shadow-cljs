@@ -1693,7 +1693,11 @@
                             (if (and require-id (:minimize-require js-options))
                               (pr-str require-id)
                               (str "\"" ns "\""))
-                            "] = function(global,process,require,module,exports,shadow$shims) {\n"
+                            "] = function(global,require,module,exports) {\n"
+                            (when (:uses-global-process src)
+                              "var process = require('process');\n")
+                            (when (:uses-global-buffer src)
+                              "var Buffer = require('buffer').Buffer;\n")
                             (if (str/ends-with? resource-name ".json")
                               (str "module.exports=(" source ");")
                               source)
