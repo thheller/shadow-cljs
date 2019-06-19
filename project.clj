@@ -23,7 +23,7 @@
   ;; it manually in the npm launcher which just installs shadow-cljs
   ;; and would be missing clojure then
   :dependencies
-  [[org.clojure/clojure "1.10.0"]
+  [[org.clojure/clojure "1.10.1"]
 
    [org.clojure/data.json "0.2.6"]
    [org.clojure/tools.cli "0.3.7"]
@@ -33,7 +33,7 @@
    [com.cognitect/transit-clj "0.8.313"]
    [com.cognitect/transit-cljs "0.8.256"]
 
-   [org.clojure/core.async "0.4.490"]
+   [org.clojure/core.async "0.4.500"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.10.520"
@@ -43,19 +43,19 @@
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20190325"]
+   [com.google.javascript/closure-compiler-unshaded "v20190528"]
    [org.clojure/google-closure-library "0.0-20190213-2033d5d9"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.19.Final"
+   [io.undertow/undertow-core "2.0.22.Final"
     :exclusions
     [org.jboss.xnio/xnio-api
      org.jboss.xnio/xnio-nio]]
 
-   [org.jboss.xnio/xnio-api "3.7.0.Final"]
-   [org.jboss.xnio/xnio-nio "3.7.0.Final"
+   [org.jboss.xnio/xnio-api "3.7.2.Final"]
+   [org.jboss.xnio/xnio-nio "3.7.2.Final"
     :exlusions [org.jboss.threads/jboss-threads]]
 
    [org.jboss.threads/jboss-threads "2.3.2.Final"]
@@ -67,7 +67,7 @@
     [clj-time]]
 
    [expound "0.7.2"]
-   [fipp "0.6.17"]
+   [fipp "0.6.18"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
