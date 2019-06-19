@@ -57,7 +57,14 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
             }
 
             if (target == null) {
-                throw new IllegalStateException(String.format("could not find where to put constant for module %s", targetModule.getName()));
+                throw new IllegalStateException(
+                        String.format(
+                                "Could not find where to put constant %s. Used by %s, selected common dep %s",
+                                ref.varName,
+                                ref.usedIn,
+                                targetModule.getName()
+                        )
+                );
             }
 
             Node constantNode;
