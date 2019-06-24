@@ -401,8 +401,10 @@
             (into args))]
 
     (log "shadow-cljs - starting via \"clojure\"")
-    (run! project-root "clojure" clojure-args {})
-    ))
+    (if-not (is-windows?)
+      (run! project-root "clojure" clojure-args {})
+      (let [ps-args (into ["-command" "clojure"] clojure-args)]
+        (run! project-root "powershell" ps-args {})))))
 
 (defn wait-for-server-start! [port-file ^js proc]
   (if (fs/existsSync port-file)

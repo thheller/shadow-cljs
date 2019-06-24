@@ -21,12 +21,7 @@
     [cljs.loader :as cl]
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
-    ["mqtt" :as mq]
     ))
-
-(js/console.log "mq" mq)
-
-(js/console.dir cjs)
 
 (def lazy-x
   (lazy/loadable demo.browser-extra/x))
