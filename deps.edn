@@ -4,7 +4,9 @@
          "target/classes"]
 
  :deps
- {org.clojure/clojurescript {:mvn/version "1.10.339"}
+ {org.clojure/clojure {:mvn/version "1.10.1"}
+  org.clojure/clojurescript {:mvn/version "1.10.520"}
+  com.google.javascript/closure-compiler-unshaded {:mvn/version "v20190528"}
   org.clojure/data.json {:mvn/version "0.2.6"}
   org.clojure/tools.logging {:mvn/version "0.4.0"}
   org.clojure/java.classpath {:mvn/version "0.2.3"}

@@ -348,18 +348,11 @@
   (let [{:keys [aliases inject]} (:deps config)
 
         inject?
-        (not (false? inject))
+        (true? inject)
 
         ;; unparsed string arg
         opt-aliases
         (get-in opts [:options :aliases])
-
-        aliases
-        (-> (or aliases [])
-            (into (:deps-aliases user-config))
-            (cond->
-              inject?
-              (conj :shadow-cljs-inject)))
 
         extra-deps-vec
         (-> []
@@ -367,31 +360,38 @@
             (into (get-in opts [:options :dependencies])))
 
         extra-deps
-        (-> {'thheller/shadow-cljs {:mvn/version jar-version}}
+        (-> {}
             (util/reduce->
               (fn [m [id version]]
                 ;; FIXME: don't forget about extra kv args
                 (assoc m id {:mvn/version version}))
-              extra-deps-vec))]
+              extra-deps-vec)
+            (cond->
+              inject?
+              (assoc 'thheller/shadow-cljs {:mvn/version jar-version})))
+
+        aliases
+        (-> (or aliases [])
+            (into (:deps-aliases user-config))
+            (cond->
+              (seq extra-deps)
+              (conj :shadow-cljs-inject)))]
 
     (-> []
         (cond->
-          inject?
+          (seq extra-deps)
           (conj
             "-Sdeps"
-            (pr-str {:aliases
-                     {:shadow-cljs-inject
-                      (-> {:extra-deps extra-deps}
-                          (cond->
-                            (seq jvm-opts)
-                            (assoc :jvm-opts jvm-opts))
-                          )}}))
+            (pr-str {:aliases {:shadow-cljs-inject {:extra-deps extra-deps}}}))
 
           (seq aliases)
           (conj (str "-A" (->> aliases (map pr-str) (str/join ""))))
 
           (seq opt-aliases)
           (conj (str "-A" opt-aliases))
+
+          (seq jvm-opts)
+          (into (map #(str "-J" %)) jvm-opts)
           ))))
 
 (defn run-clojure [project-root config args opts]
