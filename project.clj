@@ -43,7 +43,7 @@
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20190528"]
+   [com.google.javascript/closure-compiler-unshaded "v20190618"]
    [org.clojure/google-closure-library "0.0-20190213-2033d5d9"]
 
    [thheller/shadow-util "0.7.0"]
