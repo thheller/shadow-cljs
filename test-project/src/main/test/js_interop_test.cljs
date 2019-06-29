@@ -25,7 +25,6 @@
 (deftest es6-as
   (is (some? es6))
   (is (= es6/foo "es6/foo"))
-  #_ (is (= es6/bar "cjs/bar"))
   (is (map? es6/map))
   (is (= 1 (get es6/map "a")))
   (is (= es6-default "es6-default")))
