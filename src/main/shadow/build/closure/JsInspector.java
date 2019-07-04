@@ -129,7 +129,7 @@ public class JsInspector {
             } else if (node.isName() && node.getString().equals("Buffer") && t.getScope().getVar("Buffer") == null) {
                 usesGlobalBuffer = true;
             } else if (node.isName() && node.getString().equals("process") && t.getScope().getVar("process") == null) {
-                usesGlobalProcess = !isProcessEnvNode(node);
+                usesGlobalProcess = usesGlobalProcess || !isProcessEnvNode(node);
             }
         }
     }
