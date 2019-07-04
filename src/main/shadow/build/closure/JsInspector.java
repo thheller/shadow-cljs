@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * Created by thheller on 29/06/2017.
- *
+ * <p>
  * takes a SourceFile and extracts all require/import names
  * similar to "detective" from node
  */
@@ -77,6 +77,20 @@ public class JsInspector {
             );
         }
 
+        public static boolean isProcessEnvNode(Node node) {
+            Node p = node.getParent();
+            if (p != null && p.isGetProp()) {
+                p = p.getParent();
+
+                if (p != null && p.isGetProp() && "process.env.NODE_ENV".equals(p.getQualifiedName())) {
+                    // special case for files that only use process.env.NODE_ENV but nothing else from process
+                    // no need to add the process polyfill in those cases since process.env.NODE_ENV will be inlined later
+                    return true;
+                }
+            }
+            return false;
+        }
+
         @Override
         public void visit(NodeTraversal t, Node node, Node parent) {
             // closure treats all files that have import or export as ESM
@@ -115,9 +129,8 @@ public class JsInspector {
             } else if (node.isName() && node.getString().equals("Buffer") && t.getScope().getVar("Buffer") == null) {
                 usesGlobalBuffer = true;
             } else if (node.isName() && node.getString().equals("process") && t.getScope().getVar("process") == null) {
-                usesGlobalProcess = true;
+                usesGlobalProcess = !isProcessEnvNode(node);
             }
-
         }
     }
 
@@ -236,12 +249,21 @@ public class JsInspector {
         System.out.println(getFileInfoMap(cc, esm1));
 
         // other es6 conversion pattern
-        SourceFile esm2 = SourceFile.fromCode( "esm2.js", "exports.__esModule = true;");
+        SourceFile esm2 = SourceFile.fromCode("esm2.js", "exports.__esModule = true;");
 
         System.out.println(getFileInfoMap(cc, esm2));
 
-        SourceFile esm3 = SourceFile.fromCode( "esm3.js", "module.exports = { \"default\": __webpack_require__(270), __esModule: true };");
+        SourceFile esm3 = SourceFile.fromCode("esm3.js", "module.exports = { \"default\": __webpack_require__(270), __esModule: true };");
         System.out.println(getFileInfoMap(cc, esm3));
+
+        SourceFile esm4 = SourceFile.fromCode("process.js", "process.env.NODE_ENV");
+        System.out.println(getFileInfoMap(cc, esm4));
+
+        SourceFile esm5 = SourceFile.fromCode("process.js", "process.cwd()");
+        System.out.println(getFileInfoMap(cc, esm5));
+
+        SourceFile esm6 = SourceFile.fromCode("process.js", "process.env.FOO");
+        System.out.println(getFileInfoMap(cc, esm6));
 
         long start = System.currentTimeMillis();
         getFileInfoMap(cc, srcFile);
@@ -262,8 +284,8 @@ public class JsInspector {
                             SourceFile test = SourceFile.fromCode("esm.js", content);
                             FileInfo fi = getFileInfo(cc, test);
 
-                                System.out.println(file);
-                                System.out.println(asMap(fi));
+                            System.out.println(file);
+                            System.out.println(asMap(fi));
                         }
                     }
                     return super.visitFile(file, attrs);
