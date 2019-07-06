@@ -4,8 +4,6 @@
   "description": "",
   "main": "lib.js",
   "dependencies": {
-    "source-map-support": "^0.4.14",
-    "ws": "^2.2.3"
   },
   "devDependencies": {},
   "scripts": {
