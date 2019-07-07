@@ -451,9 +451,6 @@
            (try
              (let [^Var pvar (find-var 'cider.piggieback/*cljs-compiler-env*)]
                (when (and pvar (thread-bound? pvar))
-                 ;; for reasons I do not understand this set! fails with
-                 ;; java.lang.IllegalStateException: Can't change/establish root binding of: *cljs-compiler-env* with set
-                 ;; although I do check isBound above?
                  (.set pvar
                    (reify
                      clojure.lang.IDeref
