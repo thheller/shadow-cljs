@@ -12,6 +12,7 @@
             [shadow.build :as build]
             [shadow.build.api :as build-api]
             [shadow.build.api :as cljs]
+            [shadow.build.async :as basync]
             [shadow.build.compiler :as build-comp]
             [shadow.cljs.devtools.server.util :as server-util]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
@@ -612,7 +613,10 @@
               (count (get-in build-state [:repl-state :repl-actions]))
 
               {:keys [repl-state] :as build-state}
-              (repl/process-input build-state input-text)
+              (-> build-state
+                  (repl/process-input input-text)
+                  ;; ensure everything async is finished before sending stuff to clients
+                  (basync/wait-for-pending-tasks!))
 
               new-actions
               (->> (subvec (:repl-actions repl-state) start-idx)
