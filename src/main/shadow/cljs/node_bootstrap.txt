@@ -57,6 +57,9 @@ var SHADOW_IMPORT = global.SHADOW_IMPORT = function(src) {
 };
 
 global.SHADOW_NODE_EVAL = function(js, smJson) {
+  // special case handling for require since it may otherwise not be available
+  js = "(function cljsEval(require) {\n return " + js + "\n});";
+
   if (smJson) {
     js += "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,";
     js += Buffer.from(smJson).toString('base64');
@@ -64,8 +67,12 @@ global.SHADOW_NODE_EVAL = function(js, smJson) {
 
   // console.log(js);
 
-  return VM.runInThisContext.call(global, js,
+  var fn = VM.runInThisContext.call(global, js,
     {filename: "<eval>",
-     lineOffset: 0,
+     lineOffset: -1, // wrapper adds one line on top
      displayErrors: true});
+
+  // console.log("result", fn);
+
+  return fn(require);
 };
