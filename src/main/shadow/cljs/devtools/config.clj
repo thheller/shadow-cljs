@@ -25,13 +25,29 @@
 (s/def ::dependencies
   (s/coll-of ::dependency :kind vector?))
 
+(s/def ::aliases
+  (s/coll-of keyword? :kind vector?))
+
+(s/def ::deps-map
+  (s/and
+    (s/map-of keyword? any?)
+    (s/keys
+      ::opts-un
+      [::aliases])))
+
+(s/def ::deps
+  (s/or
+    :boolean boolean?
+    :map ::deps-map))
+
 (s/def ::config
   (s/keys
     :req-un
     [::builds]
     :opt-un
     [::source-paths
-     ::dependencies]
+     ::dependencies
+     ::deps]
     ))
 
 (defn builds->map [builds]
@@ -117,6 +133,14 @@
       (throw (ex-info "invalid config" (s/explain-data ::config config))))
     config
     ))
+
+(comment
+  ;; ok
+  (s/valid? ::config '{:builds {} :deps {:aliases [:a :b :c]}})
+  (s/valid? ::config '{:builds {} :deps true})
+  (s/valid? ::config '{:builds {} :deps false})
+  ;; not
+  (s/valid? ::config '{:builds {} :deps {foo {:mvn/version "1.2.3"}}}))
 
 (defn get-build
   ([id]
