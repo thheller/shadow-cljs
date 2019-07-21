@@ -110,32 +110,6 @@
     :panel {:output-type :chrome/shared
             :init-fn shadow.cljs.ui.chrome-ext.panel/init}}}
 
-  :launcher-main
-  {:target :node-script
-   :output-to "packages/launcher/index.js"
-   :main shadow.cljs.launcher.main/init
-   :compiler-options
-   {:infer-externs :auto
-    :source-map true}
-   :devtools
-   {:autoload true}}
-
-  :launcher-renderer
-  {:target :browser
-   :output-dir "packages/launcher/web/js"
-   :asset-path "js"
-   :compiler-options
-   {:infer-externs :auto
-    :source-map true}
-   :js-options
-   {:js-provider :require}
-   :modules
-   {:ui
-    {:init-fn shadow.cljs.launcher.ui/init}}
-   :devtools
-   {:loader-mode :eval
-    :watch-dir "packages/launcher/web"}}
-
   ;; test builds
 
   :browser
