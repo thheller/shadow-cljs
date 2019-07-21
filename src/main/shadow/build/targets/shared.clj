@@ -164,7 +164,7 @@
        true
 
        'shadow.cljs.devtools.client.env/autoload
-       (or autoload (some? before-load) (some? after-load) (some? before-load-async))
+       (not (false? autoload))
 
        'shadow.cljs.devtools.client.env/module-format
        (name (get-in state [:build-options :module-format]))
