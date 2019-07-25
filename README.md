@@ -173,6 +173,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [loganpowell/shadow-proto-starter](https://github.com/loganpowell/shadow-proto-starter) - shadow-cljs, Atom, Proto-REPL, node.js library
 - [manuel-uberti/boodle](https://github.com/manuel-uberti/boodle) - re-frame based Accounting SPA with `deps.edn` based backend
 - [shadow-cljs-kitchen-async-puppeteer](https://github.com/iku000888/shadow-cljs-kitchen-async-puppeteer) - Automated browser test with puppeteer and cljs.test, built with shadow-cljs
+- [baskeboler/cljs-karaoke-client](https://github.com/baskeboler/cljs-karaoke-client) - web karaoke player using shadow-cljs + reagent + re-frame + re-frame-10x + re-frame-async-flow-fx
 - ... please let me know if you created something to include here
 
 ## License
