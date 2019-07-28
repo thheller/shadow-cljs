@@ -57,6 +57,7 @@
      :output-name output-name
      :type :cljs
      :source [ns-form]
+     :defined-in-repl true
      :virtual true}))
 
 (defn make-repl-resource [{:keys [compiler-env] :as state} [_ ns :as ns-form]]
