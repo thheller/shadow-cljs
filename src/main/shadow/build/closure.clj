@@ -15,7 +15,8 @@
     [shadow.build.npm :as npm]
     [shadow.build.cache :as cache]
     [shadow.core-ext :as core-ext]
-    [shadow.build.resource :as rc])
+    [shadow.build.resource :as rc]
+    [clojure.data.json :as json])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
@@ -1681,6 +1682,20 @@
     {}
     str->sym))
 
+(defn cleanup-package-json-source
+  "npm adds a bunch of keys to package.json on install. none of those should ever be relevant in code
+   eg. _where _resolve _shasum"
+  [source]
+  (let [obj (json/read-str source)]
+    (-> (reduce-kv
+          (fn [m k v]
+            (if-not (str/starts-with? k "_")
+              m
+              (dissoc m k)))
+          obj
+          obj)
+        (json/write-str))))
+
 (defn convert-sources-simple*
   "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
   [{:keys [project-dir js-options npm mode build-sources] :as state} sources]
@@ -1698,8 +1713,14 @@
                               "var process = require('process');\n")
                             (when (:uses-global-buffer src)
                               "var Buffer = require('buffer').Buffer;\n")
-                            (if (str/ends-with? resource-name ".json")
+                            (cond
+                              (str/ends-with? resource-name "package.json")
+                              (str "module.exports=(" (cleanup-package-json-source source) ");")
+
+                              (str/ends-with? resource-name ".json")
                               (str "module.exports=(" source ");")
+
+                              :else
                               source)
                             "\n};"))]
 
