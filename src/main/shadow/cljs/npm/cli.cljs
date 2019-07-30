@@ -394,6 +394,13 @@
           (into (map #(str "-J" %)) jvm-opts)
           ))))
 
+(defn powershell-escape [s]
+  (-> s
+      (str/replace " " "` ")
+      (str/replace "{" "`{")
+      (str/replace "}" "`}")
+      (str/replace \" "`\"`\"")))
+
 (defn run-clojure [project-root config args opts]
   (let [clojure-args
         (-> (get-clojure-args project-root config opts)
@@ -403,7 +410,7 @@
     (log "shadow-cljs - starting via \"clojure\"")
     (if-not (is-windows?)
       (run! project-root "clojure" clojure-args {})
-      (let [ps-args (into ["-command" "clojure"] clojure-args)]
+      (let [ps-args (into ["-command" "clojure"] (map powershell-escape) clojure-args)]
         (run! project-root "powershell" ps-args {})))))
 
 (defn wait-for-server-start! [port-file ^js proc]
