@@ -463,6 +463,12 @@
    :devtools {:autoload true
               :preload [shadow.expo.keep-awake]}}
 
+  :test-rn
+  {:target :react-native
+   :init-fn demo.rn/init
+   :output-dir "out/TestCRNA/app"
+   :devtools {:autoload true}}
+
   #_#_:expo-android
       {:target :expo
        :init-fn demo.rn/init
