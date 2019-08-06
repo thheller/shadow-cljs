@@ -3,6 +3,7 @@
   (:require [clojure.set :as set]
             [clojure.string :as str]
             [cljs.compiler :as cljs-comp]
+            [cljs.analyzer :as cljs-ana]
             [clojure.spec.alpha :as s]
             [shadow.cljs.repl :as repl]
             [shadow.build.node :as node]
@@ -63,7 +64,6 @@
 
     (-> state
         (build-api/with-build-options {:output-dir output-dir})
-        (cond-> dev? (assoc-in [:js-options :require-fn] "$CLJS.shadow$jsRequire"))
 
         (assoc ::output-file output-file
                ::init-fn init-fn)
@@ -74,6 +74,9 @@
 
         (update :js-options merge {:js-provider :require})
         (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "react-native")
+
+        ;; need to output sources directly to the :output-dir, not nested in cljs-runtime
+        (update :build-options dissoc :cljs-runtime-path)
 
         (cond->
           (:worker-info state)
@@ -89,32 +92,46 @@
 (def ^Escaper js-escaper
   (SourceCodeEscapers/javascriptEscaper))
 
+(defn generate-eval-js [{:keys [build-sources] :as state}]
+  (reduce
+    (fn [state src-id]
+      (cond
+        (= src-id output/goog-base-id)
+        state
+
+        ;; already generated
+        (get-in state [:output src-id :eval-js])
+        state
+
+        :else
+        (let [{:keys [output-name] :as rc} (data/get-source-by-id state src-id)
+              {:keys [js] :as output} (data/get-output! state rc)
+              source-map? (output/has-source-map? output)
+
+              code
+              (cond-> js
+                source-map?
+                ;; FIXME: the url here isn't really used, wonder if there is a way to do something useful here
+                (str "\n//# sourceURL=http://localhost:8081/app/" output-name "\n"
+                     ;; "\n//# sourceMappingURL=http://localhost:8081/app/cljs-runtime/" output-name ".map\n"
+                     ;; FIXME: inline map saves having to know the actual URL
+                     (output/generate-source-map-inline state rc output nil)
+                     ))]
+
+          ;; pre-cache for later so it doesn't get regenerated on hot-compiles
+          (assoc-in state [:output src-id :eval-js]
+            (str "SHADOW_ENV.evalLoad(\"" output-name "\", \"" (.escape js-escaper ^String code) "\");")))))
+    state
+    build-sources))
+
 (defn eval-load-sources [state sources]
   (->> sources
-       (remove #{output/goog-base-id})
-       (map #(data/get-source-by-id state %))
-       (map (fn [{:keys [output-name] :as rc}]
-              (let [{:keys [js] :as output} (data/get-output! state rc)
-
-                    source-map? (output/has-source-map? output)
-
-                    code
-                    (cond-> js
-                      source-map?
-                      ;; FIXME: the url here isn't really used, wonder if there is a way to do something useful here
-                      (str "\n//# sourceURL=http://localhost:8081/app/cljs-runtime/" output-name "\n"
-                           ;; "\n//# sourceMappingURL=http://localhost:8081/app/cljs-runtime/" output-name ".map\n"
-                           ;; FIXME: inline map is more expensive to generate but saves having to know the actual URL
-                           (output/generate-source-map-inline state rc output nil)
-                           ))]
-
-                (str "SHADOW_ENV.evalLoad(\"" output-name "\", \"" (.escape js-escaper ^String code) "\");")
-                )))
+       ;; generated earlier to avoid regenerating all the time
+       (map #(get-in state [:output % :eval-js]))
        (str/join "\n")))
 
 (defn flush-unoptimized!
-  [{:keys [unoptimizable build-options] :as state}
-   {:keys [goog-base output-name prepend append sources web-worker] :as mod}]
+  [state {:keys [goog-base output-name prepend append sources web-worker] :as mod}]
 
   (let [target
         (data/output-file state output-name)
@@ -122,42 +139,50 @@
         source-loads
         (eval-load-sources state sources)
 
+        js-requires
+        (into #{}
+          (for [src-id sources
+                :let [{:keys [type] :as src} (data/get-source-by-id state src-id)]
+                :when (= :cljs type)
+                :let [js-requires (get-in state [:compiler-env ::cljs-ana/namespaces (:ns src) :shadow/js-requires])]
+                js-require js-requires]
+            js-require))
+
         out
         (str prepend
              (->> (for [src-id sources
                         :let [{:keys [js-require] :as src} (data/get-source-by-id state src-id)]
                         :when (:shadow.build.js-support/require-shim src)]
                     ;; emit actual require(...) calls so metro can process those and make them available
-                    (str "$CLJS.shadow$js[\"" js-require "\"] = require(\"" js-require "\");"))
+                    (str "$CLJS.shadow$js[\"" js-require "\"] = function() { return require(\"" js-require "\"); };"))
                   (str/join "\n"))
-             "\n"
+             "\n\n"
+
+             (->> js-requires
+                  (map (fn [require]
+                         (str "$CLJS.shadow$js[\"" require "\"] = function() { return require(\"" require "\"); };")))
+                  (str/join "\n"))
+
+             "\n\n"
              source-loads
              append)
 
         out
         (if (or goog-base web-worker)
-          (str unoptimizable
-               ;; always include this in dev builds
-               ;; a build may not include any shadow-js initially
-               ;; but load some from the REPL later
+          (str "var $CLJS = global;\n"
+               "var shadow$start = new Date().getTime();\n"
                "var shadow$provide = {};\n"
-               "var $CLJS = global;\n"
 
-               "$CLJS.shadow$js = {};\n"
-               "$CLJS.shadow$jsRequire = function(name) { return $CLJS.shadow$js[name]; };"
+               ;; needed since otherwise goog/base.js code will goog.define incorrectly
+               "var goog = global.goog = {};\n"
+               "global.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
+
+               (let [goog-base (get-in state [:output output/goog-base-id :js])]
+                 (str goog-base "\n"))
 
                (let [{:keys [polyfill-js]} state]
                  (when (and (or goog-base web-worker) (seq polyfill-js))
                    (str "\n" polyfill-js)))
-
-               "global.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
-
-               (let [goog-rc (get-in state [:sources output/goog-base-id])
-                     goog-base (get-in state [:output output/goog-base-id :js])]
-
-                 (str goog-base "\n"))
-
-               "global.goog = goog;\n"
 
                (slurp (io/resource "shadow/boot/react-native.js"))
                "\n\n"
@@ -165,7 +190,10 @@
                ;; always exists for :module-format :js
                "goog.global[\"$CLJS\"] = goog.global;\n"
                "\n\n"
-               out)
+               out
+
+               "\n\n"
+               "console.log(\"dev init time\", new Date().getTime() - shadow$start);\n")
           ;; else
           out)]
 
@@ -179,11 +207,12 @@
 (defn flush [state mode config]
   (case mode
     :dev
-    (do (output/flush-sources state)
-        (doseq [mod (:build-modules state)]
-          (util/with-logged-time
-            [state {:type ::flush-dev :module-id (:module-id mod)}]
-            (flush-unoptimized! state mod))))
+    (let [state (generate-eval-js state)]
+      (do (output/flush-sources state)
+          (doseq [mod (:build-modules state)]
+            (util/with-logged-time
+              [state {:type ::flush-dev :module-id (:module-id mod)}]
+              (flush-unoptimized! state mod)))))
     :release
     (output/flush-optimized state))
 

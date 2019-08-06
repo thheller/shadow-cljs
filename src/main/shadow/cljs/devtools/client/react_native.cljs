@@ -116,7 +116,7 @@
           )))))
 
 (defn repl-error [e]
-  (js/console.error "repl/invoke error" e)
+  (js/console.error "repl/invoke error" (.-message e) e)
   (env/repl-error e))
 
 (defn repl-invoke [{:keys [id js]}]
@@ -239,7 +239,7 @@
 
     (set! (.-onerror socket)
       (fn [e]
-        (devtools-msg "websocket error" e)))
+        (js/console.error "websocket error" (.-message e) e)))
 
     (js/setTimeout heartbeat! 30000)
     ))

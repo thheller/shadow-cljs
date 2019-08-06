@@ -33,7 +33,7 @@
       :resource-name name
       :output-name (util/flat-js-name name)
       :type :goog
-      :cache-key [js-ns-alias name]
+      :cache-key [js-ns-alias name require-fn]
       :last-modified 0
       ::require-shim true
       :js-require js-require

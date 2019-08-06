@@ -187,7 +187,7 @@
 
        ;; FIXME: should these ever be configurable?
        :analyzer-passes
-       [cljs-ana/infer-type impl/find-protocols-pass]}
+       [cljs-ana/infer-type impl/find-protocols-pass impl/find-js-require-pass]}
       (data/init)))
 
 ;; helper methods that validate their args, sort of

@@ -217,7 +217,9 @@
         (data/get-output! state src)
 
         js-file
-        (data/output-file state (get-in state [:build-options :cljs-runtime-path]) output-name)]
+        (if-some [sub-path (get-in state [:build-options :cljs-runtime-path])]
+          (data/output-file state sub-path output-name)
+          (data/output-file state output-name))]
 
     ;; skip files we already have
     (when (or (not (.exists js-file))

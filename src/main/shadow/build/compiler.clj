@@ -142,6 +142,22 @@
           ))))
   ast)
 
+
+(defn find-js-require-pass [env ast opts]
+  (when (and (= :invoke (:op ast))
+             ;; js/require called at the REPL should not be added to metadata since it becomes sticky
+             (not (::repl-context env)))
+    (let [{:keys [form]} ast]
+      (when (and (list? form)
+                 (= 'js/require (first form))
+                 (= 2 (count form)))
+        (let [require (second form)
+              ns (-> env :ns :name)]
+          (when (string? require)
+            (swap! env/*compiler* update-in [::cljs-ana/namespaces ns :shadow/js-requires] util/set-conj require)
+            )))))
+  ast)
+
 ;; I don't want to use with-redefs but I also don't want to replace the default
 ;; keep a reference to the default impl and dispatch based on binding
 ;; this ensures that out path is only taken when wanted
@@ -202,6 +218,7 @@
            (cond->
              repl-context?
              (assoc
+               ::repl-context true
                :context :expr
                :def-emits-var true))
            ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
@@ -562,10 +579,9 @@
               (some cache-blockers macro-requires))))))
 
 (defn load-cached-cljs-resource
-  [{:keys [build-options compiler-env] :as state}
-   {:keys [ns output-name resource-id resource-name] :as rc}]
-  (let [{:keys [cljs-runtime-path]} build-options
-        cache-file (get-cache-file-for-rc state rc)]
+  [{:keys [compiler-env] :as state}
+   {:keys [ns resource-id resource-name] :as rc}]
+  (let [cache-file (get-cache-file-for-rc state rc)]
 
     (try
       (when (.exists cache-file)
