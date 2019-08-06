@@ -486,7 +486,7 @@
        ))
 
 (defn flush-dev-js-modules
-  [{::comp/keys [build-info] :as state} mode config]
+  [{:shadow.build/keys [build-info] :as state} mode config]
 
   (util/with-logged-time [state {:type :npm-flush
                                  :output-path (.getAbsolutePath (get-in state [:build-options :output-dir]))}]
@@ -510,7 +510,7 @@
               :let [src (get-in state [:sources src-id])]
               :when (not (util/foreign? src))]
 
-        (let [{:keys [resource-name output-name last-modified]}
+        (let [{:keys [output-name last-modified]}
               src
 
               {:keys [js] :as output}
@@ -521,7 +521,7 @@
 
           ;; flush everything if env was modified, otherwise only flush modified
           (when (or env-modified?
-                    (contains? (:compiled build-info) resource-name)
+                    (contains? (:compiled build-info) src-id)
                     (not (.exists target))
                     (>= last-modified (.lastModified target)))
 
