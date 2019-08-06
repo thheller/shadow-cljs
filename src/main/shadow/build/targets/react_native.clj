@@ -50,7 +50,32 @@
       [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]
       (str server-addr))))
 
-(defn configure [state mode {:keys [build-id init-fn output-dir] :as config}]
+(defn normalize-chunk-def [x]
+  (cond
+    (qualified-symbol? x)
+    {:depends-on #{:index}
+     :entries [(output/ns-only x)]
+     :append-js (str "\nmodule.exports = " (cljs-comp/munge x) ";\n")}
+
+    (and (map? x)
+         (qualified-symbol? (:exports x)))
+    (-> x
+        (update :depends-on util/set-conj :index)
+        (assoc :entries [(output/ns-only x)])
+        (update :append-js str "\nmodule.exports = " (cljs-comp/munge x) ";\n"))
+
+    :else
+    (throw (ex-info "invalid :chunks config" {:x x}))))
+
+(defn add-chunk-modules [modules chunks]
+  (reduce-kv
+    (fn [modules chunk-id chunk-def]
+      (let [chunk-def (normalize-chunk-def chunk-def)]
+        (assoc modules chunk-id chunk-def)))
+    modules
+    chunks))
+
+(defn configure [state mode {:keys [chunks init-fn output-dir] :as config}]
   (let [output-dir
         (io/file output-dir)
 
@@ -58,7 +83,15 @@
         (io/file output-dir "index.js")
 
         dev?
-        (= :dev mode)]
+        (= :dev mode)
+
+        modules
+        (-> {:index {:entries [(output/ns-only init-fn)]
+                     :append-js (output/fn-call init-fn)}}
+            (cond->
+              (seq chunks)
+              (-> (update :index assoc :prepend "var $APP = global.$APP = {};\n")
+                  (add-chunk-modules chunks))))]
 
     (io/make-parents output-file)
 
@@ -68,11 +101,14 @@
         (assoc ::output-file output-file
                ::init-fn init-fn)
 
-        (build-api/configure-modules
-          {:index {:entries [(output/ns-only init-fn)]
-                   :append-js (output/fn-call init-fn)}})
+        (build-api/configure-modules modules)
+
+        (cond->
+          (seq chunks)
+          (-> (assoc-in [:compiler-options :rename-prefix-namespace] "$APP")))
 
         (update :js-options merge {:js-provider :require})
+        (update-in [:compiler-options :externs] util/vec-conj "shadow/cljs/externs/npm.js")
         (assoc-in [:compiler-options :closure-defines 'cljs.core/*target*] "react-native")
 
         ;; need to output sources directly to the :output-dir, not nested in cljs-runtime

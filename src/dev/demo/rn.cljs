@@ -26,6 +26,8 @@
 (defn root []
   (react/createElement rn/View #js {:style (.-container styles)}
     (react/createElement rn/Text #js {:style (.-title styles)} "Hello!")
+    (let [comp (js/require "./foo.js")]
+      (comp))
     (react/createElement rn/Button #js {:onPress (fn [e] (bad-press e))
                                         :title "error"})))
 

@@ -466,6 +466,7 @@
   :test-rn
   {:target :react-native
    :init-fn demo.rn/init
+   :chunks {:foo demo.rn-foo/component}
    :output-dir "out/TestCRNA/app"
    :devtools {:autoload true}}
 
