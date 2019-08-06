@@ -59,11 +59,11 @@
        append-key (str "\nmodule.exports = " (cljs-comp/munge x) ";\n")}
 
       (and (map? x)
-           (qualified-symbol? (:exports x)))
+           (qualified-symbol? (:export x)))
       (-> x
           (update :depends-on util/set-conj :index)
           (assoc :entries [(output/ns-only x)])
-          (update append-key str "\nmodule.exports = " (cljs-comp/munge x) ";\n"))
+          (update append-key str "\nmodule.exports = " (cljs-comp/munge (:export x)) ";\n"))
 
       :else
       (throw (ex-info "invalid :chunks config" {:x x})))))
