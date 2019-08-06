@@ -256,7 +256,7 @@
   state)
 
 (defn process
-  [{::comp/keys [mode stage config] :as state}]
+  [{::build/keys [mode stage config] :as state}]
   (case stage
     :configure
     (configure state mode config)
