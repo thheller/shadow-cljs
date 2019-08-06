@@ -50,27 +50,28 @@
       [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]
       (str server-addr))))
 
-(defn normalize-chunk-def [x]
-  (cond
-    (qualified-symbol? x)
-    {:depends-on #{:index}
-     :entries [(output/ns-only x)]
-     :append-js (str "\nmodule.exports = " (cljs-comp/munge x) ";\n")}
+(defn normalize-chunk-def [mode x]
+  (let [append-key (if (= :dev mode) :append :append-js)]
+    (cond
+      (qualified-symbol? x)
+      {:depends-on #{:index}
+       :entries [(output/ns-only x)]
+       append-key (str "\nmodule.exports = " (cljs-comp/munge x) ";\n")}
 
-    (and (map? x)
-         (qualified-symbol? (:exports x)))
-    (-> x
-        (update :depends-on util/set-conj :index)
-        (assoc :entries [(output/ns-only x)])
-        (update :append-js str "\nmodule.exports = " (cljs-comp/munge x) ";\n"))
+      (and (map? x)
+           (qualified-symbol? (:exports x)))
+      (-> x
+          (update :depends-on util/set-conj :index)
+          (assoc :entries [(output/ns-only x)])
+          (update append-key str "\nmodule.exports = " (cljs-comp/munge x) ";\n"))
 
-    :else
-    (throw (ex-info "invalid :chunks config" {:x x}))))
+      :else
+      (throw (ex-info "invalid :chunks config" {:x x})))))
 
-(defn add-chunk-modules [modules chunks]
+(defn add-chunk-modules [modules mode chunks]
   (reduce-kv
     (fn [modules chunk-id chunk-def]
-      (let [chunk-def (normalize-chunk-def chunk-def)]
+      (let [chunk-def (normalize-chunk-def mode chunk-def)]
         (assoc modules chunk-id chunk-def)))
     modules
     chunks))
@@ -91,7 +92,7 @@
             (cond->
               (seq chunks)
               (-> (update :index assoc :prepend "var $APP = global.$APP = {};\n")
-                  (add-chunk-modules chunks))))]
+                  (add-chunk-modules mode chunks))))]
 
     (io/make-parents output-file)
 
