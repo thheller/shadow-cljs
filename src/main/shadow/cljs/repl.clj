@@ -290,7 +290,7 @@
   [state read-result [_ file-path :as form]]
   (repl-load-file* state {:file-path file-path}))
 
-(defn repl-ns [{:keys [compiler-env] :as state} read-result [_ ns :as form]]
+(defn repl-ns [state read-result [_ ns :as form]]
   (let [{:keys [ns deps ns-info] :as ns-rc}
         (make-repl-resource state form)
 
@@ -314,7 +314,7 @@
 
         ns-requires
         {:type :repl/require
-         :sources build-sources
+         :sources dep-sources
          :reload-namespaces (into #{} (:reload-deps ns-info))}
 
         ns-provide
@@ -341,7 +341,7 @@
         {:type :repl/set-ns
          :ns ns}]
 
-    (output/flush-sources state build-sources)
+    (output/flush-sources state dep-sources)
 
     (-> state
         (assoc-in [:repl-state :current-ns] ns)
@@ -558,7 +558,7 @@
 (defn process-input
   "processes a string of forms, may read multiple forms"
   ([state repl-input]
-    (process-input state repl-input {}))
+   (process-input state repl-input {}))
   ([state ^String repl-input opts]
    {:pre [(build-api/build-state? state)]}
    (let [reader

@@ -120,6 +120,14 @@
 
     (pprint repl-state)))
 
+(deftest test-repl-ns-with-js
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(ns hello.world (:require [\"react\" :as r]))"))]
+
+    (pprint repl-state)))
+
 (deftest test-repl-require-current-ns
   (let [{:keys [repl-state] :as state}
         (-> (basic-repl-setup)
