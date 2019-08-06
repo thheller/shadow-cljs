@@ -33,7 +33,7 @@
   (js/SHADOW_IMPORT src))
 
 (defn repl-init
-  [{:keys [id repl-state] :as msg}]
+  [{:keys [id repl-state] :as msg} done]
   (let [{:keys [repl-sources]} repl-state]
 
     (doseq [{:keys [output-name] :as src} repl-sources
@@ -41,6 +41,7 @@
       (closure-import output-name))
 
     (ws-msg {:type :repl/init-complete :id id})
+    (done)
     ))
 
 (defn repl-invoke [{:keys [id] :as msg}]
@@ -55,7 +56,7 @@
   (ws-msg {:type :repl/set-ns-complete :id id}))
 
 (defn repl-require
-  [{:keys [id sources reload-namespaces] :as msg}]
+  [{:keys [id sources reload-namespaces] :as msg} done]
   (try
     (doseq [{:keys [provides output-name] :as src} sources]
       (when (or (not (is-loaded? output-name))
@@ -63,10 +64,11 @@
         (closure-import output-name)))
     (ws-msg {:type :repl/require-complete :id id})
 
+
     (catch :default e
       (js/console.error "repl/require failed" e)
-      (ws-msg {:type :repl/require-error :id id})
-      )))
+      (ws-msg {:type :repl/require-error :id id})))
+  (done))
 
 (defn build-complete
   [{:keys [info reload-info] :as msg}]
@@ -106,11 +108,11 @@
             ))))))
 
 (defn process-message
-  [{:keys [type] :as msg}]
+  [{:keys [type] :as msg} done]
   ;; (js/console.log "repl-msg" msg)
   (case type
     :repl/init
-    (repl-init msg)
+    (repl-init msg done)
 
     :repl/invoke
     (repl-invoke msg)
@@ -119,7 +121,7 @@
     (repl-set-ns msg)
 
     :repl/require
-    (repl-require msg)
+    (repl-require msg done)
 
     :build-configure
     :ignored
@@ -137,8 +139,10 @@
     (.terminate @ws-ref)
 
     ;; default
-    (prn [:repl-unknown msg])
-    ))
+    (prn [:repl-unknown msg]))
+
+  (when-not (contains? env/async-ops type)
+    (done)))
 
 (defn ws-connect []
   (let [url

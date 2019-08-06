@@ -116,7 +116,7 @@
           (assoc result :value printed))
         (catch :default e
           (js/console.log "encoding of result failed" e ret)
-          (assoc result :error "ENCODING FAILED"))))
+          (assoc result :error "ENCODING FAILED, check host console"))))
     (catch :default e
       (set! *e e)
       (repl-error e)
@@ -156,13 +156,29 @@
     (x)
     (reset! reset-print-fn-ref nil)))
 
+(def async-ops #{:repl/require :repl/init :repl/session-start})
+
+(def repl-queue-ref (atom false))
+(defonce repl-queue-arr (array))
+
+(defn process-next! []
+  (when-not @repl-queue-ref
+    (when-some [task (.shift repl-queue-arr)]
+      (reset! repl-queue-ref true)
+      (task))))
+
+(defn done! []
+  (reset! repl-queue-ref false)
+  (process-next!))
+
 (defn process-ws-msg [text handler]
   (binding [reader/*default-data-reader-fn*
             (fn [tag value]
               [:tagged-literal tag value])]
     (try
       (let [msg (reader/read-string text)]
-        (handler msg))
+        (.push repl-queue-arr #(handler msg done!)))
+      (process-next!)
       (catch :default e
         (js/console.warn "failed to parse websocket message" text e)
         (throw e)))))

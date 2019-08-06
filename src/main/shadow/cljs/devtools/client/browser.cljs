@@ -218,13 +218,18 @@
       (assoc :ua-product (get-ua-product)
              :asset-root (get-asset-root))))
 
+(defn global-eval [js]
+  ;; hack to force eval in global scope
+  ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
+  (js* "(0,eval)(~{});" js))
+
 (defn repl-invoke [{:keys [id js]}]
-  (let [result (env/repl-call #(js/eval js) repl-error)]
+  (let [result (env/repl-call #(global-eval js) repl-error)]
     (-> result
         (assoc :id id)
         (ws-msg))))
 
-(defn repl-require [{:keys [id sources reload-namespaces js-requires] :as msg}]
+(defn repl-require [{:keys [id sources reload-namespaces js-requires] :as msg} done]
   (let [sources-to-load
         (->> sources
              (remove (fn [{:keys [provides] :as src}]
@@ -239,9 +244,10 @@
         (when (seq js-requires)
           (do-js-requires js-requires))
         (ws-msg {:type :repl/require-complete :id id})
+        (done)
         ))))
 
-(defn repl-init [{:keys [repl-state id]}]
+(defn repl-init [{:keys [repl-state id]} done]
   (load-sources
     ;; maybe need to load some missing files to init REPL
     (->> (:repl-sources repl-state)
@@ -250,7 +256,8 @@
     (fn [sources]
       (do-js-load sources)
       (ws-msg {:type :repl/init-complete :id id})
-      (devtools-msg "REPL session start successful"))))
+      (devtools-msg "REPL session start successful")
+      (done))))
 
 (defn repl-set-ns [{:keys [id ns]}]
   (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
@@ -258,7 +265,7 @@
 (def close-reason-ref (volatile! nil))
 
 ;; FIXME: core.async-ify this
-(defn handle-message [{:keys [type] :as msg}]
+(defn handle-message [{:keys [type] :as msg} done]
   ;; (js/console.log "ws-msg" msg)
   (hud/connection-error-clear!)
   (case type
@@ -269,16 +276,16 @@
     (repl-invoke msg)
 
     :repl/require
-    (repl-require msg)
+    (repl-require msg done)
 
     :repl/set-ns
     (repl-set-ns msg)
 
     :repl/init
-    (repl-init msg)
+    (repl-init msg done)
 
     :repl/session-start
-    (repl-init msg)
+    (repl-init msg done)
 
     :build-complete
     (do (hud/hud-warnings msg)
@@ -308,7 +315,10 @@
     (env/publish! (:payload msg))
 
     ;; default
-    :ignored))
+    :ignored)
+
+  (when-not (contains? env/async-ops type)
+    (done)))
 
 (defn compile [text callback]
   (xhr/send
