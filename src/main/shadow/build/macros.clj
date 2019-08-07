@@ -7,7 +7,7 @@
             [shadow.build.classpath :as cp]
             [shadow.build.data :as data])
   (:import (clojure.lang Namespace)
-           (java.net URL URLConnection)))
+           (java.net URL)))
 
 ;; this is a global since required macros are global as well
 ;; once a macro is "activated" by requiring it from a build it
@@ -17,6 +17,36 @@
 ;; about that
 ;; its a map of {symbol timestamp-it-was-required}
 (def active-macros-ref (atom {}))
+(def tracked-clj-namespaces (atom {}))
+
+(defn root-resource [lib]
+  (.. (name lib) (replace \- \_) (replace \. \/)))
+
+(defn find-macro-rc [ns-sym]
+  (let [file-root (root-resource ns-sym)]
+    (or (io/resource (str file-root ".clj"))
+        (io/resource (str file-root ".cljc")))))
+
+(defn find-all-clj-references
+  ([clj-ns]
+   (find-all-clj-references #{} clj-ns))
+  ([result-set clj-ns]
+   (let [ns-info (find-ns clj-ns)]
+     (cond
+       (not ns-info)
+       result-set
+
+       (contains? result-set clj-ns)
+       result-set
+
+       :else
+       (loop [result-set (conj result-set clj-ns)
+              [next-dep & more] (->> (.getAliases ns-info)
+                                     (vals)
+                                     (map #(.getName %)))]
+         (if-not next-dep
+           result-set
+           (recur (find-all-clj-references result-set next-dep) more)))))))
 
 (defn is-macro?
   ([ns sym]
@@ -65,7 +95,8 @@
 
               ;; activate even if the require fails
               ;; so they are reloaded on change
-              (swap! active-macros-ref assoc macro-ns (System/currentTimeMillis))
+              (let [clj-deps (find-all-clj-references macro-ns)]
+                (swap! active-macros-ref assoc macro-ns clj-deps))
 
               (try
                 (require macro-ns)
@@ -169,3 +200,50 @@
                   (let [file (io/file (.getPath url))]
                     (assoc info :file file))))))
        (into [])))
+
+
+
+(defn gather-clj-info* [clj-namespaces]
+  (let [all (reduce find-all-clj-references #{} clj-namespaces)]
+    (reduce
+      (fn [m clj-ns]
+        (let [url (find-macro-rc clj-ns)]
+          (if-not url ;; just in case there is a pure macro ns which we can't track
+            m
+            (assoc m (.toString url) (util/url-last-modified url)))))
+      {}
+      all)))
+
+(defn gather-clj-info
+  "returns a map of {resource-url last-modified} for each macro ns potentially affecting the source"
+  ;; tracks all since its really difficult to track what a given macro did internally and which
+  ;; other namespaces it used which may affect output. prefer to do too much over too little.
+  [state {:keys [resource-id]}]
+  (let [all-macros
+        (->> (data/get-deps-for-id state #{} resource-id)
+             (map #(get-in state [:sources %]))
+             (mapcat :macro-requires)
+             (into #{}))]
+    (gather-clj-info* all-macros)))
+
+(defn check-clj-info
+  "checks if result of gather-clj-info is still up-to-date"
+  [info]
+  {:pre [(map? info)]}
+  (reduce-kv
+    (fn [result url-string last-mod]
+      (let [url (URL. url-string)
+            url-last-mod (util/url-last-modified url)]
+        (if (not= last-mod url-last-mod)
+          (reduced false)
+          result)))
+    true
+    info))
+
+(comment
+  (require 'demo.macro)
+  (find-all-clj-references 'demo.macro)
+  (gather-clj-info* '[demo.macro]))
+
+(defn clj-namespaces-used-by-rc [state rc]
+  '{cljs.core 123})

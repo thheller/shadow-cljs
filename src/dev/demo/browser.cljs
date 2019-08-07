@@ -16,12 +16,15 @@
     #_["/demo/myComponent" :refer (myComponent)]
     [demo.never-load]
     [demo.always-load]
+    [demo.macro :as m]
     [shadow.resource :as rc]
     [shadow.loader :as sl]
     [cljs.loader :as cl]
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
     ))
+
+(js/console.log "macro" (m/foo 1 2 3))
 
 (def lazy-x
   (lazy/loadable demo.browser-extra/x))

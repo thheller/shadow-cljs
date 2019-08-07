@@ -529,8 +529,7 @@
   [state rc]
   ;; FIXME: would it be enough to just use the immediate deps?
   ;; all seems like overkill but way safer
-  (let [;; deps (get-in state [:immediate-deps (:id rc)])
-        deps (data/get-deps-for-id state #{} (:resource-id rc))]
+  (let [deps (data/get-deps-for-id state #{} (:resource-id rc))]
 
     ;; must always invalidate cache on version change
     ;; which will always have a new timestamp
@@ -538,12 +537,7 @@
         (util/reduce->
           (fn [cache-map id]
             (assoc cache-map id (get-in state [:sources id :cache-key])))
-          deps)
-        ;; must also account for macro only changes
-        (util/reduce->
-          (fn [cache-map {:keys [ns cache-key] :as macro-rc}]
-            (assoc cache-map [:macro ns] cache-key))
-          (macros/macros-used-by-ids state deps)))))
+          deps))))
 
 (def cache-affecting-options
   ;; paths into the build state
@@ -611,6 +605,7 @@
             ;; which is larger than v2 release date thereby using cache if only checking one timestamp
 
             (when (and (= cache-key-map (:cache-keys cache-data))
+                       (macros/check-clj-info (:clj-info cache-data))
                        (every?
                          #(= (get-in state %)
                             (get-in cache-data [:compiler-options %]))
@@ -716,6 +711,7 @@
           cache-data
           {:output output
            :cache-keys (make-cache-key-map state rc)
+           :clj-info (macros/gather-clj-info state rc)
            :analyzer ana-data
            :ns ns
            :ns-specs ns-specs
