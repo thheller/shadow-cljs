@@ -142,7 +142,6 @@
           ))))
   ast)
 
-
 (defn find-js-require-pass [env ast opts]
   (when (and (= :invoke (:op ast))
              ;; js/require called at the REPL should not be added to metadata since it becomes sticky
@@ -289,7 +288,9 @@
   ;; FIXME: can't remove goog.require/goog.provide from goog sources easily
   ;; keeping them for CLJS for now although they are not needed in JS mode
   #_(when (= :goog (get-in state [:build-options :module-format])))
-  (comp/emitln "goog.provide('" (comp/munge name) "');")
+
+  (when-not (get-in ast [:meta :skip-goog-provide])
+    (comp/emitln "goog.provide('" (comp/munge name) "');"))
 
   (when (= name 'cljs.js)
     ;; this fixes the issue that cljs.js unconditionally attempts to load cljs.core$macros

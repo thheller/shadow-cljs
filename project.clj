@@ -82,7 +82,7 @@
 
    ;; experimental
    [hawk "0.2.11"]
-   [thheller/shadow-cljsjs "0.0.18"]]
+   [thheller/shadow-cljsjs "0.0.19"]]
 
   :source-paths
   ["src/main"]
