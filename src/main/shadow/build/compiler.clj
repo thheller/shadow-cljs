@@ -223,7 +223,7 @@
            ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
            ;; it seems to do this to get rid of duplicated warnings?
            ;; we just do a distinct later
-           (ana/analyze* form resource-name opts)
+           (ana/analyze* form nil opts)
            (post-analyze state))))))
 
 (defn do-analyze-cljs-string

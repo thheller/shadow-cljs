@@ -138,3 +138,13 @@
             )]
 
     (pprint repl-state)))
+
+
+(deftest test-repl-anon-fn
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(fn [foo] foo)"))]
+
+    (pprint repl-state)))
+
