@@ -128,7 +128,8 @@
 
 (defn print-warnings [warnings]
   (doseq [{:keys [msg line column source-name] :as w} warnings]
-    (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
+    (warnings/print-warning w)
+    #_ (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
 
 (defn print-build-start [{:keys [build-id] :as x}]
   (println (format "[%s] Compiling ..." build-id)))

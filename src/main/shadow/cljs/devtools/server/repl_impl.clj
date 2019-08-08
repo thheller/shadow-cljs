@@ -8,7 +8,8 @@
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.build.log :as build-log]
-            [shadow.jvm-log :as log])
+            [shadow.jvm-log :as log]
+            [shadow.build.warnings :as warnings])
   (:import (java.io StringReader PushbackReader File)
            [java.util UUID]))
 

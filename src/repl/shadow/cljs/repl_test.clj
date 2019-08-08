@@ -148,3 +148,12 @@
 
     (pprint repl-state)))
 
+(deftest test-repl-warnings
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(require 'demo.warnings)"))]
+
+    (pprint repl-state)))
+
+

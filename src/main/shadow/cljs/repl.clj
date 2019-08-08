@@ -13,6 +13,7 @@
             [shadow.jvm-log :as jvm-log]
             [shadow.build.log :as log]
             [shadow.cljs.util :as util]
+            [shadow.build :as build]
             [shadow.build.api :as build-api]
             [shadow.build.output :as output]
             [shadow.build.ns-form :as ns-form]
@@ -94,6 +95,13 @@
       :last-modified (System/currentTimeMillis)
       :cache-key [(System/currentTimeMillis)]
       )))
+
+(defn warnings-for-sources [state sources]
+  (->> (for [src-id sources
+             :let [src (get-in state [:sources src-id])]
+             warning (build/enhance-warnings state src)]
+         warning)
+       (into [])))
 
 (def cljs-user-ns
   '(ns cljs.user
@@ -197,6 +205,7 @@
         action
         (-> {:type :repl/require
              :sources new-sources
+             :warnings (warnings-for-sources state new-sources)
              :reload-namespaces (into #{} reload-deps)
              :flags (:require flags)}
             (cond->
@@ -274,15 +283,16 @@
                 (data/overwrite-source rc)
                 (build-api/resolve-entries [ns]))
 
-            {:keys [build-sources] :as state}
+            state
             (build-api/compile-sources state deps-sources)
 
             action
             {:type :repl/require
-             :sources build-sources
+             :sources deps-sources
+             :warnings (warnings-for-sources state deps-sources)
              :reload-namespaces #{ns}}]
 
-        (output/flush-sources state build-sources)
+        (output/flush-sources state deps-sources)
         (update-in state [:repl-state :repl-actions] conj action)
         ))))
 
@@ -299,7 +309,7 @@
             (data/overwrite-source ns-rc)
             (res/resolve-repl ns deps))
 
-        {:keys [deps] :as ns-info}
+        ns-info
         (-> ns-info
             (ns-form/rewrite-ns-aliases state)
             (ns-form/rewrite-js-deps state))
@@ -309,12 +319,13 @@
           (comp/post-analyze-ns ns-info state)
           state)
 
-        {:keys [build-sources] :as state}
+        state
         (build-api/compile-sources state dep-sources)
 
         ns-requires
         {:type :repl/require
          :sources dep-sources
+         :warnings (warnings-for-sources state dep-sources)
          :reload-namespaces (into #{} (:reload-deps ns-info))}
 
         ns-provide
