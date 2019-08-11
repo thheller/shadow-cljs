@@ -327,6 +327,31 @@
       (catch Exception e
         (build-failure worker-state e)))))
 
+(defn repl-result-fn [{:keys [result-chan] :as msg} actions]
+  ;; every input msg may produce many actual REPL actions
+  ;; want to buffer all results before replying to whoever sent the initial REPL msg
+  (let [buffer-ref (->> actions
+                        (map (juxt :id identity))
+                        (into {})
+                        (atom))]
+
+    (fn [worker-state {:keys [id] :as result}]
+      (swap! buffer-ref assoc-in [id :result] result)
+
+      ;; once all replies have been received send response
+      (let [buf @buffer-ref]
+        (when (= (count buf)
+                 (count actions))
+          ;; FIXME: should this just send one message back?
+          ;; REPL client impls don't really need to know about actions?
+          ;; just need to preserve some info from the input actions before they were sent to the runtimes (eg. warnings)
+          (>!! result-chan (->> (vals buf)
+                                (sort-by :id)
+                                (vec)))
+          (async/close! result-chan)))
+
+      worker-state)))
+
 (defn process-repl-result
   [worker-state {:keys [id] :as result}]
 
@@ -451,7 +476,8 @@
       :repl/invoke-error
       :repl/init-complete
       :repl/set-ns-complete
-      :repl/require-complete)
+      :repl/require-complete
+      :repl/require-error)
     (process-repl-result worker-state msg)
 
     :repl/out
@@ -805,24 +831,24 @@
                 (repl/process-read-result build-state input))
 
               new-actions
-              (subvec (:repl-actions repl-state) start-idx)
+              (->> (subvec (:repl-actions repl-state) start-idx)
+                   (map-indexed (fn [idx action]
+                                  (assoc action :id (+ idx start-idx)))))
 
-              last-idx
-              (-> (get-in build-state [:repl-state :repl-actions])
-                  (count)
-                  (dec))]
+              result-fn
+              (repl-result-fn msg new-actions)]
 
-          (doseq [[idx action] (map-indexed vector new-actions)
-                  :let [idx (+ idx start-idx)
-                        action (assoc action :id idx)]]
+          (doseq [action new-actions]
             (>!!output worker-state {:type :repl/action
                                      :action action})
             (>!! runtime-out (transform-repl-action build-state action)))
 
           (-> worker-state
               (assoc :build-state build-state)
-              ;; FIXME: now dropping intermediate results since the REPL only expects one result
-              (update :pending-results assoc last-idx result-chan)))
+              (util/reduce->
+                (fn [state {:keys [id]}]
+                  (assoc-in state [:pending-results id] result-fn))
+                new-actions)))
 
         (catch Exception e
           (let [msg (repl-error e)]

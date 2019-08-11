@@ -67,7 +67,7 @@
 
     (catch :default e
       (js/console.error "repl/require failed" e)
-      (ws-msg {:type :repl/require-error :id id})))
+      (ws-msg {:type :repl/require-error :id id :error (.-message e)})))
   (done))
 
 (defn build-complete

@@ -60,7 +60,11 @@
 
     (devtools-msg "load JS" resource-name)
     (env/before-load-src src)
-    (script-eval (str js "\n//# sourceURL=" resource-name))))
+    (try
+      (script-eval (str js "\n//# sourceURL=" resource-name))
+      (catch :default e
+        (js/console.error (str "Failed to load " resource-name) e)
+        (throw (js/Error. (str "Failed to load " resource-name ": " (.-message e))))))))
 
 (defn do-js-reload [msg sources complete-fn failure-fn]
   (env/do-js-reload
@@ -240,12 +244,15 @@
     (load-sources
       sources-to-load
       (fn [sources]
-        (do-js-load sources)
-        (when (seq js-requires)
-          (do-js-requires js-requires))
-        (ws-msg {:type :repl/require-complete :id id})
-        (done)
-        ))))
+        (try
+          (do-js-load sources)
+          (when (seq js-requires)
+            (do-js-requires js-requires))
+          (ws-msg {:type :repl/require-complete :id id})
+          (catch :default e
+            (ws-msg {:type :repl/require-error :id id :error (.-message e)}))
+          (finally
+            (done)))))))
 
 (defn repl-init [{:keys [repl-state id]} done]
   (load-sources

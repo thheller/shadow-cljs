@@ -189,8 +189,7 @@
           (println "Build shutdown.")
 
           :repl/action
-          (let [warnings (get-in x [:action :warnings])]
-            (print-warnings warnings))
+          :ignored
 
           ;; should have been handled somewhere else
           :repl/result

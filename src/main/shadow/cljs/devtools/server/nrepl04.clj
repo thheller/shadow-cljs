@@ -17,7 +17,8 @@
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.errors :as errors]
     [shadow.cljs.devtools.config :as config]
-    [clojure.java.io :as io])
+    [clojure.java.io :as io]
+    [shadow.build.warnings :as warnings])
   (:import (java.io StringReader)))
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
@@ -48,6 +49,62 @@
       #'api/*nrepl-cljs* nil
       #'cider.piggieback/*cljs-compiler-env* nil
       #'cemerick.piggieback/*cljs-compiler-env* nil)))
+
+(defn handle-repl-result [worker {:keys [session] :as msg} actions]
+  (log/debug ::eval-result {:result actions})
+  (let [build-state (repl-impl/worker-build-state worker)
+        repl-ns (-> build-state :repl-state :current-ns)]
+
+    (doseq [{:keys [warnings result] :as action} actions]
+      (binding [warnings/*color* false]
+        (doseq [warning warnings]
+          (send msg {:err (with-out-str (warnings/print-short-warning warning))})))
+
+      (case (:type result)
+        :repl/result
+        (send msg {:value (:value result)
+                   :printed-value 1
+                   :ns (pr-str repl-ns)})
+
+        :repl/set-ns-complete
+        (send msg {:value (pr-str repl-ns)
+                   :printed-value 1
+                   :ns (pr-str repl-ns)})
+
+        (:repl/invoke-error
+          :repl/require-error)
+        (send msg {:err (or (:stack result)
+                            (:error result))})
+
+        :repl/require-complete
+        (send msg {:value "nil"
+                   :printed-value 1
+                   :ns (pr-str repl-ns)})
+
+        :repl/interrupt
+        nil
+
+        :repl/timeout
+        (send msg {:err "REPL command timed out.\n"})
+
+        :repl/no-runtime-connected
+        (send msg {:err "No application has connected to the REPL server. Make sure your JS environment has loaded your compiled ClojureScript code.\n"})
+
+        :repl/too-many-runtimes
+        (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
+
+        :repl/error
+        (send msg {:err (errors/error-format (:ex result))})
+
+        :repl/worker-stop
+        (do (do-repl-quit session)
+            (send msg {:err "The REPL worker has stopped.\n"})
+            (send msg {:value ":cljs/quit"
+                       :printed-value 1
+                       :ns (-> *ns* ns-name str)}))
+
+        ;; :else
+        (send msg {:err (pr-str [:FIXME result])})))))
 
 (defn do-cljs-eval [{::keys [build-id worker] :keys [ns session code runtime-id] :as msg}]
   (let [reader (StringReader. code)
@@ -96,55 +153,7 @@
             ;; {:err string} prints to stderr
             :else
             (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
-              (log/debug ::eval-result {:result result})
-              (let [build-state (repl-impl/worker-build-state worker)
-                    repl-ns (-> build-state :repl-state :current-ns)]
-
-                (case (:type result)
-                  :repl/result
-                  (send msg {:value (:value result)
-                             :printed-value 1
-                             :ns (pr-str repl-ns)})
-
-                  :repl/set-ns-complete
-                  (send msg {:value (pr-str repl-ns)
-                             :printed-value 1
-                             :ns (pr-str repl-ns)})
-
-                  :repl/invoke-error
-                  (send msg {:err (or (:stack result)
-                                      (:error result))})
-
-                  :repl/require-complete
-                  (send msg {:value "nil"
-                             :printed-value 1
-                             :ns (pr-str repl-ns)})
-
-                  :repl/interrupt
-                  nil
-
-                  :repl/timeout
-                  (send msg {:err "REPL command timed out.\n"})
-
-                  :repl/no-runtime-connected
-                  (send msg {:err "No application has connected to the REPL server. Make sure your JS environment has loaded your compiled ClojureScript code.\n"})
-
-                  :repl/too-many-runtimes
-                  (send msg {:err "There are too many JS runtimes, don't know which to eval in.\n"})
-
-                  :repl/error
-                  (send msg {:err (errors/error-format (:ex result))})
-
-                  :repl/worker-stop
-                  (do (do-repl-quit session)
-                      (send msg {:err "The REPL worker has stopped.\n"})
-                      (send msg {:value ":cljs/quit"
-                                 :printed-value 1
-                                 :ns (-> *ns* ns-name str)}))
-
-                  ;; :else
-                  (send msg {:err (pr-str [:FIXME result])})))
-
+              (handle-repl-result worker msg result)
               (recur))
             ))))
 

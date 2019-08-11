@@ -33,7 +33,7 @@
             (println "==============================================")
             )))
 
-      :repl/invoke-error
+      (:repl/require-error :repl/invoke-error)
       (println (or (:stack result)
                    (:message result)))
 
@@ -60,6 +60,12 @@
 
       (prn [:result result]))
     (flush)))
+
+(defn handle-repl-result [worker actions]
+  (doseq [{:keys [warnings result] :as action} actions]
+    (doseq [warning warnings]
+      (warnings/print-short-warning warning))
+    (print-result result)))
 
 (defn worker-build-state [worker]
   (-> worker :state-ref deref :build-state))
@@ -170,10 +176,9 @@
                   (recur))
 
               :else
-              (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
-                (print-result result)
-                (when (and (not= :repl/interrupt (:type result))
-                           (not= :repl/worker-stop (:type result)))
+              (when-some [actions (worker/repl-eval worker session-id runtime-id read-result)]
+                (handle-repl-result worker actions)
+                (when-not (some #{:repl/interrupt :repl/worker-stop} (map #(get-in % [:result type]) actions))
                   (recur))))))))
     (async/close! print-chan)
 
