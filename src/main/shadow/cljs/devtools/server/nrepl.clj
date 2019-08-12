@@ -229,7 +229,8 @@
    #{"eval"}})
 
 (defn do-cljs-load-file [{::keys [worker] :keys [file file-path] :as msg}]
-  (worker/load-file worker {:file-path file-path :source file})
+  (when-some [result (worker/load-file worker {:file-path file-path :source file})]
+    (handle-repl-result worker msg result))
   (send msg {:status :done}))
 
 (defn cljs-load-file [next]

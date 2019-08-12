@@ -710,61 +710,6 @@
     (>!! runtime-out {:type :custom-msg :payload payload}))
   worker-state)
 
-(defmethod do-proc-control :load-file
-  [{:keys [build-state runtimes] :as worker-state}
-   {:keys [result-chan input] :as msg}]
-  (let [runtime-count (count runtimes)]
-
-    (cond
-      (nil? build-state)
-      (do (>!! result-chan {:type :repl/illegal-state})
-          worker-state)
-
-      (> runtime-count 1)
-      (do (>!! result-chan {:type :repl/too-many-runtimes :count runtime-count})
-          worker-state)
-
-      (zero? runtime-count)
-      (do (>!! result-chan {:type :repl/no-runtime-connected})
-          worker-state)
-
-      :else
-      (try
-        (let [{:keys [runtime-out] :as runtime}
-              (first (vals runtimes))
-
-              start-idx
-              (count (get-in build-state [:repl-state :repl-actions]))
-
-              {:keys [repl-state] :as build-state}
-              (repl/repl-load-file* build-state msg)
-
-              new-actions
-              (subvec (:repl-actions repl-state) start-idx)
-
-              last-idx
-              (-> (get-in build-state [:repl-state :repl-actions])
-                  (count)
-                  (dec))]
-
-          (doseq [[idx action] (map-indexed vector new-actions)
-                  :let [idx (+ idx start-idx)
-                        action (assoc action :id idx)]]
-            ;; FIXME: this should be removed, only the runtime and tool should be notified
-            (>!!output worker-state {:type :repl/action :action action})
-
-            (>!! runtime-out (transform-repl-action build-state action)))
-
-          (-> worker-state
-              (assoc :build-state build-state)
-              (update :pending-results assoc last-idx result-chan)))
-
-        (catch Exception e
-          (let [msg (repl-error e)]
-            (>!! result-chan msg)
-            (>!!output worker-state msg))
-          worker-state)))))
-
 (defmethod do-proc-control :repl-compile
   [{:keys [build-state] :as worker-state}
    {:keys [result-chan input] :as msg}]
@@ -789,10 +734,11 @@
       (>!! result-chan {:type :repl/error :e e})
       worker-state)))
 
-(defmethod do-proc-control :repl-eval
+(defn do-repl-rpc
   [{:keys [build-state runtimes default-runtime-id] :as worker-state}
-   {:keys [result-chan input session-id runtime-id] :as msg}]
-  (log/debug ::repl-eval {:session-id session-id :runtime-id runtime-id})
+   command
+   {:keys [result-chan session-id runtime-id] :as msg}]
+  (log/debug ::repl-rpc {:command command :session-id session-id :runtime-id runtime-id})
   (let [runtime-count (count runtimes)
 
         runtime-id
@@ -826,9 +772,17 @@
               (count (get-in build-state [:repl-state :repl-actions]))
 
               {:keys [repl-state] :as build-state}
-              (if (string? input)
-                (repl/process-input build-state input)
-                (repl/process-read-result build-state input))
+              (case command
+                :load-file
+                (repl/repl-load-file* build-state msg)
+
+                :repl-eval
+                (let [{:keys [input]} msg]
+                  (if (string? input)
+                    (repl/process-input build-state input)
+                    (repl/process-read-result build-state input)))
+
+                (throw (ex-info "unknown repl rpc" {:msg msg :command command})))
 
               new-actions
               (->> (subvec (:repl-actions repl-state) start-idx)
@@ -855,6 +809,12 @@
             (>!! result-chan msg)
             (>!!output worker-state msg))
           worker-state)))))
+
+(defmethod do-proc-control :repl-eval [worker-state msg]
+  (do-repl-rpc worker-state :repl-eval msg))
+
+(defmethod do-proc-control :load-file [worker-state msg]
+  (do-repl-rpc worker-state :load-file msg))
 
 (defn do-macro-update
   [{:keys [build-state last-build-macros autobuild] :as worker-state} {:keys [macro-namespaces] :as msg}]
