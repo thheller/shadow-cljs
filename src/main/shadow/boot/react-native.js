@@ -47,3 +47,6 @@ $CLJS.shadow$jsRequire = function(name) {
 global.require = function(name) {
     return $CLJS.shadow$jsRequire(name);
 };
+
+// make js/global accessible in eval'd sources since it isn't actually a global
+global.global = global;
