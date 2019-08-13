@@ -332,22 +332,26 @@
   ;; want to buffer all results before replying to whoever sent the initial REPL msg
   (let [buffer-ref (->> actions
                         (map (juxt :id identity))
-                        (into {})
+                        (into {::pending (count actions)})
                         (atom))]
 
     (fn [worker-state {:keys [id] :as result}]
-      (swap! buffer-ref assoc-in [id :result] result)
+      (let [buf (swap! buffer-ref
+                  (fn [buf]
+                    (-> buf
+                        (update ::pending dec)
+                        (assoc-in [id :result] result))))]
 
-      ;; once all replies have been received send response
-      (let [buf @buffer-ref]
-        (when (= (count buf)
-                 (count actions))
+        ;; once all replies have been received send response
+        (when (zero? (::pending buf))
           ;; FIXME: should this just send one message back?
           ;; REPL client impls don't really need to know about actions?
           ;; just need to preserve some info from the input actions before they were sent to the runtimes (eg. warnings)
-          (>!! result-chan (->> (vals buf)
-                                (sort-by :id)
-                                (vec)))
+          (let [result (->> (dissoc buf ::pending)
+                            (vals)
+                            (sort-by :id)
+                            (vec))]
+            (>!! result-chan result))
           (async/close! result-chan)))
 
       worker-state)))

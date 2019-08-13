@@ -35,6 +35,7 @@
 
       (:repl/require-error :repl/invoke-error)
       (println (or (:stack result)
+                   (:error result)
                    (:message result)))
 
       :repl/set-ns-complete
