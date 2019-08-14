@@ -28,7 +28,7 @@
 
 Creating your project can be done quickly using the `npx create-cljs-project` utility. `npx` is part of `npm` and lets us run utility scripts quickly without worrying about installing them first. The installer will create a basic project scaffold and install the latest version of `shadow-cljs` in the project.
 
-```text
+```bash
 $ npx create-cljs-project acme-app
 npx: installed 1 in 5.887s
 shadow-cljs - creating project: .../acme-app
@@ -52,7 +52,7 @@ Done.
 
 The resulting project has the following structure
 
-```
+```bash
 .
 ├── node_modules (omitted ...)
 ├── package.json
@@ -127,7 +127,7 @@ The compilation will create the `public/js/main.js` we configured above (`:main`
 
 We also need a simple HTTP server to serve our HTML since modern Browsers all place a few restrictions on files loaded directly from disk which will lead to issues later. `shadow-cljs` provides such a server but you can use anything you like at this point. It only matters that the files from the `public` directory are served properly. To start the built-in web server just adjust the build config from above.
 
-```
+```clojure
 {...
  :dev-http {8080 "public"}
  :builds
