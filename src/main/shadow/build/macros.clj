@@ -93,11 +93,6 @@
             ;; reloading is handled somewhere else
             (when-not (contains? @active-macros-ref macro-ns)
 
-              ;; activate even if the require fails
-              ;; so they are reloaded on change
-              (let [clj-deps (find-all-clj-references macro-ns)]
-                (swap! active-macros-ref assoc macro-ns clj-deps))
-
               (try
                 (require macro-ns)
                 (catch Exception e
@@ -106,7 +101,12 @@
                            {:tag ::macro-load
                             :macro-ns macro-ns
                             :ns-info ns-info}
-                           e))))))))
+                           e))))
+
+              ;; need to do this after the actual require since otherwise no deps can be discovered
+              (let [clj-deps (find-all-clj-references macro-ns)]
+                (swap! active-macros-ref assoc macro-ns clj-deps))
+              ))))
 
       (if (contains? macro-namespaces name)
         (let [macros (find-macros-in-ns name)]
