@@ -8,8 +8,7 @@
 ;; https://github.com/clojure-emacs/cider-nrepl/blob/master/src/cider/nrepl/middleware/util/cljs.clj
 
 (ns cemerick.piggieback
-  (:require [nrepl.middleware]
-            [shadow.cljs.devtools.api :as api]))
+  (:require [shadow.cljs.devtools.api :as api]))
 
 ;; tools access this directly via resolve
 (def ^:dynamic *cljs-compiler-env* nil)
@@ -31,9 +30,7 @@
     (next msg)))
 
 (ns cider.piggieback
-  (:require [nrepl.middleware]
-            [shadow.jvm-log :as log]
-            [shadow.cljs.devtools.api :as api]))
+  (:require [shadow.cljs.devtools.api :as api]))
 
 ;; tools access this directly via resolve
 (def ^:dynamic *cljs-compiler-env* nil)
@@ -53,13 +50,3 @@
       (swap! session assoc
         #'*cljs-compiler-env* *cljs-compiler-env*))
     (next msg)))
-
-(try
-  (nrepl.middleware/set-descriptor! #'wrap-cljs-repl
-    {:requires #{"clone"}
-     ;; piggieback unconditionally hijacks eval and load-file
-     :expects #{"eval" "load-file"}
-     :handles {}})
-  (catch Exception e
-    (log/warn-ex e ::set-descriptor)
-    ))

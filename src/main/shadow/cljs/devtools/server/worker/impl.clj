@@ -347,11 +347,12 @@
           ;; FIXME: should this just send one message back?
           ;; REPL client impls don't really need to know about actions?
           ;; just need to preserve some info from the input actions before they were sent to the runtimes (eg. warnings)
-          (let [result (->> (dissoc buf ::pending)
-                            (vals)
-                            (sort-by :id)
-                            (vec))]
-            (>!! result-chan result))
+          (let [results (->> (dissoc buf ::pending)
+                             (vals)
+                             (sort-by :id)
+                             (vec))]
+            (>!! result-chan {:type :repl/results
+                              :results results}))
           (async/close! result-chan)))
 
       worker-state)))

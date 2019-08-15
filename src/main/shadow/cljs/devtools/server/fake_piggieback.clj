@@ -10,10 +10,6 @@
 (ns cemerick.piggieback
   (:require [shadow.cljs.devtools.api :as api]))
 
-(if (find-ns 'clojure.tools.nrepl.server)
-  (require '[clojure.tools.nrepl.middleware])
-  (require '[nrepl.middleware]))
-
 ;; tools access this directly via resolve
 (def ^:dynamic *cljs-compiler-env* nil)
 
@@ -35,10 +31,6 @@
 
 (ns cider.piggieback
   (:require [shadow.cljs.devtools.api :as api]))
-
-(if (find-ns 'clojure.tools.nrepl.server)
-  (require '[clojure.tools.nrepl.middleware])
-  (require '[nrepl.middleware]))
 
 ;; tools access this directly via resolve
 (def ^:dynamic *cljs-compiler-env* nil)
