@@ -154,14 +154,31 @@
               (parse-build-arg)
               ))))))
 
+(defn split-at-run [args]
+  (let [idx (or (.indexOf args "run")
+                (.indexOf args "clj-run"))]
+    (if (= -1 idx)
+      [args []]
+      [(subvec args 0 (inc idx))
+       (subvec args (inc idx))]
+      )))
+
+(comment
+  (prn (split-at-run ["a" "run" "b"])))
+
 (defn parse [args]
-  (let [parsed
-        (cli/parse-opts args cli-spec)]
-    (if (or (:errors parsed)
-            (get-in parsed [:options :help]))
+  (let [[args extra] (split-at-run (vec args))
+        parsed
+        (-> (cli/parse-opts args cli-spec)
+            (update :arguments into extra))]
+
+    (if (or (:errors parsed) (get-in parsed [:options :help]))
       parsed
       (parse-arguments parsed)
       )))
+
+(comment
+  (prn (parse ["run" "--foo" "--bar"])))
 
 (def cli-config
   {:aliases
