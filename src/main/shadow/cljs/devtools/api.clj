@@ -434,20 +434,6 @@
 
                  (worker/watch worker chan true))))
 
-           ;; need to set the var immediately since some cider middleware needs it to
-           ;; switch REPL type to cljs. can't get to the nrepl session from here.
-           (try
-             (let [^Var pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
-               (when (and pvar (thread-bound? pvar))
-                 (.set pvar
-                   (reify
-                     clojure.lang.IDeref
-                     (deref [_]
-                       (when-let [worker (get-worker id)]
-                         (-> worker :state-ref deref :build-state :compiler-env)))))))
-             (catch Exception e
-               (log/warn-ex e ::piggieback-cemerick)))
-
            (try
              (let [^Var pvar (find-var 'cider.piggieback/*cljs-compiler-env*)]
                (when (and pvar (thread-bound? pvar))

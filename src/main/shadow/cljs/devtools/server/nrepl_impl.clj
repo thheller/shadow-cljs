@@ -22,8 +22,7 @@
       quit-var (async/chan)
       #'*ns* (get @session #'api/*nrepl-clj-ns*)
       #'api/*nrepl-cljs* nil
-      #'cider.piggieback/*cljs-compiler-env* nil
-      #'cemerick.piggieback/*cljs-compiler-env* nil)))
+      #'cider.piggieback/*cljs-compiler-env* nil)))
 
 (defn handle-repl-result [worker {::keys [send] :keys [session] :as msg} result]
   (log/debug ::eval-result {:result result})

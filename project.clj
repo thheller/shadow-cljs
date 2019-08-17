@@ -144,7 +144,7 @@
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware
-     [shadow.cljs.devtools.server.nrepl/middleware]}
+     [shadow.cljs.devtools.server.nrepl04/middleware]}
     :source-paths
     ["src/dev"
      "src/gen"
