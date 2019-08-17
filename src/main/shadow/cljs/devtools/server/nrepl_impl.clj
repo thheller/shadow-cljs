@@ -211,7 +211,6 @@
         (log/warn-ex e ::init-ns-ex {:init-ns init-ns})))))
 
 (defn handle [{:keys [op] :as msg} next]
-  (shadow-init! msg)
   (let [{::keys [worker] :as msg} (set-worker msg)]
     (log/debug ::handle {:msg-op op :worker (some? worker)})
     (cond
