@@ -17,11 +17,6 @@
    [com.google.errorprone/error_prone_annotations "2.1.3"]
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
-  ;; FIXME: not actually using any 1.10 features since I don't want
-  ;; not sure how to best handle this in a library situation
-  ;; can't use :scope "provided" since I otherwise need to track
-  ;; it manually in the npm launcher which just installs shadow-cljs
-  ;; and would be missing clojure then
   :dependencies
   [[org.clojure/clojure "1.10.1"]
 
@@ -43,19 +38,19 @@
 
    ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
    ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20190618"]
+   [com.google.javascript/closure-compiler-unshaded "v20190729"]
    [org.clojure/google-closure-library "0.0-20190213-2033d5d9"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.22.Final"
+   [io.undertow/undertow-core "2.0.25.Final"
     :exclusions
     [org.jboss.xnio/xnio-api
      org.jboss.xnio/xnio-nio]]
 
-   [org.jboss.xnio/xnio-api "3.7.2.Final"]
-   [org.jboss.xnio/xnio-nio "3.7.2.Final"
+   [org.jboss.xnio/xnio-api "3.7.3.Final"]
+   [org.jboss.xnio/xnio-nio "3.7.3.Final"
     :exlusions [org.jboss.threads/jboss-threads]]
 
    [org.jboss.threads/jboss-threads "2.3.2.Final"]
