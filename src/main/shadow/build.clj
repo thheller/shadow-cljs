@@ -232,6 +232,21 @@
 (defn copy-js-options-to-npm [{:keys [mode js-options] :as state}]
   (update-in state [:npm :js-options] merge js-options {:mode mode}))
 
+;; may not be a good idea to expose this but it is the easiest way I can currently
+;; think of to work around re-frame-debug tracing stubs problem which requires
+;; switching the classpath. with this we just tell it to use a different ns when resolving
+;; day8.re-frame.tracing and switching the implementation that way.
+;; :ns-aliases functionality already exist, it just wasn't exposed to config
+(defn copy-ns-aliases
+  [state]
+  (let [m (get-in state [:build-options :ns-aliases])]
+    (if-not (seq m)
+      state
+      (-> state
+          (update state :ns-aliases merge m)
+          (update state :ns-aliases-reverse merge (set/map-invert m)))
+      )))
+
 (defn configure
   ([build-state mode config]
     (configure build-state mode config {}))
@@ -335,6 +350,7 @@
               (= :dev mode)
               (assoc-in [:compiler-options :optimizations] :none))
 
+            (copy-ns-aliases)
             (copy-js-options-to-npm)
             )))))
 
