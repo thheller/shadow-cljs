@@ -22,8 +22,10 @@
             [shadow.build.data :as data]
             [shadow.build.resource :as rc]
             [shadow.build.log :as build-log]
-            [clojure.java.io :as io])
-  (:import [java.util UUID]))
+            [clojure.java.io :as io]
+            [shadow.cljs.devtools.server.reload-npm :as reload-npm])
+  (:import [java.util UUID]
+           [java.io File]))
 
 (defn proc? [x]
   (and (map? x) (::proc x)))
@@ -87,17 +89,19 @@
 
 ;; if the build fails due to a missing js dependency
 ;; start watching package.json and attempt recompile on changes
-(defn init-package-json-watch [worker-state {:keys [node-modules-dir] :as data}]
-  (let [package-json-file
-        (-> node-modules-dir
-            (.getParentFile)
-            (io/file "package.json"))]
-    (if-not (.exists package-json-file)
-      worker-state
-      (assoc worker-state
-        :package-json-file package-json-file
-        :package-json-lastmod (.lastModified package-json-file))
-      )))
+(defn init-package-json-watch [worker-state {:keys [js-package-dirs] :as data}]
+  (assoc worker-state
+    :package-json-files
+    (->> js-package-dirs
+         (map (fn [modules-dir]
+                (-> modules-dir
+                    (.getParentFile)
+                    (io/file "package.json"))))
+         (filter #(.exists ^File %))
+         (reduce
+           (fn [m package-json-file]
+             (assoc m package-json-file (.lastModified package-json-file)))
+           {}))))
 
 (defn build-failure
   [{:keys [build-config] :as worker-state} e]
@@ -154,7 +158,7 @@
               (async/offer! log-chan {:type :build-log :event event})))
 
 
-          {:keys [extra-config-files] :as build-state}
+          {:keys [npm extra-config-files] :as build-state}
           (-> (server-util/new-build build-config :dev (:cli-opts worker-state {}))
               (build-api/with-logger async-logger)
               (merge {:worker-info worker-info
@@ -177,9 +181,14 @@
             extra-config-files)]
 
       ;; FIXME: should maybe cleanup old :build-state if there is one (re-configure)
-      (assoc worker-state
-        :extra-config-files extra-config-files
-        :build-state build-state))
+      (-> worker-state
+          (cond->
+            ;; stop old running npm watch in case of reconfigure
+            (:reload-npm worker-state)
+            (update :reload-npm reload-npm/stop))
+          (assoc :extra-config-files extra-config-files
+                 :reload-npm (reload-npm/start npm #(>!! (:resource-update-chan worker-state) %))
+                 :build-state build-state)))
     (catch Exception e
       (-> worker-state
           (dissoc :build-state) ;; just in case there is an old one
@@ -925,23 +934,26 @@
               )))))
 
 (defn maybe-recover-from-failure
-  [{:keys [package-json-file package-json-lastmod] :as worker-state}]
-  (if-not (and package-json-file package-json-lastmod)
+  [{:keys [package-json-files] :as worker-state}]
+  (reduce-kv
+    (fn [worker-state file last-mod]
+      (let [newmod (.lastModified file)]
+        (if-not (> newmod last-mod)
+          worker-state
+          (do (log/debug ::package-json-modified)
+              (-> worker-state
+                  (dissoc :package-json-files)
+                  (cond->
+                    (not (:build-state worker-state))
+                    (build-configure))
+                  (build-compile)
+                  (reduced))))))
     worker-state
-    (let [newmod (.lastModified package-json-file)]
-      (if-not (> newmod package-json-lastmod)
-        worker-state
-        (do (log/debug ::package-json-modified)
-            (-> worker-state
-                (dissoc :package-json-file :package-json-lastmod)
-                (cond->
-                  (not (:build-state worker-state))
-                  (build-configure))
-                (build-compile)))))))
+    package-json-files))
 
 (defn check-none-code-resources [{:keys [last-build-resources] :as worker-state}]
-
-  (let [{:keys [used-ts used-by]} last-build-resources
+  (let [{:keys [used-ts used-by]}
+        last-build-resources
 
         modified-namespaces
         (reduce-kv

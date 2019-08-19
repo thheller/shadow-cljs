@@ -8,7 +8,7 @@
             [shadow.cljs.util :as util]))
 
 (defmacro with-npm [[sym config] & body]
-  `(let [~sym (npm/start (merge {:node-modules-dir "test-env"} ~config))]
+  `(let [~sym (npm/start (merge {:js-package-dirs ["test-env"]} ~config))]
      (try
        ~@body
        (finally
@@ -262,6 +262,20 @@
       (is uses-global-buffer)
       (is uses-global-process)
       (is (= ["buffer" "process"] deps)))))
+
+(deftest test-extra-js-package-dir
+  (with-npm [x {}]
+    (let [rc1 (find-npm-resource x nil "extra-package")]
+      (is (nil? rc1))))
+
+  (with-npm [x {:js-package-dirs ["test-env" "test-env/extra-js-package-dir"]}]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "extra-package")]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/extra-package/index.js" resource-name))
+      )))
 
 (comment
   ;; FIXME: write proper tests for these

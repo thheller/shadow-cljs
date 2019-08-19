@@ -327,7 +327,7 @@
                      (format "The required JS dependency \"%s\" is not available, it was required by \"%s\"." require (:resource-name require-from))
                      (format "The required JS dependency \"%s\" is not available." require))
                    {:tag ::missing-js
-                    :node-modules-dir (get-in state [:npm :node-modules-dir])
+                    :js-package-dirs (get-in state [:npm :js-package-dirs])
                     :require require
                     :require-from (:resource-name require-from)})))
 

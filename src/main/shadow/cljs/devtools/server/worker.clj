@@ -14,7 +14,8 @@
             [shadow.build.log :as build-log]
             [shadow.build.warnings :as warnings]
             [shadow.cljs.devtools.errors :as errors]
-            [shadow.build.resource :as rc])
+            [shadow.build.resource :as rc]
+            [shadow.cljs.devtools.server.reload-npm :as reload-npm])
   (:import (java.util UUID)))
 
 (defn compile
@@ -194,6 +195,7 @@
 
         thread-state
         {::impl/worker-state true
+         :resource-update-chan resource-update
          :http http
          :classpath classpath
          :cache-root cache-root
@@ -241,8 +243,10 @@
              ;; error already logged by server-thread fn
              state-before)
            :do-shutdown
-           (fn [state]
+           (fn [{:keys [reload-npm] :as state}]
              (>!! output {:type :worker-shutdown :proc-id proc-id})
+             (when reload-npm
+               (reload-npm/stop reload-npm))
              state)})
 
         {:keys [watch-dir watch-exts]

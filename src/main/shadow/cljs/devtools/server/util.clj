@@ -12,7 +12,8 @@
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.runtime :as runtime]
     [clojure.set :as set]
-    [clojure.core.async.impl.protocols :as async-prot])
+    [clojure.core.async.impl.protocols :as async-prot]
+    [shadow.build.npm :as npm])
   (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream PrintWriter File)
            [java.net SocketException]
            [java.util List]))
@@ -66,7 +67,7 @@
 
 (defn new-build
   [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
-  (let [{:keys [npm classpath cache-root build-executor babel config] :as runtime}
+  (let [{:keys [classpath cache-root build-executor babel config] :as runtime}
         (runtime/get-instance!)
 
         {:keys [cache-blockers]}
@@ -75,37 +76,13 @@
         cache-dir
         (config/make-cache-dir cache-root build-id mode)
 
-        node-modules-dir
-        (when-let [nmd (get-in build-config [:js-options :node-modules-dir])]
-          (let [nmdf (io/file nmd)
-                abs-file
-                (cond
-                  (and (str/ends-with? nmd "node_modules")
-                       (.exists nmdf))
-                  (.getAbsoluteFile nmdf)
+        npm-config
+        (select-keys (:js-options build-config) [:js-package-dirs :node-modules-dir :entry-keys :extensions])
 
-                  (.exists (io/file nmdf "node_modules"))
-                  (-> (io/file nmdf "node_modules")
-                      (.getAbsoluteFile))
-
-                  (.exists nmdf)
-                  (.getAbsoluteFile nmdf)
-
-                  :else
-                  (throw (ex-info "invalid :node-modules-dir" {:node-modules-dir nmd})))]
-
-            ;; :node-modules-dir can be a relative path like "./foo" or "../"
-            (normalize-file abs-file)))
-
-        ;; FIXME: this should not happen here. move to more appropriate place
-        ;; somewhere in build targets maybe
+        ;; don't use shared npm instance since lookups are cached and
+        ;; js-package-dirs may affect what things resolve to
         npm
-        (-> (select-keys (:js-options build-config) [:entry-keys :extensions])
-            (merge npm)
-            (cond->
-              node-modules-dir
-              (assoc :node-modules-dir node-modules-dir)
-              ))]
+        (npm/start npm-config)]
 
     (-> (build-api/init)
         (build-api/with-npm npm)

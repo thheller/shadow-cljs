@@ -4,9 +4,7 @@
   (:require [clojure.core.async :as async :refer (alt!! thread)]
             [shadow.jvm-log :as log]
             [shadow.build.npm :as npm]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs.model :as m]
-            [shadow.cljs.util :as util]
             [clojure.set :as set]))
 
 (defn dissoc-all [m files]
@@ -20,7 +18,7 @@
 (defn invalidate-files [index modified-files]
   (update index :files dissoc-all modified-files))
 
-(defn check-files! [system-bus {:keys [index-ref] :as npm}]
+(defn check-files! [{:keys [index-ref] :as npm} update-fn]
   ;; this only needs to check files that were already referenced in some build
   ;; new files will be discovered when resolving
 
@@ -49,11 +47,9 @@
                  (map :provides)
                  (reduce set/union #{}))]
 
-        (sys-bus/publish! system-bus ::m/resource-update {:added #{}
-                                                          :namespaces modified-provides})
-        ))))
+        (update-fn {:added #{} :namespaces modified-provides})))))
 
-(defn watch-loop [system-bus npm control-chan]
+(defn watch-loop [npm control-chan update-fn]
   (loop []
     (alt!!
       control-chan
@@ -66,22 +62,21 @@
       (async/timeout 2000)
       ([_]
         (try
-          (check-files! system-bus npm)
+          (check-files! npm update-fn)
           (catch Exception e
             (log/warn-ex e ::npm-check-ex)))
         (recur))))
 
   ::terminated)
 
-(defn start [system-bus npm]
-  (let [control-chan
-        (async/chan)]
-
-    {:system-bus system-bus
-     :npm npm
+(defn start [npm update-fn]
+  {:pre [(npm/service? npm)
+         (fn? update-fn)]}
+  (let [control-chan (async/chan)]
+    {:npm npm
      :control-chan control-chan
-     :watch-thread (thread (watch-loop system-bus npm control-chan))}))
-
+     :update-fn update-fn
+     :watch-thread (thread (watch-loop npm control-chan update-fn))}))
 
 (defn stop [{:keys [watch-thread control-chan]}]
   (async/close! control-chan)

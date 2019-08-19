@@ -116,32 +116,30 @@
       nil
       extensions)))
 
-(defn find-package* [{:keys [node-modules-dir] :as npm} package-name]
-  ;; this intentionally only checks
-  ;; $PROJECT_ROOT/node_modules/package-name
-  ;; never
-  ;; $PROJECT_ROOT/node_modules/pkg-a/node_modules/pkg-b
-  ;; never outside $PROJECT_ROOT
-  ;; not allowing anything outside the project because of
-  ;; https://github.com/technomancy/leiningen/wiki/Repeatability
-
-  (let [package-dir (io/file node-modules-dir package-name)]
+(defn find-package** [npm modules-dir package-name]
+  (let [package-dir (io/file modules-dir package-name)]
     (when (.exists package-dir)
       (let [package-json-file (io/file package-dir "package.json")]
         (when (.exists package-json-file)
           (read-package-json npm package-json-file))))))
 
-(defn find-package [{:keys [index-ref node-modules-dir] :as npm} package-name]
+(defn find-package* [{:keys [js-package-dirs] :as npm} package-name]
+  ;; check all configured :js-package-dirs but only those
+  ;; never automatically go up/down like node resolve does
+  (reduce
+    (fn [_ modules-dir]
+      (when-let [pkg (find-package** npm modules-dir package-name)]
+        (reduced pkg)))
+    nil
+    js-package-dirs))
+
+(defn find-package [{:keys [index-ref] :as npm} package-name]
   {:pre [(string? package-name)
          (seq package-name)]}
-  ;; do not cache by package name because builds can end up using different :node-modules-dir settings
-  ;; which would lead to incorrect lookups
-  (let [package-id (io/file node-modules-dir package-name)]
-    (or (get-in @index-ref [:packages package-id])
-        (let [pkg-info (find-package* npm package-name)]
-          (swap! index-ref assoc-in [:packages package-id] pkg-info)
-          pkg-info
-          ))))
+  (or (get-in @index-ref [:packages package-name])
+      (let [pkg-info (find-package* npm package-name)]
+        (swap! index-ref assoc-in [:packages package-name] pkg-info)
+        pkg-info)))
 
 (defn split-package-require
   "@scoped/thing -> [@scoped/thing nil]
@@ -201,7 +199,19 @@
 
     entry-file))
 
-(defn find-package-require [{:keys [node-modules-dir] :as npm} require]
+(defn find-package-require* [npm modules-dir require]
+  (or (when-let [file (test-file modules-dir require)]
+        (and (.isFile file) file))
+      (test-file-exts npm modules-dir require)
+      ;; check if node_modules/<require>/package.json exists and follow :main
+      (when-let [package (find-package npm require)]
+        (find-package-main npm package))
+      ;; find node_modules/<require>/index.js
+      (let [^File file (io/file modules-dir require "index.js")]
+        (when (.exists file)
+          file))))
+
+(defn find-package-require [{:keys [js-package-dirs] :as npm} require]
   {:pre [(not (util/is-relative? require))
          (not (util/is-absolute? require))]}
 
@@ -216,16 +226,12 @@
   ;; firebase/app/package.json -> follow main
 
   ;; first check if node_modules/<require> exists as a file (with or without exts)
-  (or (when-let [file (test-file node-modules-dir require)]
-        (and (.isFile file) file))
-      (test-file-exts npm node-modules-dir require)
-      ;; check if node_modules/<require>/package.json exists and follow :main
-      (when-let [package (find-package npm require)]
-        (find-package-main npm package))
-      ;; find node_modules/<require>/index.js
-      (let [^File file (io/file node-modules-dir require "index.js")]
-        (when (.exists file)
-          file))))
+  (reduce
+    (fn [_ modules-dir]
+      (when-let [file (find-package-require* npm modules-dir require)]
+        (reduced file)))
+    nil
+    js-package-dirs))
 
 (defn find-relative [npm ^File relative-to ^String require]
   (when-not relative-to
@@ -430,40 +436,49 @@
   (disambiguate-module-name "object-assign/index.js")
   )
 
-(defn get-file-info*
-  "extract some basic information from a given file, does not resolve dependencies"
-  [{:keys [compiler ^File node-modules-dir ^File project-dir] :as npm} ^File file]
-  {:pre [(service? npm)
-         (util/is-file-instance? file)
-         (.isAbsolute file)]}
-
+(defn resource-name-for-file [{:keys [^File project-dir js-package-dirs] :as npm} ^File file]
   (let [^Path abs-path
         (.toPath project-dir)
-
-        ^Path node-modules-path
-        (.toPath node-modules-dir)
 
         ^Path file-path
         (.toPath file)
 
+        ^Path node-modules-path
+        (->> js-package-dirs
+             (map (fn [^File modules-dir] (.toPath modules-dir)))
+             (filter (fn [^Path path]
+                       (.startsWith file-path path)))
+             (sort-by (fn [^Path path] (.getNameCount path)))
+             (reverse) ;; FIXME: pick longest match might not always be the best choice?
+             (first))
+
         npm-file?
-        (.startsWith file-path node-modules-path)
+        (some? node-modules-path)
 
         _ (when-not (or npm-file? (.startsWith file-path abs-path))
             (throw (ex-info (format "files outside the project are not allowed: %s" file-path)
-                     {:file file})))
+                     {:file file})))]
 
-        ;; normalize node_modules files since they may not be at the root of the project
-        resource-name
-        (if npm-file?
-          (->> (.relativize node-modules-path file-path)
-               (str)
-               (rc/normalize-name)
-               (disambiguate-module-name)
-               (str "node_modules/"))
-          (->> (.relativize abs-path file-path)
-               (str)
-               (rc/normalize-name)))
+    (if npm-file?
+      (->> (.relativize node-modules-path file-path)
+           (str)
+           (rc/normalize-name)
+           (disambiguate-module-name)
+           (str "node_modules/"))
+      (->> (.relativize abs-path file-path)
+           (str)
+           (rc/normalize-name)))))
+
+(defn get-file-info*
+  "extract some basic information from a given file, does not resolve dependencies"
+  [{:keys [compiler] :as npm} ^File file]
+  {:pre [(service? npm)
+         (util/is-file-instance? file)
+         (.isAbsolute file)]}
+
+  ;; normalize node_modules files since they may not be at the root of the project
+  (let [resource-name
+        (resource-name-for-file npm file)
 
         ns (-> (ModuleNames/fileToModuleName resource-name)
                ;; (cljs-comp/munge) ;; FIXME: the above already does basically the same, does it cover everything?
@@ -480,8 +495,7 @@
         ;; require("./lib/React.js") which also belongs to the react package
         ;; so we must determine this from the file alone not by the way it was required
         {:keys [package-name] :as pkg-info}
-        (find-package-for-file npm file)
-        ]
+        (find-package-for-file npm file)]
 
     ;; require("../package.json").version is a thing
     ;; no need to parse it since it can't have any require/import/export
@@ -721,7 +735,7 @@
 
 ;; FIXME: allow configuration of :extensions :entry-keys
 ;; maybe some closure opts
-(defn start [{:keys [node-modules-dir] :as config}]
+(defn start [{:keys [node-modules-dir js-package-dirs] :as config}]
   (let [index-ref
         (atom {:files {}
                :require-cache {}
@@ -746,11 +760,22 @@
         (-> (io/file "")
             (absolute-file))
 
-        node-modules-dir
-        (if (seq node-modules-dir)
-          (-> (io/file node-modules-dir)
-              (absolute-file))
-          (io/file project-dir "node_modules"))]
+        js-package-dirs
+        (-> []
+            (cond->
+              (and (not (seq node-modules-dir))
+                   (not (seq js-package-dirs)))
+              (conj (io/file project-dir "node_modules"))
+
+              (seq node-modules-dir)
+              (conj (-> (io/file node-modules-dir)
+                        (absolute-file)))
+
+              (seq js-package-dirs)
+              (into (->> js-package-dirs
+                         (map (fn [path]
+                                (-> (io/file path)
+                                    (absolute-file))))))))]
 
     {::service true
      :index-ref index-ref
@@ -758,7 +783,7 @@
      :compiler-options co
      ;; JVM working dir always
      :project-dir project-dir
-     :node-modules-dir node-modules-dir
+     :js-package-dirs js-package-dirs
 
      ;; browser defaults
      :js-options {:extensions [#_".mjs" ".js" ".json"]
