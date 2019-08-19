@@ -77,7 +77,11 @@
         (config/make-cache-dir cache-root build-id mode)
 
         npm-config
-        (select-keys (:js-options build-config) [:js-package-dirs :node-modules-dir :entry-keys :extensions])
+        (merge
+          ;; global config so it doesn't have to be configured per build
+          (select-keys (:js-options config) [:js-package-dirs :node-modules-dir :entry-keys :extensions])
+          ;; build config supersedes global
+          (select-keys (:js-options build-config) [:js-package-dirs :node-modules-dir :entry-keys :extensions]))
 
         ;; don't use shared npm instance since lookups are cached and
         ;; js-package-dirs may affect what things resolve to
