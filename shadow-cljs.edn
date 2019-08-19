@@ -48,7 +48,7 @@
    :main shadow.cljs.npm.babel-worker/main
    :output-to "src/ui-release/shadow/cljs/dist/babel-worker.js"
    :js-options
-   {:node-modules-dir "packages/babel-worker"
+   {:js-package-dirs ["packages/babel-worker/node-modules"]
     :js-provider :shadow
     :keep-native-requires true}
    :compiler-options {:infer-externs :auto}
@@ -66,7 +66,7 @@
     :warnings {:invalid-arithmetic true}}
 
    :js-options
-   {:node-modules-dir "packages/ui"}
+   {:js-package-dirs ["packages/ui/node_modules"]}
 
    :module-loader true
    :modules
@@ -95,7 +95,7 @@
    {:main {:entries [shadow.cljs.build-report.ui]}}
 
    :js-options
-   {:node-modules-dir "packages/ui"}
+   {:js-package-dirs ["packages/ui/node_modules"]}
 
    :devtools
    {:enabled false}}
