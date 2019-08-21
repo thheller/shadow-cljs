@@ -186,8 +186,9 @@
 
 (defstyled source-excerpt-container :div
   [env]
-  {:padding [10 0]
+  {:padding 10
    :border "1px solid #eee"
+   :background-color "#fff"
    :overflow-x "auto"})
 
 (defstyled source-line :pre

@@ -428,7 +428,7 @@
   [{:keys [compiler-options] :as state}
    {:keys [resource-id resource-name url file output-name] :as rc}
    source]
-  (let [{:keys [warnings static-fns elide-asserts load-tests fn-invoke-direct infer-externs]}
+  (let [{:keys [warnings static-fns elide-asserts load-tests fn-invoke-direct infer-externs form-size-threshold]}
         compiler-options]
 
     (binding [ana/*cljs-static-fns*
@@ -501,19 +501,36 @@
           (let [sw (StringWriter. 65536)
                 sm-ref (atom {:source-map (sorted-map)
                               :gen-col 0
-                              :gen-line 0})]
+                              :gen-line 0})
+
+                size-warnings-ref
+                (atom [])]
 
             (binding [comp/*source-map-data* sm-ref
                       comp/*source-map-data-gen-col* (AtomicLong.)
                       *out* sw]
               (doseq [ast-entry ast]
-                (shadow-emit state ast-entry)))
+                (let [size-before (-> sw (.getBuffer) (.length))]
+                  (shadow-emit state ast-entry)
+                  (.flush sw)
+                  (let [size-after (-> sw (.getBuffer) (.length))
+                        diff (- size-after size-before)]
+                    (when (and form-size-threshold (> diff form-size-threshold))
+                      (let [warning {:warning :form-size-threshold
+                                     :msg (str "Form produced " diff " bytes of JavaScript (exceeding your configured threshold)")
+                                     :extra {:ns ns
+                                             :resource-name resource-name
+                                             :size diff}
+                                     :line (get-in ast-entry [:env :line])
+                                     :column (get-in ast-entry [:env :column])}]
+                        (swap! size-warnings-ref conj warning)))))))
 
             (-> output
                 (assoc :js (.toString sw)
                        :source-map-compact (compact-source-map (:source-map @sm-ref))
                        :compiled-at (System/currentTimeMillis))
                 (dissoc :ast)
+                (update :warnings into @size-warnings-ref)
                 (cond->
                   (= ns 'cljs.core)
                   (update :js str "\n" (make-runtime-setup state))
@@ -544,6 +561,7 @@
   ;; options which may effect the output of the CLJS compiler
   [[:mode]
    [:js-options :js-provider]
+   [:compiler-options :form-size-threshold] ;; for tracking big suspicious code chunks
    [:compiler-options :source-map]
    [:compiler-options :fn-invoke-direct]
    [:compiler-options :elide-asserts]
@@ -608,7 +626,7 @@
                        (macros/check-clj-info (:clj-info cache-data))
                        (every?
                          #(= (get-in state %)
-                            (get-in cache-data [:compiler-options %]))
+                             (get-in cache-data [:compiler-options %]))
                          cache-affecting-options)
 
                        ;; check if lazy loaded namespaces that a given ns uses were moved to different modules
@@ -1146,8 +1164,8 @@
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
   ([{:keys [mode build-sources] :as state} source-ids]
-    ;; throwing js parser errors here so they match other error sources
-    ;; as other errors will be thrown later on in this method as well
+   ;; throwing js parser errors here so they match other error sources
+   ;; as other errors will be thrown later on in this method as well
    (throw-js-errors-now! state)
 
    (cljs-hacks/install-hacks!)
