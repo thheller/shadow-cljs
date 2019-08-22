@@ -389,12 +389,12 @@
            (go (alt!
                  *nrepl-quit-signal*
                  ([_]
-                   :quit)
+                  :quit)
 
                  proc-stop
                  ([_]
-                   (*nrepl-worker-exit*)
-                   :quit)))
+                  (*nrepl-worker-exit*)
+                  :quit)))
 
            ;; calling (node-repl) in a REPL will cause the stdout and the repl prn forward
            ;; to both print which is not what we want
@@ -410,20 +410,20 @@
                          (alt! :priority true
                            chan
                            ([msg]
-                             (when (some? msg)
-                               (case (:type msg)
-                                 :repl/out
-                                 (do (println (:text msg))
-                                     (flush))
+                            (when (some? msg)
+                              (case (:type msg)
+                                :repl/out
+                                (do (println (:text msg))
+                                    (flush))
 
-                                 :repl/err
-                                 (binding [*out* *err*]
-                                   (println (:text msg))
-                                   (flush))
+                                :repl/err
+                                (binding [*out* *err*]
+                                  (println (:text msg))
+                                  (flush))
 
-                                 :ignored)
-                               (recur)
-                               ))
+                                :ignored)
+                              (recur)
+                              ))
 
                            quit
                            ([_] :quit)))
@@ -563,37 +563,43 @@
   ([]
    (browser-repl {}))
   ([{:keys [verbose open] :as opts}]
-   (let [{:keys [supervisor config http] :as app}
-         (runtime/get-instance!)
+   (let [{:keys [supervisor http] :as app} (runtime/get-instance!)]
 
-         worker
-         (or (super/get-worker supervisor :browser-repl)
-             (let [worker
-                   (start-browser-repl* app)
+     (or (when-let [{:keys [state-ref] :as worker}
+                    (super/get-worker supervisor :browser-repl)]
 
-                   out-chan
-                   (-> (async/sliding-buffer 10)
-                       (async/chan))]
+           (if-not (-> @state-ref :runtimes empty?)
+             worker ;; browser still connected. continue using previous worker.
+             (do (super/stop-worker supervisor :browser-repl)
+                 nil)))
 
-               (go (loop []
-                     (when-some [msg (<! out-chan)]
-                       (try
-                         (util/print-worker-out msg verbose)
-                         (catch Exception e
-                           (prn [:print-worker-out-error e])))
-                       (recur)
-                       )))
+         ;; no previous worker, start new one
+         (let [worker
+               (start-browser-repl* app)
 
-               (worker/watch worker out-chan)
-               (worker/compile! worker)
+               out-chan
+               (-> (async/sliding-buffer 10)
+                   (async/chan))]
 
-               (let [url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/browser-repl-js")]
-                 (try
-                   (browse-url url)
-                   (catch Exception e
-                     (println
-                       (format "Failed to open Browser automatically.\nPlease open the URL below in your Browser:\n\t%s" url)))))
-               worker))]
+           (go (loop []
+                 (when-some [msg (<! out-chan)]
+                   (try
+                     (util/print-worker-out msg verbose)
+                     (catch Exception e
+                       (prn [:print-worker-out-error e])))
+                   (recur)
+                   )))
+
+           (worker/watch worker out-chan)
+           (worker/compile! worker)
+
+           (let [url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/browser-repl-js")]
+             (try
+               (browse-url url)
+               (catch Exception e
+                 (println
+                   (format "Failed to open Browser automatically.\nPlease open the URL below in your Browser:\n\t%s" url)))))
+           worker))
 
      (repl :browser-repl)
      )))
