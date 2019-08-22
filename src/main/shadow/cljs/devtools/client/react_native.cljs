@@ -244,7 +244,8 @@
 
     (set! (.-onerror socket)
       (fn [e]
-        (js/console.error "websocket error" (.-message e) e)))
+        (js/console.error (str "WebSocket connect failed:" (.-message e) "\n"
+                               "It was trying to connect to: " (subs ws-url 0 (str/index-of ws-url "/" 6)) "\n"))))
 
     (js/setTimeout heartbeat! 30000)
     ))
