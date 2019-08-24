@@ -12,10 +12,16 @@
   (let [rc-url (bm/find-macro-rc ns-sym)]
 
     (cond
-      ;; FIXME: deleted macro files?
+      ;; a CLJ namespace may have been deleted and the reference
+      ;; removed from the macro ns but the in memory version will
+      ;; still have the reference to the "old" in memory version.
+      ;; since I don't want to go messing with ns references
+      ;; this just silently removes the active-macros-ref in case
+      ;; it was an actual macro. if it was just a dependency of
+      ;; a macro we do nothing since it would just re-discover
+      ;; the dependency when the macro was modified.
       (not rc-url)
-      (do (log/warn ::macro-missing {:ns-sym ns-sym})
-          (swap! bm/active-macros-ref dissoc ns-sym)
+      (do (swap! bm/active-macros-ref dissoc ns-sym)
           false)
 
       ;; do not reload macros from jars, only files
