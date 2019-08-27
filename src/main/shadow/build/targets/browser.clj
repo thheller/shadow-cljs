@@ -83,7 +83,7 @@
                     default
                     []
 
-                    (or release? (= :eval (get-in config [:devtools :loader-mode])))
+                    (or release? (= :eval (get-in config [:devtools :loader-mode] :eval)))
                     [(str asset-path "/" (:output-name module))]
 
                     :else ;; dev-mode
@@ -465,22 +465,23 @@
 (def ^Escaper js-escaper
   (SourceCodeEscapers/javascriptEscaper))
 
-(defn eval-load-sources [state sources]
+(defn generate-eval-js-output [state {:keys [sources] :as mod}]
   (->> sources
        (remove #{output/goog-base-id})
-       (map #(data/get-source-by-id state %))
-       (map (fn [{:keys [output-name] :as rc}]
-              (let [{:keys [js] :as output} (data/get-output! state rc)
+       (reduce
+         (fn [state src-id]
+           (let [{:keys [output-name] :as rc} (data/get-source-by-id state src-id)
+                 {:keys [js eval-js] :as output} (data/get-output! state rc)]
+             (if eval-js
+               state
+               (let [source-map? (output/has-source-map? output)
+                     eval-js (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")]
+                 (assoc-in state [:output src-id :eval-js] eval-js)))))
+         state)))
 
-                    source-map?
-                    (output/has-source-map? output)]
-                (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")
-                )))
-       (str/join "\n")))
-
-(defn flush-unoptimized-module-eval!
-  [{:keys [unoptimizable build-options] :as state}
-   {:keys [goog-base output-name prepend append sources web-worker] :as mod}
+(defn flush-unoptimized-module-eval
+  [{:keys [unoptimizable] :as state}
+   {:keys [goog-base prepend append sources web-worker] :as mod}
    target]
 
   (let [sources
@@ -492,7 +493,9 @@
                 (into sources))))
 
         source-loads
-        (eval-load-sources state sources)
+        (->> sources
+             (map #(get-in state [:output % :eval-js]))
+             (str/join "\n"))
 
         out
         (str prepend
@@ -534,9 +537,10 @@
           out)]
 
     (io/make-parents target)
-    (spit target out)))
+    (spit target out))
+  state)
 
-(defn flush-unoptimized-module-fetch!
+(defn flush-unoptimized-module-fetch
   [{:keys [unoptimizable build-options] :as state}
    {:keys [goog-base output-name prepend append sources web-worker] :as mod}
    target]
@@ -631,15 +635,19 @@
           out)]
 
     (io/make-parents target)
-    (spit target out)))
+    (spit target out))
 
-(defn flush-unoptimized-module!
+  state)
+
+(defn flush-unoptimized-module
   [state module target]
-  (if (= :eval (get-in state [:shadow.build/config :devtools :loader-mode]))
-    (flush-unoptimized-module-eval! state module target)
-    (flush-unoptimized-module-fetch! state module target)))
+  (if (= :eval (get-in state [:shadow.build/config :devtools :loader-mode] :eval))
+    (-> state
+        (generate-eval-js-output module)
+        (flush-unoptimized-module-eval module target))
+    (flush-unoptimized-module-fetch state module target)))
 
-(defn flush-unoptimized!
+(defn flush-unoptimized
   [{:keys [build-modules] :as state}]
 
   ;; FIXME: this always flushes
@@ -656,17 +664,11 @@
   (util/with-logged-time
     [state {:type :flush-unoptimized}]
 
-    (doseq [{:keys [output-name] :as mod} build-modules]
-      (flush-unoptimized-module! state mod (data/output-file state output-name)))
-
-    state
-    ))
-
-(defn flush-unoptimized
-  [state]
-  "util for ->"
-  (flush-unoptimized! state)
-  state)
+    (reduce
+      (fn [state {:keys [output-name] :as mod}]
+        (flush-unoptimized-module state mod (data/output-file state output-name)))
+      state
+      build-modules)))
 
 (defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
   (case mode
@@ -699,8 +701,6 @@
           module-loader
           (flush-module-data))
         (flush-manifest))))
-
-
 
 (defn make-web-worker-prepend [state mod]
   (let [all
