@@ -294,6 +294,9 @@
     :repl/session-start
     (repl-init msg done)
 
+    :repl/ping
+    (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
+
     :build-complete
     (do (hud/hud-warnings msg)
         (handle-build-complete msg))
@@ -342,12 +345,6 @@
     (pr-str {:input text})
     #js {"content-type" "application/edn; charset=utf-8"}))
 
-(defn heartbeat! []
-  (when-let [s @socket-ref]
-    (.send s (pr-str {:type :ping :v (js/Date.now)}))
-    (js/setTimeout heartbeat! 30000)))
-
-
 (defn ws-connect []
   (try
     (let [print-fn
@@ -393,9 +390,7 @@
       (set! (.-onerror socket)
         (fn [e]
           (hud/connection-error "Connection failed!")
-          (devtools-msg "websocket error" e)))
-
-      (js/setTimeout heartbeat! 30000))
+          (devtools-msg "websocket error" e))))
     (catch :default e
       (devtools-msg "WebSocket setup failed" e))))
 

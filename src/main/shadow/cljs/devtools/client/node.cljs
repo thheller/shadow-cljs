@@ -123,6 +123,9 @@
     :repl/require
     (repl-require msg done)
 
+    :repl/ping
+    (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
+
     :build-configure
     :ignored
 

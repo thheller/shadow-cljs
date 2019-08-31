@@ -338,14 +338,14 @@
                                 (recur))))
 
                         ws-loop
-                        ([_]
-                          (.close exchange)
-                          ;; probably already closed, just in case
-                          (async/close! ws-out)
-                          (async/close! ws-in)
-                          ))))
+                        ([_] :closed)))
 
-                ))))
+                    (.close exchange)
+
+                    ;; probably already closed, just in case
+                    (async/close! ws-out)
+                    (async/close! ws-in)
+                    )))))
 
         handler
         (ring*

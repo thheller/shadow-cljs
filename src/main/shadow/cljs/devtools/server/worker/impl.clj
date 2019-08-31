@@ -457,10 +457,7 @@
      :runtimes {}}
     1))
 
-(defmethod do-proc-control :runtime-disconnect
-  [worker-state {:keys [runtime-id]}]
-  (log/debug ::runtime-disconnect {:runtime-id runtime-id})
-  ;; (>!!output worker-state {:type :repl/runtime-disconnect :runtime-id runtime-id})
+(defn remove-runtime [worker-state runtime-id]
   (-> worker-state
       (update :runtimes dissoc runtime-id)
       (maybe-pick-different-default-runtime runtime-id)
@@ -479,34 +476,59 @@
                                  sessions
                                  )))))
 
+(defmethod do-proc-control :runtime-disconnect
+  [worker-state {:keys [runtime-id]}]
+  (log/debug ::runtime-disconnect {:runtime-id runtime-id})
+  ;; (>!!output worker-state {:type :repl/runtime-disconnect :runtime-id runtime-id})
+  (remove-runtime worker-state runtime-id))
+
+(defmethod do-proc-control :runtime-kick
+  [worker-state {:keys [runtime-id]}]
+  (log/debug ::runtime-kick {:runtime-id runtime-id})
+  (when-let [out (get-in worker-state [:runtimes runtime-id :runtime-out])]
+    (async/close! out))
+  (remove-runtime worker-state runtime-id))
+
+(defmethod do-proc-control :runtime-select
+  [worker-state {:keys [runtime-id]}]
+  (log/debug ::runtime-select {:runtime-id runtime-id})
+  (if-not (get-in worker-state [:runtimes runtime-id])
+    worker-state
+    (assoc worker-state :default-runtime-id runtime-id)))
+
 ;; messages received from the runtime
 (defmethod do-proc-control :runtime-msg
-  [worker-state {:keys [msg runtime-id runtime-out] :as envelope}]
+  [worker-state {:keys [msg runtime-id] :as envelope}]
   (log/debug ::runtime-msg {:runtime-id runtime-id
                             :type (:type msg)})
 
-  (case (:type msg)
-    (:repl/result
-      :repl/invoke-error
-      :repl/init-complete
-      :repl/set-ns-complete
-      :repl/require-complete
-      :repl/require-error)
-    (process-repl-result worker-state msg)
+  (let [worker-state (assoc-in worker-state [:runtimes runtime-id :last-msg-received] (System/currentTimeMillis))]
 
-    :repl/out
-    (>!!output worker-state {:type :repl/out :text (:text msg)})
+    (case (:type msg)
+      (:repl/result
+        :repl/invoke-error
+        :repl/init-complete
+        :repl/set-ns-complete
+        :repl/require-complete
+        :repl/require-error)
+      (process-repl-result worker-state msg)
 
-    :repl/err
-    (>!!output worker-state {:type :repl/err :text (:text msg)})
+      :repl/out
+      (>!!output worker-state {:type :repl/out :text (:text msg)})
 
-    :ping
-    (do (>!! runtime-out {:type :pong :v (:v msg)})
-        worker-state)
+      :repl/err
+      (>!!output worker-state {:type :repl/err :text (:text msg)})
 
-    ;; unknown message
-    (do (log/warn ::unknown-runtime-msg {:runtime-id runtime-id :msg msg})
-        worker-state)))
+      ;; this isn't using the "standard" WebSocket PING frames because react-native
+      ;; keeps replying to those even though the app was reloaded and the websocket
+      ;; should have been closed but wasn't
+      :repl/pong
+      (update-in worker-state [:runtimes runtime-id] merge {:last-pong (System/currentTimeMillis)
+                                                            :last-pong-runtime (:time-runtime msg)})
+
+      ;; unknown message
+      (do (log/warn ::unknown-runtime-msg {:runtime-id runtime-id :msg msg})
+          worker-state))))
 
 (defn handle-session-start-result [worker-state {:keys [type] :as result} {:keys [tool-out msg] :as envelope}]
   (case type
@@ -975,8 +997,32 @@
           (-> (update :namespaces-modified into modified-namespaces)
               (build-compile))))))
 
+(defn send-runtime-ping
+  ([worker-state runtime-id]
+   (send-runtime-ping worker-state runtime-id (System/currentTimeMillis)))
+  ([worker-state runtime-id now]
+   (let [runtime-out (get-in worker-state [:runtimes runtime-id :runtime-out])]
+     (if-not runtime-out
+       worker-state
+       (do (>!! runtime-out {:type :repl/ping :time-server now})
+           (assoc-in worker-state [:runtimes runtime-id :last-ping] now))))))
+
+(defn maybe-send-runtime-pings [{:keys [runtimes] :as worker-state}]
+  ;; time doesn't need to accurate, so use the same time for all pings
+  (let [now (System/currentTimeMillis)]
+    (reduce-kv
+      (fn [worker-state runtime-id {:keys [last-ping]}]
+        (let [diff (- now (or last-ping 0))]
+          (if (< diff 15000)
+            worker-state
+            (send-runtime-ping worker-state runtime-id now)
+            )))
+      worker-state
+      runtimes)))
+
 (defn do-idle [{:keys [failure-data extra-config-files] :as worker-state}]
   (-> worker-state
+      (maybe-send-runtime-pings)
       (cond->
         (seq extra-config-files)
         (maybe-reload-config-files)

@@ -174,6 +174,9 @@
     :repl/init
     (repl-init msg done)
 
+    :repl/ping
+    (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
+
     :build-complete
     (handle-build-complete msg)
 
@@ -200,11 +203,6 @@
 
   (when-not (contains? env/async-ops type)
     (done)))
-
-(defn heartbeat! []
-  (when-let [s @socket-ref]
-    (.send s (pr-str {:type :ping :v (js/Date.now)}))
-    (js/setTimeout heartbeat! 30000)))
 
 (defn ws-connect []
   (let [ws-url
@@ -247,7 +245,6 @@
         (js/console.error (str "WebSocket connect failed:" (.-message e) "\n"
                                "It was trying to connect to: " (subs ws-url 0 (str/index-of ws-url "/" 6)) "\n"))))
 
-    (js/setTimeout heartbeat! 30000)
     ))
 
 (when ^boolean env/enabled

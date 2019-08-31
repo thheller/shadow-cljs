@@ -236,6 +236,38 @@
         (runtime/get-instance!)]
     (super/active-builds supervisor)))
 
+(defn repl-runtimes
+  "lists all connected REPL runtimes for a given build watch worker"
+  [build-id]
+  (when-let [worker (get-worker build-id)]
+    (->> (-> worker :state-ref deref :runtimes vals)
+         (map #(dissoc % :runtime-out :init-sent))
+         (vec))))
+
+(defn repl-runtime-select
+  "switches to a specific REPL runtime to be used for eval"
+  [build-id runtime-id]
+  (when-let [{:keys [proc-control] :as worker} (get-worker build-id)]
+    (>!! proc-control {:type :runtime-select :runtime-id runtime-id})))
+
+(defn repl-runtime-kick
+  "forcibly disconnects a connected REPL runtime"
+  [build-id runtime-id]
+  (when-let [{:keys [proc-control] :as worker} (get-worker build-id)]
+    (>!! proc-control {:type :runtime-kick :runtime-id runtime-id})))
+
+(defn repl-runtime-clear []
+  "kick all registered runtimes that haven't responded to ping within 5sec
+
+   only needed in cases where the runtime doesn't properly disconnect which
+   is currently the case for reloading a react-native app on android"
+  []
+  (doseq [build-id (active-builds)
+          {:keys [runtime-id last-ping last-pong] :as repl-runtime} (repl-runtimes build-id)
+          :let [diff (- last-ping last-pong)]
+          :when (> diff 5000)]
+    (repl-runtime-kick build-id runtime-id)))
+
 (defn compiler-env [build-id]
   (let [{:keys [supervisor]}
         (runtime/get-instance!)]

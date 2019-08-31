@@ -49,6 +49,7 @@
                        (reset! root-component-ref this)))
                    :componentWillUnmount
                    (fn []
+                     (js/console.log "rootWillUnmount")
                      (reset! root-component-ref nil))
                    :render
                    (fn []
