@@ -1,10 +1,10 @@
 (ns shadow.cljs.devtools.server.socket-repl
-  (:require [shadow.repl :as repl]
-            [clojure.pprint :refer (pprint)]
-            [clojure.main :as m]
-            [clojure.string :as str]
-            [clojure.core.server :as srv]
-            [shadow.jvm-log :as log])
+  (:require
+    [clojure.pprint :refer (pprint)]
+    [clojure.main :as m]
+    [clojure.string :as str]
+    [clojure.core.server :as srv]
+    [shadow.jvm-log :as log])
   (:import java.net.ServerSocket
            (java.io StringReader PushbackReader PrintStream BufferedWriter OutputStreamWriter InputStreamReader)
            (java.net InetAddress SocketException)
@@ -14,7 +14,7 @@
 
 (defn repl-prompt []
   ;; FIXME: inf-clojure checks when there is a space between \n and =>
-  (printf "[%d:%d]~%s=> " repl/*root-id* repl/*level-id* (ns-name *ns*)))
+  (printf "%s=> " (ns-name *ns*)))
 
 (defn repl-init [{:keys [print] :as config}]
 
@@ -26,78 +26,44 @@
     (println "To quit, type: :repl/quit")))
 
 (defn repl [{:keys [print prompt] :as config}]
-  (let [loop-bindings
-        (volatile! {})
+  (let [loop-bindings (volatile! {})]
+    (m/repl
+      :init
+      #(repl-init config)
 
-        root
-        (repl/root)]
+      ;; need :repl/quit support, so not just the default read
+      :read
+      srv/repl-read
 
-    (repl/takeover
-      {::repl/lang :clj
-       ::repl/get-current-ns
-       (fn []
-         ;; FIXME: dont return just the string, should contain more info
-         (with-bindings @loop-bindings
-           (str *ns*)))
-
-       ::repl/read-string
-       (fn [s]
-         (with-bindings @loop-bindings
-           (try
-             (let [eof
-                   (Object.)
-
-                   result
-                   (read
-                     {:read-cond true
-                      :features #{:clj}
-                      :eof eof}
-                     (PushbackReader. (StringReader. s)))]
-               (if (identical? eof result)
-                 {:result eof}
-                 {:result :success :value result}))
-             (catch Exception e
-               {:result :exception
-                :e e}
-               ))))}
-
-      (m/repl
-        :init
-        #(repl-init config)
-
-        ;; need :repl/quit support, so not just the default read
-        :read
-        srv/repl-read
-
-        :print
-        (fn [x]
-          (cond
-            (false? print)
-            nil
-
-            (fn? print)
-            (print x)
-
-            :else
-            (clojure.core/prn x)))
-
-        :prompt
+      :print
+      (fn [x]
         (cond
-          (false? prompt)
-          (fn [])
+          (false? print)
+          nil
 
-          (fn? prompt)
-          prompt
+          (fn? print)
+          (print x)
 
           :else
-          repl-prompt)
+          (clojure.core/prn x)))
 
-        :eval
-        (fn [form]
-          (let [result (eval form)]
-            (vreset! loop-bindings (get-thread-bindings))
-            result))
-        ))))
+      :prompt
+      (cond
+        (false? prompt)
+        (fn [])
+
+        (fn? prompt)
+        prompt
+
+        :else
+        repl-prompt)
+
+      :eval
+      (fn [form]
+        (let [result (eval form)]
+          (vreset! loop-bindings (get-thread-bindings))
+          result))
+      )))
 
 (defmacro ^:private thread
   [^String name daemon & body]
@@ -135,10 +101,7 @@
                   *err* out
                   *socket* socket]
 
-          (repl/enter-root
-            {::repl/type :remote
-             ::socket socket}
-            (repl config)))
+          (repl config))
 
         (catch SocketException se
           ;; writing to lost connection throws se

@@ -563,27 +563,29 @@
 (defn node-repl
   ([]
    (node-repl {}))
-  ([opts]
+  ([{:keys [build-id] :or {build-id :node-repl} :as opts}]
    (let [{:keys [supervisor] :as app}
          (runtime/get-instance!)
 
          was-running?
-         (worker-running? node-repl)
+         (worker-running? build-id)
 
          worker
-         (or (super/get-worker supervisor :node-repl)
+         (or (super/get-worker supervisor build-id)
              (repl-impl/node-repl* app opts))]
 
-     (repl :node-repl {:skip-repl-out (not was-running?)})
+     (repl build-id {:skip-repl-out (not was-running?)})
      )))
 
 ;; FIXME: should maybe allow multiple instances
-(defn start-browser-repl* [{:keys [config supervisor] :as app}]
+(defn start-browser-repl*
+  [{:keys [config supervisor] :as app}
+   {:keys [build-id] :or {build-id :browser-repl} :as opts}]
   (let [cfg
-        {:build-id :browser-repl
+        {:build-id build-id
          :target :browser
-         :output-dir (str (:cache-root config) "/builds/browser-repl/js")
-         :asset-path "/cache/browser-repl/js"
+         :output-dir (str (:cache-root config) "/builds/" (name build-id) "/js")
+         :asset-path (str "/cache/" (name build-id) "/js")
          :modules
          {:repl {:entries '[shadow.cljs.devtools.client.browser-repl]}}
          :devtools
@@ -594,20 +596,22 @@
 (defn browser-repl
   ([]
    (browser-repl {}))
-  ([{:keys [verbose open] :as opts}]
+  ([{:keys [verbose open build-id]
+     :or {build-id :browser-repl}
+     :as opts}]
    (let [{:keys [supervisor http] :as app} (runtime/get-instance!)]
 
      (or (when-let [{:keys [state-ref] :as worker}
-                    (super/get-worker supervisor :browser-repl)]
+                    (super/get-worker supervisor build-id)]
 
            (if-not (-> @state-ref :runtimes empty?)
              worker ;; browser still connected. continue using previous worker.
-             (do (super/stop-worker supervisor :browser-repl)
+             (do (super/stop-worker supervisor build-id)
                  nil)))
 
          ;; no previous worker, start new one
          (let [worker
-               (start-browser-repl* app)
+               (start-browser-repl* app opts)
 
                out-chan
                (-> (async/sliding-buffer 10)
@@ -625,7 +629,7 @@
            (worker/watch worker out-chan)
            (worker/compile! worker)
 
-           (let [url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/browser-repl-js")]
+           (let [url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/repl-js/" (name build-id))]
              (try
                (browse-url url)
                (catch Exception e
@@ -633,7 +637,7 @@
                    (format "Failed to open Browser automatically.\nPlease open the URL below in your Browser:\n\t%s" url)))))
            worker))
 
-     (repl :browser-repl)
+     (repl build-id)
      )))
 
 (defn dev*

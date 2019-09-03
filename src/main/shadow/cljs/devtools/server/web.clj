@@ -112,10 +112,10 @@
           :stroke "#FFFFFF"
           :d s-path}]]])))
 
-(defn browser-repl-js [{:keys [config supervisor] :as req}]
+(defn browser-repl-js [{:keys [config supervisor] :as req} build-id]
   (let [{:keys [state-ref] :as worker}
-        (or (super/get-worker supervisor :browser-repl)
-            (-> (api/start-browser-repl* req)
+        (or (super/get-worker supervisor build-id)
+            (-> (api/start-browser-repl* req {:build-id build-id})
                 (worker/compile)))]
 
     (worker/sync! worker)
@@ -147,7 +147,7 @@
 
               [:pre#log]
 
-              [:script {:src "/cache/browser-repl/js/repl.js" :defer true}]])})
+              [:script {:src (str "/cache/" (name build-id) "/js/repl.js") :defer true}]])})
         (no-cache!))))
 
 (defn browser-test-page [{:keys [supervisor] :as req}]
@@ -242,7 +242,7 @@
       (http/route
         (:GET "" index-page)
         (:GET "^/cache" serve-cache-file)
-        (:GET "/browser-repl-js" browser-repl-js)
+        (:GET "/repl-js/{build-id:keyword}" browser-repl-js build-id)
         (:GET "/browser-test" browser-test-page)
         (:GET "/workspaces" workspaces-page)
         maybe-index-page #_common/not-found)

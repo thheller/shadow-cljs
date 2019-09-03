@@ -7,7 +7,6 @@
     [shadow.cljs.devtools.server.web.graph :as graph]
     [shadow.build.closure :as closure]
     [shadow.http.router :as http]
-    [shadow.repl :as repl]
     [shadow.cljs.devtools.server.util :as server-util]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.util :as util]

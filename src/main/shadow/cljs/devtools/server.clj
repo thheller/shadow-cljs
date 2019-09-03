@@ -4,7 +4,6 @@
     [clojure.java.io :as io]
     [clojure.string :as str]
     [shadow.jvm-log :as log]
-    [shadow.repl :as r]
     [shadow.http.router :as http]
     [shadow.runtime.services :as rt]
     [shadow.undertow :as undertow]
@@ -682,8 +681,7 @@
                 (.close s)))
 
             :clj-repl
-            (r/enter-root {}
-              (socket-repl/repl {}))
+            (socket-repl/repl {})
 
             :cljs-repl
             (let [{:keys [supervisor] :as app}
