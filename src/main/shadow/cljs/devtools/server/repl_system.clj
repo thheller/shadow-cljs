@@ -146,6 +146,13 @@
 
     tool-out))
 
+(defn find-runtimes-for-build
+  [{:keys [state-ref] :as svc} build-id]
+  (->> @state-ref
+       :runtimes
+       (filter #(= build-id (-> % :runtime-info :build-id)))
+       (vec)))
+
 (defn start []
   (let [svc
         {::service true

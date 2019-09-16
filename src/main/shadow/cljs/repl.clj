@@ -566,6 +566,59 @@
       {:error? true
        :ex ex})))
 
+(defn dummy-read-one
+  "dummy read one form from a stream, only meant to get the string form
+   cannot perform actual read since it doesn't know current ns or aliases
+   only meant to be used when forced to read from a stream but wanting a string"
+  [reader]
+  (try
+    (let [in
+          (readers/source-logging-push-back-reader
+            reader ;; (PushbackReader. reader (object-array buf-len) buf-len buf-len)
+            1
+            "dummy.cljs")
+
+          eof-sentinel
+          (Object.)
+
+          reader-opts
+          {:eof eof-sentinel
+           :read-cond :allow
+           :features #{:cljs}}
+
+          form
+          (binding [*ns* (find-ns 'user)
+                    reader/*data-readers* {}
+                    reader/*default-data-reader-fn* (fn [tag val] val)
+                    reader/resolve-symbol identity
+                    reader/*alias-map* {}]
+            ;; read+string somehow not available, suspect bad AOT file from CLJS?
+            (reader/read reader-opts in))
+
+          eof?
+          (identical? form eof-sentinel)]
+
+      (-> {:eof? eof?}
+          (cond->
+            (not eof?)
+            (assoc :source
+                   ;; FIXME: poking at the internals of SourceLoggingPushbackReader
+                   ;; not using (-> form meta :source) which log-source provides
+                   ;; since there are things that do not support IMeta, still want the source though
+                   (-> @(.-source-log-frames in)
+                       (:buffer)
+                       (str)
+                       (str/trim))))))
+    (catch Exception ex
+      {:error? true
+       :ex ex})))
+
+(comment
+  (def x (readers/string-reader "#x (+ 1 `yo :x ::y) 1 1"))
+
+  (dummy-read-one x)
+  )
+
 (defn process-input
   "processes a string of forms, may read multiple forms"
   ([state repl-input]

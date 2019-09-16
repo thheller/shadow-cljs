@@ -1,5 +1,6 @@
 (ns demo.browser
-  {:shadow.sass/include
+  {:dev/always true
+   :shadow.sass/include
    ["./foo.scss"]}
   (:require-macros [demo.browser :refer (test-macro)])
   (:require

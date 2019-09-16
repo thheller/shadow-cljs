@@ -309,9 +309,9 @@
 
                     (when-let [the-ns (find-ns 'cider.nrepl)]
                       (= 'clojure.tools.nrepl.server
-                        (-> (.getAliases the-ns)
-                            (.get 'nrepl-server)
-                            (.getName)))))
+                         (-> (.getAliases the-ns)
+                             (.get 'nrepl-server)
+                             (.getName)))))
 
                   nrepl-ns
                   (if use-old-nrepl?
