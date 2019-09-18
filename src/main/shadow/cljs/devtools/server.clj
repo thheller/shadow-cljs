@@ -299,25 +299,8 @@
         nrepl
         (when-not disable-nrepl?
           (try
-            ;; problem child nrepl
-            ;; we need to start a 0.2 nrepl server
-            ;; if an older cider-nrepl version is used
-            ;; otherwise it should be fine to start 0.4
-            (let [use-old-nrepl?
-                  (when (io/resource "cider/nrepl.clj")
-                    (require 'cider.nrepl)
-
-                    (when-let [the-ns (find-ns 'cider.nrepl)]
-                      (= 'clojure.tools.nrepl.server
-                         (-> (.getAliases the-ns)
-                             (.get 'nrepl-server)
-                             (.getName)))))
-
-                  nrepl-ns
-                  (if use-old-nrepl?
-                    (do (log/info ::nrepl-fallback)
-                        'shadow.cljs.devtools.server.nrepl)
-                    'shadow.cljs.devtools.server.nrepl04)
+            (let [nrepl-ns
+                  'shadow.cljs.devtools.server.nrepl
 
                   _ (require nrepl-ns)
 

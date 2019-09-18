@@ -23,7 +23,9 @@
    [org.clojure/data.json "0.2.6"]
    [org.clojure/tools.cli "0.3.7"]
    [org.clojure/tools.reader "1.3.2"]
+
    [nrepl "0.6.0"]
+   [cider/piggieback "0.4.1"]
 
    [com.cognitect/transit-clj "0.8.313"]
    [com.cognitect/transit-cljs "0.8.256"]
@@ -139,7 +141,7 @@
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware
-     [shadow.cljs.devtools.server.nrepl04/middleware]}
+     [shadow.cljs.devtools.server.nrepl/middleware]}
     :source-paths
     ["src/dev"
      "src/gen"

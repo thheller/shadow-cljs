@@ -3,10 +3,11 @@
   (:require
     [clojure.core.async :as async :refer (go <! >! >!! <!! alt! alt!!)]
     [clojure.java.io :as io]
-    [shadow.jvm-log :as log]
     [clojure.pprint :refer (pprint)]
     [clojure.java.browse :refer (browse-url)]
     [clojure.string :as str]
+    [cljs.repl :as cljs-repl]
+    [shadow.jvm-log :as log]
     [shadow.runtime.services :as rt]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
@@ -21,19 +22,14 @@
     [shadow.cljs.devtools.errors :as e]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-    [shadow.cljs.devtools.server.runtime :as runtime])
+    [shadow.cljs.devtools.server.runtime :as runtime]
+    [cljs.repl :as repl])
   (:import [java.net Inet4Address NetworkInterface]
            [clojure.lang Var]))
 
 ;; nREPL support
 
-(def ^:dynamic *nrepl-cljs* nil)
-(def ^:dynamic *nrepl-clj-ns* nil)
-(def ^:dynamic *nrepl-active* false)
-(def ^:dynamic *nrepl-quit-signal* nil)
-(def ^:dynamic *nrepl-session* nil)
-(def ^:dynamic *nrepl-msg* nil)
-(def ^:dynamic *nrepl-worker-exit* nil)
+(def ^:dynamic *nrepl-init* nil)
 
 (defonce reload-deps-fn-ref (atom nil))
 
@@ -404,81 +400,17 @@
 (defn nrepl-select
   ([id]
    (nrepl-select id {}))
-  ([id {:keys [skip-repl-out] :as opts}]
-   (let [{:keys [proc-stop] :as worker} (get-worker id)]
+  ([id opts]
+   (let [worker (get-worker id)]
      (cond
        (nil? worker)
        [:no-worker id]
 
+       (nil? *nrepl-init*)
+       :missing-nrepl-middleware
+
        :else
-       (do (set! *nrepl-cljs* id)
-
-           ;; doing this to make cider prompt not show "user" as prompt after calling this
-           (set! *nrepl-clj-ns* *ns*)
-           (let [repl-ns (some-> worker :state-ref deref :build-state :repl-state :current :ns)]
-             (set! *ns* (create-ns (or repl-ns 'cljs.user))))
-
-           (go (alt!
-                 *nrepl-quit-signal*
-                 ([_]
-                  :quit)
-
-                 proc-stop
-                 ([_]
-                  (*nrepl-worker-exit*)
-                  :quit)))
-
-           ;; calling (node-repl) in a REPL will cause the stdout and the repl prn forward
-           ;; to both print which is not what we want
-           (when-not skip-repl-out
-             ;; nrepl doesn't have a clear way to signal the end of a session
-             ;; so this keeps running even is the nrepl is disconnected
-             ;; I hope the print just fails and kills the loop?
-             (when-let [quit *nrepl-quit-signal*]
-               (let [chan (async/chan 100)]
-
-                 (go (try
-                       (loop []
-                         (alt! :priority true
-                           chan
-                           ([msg]
-                            (when (some? msg)
-                              (case (:type msg)
-                                :repl/out
-                                (do (println (:text msg))
-                                    (flush))
-
-                                :repl/err
-                                (binding [*out* *err*]
-                                  (println (:text msg))
-                                  (flush))
-
-                                :ignored)
-                              (recur)
-                              ))
-
-                           quit
-                           ([_] :quit)))
-                       (log/debug ::nrepl-print-loop-end)
-                       (catch Exception e
-                         (log/debug-ex e ::nrepl-print-loop-ex)
-                         (async/close! chan))))
-
-                 (worker/watch worker chan true))))
-
-           (try
-             (let [^Var pvar (find-var 'cider.piggieback/*cljs-compiler-env*)]
-               (when (and pvar (thread-bound? pvar))
-                 (.set pvar
-                   (reify
-                     clojure.lang.IDeref
-                     (deref [_]
-                       (when-let [worker (get-worker id)]
-                         (-> worker :state-ref deref :build-state :compiler-env)))))))
-             (catch Exception e
-               (log/warn-ex e ::piggieback-cider)))
-
-
+       (do (*nrepl-init* worker opts)
            ;; Cursive uses this to switch repl type to cljs
            (println "To quit, type: :cljs/quit")
            [:selected id])))))
@@ -514,7 +446,7 @@
   ([build-id]
    (repl-next build-id {}))
   ([build-id {:keys [stop-on-eof] :as opts}]
-   (if *nrepl-active*
+   (if *nrepl-init*
      (nrepl-select build-id opts)
      (let [{:keys [supervisor] :as app}
            (runtime/get-instance!)
@@ -544,7 +476,7 @@
   ([build-id]
    (repl build-id {}))
   ([build-id {:keys [stop-on-eof] :as opts}]
-   (if *nrepl-active*
+   (if *nrepl-init*
      (nrepl-select build-id opts)
      (let [{:keys [supervisor] :as app}
            (runtime/get-instance!)
@@ -662,7 +594,7 @@
                     (worker/sync!))))]
 
       ;; for normal REPL loops we wait for the CLJS loop to end
-      (when-not *nrepl-active*
+      (when-not *nrepl-init*
         (repl-impl/stdin-takeover! worker app nil)
         (super/stop-worker supervisor (:build-id build-config)))
 
