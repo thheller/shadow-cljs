@@ -689,75 +689,73 @@
         nil)
 
     :else
-    (let [cache-file
-          (get-cache-file-for-rc state rc)
+    (try
+      (util/with-logged-time
+        [state {:type :cache-write
+                :resource-id resource-id
+                :resource-name resource-name
+                :ns ns}]
 
-          cache-compiler-options
-          (reduce
-            (fn [cache-options option-path]
-              (assoc cache-options option-path (get-in state option-path)))
-            {}
-            cache-affecting-options)
+        (let [cache-file
+              (get-cache-file-for-rc state rc)
 
-          ns-str
-          (str ns)
+              cache-compiler-options
+              (reduce
+                (fn [cache-options option-path]
+                  (assoc cache-options option-path (get-in state option-path)))
+                {}
+                cache-affecting-options)
 
-          spec-filter-fn
-          (fn [v]
-            (or (= ns-str (namespace v))
-                (= ns (-> v meta :fdef-ns))))
+              ns-str
+              (str ns)
 
-          ns-specs
-          (reduce-kv
-            (fn [m k v]
-              (if-not (spec-filter-fn k)
-                m
-                (assoc m k v)))
-            {}
-            ;; this is {spec-kw|sym raw-spec-form}
-            @cljs-spec/registry-ref)
+              spec-filter-fn
+              (fn [v]
+                (or (= ns-str (namespace v))
+                    (= ns (-> v meta :fdef-ns))))
 
-          ;; this is a #{fqn-var-sym ...}
-          ns-speced-vars
-          (->> (cljs-spec/speced-vars)
-               (filter spec-filter-fn)
-               (into []))
+              ns-specs
+              (reduce-kv
+                (fn [m k v]
+                  (if-not (spec-filter-fn k)
+                    m
+                    (assoc m k v)))
+                {}
+                ;; this is {spec-kw|sym raw-spec-form}
+                @cljs-spec/registry-ref)
 
-          ana-data
-          (get-in @env/*compiler* [::ana/namespaces ns])
+              ;; this is a #{fqn-var-sym ...}
+              ns-spec-vars
+              (->> (cljs-spec/speced-vars)
+                   (filter spec-filter-fn)
+                   (into []))
 
-          cache-data
-          {:output output
-           :cache-keys (make-cache-key-map state rc)
-           :clj-info (macros/gather-clj-info state rc)
-           :analyzer ana-data
-           :ns ns
-           :ns-specs ns-specs
-           :ns-speced-vars ns-speced-vars
-           :compiler-options cache-compiler-options}]
+              ana-data
+              (get-in @env/*compiler* [::ana/namespaces ns])
 
-      ;; FIXME: the write can still happen before flush
-      ;; should maybe safe this data somewhere instead and actually flush in flush
-      (try
-        (util/with-logged-time
-          [state {:type :cache-write
-                  :resource-id resource-id
-                  :resource-name resource-name
-                  :ns ns}]
+              cache-data
+              {:output output
+               :cache-keys (make-cache-key-map state rc)
+               :clj-info (macros/gather-clj-info state rc)
+               :analyzer ana-data
+               :ns ns
+               :ns-specs ns-specs
+               :ns-spec-vars ns-spec-vars
+               :compiler-options cache-compiler-options}]
 
+          ;; FIXME: the write can still happen before flush
+          ;; should maybe safe this data somewhere instead and actually flush in flush
           ;; FIXME: is this thread-safe?
           (io/make-parents cache-file)
+          (cache/write-file cache-file cache-data)))
 
-          (cache/write-file cache-file cache-data))
-
-        (catch Exception e
-          (util/warn state {:type :cache-error
-                            :action :write
-                            :ns ns
-                            :id resource-id
-                            :error e})
-          nil)
-        ))))
+      (catch Exception e
+        (util/warn state {:type :cache-error
+                          :action :write
+                          :ns ns
+                          :id resource-id
+                          :error e})
+        nil))))
 
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
