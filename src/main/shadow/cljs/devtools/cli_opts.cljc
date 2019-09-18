@@ -72,6 +72,7 @@
    :watch
    :check
    :release
+   :classpath
 
    :node-repl
    :browser-repl

@@ -739,6 +739,36 @@
     :else
     (run-standalone project-root config args opts)))
 
+(defn print-classpath [project-root config opts]
+  (cond
+    (:deps config)
+    (let [clojure-args
+          (-> (get-clojure-args project-root config opts)
+              (conj "-Spath"))]
+
+      (if-not (is-windows?)
+        (run! project-root "clojure" clojure-args {})
+        (let [ps-args (into ["-command" "clojure"] (map powershell-escape) clojure-args)]
+          (run! project-root "powershell" ps-args {}))))
+
+    (:lein config)
+    (let [lein-args
+          (-> (get-lein-args config opts)
+              (conj "classpath"))]
+
+      (run! project-root "lein" lein-args {}))
+
+    :else
+    (let [classpath
+          (get-classpath project-root config)
+
+          classpath-str
+          (->> (:files classpath)
+               (concat (:source-paths config))
+               (str/join path/delimiter))]
+
+      (println classpath-str))))
+
 (defn ^:export main [args]
 
   (try
@@ -803,6 +833,9 @@
 
                 (= :pom action)
                 (generate-pom project-root config-path config opts)
+
+                (= :classpath action)
+                (print-classpath project-root config opts)
 
                 (= :start action)
                 (if server-running?
