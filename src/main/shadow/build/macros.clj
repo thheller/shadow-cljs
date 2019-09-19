@@ -244,6 +244,3 @@
   (require 'demo.macro)
   (find-all-clj-references 'demo.macro)
   (gather-clj-info* '[demo.macro]))
-
-(defn clj-namespaces-used-by-rc [state rc]
-  '{cljs.core 123})

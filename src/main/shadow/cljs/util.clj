@@ -296,7 +296,7 @@
             exit-code (.waitFor proc)]
         {:exit exit-code :out @out :err @err}))))
 
-(defn url-last-modified [^URL url]
+(defn url-last-modified* [^URL url]
   (try
     (let [^URLConnection con (.openConnection url)
           ;; not looking at it but only way to close file:... connections
@@ -308,6 +308,17 @@
           (.close stream))))
     (catch IOException e
       -1)))
+
+(defonce last-mod-cache-ref (atom {}))
+
+(defn url-last-modified [^URL url]
+  (if (not= "jar" (.getProtocol url))
+    (url-last-modified* url)
+    ;; cache all .jar lookups since they can't change at runtime
+    (or (get @last-mod-cache-ref url)
+        (let [mod (url-last-modified* url)]
+          (swap! last-mod-cache-ref assoc url mod)
+          mod))))
 
 (defn resource-last-modified [path]
   {:pre [(string? path)]}
