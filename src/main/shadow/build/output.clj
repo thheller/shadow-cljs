@@ -450,10 +450,15 @@
              (map comp/munge)
              (first))]
 
-    (str "\nmodule.exports = " export ";\n"
-         ;; work around cljs.compiler munging default to default$ unconditionally
-         (when (get-in state [:compiler-env ::ana/namespaces ns :defs 'default])
-           (str "Object.defineProperty(module.exports, \"default\", { get: function() { return " export ".default$; } });\n")))))
+    (str (when-not ns ;; none-cljs
+           (str "\nmodule.exports = " export ";\n"))
+         (->> (get-in state [:compiler-env ::ana/namespaces ns :defs])
+              (keys)
+              (map (fn [def]
+                     (str "Object.defineProperty(module.exports, \""
+                          (if (= 'default def) "default" (comp/munge def)) ;; avoid munge to default$
+                          "\", { enumerable: true, get: function() { return " export "." (comp/munge def) "; } });")))
+              (str/join "\n")))))
 
 (defn js-module-env
   [{:keys [polyfill-js] :as state} {:keys [runtime] :or {runtime :node} :as config}]

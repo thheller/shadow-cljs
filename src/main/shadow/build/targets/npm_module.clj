@@ -51,7 +51,7 @@
 
         (and (= :dev mode) (:worker-info state))
         (shared/merge-repl-defines
-          (update config :devtools merge {:autolaod false ;; doesn't work yet, use built-in for now
+          (update config :devtools merge {:autoload false ;; doesn't work yet, use built-in for now
                                           :use-document-host false}))
         )))
 
