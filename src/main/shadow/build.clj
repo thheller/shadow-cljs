@@ -123,9 +123,13 @@
                                        :hook-id hook-id}]
           (hook-fn state))
         (catch Exception e
-          (log/warn-ex e ::hook-execute-ex {:hook-id hook-id
-                                            :build-id build-id})
-          state)))
+          (throw (ex-info
+                   (format "Hook %s failed in stage %s" hook-id stage)
+                   {:tag ::hook-error
+                    :build-id build-id
+                    :stage stage
+                    :hook-id hook-id}
+                   e)))))
     state
     (get-in state [:build-hooks stage])))
 
