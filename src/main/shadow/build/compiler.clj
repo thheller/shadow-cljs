@@ -340,7 +340,7 @@
               :ns (:name ast)
               :ns-info (dissoc ast :env)))))))
 
-(defn warning-collector [build-env warnings warning-type env extra]
+(defn warning-collector [state warnings warning-type env extra]
   ;; FIXME: currently there is no way to turn off :infer-externs
   ;; the work is always done and the warning is always generated
   ;; it is just not emitted when *warn-in-infer* is not set
@@ -364,15 +364,21 @@
           extra
           (if (not= warning-type :fn-deprecated)
             extra
-            (dissoc extra :fexpr))]
+            (dissoc extra :fexpr))
 
-      (swap! warnings conj
-        {:warning warning-type
-         :line line
-         :column column
-         :msg msg
-         :extra extra}
-        ))))
+          warning-info
+          {:warning warning-type
+           :line line
+           :column column
+           :msg msg
+           :extra extra}]
+
+      (let [wae (get-in state [:compiler-options :warnings-as-errors])]
+        (when (or (true? wae)
+                  (and (set? wae) (contains? wae warning-type)))
+          (throw (ex-info msg warning-info))))
+
+      (swap! warnings conj warning-info))))
 
 (defmacro with-warnings
   "given a body that produces a compilation result, collect all warnings and assoc into :warnings"
