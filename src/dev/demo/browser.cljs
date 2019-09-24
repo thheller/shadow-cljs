@@ -23,7 +23,10 @@
     [cljs.loader :as cl]
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
+    [demo.googClass :refer (Foo)]
     ))
+
+(js/console.log "foo" Foo)
 
 (js/console.log "macro" (m/foo 1 2 3))
 
