@@ -55,6 +55,10 @@
         java.io.BufferedWriter.
         java.io.PrintWriter.)))
 
+(def ^:dynamic *last-form* nil)
+
+(def EOF (Object.))
+
 (defmethod process-clj-msg* ::m/session-start
   [{:keys [runtime-id sys-out] :as state} {::m/keys [session-id tool-id] :as msg}]
 
@@ -79,14 +83,14 @@
         (writer->fn
           (fn [text]
             (send-msg {::m/op ::m/session-out
-                       ::m/session-out text}))
+                       ::m/text text}))
           nil)
 
         session-err
         (writer->fn
           (fn [text]
             (send-msg {::m/op ::m/session-err
-                       ::m/session-err text}))
+                       ::m/text text}))
           nil)
 
         session-ns-ref
@@ -96,12 +100,21 @@
         (bound-fn []
           (binding [*in* session-in
                     *out* session-out
-                    *err* session-err]
+                    *err* session-err
+                    *last-form* nil]
             (cm/repl
               :need-prompt
               (constantly false)
 
               :prompt (fn [])
+
+              :read
+              (fn [request-prompt request-exit]
+                (let [[form s] (read+string session-in false EOF)]
+                  (set! *last-form* s)
+                  (if (identical? EOF form)
+                    request-exit
+                    form)))
 
               :print
               (fn [val]
@@ -110,6 +123,7 @@
                   ;; FIXME: store val for later
                   (send-msg {::m/op ::m/session-result
                              ::m/printed-result printed
+                             ::m/form *last-form*
                              ::m/result-id result-id}))
 
                 (let [ns (symbol (str *ns*))]

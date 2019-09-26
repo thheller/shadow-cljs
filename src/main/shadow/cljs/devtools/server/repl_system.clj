@@ -148,8 +148,8 @@
 
 (defn find-runtimes-for-build
   [{:keys [state-ref] :as svc} build-id]
-  (->> @state-ref
-       :runtimes
+  (->> (:runtimes @state-ref)
+       (vals)
        (filter #(= build-id (-> % :runtime-info :build-id)))
        (vec)))
 

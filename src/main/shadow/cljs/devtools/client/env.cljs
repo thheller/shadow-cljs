@@ -99,7 +99,10 @@
     (let [result-id (str (random-uuid))
           result {:type :repl/result
                   :result-id result-id}
-          ret (repl-expr)]
+
+          start (js/Date.now)
+          ret (repl-expr)
+          runtime (- (js/Date.now) start)]
 
       ;; FIXME: this needs some kind of GC, shouldn't keep every single result forever
       (swap! repl-results-ref assoc result-id {:timestamp (js/Date.now)
@@ -113,7 +116,7 @@
       (try
         (let [printed (repl-print-fn ret)]
           (swap! repl-results-ref assoc-in [result-id :printed] printed)
-          (assoc result :value printed))
+          (assoc result :value printed :ms runtime))
         (catch :default e
           (js/console.log "encoding of result failed" e ret)
           (assoc result :error "ENCODING FAILED, check host console"))))

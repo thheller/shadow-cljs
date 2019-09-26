@@ -17,6 +17,7 @@
     [shadow.cljs.devtools.server.common :as common]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.repl-system :as repl-system]
+    [shadow.cljs.devtools.server.prepl :as prepl]
     [shadow.cljs.devtools.server.ns-explorer :as ns-explorer]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.util :as util]
@@ -318,6 +319,22 @@
             (catch Exception e
               (log/warn-ex e ::nrepl-ex)
               nil)))
+
+        ;; prepl
+        ;; FIXME: this integration is kinda dirty
+        ;; probably should only start servers when build is actually running?
+        app-config
+        (if-not (:prepl config)
+          app-config
+          (let [prepl-svc
+                {:depends-on [:repl-system]
+                 :start (fn [repl-system]
+                          (let [svc (prepl/start repl-system)]
+                            (doseq [[build-id port] (:prepl config)]
+                              (prepl/start-server svc build-id (if (map? port) port {:port port})))
+                            svc))
+                 :stop prepl/stop}]
+            (assoc app-config :prepl prepl-svc)))
 
         port-files-ref
         (atom nil)

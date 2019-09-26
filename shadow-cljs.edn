@@ -14,6 +14,8 @@
  {8600 "out/demo-browser/public"
   8606 "out/demo-test-browser"}
 
+ :prepl {:browser 12345}
+
  :plugins [demo.dummy-plugin]
 
  :nrepl {:port 8202 :middleware []}

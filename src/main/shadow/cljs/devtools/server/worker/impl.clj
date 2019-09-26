@@ -336,7 +336,7 @@
       (catch Exception e
         (build-failure worker-state e)))))
 
-(defn repl-result-fn [{:keys [result-chan] :as msg} actions]
+(defn repl-result-buffer-fn [actions send-fn]
   ;; every input msg may produce many actual REPL actions
   ;; want to buffer all results before replying to whoever sent the initial REPL msg
   (let [buffer-ref (->> actions
@@ -360,9 +360,7 @@
                              (vals)
                              (sort-by :id)
                              (vec))]
-            (>!! result-chan {:type :repl/results
-                              :results results}))
-          (async/close! result-chan)))
+            (send-fn results))))
 
       worker-state)))
 
@@ -514,10 +512,20 @@
       (process-repl-result worker-state msg)
 
       :repl/out
-      (>!!output worker-state {:type :repl/out :text (:text msg)})
+      (do (doseq [{:keys [tool-out runtime-id session-id]} (-> worker-state :repl-sessions vals)]
+            (>!! tool-out {::m/op ::m/session-out
+                           ::m/runtime-id runtime-id
+                           ::m/session-id session-id
+                           ::m/text (:text msg)}))
+          (>!!output worker-state {:type :repl/out :text (:text msg)}))
 
       :repl/err
-      (>!!output worker-state {:type :repl/err :text (:text msg)})
+      (do (doseq [{:keys [tool-out runtime-id session-id]} (-> worker-state :repl-sessions vals)]
+            (>!! tool-out {::m/op ::m/session-err
+                           ::m/runtime-id runtime-id
+                           ::m/session-id session-id
+                           ::m/text (:text msg)}))
+          (>!!output worker-state {:type :repl/err :text (:text msg)}))
 
       ;; this isn't using the "standard" WebSocket PING frames because react-native
       ;; keeps replying to those even though the app was reloaded and the websocket
@@ -588,6 +596,11 @@
             (update :pending-results assoc msg-id #(handle-session-start-result %1 %2 envelope))
             )))))
 
+(defmethod do-proc-control ::m/session-close
+  [worker-state {::m/keys [session-id] :as msg}]
+  ;; FIXME: properly cleanup? might have messages pending
+  (update-in worker-state [:repl-sessions] dissoc session-id))
+
 (defmethod do-proc-control ::m/tool-disconnect
   [worker-state {::m/keys [tool-id] :as msg}]
   worker-state
@@ -618,34 +631,13 @@
         (assoc-in [:repl-sessions session-id :repl-state] repl-state)
         )))
 
-(defn handle-repl-action-result
-  [worker-state {:keys [type value result-id] :as result} {:keys [tool-out msg] :as envelope} action]
-  (let [{::m/keys [session-id tool-id]} msg]
-    (case type
-      :repl/result
-      (do (>!! tool-out {::m/op ::m/session-result
-                         ::m/session-id session-id
-                         ::m/tool-id tool-id
-                         ::m/result-id result-id
-                         ::m/printed-result value})
-          worker-state)
-
-      :repl/set-ns-complete
-      (let [session-ns (get-in worker-state [:repl-sessions session-id :repl-state :current :ns])]
-        (>!! tool-out {::m/op ::m/session-update
-                       ::m/session-id session-id
-                       ::m/session-ns session-ns})
-        worker-state)
-
-      (do (log/warn ::unexpected-repl-action-result {:result result :envelope envelope})
-          worker-state))))
 
 (defmethod do-proc-control ::m/session-eval
   [{:keys [build-state] :as worker-state}
    {:keys [msg tool-out] :as envelope}]
 
   (log/debug ::session-eval msg)
-  (let [{::m/keys [session-id input-text]} msg
+  (let [{::m/keys [tool-id session-id input-text]} msg
 
         {:keys [runtime-id] :as session}
         (get-in worker-state [:repl-sessions session-id])
@@ -684,12 +676,35 @@
               (->> (subvec (:repl-actions repl-state) start-idx)
                    (map (fn [x] (assoc x :id (gen-msg-id)))))
 
-              worker-state
-              (reduce
-                (fn [worker-state {:keys [id] :as action}]
-                  (update worker-state :pending-results assoc id #(handle-repl-action-result %1 %2 envelope action)))
-                worker-state
-                new-actions)]
+              result-fn
+              (repl-result-buffer-fn new-actions
+                (fn [actions]
+                  (doseq [{:keys [result] :as action} actions]
+                    (case (:type result)
+                      :repl/result ;; FIXME: handle errors, won't have :value
+                      (>!! tool-out {::m/op ::m/session-result
+                                     ::m/session-id session-id
+                                     ::m/tool-id tool-id
+                                     ::m/form (:source action)
+                                     ::m/eval-ms (:ms result)
+                                     ::m/printed-result (or (:value result) "nil")})
+
+                      :repl/set-ns-complete
+                      (>!! tool-out {::m/op ::m/session-result
+                                     ::m/session-id session-id
+                                     ::m/tool-id tool-id
+                                     ::m/session-ns (:ns result)
+                                     ::m/eval-ms 0
+                                     ::m/printed-result "nil"})
+
+                      :repl/require-complete
+                      (>!! tool-out {::m/op ::m/session-result
+                                     ::m/session-id session-id
+                                     ::m/tool-id tool-id
+                                     ::m/eval-ms 0 ;; FIXME: this actually takes time
+                                     ::m/printed-result "nil"})
+
+                      (log/debug ::session-eval-result-discarded action)))))]
 
           (doseq [action new-actions]
             (>!! runtime-out (-> (transform-repl-action build-state action)
@@ -697,6 +712,10 @@
 
           (-> worker-state
               (assoc :build-state build-state)
+              (util/reduce->
+                (fn [state {:keys [id]}]
+                  (assoc-in state [:pending-results id] result-fn))
+                new-actions)
               (pop-repl-state session-id)))
 
         (catch Exception e
@@ -826,7 +845,11 @@
                                   (assoc action :id (+ idx start-idx)))))
 
               result-fn
-              (repl-result-fn msg new-actions)]
+              (repl-result-buffer-fn new-actions
+                (fn [results]
+                  (>!! result-chan {:type :repl/results
+                                    :results results})
+                  (async/close! result-chan)))]
 
           (doseq [action new-actions]
             (>!!output worker-state {:type :repl/action
