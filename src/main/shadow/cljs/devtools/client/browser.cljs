@@ -22,7 +22,9 @@
 (defonce socket-ref (volatile! nil))
 
 (defn devtools-msg [msg & args]
-  (js/console.log.apply js/console (into-array (into [(str "%cshadow-cljs: " msg) "color: blue;"] args))))
+  (if (seq env/log-style)
+    (js/console.log.apply js/console (into-array (into [(str "%cshadow-cljs: " msg) env/log-style] args)))
+    (js/console.log.apply js/console (into-array (into [(str "shadow-cljs: " msg)] args)))))
 
 (defn ws-msg [msg]
   (if-let [s @socket-ref]
