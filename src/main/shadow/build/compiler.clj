@@ -340,6 +340,45 @@
               :ns (:name ast)
               :ns-info (dissoc ast :env)))))))
 
+(defn ns-wildcard-match? [pattern ns]
+  (let [s (cond
+            (symbol? pattern)
+            (str pattern)
+            (string? pattern)
+            pattern
+            :else
+            (throw (ex-info "invalid :ignore entry" {:pattern pattern})))]
+    (if (str/ends-with? s "*")
+      (str/starts-with? (str ns) (subs s 0 (-> s (count) (dec))))
+      (= s (str ns)))))
+
+(comment
+  (ns-wildcard-match? 'foo.* 'foo.bar))
+
+(defn should-warning-throw?
+  [state {:keys [ns] :as rc} {:keys [warning] :as warning-info}]
+  (let [wae (get-in state [:compiler-options :warnings-as-errors])]
+    (or (true? wae)
+        (and (set? wae) (contains? wae warning))
+        (and (map? wae)
+             (let [{:keys [ignore warning-types]} wae]
+               (if (and ns (seq ignore) (some #(ns-wildcard-match? % ns) ignore))
+                 false
+                 (or (not (seq warning-types))
+                     (contains? warning-types warning)
+                     )))))))
+
+(comment
+  (should-warning-throw?
+    {:compiler-options
+     {:warnings-as-errors
+      {:ignore #{'foo.*}
+       ;; :warning-types #{:undeclared-var}
+       }}}
+    {:ns 'foo.bar}
+    {:warning :undeclared-var}))
+
+
 (defn warning-collector [state warnings warning-type env extra]
   ;; FIXME: currently there is no way to turn off :infer-externs
   ;; the work is always done and the warning is always generated
@@ -373,10 +412,8 @@
            :msg msg
            :extra extra}]
 
-      (let [wae (get-in state [:compiler-options :warnings-as-errors])]
-        (when (or (true? wae)
-                  (and (set? wae) (contains? wae warning-type)))
-          (throw (ex-info msg warning-info))))
+      (when (should-warning-throw? state *current-resource* warning-info)
+        (throw (ex-info msg warning-info)))
 
       (swap! warnings conj warning-info))))
 
