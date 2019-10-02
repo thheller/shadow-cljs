@@ -302,6 +302,33 @@
             (throw (ex-info "override not supported for :js-provider :require" resolve-cfg))
             ))))))
 
+(defmethod find-resource-for-string :external
+  [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
+  (let [cp-rc? (when require-from
+                 (classpath-resource? require-from))]
+
+    (cond
+      (util/is-absolute? require)
+      (if-not cp-rc?
+        (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
+        (maybe-babel-rewrite (cp/find-js-resource classpath require)))
+
+      (util/is-relative? require)
+      (maybe-babel-rewrite (cp/find-js-resource classpath require-from require))
+
+      :else
+      (when (or (contains? native-node-modules require)
+                ;; if the require was a string we just pass it through
+                ;; we don't need to check if it exists since the runtime
+                ;; will take care of that. we do not actually need anything from the package
+                (not was-symbol?)
+                ;; if `(:require [react ...])` was used we need to check if the package
+                ;; is actually installed. otherwise we will blindy return a shim for
+                ;; every symbol, no matter it was a typo or actually intended JS package.
+                (npm/find-package (:npm state) require))
+
+        (js-support/shim-require-resource state require)))))
+
 (defn resolve-string-require
   [state {require-from-ns :ns :as require-from} require]
   {:pre [(data/build-state? state)

@@ -12,6 +12,7 @@
             [shadow.build.api :as build-api]
             [shadow.build :as build]
             [shadow.build.targets.shared :as shared]
+            [shadow.build.targets.external-index :as external-index]
             [shadow.build.config :as config]
             [shadow.build.output :as output]
             [shadow.build.closure :as closure]
@@ -671,36 +672,39 @@
       build-modules)))
 
 (defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
-  (case mode
-    :dev
-    (-> state
-        (cond->
-          module-loader
-          (-> (inject-loader-setup-dev config)
-              (flush-module-data)))
-        (flush-unoptimized)
-        (flush-manifest))
-    :release
-    (-> state
-        ;; must hash before adding loader since it needs to know the final uris of the modules
-        ;; it will change the uri of the base module after
-        (cond->
-          module-hash-names
-          (hash-optimized-modules module-hash-names)
+  (-> state
+      (cond->
+        (= :external (get-in state [:js-options :js-provider]))
+        (external-index/flush-js)
 
-          ;; true to inject the loader data (which changes the signature)
-          ;; any other true-ish value still generates the module-loader.edn data files
-          ;; but does not inject (ie. change the signature)
-          (true? module-loader)
-          (inject-loader-setup-release config)
+        (= :dev mode)
+        (-> (cond->
+              module-loader
+              (-> (inject-loader-setup-dev config)
+                  (flush-module-data)))
+            (flush-unoptimized)
+            (flush-manifest))
 
-          (get-in state [:compiler-options :output-wrapper])
-          (apply-output-wrapper))
-        (output/flush-optimized)
-        (cond->
-          module-loader
-          (flush-module-data))
-        (flush-manifest))))
+        (= :release mode)
+        (-> (cond->
+              ;; must hash before adding loader since it needs to know the final uris of the modules
+              ;; it will change the uri of the base module after
+              module-hash-names
+              (hash-optimized-modules module-hash-names)
+
+              ;; true to inject the loader data (which changes the signature)
+              ;; any other true-ish value still generates the module-loader.edn data files
+              ;; but does not inject (ie. change the signature)
+              (true? module-loader)
+              (inject-loader-setup-release config)
+
+              (get-in state [:compiler-options :output-wrapper])
+              (apply-output-wrapper))
+            (output/flush-optimized)
+            (cond->
+              module-loader
+              (flush-module-data))
+            (flush-manifest)))))
 
 (defn make-web-worker-prepend [state mod]
   (let [all

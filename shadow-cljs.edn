@@ -160,25 +160,11 @@
      :web-worker true}}
 
    :js-options
-   {:js-provider :shadow
-    :variable-renaming :local
-    :babel-preset-config
-    {:targets {:safari 11}}
-
-    :resolve
-    {"moment"
-     false
-
-     "circular-test"
-     {:target :file
-      :file "test/dummy/circular-a.js"}
-     "babel-test"
-     {:target :file
-      :file "test/es6/babel.js"}
-     }}
+   { ;; :js-provider :external
+    :external-index "target/external.js"}
 
    :devtools
-   {:loader-mode :script
+   { ;; :loader-mode :script
     :repl-init-ns demo.browser
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
