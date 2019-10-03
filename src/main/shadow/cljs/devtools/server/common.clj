@@ -56,9 +56,12 @@
       (fn [data]
         (let [out (ByteArrayOutputStream. 4096)
               w (transit/writer out :json)]
-          (transit/write w data)
-          (.toString out)
-          )))
+          (try
+            (transit/write w data)
+            (.toString out)
+            (catch Exception e
+              (log/warn-ex e ::transit-str-failed {:data data})
+              (throw e))))))
 
     :stop (fn [x])}
 
