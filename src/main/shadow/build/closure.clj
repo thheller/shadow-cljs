@@ -2056,6 +2056,15 @@
                  :live-js-deps live-js-deps))
       )))
 
+(defn goog-compiler-options [state]
+  (merge
+    {:pretty-print true
+     :pseudo-names false
+     :language-in :ecmascript-next
+     :output-feature-set :es5
+     :source-map true}
+    (get-output-options state)))
+
 (defn convert-goog*
   "convert Closure Library code since it may contain a random mix of ClosureJS and Closure Modules"
   [{:keys [js-options mode] :as state} sources]
@@ -2082,13 +2091,7 @@
         (data/make-closure-compiler)
 
         co-opts
-        (merge
-          {:pretty-print true
-           :pseudo-names false
-           :language-in :ecmascript-next
-           :output-feature-set :es5
-           :source-map true}
-          (get-output-options state))
+        (goog-compiler-options state)
 
         generate-source-map?
         (not (false? (:source-map js-options)))
@@ -2181,9 +2184,9 @@
             (do (io/make-parents cache-index-file)
                 {}))
 
-        ;; FIXME: currently this doesn't accept any outside compiler options
+        ;; must invalidate cache if :output-feature-set changes
         cache-options
-        []
+        (goog-compiler-options state)
 
         cache-files
         (if (or (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
