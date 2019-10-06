@@ -108,8 +108,13 @@
     ["src/dev"
      "src/repl"]
 
+    :jvm-opts
+    ["-XX:+UnlockDiagnosticVMOptions"
+     "-XX:+DebugNonSafepoints"]
+
     :dependencies
-    [#_[org.slf4j/slf4j-log4j12 "1.7.25"]
+    [[com.clojure-goes-fast/clj-async-profiler "0.4.0"]
+     #_[org.slf4j/slf4j-log4j12 "1.7.25"]
      #_[log4j "1.2.17"]]}
 
    :aot
