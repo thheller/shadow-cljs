@@ -95,17 +95,21 @@
     (resolve-cljs-var ns sym)
     ))
 
+;; ana/resolve-ns-alias converts to symbols too much, we already only have symbols
+(defn resolve-ns-alias [env alias]
+  (ana/gets env :ns :requires alias))
+
 (defn invokeable-ns?
   "Returns true if ns is a required namespace and a JavaScript module that
    might be invokeable as a function."
   [alias env]
-  (when-let [ns (ana/resolve-ns-alias env alias nil)]
+  (when-let [ns (resolve-ns-alias env alias)]
     (or (js-module-exists? ns)
         (is-shadow-shim? ns)
         )))
 
 (defn resolve-invokeable-ns [alias current-ns env]
-  (let [ns (ana/resolve-ns-alias env alias)]
+  (let [ns (resolve-ns-alias env alias)]
     {:op :js-var
      :name (symbol "js" (str ns))
      :tag 'js
@@ -210,8 +214,7 @@
            (some? sym-ns-str)
            (let [ns sym-ns-str
                  ns (symbol (if (= "clojure.core" ns) "cljs.core" ns))
-                 ;; thheller: remove the or
-                 full-ns (ana/resolve-ns-alias env ns (symbol ns))
+                 full-ns (or (resolve-ns-alias env ns) ns) ;; [some.thing :as x] x->some.thing OR some.thing
                  ;; strip ns
                  sym (symbol (name sym))]
              (when (some? confirm)
