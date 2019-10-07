@@ -24,8 +24,7 @@
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.server.runtime :as runtime]
     [cljs.repl :as repl])
-  (:import [java.net Inet4Address NetworkInterface]
-           [clojure.lang Var]))
+  (:import [java.net Inet4Address NetworkInterface]))
 
 ;; nREPL support
 
@@ -489,8 +488,6 @@
              (when stop-on-eof
                (super/stop-worker supervisor build-id))))))))
 
-
-
 ;; FIXME: should maybe allow multiple instances
 (defn node-repl
   ([]
@@ -623,68 +620,6 @@
 (defn test []
   (println "TBD"))
 
-(defn release-snapshot [& args]
-  (println "release-snapshot was moved!")
-  (println "from the CLI use:")
-  (println "\tshadow-cljs run shadow.cljs.build-report <build-id> some.html")
-  (println "from the REPL use:")
-  (println "\t(require '[shadow.cljs.build-report :as r])")
-  (println "\t(r/generate :build-id {:report-file \"some.html\"})")
-  (println "both commands generate a standalone \"some.html\" file with the full report"))
-
-(comment
-  (release-snapshot :browser {})
-
-  (defn node-execute! [node-args file]
-    (let [script-args
-          ["node"]
-
-          pb
-          (doto (ProcessBuilder. script-args)
-            (.directory nil))]
-
-
-      ;; not using this because we only get output once it is done
-      ;; I prefer to see progress
-      ;; (prn (apply shell/sh script-args))
-
-      (let [node-proc (.start pb)]
-
-        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
-
-        (let [out (.getOutputStream node-proc)]
-          (io/copy (io/file file) out)
-          (.close out))
-
-        ;; FIXME: what if this doesn't terminate?
-        (let [exit-code (.waitFor node-proc)]
-          exit-code))))
-
-
-  (defn test-all []
-    (-> (build/configure :dev '{:build-id :shadow-build-api/test
-                                :target :node-script
-                                :main shadow.test-runner/main
-                                :output-to "target/shadow-test-runner.js"
-                                :hashbang false})
-        (node/make-test-runner)
-        (build/compile)
-        (build/flush))
-
-    (node-execute! [] "target/shadow-test-runner.js")
-    ::test-all)
-
-  (defn test-affected
-    [source-names]
-    {:pre [(seq source-names)
-           (not (string? source-names))
-           (every? string? source-names)]}
-    (-> (test-setup)
-        (node/execute-affected-tests! source-names))
-    ::test-affected))
-
-
 (defn- find-local-addrs []
   (for [ni (enumeration-seq (NetworkInterface/getNetworkInterfaces))
         :when (not (.isLoopback ni))
@@ -699,8 +634,6 @@
         ;; probably don't need ipv6 for dev
         :when (instance? Inet4Address addr)]
     [ni addr]))
-
-;; (prn (find-local-addrs))
 
 (defmethod log/log-msg ::multiple-ips [_ {:keys [addrs] :as data}]
   (str "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.\n"
