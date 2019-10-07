@@ -24,8 +24,10 @@
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
     [demo.googClass :refer (Foo)]
+    ["create-react-class" :as crc]
     ))
 
+(js/console.log "crc" crc)
 (js/console.log "foo" Foo)
 
 (js/console.log "macro" (m/foo 1 2 3))

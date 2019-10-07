@@ -254,8 +254,8 @@
                  (confirm env 'cljs.core sym))
                (resolve-cljs-var 'cljs.core sym))
 
-           (invokeable-ns? s env)
-           (resolve-invokeable-ns s current-ns env)
+           (invokeable-ns? sym env)
+           (resolve-invokeable-ns sym current-ns env)
 
            ;; any symbol with a dot but no namespace, already checked all renames/imports/requires
            ;; so that (:require ["some-js" :as foo.bar]) (foo.bar)
