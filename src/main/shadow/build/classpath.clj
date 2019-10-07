@@ -1043,6 +1043,36 @@
          (symbol? sym)]}
   (contains? (-> cp :index-ref deref :foreign-provides) sym))
 
+(defn as-path ^Path [^String path]
+  (Paths/get path (into-array String [])))
+
+(defn resolve-rel-path [^String resource-name ^String require]
+  (let [parent (-> (as-path resource-name) (.getParent))
+
+        ^Path path
+        (cond
+          (not (nil? parent))
+          (.resolve parent require)
+
+          (str/starts-with? require "./")
+          (as-path (subs require 2))
+
+          (str/starts-with? require "../")
+          (throw (ex-info
+                   (str "Cannot access \"" require "\" from \"" resource-name "\".\n"
+                        "Access outside the classpath is not allowed for relative requires.")
+                   {:tag ::access-outside-classpath
+                    :require-from resource-name
+                    :require require}))
+
+          :else
+          (as-path require))]
+
+    (-> path
+        (.normalize)
+        (.toString)
+        (rc/normalize-name))))
+
 (defn find-js-resource
   ;; absolute require "/some/foo/bar.js" or "/some/foo/bar"
   ([{:keys [index-ref] :as cp} ^String require]
@@ -1059,14 +1089,7 @@
    (when-not require-from
      (throw (ex-info "relative requires only allowed in files" {:require require})))
 
-   (let [path
-         (-> (Paths/get resource-name (into-array String []))
-             (.getParent)
-             (.resolve require)
-             (.normalize)
-             (.toString)
-             (rc/normalize-name))]
-
+   (let [path (resolve-rel-path resource-name require)]
      (when (str/starts-with? path ".")
        (throw (ex-info
                 (str "Cannot access \"" require "\" from \"" resource-name "\".\n"
@@ -1081,7 +1104,8 @@
 (comment
   ;; FIXME: implement correctly
 
-
+  (resolve-rel-path "foo.cljs" "../bar.js")
+  (resolve-rel-path "foo.cljs" "./../bar.js")
 
   (defn find-dependents-for-names [state source-names]
     (->> source-names
