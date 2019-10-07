@@ -56,9 +56,24 @@ var SHADOW_IMPORT = global.SHADOW_IMPORT = function(src) {
   return true;
 };
 
+// strip a leading comment as generated for (defn x "foo" [a] a)
+// /**
+//  * foo
+//  */
+// (function (){
+
+function SHADOW_STRIP_COMMENT(js) {
+  if (!js.startsWith("/*")) {
+    return js;
+  } else {
+    return js.substring(js.indexOf("*/") + 2).trimLeft();
+  }
+};
+
 global.SHADOW_NODE_EVAL = function(js, smJson) {
   // special case handling for require since it may otherwise not be available
-  js = "(function cljsEval(require) {\n return " + js + "\n});";
+  // FIXME: source maps get destroyed by the strip
+  js = "(function cljsEval(require) {\n return " + SHADOW_STRIP_COMMENT(js) + "\n});";
 
   if (smJson) {
     js += "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,";
