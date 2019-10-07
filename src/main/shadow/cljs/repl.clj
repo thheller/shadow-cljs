@@ -182,7 +182,12 @@
         (get-in state [:compiler-env ::ana/namespaces current-ns])
 
         {:keys [reload-deps] :as new-ns-info}
-        (ns-form/merge-repl-require ns-info require-form)
+        (-> (ns-form/merge-repl-require ns-info require-form)
+            ;; (in-ns 'some.thing)
+            ;; (require 'some.thing)
+            ;; would add some.thing to its own deps resulting in circular deps
+            ;; FIXME: might make sense to clear :requires and :renames etc too?
+            (update :deps #(->> % (remove #{current-ns}) (vec))))
 
         new-deps
         (:deps new-ns-info)

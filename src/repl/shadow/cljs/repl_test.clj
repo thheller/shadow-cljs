@@ -156,4 +156,10 @@
 
     (pprint repl-state)))
 
+(deftest test-repl-self-require-doesnt-blow-up
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(require 'cljs.user)"))]
 
+    (pprint repl-state)))
