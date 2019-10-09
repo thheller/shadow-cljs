@@ -400,17 +400,11 @@
           msg
           (ana/error-message warning-type extra)
 
-          extra
-          (if (not= warning-type :fn-deprecated)
-            extra
-            (dissoc extra :fexpr))
-
           warning-info
           {:warning warning-type
            :line line
            :column column
-           :msg msg
-           :extra extra}]
+           :msg msg}]
 
       (when (should-warning-throw? state *current-resource* warning-info)
         (throw (ex-info msg warning-info)))
