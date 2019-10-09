@@ -2287,3 +2287,23 @@
 (defmethod build-log/event->str ::goog-convert
   [{:keys [num-files]}]
   (format "Closure JS convert: %d JS files" num-files))
+
+(defn get-polyfills []
+  (let [cc
+        (data/make-closure-compiler)
+
+        co-opts
+        {}
+
+        closure-opts
+        (doto (make-options)
+          (set-options co-opts {})
+          (.setRewritePolyfills true)
+          (.setPrettyPrint true)
+          (.setForceLibraryInjection
+            ["base" "es6_runtime"]))
+
+        result
+        (.compile cc [] [] closure-opts)]
+
+    (.toSource cc)))

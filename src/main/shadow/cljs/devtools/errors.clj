@@ -353,6 +353,10 @@
 
   (.write w (.getMessage e)))
 
+(defmethod ex-data-format :shadow.build.ns-form/require-conflict
+  [w e data]
+  (.write w (.getMessage e)))
+
 (defmethod ex-data-format :shadow.build.macros/macro-load
   [w e data]
   (write-msg w e)
