@@ -380,7 +380,7 @@
      )))
 
 (defn infer-externs-dot
-  [{:keys [form form-meta method field target-tag env prop tag] :as ast}
+  [{:keys [form form-meta method field target target-tag env prop tag] :as ast}
    {:keys [infer-externs] :as opts}]
   (when infer-externs
     (let [sprop
@@ -412,7 +412,12 @@
                    (not shadow-object-fn)
                    ;; no immediate ideas how to annotate these so it doesn't warn
                    (not= form '(. cljs.core/List -EMPTY))
-                   (not= form '(. cljs.core/PersistentVector -EMPTY-NODE)))
+                   (not= form '(. cljs.core/PersistentVector -EMPTY-NODE))
+
+                   ;; don't need to warn about anything from goog.*
+                   ;; {:op :js-var :name js/goog.net.ErrorCode}
+                   (not (and (= :js-var (:op target))
+                             (str/starts-with? (-> target :name name) "goog."))))
 
           (ana/warning :infer-warning env {:warn-type :target :form form}))
 
