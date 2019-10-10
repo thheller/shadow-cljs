@@ -532,7 +532,7 @@
 (defn js-error-xf [state ^com.google.javascript.jscomp.Compiler cc]
   (map (fn [^JSError err]
          (let [source-name
-               (.-sourceName err)
+               (.getSourceName err)
 
                line
                (.getLineNumber err)
@@ -559,7 +559,7 @@
               :source-name source-name
               :line line
               :column column
-              :msg (.-description err)}
+              :msg (.getDescription err)}
 
              (let [{:keys [resource-id resource-name file url]} src
 
@@ -586,7 +586,7 @@
                 :file file
                 :line line
                 :column column
-                :msg (.-description err)
+                :msg (.getDescription err)
                 :source-excerpt source-excerpt}
                ))))))
 
