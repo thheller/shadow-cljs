@@ -208,7 +208,7 @@
         (if (or goog-base web-worker)
           (str "var $CLJS = global;\n"
                "var shadow$start = new Date().getTime();\n"
-               "var shadow$provide = {};\n"
+               "var shadow$provide = global.shadow$provide = {};\n"
 
                ;; needed since otherwise goog/base.js code will goog.define incorrectly
                "var goog = global.goog = {};\n"
