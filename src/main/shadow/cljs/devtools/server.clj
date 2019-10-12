@@ -206,7 +206,7 @@
           (loop []
             (when @keep-checking-ref
               ;; check every sec so it doesn't take too long to exit after the node process disappeared
-              (Thread/sleep 1000)
+              (Thread/sleep 5000)
               (when (try
                       (let [inet-address
                             (InetSocketAddress. "localhost" cli-port)
