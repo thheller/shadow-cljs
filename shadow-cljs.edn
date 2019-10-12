@@ -130,10 +130,12 @@
     {demo.browser/FOO "bar"}}
 
    :build-hooks
-   [(demo.hooks/dummy 1 2 3)]
+   [(shadow.html/copy-file
+      "out/demo-browser/index.src.html"
+      "out/demo-browser/public/index.html")]
 
    :module-loader true
-   ;; :module-hash-names true
+   :module-hash-names true
    :modules
    {:base
     {:entries
@@ -160,11 +162,11 @@
      :web-worker true}}
 
    :js-options
-   { ;; :js-provider :external
+   {;; :js-provider :external
     :external-index "target/external.js"}
 
    :devtools
-   { ;; :loader-mode :script
+   {;; :loader-mode :script
     :repl-init-ns demo.browser
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
