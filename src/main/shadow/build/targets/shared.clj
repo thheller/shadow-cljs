@@ -104,12 +104,14 @@
 (s/def ::modules
   (s/map-of
     simple-keyword?
-    ::module))
+    ::module
+    :min-count 1))
 
 (s/def ::chunks
   (s/map-of
     simple-keyword?
-    ::module))
+    ::module
+    :min-count 1))
 
 (defn prepend [tail head]
   {:pre [(vector? head)]}

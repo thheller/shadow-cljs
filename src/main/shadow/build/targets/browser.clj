@@ -29,19 +29,32 @@
 
 (s/def ::module-loader boolean?)
 
+(defn has-either-chunks-or-modules? [x]
+  (or (contains? x :modules)
+      (contains? x :chunks)
+      false))
+
 (s/def ::target
-  (s/keys
-    :req-un
-    []
-    :opt-un
-    [::shared/modules
-     ::shared/chunks
-     ::module-loader
-     ::shared/output-dir
-     ::shared/asset-path
-     ::shared/public-dir
-     ::shared/public-path
-     ::shared/devtools]))
+  (s/and
+    (s/keys
+      :req-un
+      []
+      :opt-un
+      [::shared/modules
+       ::shared/chunks
+       ::module-loader
+       ::shared/output-dir
+       ::shared/asset-path
+       ::shared/public-dir
+       ::shared/public-path
+       ::shared/devtools])
+    has-either-chunks-or-modules?))
+
+(comment
+  (s/explain :shadow.build.config/build+target
+    '{:target :browser
+      :build-id :foo
+      :modulesx {:foo {:init-fn foo/bar}}}))
 
 (defmethod config/target-spec :browser [_]
   (s/spec ::target))
