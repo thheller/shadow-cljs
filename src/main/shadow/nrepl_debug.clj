@@ -8,7 +8,10 @@
 
 (defonce print-lock (Object.))
 
-(defn log [out from msg]
+;; using an agent so log writes don't delay messages
+(defonce write-agent (agent {}))
+
+(defn log [agent-state out from msg]
   (let [text (with-out-str (pprint msg))]
     (prn [:msg from (count text)])
     (locking print-lock
@@ -16,8 +19,8 @@
         (println ";; ----------------------------------------")
         (println ";; -- FROM " from)
         (println ";; ----------------------------------------")
-        (println text))
-      )))
+        (println text))))
+  agent-state)
 
 (defn client-loop [id client to-port]
   (let [target (Socket. "localhost" to-port)
@@ -40,7 +43,7 @@
               #(do (try
                      (loop []
                        (when-some [target-msg (transport/recv target-transport)]
-                         (log log-out :target target-msg)
+                         (send write-agent log log-out :target target-msg)
                          (transport/send client-transport target-msg)
                          (recur)))
                      (catch Exception e
@@ -52,7 +55,7 @@
         ;; client -> target
         (loop []
           (when-some [client-msg (transport/recv client-transport)]
-            (log log-out :client client-msg)
+            (send write-agent log log-out :client client-msg)
             (transport/send target-transport client-msg)
             (recur)))
         (catch Exception e
