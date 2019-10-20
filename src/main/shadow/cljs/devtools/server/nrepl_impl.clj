@@ -32,12 +32,12 @@
     (transport/send transport res)))
 
 (defn do-repl-quit [state-ref session]
-  (let [{:keys [clj-ns watch-chan]} @state-ref]
+  (let [session-id (-> session meta :id)
+        {:keys [clj-ns watch-chan]} (get @state-ref session-id)]
 
-    (reset! state-ref {})
+    (swap! state-ref dissoc session-id)
     (async/close! watch-chan)
 
-    (swap! session dissoc #'repl-state-ref)
     (swap! session assoc
       #'*ns* clj-ns
       #'cider.piggieback/*cljs-compiler-env* nil)))
@@ -184,10 +184,13 @@
         (-> (async/sliding-buffer 100)
             (async/chan))
 
+        session-id
+        (-> session meta :id)
+
         state-ref
         (get @session #'repl-state-ref)]
 
-    (reset! state-ref
+    (swap! state-ref assoc session-id
       {:init-msg msg
        :last-msg msg
        :session session
@@ -249,7 +252,8 @@
     (swap! session assoc #'repl-state-ref (atom {})))
 
   (let [state-ref (get @session #'repl-state-ref)
-        {:keys [build-id worker]} @state-ref]
+        session-id (-> session meta :id)
+        {:keys [build-id worker]} (get @state-ref session-id)]
     (if-not build-id
       msg
       (assoc msg ::state-ref state-ref ::worker worker ::build-id build-id))))
