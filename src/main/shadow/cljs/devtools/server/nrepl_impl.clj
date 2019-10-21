@@ -14,7 +14,7 @@
   (:import [java.io StringReader]
            [clojure.lang Var]))
 
-(def ^:dynamic repl-state-ref nil)
+(def ^:dynamic *repl-state* nil)
 
 (defn send [{:keys [transport session id] :as req} {:keys [status] :as msg}]
   (let [res
@@ -31,19 +31,21 @@
     (log/debug ::send res)
     (transport/send transport res)))
 
-(defn do-repl-quit [state-ref session]
-  (let [session-id (-> session meta :id)
-        {:keys [clj-ns watch-chan]} (get @state-ref session-id)]
+(defn do-repl-quit [session]
+  (let [{:keys [clj-ns watch-chan] :as repl-state} (get @session #'*repl-state*)]
 
-    (swap! state-ref dissoc session-id)
-    (async/close! watch-chan)
+    ;; only close watch-chan if session originally started it
+    ;; clones would otherwise shutdown all output
+    (when (= session (:session repl-state))
+      (async/close! watch-chan))
 
     (swap! session assoc
       #'*ns* clj-ns
+      #'*repl-state* nil
       #'cider.piggieback/*cljs-compiler-env* nil)))
 
-(defn worker-exit [state-ref session msg]
-  (do-repl-quit state-ref session)
+(defn worker-exit [session msg]
+  (do-repl-quit session)
 
   ;; replying with msg id that started the REPL, not the last msg
   (send msg {:err "\nThe REPL worker has stopped.\n"})
@@ -113,15 +115,20 @@
       ;; :else
       (send msg {:err (pr-str [:FIXME result])}))))
 
-(defn do-cljs-eval [{::keys [state-ref worker] :keys [ns session code runtime-id] :as msg}]
+(defn do-cljs-eval [{::keys [worker] :keys [ns session code runtime-id] :as msg}]
   (let [reader (StringReader. code)
 
         session-id
-        (-> session meta :id str)]
+        (-> session meta :id str)
 
-    ;; :last-msg is used by the print loop started by repl-init
+        {:keys [last-msg-ref] :as repl-state}
+        (get @session #'*repl-state*)]
+
+    ;; :last-msg-ref is used by the print loop started by repl-init
     ;; to ensure that all prints use the latest message id when sending it out
-    (swap! state-ref assoc :last-msg msg)
+    ;; FIXME: this is completely pointless with clone'd sessions
+    ;; lets just hope eval is only ever done against one of the clones ...
+    (reset! last-msg-ref msg)
 
     (loop []
       (when-let [build-state (repl-impl/worker-build-state worker)]
@@ -148,13 +155,13 @@
             (recur)
 
             (= :repl/quit form)
-            (do (do-repl-quit state-ref session)
+            (do (do-repl-quit session)
                 (send msg {:value ":repl/quit"
                            :printed-value 1
                            :ns (-> *ns* ns-name str)}))
 
             (= :cljs/quit form)
-            (do (do-repl-quit state-ref session)
+            (do (do-repl-quit session)
                 (send msg {:value ":cljs/quit"
                            :printed-value 1
                            :ns (-> *ns* ns-name str)}))
@@ -184,15 +191,13 @@
         (-> (async/sliding-buffer 100)
             (async/chan))
 
-        session-id
-        (-> session meta :id)
+        last-msg-ref
+        (atom msg)]
 
-        state-ref
-        (get @session #'repl-state-ref)]
-
-    (swap! state-ref assoc session-id
-      {:init-msg msg
-       :last-msg msg
+    (set! *repl-state*
+      ;; FIXME: atom shared between all clones
+      ;; probably causes out/err issues
+      {:last-msg-ref last-msg-ref
        :session session
        :watch-chan watch-chan
        :worker worker
@@ -207,7 +212,7 @@
     ;; cleanup if worker exits
     (go (<! proc-stop)
         (async/close! watch-chan)
-        (worker-exit state-ref session msg))
+        (worker-exit session msg))
 
     ;; watch worker for specific messages (ie. out/err)
     ;; send :err/:out with latest msg id to make tools happy
@@ -218,10 +223,10 @@
             (when-some [{:keys [type text] :as msg} (<! watch-chan)]
               (case type
                 :repl/out
-                (send (:last-msg @state-ref) {:out (str text "\n")})
+                (send @last-msg-ref {:out (str text "\n")})
 
                 :repl/err
-                (send (:last-msg @state-ref) {:err (str text "\n")})
+                (send @last-msg-ref {:err (str text "\n")})
 
                 ;; not interested in any other message for now
                 :ignored)
@@ -241,22 +246,24 @@
           (reify
             clojure.lang.IDeref
             (deref [_]
-              (some-> @state-ref :worker :state-ref deref :build-state :compiler-env))))))))
+              (some-> worker :state-ref deref :build-state :compiler-env))))))))
 
-(defn set-worker [{:keys [session] :as msg}]
-  ;; re-create this for every message so we know exactly which msg started a REPL
-  (swap! session assoc #'api/*nrepl-init* #(repl-init msg %1 %2))
+(defn set-worker [{:keys [op session] :as msg}]
+  ;; re-create this for every eval so we know exactly which msg started a REPL
+  ;; only eval messages can "upgrade" a REPL
+  (when (= "eval" op)
+    (swap! session assoc #'api/*nrepl-init* #(repl-init msg %1 %2)))
 
-  ;; can only store vars in a session, always put one in though
-  (when-not (contains? @session #'repl-state-ref)
-    (swap! session assoc #'repl-state-ref (atom {})))
+  ;; DO NOT PUT ATOM'S INTO THE SESSION!
+  ;; clone will result in two session using the same atom
+  ;; so any change to the atom will affect all session clones
+  (when-not (contains? @session #'*repl-state*)
+    (swap! session assoc #'*repl-state* nil))
 
-  (let [state-ref (get @session #'repl-state-ref)
-        session-id (-> session meta :id)
-        {:keys [build-id worker]} (get @state-ref session-id)]
+  (let [{:keys [build-id worker] :as repl-state} (get @session #'*repl-state*)]
     (if-not build-id
       msg
-      (assoc msg ::state-ref state-ref ::worker worker ::build-id build-id))))
+      (assoc msg ::repl-state repl-state ::worker worker ::build-id build-id))))
 
 (defn do-cljs-load-file [{::keys [worker] :keys [file file-path] :as msg}]
   (when-some [result (worker/load-file worker {:file-path file-path :source file})]
