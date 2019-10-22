@@ -1,7 +1,7 @@
 (ns shadow.cljs.ui.websocket
   (:require
     [cljs.core.async :as async :refer (go)]
-    [fulcro.client.primitives :as fp]
+    [com.fulcrologic.fulcro.components :as fc]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.env :as env]
     [shadow.cljs.ui.transactions :as tx]))
@@ -10,48 +10,48 @@
 ;; doing all the work in a TX means we can't easily push it to a worker
 ;; this might get a whole bunch of messages all the time
 ;; don't want it to lag the UI
-(defn process-worker-broadcast [rc msg]
-  (fp/transact! rc [(tx/process-worker-broadcast msg)]))
+(defn process-worker-broadcast [msg]
+  (fc/transact! env/app [(tx/process-worker-broadcast msg)]))
 
-(defn process-supervisor [rc msg]
-  (fp/transact! rc [(tx/process-supervisor msg)]))
+(defn process-supervisor [msg]
+  (fc/transact! env/app [(tx/process-supervisor msg)]))
 
-(defn process-build-status-update [rc msg]
-  (fp/transact! rc [(tx/process-build-status-update msg)]))
+(defn process-build-status-update [msg]
+  (fc/transact! env/app [(tx/process-build-status-update msg)]))
 
-(defn process-ws-subscription [rc {::m/keys [topic] :as msg}]
+(defn process-ws-subscription [{::m/keys [topic] :as msg}]
   (let [topic-id (if (vector? topic) (first topic) topic)]
     (case topic-id
       ::m/supervisor
-      (process-supervisor rc msg)
+      (process-supervisor msg)
 
       ::m/worker-broadcast
-      (process-worker-broadcast rc msg)
+      (process-worker-broadcast msg)
 
       ::m/build-status-update
-      (process-build-status-update rc msg)
+      (process-build-status-update msg)
 
       (js/console.warn ::unknown-subscription msg))))
 
-(defn process-tool-msg [rc {::m/keys [tool-msg] :as msg}]
-  (fp/transact! rc [(tx/process-tool-msg tool-msg)]))
+(defn process-tool-msg [{::m/keys [tool-msg] :as msg}]
+  (fc/transact! env/app [(tx/process-tool-msg tool-msg)]))
 
-(defn process-ws [rc {::m/keys [op] :as msg}]
+(defn process-ws [{::m/keys [op] :as msg}]
   (case op
     ::m/sub-msg
-    (process-ws-subscription rc msg)
+    (process-ws-subscription msg)
 
     ::m/tool-msg
-    (process-tool-msg rc msg)
+    (process-tool-msg msg)
 
     (js/console.log ::unhandled-msg msg)))
 
-(defn open [reconciler ws-url ws-in ws-out]
+(defn open [ws-url ws-in ws-out]
   (let [ws (js/WebSocket. ws-url)]
 
     (.addEventListener ws "open"
       (fn [e]
-        (fp/transact! reconciler [(tx/ws-open)])
+        (fc/transact! env/app [(tx/ws-open)])
 
         (go (loop []
               (when-some [msg (<! ws-out)]
@@ -63,7 +63,7 @@
 
         (go (loop []
               (when-some [msg (<! ws-in)]
-                (process-ws reconciler msg)
+                (process-ws msg)
                 (recur)))
 
           (async/close! ws-out)
@@ -71,7 +71,7 @@
 
     (.addEventListener ws "close"
       (fn [e]
-        (fp/transact! reconciler [(tx/ws-close)])
+        (fc/transact! env/app [(tx/ws-close)])
         (js/console.warn "WS-CLOSE" e)))
 
     (.addEventListener ws "message"

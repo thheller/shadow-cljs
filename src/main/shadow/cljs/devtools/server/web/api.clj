@@ -16,7 +16,8 @@
     [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
     [shadow.core-ext :as core-ext]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.devtools.server.repl-system :as repl-system])
+    [shadow.cljs.devtools.server.repl-system :as repl-system]
+    [shadow.remote.relay :as relay])
   (:import [java.util UUID]))
 
 (defn index-page [req]
@@ -116,20 +117,20 @@
           (alt!!
             ws-in
             ([msg]
-              (if-not (some? msg)
-                ws-state
-                (-> ws-state
-                    (process-api-msg msg)
-                    (recur))))
+             (if-not (some? msg)
+               ws-state
+               (-> ws-state
+                   (process-api-msg msg)
+                   (recur))))
 
             tool-out
             ([msg]
-              (if-not (some? msg)
-                ws-state
-                (do (>!! ws-out {::m/op ::m/tool-msg
-                                 ::m/tool-msg msg})
+             (if-not (some? msg)
+               ws-state
+               (do (>!! ws-out {::m/op ::m/tool-msg
+                                ::m/tool-msg msg})
 
-                    (recur ws-state))))))]
+                   (recur ws-state))))))]
 
     (async/close! tool-in)
 
@@ -194,3 +195,49 @@
        :body ""}
       )))
 
+(defn api-runtime-loop! [{:keys [relay ws-out ws-in runtime-info] :as ws-state}]
+  (let [from-relay (relay/runtime-connect relay ws-in runtime-info)]
+    (loop []
+      (when-some [msg (<!! from-relay)]
+        (>!! ws-out msg)
+        (recur))))
+  ::done)
+
+(defn api-runtime [{:keys [relay transit-read transit-str] :as req}]
+  ;; FIXME: negotiate encoding somehow? could just as well use edn
+  (let [ws-in (async/chan 10 (map transit-read))
+        ws-out (async/chan 10 (map transit-str))]
+    {:ws-in ws-in
+     :ws-out ws-out
+     :ws-loop
+     (async/thread
+       (api-runtime-loop!
+         {:relay relay
+          :runtime-info
+          {:lang :cljs
+           :remote-addr (get-in req [:ring-request :remote-addr])
+           :user-agent (get-in req [:ring-request :headers "user-agent"])}
+          :ws-in ws-in
+          :ws-out ws-out}))}))
+
+(defn api-tool-loop! [{:keys [relay ws-out ws-in] :as ws-state}]
+  ;; FIXME: should take tool-info, just like runtime-connect and runtime-info
+  (let [from-relay (relay/tool-connect relay ws-in)]
+    (loop []
+      (when-some [msg (<!! from-relay)]
+        (>!! ws-out msg)
+        (recur))))
+  ::done)
+
+(defn api-tool [{:keys [relay transit-read transit-str] :as req}]
+  ;; FIXME: negotiate encoding somehow? could just as well use edn
+  (let [ws-in (async/chan 10 (map transit-read))
+        ws-out (async/chan 10 (map transit-str))]
+    {:ws-in ws-in
+     :ws-out ws-out
+     :ws-loop
+     (async/thread
+       (api-tool-loop!
+         {:relay relay
+          :ws-in ws-in
+          :ws-out ws-out}))}))

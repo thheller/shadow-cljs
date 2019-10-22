@@ -1,6 +1,6 @@
 (ns shadow.cljs.ui.pages.build
   (:require
-    [fulcro.client.primitives :as fp :refer (defsc)]
+    [com.fulcrologic.fulcro.components :as fc :refer (defsc)]
     [shadow.markup.react :as html :refer (defstyled $)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.model :as ui-model]
@@ -14,7 +14,8 @@
     [clojure.string :as str]
     [shadow.cljs.ui.routing :as routing]
     [shadow.cljs.ui.fulcro-mods :as fm]
-    [shadow.cljs.ui.components.build-panel :as build-panel]))
+    [shadow.cljs.ui.components.build-panel :as build-panel]
+    [shadow.cljs.ui.env :as env]))
 
 
 (defn render-build-status-detail [build-status]
@@ -82,7 +83,7 @@
     (html/select {:value (str (:ns build-ns-summary))
                   :onChange
                   (fn [^js e]
-                    (fp/transact! this [(tx/inspect-build-ns {:ns (-> e .-target .-value symbol)})]))}
+                    (fc/transact! this [(tx/inspect-build-ns {:ns (-> e .-target .-value symbol)})]))}
 
       (html/option {:key "" :value ""} "...")
       (html/for [ns build-provides]
@@ -162,9 +163,6 @@
              })
       )))
 
-(def build-http-server
-  (util/ident-gen ::m/http-server-id))
-
 (defsc BuildPage
   [this {::m/keys [build-id] :as props}]
   {:ident
@@ -179,8 +177,6 @@
       ::m/build-info
       ::m/build-provides
       ::m/build-ns-summary
-      {::m/build-http-server (build-http-server
-                               [::m/http-url])}
       ::m/build-worker-active])}
 
   (let [{::m/keys [build-status build-info build-provides build-config-raw build-worker-active]} props
@@ -196,16 +192,16 @@
           (s/simple-toolbar
             (if build-worker-active
               (s/toolbar-actions
-                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
-                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
+                (s/toolbar-action {:onClick #(fc/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
+                (s/toolbar-action {:onClick #(fc/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
 
               (s/toolbar-actions
-                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
-                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
-                (s/toolbar-action {:onClick #(fp/transact! this [(tx/build-release {:build-id build-id})])} "release")
+                (s/toolbar-action {:onClick #(fc/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
+                (s/toolbar-action {:onClick #(fc/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
+                (s/toolbar-action {:onClick #(fc/transact! this [(tx/build-release {:build-id build-id})])} "release")
                 ))))
 
-        (let [{::m/keys [http-url]} (::m/build-http-server props)]
+        #_ (let [{::m/keys [http-url]} (::m/build-http-server props)]
           (when http-url
             (s/build-section
               (s/build-section-title "HTTP")
@@ -235,7 +231,7 @@
               (util/dump build-config-raw)
               ))))))
 
-(def ui-build-page (fp/factory BuildPage {:keyfn ::m/build-id}))
+(def ui-build-page (fc/factory BuildPage {:keyfn ::m/build-id}))
 
 (routing/register ::ui-model/root-router ::m/build-id
   {:class BuildPage
@@ -250,7 +246,7 @@
    :query
    (fn []
      [{[::ui-model/build-list '_]
-       (fp/get-query build-panel/BuildPanel)}])
+       (fc/get-query build-panel/BuildPanel)}])
 
    :initial-state
    (fn [p]
@@ -262,20 +258,20 @@
     (html/for [build (::ui-model/build-list props)]
       (build-panel/ui-build-panel build))))
 
-(def ui-page (fp/factory Page {}))
+(def ui-page (fc/factory Page {}))
 
 (routing/register ::ui-model/root-router ::ui-model/page-builds
   {:class Page
    :factory ui-page})
 
-(defn route [r [build-id :as tokens]]
-  (fp/transact! r
+(defn route [[build-id :as tokens]]
+  (fc/transact! env/app
     [(tx/select-build {:build-id (keyword build-id)})
      (routing/set-route {:router ::ui-model/root-router
                          :ident [::ui-model/page-builds 1]})]))
 
-(defn route-build [r [build-id :as tokens]]
-  (fp/transact! r
+(defn route-build [[build-id :as tokens]]
+  (fc/transact! env/app
     [(tx/select-build {:build-id (keyword build-id)})
      (routing/set-route {:router ::ui-model/root-router
                          :ident [::m/build-id (keyword build-id)]})]))

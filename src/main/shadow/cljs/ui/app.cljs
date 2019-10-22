@@ -3,10 +3,9 @@
     ["react-dom" :as rdom]
     ["react" :as react]
     [cljs.core.async :as async :refer (go)]
-    [fulcro.client :as fc]
-    [fulcro.client.primitives :as fp :refer (defsc)]
-    [fulcro.client.data-fetch :as fdf]
-    [fulcro.client.network :as fnet]
+    [com.fulcrologic.fulcro.application :as fa]
+    [com.fulcrologic.fulcro.components :as fc :refer (defsc)]
+    [com.fulcrologic.fulcro.data-fetch :as fdf]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.model :as ui-model]
     [shadow.markup.react :as html :refer ($ defstyled)]
@@ -20,7 +19,8 @@
     [shadow.cljs.ui.pages.loading :as page-loading]
     [shadow.cljs.ui.pages.dashboard :as page-dashboard]
     [cljs-test-display.favicon :as favicon]
-    [clojure.string :as str])
+    [clojure.string :as str]
+    [com.fulcrologic.fulcro.networking.http-remote :as fhr])
   (:import [goog.history Html5History]))
 
 (defsc MainNavBuild [this props {:keys [selected]}]
@@ -42,20 +42,20 @@
              :checked build-worker-active
              :onChange
              (fn [e]
-               (fp/transact! this [(if (.. e -target -checked)
+               (fc/transact! this [(if (.. e -target -checked)
                                      (tx/build-watch-start {:build-id build-id})
                                      (tx/build-watch-stop {:build-id build-id}))]))}))
 
         (s/nav-build-link {:href (str "/build/" (name build-id))} (name build-id))))))
 
 
-(def ui-main-nav-build (fp/factory MainNavBuild {:keyfn ::m/build-id}))
+(def ui-main-nav-build (fc/factory MainNavBuild {:keyfn ::m/build-id}))
 
 (defsc MainNav [this props]
   {:query
    (fn []
      [{[::ui-model/build-list '_]
-       (fp/get-query MainNavBuild)}
+       (fc/get-query MainNavBuild)}
       [::ui-model/notifications '_]
       [::ui-model/ws-connected '_]])
 
@@ -83,6 +83,10 @@
         (s/nav-item-title
           (s/nav-link {:href "/repl"} "REPL")))
 
+      (s/nav-item
+        (s/nav-item-title
+          (s/nav-link {:href "/inspect"} "Inspect")))
+
       (s/nav-fill {})
 
       (s/nav-item
@@ -96,21 +100,21 @@
 
                                        (cond
                                          (not wanted)
-                                         (fp/transact! this tx)
+                                         (fc/transact! this tx)
 
                                          (and wanted (= js/Notification.permission "granted"))
-                                         (fp/transact! this tx)
+                                         (fc/transact! this tx)
 
                                          :no-permission
                                          (-> (js/Notification.requestPermission)
                                              (.then (fn [perm]
                                                       (when (= "granted" perm)
-                                                        (fp/transact! this tx))))))))})
+                                                        (fc/transact! this tx))))))))})
             "Notifications")))
       #_(s/nav-item
           (html/div (if (::ui-model/ws-connected props) "✔" "WS DISCONNECTED!"))))))
 
-(def ui-main-nav (fp/factory MainNav {}))
+(def ui-main-nav (fc/factory MainNav {}))
 
 (routing/register ::ui-model/root-router ::ui-model/page-dashboard
   {:class page-dashboard/Page
@@ -125,14 +129,14 @@
   {:initial-state
    (fn [p]
      {::ui-model/root-router {}
-      ::ui-model/main-nav (fp/get-initial-state MainNav {})
+      ::ui-model/main-nav (fc/get-initial-state MainNav {})
       ::ui-model/builds-loaded false})
 
    :query
    [::ui-model/builds-loaded
     ::ui-model/ws-connected
     {::ui-model/root-router (routing/get-query ::ui-model/root-router)}
-    {::ui-model/main-nav (fp/get-query MainNav)}]}
+    {::ui-model/main-nav (fc/get-query MainNav)}]}
 
   (cond
     (not builds-loaded)
@@ -367,11 +371,11 @@
 (defn start
   {:dev/after-load true}
   []
-  (reset! env/app-ref (fc/mount @env/app-ref Root "root")))
+  (fa/mount! env/app Root "root")
+  ;; (reset! env/app-ref (fc/mount @env/app-ref Root "root"))
+  )
 
 (defn stop [])
-
-
 
 (defn init []
   (let [ws-in
@@ -400,68 +404,57 @@
         history
         (doto (Html5History.)
           (.setPathPrefix "/")
-          (.setUseFragment false))
+          (.setUseFragment false))]
 
-        app
-        (fc/new-fulcro-client
-          :networking
-          (fnet/make-fulcro-network graph-url
-            :global-error-callback
-            (fn [& args] (js/console.warn "GLOBAL ERROR" args)))
+    (set! env/app (fa/fulcro-app
+                    {:remotes
+                     {:remote (fhr/fulcro-http-remote {:url "/api/graph"})}
 
-          :started-callback
-          (fn [{:keys [reconciler] :as app}]
-            (ws/open reconciler ws-url ws-in ws-out)
+                     :initial-db
+                     (-> (fc/get-initial-state Root {})
+                         (assoc ::ui-model/notifications (= js/Notification.permission "granted"))
+                         (assoc-in [::ui-model/page-repl 1] {})
+                         (assoc-in [::ui-model/page-builds 1] {})
+                         (assoc-in [::ui-model/page-loading 1] {})
+                         (assoc-in [::ui-model/page-inspect 1] {})
+                         (assoc-in [::ui-model/page-dashboard 1] {}))
 
-            (routing/setup-history reconciler history)
+                     :render-root!
+                     #(rdom/render %1 %2)
 
-            (async/put! ws-out
-              {::m/op ::m/subscribe
-               ::m/topic ::m/supervisor})
+                     :unmount-root!
+                     #(rdom/unmountComponentAtNode %)
 
-            (async/put! ws-out
-              {::m/op ::m/subscribe
-               ::m/topic ::m/worker-broadcast})
+                     :shared
+                     {::env/ws-in ws-in
+                      ::env/ws-out ws-out
+                      ::env/history history
+                      ::env/broadcast-chan broadcast-chan
+                      ::env/broadcast-pub broadcast-pub}}))
 
-            (async/put! ws-out
-              {::m/op ::m/subscribe
-               ::m/topic ::m/build-status-update})
+    (ws/open ws-url ws-in ws-out)
 
-            (fdf/load app ::m/http-servers page-dashboard/HttpServer
-              {:target [::ui-model/page-dashboard 1 ::ui-model/http-servers]})
+    (routing/setup-history history)
 
-            (fdf/load app ::m/build-configs MainNavBuild
-              {:target [::ui-model/build-list]
-               :without #{::m/build-info}
-               :post-mutation `tx/builds-loaded
-               :refresh [::ui-model/builds-loaded]}))
+    (async/put! ws-out
+      {::m/op ::m/subscribe
+       ::m/topic ::m/supervisor})
 
-          #_:read-local
-          #_(fn [env key params]
-              (env/read-local env key params))
+    (async/put! ws-out
+      {::m/op ::m/subscribe
+       ::m/topic ::m/worker-broadcast})
 
-          :initial-state
-          (-> (fp/get-initial-state Root {})
-              (assoc ::ui-model/notifications (= js/Notification.permission "granted"))
-              (assoc-in [::ui-model/page-repl 1] {})
-              (assoc-in [::ui-model/page-builds 1] {})
-              (assoc-in [::ui-model/page-loading 1] {})
-              (assoc-in [::ui-model/page-dashboard 1] {}))
+    (async/put! ws-out
+      {::m/op ::m/subscribe
+       ::m/topic ::m/build-status-update})
 
-          :reconciler-options
-          {:shared
-           {::env/ws-in ws-in
-            ::env/ws-out ws-out
-            ::env/history history
-            ::env/broadcast-chan broadcast-chan
-            ::env/broadcast-pub broadcast-pub}
+    (fdf/load env/app ::m/http-servers page-dashboard/HttpServer
+      {:target [::ui-model/page-dashboard 1 ::ui-model/http-servers]})
 
-           ;; the defaults access js/ReactDOM global which we don't have/want
-           :root-render
-           #(rdom/render %1 %2)
+    (fdf/load env/app ::m/build-configs MainNavBuild
+      {:target [::ui-model/build-list]
+       :without #{::m/build-info}
+       :post-mutation `tx/builds-loaded
+       :refresh [::ui-model/builds-loaded]})
 
-           :root-unmount
-           #(rdom/unmountComponentAtNode %)})]
-
-    (reset! env/app-ref app)
     (start)))

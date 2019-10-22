@@ -23,6 +23,11 @@
     [clojure.data.json :as json]
     [shadow.cljs.devtools.server.dev-http :as dev-http]))
 
+(defn create-index-handler [{:keys [db] :as env}]
+  (fn index-handler [request]
+    {:status 200
+     :body "hello world"}))
+
 (defn index-page [{:keys [dev-http] :as req}]
   (common/page-boilerplate req
     {:modules [:app]
@@ -253,6 +258,8 @@
       (update :ring-request ring-params/params-request {})
       (http/route
         ;; temp fix for middleware problem
+        (:ANY "/api/runtime" web-api/api-runtime)
+        (:ANY "/api/tool" web-api/api-tool)
         (:ANY "/api/ws" web-api/api-ws)
         (:ANY "^/api" web-api/root)
         (:ANY "^/ws" ws/process-ws)

@@ -1,7 +1,7 @@
 (ns shadow.cljs.ui.fulcro-mods
   (:require-macros [shadow.cljs.ui.fulcro-mods])
   (:require
-    [fulcro.client.mutations :as fmut]
+    [com.fulcrologic.fulcro.mutations :as fmut]
     [shadow.cljs.devtools.graph.util :as graph-util]))
 
 (defonce tx-config-ref (atom {}))
@@ -12,9 +12,12 @@
 (defn do-remote [env remote-fn params]
   (remote-fn env params))
 
-(defn handle-mutation* [{:keys [target] :as env} tx-id params]
-  (let [{:keys [action state-action remote remote-returning refresh] :as tx-config}
+(defn handle-mutation* [{:keys [target ast] :as env}]
+  (let [{tx-id :dispatch-key params :params} ast
+        {:keys [action state-action remote remote-returning remotes refresh] :as tx-config}
         (get-in @tx-config-ref [tx-id])]
+
+    ;; (js/console.log "handle-mutation" tx-id params env)
 
     (if-not tx-config
       (do (js/console.warn "Unknown app state mutation. Have you required the file with your mutations?" tx-id)
@@ -22,16 +25,16 @@
       (-> {}
           (cond->
             (fn? remote)
-            (assoc :remote (do-remote env remote params))
+            (assoc :remote #(do-remote % remote params))
 
             (true? remote)
-            (assoc :remote true)
+            (assoc :remote (fn [env] true))
 
             remote-returning
-            (assoc :remote (fmut/returning (:ast env) (:state env) remote-returning))
+            (assoc :remote #(fmut/returning % remote-returning))
 
             (and (nil? target) refresh)
-            (assoc :refresh (refresh env params))
+            (assoc :refresh #(refresh % params))
 
             (and (nil? target) action)
             (assoc :action #(action env params))

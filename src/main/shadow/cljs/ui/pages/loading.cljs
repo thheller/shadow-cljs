@@ -1,6 +1,6 @@
 (ns shadow.cljs.ui.pages.loading
   (:require
-    [fulcro.client.primitives :as fp :refer (defsc)]
+    [com.fulcrologic.fulcro.components :as fc :refer (defsc)]
     [shadow.markup.react :as html :refer (defstyled)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.model :as ui-model]
@@ -23,5 +23,5 @@
   (s/main-contents
     (html/div {:id "page-loading"} "Loading ...")))
 
-(def ui-page (fp/factory Page {}))
+(def ui-page (fc/factory Page {}))
 

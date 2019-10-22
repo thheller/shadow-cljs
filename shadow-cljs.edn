@@ -65,7 +65,7 @@
 
    :compiler-options
    {:infer-externs :auto
-    :warnings {:invalid-arithmetic true}}
+    :warnings {:invalid-arithmetic false}}
 
    :js-options
    {:js-package-dirs ["packages/ui/node_modules"]}
@@ -79,10 +79,14 @@
      :depends-on #{:app}}
     :build
     {:init-fn shadow.cljs.ui.pages.build/init
+     :depends-on #{:app}}
+    :inspect
+    {:init-fn shadow.cljs.ui.pages.inspect/init
      :depends-on #{:app}}}
 
    :devtools
-   {:preloads [fulcro.inspect.preload]
+   {:preloads [com.fulcrologic.fulcro.inspect.preload
+               shadow.remote.runtime.cljs]
     ;; :loader-mode :eval
     }}
 
@@ -168,6 +172,7 @@
    :devtools
    {;; :loader-mode :script
     :repl-init-ns demo.browser
+    :preloads [shadow.remote.runtime.cljs]
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 

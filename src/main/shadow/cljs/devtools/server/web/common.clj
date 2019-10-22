@@ -40,6 +40,7 @@
                   (.getCanonicalFile)
                   (.getName))]
       [:link {:rel "stylesheet" :href "/css/main.css"}]
+      [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body {:class body-class}
       content

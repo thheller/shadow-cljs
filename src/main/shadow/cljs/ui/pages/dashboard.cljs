@@ -1,6 +1,6 @@
 (ns shadow.cljs.ui.pages.dashboard
   (:require
-    [fulcro.client.primitives :as fp :refer (defsc)]
+    [com.fulcrologic.fulcro.components :as fc :refer (defsc)]
     [shadow.markup.react :as html :refer (defstyled)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.model :as ui-model]
@@ -27,7 +27,7 @@
       (html/td (html/a {:href url :target "_blank"} url)))
     ))
 
-(def ui-http-server (fp/factory HttpServer {:keyfn ::m/http-server-id}))
+(def ui-http-server (fc/factory HttpServer {:keyfn ::m/http-server-id}))
 
 (defsc Page [this props]
   {:ident
@@ -36,8 +36,8 @@
 
    :query
    (fn []
-     [{::ui-model/http-servers (fp/get-query HttpServer)}
-      {::ui-model/active-builds (fp/get-query build-panel/BuildPanel)}])
+     [{::ui-model/http-servers (fc/get-query HttpServer)}
+      {::ui-model/active-builds (fc/get-query build-panel/BuildPanel)}])
 
    :initial-state
    (fn [p]
@@ -56,5 +56,5 @@
     (html/for [build (::ui-model/active-builds props)]
       (build-panel/ui-build-panel build))))
 
-(def ui-page (fp/factory Page {}))
+(def ui-page (fc/factory Page {}))
 

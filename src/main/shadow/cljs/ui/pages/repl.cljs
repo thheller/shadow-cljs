@@ -15,10 +15,12 @@
     ["parinfer-codemirror" :as par-cm]
     ["xterm" :as xterm]
     ["xterm/lib/addons/fit/fit" :as xterm-fit]
-    [fulcro.client.primitives :as fp :refer (defsc)]
+    [com.fulcrologic.fulcro.application :as fa]
+    [com.fulcrologic.fulcro.components :as fc :refer (defsc)]
+    [com.fulcrologic.fulcro.data-fetch :as fdf]
+    [com.fulcrologic.fulcro.algorithms.merge :as fam]
     [shadow.cljs.ui.transactions :as tx]
     [shadow.cljs.ui.routing :as routing]
-    [fulcro.client.data-fetch :as fdf]
     [shadow.cljs.ui.fulcro-mods :as fm]
     [shadow.cljs.ui.websocket :as ws]))
 
@@ -51,7 +53,7 @@
           sub-chan
           (async/chan 10)]
 
-      (async/sub (fp/shared comp ::env/broadcast-pub) [::ui-model/session-out session-id] sub-chan)
+      (async/sub (fc/shared comp ::env/broadcast-pub) [::ui-model/session-out session-id] sub-chan)
 
       (go (loop []
             (when-some [{::m/keys [text] :as msg} (<! sub-chan)]
@@ -77,7 +79,7 @@
 
       (.setValue editor "")
 
-      (fp/transact! comp [(tx/process-repl-input {:text text})]))))
+      (fc/transact! comp [(tx/process-repl-input {:text text})]))))
 
 (defn attach-codemirror [comp cm-input]
   ;; (js/console.log ::attach-codemirror cm-input comp)
@@ -181,7 +183,7 @@
               "history")
             ))))))
 
-(def ui-session (fp/factory Session {:keyfn ::m/session-id}))
+(def ui-session (fc/factory Session {:keyfn ::m/session-id}))
 
 (defn runtime-description [{:keys [lang build-id runtime-type user-agent]}]
   (str build-id " - " lang " - " runtime-type " - " user-agent))
@@ -207,10 +209,10 @@
       (html/td (str user-agent))
       (html/td
         (when runtime-active
-          (html/button {:onClick #(fp/transact! this [(tx/repl-session-start {:runtime-id runtime-id})])} "connect")))
+          (html/button {:onClick #(fc/transact! this [(tx/repl-session-start {:runtime-id runtime-id})])} "connect")))
       )))
 
-(def ui-runtime-info (fp/factory RuntimeInfo {:keyfn ::m/runtime-id}))
+(def ui-runtime-info (fc/factory RuntimeInfo {:keyfn ::m/runtime-id}))
 
 (defsc Page [this props]
   {:ident
@@ -219,8 +221,8 @@
 
    :query
    (fn []
-     [{::ui-model/runtimes (fp/get-query RuntimeInfo)}
-      {::ui-model/sessions (fp/get-query Session)}])
+     [{::ui-model/runtimes (fc/get-query RuntimeInfo)}
+      {::ui-model/sessions (fc/get-query Session)}])
 
    :initial-state
    (fn [p]
@@ -243,7 +245,7 @@
             (-> session (get-in [::m/runtime ::m/runtime-info]) pr-str)))))
     ))
 
-(def ui-page (fp/factory Page {}))
+(def ui-page (fc/factory Page {}))
 
 (routing/register ::ui-model/root-router ::ui-model/page-repl
   {:class Page
@@ -253,18 +255,18 @@
   {:class Session
    :factory ui-session})
 
-(defn route [r tokens]
+(defn route [tokens]
   (let [[sub & more] tokens]
     (case sub
       "session"
       (let [session-id
             (first more)
 
-            {:keys [shared state]}
-            (:config r)
+            state
+            (::fa/state-atom env/app)
 
             {::env/keys [^goog history]}
-            shared]
+            (-> env/app ::fa/runtime-atom deref ::fa/static-shared-props)]
 
         ;; FIXME: has fulcro something built-in for this?
         (if-not (get-in @state [::m/session-id session-id])
@@ -272,13 +274,13 @@
               (.replaceToken history "repl"))
 
           ;; session found
-          (fp/transact! r
+          (fc/transact! env/app
             [(routing/set-route
                {:router ::ui-model/root-router
                 :ident [::m/session-id session-id]})])))
 
       ;; default
-      (fp/transact! r
+      (fc/transact! env/app
         [(routing/set-route
            {:router ::ui-model/root-router
             :ident [::ui-model/page-repl 1]})]))))
@@ -297,7 +299,8 @@
       1)
 
     ;; optimistic so the page has at least some info on it
-    (fp/merge-component state Session
+
+    (fam/merge-component state Session
       {::m/runtime [::m/runtime-id runtime-id]
        ::m/session-start (js/Date.now)
        ::m/session-id session-id
@@ -348,5 +351,5 @@
       )))
 
 (defn init []
-  (fdf/load @env/app-ref ::m/repl-runtimes RuntimeInfo
+  (fdf/load env/app ::m/repl-runtimes RuntimeInfo
     {:target [::ui-model/page-repl 1 ::ui-model/runtimes]}))

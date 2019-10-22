@@ -4,30 +4,10 @@
     [cljs.pprint :refer (pprint)]
     [cognitect.transit :as transit]
     [shadow.markup.react :as html]
-    [fulcro.client.primitives :as fp]))
+    [com.fulcrologic.fulcro.components :as fc]))
 
 (defn gen-id []
   (str (random-uuid)))
-
-;; this is probably the worst idea ever
-;; defsc generates way too much code for just an ident though
-(defn ident-gen [prop]
-  (reify
-    fp/Ident
-    (ident [this props]
-      [prop (get props prop)])
-
-    fp/IQuery
-    (query [this]
-      [prop])
-
-    IFn
-    (-invoke [this]
-      (fp/get-query this))
-    (-invoke [this query-args]
-      (-> (fp/get-query this)
-          (into query-args)))))
-
 
 ;; dirty dirty mutable state, do not look at me!
 ;; sometimes need some component local state which isn't relevant to render

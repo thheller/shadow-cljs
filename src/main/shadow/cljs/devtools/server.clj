@@ -28,6 +28,8 @@
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.reload-macros :as reload-macros]
     [shadow.cljs.devtools.server.build-history :as build-history]
+    [shadow.remote.relay :as relay]
+    [shadow.remote.runtime.clojure :as clj-runtime]
     [shadow.cljs.devtools.server.system-bus :as system-bus]
     [shadow.cljs.devtools.server.system-bus :as sys-bus])
   (:import (java.net BindException Socket SocketException InetSocketAddress)
@@ -476,6 +478,16 @@
                   {:depends-on []
                    :start repl-system/start
                    :stop repl-system/stop}
+
+                  :relay
+                  {:depends-on []
+                   :start relay/start
+                   :stop relay/stop}
+
+                  :clj-runtime
+                  {:depends-on [:relay]
+                   :start clj-runtime/start
+                   :stop clj-runtime/stop}
 
                   :out
                   {:depends-on [:config]
