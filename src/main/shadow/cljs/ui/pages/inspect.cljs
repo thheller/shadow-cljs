@@ -1,5 +1,6 @@
 (ns shadow.cljs.ui.pages.inspect
   (:require
+    [cljs.pprint :refer (pprint)]
     [goog.object :as gobj]
     [com.fulcrologic.fulcro.application :as fa]
     [com.fulcrologic.fulcro.components :as fc :refer (defsc)]
@@ -106,6 +107,31 @@
             (update-in [::runtime-id runtime-id ::nav-stack] subvec 0 idx))))
     ))
 
+(defmutation switch-object-display [{wanted-display :display :keys [object-id] :as params}]
+  (action [{:keys [state] :as env}]
+
+    (let [{::keys [runtime-id] :as obj} (get-in @state [::object-id object-id])]
+
+      (swap! state assoc-in [::object-id object-id ::display-type] wanted-display)
+
+      (case wanted-display
+        :pprint
+        (when-not (contains? obj ::pprint)
+          (send {:op :obj-request-view
+                 :runtime-id runtime-id
+                 :obj-id object-id
+                 :view-type :pprint}))
+
+        :edn
+        (when-not (contains? obj ::edn)
+          (send {:op :obj-request-view
+                 :runtime-id runtime-id
+                 :obj-id object-id
+                 :view-type :edn}))
+
+        ;; don't need to do anything for :browse
+        nil))))
+
 (defmulti handle-tool-msg
   (fn [env msg] (:op msg))
   :default ::default)
@@ -163,16 +189,48 @@
 (defmethod render-view ::default [this summary entries]
   (html/div
     "unsupported object type"
-    (html/div
-      (pr-str summary))))
+    (html/pre
+      (with-out-str
+        (pprint summary)))))
+
+(defn render-simple [value]
+  (html/div {:className "border bg-gray-200"}
+    (html/div {:className "bg-white"}
+      (html/pre {:className "border p-4"} value))))
+
+(defmethod render-view :string
+  [this {:keys [value]} entries]
+  (render-simple value))
+
+(defmethod render-view :number
+  [this {:keys [value]} entries]
+  (render-simple (str value)))
+
+(defmethod render-view :boolean
+  [this {:keys [value]} entries]
+  (render-simple (str value)))
+
+(defmethod render-view :symbol
+  [this {:keys [value]} entries]
+  (render-simple (str "Symbol: " value)))
+
+(defmethod render-view :keyword
+  [this {:keys [value]} entries]
+  (render-simple (str "Keyword: " value)))
+
+(defmethod render-view :nil
+  [this {:keys [value]} entries]
+  (html/div {:className "border bg-gray-200"}
+    (html/div {:className "bg-white"}
+      (html/pre {:className "border p-4"} "nil")
+      )))
 
 (defmethod render-view :set
   [this {:keys [object-id obj-type count]} entries]
   (html/div {:className "border bg-gray-200"}
     (html/div {:className "flex"}
       (html/div {:className "p-2"} obj-type)
-      (html/div {:className "p-2"} (str count " Items"))
-      (html/div {:className "p-2"} (html/input {:type "number" :defaultValue "" :placeholder "Fetch Index ..."})))
+      (html/div {:className "p-2"} (str count " Items")))
 
     (html/div {:className "bg-white"}
       (html/for [idx (range count)
@@ -203,8 +261,7 @@
   (html/div {:className "border bg-gray-200"}
     (html/div {:className "flex"}
       (html/div {:className "p-2"} obj-type)
-      (html/div {:className "p-2"} (str count " Items"))
-      (html/div {:className "p-2"} (html/input {:type "number" :defaultValue "" :placeholder "Fetch Index ..."})))
+      (html/div {:className "p-2"} (str count " Items")))
 
     (html/div {:className "bg-white"}
       (html/for [idx (range count)
@@ -284,9 +341,7 @@
   (html/div {:className "border bg-gray-200"}
     (html/div {:className "flex"}
       (html/div {:className "p-2"} obj-type)
-      (html/div {:className "p-2"} (str count " Entries"))
-      (html/div {:className "p-2"} "copy edn")
-      (html/div {:className "p-2"} (html/input {:defaultValue "" :placeholder "Search Key ..."})))
+      (html/div {:className "p-2"} (str count " Entries")))
 
     (html/div {:className "bg-white"}
       (html/for [idx (range count)
@@ -377,7 +432,8 @@
 
 (def ui-object-list-item (fc/factory ObjectListItem {:keyfn ::object-id}))
 
-(defsc ObjectDetail [this {::keys [object-id] :as props}]
+(defsc ObjectDetail
+  [this {::keys [object-id] :as props}]
   {:ident
    (fn []
      [::object-id object-id])
@@ -385,17 +441,46 @@
    :query
    (fn []
      [::object-id
+      ::display-type
       :edn-limit
       :summary
-      :fragment])}
+      :fragment
+      :edn
+      :pprint])}
 
-  (let [{:keys [summary fragment edn-limit]} props]
+  (let [{::keys [display-type]
+         :keys [summary fragment edn-limit]
+         :or {display-type :browse}}
+        props]
     (html/div {:className "bg-white p-2"}
-      (html/div {:className "text-xl my-2"} "Object")
-      (if-not summary
-        (html/div "no summary")
-        (html/div {:className "font-mono"}
-          (render-view this (assoc summary :object-id object-id :edn-limit edn-limit) fragment))))))
+      (html/div {:className "flex items-center"}
+        (html/div {:className "text-xl my-2 pr-2"} "Object")
+        (html/button
+          {:className "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded"
+           :onClick #(fc/transact! this [(switch-object-display {:object-id object-id :display :browse})])}
+          "Browse")
+        (html/button
+          {:className "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded"
+           :onClick #(fc/transact! this [(switch-object-display {:object-id object-id :display :pprint})])}
+          "Pretty-Print")
+        (html/button
+          {:className "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded"
+           :onClick #(fc/transact! this [(switch-object-display {:object-id object-id :display :edn})])}
+          "EDN"))
+      (case display-type
+        :edn
+        (html/div {:className "font-mono border p-4"}
+          (:edn props))
+
+        :pprint
+        (html/pre {:className "font-mono border p-4"}
+          (:pprint props))
+
+        :browse
+        (if-not summary
+          (html/div "no summary")
+          (html/div {:className "font-mono"}
+            (render-view this (assoc summary :object-id object-id :edn-limit edn-limit) fragment)))))))
 
 (def ui-object-detail (fc/factory ObjectDetail {:keyfn ::object-id}))
 
@@ -445,7 +530,7 @@
 
               (html/div
                 {:key stack-idx
-                 :className "border p-2 mb-2 cursor-pointer"
+                 :className "border p-2 mb-2 cursor-pointer hover:bg-gray-200"
                  :onClick
                  (fn [e]
                    (fc/transact! this [(nav-stack-jump {:idx stack-idx
@@ -481,7 +566,8 @@
 
    :componentWillUnmount
    (fn [this]
-     (js/console.log ::will-unmount this))
+     ;; FIXME: this should maybe disconnect the socket?
+     )
 
    :initial-state
    (fn [p]
@@ -598,6 +684,12 @@
 
     :summary
     (swap! state update-in [::object-id obj-id] assoc :summary (add-ts view))
+
+    :edn
+    (swap! state update-in [::object-id obj-id] assoc :edn view)
+
+    :pprint
+    (swap! state update-in [::object-id obj-id] assoc :pprint view)
 
     ;; default
     (swap! state update-in [::object-id obj-id] assoc view-type view)))

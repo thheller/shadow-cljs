@@ -1,6 +1,7 @@
 (ns shadow.remote.runtime.shared
   (:require
     [clojure.datafy :as d]
+    [clojure.pprint :refer (pprint)]
     [shadow.remote.runtime.writer :as lw])
   #?(:clj (:import [java.util UUID])))
 
@@ -16,9 +17,11 @@
      :cljs
      (js/Date.now)))
 
-#?(:clj
-   (defn random-uuid []
-     (UUID/randomUUID)))
+(defn next-obj-id []
+  #?(:clj
+     (str (UUID/randomUUID))
+     :cljs
+     (str (random-uuid))))
 
 (defn init-state []
   {:objects {}
@@ -44,7 +47,7 @@
     (assoc-in state [:objects obj-id] obj-entry)))
 
 (defn register [state-ref obj obj-info]
-  (let [obj-id (random-uuid)]
+  (let [obj-id (next-obj-id)]
     (swap! state-ref register* obj-id obj obj-info)
     obj-id))
 
@@ -73,6 +76,10 @@
 (defmethod make-view :edn
   [state-ref msg {:keys [data] :as entry}]
   (pr-str data))
+
+(defmethod make-view :pprint
+  [state-ref msg {:keys [data] :as entry}]
+  (with-out-str (pprint data)))
 
 (defmethod make-view :edn-limit
   [state-ref {:keys [limit] :as msg} {:keys [data] :as entry}]
@@ -192,8 +199,14 @@
               (fn [m idx]
                 (let [key (nth view-keys idx)
                       val (get data key)]
-                  (assoc m idx {:key (lw/pr-str-limit key key-limit)
-                                :val (lw/pr-str-limit val val-limit)})))
+                  (assoc m idx {:key (try
+                                       (lw/pr-str-limit key key-limit)
+                                       (catch #?(:clj Exception :cljs :default) e
+                                         [true "... print failed ..."]))
+                                :val (try
+                                       (lw/pr-str-limit val val-limit)
+                                       (catch #?(:clj Exception :cljs :default) e
+                                         [true "... print failed ..."]))})))
               {}
               idxs)]
 
@@ -242,6 +255,7 @@
                   :view-type view-type
                   :view view}))
         (catch #?(:clj Exception :cljs :default) e
+          #?(:cljs (js/console.warn "object-nav-failed" (:obj entry) e))
           (reply {:op :obj-view-failed
                   :obj-id obj-id
                   :view-type view-type
@@ -272,7 +286,7 @@
                 val (d/nav data data-key data-val)
 
                 new-data (d/datafy val)
-                new-obj-id (random-uuid)
+                new-obj-id (next-obj-id)
 
                 ts (now)
 
@@ -300,3 +314,21 @@
                    (keys)
                    (set)
                    (disj ::default))}))
+
+(defn basic-gc! [state]
+  (let [objs-to-drop
+        (->> (:objects state)
+             (vals)
+             (sort-by :access-at)
+             (reverse)
+             (drop 100) ;; FIXME: make configurable
+             (map :obj-id))]
+
+    (reduce
+      (fn [state obj-id]
+        (update state :objects dissoc obj-id))
+      state
+      objs-to-drop)))
+
+(defn basic-gc [state-ref]
+  (swap! state-ref basic-gc!))

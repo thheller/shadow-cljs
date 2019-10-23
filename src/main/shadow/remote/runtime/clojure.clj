@@ -4,7 +4,8 @@
     [shadow.remote.runtime.shared :as shared]
     [shadow.remote.relay :as relay]
     [shadow.jvm-log :as log]
-    [clojure.datafy :as d]))
+    [clojure.datafy :as d])
+  (:import [java.util.concurrent TimeUnit Executors ExecutorService]))
 
 (defn make-reply-fn [to-chan {:keys [msg-id tool-id] :as req}]
   (fn [res]
@@ -17,7 +18,7 @@
       (>!! to-chan res))))
 
 (defn runtime-loop
-  [{:keys [state-ref tap-in from-relay to-relay]}]
+  [{:keys [^ExecutorService ex state-ref tap-in from-relay to-relay]}]
   (loop []
     (alt!!
       tap-in
@@ -31,17 +32,21 @@
       from-relay
       ([req]
        (when (some? req)
-         (let [reply (make-reply-fn to-relay req)]
-           (try
-             (shared/process state-ref req reply)
-             (catch Exception e
-               (log/debug-ex e ::process-ex {:req req})
-               (reply {:op :exception :ex (d/datafy e)}))))
+         ;; using a thread-pool so slow messages don't delay others
+         (.submit ex
+           ^Callable
+           (fn []
+             (let [reply (make-reply-fn to-relay req)]
+               (try
+                 (shared/process state-ref req reply)
+                 (catch Throwable e
+                   (log/debug-ex e ::process-ex {:req req})
+                   (reply {:op :exception :ex (d/datafy e)}))))))
          (recur)))
 
       (async/timeout 1000)
       ([_]
-       ;; do some cleanup, gc, etc
+       (shared/basic-gc state-ref)
        (recur)))))
 
 (defn start [relay]
@@ -74,9 +79,13 @@
             ;; could do the work right here and just send it out
             (async/offer! tap-in obj)))
 
+        ex
+        (Executors/newCachedThreadPool)
+
         thread
         (async/thread
-          (runtime-loop {:state-ref state-ref
+          (runtime-loop {:ex ex
+                         :state-ref state-ref
                          :tap-in tap-in
                          :from-relay from-relay
                          :to-relay to-relay}))]
@@ -84,16 +93,23 @@
     (add-tap tap-fn)
 
     {:state-ref state-ref
+     :ex ex
      :tap-fn tap-fn
      :tap-in tap-in
      :from-relay from-relay
      :to-relay to-relay
      :thread thread}))
 
-(defn stop [{:keys [tap-fn tap-in to-relay thread] :as svc}]
+(defn stop [{:keys [ex tap-fn tap-in to-relay thread] :as svc}]
   (remove-tap tap-fn)
   (async/close! to-relay)
   (async/close! tap-in)
+
+  (.shutdown ex)
+  (try
+    (.awaitTermination ex 10 TimeUnit/SECONDS)
+    (catch InterruptedException ex))
+
   (<!! thread))
 
 (comment

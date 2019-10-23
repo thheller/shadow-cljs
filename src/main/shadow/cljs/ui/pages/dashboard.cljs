@@ -22,10 +22,10 @@
   (let [url (or (::m/https-url props)
                 (::m/http-url props))]
 
-    (html/tr
-      (html/td (name (::m/http-server-id props)))
-      (html/td (html/a {:href url :target "_blank"} url)))
-    ))
+    (html/div {:className "text-l pl-8"}
+      (html/a {:href url :target "_blank"}
+        url
+        ))))
 
 (def ui-http-server (fc/factory HttpServer {:keyfn ::m/http-server-id}))
 
@@ -45,12 +45,10 @@
       ::ui-model/active-builds []})}
 
   (s/main-contents
-    #_ (s/page-title "Active HTTP Servers")
+    (s/cards-title "Active HTTP Servers")
 
-    #_(html/table
-        (html/tbody
-          (html/for [server (::ui-model/http-servers props)]
-            (ui-http-server server))))
+    (html/for [server (::ui-model/http-servers props)]
+      (ui-http-server server))
 
     (s/cards-title "Active Builds")
     (html/for [build (::ui-model/active-builds props)]

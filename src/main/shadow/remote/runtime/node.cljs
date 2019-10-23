@@ -1,9 +1,11 @@
-(ns shadow.remote.runtime.cljs
+(ns shadow.remote.runtime.node
   (:require
     [cognitect.transit :as transit]
     ;; this will eventually replace shadow.cljs.devtools.client completely
     [shadow.cljs.devtools.client.env :as env]
-    [shadow.remote.runtime.shared :as shared]))
+    [shadow.remote.runtime.js-builtins]
+    [shadow.remote.runtime.shared :as shared]
+    ["ws" :as ws]))
 
 ;; FIXME: would prefer these to be non-global
 ;; there should only be once instance per runtime though
@@ -18,12 +20,13 @@
     (when-some [socket @socket-ref]
       (.send socket json))))
 
-(defn tap-fn [obj]
-  (when (some? obj)
-    (let [obj-id (shared/register state-ref obj {:from :tap})]
-      (doseq [tool-id (:tap-subs @state-ref)]
-        (send {:op :tap :tool-id tool-id :obj-id obj-id}))
-      )))
+(defonce tap-fn
+  (fn tap-fn [obj]
+    (when (some? obj)
+      (let [obj-id (shared/register state-ref obj {:from :tap})]
+        (doseq [tool-id (:tap-subs @state-ref)]
+          (send {:op :tap :tool-id tool-id :obj-id obj-id}))
+        ))))
 
 (defn stop []
   (remove-tap tap-fn)
@@ -36,16 +39,16 @@
         (str (env/get-ws-url-base) "/api/runtime")
 
         socket
-        (js/WebSocket. ws-url)]
+        (ws. ws-url)]
 
     (reset! socket-ref socket)
 
-    (.addEventListener socket "message"
-      (fn [e]
+    (.on socket "message"
+      (fn [data]
         (let [t (transit/reader :json)
 
               {:keys [msg-id tool-id] :as msg}
-              (transit/read t (.-data e))
+              (transit/read t data)
 
               reply-fn
               (fn reply-fn [res]
@@ -59,18 +62,18 @@
 
           (shared/process state-ref msg reply-fn))))
 
-    (.addEventListener socket "open"
+    (.on socket "open"
       (fn [e]
         ;; allow shared/process to send messages directly to relay
         ;; without being coupled to the implementation of exactly how
         (swap! state-ref assoc :relay-msg send)
         (add-tap tap-fn)))
 
-    (.addEventListener socket "close"
+    (.on socket "close"
       (fn [e]
         (stop)))
 
-    (.addEventListener socket "error"
+    (.on socket "error"
       (fn [e]
         (js/console.warn "tap-socket error" e)
         (stop)

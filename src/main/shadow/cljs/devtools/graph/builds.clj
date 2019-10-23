@@ -71,33 +71,14 @@
   (fn [{:keys [dev-http] :as env} _]
     (let [servers
           (->> (:servers @dev-http)
-               (sort-by :build-id)
-               (map (fn [{:keys [http-url https-url build-id]}]
-                      {::m/http-server-id build-id
-                       ::m/build {::m/build-id build-id}
+               (map-indexed
+                 (fn [idx {:keys [http-url https-url]}]
+                      {::m/http-server-id idx
                        ::m/http-url http-url
                        ::m/https-url https-url}))
                (into []))]
 
       {::m/http-servers servers})))
-
-(add-resolver `build-http-servers
-  {::pc/input #{::m/build-id}
-   ::pc/output [{::m/build-http-server [::m/http-server-id
-                                        ::m/http-url
-                                        ::m/https-url]}]}
-  (fn [{:keys [dev-http] :as env} {::m/keys [build-id] :as params}]
-    (let [server
-          (->> (:servers @dev-http)
-               (filter #(= build-id (:build-id %)))
-               (map (fn [{:keys [http-url https-url build-id]}]
-                      {::m/http-server-id build-id
-                       ::m/build-id {::m/build-id build-id}
-                       ::m/http-url http-url
-                       ::m/https-url https-url}))
-               (first))]
-
-      {::m/build-http-server server})))
 
 (add-resolver `build-worker
   {::pc/input #{::m/build-id}
