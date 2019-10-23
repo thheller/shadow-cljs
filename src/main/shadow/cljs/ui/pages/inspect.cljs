@@ -219,11 +219,8 @@
   (render-simple (str "Keyword: " value)))
 
 (defmethod render-view :nil
-  [this {:keys [value]} entries]
-  (html/div {:className "border bg-gray-200"}
-    (html/div {:className "bg-white"}
-      (html/pre {:className "border p-4"} "nil")
-      )))
+  [this summary entries]
+  (render-simple "nil"))
 
 (defmethod render-view :set
   [this {:keys [object-id obj-type count]} entries]
@@ -470,11 +467,11 @@
       (case display-type
         :edn
         (html/div {:className "font-mono border p-4"}
-          (:edn props))
+          (:edn props "Loading ..."))
 
         :pprint
         (html/pre {:className "font-mono border p-4"}
-          (:pprint props))
+          (:pprint props "Loading ..."))
 
         :browse
         (if-not summary
