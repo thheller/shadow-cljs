@@ -48,7 +48,9 @@
 
 (defn register [state-ref obj obj-info]
   (let [oid (next-oid)]
-    (swap! state-ref register* oid obj obj-info)
+    (if-not (and (vector? obj) (= :shadow.remote/wrap (first obj)) (= (count obj) 3))
+      (swap! state-ref register* oid obj obj-info)
+      (swap! state-ref register* oid (nth obj 1) (merge obj-info (nth obj 2))))
     oid))
 
 (defn obj-type-string [obj]
@@ -114,10 +116,11 @@
         :view-keys (vec coll)
         :sorted false))))
 
-(defn make-summary* [{:keys [obj data datafied] :as entry}]
+(defn make-summary* [{:keys [obj obj-info data datafied] :as entry}]
   ;; FIXME: could be a protocol or multimethod
   ;; but I kinda want to enforce limiting this to standard clojure
   ;; types and rather have people implement datafy than this
+
   (-> (cond
         (nil? data)
         {:data-type :nil}
@@ -166,11 +169,13 @@
         :else
         {:data-type :unsupported})
 
+      ;; FIXME: meta from obj or data?
       (assoc :obj-type (obj-type-string obj)
              :datafied datafied
-             :added-at (:added-at entry)
-             ;; FIXME: meta from obj or data?
-             )))
+             :added-at (:added-at entry))
+      ;; FIXME: can't transmit all obj-info potentially, so keep it minimal for now
+      ;; should probably move all of this to some protocol
+      (merge (select-keys obj-info [:ns :line :column :label]))))
 
 (defn make-summary [state-ref obj {:keys [oid data summary] :as entry}]
   (or summary

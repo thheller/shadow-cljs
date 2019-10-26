@@ -14,7 +14,8 @@
     [shadow.cljs.ui.style :as s]
     [shadow.cljs.ui.routing :as routing]
     [shadow.cljs.ui.fulcro-mods :as fmods :refer (deftx)]
-    [shadow.cljs.ui.env :as env])
+    [shadow.cljs.ui.env :as env]
+    [shadow.debug :refer (?> ?-> ?->>)])
 
   (:import [goog.i18n DateTimeFormat]))
 
@@ -57,10 +58,17 @@
           (send {:op :tap-unsubscribe :rid current}))
         (send {:op :tap-subscribe :rid rid}))
 
+
+      ;; FIXME: this should fail somehow if runtime doesn't exist
+      ;; but must account for runtime not being loaded yet
+
       (swap! state
         (fn [state]
           (-> state
               (assoc-in [::ui-model/page-inspect 1 ::runtime] [::rid rid])
+              ;; FIXME: rid may still be empty when routing to this page
+              ;; before :request-runtimes finished. :clj will always have id 1
+              (update-in [::rid rid] merge {::rid rid})
               (update-in [::rid rid] dissoc ::object)
               (update-in [::rid rid] assoc ::nav-stack [])))))))
 
@@ -78,6 +86,15 @@
              :view-type :fragment
              :key-limit 100
              :val-limit 100}))))
+
+(defmutation unselect-object [{:keys [oid] :as params}]
+  (action [{:keys [state] :as env}]
+
+    (let [{::keys [rid] :as obj}
+          (get-in @state [::oid oid])]
+
+      (swap! state update-in [::rid rid] merge {::object nil
+                                                ::nav-stack []}))))
 
 (defmutation select-object [{:keys [oid] :as params}]
   (action [{:keys [state] :as env}]
@@ -311,7 +328,7 @@
         (or key-limit-reached
             (> (count key-limit-text) 22))
         (html/div {:key idx
-                   :className "border-t hover:bg-gray-200"
+                   :className "border-b hover:bg-gray-200"
                    :onClick
                    (fn [e]
                      (fc/transact! this [(nav-object {:oid oid
@@ -327,7 +344,7 @@
         ;; if nav is even useful
         :else
         (html/div {:key idx
-                   :className "flex border-t hover:bg-gray-200"
+                   :className "flex border-b hover:bg-gray-200"
                    :onClick
                    (fn [e]
                      (fc/transact! this [(nav-object {:oid oid
@@ -377,24 +394,24 @@
       :summary])}
 
   (let [{:keys [summary edn-limit]} props
-        {:keys [data-type obj-type ts count sorted datafied]} summary]
+        {:keys [ts ns line column label]} summary]
 
-    (html/div {:className "flex font-mono border-b px-2 cursor-pointer hover:bg-gray-200"
+    (html/div {:className "font-mono border-b px-2 py-1 cursor-pointer hover:bg-gray-200"
                :onClick #(onSelect oid)}
-      (html/div {:className "px-2"} ts)
-      (html/div {:className "px-2 truncate"} (render-edn-limit edn-limit)))
-    #_(html/tr {:className "cursor-pointer hover:bg-gray-200"
-                :onClick
-                (fn [e]
-                  (onSelect oid))}
-        (html/td {:className object-list-item-td-classes} ts)
+      (html/div {:className "text-xs text-gray-500"}
 
-        ;; (html/td {:className object-list-item-td-classes} (str data-type))
-        ;; (html/td {:className object-list-item-td-classes} obj-type)
-        ;; (html/td {:className object-list-item-td-classes} count)
-        ;; (html/td {:className object-list-item-td-classes} (str datafied))
-        ;; (html/td {:className object-list-item-td-classes} (str sorted))
-        )))
+        (str ts
+             (when ns
+               (str " - " ns
+                    (when line
+                      (str "@" line
+                           (when column
+                             (str ":" column))))))
+             (when label
+               (str " - " label))))
+      (html/div {:className "truncate"}
+        (render-edn-limit edn-limit)))
+    ))
 
 (def ui-object-list-item (fc/factory ObjectListItem {:keyfn ::oid}))
 
@@ -421,7 +438,14 @@
       (html/div {:className "px-2 font-bold"} obj-type)
       (when count
         (html/div {:className "px-2 font-bold"} (str count " Entries")))
-      )))
+      (html/div {:className "flex-1"}) ;; fill up space
+      (html/div {:className "text-right cursor-pointer font-bold px-2"
+                 :onClick
+                 (fn [e]
+                   (fc/transact! this [(unselect-object {:oid oid})]))}
+
+        ;; FIXME: find some nice icons
+        "X"))))
 
 (def ui-object-header (fc/factory ObjectHeader {}))
 
@@ -502,7 +526,6 @@
 
       :browse
       (html/div {:className "flex-1 overflow-auto font-mono bg-white"}
-
         (render-view this (assoc summary :oid oid :edn-limit edn-limit) fragment)))
     ))
 
@@ -564,31 +587,33 @@
       {::object (fc/get-query ObjectDetail)}
       ::nav-stack])}
 
-  (let [select-object
+  (let [select-fn
         (fn [oid]
           (fc/transact! this [(select-object {:rid rid
                                               :oid oid})]))
 
         scroll-ref
-        (fc/get-state this :scroll-ref)]
+        (fc/get-state this :scroll-ref)
+
+        full-tap?
+        (and (empty? nav-stack)
+             (nil? object))]
 
     (html/fragment
-      (html/div {:className "bg-white mb-2 font-mono"}
-        (html/div {:className "font-bold px-4 border-b py-1 text-l"} "Tap History")
-        (html/div {:className "overflow-y-scroll"
-                   :ref scroll-ref
-                   :style #js {:height "220px"}}
-          (cond
-            (nil? objects)
-            (html/div {:className "p-4"} "Loading ...")
+      (html/div {:className "bg-white font-mono font-bold px-4 border-b py-1 text-l"} "Tap History")
+      (html/div {:className (str "bg-white font-mono overflow-y-auto border-b-4" (when full-tap? " flex-1"))
+                 :style #js {:height "220px"}}
+        (cond
+          (nil? objects)
+          (html/div {:className "p-4"} "Loading ...")
 
-            (empty? objects)
-            (html/div {:className "p-4"} "No taps yet.")
+          (empty? objects)
+          (html/div {:className "p-4"} "No taps yet.")
 
-            :else
-            (html/for [obj objects]
-              (ui-object-list-item
-                (fc/computed obj {:onSelect select-object}))))))
+          :else
+          (html/for [obj objects]
+            (ui-object-list-item
+              (fc/computed obj {:onSelect select-fn})))))
 
       (when (seq nav-stack)
         (html/div {:className "bg-white py-4 font-mono"}
