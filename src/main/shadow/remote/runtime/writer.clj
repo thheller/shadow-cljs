@@ -10,5 +10,11 @@
       (catch LimitWriter$LimitReachedException e
         [true (.getString lw)]))))
 
+(defn limit-writer [limit]
+  (LimitWriter. limit))
+
+(defn get-string [^LimitWriter lw]
+  (.getString lw))
+
 (comment
   (pr-str-limit {:hello (range 10)} 20))

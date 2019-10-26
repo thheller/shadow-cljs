@@ -23,9 +23,9 @@
 (defonce tap-fn
   (fn tap-fn [obj]
     (when (some? obj)
-      (let [obj-id (shared/register state-ref obj {:from :tap})]
-        (doseq [tool-id (:tap-subs @state-ref)]
-          (send {:op :tap :tool-id tool-id :obj-id obj-id}))
+      (let [oid (shared/register state-ref obj {:from :tap})]
+        (doseq [tid (:tap-subs @state-ref)]
+          (send {:op :tap :tid tid :oid oid}))
         ))))
 
 (defn stop []
@@ -47,17 +47,17 @@
       (fn [data]
         (let [t (transit/reader :json)
 
-              {:keys [msg-id tool-id] :as msg}
+              {:keys [mid tid] :as msg}
               (transit/read t data)
 
               reply-fn
               (fn reply-fn [res]
                 (let [res (-> res
                               (cond->
-                                msg-id
-                                (assoc :msg-id msg-id)
-                                tool-id
-                                (assoc :tool-id tool-id)))]
+                                mid
+                                (assoc :mid mid)
+                                tid
+                                (assoc :tid tid)))]
                   (send res)))]
 
           (shared/process state-ref msg reply-fn))))

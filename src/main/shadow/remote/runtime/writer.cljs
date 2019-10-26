@@ -2,6 +2,10 @@
   (:import [goog.string StringBuffer]))
 
 (deftype LimitWriter [^StringBuffer sb limit]
+  Object
+  (getString [this]
+    (.toString sb))
+
   IWriter
   (-write [_ s]
     (.append sb s)
@@ -23,6 +27,13 @@
              (if (> (.-length s) limit)
                (subs s 0 limit)
                s))])))))
+
+(defn limit-writer [limit]
+  (let [sb (StringBuffer.)]
+    (LimitWriter. sb limit)))
+
+(defn get-string [^LimitWriter lw]
+  (.getString lw))
 
 (comment
   (pr-str-limit {:hello (range 10)} 20))

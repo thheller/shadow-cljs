@@ -17,7 +17,7 @@
      :cljs
      (js/Date.now)))
 
-(defn next-obj-id []
+(defn next-oid []
   #?(:clj
      (str (UUID/randomUUID))
      :cljs
@@ -28,7 +28,7 @@
    :tap-subs #{}})
 
 (defn register*
-  [state obj-id obj obj-info]
+  [state oid obj obj-info]
 
   (let [data (d/datafy obj)
         datafied (not (identical? data obj))
@@ -36,7 +36,7 @@
         ts (now)
 
         obj-entry
-        {:obj-id obj-id
+        {:oid oid
          :obj obj
          :obj-info obj-info ;; FIXME: just merge this?
          :data data
@@ -44,18 +44,20 @@
          :access-at ts
          :datafied datafied}]
 
-    (assoc-in state [:objects obj-id] obj-entry)))
+    (assoc-in state [:objects oid] obj-entry)))
 
 (defn register [state-ref obj obj-info]
-  (let [obj-id (next-obj-id)]
-    (swap! state-ref register* obj-id obj obj-info)
-    obj-id))
+  (let [oid (next-oid)]
+    (swap! state-ref register* oid obj obj-info)
+    oid))
 
 (defn obj-type-string [obj]
-  #?(:clj
-     (-> (class obj) (.getName))
-     :cljs
-     (pr-str (type obj))))
+  (if (nil? obj)
+    "nil"
+    #?(:clj
+       (-> (class obj) (.getName))
+       :cljs
+       (pr-str (type obj)))))
 
 (defmulti process
   (fn [state-ref {:keys [op] :as msg} reply]
@@ -66,20 +68,37 @@
   (reply {:op :unknown-op
           :request-op (:op msg)}))
 
-(defmethod process :welcome [state-ref {:keys [runtime-id] :as msg} reply]
-  (swap! state-ref assoc :runtime-id runtime-id))
+(defmethod process :welcome [state-ref {:keys [rid] :as msg} reply]
+  #?(:cljs (js/console.log "shadow.remote - runtime-id:" rid))
+  (swap! state-ref assoc :runtime-id rid))
 
 (defmulti make-view
   (fn [state-ref {:keys [view-type] :as msg} entry]
     view-type))
 
+;; 1meg?
+(def default-max-print-size (* 1 1024 1024))
+
 (defmethod make-view :edn
-  [state-ref msg {:keys [data] :as entry}]
-  (pr-str data))
+  [state-ref
+   {:keys [limit] :or {limit default-max-print-size} :as msg}
+   {:keys [data] :as entry}]
+  (let [lw (lw/limit-writer limit)]
+    #?(:clj
+       (print-method data lw)
+       :cljs
+       (pr-writer data lw (pr-opts)))
+    (lw/get-string lw)))
 
 (defmethod make-view :pprint
-  [state-ref msg {:keys [data] :as entry}]
-  (with-out-str (pprint data)))
+  [state-ref
+   {:keys [limit] :or {limit default-max-print-size} :as msg}
+   {:keys [data] :as entry}]
+  ;; CLJ pprint for some reason doesn't run out of memory when printing circular stuff
+  ;; but it never finishes either
+  (let [lw (lw/limit-writer limit)]
+    (pprint data lw)
+    (lw/get-string lw)))
 
 (defmethod make-view :edn-limit
   [state-ref {:keys [limit] :as msg} {:keys [data] :as entry}]
@@ -153,10 +172,10 @@
              ;; FIXME: meta from obj or data?
              )))
 
-(defn make-summary [state-ref obj {:keys [obj-id data summary] :as entry}]
+(defn make-summary [state-ref obj {:keys [oid data summary] :as entry}]
   (or summary
       (let [summary (make-summary* entry)]
-        (swap! state-ref assoc-in [:objects obj-id :summary] summary)
+        (swap! state-ref assoc-in [:objects oid :summary] summary)
         summary)))
 
 (defmethod make-view :summary
@@ -215,11 +234,11 @@
       {}
       )))
 
-(defmethod process :tap-subscribe [state-ref {:keys [tool-id] :as msg} reply]
-  (swap! state-ref update :tap-subs conj tool-id))
+(defmethod process :tap-subscribe [state-ref {:keys [tid] :as msg} reply]
+  (swap! state-ref update :tap-subs conj tid))
 
-(defmethod process :tap-unsubscribe [state-ref {:keys [tool-id] :as msg} reply]
-  (swap! state-ref update :tap-subs disj tool-id))
+(defmethod process :tap-unsubscribe [state-ref {:keys [tid] :as msg} reply]
+  (swap! state-ref update :tap-subs disj tid))
 
 (defmethod process :request-tap-history
   [state-ref {:keys [num] :or {num 10} :as msg} reply]
@@ -230,49 +249,51 @@
              (sort-by :added-at)
              (reverse)
              (take num)
-             (map :obj-id)
+             (map :oid)
              (into []))]
 
     (reply {:op :tap-history
-            :obj-ids tap-ids})))
+            :oids tap-ids})))
 
-(defmethod process :tool-disconnect [state-ref {:keys [tool-id] :as msg} reply]
-  (swap! state-ref update :tap-subs disj tool-id))
+(defmethod process :tool-disconnect [state-ref {:keys [tid] :as msg} reply]
+  (swap! state-ref update :tap-subs disj tid))
 
 (defmethod process :obj-request-view
-  [state-ref {:keys [obj-id view-type] :as msg} reply]
+  [state-ref {:keys [oid view-type] :as msg} reply]
 
-  (swap! state-ref assoc-in [:objects obj-id :access-at] (now))
+  (swap! state-ref assoc-in [:objects oid :access-at] (now))
 
   (let [state @state-ref
-        entry (get-in state [:objects obj-id])]
+        entry (get-in state [:objects oid])]
     (if-not entry
-      (reply {:op :obj-not-found :obj-id obj-id})
+      (reply {:op :obj-not-found :oid oid})
       (try
         (let [view (make-view state-ref msg entry)]
           (reply {:op :obj-view
-                  :obj-id obj-id
+                  :oid oid
                   :view-type view-type
                   :view view}))
         (catch #?(:clj Exception :cljs :default) e
           #?(:cljs (js/console.warn "object-nav-failed" (:obj entry) e))
           (reply {:op :obj-view-failed
-                  :obj-id obj-id
+                  :oid oid
                   :view-type view-type
-                  :e (d/datafy e)}))))))
+                  ;; FIXME: (d/datafy e) doesn't work for CLJS
+                  :e (str e)#_ #?(:clj (.toString e)
+                        :cljs (.-message e))}))))))
 
 (defmethod process :obj-request-nav
-  [state-ref {:keys [obj-id idx] :as msg} reply]
+  [state-ref {:keys [oid idx] :as msg} reply]
 
-  (swap! state-ref assoc-in [:objects obj-id :access-at] (now))
+  (swap! state-ref assoc-in [:objects oid :access-at] (now))
 
   (let [state @state-ref
-        entry (get-in state [:objects obj-id])]
+        entry (get-in state [:objects oid])]
     (if-not entry
-      (reply {:op :obj-not-found :obj-id obj-id})
+      (reply {:op :obj-not-found :oid oid})
       (let [{:keys [obj data summary]} entry]
         (if-not summary
-          (reply {:op :obj-nav-not-supported :obj-id obj-id})
+          (reply {:op :obj-nav-not-supported :oid oid})
 
           (let [{:keys [view-keys]} summary
                 data-key (nth view-keys idx)
@@ -286,26 +307,26 @@
                 val (d/nav data data-key data-val)
 
                 new-data (d/datafy val)
-                new-obj-id (next-obj-id)
+                new-oid (next-oid)
 
                 ts (now)
 
                 new-entry
-                {:obj-id new-obj-id
+                {:oid new-oid
                  :obj val
                  :data new-data
                  :added-at ts
                  :access-at ts
-                 :nav-from obj-id
+                 :nav-from oid
                  :nav-key data-key
                  :nav-idx idx
                  :datafied (not (identical? val new-data))}]
 
-            (swap! state-ref assoc-in [:objects new-obj-id] new-entry)
+            (swap! state-ref assoc-in [:objects new-oid] new-entry)
 
             (reply {:op :obj-nav-success
-                    :obj-id obj-id
-                    :nav-obj-id new-obj-id})))))))
+                    :oid oid
+                    :nav-oid new-oid})))))))
 
 (defmethod process :request-supported-ops
   [state-ref msg reply]
@@ -322,11 +343,11 @@
              (sort-by :access-at)
              (reverse)
              (drop 100) ;; FIXME: make configurable
-             (map :obj-id))]
+             (map :oid))]
 
     (reduce
-      (fn [state obj-id]
-        (update state :objects dissoc obj-id))
+      (fn [state oid]
+        (update state :objects dissoc oid))
       state
       objs-to-drop)))
 

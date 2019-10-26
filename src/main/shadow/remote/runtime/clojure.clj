@@ -5,60 +5,71 @@
     [shadow.remote.relay :as relay]
     [shadow.jvm-log :as log]
     [clojure.datafy :as d])
-  (:import [java.util.concurrent TimeUnit Executors ExecutorService]))
+  (:import [java.util.concurrent TimeUnit Executors ExecutorService Future]))
 
-(defn make-reply-fn [to-chan {:keys [msg-id tool-id] :as req}]
+(defn make-reply-fn [to-chan {:keys [mid tid] :as req}]
   (fn [res]
     (let [res (-> res
                   (cond->
-                    msg-id
-                    (assoc :msg-id msg-id)
-                    tool-id
-                    (assoc :tool-id tool-id)))]
+                    mid
+                    (assoc :mid mid)
+                    tid
+                    (assoc :tid tid)))]
       (>!! to-chan res))))
 
+(defn check-tasks [tasks]
+  (reduce-kv
+    (fn [tasks ^Future fut msg]
+      (if-not (.isDone fut)
+        tasks
+        (dissoc tasks fut)))
+    tasks
+    tasks))
+
 (defn runtime-loop
-  [{:keys [^ExecutorService ex state-ref tap-in from-relay to-relay]}]
+  [{:keys [^ExecutorService ex state-ref from-relay to-relay]}]
   (loop []
     (alt!!
-      tap-in
-      ([obj]
-       (when (some? obj)
-         (let [obj-id (shared/register state-ref obj {:from :tap})]
-           (doseq [tool-id (:tap-subs @state-ref)]
-             (>!! to-relay {:op :tap :tool-id tool-id :obj-id obj-id})))
-         (recur)))
-
       from-relay
       ([req]
        (when (some? req)
          ;; using a thread-pool so slow messages don't delay others
-         (.submit ex
-           ^Callable
-           (fn []
-             (let [reply (make-reply-fn to-relay req)]
-               (try
-                 (shared/process state-ref req reply)
-                 (catch Throwable e
-                   (log/debug-ex e ::process-ex {:req req})
-                   (reply {:op :exception :ex (d/datafy e)}))))))
+         ;; FIXME: maybe all tasks should have an optional :timeout?
+         ;; can't reliably "kill" a running task though
+         (let [fut
+               (.submit ex
+                 ^Callable
+                 (fn []
+                   (let [reply (make-reply-fn to-relay req)]
+                     (try
+                       (shared/process state-ref req reply)
+                       (catch Throwable e
+                         (log/debug-ex e ::process-ex {:req req})
+                         (reply {:op :exception :ex (d/datafy e)}))))))]
+
+           ;; keeping and cleaning tasks for obversability purposes only for now
+           ;; could maybe log warnings if stuff takes too long
+           (swap! state-ref assoc-in [:tasks fut] (assoc req ::started (System/currentTimeMillis))))
          (recur)))
 
       (async/timeout 1000)
       ([_]
        (shared/basic-gc state-ref)
+       (swap! state-ref update :tasks check-tasks)
        (recur)))))
 
 (defn start [relay]
   (let [to-relay
-        (async/chan 100)
+        (-> (async/sliding-buffer 100)
+            ;; ok to drop taps when we can't keep up
+            ;; FIXME: needs adjustments in the websocket parts probably
+            (async/chan))
 
         from-relay
         (relay/runtime-connect relay to-relay {:lang :clj})
 
-        tap-in
-        (-> (async/sliding-buffer 100)
-            (async/chan))
+        ex
+        (Executors/newCachedThreadPool)
 
         state-ref
         (atom
@@ -74,19 +85,15 @@
           ;; would need a marker to identify
           ;; only using tap> because it can be used without additional requires
           ;; could just add something to core as well though
-          (when-not (nil? obj)
-            ;; FIXME: does this need to go into the runtime-loop?
-            ;; could do the work right here and just send it out
-            (async/offer! tap-in obj)))
-
-        ex
-        (Executors/newCachedThreadPool)
+          (when (some? obj)
+            (let [oid (shared/register state-ref obj {:from :tap})]
+              (doseq [tid (:tap-subs @state-ref)]
+                (>!! to-relay {:op :tap :tid tid :oid oid})))))
 
         thread
         (async/thread
           (runtime-loop {:ex ex
                          :state-ref state-ref
-                         :tap-in tap-in
                          :from-relay from-relay
                          :to-relay to-relay}))]
 
@@ -95,20 +102,18 @@
     {:state-ref state-ref
      :ex ex
      :tap-fn tap-fn
-     :tap-in tap-in
      :from-relay from-relay
      :to-relay to-relay
      :thread thread}))
 
-(defn stop [{:keys [ex tap-fn tap-in to-relay thread] :as svc}]
+(defn stop [{:keys [ex tap-fn to-relay from-relay thread] :as svc}]
   (remove-tap tap-fn)
   (async/close! to-relay)
-  (async/close! tap-in)
+  (async/close! from-relay)
 
   (.shutdown ex)
-  (try
-    (.awaitTermination ex 10 TimeUnit/SECONDS)
-    (catch InterruptedException ex))
+  (when-not (.awaitTermination ex 10 TimeUnit/SECONDS)
+    (.shutdownNow ex))
 
   (<!! thread))
 
