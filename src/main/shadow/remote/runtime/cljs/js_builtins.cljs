@@ -1,4 +1,4 @@
-(ns shadow.remote.runtime.js-builtins
+(ns shadow.remote.runtime.cljs.js-builtins
   (:require
     [goog.object :as gobj]
     [clojure.core.protocols :as p]))

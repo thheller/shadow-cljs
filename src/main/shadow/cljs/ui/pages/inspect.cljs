@@ -23,15 +23,106 @@
 (def time-format (DateTimeFormat. "HH:mm:ss"))
 
 (defonce tool-ref (atom nil))
+(defonce rpc-id-seq (atom 0))
+(defonce rpc-ref (atom {}))
 
 (defn reduce-> [init fn vals]
   (reduce fn init vals))
 
-(defn send [obj]
-  ;; (js/console.log "tool-send" obj)
+(defn cast! [msg]
+  (js/console.log "ws-out" msg)
   (let [w (transit/writer :json)
-        json (transit/write w obj)]
+        json (transit/write w msg)]
     (.send (:socket @tool-ref) json)))
+
+(defn call! [msg callback-map]
+  {:pre [(map? msg)
+         (map? callback-map)]}
+  (let [mid (swap! rpc-id-seq inc)]
+    (swap! rpc-ref assoc mid callback-map)
+    (cast! (assoc msg :mid mid))))
+
+(defn as-idents [key ids]
+  (into [] (map #(vector key %)) ids))
+
+(defn add-ts [{:keys [added-at] :as summary}]
+  (if-not added-at
+    summary
+    (let [date (js/Date. added-at)]
+      (assoc summary :ts (.format time-format date)))))
+
+(defn maybe-fetch-initial-fragment [state {::keys [rid oid] :keys [fragment summary] :as obj}]
+  (when (contains? (:supports summary) :fragment)
+    (let [max (min 35 (:entries summary))]
+      (when (< (count fragment) max)
+        (call! {:op :obj-request
+                :rid rid
+                :oid oid
+                :request-op :fragment
+                :start 0
+                ;; FIXME: decide on a better number, maybe configurable
+                :num max
+                :key-limit 100
+                :val-limit 100}
+          {:obj-result
+           (fn [{:keys [result] :as msg}]
+             (swap! state update-in [::oid oid :fragment] merge result)
+             (fc/transact! env/app [[::oid oid]])
+             )})))))
+
+(defn add-new-tap-obj
+  "fetches enough info for new object to display as tap"
+  [state rid oid]
+  (swap! state update-in [::oid oid] merge {::rid rid
+                                            ::oid oid})
+
+  ;; welcome to callback hell
+  (call! {:op :obj-describe
+          :rid rid
+          :oid oid}
+    {:obj-summary
+     (fn [{:keys [summary] :as msg}]
+       (swap! state assoc-in [::oid oid :summary] (add-ts summary))
+
+       (let [{:keys [supports]} summary]
+         (when (contains? supports :edn-limit)
+           (call! {:op :obj-request
+                   :rid rid
+                   :oid oid
+                   :request-op :edn-limit
+                   :limit 100}
+
+             {:obj-result
+              (fn [{:keys [result] :as msg}]
+                (swap! state assoc-in [::oid oid :edn-limit] result)
+                (fc/transact! env/app [[::oid oid]])
+                )}))))}))
+
+(defn add-new-nav-obj
+  "fetches data for direct display, no tap summary"
+  [state rid oid]
+  (swap! state update-in [::oid oid] merge {::rid rid
+                                            ::oid oid})
+
+  (call! {:op :obj-describe
+          :rid rid
+          :oid oid}
+    {:obj-summary
+     (fn [{:keys [summary] :as msg}]
+       (swap! state assoc-in [::oid oid :summary] (add-ts summary))
+       ;; FIXME: don't rerender just yet?
+       (fc/transact! env/app [[::oid oid]])
+       (maybe-fetch-initial-fragment state (get-in @state [::oid oid])))}))
+
+(defn add-first [prev head max]
+  (into [head] (take (min max (count prev))) prev))
+
+(defn add-last [prev tail max]
+  (let [new (conj prev tail)
+        c (count new)]
+    (if (>= (count new) max)
+      (subvec new (- c max) c)
+      new)))
 
 (defmutation request-fragment [{:keys [oid idx] :as params}]
   (action [{:keys [state] :as env}]
@@ -39,24 +130,42 @@
     (let [rid (get-in @state [::oid oid ::rid])]
       (swap! state update-in [::oid oid :fragment idx] merge {})
 
-      (send {:op :obj-request-view
-             :rid rid
-             :oid oid
-             :start idx
-             :num 1
-             :view-type :fragment
-             :key-limit 100
-             :val-limit 100})
-      )))
+      (call! {:op :obj-request
+              :rid rid
+              :oid oid
+              :start idx
+              :num 1
+              :request-op :fragment
+              :key-limit 100
+              :val-limit 100}
+        {:obj-result
+         (fn [{:keys [result] :as msg}]
+           (swap! state update-in [::oid oid :fragment] merge result)
+           (fc/transact! env/app [[::oid oid]])
+           )}))))
 
 (defmutation select-runtime [{:keys [rid] :as params}]
   (action [{:keys [state] :as env}]
-    (send {:op :request-tap-history :rid rid :num 100})
+
+    (call! {:op :request-tap-history :rid rid :num 100}
+      {:tap-history
+       (fn [{:keys [rid oids] :as msg}]
+         (let [data @state]
+           (doseq [oid oids
+                   :when (not (get-in data [::oid oid :summary]))]
+             (add-new-tap-obj state rid oid)))
+
+         (swap! state
+           (fn [data]
+             (-> data
+                 (assoc-in [::rid rid ::objects] (as-idents ::oid oids))
+                 ))))})
+
     (let [[_ current] (get-in @state [::ui-model/page-inspect 1 ::runtime])]
       (when (not= rid current)
         (when current
-          (send {:op :tap-unsubscribe :rid current}))
-        (send {:op :tap-subscribe :rid rid}))
+          (cast! {:op :tap-unsubscribe :rid current}))
+        (cast! {:op :tap-subscribe :rid rid}))
 
 
       ;; FIXME: this should fail somehow if runtime doesn't exist
@@ -71,21 +180,6 @@
               (update-in [::rid rid] merge {::rid rid})
               (update-in [::rid rid] dissoc ::object)
               (update-in [::rid rid] assoc ::nav-stack [])))))))
-
-(defn maybe-fetch-initial-fragment [{::keys [rid oid] :keys [fragment summary] :as obj}]
-  (let [max (min 35 (:count summary))]
-    (when (and (contains? #{:map :vec :set} (:data-type summary))
-               (< (count fragment) max))
-
-      (send {:op :obj-request-view
-             :rid rid
-             :oid oid
-             :start 0
-             ;; FIXME: decide on a better number, maybe configurable
-             :num max
-             :view-type :fragment
-             :key-limit 100
-             :val-limit 100}))))
 
 (defmutation unselect-object [{:keys [oid] :as params}]
   (action [{:keys [state] :as env}]
@@ -102,7 +196,7 @@
     (let [{::keys [rid] :as obj}
           (get-in @state [::oid oid])]
 
-      (maybe-fetch-initial-fragment obj)
+      (maybe-fetch-initial-fragment state obj)
 
       (swap! state update-in [::rid rid] merge
         {::object [::oid oid]
@@ -120,10 +214,20 @@
       ;; this just makes it go to blank state
       (swap! state assoc-in [::rid rid ::object] nil)
 
-      (send {:op :obj-request-nav
-             :rid rid
-             :oid oid
-             :idx idx}))))
+      (call! {:op :obj-request
+              :rid rid
+              :oid oid
+              :request-op :nav
+              :idx idx}
+
+        ;; FIXME: maybe nav should return simple values, instead of ref to simple value
+        {:obj-result
+         (fn [msg]
+           (js/console.log "nav request didn't return reference" msg))
+         :obj-result-ref
+         (fn [{:keys [ref-oid] :as msg}]
+           (swap! state assoc-in [::rid rid ::object] [::oid ref-oid])
+           (add-new-nav-obj state rid ref-oid))}))))
 
 (defmutation nav-stack-jump [{:keys [rid oid idx] :as params}]
   (action [{:keys [state] :as env}]
@@ -144,18 +248,42 @@
 
       (case wanted-display
         :pprint
-        (when-not (contains? obj ::pprint)
-          (send {:op :obj-request-view
-                 :rid rid
-                 :oid oid
-                 :view-type :pprint}))
+        (when-not (contains? obj :pprint)
+          (call! {:op :obj-request
+                  :rid rid
+                  :oid oid
+                  :request-op :pprint}
+            {:obj-request-failed
+             (fn [{:keys [e] :as msg}]
+               (js/console.log "request-pprint failed" msg)
+               (swap! state assoc-in [::oid oid :pprint] (str "Failed: " e))
+               (fc/transact! env/app [[::oid oid]]))
 
+             :obj-result
+             (fn [{:keys [result] :as msg}]
+               (js/console.log "request-pprint" msg)
+               (swap! state assoc-in [::oid oid :pprint] result)
+               (fc/transact! env/app [[::oid oid]]))}))
+
+
+        ;; FIXME: repeated code
         :edn
-        (when-not (contains? obj ::edn)
-          (send {:op :obj-request-view
-                 :rid rid
-                 :oid oid
-                 :view-type :edn}))
+        (when-not (contains? obj :edn)
+          (call! {:op :obj-request
+                  :rid rid
+                  :oid oid
+                  :request-op :edn}
+            {:obj-request-failed
+             (fn [{:keys [e] :as msg}]
+               (js/console.log "request-edn failed" msg)
+               (swap! state assoc-in [::oid oid :edn] (str "Failed: " e))
+               (fc/transact! env/app [[::oid oid]]))
+
+             :obj-result
+             (fn [{:keys [result] :as msg}]
+               (js/console.log "request-edn" msg)
+               (swap! state assoc-in [::oid oid :edn] result)
+               (fc/transact! env/app [[::oid oid]]))}))
 
         ;; don't need to do anything for :browse
         nil))))
@@ -167,6 +295,74 @@
 (defmutation tool-msg-tx [params]
   (action [env]
     (handle-tool-msg env params)))
+
+
+(defmethod handle-tool-msg ::default [_ msg]
+  (js/console.warn "unhandled tool msg" msg))
+
+(defmethod handle-tool-msg :welcome
+  [{:keys [state] :as env} {:keys [tid]}]
+  (swap! state assoc ::tid tid))
+
+(defmethod handle-tool-msg :tap
+  [{:keys [state]} {:keys [rid oid] :as msg}]
+  (add-new-tap-obj state rid oid)
+  (swap! state update-in [::rid rid ::objects] add-first [::oid oid] 100))
+
+(declare Page)
+
+(defmethod handle-tool-msg :runtimes
+  [{:keys [state]} {:keys [runtimes]}]
+  (let [db-data
+        (->> runtimes
+             (map (fn [{:keys [rid] :as runtime-info}]
+                    {::rid rid
+                     ::runtime-info runtime-info}))
+             (into []))]
+
+    (swap! state fam/merge-component Page {::runtimes db-data})
+    ))
+
+(defmethod handle-tool-msg :runtime-not-found
+  [{:keys [app state] :as env} {:keys [rid]}]
+  (let [^goog history
+        (-> (::fa/runtime-atom app)
+            deref
+            (::fa/shared-props)
+            (::env/history))]
+    (.setToken history "inspect")))
+
+(defn update-runtimes [state]
+  (let [runtimes
+        (->> (::rid state)
+             (vals)
+             (map ::runtime-info)
+             (sort-by :since)
+             (reverse)
+             (map (fn [{:keys [rid]}]
+                    [::rid rid]))
+             (into []))]
+
+    (assoc-in state [::ui-model/page-inspect 1 ::runtimes] runtimes)))
+
+(defmethod handle-tool-msg :runtime-connect
+  [{:keys [state]} {:keys [rid runtime-info]}]
+  (swap! state
+    (fn [state]
+      (-> state
+          (assoc-in [::rid rid] {::rid rid
+                                 ::runtime-info runtime-info})
+          (update-runtimes)))))
+
+(defmethod handle-tool-msg :runtime-disconnect
+  [{:keys [state]} {:keys [rid]}]
+  (swap! state
+    (fn [state]
+      (-> state
+          (update ::rid dissoc rid)
+          (update-runtimes))))
+  ;; FIXME: do something if runtime is currently selected
+  )
 
 (defn start-browser [connect-callback]
   (let [{::fa/keys [state-atom runtime-atom]} env/app
@@ -184,16 +380,23 @@
     (.addEventListener socket "message"
       (fn [e]
         (let [t (transit/reader :json)
-              msg (transit/read t (.-data e))]
+              {:keys [op mid] :as msg} (transit/read t (.-data e))]
 
-          ;; (js/console.log "tool-msg" msg)
-          (fc/transact! env/app [(tool-msg-tx msg)]))))
+          (js/console.log "message" msg)
+          (if mid
+            (let [handler (get-in @rpc-ref [mid op])]
+              (if-not handler
+                (js/console.log "received rpc reply without handler" msg)
+                (handler msg)))
+
+            ;; (js/console.log "tool-msg" msg)
+            (fc/transact! env/app [(tool-msg-tx msg)])))))
 
     (.addEventListener socket "open"
       (fn [e]
         ;; (js/console.log "tool-open" e)
         (connect-callback)
-        (send {:op :request-runtimes})))
+        (cast! {:op :request-runtimes})))
 
     (.addEventListener socket "close"
       (fn [e]
@@ -205,6 +408,17 @@
         (js/console.warn "tool-error" e)))
 
     svc))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;; RENDER ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn render-edn-limit [[limit-reached text]]
   (if limit-reached
@@ -280,10 +494,10 @@
       )))
 
 (defmethod render-view :vec
-  [this {:keys [oid obj-type count]} entries]
+  [this {:keys [oid obj-type entries]} fragment]
   (html/div {}
-    (html/for [idx (range count)
-               :let [{:keys [val] :as entry} (get entries idx)]]
+    (html/for [idx (range entries)
+               :let [{:keys [val] :as entry} (get fragment idx)]]
       (html/div {:key idx :className "border-b"}
 
         (cond
@@ -302,14 +516,14 @@
                        (fc/transact! this [(nav-object {:oid oid
                                                         :idx idx})]))}
             (html/div {:className "px-2 border-r"} idx)
-            (html/div {:className "px-2 flex-1"} (render-edn-limit val)))))
+            (html/div {:className "px-2 flex-1 truncate"} (render-edn-limit val)))))
       )))
 
 (defmethod render-view :map
-  [this {:keys [oid obj-type] :as summary} entries]
+  [this {:keys [oid entries] :as summary} fragment]
   (html/div {:className "bg-white w-full"}
-    (html/for [idx (range (:count summary))
-               :let [{:keys [key val] :as entry} (get entries idx)
+    (html/for [idx (range entries)
+               :let [{:keys [key val] :as entry} (get fragment idx)
                      [key-limit-reached key-limit-text] key]]
       (cond
         (nil? entry)
@@ -339,19 +553,16 @@
           (html/div {:className "pl-4 pr-4 py-1 cursor-pointer truncate"}
             "↳ " (render-edn-limit val)))
 
-        ;; FIXME: make this smarter
-        ;; can tell via (:datafied summary) + val (which is edn-limit)
-        ;; if nav is even useful
         :else
         (html/div {:key idx
-                   :className "flex border-b hover:bg-gray-200"
-                   :onClick
+                   :className "flex py-1 border-b hover:bg-gray-200"
+                   :onClick ;; FIXME: only add if nav is actually supported
                    (fn [e]
                      (fc/transact! this [(nav-object {:oid oid
                                                       :idx idx
                                                       :key key})]))}
           (html/div
-            {:className "pl-4 pr-2 py-1 font-bold whitespace-no-wrap cursor-pointer truncate"
+            {:className "pl-4 pr-2 font-bold whitespace-no-wrap cursor-pointer truncate"
              :style {:flex "220px 0 0"}}
             (render-edn-limit key)
             #_(let [[limit-reached text] key
@@ -360,10 +571,9 @@
                   (str (subs text 0 6) "..." (subs text (- len 13) len))
                   text)))
           (html/div
-            {:className "pr-4 py-1 cursor-pointer truncate"}
+            {:className "pr-4 cursor-pointer truncate"}
             (render-edn-limit val)
-            )))
-      )))
+            ))))))
 
 (defsc Runtime [this {::keys [rid] :as props}]
   {:ident
@@ -602,7 +812,7 @@
     (html/fragment
       (html/div {:className "bg-white font-mono font-bold px-4 border-b py-1 text-l"} "Tap History")
       (html/div {:className (str "bg-white font-mono overflow-y-auto border-b-4" (when full-tap? " flex-1"))
-                 :style #js {:height "220px"}}
+                 :style #js {:height "243px"}}
         (cond
           (nil? objects)
           (html/div {:className "p-4"} "Loading ...")
@@ -696,146 +906,3 @@
           [(select-runtime {:rid rid})
            (routing/set-route {:router ::ui-model/root-router
                                :ident [::rid (js/parseInt rid)]})])))))
-
-(defmethod handle-tool-msg ::default [_ msg]
-  (js/console.warn "unhandled tool msg" msg))
-
-(defmethod handle-tool-msg :welcome
-  [{:keys [state] :as env} {:keys [tid]}]
-  (swap! state assoc ::tid tid))
-
-(defn as-idents [key ids]
-  (into [] (map #(vector key %)) ids))
-
-(defn add-new-obj [state rid oid]
-  (send {:op :obj-request-view
-         :rid rid
-         :oid oid
-         :view-type :edn-limit
-         :limit 100})
-
-  (send {:op :obj-request-view
-         :rid rid
-         :oid oid
-         :view-type :summary})
-
-  (swap! state update-in [::oid oid] merge {::rid rid
-                                            ::oid oid}))
-
-(defmethod handle-tool-msg :tap-history
-  [{:keys [state]} {:keys [rid oids] :as msg}]
-
-  (let [data @state]
-    (doseq [oid oids
-            :when (not (get-in data [::oid oid :summary]))]
-      (add-new-obj state rid oid)))
-
-  (swap! state
-    (fn [data]
-      (-> data
-          (assoc-in [::rid rid ::objects] (as-idents ::oid oids))
-          ))))
-
-(defn add-first [prev head max]
-  (into [head] (take (min max (count prev))) prev))
-
-(defn add-last [prev tail max]
-  (let [new (conj prev tail)
-        c (count new)]
-    (if (>= (count new) max)
-      (subvec new (- c max) c)
-      new)))
-
-(defmethod handle-tool-msg :tap
-  [{:keys [state]} {:keys [rid oid] :as msg}]
-  (add-new-obj state rid oid)
-  (swap! state update-in [::rid rid ::objects] add-first [::oid oid] 100))
-
-(defn add-ts [{:keys [added-at] :as summary}]
-  (let [date (js/Date. added-at)]
-    (assoc summary :ts (.format time-format date))))
-
-(defmethod handle-tool-msg :obj-view
-  [{:keys [state]} {:keys [view-type view oid rid] :as msg}]
-  (case view-type
-    :fragment
-    (swap! state update-in [::oid oid :fragment] merge view)
-
-    :summary
-    (do (swap! state update-in [::oid oid] assoc :summary (add-ts view))
-        (when (= oid (get-in @state [::rid rid ::object 1]))
-          ;; received summary for visible object, auto fetch first fragment
-          ;; happens on nav
-          (maybe-fetch-initial-fragment (get-in @state [::oid oid]))))
-
-    :edn
-    (swap! state update-in [::oid oid] assoc :edn view)
-
-    :pprint
-    (swap! state update-in [::oid oid] assoc :pprint view)
-
-    ;; default
-    (swap! state update-in [::oid oid] assoc view-type view)))
-
-(defmethod handle-tool-msg :obj-view-failed
-  [{:keys [state]} {:keys [view-type oid rid e] :as msg}]
-  (js/console.warn "remote-view failed" msg)
-  (case view-type
-    :edn
-    (swap! state update-in [::oid oid] assoc :edn (str "Failed: " e))
-
-    :pprint
-    (swap! state update-in [::oid oid] assoc :pprint (str "Failed: " e))
-
-    ;; default
-    (js/alert (str "Object View failed for " view-type " - " e))
-    ))
-
-(defmethod handle-tool-msg :obj-nav-success
-  [{:keys [state]} {:keys [rid nav-oid] :as msg}]
-  (swap! state assoc-in [::rid rid ::object] [::oid nav-oid])
-  (add-new-obj state rid nav-oid))
-
-(defmethod handle-tool-msg :runtimes
-  [{:keys [state]} {:keys [runtimes]}]
-  (let [db-data
-        (->> runtimes
-             (map (fn [{:keys [rid] :as runtime-info}]
-                    {::rid rid
-                     ::runtime-info runtime-info}))
-             (into []))]
-
-    (swap! state fam/merge-component Page {::runtimes db-data})
-    ))
-
-(defn update-runtimes [state]
-  (let [runtimes
-        (->> (::rid state)
-             (vals)
-             (map ::runtime-info)
-             (sort-by :since)
-             (reverse)
-             (map (fn [{:keys [rid]}]
-                    [::rid rid]))
-             (into []))]
-
-    (assoc-in state [::ui-model/page-inspect 1 ::runtimes] runtimes)))
-
-(defmethod handle-tool-msg :runtime-connect
-  [{:keys [state]} {:keys [rid runtime-info]}]
-  (swap! state
-    (fn [state]
-      (-> state
-          (assoc-in [::rid rid] {::rid rid
-                                 ::runtime-info runtime-info})
-          (update-runtimes)))))
-
-(defmethod handle-tool-msg :runtime-disconnect
-  [{:keys [state]} {:keys [rid]}]
-  (swap! state
-    (fn [state]
-      (-> state
-          (update ::rid dissoc rid)
-          (update-runtimes))))
-  ;; FIXME: do something if runtime is currently selected
-  )

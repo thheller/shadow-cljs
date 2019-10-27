@@ -1,4 +1,18 @@
-(ns shadow.remote.runtime.protocols)
+(ns shadow.remote.runtime.api)
+
+(defprotocol IRuntime
+  (relay-msg [runtime msg])
+  (add-extension [runtime key spec])
+  (del-extension [runtime key]))
+
+(defn reply [runtime {:keys [mid tid]} res]
+  (let [res (-> res
+                (cond->
+                  mid
+                  (assoc :mid mid)
+                  tid
+                  (assoc :tid tid)))]
+    (relay-msg runtime res)))
 
 (defprotocol Inspectable
   :extend-via-metadata true

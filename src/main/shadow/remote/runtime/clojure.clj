@@ -2,20 +2,12 @@
   (:require
     [clojure.core.async :as async :refer (thread alt!! <!! >!!)]
     [shadow.remote.runtime.shared :as shared]
-    [shadow.remote.relay :as relay]
+    [shadow.remote.runtime.obj-support]
+    [shadow.remote.relay.api :as relay]
     [shadow.jvm-log :as log]
-    [clojure.datafy :as d])
+    [clojure.datafy :as d]
+    [shadow.remote.runtime.api :as p])
   (:import [java.util.concurrent TimeUnit Executors ExecutorService Future]))
-
-(defn make-reply-fn [to-chan {:keys [mid tid] :as req}]
-  (fn [res]
-    (let [res (-> res
-                  (cond->
-                    mid
-                    (assoc :mid mid)
-                    tid
-                    (assoc :tid tid)))]
-      (>!! to-chan res))))
 
 (defn check-tasks [tasks]
   (reduce-kv
@@ -27,7 +19,7 @@
     tasks))
 
 (defn runtime-loop
-  [{:keys [^ExecutorService ex state-ref from-relay to-relay]}]
+  [{:keys [^ExecutorService ex state-ref from-relay to-relay] :as runtime}]
   (loop []
     (alt!!
       from-relay
@@ -40,12 +32,14 @@
                (.submit ex
                  ^Callable
                  (fn []
-                   (let [reply (make-reply-fn to-relay req)]
-                     (try
-                       (shared/process state-ref req reply)
-                       (catch Throwable e
-                         (log/debug-ex e ::process-ex {:req req})
-                         (reply {:op :exception :ex (d/datafy e)}))))))]
+                   (try
+                     (shared/process runtime req)
+                     (catch Throwable e
+                       (log/debug-ex e ::process-ex {:req req})
+                       (>!! to-relay {:op :exception
+                                      :mid (:mid req)
+                                      :tid (:tid req)
+                                      :ex (d/datafy e)})))))]
 
            ;; keeping and cleaning tasks for obversability purposes only for now
            ;; could maybe log warnings if stuff takes too long
@@ -54,9 +48,18 @@
 
       (async/timeout 1000)
       ([_]
-       (shared/basic-gc state-ref)
        (swap! state-ref update :tasks check-tasks)
+       (shared/run-on-idle state-ref)
        (recur)))))
+
+(defrecord ClojureRuntime [state-ref ex from-relay to-relay]
+  p/IRuntime
+  (relay-msg [_ msg]
+    (>!! to-relay msg))
+  (add-extension [this key spec]
+    (shared/add-extension this key spec))
+  (del-extension [this key]
+    (shared/del-extension this key)))
 
 (defn start [relay]
   (let [to-relay
@@ -72,52 +75,42 @@
         (Executors/newCachedThreadPool)
 
         state-ref
-        (atom
-          (-> (shared/init-state)
-              (assoc :relay-msg #(>!! to-relay %))))
+        (atom (shared/init-state))
 
-        tap-fn
-        (fn clj-tap [obj]
-          ;; FIXME: I wish tap> would take a second argument for context
-          ;; (tap> some-obj {:tap-mode :keep-latest :tap-stream :abc :title "result of something"})
-          ;; so the UI can show more than just a generic id before requesting more
-          ;; (tap> [:marker some-obj :other :things])
-          ;; would need a marker to identify
-          ;; only using tap> because it can be used without additional requires
-          ;; could just add something to core as well though
-          (when (some? obj)
-            (let [oid (shared/register state-ref obj {:from :tap})]
-              (doseq [tid (:tap-subs @state-ref)]
-                (>!! to-relay {:op :tap :tid tid :oid oid})))))
+        runtime
+        (doto (ClojureRuntime. state-ref ex from-relay to-relay)
+          (shared/add-defaults))]
 
-        thread
-        (async/thread
-          (runtime-loop {:ex ex
-                         :state-ref state-ref
-                         :from-relay from-relay
-                         :to-relay to-relay}))]
+    ;; FIXME: should keep reference to thread so we can properly wait for its end
+    (async/thread
+      (runtime-loop runtime))
 
-    (add-tap tap-fn)
+    runtime))
 
-    {:state-ref state-ref
-     :ex ex
-     :tap-fn tap-fn
-     :from-relay from-relay
-     :to-relay to-relay
-     :thread thread}))
-
-(defn stop [{:keys [ex tap-fn to-relay from-relay thread] :as svc}]
-  (remove-tap tap-fn)
+(defn stop [{:keys [ex to-relay from-relay] :as svc}]
   (async/close! to-relay)
   (async/close! from-relay)
 
   (.shutdown ex)
   (when-not (.awaitTermination ex 10 TimeUnit/SECONDS)
-    (.shutdownNow ex))
-
-  (<!! thread))
+    (.shutdownNow ex)))
 
 (comment
+
+  (require '[shadow.remote.relay.local :as rl])
+
+  (def r (rl/start))
+
+  (prn r)
+
+  (rl/stop r)
+
+  (def x (start r))
+
+  (prn x)
+
+  (stop x)
+
   (extend-protocol clojure.core.protocols/Datafiable
     java.io.File
     (datafy [^java.io.File file]

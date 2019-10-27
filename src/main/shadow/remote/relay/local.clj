@@ -1,6 +1,7 @@
-(ns shadow.remote.relay
+(ns shadow.remote.relay.local
   (:require
     [clojure.core.async :as async :refer (go >! <! >!! <!!)]
+    [shadow.remote.relay.api :as rapi]
     [shadow.jvm-log :as log])
   (:import [java.util Date]))
 
@@ -16,8 +17,7 @@
 
 (defmethod handle-sys-msg ::default
   [state-ref origin {:keys [op] :as msg}]
-  (>!! (:to origin) (maybe-add-mid msg {:op :unknown-op
-                                           :request-op op})))
+  (>!! (:to origin) (maybe-add-mid msg {:op :unknown-relay-op :msg msg})))
 
 (defn send-to-tools [state-ref msg]
   (doseq [{:keys [to]} (-> @state-ref :tools vals)]
@@ -58,7 +58,7 @@
       (if-not runtime
         (>!! (:to tool)
              (maybe-add-mid msg {:op :runtime-not-found
-                                    :rid rid}))
+                                 :rid rid}))
 
         ;; forward with tid only, replies should be coming from runtime-out
         (>!! (:to runtime)
@@ -74,84 +74,84 @@
     :else
     (handle-sys-msg state-ref tool msg)))
 
-(defn runtime-connect [svc from-runtime runtime-info]
-  (let [{:keys [state-ref id-seq-ref]} svc
 
-        rid (swap! id-seq-ref inc)
+(defrecord LocalRelay [id-seq-ref state-ref]
+  rapi/IToolRelay
+  (tool-connect [relay from-tool tool-info]
+    (let [tid (swap! id-seq-ref inc)
 
-        to-runtime
-        (async/chan 10)
+          to-tool
+          (async/chan 10)
 
-        runtime-info
-        (assoc runtime-info :since (Date.) :rid rid)
+          tool-data
+          {:tid tid
+           :from from-tool
+           :to to-tool
+           :info tool-info}]
 
-        runtime
-        {:rid rid
-         :runtime-info runtime-info
-         :to to-runtime
-         :from from-runtime}]
+      (swap! state-ref assoc-in [:tools tid] tool-data)
 
-    (swap! state-ref assoc-in [:runtimes rid] runtime)
+      (go (loop []
+            (when-some [msg (<! from-tool)]
+              (handle-tool-msg state-ref tool-data msg)
+              (recur)))
 
-    (send-to-tools state-ref {:op :runtime-connect
-                              :rid rid
-                              :runtime-info runtime-info})
+          ;; send to all runtimes so they can cleanup state?
+          (send-to-runtimes state-ref {:op :tool-disconnect
+                                       :tid tid})
 
-    (go (loop []
-          (when-some [msg (<! from-runtime)]
-            (handle-runtime-msg state-ref runtime msg)
-            (recur)))
+          (swap! state-ref update :tools dissoc tid)
+          (async/close! to-tool))
 
-        (send-to-tools state-ref {:op :runtime-disconnect
-                                  :rid rid})
+      (>!! to-tool {:op :welcome
+                    :tid tid})
 
-        (swap! state-ref update :runtimes dissoc rid))
+      ;; FIXME: could return the id right here with the channel?
+      to-tool))
 
-    (>!! to-runtime {:op :welcome
-                     :rid rid})
+  rapi/IRuntimeRelay
+  (runtime-connect [relay from-runtime runtime-info]
+    (let [rid (swap! id-seq-ref inc)
 
-    to-runtime
-    ))
+          to-runtime
+          (async/chan 10)
 
-(defn tool-connect
-  [svc from-tool]
-  (let [{:keys [state-ref id-seq-ref]} svc
+          runtime-info
+          (assoc runtime-info :since (Date.) :rid rid)
 
-        tid (swap! id-seq-ref inc)
+          runtime
+          {:rid rid
+           :runtime-info runtime-info
+           :to to-runtime
+           :from from-runtime}]
 
-        to-tool
-        (async/chan 10)
+      (swap! state-ref assoc-in [:runtimes rid] runtime)
 
-        tool-data
-        {:tid tid
-         :from from-tool
-         :to to-tool}]
+      (send-to-tools state-ref {:op :runtime-connect
+                                :rid rid
+                                :runtime-info runtime-info})
 
-    (swap! state-ref assoc-in [:tools tid] tool-data)
+      (go (loop []
+            (when-some [msg (<! from-runtime)]
+              (handle-runtime-msg state-ref runtime msg)
+              (recur)))
 
-    (go (loop []
-          (when-some [msg (<! from-tool)]
-            (handle-tool-msg state-ref tool-data msg)
-            (recur)))
+          (send-to-tools state-ref {:op :runtime-disconnect
+                                    :rid rid})
 
-        ;; send to all runtimes so they can cleanup state?
-        (send-to-runtimes state-ref {:op :tool-disconnect
-                                     :tid tid})
+          (swap! state-ref update :runtimes dissoc rid))
 
-        (swap! state-ref update :tools dissoc tid)
-        (async/close! to-tool))
+      (>!! to-runtime {:op :welcome
+                       :rid rid})
 
-    (>!! to-tool {:op :welcome
-                  :tid tid})
-
-    ;; FIXME: could return the id right here with the channel?
-    to-tool))
+      to-runtime
+      )))
 
 (defn start []
-  {::service true
-   :id-seq-ref (atom 0)
-   :state-ref (atom {:tools {}
-                     :runtimes {}})})
+  (LocalRelay.
+    (atom 0)
+    (atom {:tools {}
+           :runtimes {}})))
 
 (defn stop [{:keys [state-ref] :as svc}]
   (let [{:keys [tools runtimes]} @state-ref]
@@ -170,7 +170,7 @@
                     (vec))]
     (>!! (:to tool)
          (maybe-add-mid msg {:op :runtimes
-                                :runtimes result}))))
+                             :runtimes result}))))
 
 (comment
   (def svc (start))
@@ -181,7 +181,7 @@
   (stop svc)
 
   (def tool-in (async/chan))
-  (def tool-out (tool-connect svc tool-in))
+  (def tool-out (rapi/tool-connect svc tool-in {}))
 
   (def tid-ref (atom nil))
 
@@ -195,7 +195,7 @@
       (prn :tool-out-shutdown))
 
   (def runtime-in (async/chan))
-  (def runtime-out (runtime-connect svc runtime-in {}))
+  (def runtime-out (rapi/runtime-connect svc runtime-in {}))
 
   (go (loop []
         (when-some [msg (<! runtime-out)]
@@ -215,7 +215,9 @@
 
   (>!! tool-in {:op :request-runtimes})
 
-  (>!! tool-in {:op :request-supported-ops :rid (-> clj :state-ref deref :rid)})
+  (def test-runtime-id 2)
+
+  (>!! tool-in {:op :request-supported-ops :rid test-runtime-id})
   (>!! tool-in {:op :request-tap-history
                 :num 10
                 :rid (-> clj :state-ref deref :rid)})
@@ -230,5 +232,6 @@
 
   (async/close! tool-in)
   (async/close! runtime-in)
+  (async/close! runtime-out)
 
   svc)

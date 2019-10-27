@@ -86,7 +86,7 @@
 
    :devtools
    {:preloads [com.fulcrologic.fulcro.inspect.preload
-               shadow.remote.runtime.browser]
+               shadow.remote.runtime.cljs.browser]
     ;; :loader-mode :eval
     }}
 
@@ -172,7 +172,7 @@
    :devtools
    {;; :loader-mode :script
     :repl-init-ns demo.browser
-    :preloads [shadow.remote.runtime.browser]
+    :preloads [shadow.remote.runtime.cljs.browser]
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 

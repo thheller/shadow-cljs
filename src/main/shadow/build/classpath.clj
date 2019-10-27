@@ -402,7 +402,7 @@
                           (assoc info :url (.getTextContent node))
 
                           "description"
-                          (assoc info :description (.getTextContent node))
+                          (assoc info :description (str/trim (.getTextContent node)))
 
                           info
                           )))))

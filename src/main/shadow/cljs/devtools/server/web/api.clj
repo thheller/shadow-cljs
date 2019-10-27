@@ -17,7 +17,7 @@
     [shadow.core-ext :as core-ext]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.server.repl-system :as repl-system]
-    [shadow.remote.relay :as relay])
+    [shadow.remote.relay.api :as relay])
   (:import [java.util UUID]))
 
 (defn index-page [req]
@@ -222,7 +222,7 @@
 
 (defn api-tool-loop! [{:keys [relay ws-out ws-in] :as ws-state}]
   ;; FIXME: should take tool-info, just like runtime-connect and runtime-info
-  (let [from-relay (relay/tool-connect relay ws-in)]
+  (let [from-relay (relay/tool-connect relay ws-in {})]
     (loop []
       (when-some [msg (<!! from-relay)]
         (>!! ws-out msg)
