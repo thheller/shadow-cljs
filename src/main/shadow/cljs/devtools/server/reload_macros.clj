@@ -1,12 +1,13 @@
 (ns shadow.cljs.devtools.server.reload-macros
-  (:require [clojure.core.async :as async :refer (thread alt!!)]
-            [shadow.jvm-log :as log]
-            [shadow.build.macros :as bm]
-            [clojure.java.io :as io]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.model :as m]
-            [shadow.cljs.util :as util]
-            [clojure.set :as set]))
+  (:require
+    [shadow.jvm-log :as log]
+    [shadow.build.macros :as bm]
+    [clojure.java.io :as io]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]
+    [shadow.cljs.model :as m]
+    [shadow.cljs.util :as util]
+    [clojure.set :as set])
+  (:import [java.util.concurrent Executors TimeUnit]))
 
 (defn clj-ns-modified? [clj-state-ref ns-sym]
   (let [rc-url (bm/find-macro-rc ns-sym)]
@@ -69,31 +70,24 @@
       (sys-bus/publish! system-bus ::m/macro-update {:macro-namespaces reloaded})
       )))
 
-(defn watch-loop [clj-state system-bus control-chan]
-  (loop []
-    (alt!!
-      control-chan
-      ([_] :stop)
-
-      (async/timeout 1000)
-      ([_]
-        (try
-          (check-macros! clj-state system-bus)
-          (catch Exception e
-            (log/warn-ex e ::macro-watch-ex)))
-        (recur))))
-
-  ::terminated)
-
 (defn start [system-bus]
-  (let [control-chan
-        (async/chan)]
+  (let [ex (Executors/newSingleThreadScheduledExecutor)
+
+        state-ref
+        (atom {})
+
+        check-fn
+        (fn []
+          (try
+            (check-macros! state-ref system-bus)
+            (catch Exception e
+              (log/warn-ex e ::macro-watch-ex))))]
 
     {:system-bus system-bus
-     :control-chan control-chan
-     :watch-thread (thread (watch-loop (atom {}) system-bus control-chan))}))
+     :ex ex
+     :state-ref state-ref
+     :fut (.scheduleWithFixedDelay ex check-fn 2 2 TimeUnit/SECONDS)
+     }))
 
-
-(defn stop [{:keys [watch-thread control-chan]}]
-  (async/close! control-chan)
-  (async/<!! watch-thread))
+(defn stop [{:keys [ex]}]
+  (.shutdown ex))

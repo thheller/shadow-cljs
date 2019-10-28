@@ -2,13 +2,12 @@
   "service that watches fs updates and ensures npm resources are updated
    will emit system-bus messages for inform about changed resources"
   (:require
-    [clojure.core.async :as async :refer (alt!! thread)]
     [clojure.set :as set]
     [shadow.jvm-log :as log]
     [shadow.build.npm :as npm]
     [shadow.cljs.model :as m]
-    [shadow.debug :refer (?> ?-> ?->>)]
-    ))
+    [shadow.debug :refer (?> ?-> ?->>)])
+  (:import [java.util.concurrent Executors TimeUnit]))
 
 (defn dissoc-all [m files]
   (reduce dissoc m files))
@@ -65,32 +64,24 @@
 
         (update-fn {:added #{} :namespaces modified-provides})))))
 
-(defn watch-loop [npm control-chan update-fn]
-  (loop []
-    (alt!!
-      control-chan
-      ([_] :stop)
-
-      (async/timeout 2000)
-      ([_]
-       (try
-         (check-files! npm update-fn)
-         (catch Exception e
-           (log/warn-ex e ::npm-check-ex)))
-       (recur))))
-
-  ::terminated)
-
 (defn start [npm update-fn]
   {:pre [(npm/service? npm)
          (fn? update-fn)]}
-  (let [control-chan (async/chan)]
-    {:npm npm
-     :control-chan control-chan
-     :update-fn update-fn
-     :watch-thread (thread (watch-loop npm control-chan update-fn))}))
+  (let [ex (Executors/newSingleThreadScheduledExecutor)
 
-(defn stop [{:keys [watch-thread control-chan]}]
-  (async/close! control-chan)
-  (async/<!! watch-thread))
+        check-fn
+        (fn []
+          (try
+            (check-files! npm update-fn)
+            (catch Exception e
+              (log/warn-ex e ::npm-check-ex))))]
+
+    {:npm npm
+     :update-fn update-fn
+     :check-fn check-fn
+     :ex ex
+     :fut (.scheduleWithFixedDelay ex check-fn 2 2 TimeUnit/SECONDS)}))
+
+(defn stop [{:keys [ex]}]
+  (.shutdown ex))
 
