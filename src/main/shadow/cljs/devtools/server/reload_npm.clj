@@ -1,11 +1,14 @@
 (ns shadow.cljs.devtools.server.reload-npm
   "service that watches fs updates and ensures npm resources are updated
    will emit system-bus messages for inform about changed resources"
-  (:require [clojure.core.async :as async :refer (alt!! thread)]
-            [shadow.jvm-log :as log]
-            [shadow.build.npm :as npm]
-            [shadow.cljs.model :as m]
-            [clojure.set :as set]))
+  (:require
+    [clojure.core.async :as async :refer (alt!! thread)]
+    [clojure.set :as set]
+    [shadow.jvm-log :as log]
+    [shadow.build.npm :as npm]
+    [shadow.cljs.model :as m]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    ))
 
 (defn dissoc-all [m files]
   (reduce dissoc m files))
@@ -22,14 +25,27 @@
   ;; this only needs to check files that were already referenced in some build
   ;; new files will be discovered when resolving
 
-  (let [{:keys [files] :as index}
+  (let [{:keys [files package-json-cache] :as index}
         @index-ref
 
+        modified-packages
+        (reduce-kv
+          (fn [modified package-json-file {:keys [last-modified content]}]
+            (if (= last-modified (.lastModified package-json-file))
+              modified
+              (conj modified (:package-name content))))
+          #{}
+          package-json-cache)
+
         modified-resources
-        (->> (:files @index-ref)
-             (vals)
-             (filter was-modified?)
-             (into []))
+        (when (seq modified-packages)
+          (reduce-kv
+            (fn [modified js-file {:keys [package-name] :as rc}]
+              (if-not (contains? modified-packages package-name)
+                modified
+                (conj modified rc)))
+            []
+            files))
 
         modified-files
         (into [] (map :file) modified-resources)]
@@ -55,17 +71,13 @@
       control-chan
       ([_] :stop)
 
-      ;; FIXME: figure out how much CPU this uses
-      ;; this is mostly watching node_modules which is unlikely to change
-      ;; but JS modules usually contain a whole bunch of files
-      ;; so increasing this would be fine
       (async/timeout 2000)
       ([_]
-        (try
-          (check-files! npm update-fn)
-          (catch Exception e
-            (log/warn-ex e ::npm-check-ex)))
-        (recur))))
+       (try
+         (check-files! npm update-fn)
+         (catch Exception e
+           (log/warn-ex e ::npm-check-ex)))
+       (recur))))
 
   ::terminated)
 
