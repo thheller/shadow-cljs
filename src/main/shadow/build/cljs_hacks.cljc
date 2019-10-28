@@ -6,6 +6,7 @@
     [cljs.env :as env]
     [cljs.core :as core]
     [cljs.test :as test]
+    [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.jvm-log :as log]))
 
 ;; replacing some internal cljs.analyzer/compiler fns

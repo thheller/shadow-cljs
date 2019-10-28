@@ -217,7 +217,7 @@
         (browseable-vec))
 
     (set? data)
-    (-> data
+    (-> desc
         (update :summary merge {:data-type :set
                                 :entries (count data)})
         (attempt-to-sort data)

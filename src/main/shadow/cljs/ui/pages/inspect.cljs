@@ -473,10 +473,10 @@
   (render-simple "nil"))
 
 (defmethod render-view :set
-  [this {:keys [oid count]} entries]
+  [this {:keys [oid entries]} fragment]
   (html/div {}
-    (html/for [idx (range count)
-               :let [{:keys [val] :as entry} (get entries idx)]]
+    (html/for [idx (range entries)
+               :let [{:keys [val] :as entry} (get fragment idx)]]
       (html/div {:key idx :className "border-b"}
 
         (cond

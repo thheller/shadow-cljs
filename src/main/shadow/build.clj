@@ -15,6 +15,7 @@
     [shadow.build.data :as data]
     [shadow.build.log :as build-log]
     [shadow.build.async :as async]
+    [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.cljs-specs] ;; FIXME: move these
     ))
 
@@ -423,6 +424,7 @@
   [state]
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
+  ;; (?> state ::flush)
   (-> state
       (process-stage :flush true)
       ;; FIXME: technically don't need to wait for this to complete
