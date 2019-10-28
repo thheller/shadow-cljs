@@ -1,5 +1,6 @@
 (ns shadow.cljs.ui.pages.inspect
   (:require
+    [clojure.string :as str]
     [cljs.pprint :refer (pprint)]
     [goog.object :as gobj]
     [goog.functions :as gfn]
@@ -15,7 +16,11 @@
     [shadow.cljs.ui.routing :as routing]
     [shadow.cljs.ui.fulcro-mods :as fmods :refer (deftx)]
     [shadow.cljs.ui.env :as env]
-    [shadow.debug :refer (?> ?-> ?->>)])
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [shadow.cljs.ui.util :as util]
+    ["codemirror" :as cm]
+    ["codemirror/mode/clojure/clojure"]
+    ["parinfer-codemirror" :as par-cm])
 
   (:import [goog.i18n DateTimeFormat]))
 
@@ -30,7 +35,7 @@
   (reduce fn init vals))
 
 (defn cast! [msg]
-  (js/console.log "ws-out" msg)
+  ;; (js/console.log "ws-out" msg)
   (let [w (transit/writer :json)
         json (transit/write w msg)]
     (.send (:socket @tool-ref) json)))
@@ -146,30 +151,7 @@
 
 (defmutation select-runtime [{:keys [rid] :as params}]
   (action [{:keys [state] :as env}]
-
-    (call! {:op :request-tap-history :rid rid :num 100}
-      {:tap-history
-       (fn [{:keys [rid oids] :as msg}]
-         (let [data @state]
-           (doseq [oid oids
-                   :when (not (get-in data [::oid oid :summary]))]
-             (add-new-tap-obj state rid oid)))
-
-         (swap! state
-           (fn [data]
-             (-> data
-                 (assoc-in [::rid rid ::objects] (as-idents ::oid oids))
-                 ))))})
-
-    (let [[_ current] (get-in @state [::ui-model/page-inspect 1 ::runtime])]
-      (when (not= rid current)
-        (when current
-          (cast! {:op :tap-unsubscribe :rid current}))
-        (cast! {:op :tap-subscribe :rid rid}))
-
-
-      ;; FIXME: this should fail somehow if runtime doesn't exist
-      ;; but must account for runtime not being loaded yet
+    (let [[_ previous-rid] (get-in @state [::ui-model/page-inspect 1 ::runtime])]
 
       (swap! state
         (fn [state]
@@ -179,7 +161,34 @@
               ;; before :request-runtimes finished. :clj will always have id 1
               (update-in [::rid rid] merge {::rid rid})
               (update-in [::rid rid] dissoc ::object)
-              (update-in [::rid rid] assoc ::nav-stack [])))))))
+              (update-in [::rid rid] assoc ::nav-stack []))))
+
+      ;; FIXME: this should happen on initial :request-runtimes
+      (call! {:op :request-supported-ops :rid rid}
+        {:runtime-not-found
+         (fn [msg]
+           (js/console.log "runtime-not-found" msg))
+
+         :supported-ops
+         (fn [{:keys [ops] :as msg}]
+           (swap! state assoc-in [::rid rid ::supported-ops] ops)
+
+           (when (contains? ops :request-tap-history)
+
+             (when (not= rid previous-rid)
+               (when previous-rid ;; may be nil
+                 (cast! {:op :tap-unsubscribe :rid previous-rid}))
+               (cast! {:op :tap-subscribe :rid rid}))
+
+             (call! {:op :request-tap-history :rid rid :num 100}
+               {:tap-history
+                (fn [{:keys [rid oids] :as msg}]
+                  (let [data @state]
+                    (doseq [oid oids
+                            :when (not (get-in data [::oid oid :summary]))]
+                      (add-new-tap-obj state rid oid)))
+
+                  (swap! state assoc-in [::rid rid ::objects] (as-idents ::oid oids)))})))}))))
 
 (defmutation unselect-object [{:keys [oid] :as params}]
   (action [{:keys [state] :as env}]
@@ -261,7 +270,6 @@
 
              :obj-result
              (fn [{:keys [result] :as msg}]
-               (js/console.log "request-pprint" msg)
                (swap! state assoc-in [::oid oid :pprint] result)
                (fc/transact! env/app [[::oid oid]]))}))
 
@@ -281,7 +289,6 @@
 
              :obj-result
              (fn [{:keys [result] :as msg}]
-               (js/console.log "request-edn" msg)
                (swap! state assoc-in [::oid oid :edn] result)
                (fc/transact! env/app [[::oid oid]]))}))
 
@@ -319,9 +326,7 @@
                     {::rid rid
                      ::runtime-info runtime-info}))
              (into []))]
-
-    (swap! state fam/merge-component Page {::runtimes db-data})
-    ))
+    (swap! state fam/merge-component Page {::runtimes db-data})))
 
 (defmethod handle-tool-msg :runtime-not-found
   [{:keys [app state] :as env} {:keys [rid]}]
@@ -382,7 +387,7 @@
         (let [t (transit/reader :json)
               {:keys [op mid] :as msg} (transit/read t (.-data e))]
 
-          (js/console.log "message" msg)
+          ;; (js/console.log "message" msg)
           (if mid
             (let [handler (get-in @rpc-ref [mid op])]
               (if-not handler
@@ -396,7 +401,7 @@
       (fn [e]
         ;; (js/console.log "tool-open" e)
         (connect-callback)
-        (cast! {:op :request-runtimes})))
+        ))
 
     (.addEventListener socket "close"
       (fn [e]
@@ -741,8 +746,85 @@
 
 (def ui-object-detail (fc/factory ObjectDetail {}))
 
+(defn do-eval [comp]
+  (let [{::keys [^js editor term]} (util/get-local! comp)
+        {::keys [rid]} (fc/props comp)
+        state (::fa/state-atom env/app)
+
+        ;; FIXME: might be nil
+        oid (get-in @state [::rid rid ::object 1])
+
+        text
+        (str/trim (.getValue editor))
+
+        ;; extremely hacky way to get access runtime refs
+        code
+        (str "(let [*ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
+             "      *o (:obj *ref)\n"
+             "      *d (-> *ref :desc :data)]\n"
+             text
+             "\n)")]
+
+    (when (seq text)
+
+      (.setValue editor "")
+
+      (call!
+        {:op :eval-clj
+         :rid rid
+         :code code}
+
+        {:unknown-op
+         (fn [msg]
+           (js/console.log "eval-not-supported" msg))
+
+         :eval-error
+         (fn [msg]
+           (js/console.log "eval-error" msg))
+
+         :eval-result-ref
+         (fn [{:keys [ref-oid] :as msg}]
+           (swap! state update-in [::rid rid ::nav-stack] conj {:oid oid :key [false text]})
+           (swap! state assoc-in [::rid rid ::object] [::oid ref-oid])
+           (add-new-nav-obj state rid ref-oid))
+
+         :eval-result
+         (fn [msg]
+           (js/console.log "eval-result" msg))}))))
+
+(defn attach-codemirror [comp cm-input]
+  ;; (js/console.log ::attach-codemirror cm-input comp)
+  (if-not cm-input
+    (let [{::keys [editor]} (util/get-local! comp)]
+      (when editor
+        (.toTextArea editor))
+      (util/swap-local! comp dissoc ::editor))
+
+    (let [editor
+          (cm/fromTextArea
+            cm-input
+            #js {:lineNumbers true
+                 :mode "clojure"
+                 :theme "github"
+                 :autofocus true
+                 :matchBrackets true})]
+
+      (.setOption editor "extraKeys"
+        #js {"Ctrl-Enter" #(do-eval comp)
+             "Shift-Enter" #(do-eval comp)})
+
+      (par-cm/init editor)
+      (util/swap-local! comp assoc ::editor editor))))
+
+(defn ui-runtime-eval [this props]
+  (html/div {:className "bg-white font-mono flex flex-col"}
+    (html/div {:className "font-bold px-4 border-b border-t-2 py-1 text-l"}
+      "Runtime Eval (use *o for current obj, ctrl+enter for eval)")
+    (html/div {:style {:height "120px"}}
+      (html/input {:ref (util/comp-fn this ::editor-ref attach-codemirror)}))))
+
 (defsc RuntimePage
-  [this {::keys [rid runtime-info objects object nav-stack] :as props}]
+  [this {::keys [rid] :as props}]
   {:ident
    (fn []
      [::rid rid])
@@ -793,14 +875,17 @@
    (fn []
      [::rid
       ::runtime-info
+      ::supported-ops
       {::objects (fc/get-query ObjectListItem)}
       {::object (fc/get-query ObjectDetail)}
       ::nav-stack])}
 
-  (let [select-fn
+  (let [{::keys [runtime-info supported-ops objects object nav-stack]}
+        props
+
+        select-fn
         (fn [oid]
-          (fc/transact! this [(select-object {:rid rid
-                                              :oid oid})]))
+          (fc/transact! this [(select-object {:rid rid :oid oid})]))
 
         scroll-ref
         (fc/get-state this :scroll-ref)
@@ -847,8 +932,10 @@
         (html/fragment
           (ui-object-header object)
           (ui-object-detail object)
-          (ui-object-footer object)
-          )))))
+          (ui-object-footer object)))
+
+      (when (contains? supported-ops :eval-clj)
+        (ui-runtime-eval this props)))))
 
 (def ui-runtime-page (fc/factory RuntimePage {}))
 
@@ -892,7 +979,10 @@
           [(routing/set-route
              {:router ::ui-model/root-router
               :ident [::ui-model/page-loading 1]})])
-        (start-browser #(route tokens)))
+        (start-browser
+          (fn []
+            (cast! {:op :request-runtimes})
+            (route tokens))))
 
     (if (empty? tokens)
       (fc/transact! env/app

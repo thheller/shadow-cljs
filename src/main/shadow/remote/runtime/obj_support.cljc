@@ -233,9 +233,6 @@
 (defn inspect-source-info [desc obj opts]
   (update desc :summary merge (select-keys opts [:ns :line :column :label])))
 
-(defn add-supports [{:keys [handlers] :as desc}]
-  (assoc-in desc [:summary :supports] (set (keys handlers))))
-
 (defn add-summary-op [{:keys [summary] :as desc}]
   (assoc-in desc [:handlers :summary] (fn [msg] summary)))
 
@@ -243,17 +240,21 @@
   (let [data (d/datafy o)]
 
     (-> {:data data
-         :summary {:added-at (:added-at opts)
-                   :datafied (not (identical? data o))}
+         :summary
+         {:added-at (:added-at opts)
+          :datafied (not (identical? data o))}
+
+         ;; FIXME: only add those for clojure values
+         ;; often pointless when datafy returned original object
          :handlers
          {:edn-limit #(as-edn-limit data %)
           :edn #(as-edn data %)
           :pprint #(as-pprint data %)}}
+
         (inspect-basic o opts)
         (inspect-type-info o opts)
         (inspect-source-info o opts)
-        (add-summary-op)
-        (add-supports))))
+        (add-summary-op))))
 
 (extend-protocol p/Inspectable
   #?(:clj Object :cljs default)
@@ -265,13 +266,18 @@
     {:hello "world"}
     {:added-at "NOW" :ns "foo.bar"}))
 
+;; called after describe so impls don't have to worry about this
+(defn add-supports [{:keys [handlers] :as desc}]
+  (assoc-in desc [:summary :supports] (set (keys handlers))))
+
 ;; FIXME: this is running inside swap! which means it can potentially
 ;; end up getting executed several times for the same object (in CLJ)
 ;; that is not great and should be handled differently
 (defn ensure-descriptor [{:keys [obj obj-info desc] :as entry}]
   (if desc
     entry
-    (assoc entry :desc (p/describe obj obj-info))))
+    (assoc entry :desc (-> (p/describe obj obj-info)
+                           (add-supports)))))
 
 
 (defn obj-describe
@@ -373,6 +379,9 @@
       (swap! state-ref register* oid obj obj-info)
       (swap! state-ref register* oid (nth obj 1) (merge obj-info (nth obj 2))))
     oid))
+
+(defn get-ref [{:keys [state-ref]} obj-id]
+  (get-in @state-ref [:objects obj-id]))
 
 (defn stop [{:keys [runtime]}]
   (p/del-extension runtime ::ext))

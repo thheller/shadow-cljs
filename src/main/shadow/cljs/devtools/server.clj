@@ -32,6 +32,7 @@
     [shadow.remote.runtime.clojure :as clj-runtime]
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.tap-support :as tap-support]
+    [shadow.remote.runtime.eval-support :as eval-support]
     [shadow.cljs.devtools.server.system-bus :as system-bus]
     [shadow.cljs.devtools.server.system-bus :as sys-bus])
   (:import (java.net BindException Socket SocketException InetSocketAddress)
@@ -500,6 +501,12 @@
                   {:depends-on [:clj-runtime :clj-runtime-obj-support]
                    :start tap-support/start
                    :stop tap-support/stop}
+
+                  :clj-runtime-eval-support
+                  {:depends-on [:clj-runtime :clj-runtime-obj-support]
+                   :start eval-support/start
+                   :stop eval-support/stop}
+
 
                   :out
                   {:depends-on [:config]

@@ -27,7 +27,8 @@
     {:op :supported-ops
      :ops (-> (:ops @state-ref)
               (keys)
-              (set))}))
+              (set)
+              (disj :welcome :unknown-relay-op :unknown-op :request-supported-ops :tool-disconnect))}))
 
 (defn unknown-relay-op [msg]
   #?(:cljs (js/console.warn "unknown-relay-op" msg)
