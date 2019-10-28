@@ -287,10 +287,8 @@
               (assoc :modules chunks)))
 
         output-wrapper?
-        (let [x (get-in state [:compiler-options :output-wrapper])]
-          (if (false? x)
-            false
-            (or x (and (= :release mode) (= 1 (count modules))))))]
+        (and (= :release mode)
+             (not (false? (get-in state [:compiler-options :output-wrapper]))))]
 
     (-> state
         (assoc ::build/config config) ;; so the merged defaults don't get lost
