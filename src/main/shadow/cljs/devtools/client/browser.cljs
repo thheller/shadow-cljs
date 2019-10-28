@@ -225,9 +225,12 @@
              :asset-root (get-asset-root))))
 
 (defn global-eval [js]
-  ;; hack to force eval in global scope
-  ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
-  (js* "(0,eval)(~{});" js))
+  (if (not= "undefined" (js* "typeof(module)"))
+    ;; don't eval in the global scope in case of :npm-module builds running in webpack
+    (js/eval js)
+    ;; hack to force eval in global scope
+    ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
+    (js* "(0,eval)(~{});" js)))
 
 (defn repl-invoke [{:keys [id js]}]
   (let [result (env/repl-call #(global-eval js) repl-error)]
