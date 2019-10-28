@@ -40,11 +40,8 @@
 (defn check-macros! [clj-state-ref system-bus]
   (let [active-macros @bm/active-macros-ref
 
-        clj-namespaces
-        (reduce set/union #{} (vals active-macros))
-
         modified
-        (into #{} (filter #(clj-ns-modified? clj-state-ref %)) clj-namespaces)
+        (into #{} (filter #(clj-ns-modified? clj-state-ref %)) @bm/reloadable-macros-ref)
 
         ;; FIXME: this probably needs to reload macros in a proper dependency order
         ;; otherwise adding a function in on ns that another users may break
@@ -69,9 +66,8 @@
 
     (when (seq reloaded)
       (log/debug ::macro-reload {:reloaded reloaded})
-      (sys-bus/publish! system-bus ::m/macro-update {:macro-namespaces reloaded}))
-
-    ))
+      (sys-bus/publish! system-bus ::m/macro-update {:macro-namespaces reloaded})
+      )))
 
 (defn watch-loop [clj-state system-bus control-chan]
   (loop []

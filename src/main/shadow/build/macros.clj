@@ -17,15 +17,19 @@
 ;; about that
 ;; its a map of {symbol timestamp-it-was-required}
 (def active-macros-ref (atom {}))
-(def tracked-clj-namespaces (atom {}))
+(def reloadable-macros-ref (atom #{}))
 
 (defn root-resource [lib]
   (.. (name lib) (replace \- \_) (replace \. \/)))
 
-(defn find-macro-rc [ns-sym]
+(defn find-macro-rc ^URL [ns-sym]
   (let [file-root (root-resource ns-sym)]
     (or (io/resource (str file-root ".clj"))
         (io/resource (str file-root ".cljc")))))
+
+(defn is-macro-file? [ns-sym]
+  (when-let [rc-url (find-macro-rc ns-sym)]
+    (= "file" (.getProtocol rc-url))))
 
 (defn find-all-clj-references
   ([clj-ns]
@@ -105,8 +109,13 @@
 
               ;; need to do this after the actual require since otherwise no deps can be discovered
               (let [clj-deps (find-all-clj-references macro-ns)]
-                (swap! active-macros-ref assoc macro-ns clj-deps))
-              ))))
+                (swap! active-macros-ref assoc macro-ns clj-deps)
+                (when (is-macro-file? macro-ns)
+                  (swap! reloadable-macros-ref conj macro-ns)
+                  (doseq [dep-ns clj-deps
+                          :when (is-macro-file? dep-ns)]
+                    (swap! reloadable-macros-ref conj dep-ns)
+                    )))))))
 
       (if (contains? macro-namespaces name)
         (let [macros (find-macros-in-ns name)]

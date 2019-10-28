@@ -57,6 +57,17 @@
       (assoc summary :ts (.format time-format date)))))
 
 (defn maybe-fetch-initial-fragment [state {::keys [rid oid] :keys [fragment summary] :as obj}]
+  (when (contains? (:supports summary) :get-value)
+    (call! {:op :obj-request
+            :rid rid
+            :oid oid
+            :request-op :get-value}
+      {:obj-result
+       (fn [{:keys [result] :as msg}]
+         (swap! state assoc-in [::oid oid :value] result)
+         (fc/transact! env/app [[::oid oid]])
+         )}))
+
   (when (contains? (:supports summary) :fragment)
     (let [max (min 35 (:entries summary))]
       (when (< (count fragment) max)
@@ -217,11 +228,9 @@
 (defmutation nav-object [{:keys [oid idx] :as params}]
   (action [{:keys [state] :as env}]
     (let [{::keys [rid]} (get-in @state [::oid oid])]
-      (swap! state update-in [::rid rid ::nav-stack] conj params)
 
-      ;; FIXME: show loading overlay instead? nav may take a while when doing actual nav
-      ;; this just makes it go to blank state
-      (swap! state assoc-in [::rid rid ::object] nil)
+      ;; FIXME: should show some loading indicator and prevent other nav
+      ;; otherwise they'll race and cause weird UI updates
 
       (call! {:op :obj-request
               :rid rid
@@ -231,11 +240,16 @@
 
         ;; FIXME: maybe nav should return simple values, instead of ref to simple value
         {:obj-result
-         (fn [msg]
+         (fn [{:keys [result] :as msg}]
+           ;; FIXME: for now this is just for nil
            (js/console.log "nav request didn't return reference" msg))
          :obj-result-ref
          (fn [{:keys [ref-oid] :as msg}]
-           (swap! state assoc-in [::rid rid ::object] [::oid ref-oid])
+           (swap! state
+             (fn [state]
+               (-> state
+                   (update-in [::rid rid ::nav-stack] conj params)
+                   (assoc-in [::rid rid ::object] [::oid ref-oid]))))
            (add-new-nav-obj state rid ref-oid))}))))
 
 (defmutation nav-stack-jump [{:keys [rid oid idx] :as params}]
@@ -647,12 +661,12 @@
       :pprint])}
 
   (let [{::keys [display-type] :or {display-type :browse} :keys [summary]} props
-        {:keys [data-type obj-type count]} summary]
+        {:keys [data-type obj-type entries]} summary]
     (html/div {:className "flex bg-white py-1 px-2 font-mono border-b-2 text-l"}
       #_(html/div {:className "pr-2 py-2 font-bold"} (str data-type))
       (html/div {:className "px-2 font-bold"} obj-type)
       (when count
-        (html/div {:className "px-2 font-bold"} (str count " Entries")))
+        (html/div {:className "px-2 font-bold"} (str entries " Entries")))
       (html/div {:className "flex-1"}) ;; fill up space
       (html/div {:className "text-right cursor-pointer font-bold px-2"
                  :onClick
@@ -712,6 +726,7 @@
      [::oid
       ::display-type
       :edn-limit
+      :value
       :summary
       :fragment
       :edn
@@ -734,14 +749,16 @@
         (html/textarea {:className "w-full h-full font-mono border-t p-4"
                         :readOnly true
                         :value (:pprint props "Loading ...")}))
-      #_(html/div {:className "flex-1 overflow-auto font-mono bg-white"}
-
-          (html/pre {:className "font-mono border-t p-4"}
-            (:pprint props "Loading ...")))
 
       :browse
       (html/div {:className "flex-1 overflow-auto font-mono bg-white"}
-        (render-view this (assoc summary :oid oid :edn-limit edn-limit) fragment)))
+        (render-view
+          this
+          (assoc summary
+            :value (:value props)
+            :oid oid
+            :edn-limit edn-limit)
+          fragment)))
     ))
 
 (def ui-object-detail (fc/factory ObjectDetail {}))

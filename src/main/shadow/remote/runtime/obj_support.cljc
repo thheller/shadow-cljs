@@ -10,7 +10,8 @@
 (defrecord Reference [obj])
 
 (defn obj-ref [obj]
-  (Reference. obj))
+  (when (some? obj)
+    (Reference. obj)))
 
 (defn obj-ref? [result]
   (instance? Reference result))
