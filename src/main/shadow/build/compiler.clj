@@ -463,7 +463,7 @@
 
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}
-   {:keys [resource-id resource-name url file output-name] :as rc}
+   {:keys [resource-id resource-name from-jar] :as rc}
    source]
   (let [{:keys [warnings static-fns elide-asserts load-tests fn-invoke-direct infer-externs form-size-threshold]}
         compiler-options]
@@ -487,7 +487,7 @@
               (-> ana/*cljs-warnings*
                   (merge warnings)
                   (cond->
-                    (or (and file (= :auto infer-externs))
+                    (or (and (= :auto infer-externs) (not from-jar))
                         (= :all infer-externs))
                     (assoc :infer-warning true)))
 

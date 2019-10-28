@@ -573,10 +573,27 @@
      :file file
      :url (.toURL file)}))
 
+(defn is-gitlib-file? [^File file]
+  (loop [file (.getAbsoluteFile file)]
+    (cond
+      (nil? file)
+      false
+
+      (and (.exists file) (.isDirectory file) (= ".gitlibs" (.getName file)))
+      true
+
+      :else
+      (recur (.getParentFile file)))))
+
+(comment
+  (is-gitlib-file? (io/file "src" "main" "shadow" "build.clj"))
+  (is-gitlib-file? (io/file (System/getProperty "user.home") ".gitlibs" "libs")))
+
 (defn find-fs-resources*
   [cp ^File root]
   (let [root-path (.getCanonicalPath root)
-        root-len (inc (count root-path))]
+        root-len (inc (count root-path))
+        is-gitlib-root? (is-gitlib-file? root)]
     (into []
       (for [^File file (file-seq root)
             :when (and (.isFile file)
@@ -590,7 +607,12 @@
                            (rc/normalize-name))]
             :when (not (should-ignore-resource? cp name))]
 
-        (make-fs-resource file name)
+        (-> (make-fs-resource file name)
+            ;; treat gitlibs as if they were from a .jar
+            ;; affects hot-reload and warnings logic
+            (cond->
+              is-gitlib-root?
+              (assoc :from-jar true)))
         ))))
 
 (defn find-fs-resources [cp ^File root]
@@ -604,6 +626,7 @@
 
     (.isDirectory file)
     (find-fs-resources cp file)
+
     (and (.isFile file) (util/is-jar? (.getName file)))
     (find-jar-resources cp file)
 
