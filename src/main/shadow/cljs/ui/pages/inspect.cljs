@@ -451,8 +451,8 @@
   :default ::default)
 
 (defmethod render-view ::default [this summary entries]
-  (html/div
-    "unsupported object type"
+  (html/div {:className "p-4"}
+    (html/div {:className "py-1 text-xl font-bold"} "Object does not support Browse view.")
     (html/pre
       (with-out-str
         (pprint summary)))))
@@ -486,34 +486,8 @@
   [this summary entries]
   (render-simple "nil"))
 
-(defmethod render-view :set
+(defn render-seq
   [this {:keys [oid entries]} fragment]
-  (html/div {}
-    (html/for [idx (range entries)
-               :let [{:keys [val] :as entry} (get fragment idx)]]
-      (html/div {:key idx :className "border-b"}
-
-        (cond
-          (nil? entry)
-          (html/div
-            {:onMouseEnter
-             (fn [e]
-               (fc/transact! this [(request-fragment {:oid oid
-                                                      :idx idx})]))}
-            "not available, fetch")
-
-          :else
-          (html/div {:className "flex"
-                     :onClick
-                     (fn [e]
-                       (fc/transact! this [(nav-object {:oid oid
-                                                        :idx idx})]))}
-            (html/div {:className "px-2 border-r"} idx)
-            (html/div {:className "px-2 flex-1"} (render-edn-limit val)))))
-      )))
-
-(defmethod render-view :vec
-  [this {:keys [oid obj-type entries]} fragment]
   (html/div {}
     (html/for [idx (range entries)
                :let [{:keys [val] :as entry} (get fragment idx)]]
@@ -537,6 +511,18 @@
             (html/div {:className "px-2 border-r"} idx)
             (html/div {:className "px-2 flex-1 truncate"} (render-edn-limit val)))))
       )))
+
+(defmethod render-view :vec
+  [this summary fragment]
+  (render-seq this summary fragment))
+
+(defmethod render-view :set
+  [this summary fragment]
+  (render-seq this summary fragment))
+
+(defmethod render-view :list
+  [this summary fragment]
+  (render-seq this summary fragment))
 
 (defmethod render-view :map
   [this {:keys [oid entries] :as summary} fragment]

@@ -224,6 +224,14 @@
         (attempt-to-sort data)
         (browseable-seq))
 
+    (list? data)
+    (-> desc
+        (update :summary merge {:data-type :list
+                                :entries (count data)})
+        (assoc :view-order (vec data))
+        (browseable-seq))
+
+
     ;; FIXME: lazy seqs / other seqs / records
     :else
     (assoc-in desc [:summary :data-type] :unsupported)))

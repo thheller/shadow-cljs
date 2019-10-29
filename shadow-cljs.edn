@@ -76,12 +76,15 @@
     {:init-fn shadow.cljs.ui.app/init}
     :repl
     {:init-fn shadow.cljs.ui.pages.repl/init
-     :depends-on #{:app}}
+     :depends-on #{:app :codemirror}}
     :build
     {:init-fn shadow.cljs.ui.pages.build/init
      :depends-on #{:app}}
     :inspect
     {:init-fn shadow.cljs.ui.pages.inspect/init
+     :depends-on #{:app :codemirror}}
+    :codemirror
+    {:entries ["codemirror"]
      :depends-on #{:app}}}
 
    :devtools
