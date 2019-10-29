@@ -28,7 +28,7 @@
 
 (defmacro ?>
   ([obj]
-   (?> obj {}))
+   `(?> ~obj {}))
   ([obj opts]
    `(tap> [:shadow.remote/wrap ~obj ~(dbg-info &env &form opts)])))
 
@@ -38,13 +38,13 @@
 
 (defmacro ?->
   ([obj]
-   (?-> obj {}))
+   `(?-> ~obj {}))
   ([obj opts]
    `(tap-> ~obj ~(dbg-info &env &form opts))))
 
 (defmacro ?->>
   ([obj]
-   (?->> {} obj))
+   `(?->> {} ~obj))
   ([opts obj]
    `(tap-> ~obj ~(dbg-info &env &form opts))))
 
@@ -57,6 +57,7 @@
       (?-> :view-opts))
 
   (?> :hello ::send-help)
+  (?> :hello)
 
   (-> :x
       (?-> ::view-opts))
