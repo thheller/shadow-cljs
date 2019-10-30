@@ -47,15 +47,18 @@ shadow.js.jsRequire = function(name, opts) {
     shadow.js.requireStack.push(name);
 
     var module = shadow.js.files[name];
+    var moduleFn = shadow$provide[name];
 
     // module must be created before calling moduleFn due to circular deps
     if (module === undefined) {
+      if (moduleFn === undefined) {
+        throw ("Module not provided: " + name);
+      }
       module = {};
       module["exports"] = {};
       shadow.js.files[name] = module;
     }
 
-    var moduleFn = shadow$provide[name];
     if (moduleFn) {
       delete shadow$provide[name];
 
