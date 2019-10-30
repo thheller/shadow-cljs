@@ -718,3 +718,42 @@
                js (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
       (bool-expr (concat (core/list 'js* js) syms)))
     `(some? ~x)))
+
+
+;; overriding for the closure-compiler, closure-library
+;; releases where goog.define must be assigned and will otherwise throw
+;; which makes this actually much easier to use
+(core/defmacro goog-define
+  "Defines a var using `goog.define`. Passed default value must be
+  string, number or boolean.
+
+  Default value can be overridden at compile time using the
+  compiler option `:closure-defines`.
+
+  Example:
+    (ns your-app.core)
+    (goog-define DEBUG! false)
+    ;; can be overridden with
+    :closure-defines {\"your_app.core.DEBUG_BANG_\" true}
+    or
+    :closure-defines {'your-app.core/DEBUG! true}"
+  [sym default]
+  (assert-args goog-define
+    (core/or (core/string? default)
+             (core/number? default)
+             (core/true? default)
+             (core/false? default)) "a string, number or boolean as default value")
+  (core/let [defname (comp/munge (core/str *ns* "/" sym))
+             type    (core/cond
+                       (core/string? default) "string"
+                       (core/number? default) "number"
+                       (core/or (core/true? default) (core/false? default)) "boolean")]
+
+    `(def ~(core/vary-meta sym
+             (core/fn [m]
+               (-> m
+                   (update :jsdoc conj (core/str "@define {" type "}"))
+                   (core/cond->
+                     (core/not (core/contains? m :tag))
+                     (core/assoc :tag (core/symbol type))))))
+       (js/goog.define ~defname ~default))))

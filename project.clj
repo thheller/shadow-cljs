@@ -36,12 +36,13 @@
    [org.clojure/clojurescript "1.10.520"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded
-     org.clojure/google-closure-library]]
+     org.clojure/google-closure-library
+     org.clojure/google-closure-library-third-party]]
 
-   ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
-   ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20190819"]
-   [org.clojure/google-closure-library "0.0-20190213-2033d5d9"]
+   [com.google.javascript/closure-compiler-unshaded "v20191027"]
+
+   [org.clojure/google-closure-library "0.0-20191016-6ae1f72f"]
+   [org.clojure/google-closure-library-third-party "0.0-20191016-6ae1f72f"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]

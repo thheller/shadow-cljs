@@ -14,7 +14,7 @@ shadow.js.nativeRequires = {};
  * @define {string}
  * all occurences should be removed by NodeEnvInline but for safety we keep it arround
  */
-goog.define("shadow.js.NODE_ENV", "development");
+shadow.js.NODE_ENV = goog.define("shadow.js.NODE_ENV", "development");
 
 shadow.js.requireStack = [];
 

@@ -532,10 +532,10 @@
 (defn js-error-xf [state ^com.google.javascript.jscomp.Compiler cc]
   (map (fn [^JSError err]
          (let [source-name
-               (.-sourceName err)
+               (.getSourceName err)
 
                description
-               (.-description err)
+               (.getDescription err)
 
                line
                (.getLineNumber err)
