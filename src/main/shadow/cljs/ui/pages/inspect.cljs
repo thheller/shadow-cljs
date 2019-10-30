@@ -1,7 +1,7 @@
 (ns shadow.cljs.ui.pages.inspect
   (:require
     [clojure.string :as str]
-    [cljs.pprint :refer (pprint)]
+    [fipp.edn :refer (pprint)]
     [goog.object :as gobj]
     [goog.functions :as gfn]
     [cognitect.transit :as transit]

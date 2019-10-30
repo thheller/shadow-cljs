@@ -1,7 +1,7 @@
 (ns shadow.cljs.ui.util
   (:require
     [goog.object :as gobj]
-    [cljs.pprint :refer (pprint)]
+    [fipp.edn :refer (pprint)]
     [cognitect.transit :as transit]
     [shadow.markup.react :as html]
     [com.fulcrologic.fulcro.components :as fc]))

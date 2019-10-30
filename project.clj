@@ -134,6 +134,7 @@
       :exclusions
       [clojure-future-spec
        com.stuartsierra/component
+       edn-query-language/eql
        garden]]
 
      [fulcrologic/fulcro-inspect "2.2.5"]

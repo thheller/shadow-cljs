@@ -16,6 +16,7 @@
     [shadow.build.cache :as cache]
     [shadow.core-ext :as core-ext]
     [shadow.build.resource :as rc]
+    [shadow.debug :refer (?> ?-> ?->>)]
     [clojure.data.json :as json])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime

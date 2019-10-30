@@ -84,7 +84,7 @@
     {:init-fn shadow.cljs.ui.pages.inspect/init
      :depends-on #{:app :codemirror}}
     :codemirror
-    {:entries ["codemirror"]
+    {:entries []
      :depends-on #{:app}}}
 
    :devtools
@@ -142,7 +142,7 @@
       "out/demo-browser/public/index.html")]
 
    :module-loader true
-   :module-hash-names true
+   ;; :module-hash-names true
    :modules
    {:base
     {:entries
