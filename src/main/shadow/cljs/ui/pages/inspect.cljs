@@ -27,6 +27,9 @@
 (def date-format (DateTimeFormat. "yyyy-MM-dd HH:mm:ss"))
 (def time-format (DateTimeFormat. "HH:mm:ss"))
 
+(defn refresh-ui [idents]
+  (fc/transact! env/app [] {:refresh idents}))
+
 (defonce tool-ref (atom nil))
 (defonce rpc-id-seq (atom 0))
 (defonce rpc-ref (atom {}))
@@ -65,8 +68,7 @@
       {:obj-result
        (fn [{:keys [result] :as msg}]
          (swap! state assoc-in [::oid oid :value] result)
-         (fc/transact! env/app [[::oid oid]])
-         )}))
+         (refresh-ui [[::oid oid]]))}))
 
   (when (contains? (:supports summary) :fragment)
     (let [max (min 35 (:entries summary))]
@@ -83,8 +85,7 @@
           {:obj-result
            (fn [{:keys [result] :as msg}]
              (swap! state update-in [::oid oid :fragment] merge result)
-             (fc/transact! env/app [[::oid oid]])
-             )})))))
+             (refresh-ui [[::oid oid]]))})))))
 
 (defn add-new-tap-obj
   "fetches enough info for new object to display as tap"
@@ -111,7 +112,7 @@
              {:obj-result
               (fn [{:keys [result] :as msg}]
                 (swap! state assoc-in [::oid oid :edn-limit] result)
-                (fc/transact! env/app [[::oid oid]])
+                (refresh-ui [[::oid oid]])
                 )}))))}))
 
 (defn add-new-nav-obj
@@ -127,7 +128,7 @@
      (fn [{:keys [summary] :as msg}]
        (swap! state assoc-in [::oid oid :summary] (add-ts summary))
        ;; FIXME: don't rerender just yet?
-       (fc/transact! env/app [[::oid oid]])
+       (refresh-ui [[::oid oid]])
        (maybe-fetch-initial-fragment state (get-in @state [::oid oid])))}))
 
 (defn add-first [prev head max]
@@ -157,7 +158,7 @@
         {:obj-result
          (fn [{:keys [result] :as msg}]
            (swap! state update-in [::oid oid :fragment] merge result)
-           (fc/transact! env/app [[::oid oid]])
+           (refresh-ui [[::oid oid]])
            )}))))
 
 (defmutation select-runtime [{:keys [rid] :as params}]
@@ -183,6 +184,7 @@
          :supported-ops
          (fn [{:keys [ops] :as msg}]
            (swap! state assoc-in [::rid rid ::supported-ops] ops)
+           (refresh-ui [[::rid rid]])
 
            (when (contains? ops :request-tap-history)
 
@@ -199,7 +201,9 @@
                             :when (not (get-in data [::oid oid :summary]))]
                       (add-new-tap-obj state rid oid)))
 
-                  (swap! state assoc-in [::rid rid ::objects] (as-idents ::oid oids)))})))}))))
+                  (swap! state assoc-in [::rid rid ::objects] (as-idents ::oid oids))
+                  (refresh-ui [[::rid rid]])
+                  )})))}))))
 
 (defmutation unselect-object [{:keys [oid] :as params}]
   (action [{:keys [state] :as env}]
@@ -280,12 +284,12 @@
              (fn [{:keys [e] :as msg}]
                (js/console.log "request-pprint failed" msg)
                (swap! state assoc-in [::oid oid :pprint] (str "Failed: " e))
-               (fc/transact! env/app [[::oid oid]]))
+               (refresh-ui [[::oid oid]]))
 
              :obj-result
              (fn [{:keys [result] :as msg}]
                (swap! state assoc-in [::oid oid :pprint] result)
-               (fc/transact! env/app [[::oid oid]]))}))
+               (refresh-ui [[::oid oid]]))}))
 
 
         ;; FIXME: repeated code
@@ -299,12 +303,13 @@
              (fn [{:keys [e] :as msg}]
                (js/console.log "request-edn failed" msg)
                (swap! state assoc-in [::oid oid :edn] (str "Failed: " e))
-               (fc/transact! env/app [[::oid oid]]))
+               (refresh-ui [[::oid oid]]))
 
              :obj-result
              (fn [{:keys [result] :as msg}]
                (swap! state assoc-in [::oid oid :edn] result)
-               (fc/transact! env/app [[::oid oid]]))}))
+               (refresh-ui [[::oid oid]])
+               )}))
 
         ;; don't need to do anything for :browse
         nil))))
