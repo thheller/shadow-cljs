@@ -143,11 +143,11 @@
                  (let [{:keys [session-ns]} loop-state
                        {::m/keys [printed-result form eval-ms]} msg]
                    ;; worst hack in history to prevent having to read-string the result
-                   (send! identity (str "{:tag :ret :ns " session-ns
-                                        " :form " (pr-str form)
-                                        " :ms " (or eval-ms 0)
-                                        " :val " printed-result
-                                        "}"))
+                   (send! {:tag :ret
+                           :ns session-ns
+                           :form form
+                           :ms (or eval-ms 0)
+                           :val printed-result})
                    (recur loop-state))
 
                  ::m/session-out
