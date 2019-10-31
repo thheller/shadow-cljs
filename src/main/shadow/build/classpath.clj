@@ -125,7 +125,14 @@
                    (remove npm/asset-require?)
                    (distinct)
                    (map npm/maybe-convert-goog)
-                   (into []))]
+                   (into []))
+
+              js-deps
+              (cond-> js-deps
+                (:uses-global-buffer info)
+                (conj "buffer")
+                (:uses-global-process info)
+                (conj "process"))]
 
           (-> info
               (merge rc)
