@@ -1,32 +1,34 @@
 (ns shadow.build.compiler
-  (:require [clojure.spec.alpha :as s]
-            [clojure.string :as str]
-            [clojure.set :as set]
-            [clojure.java.io :as io]
-            [clojure.tools.reader.reader-types :as readers]
-            [clojure.tools.reader :as reader]
-            [cljs.analyzer :as cljs-ana]
-            [cljs.analyzer :as ana]
-            [cljs.compiler :as comp]
-            [cljs.spec.alpha :as cljs-spec]
-            [cljs.env :as env]
-            [cljs.tagged-literals :as tags]
-            [cljs.core] ;; do not remove, need to ensure this is loaded before compiling anything
-            [cljs.source-map :as sm]
-            [shadow.lazy :as lazy]
-            [shadow.cljs.util :as util]
-            [shadow.build.warnings :as warnings]
-            [shadow.build.macros :as macros]
-            [shadow.build.cache :as cache]
-            [shadow.build.cljs-hacks :as cljs-hacks]
-            [shadow.build.cljs-bridge :as cljs-bridge]
-            [shadow.build.resource :as rc]
-            [shadow.build.ns-form :as ns-form]
-            [shadow.build.data :as data]
-            [shadow.build.closure :as closure]
-            [shadow.build.npm :as npm]
-            [shadow.jvm-log :as log]
-            [shadow.build.async :as async])
+  (:require
+    [clojure.spec.alpha :as s]
+    [clojure.string :as str]
+    [clojure.set :as set]
+    [clojure.java.io :as io]
+    [clojure.tools.reader.reader-types :as readers]
+    [clojure.tools.reader :as reader]
+    [cljs.analyzer :as cljs-ana]
+    [cljs.analyzer :as ana]
+    [cljs.compiler :as comp]
+    [cljs.spec.alpha :as cljs-spec]
+    [cljs.env :as env]
+    [cljs.tagged-literals :as tags]
+    [cljs.core] ;; do not remove, need to ensure this is loaded before compiling anything
+    [cljs.source-map :as sm]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [shadow.lazy :as lazy]
+    [shadow.cljs.util :as util]
+    [shadow.build.warnings :as warnings]
+    [shadow.build.macros :as macros]
+    [shadow.build.cache :as cache]
+    [shadow.build.cljs-hacks :as cljs-hacks]
+    [shadow.build.cljs-bridge :as cljs-bridge]
+    [shadow.build.resource :as rc]
+    [shadow.build.ns-form :as ns-form]
+    [shadow.build.data :as data]
+    [shadow.build.closure :as closure]
+    [shadow.build.npm :as npm]
+    [shadow.jvm-log :as log]
+    [shadow.build.async :as async])
   (:import (java.util.concurrent ExecutorService)
            (java.io File StringReader PushbackReader StringWriter)
            [java.util.concurrent.atomic AtomicLong]))
@@ -147,7 +149,7 @@
              ;; js/require called at the REPL should not be added to metadata since it becomes sticky
              (not (::repl-context env)))
     (let [{:keys [form]} ast]
-      (when (and (list? form)
+      (when (and (seq? form)
                  (= 'js/require (first form))
                  (= 2 (count form)))
         (let [require (second form)
