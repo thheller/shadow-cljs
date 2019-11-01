@@ -83,7 +83,7 @@
     ;; (send! {:tag :runtimes :runtimes runtimes})
 
     (if (empty? runtimes)
-      (send! {:tag :err :msg "No available JS runtimes!"})
+      (send! {:tag :err :val "No available JS runtimes!"})
       ;; work loop
       (let [session-id (str (UUID/randomUUID))
             session-ns 'cljs.user
@@ -99,7 +99,7 @@
           (alt!!
             server-close
             ([_]
-             (send! {:tag :err :msg "The server is shutting down."})
+             (send! {:tag :err :val "The server is shutting down."})
              :close)
 
             ;; input from tool
@@ -109,7 +109,7 @@
                (let [{:keys [error? ex source]} msg]
                  (cond
                    error?
-                   (do (send! {:tag :err :msg (str "Failed to read: " ex)})
+                   (do (send! {:tag :err :val (str "Failed to read: " ex)})
                        (recur loop-state))
 
                    (= ":repl/quit" source)
@@ -144,7 +144,7 @@
                        {::m/keys [printed-result form eval-ms]} msg]
                    ;; worst hack in history to prevent having to read-string the result
                    (send! {:tag :ret
-                           :ns session-ns
+                           :ns (pr-str session-ns)
                            :form form
                            :ms (or eval-ms 0)
                            :val printed-result})
@@ -152,19 +152,19 @@
 
                  ::m/session-out
                  (do (when (= session-id (::m/session-id msg))
-                       (send! {:tag :out :msg (::m/text msg)}))
+                       (send! {:tag :out :val (::m/text msg)}))
                      (recur loop-state))
 
                  ::m/session-err
                  (do (when (= session-id (::m/session-id msg))
-                       (send! {:tag :err :msg (::m/text msg)}))
+                       (send! {:tag :err :val (::m/text msg)}))
                      (recur loop-state))
 
                  ::m/runtime-disconnect
                  (if-not (= runtime-id (::m/runtime-id msg))
                    (recur loop-state)
                    ;; inform client and let loop end, ending in disconnect
-                   (send! {:tag :err :msg "The JS Runtime disconnected."}))
+                   (send! {:tag :err :val "The JS Runtime disconnected."}))
 
                  ;; mostly likely coming after disconnect on the browser reload
                  ;; FIXME: should disconnect not actually disconnect but rather just wait?
