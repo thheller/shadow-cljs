@@ -1,31 +1,33 @@
 (ns shadow.cljs.repl
-  (:require [clojure.string :as str]
-            [clojure.walk :as walk]
-            [clojure.repl :as repl]
-            [clojure.java.io :as io]
-            [clojure.tools.reader.reader-types :as readers]
-            [clojure.tools.reader :as reader]
-            [cljs.env :as env]
-            [cljs.source-map :as sm]
-            [cljs.tagged-literals :as tags]
-            [cljs.compiler :as cljc-comp]
-            [cljs.analyzer :as ana]
-            [shadow.jvm-log :as jvm-log]
-            [shadow.build.log :as log]
-            [shadow.cljs.util :as util]
-            [shadow.build :as build]
-            [shadow.build.api :as build-api]
-            [shadow.build.output :as output]
-            [shadow.build.ns-form :as ns-form]
-            [shadow.build.cljs-bridge :as cljs-bridge]
-            [shadow.build.macros :as macros]
-            [shadow.build.compiler :as comp]
-            [shadow.build.data :as data]
-            [shadow.build.resolve :as res]
-            [shadow.build.classpath :as classpath])
-  (:import (java.io StringReader BufferedReader File)
-           [java.nio.file Paths]
-           [java.util.concurrent.atomic AtomicLong]))
+  (:require
+    [clojure.string :as str]
+    [clojure.walk :as walk]
+    [clojure.repl :as repl]
+    [clojure.java.io :as io]
+    [clojure.tools.reader.reader-types :as readers]
+    [clojure.tools.reader :as reader]
+    [cljs.env :as env]
+    [cljs.source-map :as sm]
+    [cljs.tagged-literals :as tags]
+    [cljs.compiler :as cljc-comp]
+    [cljs.analyzer :as ana]
+    [shadow.jvm-log :as jvm-log]
+    [shadow.build.log :as log]
+    [shadow.cljs.util :as util]
+    [shadow.build :as build]
+    [shadow.build.api :as build-api]
+    [shadow.build.output :as output]
+    [shadow.build.ns-form :as ns-form]
+    [shadow.build.cljs-bridge :as cljs-bridge]
+    [shadow.build.macros :as macros]
+    [shadow.build.compiler :as comp]
+    [shadow.build.data :as data]
+    [shadow.build.resolve :as res]
+    [shadow.build.classpath :as classpath])
+  (:import
+    [java.io StringReader BufferedReader File]
+    [java.nio.file Paths Path]
+    [java.util.concurrent.atomic AtomicLong]))
 
 (comment
   (def repl-state
@@ -229,51 +231,59 @@
     (update-in state [:repl-state :repl-actions] conj action)
     ))
 
+(comment
+  (def classpath (:classpath (shadow.cljs.devtools.server.runtime/get-instance)))
+  (find-on-classpath classpath "src/dev/demo/browser.cljs")
+  )
+
+(defn find-on-classpath [classpath file-path]
+  (let [abs-file
+        (-> (io/file file-path)
+            (.getAbsoluteFile))]
+
+    (when (and (.exists abs-file)
+               (.isFile abs-file))
+
+      (let [abs-path
+            (.toPath abs-file)
+
+            matched-paths
+            (->> (classpath/get-classpath-entries classpath)
+                 (filter #(.isDirectory %))
+                 (map #(.toPath %))
+                 (filter (fn [^Path path]
+                           (prn [:match abs-path path (.startsWith abs-path path)])
+                           (.startsWith abs-path path))))]
+
+        (when (seq matched-paths)
+          (let [root (first matched-paths)
+                resource-name
+                (loop [names (list)
+                       path abs-path]
+                  (if (= path root)
+                    (str/join "/" names)
+                    (recur (conj names (.toString (.getName path (dec (.getNameCount path))))) (.getParent path))
+                    ))]
+            [abs-file resource-name]))))))
+
 (defn repl-load-file*
-  [{:keys [source-paths classpath] :as state} {:keys [file-path source]}]
+  [{:keys [classpath] :as state} {:keys [file-path source]}]
   ;; FIXME: could clojure.core/load-file .clj files?
 
-  (let [full-path
-        (Paths/get file-path (into-array String []))
-
-        matched-paths
-        (->> (classpath/get-classpath-entries classpath)
-             (filter #(.isDirectory %))
-             (map #(.toPath %))
-             (filter
-               (fn [path]
-                 ;; without the / it will create 2 matches for
-                 ;; something/src/clj
-                 ;; something/src/cljs
-                 (.startsWith full-path path)))
-             (map #(.toFile %))
-             (map #(.getAbsolutePath %))
-             (into []))]
+  (let [[file rc-name] (find-on-classpath classpath file-path)]
 
     (cond
       (not (util/is-cljs-file? file-path))
       (throw (ex-info "can only load .cljs and .cljc files"
                {:file-path file-path}))
 
-      (not (seq matched-paths))
-      (throw (ex-info "file not on classpath"
-               {:file-path file-path}))
-
-      (not= 1 (count matched-paths))
-      (throw (ex-info "file matched more than one classpath entry?"
-               {:file-path file-path
-                :matches matched-paths}))
+      (not file)
+      (throw (ex-info "file not on classpath" {:file-path file-path}))
 
       ;; FIXME: could make the requirement for the file to be on the classpath optional
       :else
-      (let [path
-            (first matched-paths)
-
-            rc-name
-            (subs file-path (-> path (count) (inc)))
-
-            {:keys [ns] :as rc}
-            (-> (classpath/make-fs-resource (io/file file-path) rc-name)
+      (let [{:keys [ns] :as rc}
+            (-> (classpath/make-fs-resource file rc-name)
                 (assoc :type :cljs)
                 (cond->
                   (seq source)
@@ -408,9 +418,75 @@
   [{:keys [source special-fn error]}]
   (str special-fn " failed. " (str error)))
 
-(defn process-read-result
+(defn repl-compile
   [{:keys [repl-state] :as state}
    {:keys [form source ns] :as read-result}]
+  (cljs-bridge/with-compiler-env state
+    (let [repl-action
+          (comp/with-warnings state
+            ;; populated by comp/emit
+            (binding [cljc-comp/*source-map-data*
+                      (atom {:source-map (sorted-map)
+                             :gen-col 0
+                             :gen-line 0})
+
+                      cljc-comp/*source-map-data-gen-col*
+                      (AtomicLong.)
+
+                      ana/*unchecked-if*
+                      ana/*unchecked-if*
+
+                      ana/*unchecked-arrays*
+                      ana/*unchecked-arrays*
+
+                      ;; cljs-oops sets this in macros
+                      ana/*cljs-warnings*
+                      (merge ana/*cljs-warnings* (get-in state [:compiler-options :warnings]))]
+
+              (let [{:keys [current-ns]}
+                    repl-state
+
+                    {:keys [resource-name] :as rc}
+                    (data/get-source-by-provide state current-ns)
+
+                    ast
+                    (comp/analyze
+                      state
+                      {:ns (or ns current-ns)
+                       :resource-name resource-name
+                       :source source
+                       :cljc true ;; not actually but pretend to support evals from actual .cljc files
+                       :reader-features (data/get-reader-features state)
+                       :js ""}
+                      form
+                      true)
+
+                    js
+                    (with-out-str
+                      (comp/shadow-emit state ast))
+
+                    sm-json
+                    (sm/encode
+                      {"<eval>"
+                       (:source-map @cljc-comp/*source-map-data*)}
+                      {:source-map-pretty-print true
+                       :file "<eval>"
+                       :lines
+                       (count (line-seq (BufferedReader. (StringReader. source))))
+                       :sources-content
+                       [source]})]
+
+                {:type :repl/invoke
+                 :name "<eval>"
+                 :js js
+                 :source source
+                 :source-map-json sm-json})))]
+
+      (update-in state [:repl-state :repl-actions] conj repl-action)
+      )))
+
+(defn process-read-result
+  [state {:keys [form] :as read-result}]
 
   ;; cljs.env/default-compiler-env always populates 'cljs.user for some reason
   ;; we can't work with that as we need the analyzed version
@@ -418,82 +494,24 @@
     (when (= x {:name 'cljs.user})
       (throw (ex-info "missing cljs.user, repl not properly configured (must have analyzed cljs.user by now)" {}))))
 
-  (cond
-    ;; (special-fn ...) eg. (require 'something)
-    (and (list? form)
-         (contains? repl-special-forms (first form)))
-    (let [[special-fn & args]
-          form
+  (try
+    (cond
+      ;; (special-fn ...) eg. (require 'something)
+      (and (list? form)
+           (contains? repl-special-forms (first form)))
+      (let [[special-fn & args]
+            form
 
-          handler
-          (get repl-special-forms special-fn)]
+            handler
+            (get repl-special-forms special-fn)]
 
-      (handler state read-result form))
+        (handler state read-result form))
 
-    ;; compile normally
-    :else
-    (-> (cljs-bridge/with-compiler-env state
-          (let [repl-action
-                (comp/with-warnings state
-                  ;; populated by comp/emit
-                  (binding [cljc-comp/*source-map-data*
-                            (atom {:source-map (sorted-map)
-                                   :gen-col 0
-                                   :gen-line 0})
-
-                            cljc-comp/*source-map-data-gen-col*
-                            (AtomicLong.)
-
-                            ana/*unchecked-if*
-                            ana/*unchecked-if*
-
-                            ana/*unchecked-arrays*
-                            ana/*unchecked-arrays*
-
-                            ;; cljs-oops sets this in macros
-                            ana/*cljs-warnings*
-                            (merge ana/*cljs-warnings* (get-in state [:compiler-options :warnings]))]
-
-                    (let [{:keys [current-ns]}
-                          repl-state
-
-                          {:keys [resource-name] :as rc}
-                          (data/get-source-by-provide state current-ns)
-
-                          ast
-                          (comp/analyze
-                            state
-                            {:ns (or ns current-ns)
-                             :resource-name resource-name
-                             :source source
-                             :cljc true ;; not actually but pretend to support evals from actual .cljc files
-                             :reader-features (data/get-reader-features state)
-                             :js ""}
-                            form
-                            true)
-
-                          js
-                          (with-out-str
-                            (comp/shadow-emit state ast))
-
-                          sm-json
-                          (sm/encode
-                            {"<eval>"
-                             (:source-map @cljc-comp/*source-map-data*)}
-                            {:source-map-pretty-print true
-                             :file "<eval>"
-                             :lines
-                             (count (line-seq (BufferedReader. (StringReader. source))))
-                             :sources-content
-                             [source]})]
-
-                      {:type :repl/invoke
-                       :name "<eval>"
-                       :js js
-                       :source source
-                       :source-map-json sm-json})))]
-            (update-in state [:repl-state :repl-actions] conj repl-action)
-            )))))
+      ;; compile normally
+      :else
+      (repl-compile state read-result))
+    (catch Exception e
+      (throw (ex-info "Failed to process REPL command" {:command read-result} e)))))
 
 (defn read-one
   [build-state reader {:keys [filename] :or {filename "repl-input.cljs"} :as opts}]

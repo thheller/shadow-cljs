@@ -1,12 +1,14 @@
 (ns shadow.build.data
   "generic helpers for the build data structure"
-  (:require [shadow.build.resource :as rc]
-            [clojure.java.io :as io]
-            [shadow.jvm-log :as log]
-            [clojure.string :as str]
-            [clojure.set :as set])
-  (:import (java.net URL URLConnection)
-           [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]))
+  (:require
+    [clojure.string :as str]
+    [clojure.set :as set]
+    [clojure.java.io :as io]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [shadow.jvm-log :as log]
+    [shadow.build.resource :as rc])
+  (:import
+    [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]))
 
 ;; FIXME: there are still lots of places that work directly with the map
 ;; that is ok for most things but makes it really annoying to change the structure of the data
@@ -218,7 +220,7 @@
         )))
 
 (defn remove-source-by-id [state resource-id]
-  (let [{:keys [virtual ns] :as rc} (get-in state [:sources resource-id])]
+  (let [{:keys [defined-in-repl virtual ns] :as rc} (get-in state [:sources resource-id])]
     (if-not rc
       state
       (-> state
@@ -231,7 +233,7 @@
           ;; so they never need to be removed, just their output
           ;; since that may be affected by changes in other files
           (cond->
-            (not virtual)
+            (or defined-in-repl (not virtual))
             (-> (remove-provides rc)
                 (update :sources dissoc resource-id)))
           ))))
