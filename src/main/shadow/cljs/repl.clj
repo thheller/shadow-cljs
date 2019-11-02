@@ -511,7 +511,7 @@
       :else
       (repl-compile state read-result))
     (catch Exception e
-      (throw (ex-info "Failed to process REPL command" {:command read-result} e)))))
+      (throw (ex-info "Failed to process REPL command" (assoc read-result :tag ::process-ex) e)))))
 
 (defn read-one
   [build-state reader {:keys [filename] :or {filename "repl-input.cljs"} :as opts}]

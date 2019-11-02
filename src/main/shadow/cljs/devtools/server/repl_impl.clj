@@ -8,7 +8,8 @@
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.build.log :as build-log]
             [shadow.jvm-log :as log]
-            [shadow.build.warnings :as warnings])
+            [shadow.build.warnings :as warnings]
+            [shadow.cljs.devtools.errors :as errors])
   (:import (java.io StringReader PushbackReader File)
            [java.util UUID]))
 
@@ -66,6 +67,9 @@
 
       :repl/worker-stop
       (println "The REPL worker has stopped.")
+
+      :repl/error
+      (errors/error-format *out* (:ex result))
 
       (prn [:result result]))
     (flush)))

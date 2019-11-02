@@ -347,6 +347,15 @@
           (w/print-source-excerpt-footer err)
           (println (w/sep-line)))))))
 
+(defmethod ex-data-format :shadow.cljs.repl/process-ex
+  [w e {:keys [source] :as data}]
+
+  (.write w (w/coded-str [:bold :red] (w/sep-line " REPL Error while processing " 6)))
+  (.write w "\n")
+  (.write w source)
+  (.write w "\n")
+
+  (error-format w (.getCause e)))
 
 (defmethod ex-data-format :shadow.build.modules/module-entry-moved
   [w e {:keys [entry expected moved-to] :as data}]
