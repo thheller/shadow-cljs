@@ -161,49 +161,64 @@
            (refresh-ui [[::oid oid]])
            )}))))
 
-(defmutation select-runtime [{:keys [rid] :as params}]
+(defn get-state-ref []
+  (::fa/state-atom env/app))
+
+(defn ensure-runtime-init [rid pending-tx callback]
+  (let [state-ref (get-state-ref)]
+    (if (get-in @state-ref [::rid rid ::supported-ops])
+      (callback)
+
+      (do (swap! state-ref update-in [::rid rid] merge {::rid rid})
+          (fc/transact! env/app pending-tx)
+          (call! {:op :request-supported-ops :rid rid}
+            {:runtime-not-found
+             (fn [msg]
+               ;; FIXME: redirect somewhere neutral
+               (js/console.warn "runtime-not-found" rid))
+
+             :supported-ops
+             (fn [{:keys [ops] :as msg}]
+               (swap! state-ref assoc-in [::rid rid ::supported-ops] ops)
+               (refresh-ui [[::rid rid]])
+               (callback))})))))
+
+(defmutation select-runtime-page [{:keys [rid] :as params}]
   (action [{:keys [state] :as env}]
-    (let [[_ previous-rid] (get-in @state [::ui-model/page-inspect 1 ::runtime])]
+    (swap! state update-in [::runtime-page rid] merge {::rid rid ::runtime [::rid rid]})))
+
+(defmutation select-runtime-tap-page [{:keys [rid] :as params}]
+  (action [{:keys [state] :as env}]
+    (swap! state update-in [::tap-page rid] merge {::rid rid ::runtime [::rid rid]})
+
+    ;; FIXME: allow having multiple active?
+    (let [previous-rid (::active-rid @state)]
 
       (swap! state
         (fn [state]
           (-> state
-              (assoc-in [::ui-model/page-inspect 1 ::runtime] [::rid rid])
-              ;; FIXME: rid may still be empty when routing to this page
-              ;; before :request-runtimes finished. :clj will always have id 1
-              (update-in [::rid rid] merge {::rid rid})
-              (update-in [::rid rid] dissoc ::object)
-              (update-in [::rid rid] assoc ::nav-stack []))))
+              (assoc ::active-rid rid)
+              (update-in [::tap-page rid] dissoc ::object)
+              (update-in [::tap-page rid] assoc ::nav-stack []))))
 
-      ;; FIXME: this should happen on initial :request-runtimes
-      (call! {:op :request-supported-ops :rid rid}
-        {:runtime-not-found
-         (fn [msg]
-           (js/console.log "runtime-not-found" msg))
+      (when (contains? (get-in @state [::rid rid ::supported-ops]) :request-tap-history)
+        (when (not= rid previous-rid)
+          (when previous-rid ;; may be nil
+            (cast! {:op :tap-unsubscribe :rid previous-rid}))
+          (cast! {:op :tap-subscribe :rid rid}))
 
-         :supported-ops
-         (fn [{:keys [ops] :as msg}]
-           (swap! state assoc-in [::rid rid ::supported-ops] ops)
-           (refresh-ui [[::rid rid]])
+        (call! {:op :request-tap-history :rid rid :num 100}
+          {:tap-history
+           (fn [{:keys [rid oids] :as msg}]
+             (let [data @state]
+               (doseq [oid oids
+                       :when (not (get-in data [::oid oid :summary]))]
+                 (add-new-tap-obj state rid oid)))
 
-           (when (contains? ops :request-tap-history)
-
-             (when (not= rid previous-rid)
-               (when previous-rid ;; may be nil
-                 (cast! {:op :tap-unsubscribe :rid previous-rid}))
-               (cast! {:op :tap-subscribe :rid rid}))
-
-             (call! {:op :request-tap-history :rid rid :num 100}
-               {:tap-history
-                (fn [{:keys [rid oids] :as msg}]
-                  (let [data @state]
-                    (doseq [oid oids
-                            :when (not (get-in data [::oid oid :summary]))]
-                      (add-new-tap-obj state rid oid)))
-
-                  (swap! state assoc-in [::rid rid ::objects] (as-idents ::oid oids))
-                  (refresh-ui [[::rid rid]])
-                  )})))}))))
+             (swap! state assoc-in [::tap-page rid ::objects] (as-idents ::oid oids))
+             (refresh-ui [[::tap-page rid]])
+             )}))
+      )))
 
 (defmutation unselect-object [{:keys [oid] :as params}]
   (action [{:keys [state] :as env}]
@@ -345,6 +360,16 @@
                     {::rid rid
                      ::runtime-info runtime-info}))
              (into []))]
+
+    (doseq [{:keys [rid]} runtimes]
+      (call!
+        {:op :request-supported-ops
+         :rid rid}
+        {:supported-ops
+         (fn [{:keys [ops] :as msg}]
+           (swap! state assoc-in [::rid rid ::supported-ops] ops)
+           (refresh-ui [[::rid rid]]))}))
+
     (swap! state fam/merge-component Page {::runtimes db-data})))
 
 (defmethod handle-tool-msg :runtime-not-found
@@ -593,7 +618,8 @@
    :query
    (fn []
      [::rid
-      ::runtime-info])}
+      ::runtime-info
+      ::supported-ops])}
 
   (html/div "runtime" (pr-str props)))
 
@@ -831,7 +857,7 @@
     (html/div {:style {:height "120px"}}
       (html/input {:ref (util/comp-fn this ::editor-ref attach-codemirror)}))))
 
-(defsc RuntimePage
+(defsc RuntimeTapPage
   [this {::keys [rid] :as props}]
   {:ident
    (fn []
@@ -945,6 +971,31 @@
       (when (contains? supported-ops :eval-clj)
         (ui-runtime-eval this props)))))
 
+(def ui-runtime-tap-page (fc/factory RuntimeTapPage {}))
+
+(defsc RuntimePage
+  [this {::keys [rid] :as props}]
+  {:ident
+   (fn []
+     [::runtime-page rid])
+
+   :query
+   (fn []
+     [::rid
+      {::runtime [::runtime-info
+                  ::supported-ops]}])}
+
+  (let [{::keys [runtime]} props
+        {::keys [runtime-info supported-ops]} runtime]
+    (html/fragment
+      (html/div
+        (html/h1 "Runtime Overview"))
+
+      (html/div (pr-str runtime-info))
+      (html/div (pr-str supported-ops))
+      (html/div {:className "flex-1"}
+        ))))
+
 (def ui-runtime-page (fc/factory RuntimePage {}))
 
 (defsc Page [this {::keys [runtimes runtime] :as props}]
@@ -966,7 +1017,15 @@
       (html/div
         {:key rid
          :className "p-2 border font-mono"}
-        (html/a {:href (str "/inspect/" rid)} (pr-str runtime-info))))))
+        (html/div
+          (pr-str runtime-info))
+        (html/div {:className "py-8"}
+          (let [ops (::supported-ops runtime)]
+            (when (contains? ops :tap-subscribe)
+              (html/a {:className "p-4 text-l rounded bg-blue-300"
+                       :href (str "/inspect/" rid "/tap")} "Tap"))
+
+            ))))))
 
 (def ui-page (fc/factory Page {}))
 
@@ -976,9 +1035,15 @@
   {:class Page
    :factory ui-page})
 
-(routing/register ::ui-model/root-router ::rid
+(routing/register ::ui-model/root-router ::runtime-page
   {:class RuntimePage
    :factory ui-runtime-page})
+
+(routing/register ::ui-model/root-router ::tap-page
+  {:class RuntimeTapPage
+   :factory ui-runtime-tap-page})
+
+
 
 (defn route [tokens]
   (if-not @tool-ref
@@ -998,9 +1063,24 @@
            {:router ::ui-model/root-router
             :ident [::ui-model/page-inspect 1]})])
 
-      (let [[rid & more] tokens
+      (let [[rid view & more] tokens
             rid (js/parseInt rid)]
-        (fc/transact! env/app
-          [(select-runtime {:rid rid})
-           (routing/set-route {:router ::ui-model/root-router
-                               :ident [::rid (js/parseInt rid)]})])))))
+
+        (ensure-runtime-init rid
+          [(routing/set-route
+             {:router ::ui-model/root-router
+              :ident [::ui-model/page-loading 1]})]
+          (fn []
+            (cond
+              (nil? view)
+              (fc/transact! env/app
+                [(select-runtime-page {:rid rid})
+                 (routing/set-route {:router ::ui-model/root-router
+                                     :ident [::runtime-page rid]})])
+
+              (= "tap" view)
+              (fc/transact! env/app
+                [(select-runtime-tap-page {:rid rid})
+                 (routing/set-route {:router ::ui-model/root-router
+                                     :ident [::tap-page rid]})])
+              )))))))
