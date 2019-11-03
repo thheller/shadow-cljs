@@ -128,7 +128,8 @@
      (fn [{:keys [summary] :as msg}]
        (swap! state assoc-in [::oid oid :summary] (add-ts summary))
        ;; FIXME: don't rerender just yet?
-       (refresh-ui [[::oid oid]])
+       (refresh-ui [[::oid oid]
+                    [::tap-page rid]])
        (maybe-fetch-initial-fragment state (get-in @state [::oid oid])))}))
 
 (defn add-first [prev head max]
@@ -229,15 +230,13 @@
       (swap! state update-in [::rid rid] merge {::object nil
                                                 ::nav-stack []}))))
 
-(defmutation select-object [{:keys [oid] :as params}]
+(defmutation select-tap-object [{:keys [rid oid] :as params}]
   (action [{:keys [state] :as env}]
 
-    (let [{::keys [rid] :as obj}
-          (get-in @state [::oid oid])]
-
+    (let [obj (get-in @state [::oid oid])]
       (maybe-fetch-initial-fragment state obj)
 
-      (swap! state update-in [::rid rid] merge
+      (swap! state update-in [::tap-page rid] merge
         {::object [::oid oid]
          ::nav-stack []}))
 
@@ -267,8 +266,9 @@
            (swap! state
              (fn [state]
                (-> state
-                   (update-in [::rid rid ::nav-stack] conj params)
-                   (assoc-in [::rid rid ::object] [::oid ref-oid]))))
+                   (update-in [::tap-page rid ::nav-stack] conj params)
+                   (assoc-in [::tap-page rid ::object] [::oid ref-oid]))))
+           (refresh-ui [[::tap-page rid]])
            (add-new-nav-obj state rid ref-oid))}))))
 
 (defmutation nav-stack-jump [{:keys [rid oid idx] :as params}]
@@ -277,8 +277,8 @@
     (swap! state
       (fn [state]
         (-> state
-            (assoc-in [::rid rid ::object] [::oid oid])
-            (update-in [::rid rid ::nav-stack] subvec 0 idx))))
+            (assoc-in [::tap-page rid ::object] [::oid oid])
+            (update-in [::tap-page rid ::nav-stack] subvec 0 idx))))
     ))
 
 (defmutation switch-object-display [{wanted-display :display :keys [oid] :as params}]
@@ -554,61 +554,85 @@
   [this summary fragment]
   (render-seq this summary fragment))
 
+(defstyled map-root :div [env]
+  {:display "grid"
+   :padding "0 1rem"
+   :grid-template-columns "min-content minmax(25%, auto)"
+   :grid-row-gap "1px"
+   :grid-column-gap ".5rem"})
+
+(defstyled map-span :div [env]
+  {:grid-column-start "span 2"})
+
+(defstyled map-entry :div [env]
+  {:display "contents"
+   :cursor "pointer"})
+
+;; {:className "pl-4 pr-2 font-bold whitespace-no-wrap truncate"}
+(defstyled map-key :div [env]
+  {:font-weight "bold"
+   :padding "0 .25rem"
+   :white-space "nowrap"
+   :overflow "hidden"
+   :text-overflow "ellipsis"
+   :background-color "#fafafa"
+   "&:hover"
+   {:background-color "#eee"}})
+
+;; {:className "pr-4 truncate"}
+(defstyled map-val :div [env]
+  {:white-space "nowrap"
+   :overflow "hidden"
+   :text-overflow "ellipsis"})
+
 (defmethod render-view :map
   [this {:keys [oid entries] :as summary} fragment]
-  (html/div {:className "bg-white w-full"}
+  (map-root {:class "font-mono"}
     (html/for [idx (range entries)
                :let [{:keys [key val] :as entry} (get fragment idx)
                      [key-limit-reached key-limit-text] key]]
       (cond
         (nil? entry)
-        (html/div {:key idx :className "border"
-                   :onMouseEnter
-                   (fn [e]
-                     (fc/transact! this [(request-fragment {:oid oid
-                                                            :idx idx})]))}
+        (map-span
+          {:key idx :className "border"
+           :onMouseEnter
+           (fn [e]
+             (fc/transact! this [(request-fragment {:oid oid
+                                                    :idx idx})]))}
           "not available, fetch")
 
         ;; started loading
         (empty? entry)
-        (html/div {:key idx :className "border"} "...")
+        (map-span
+          {:key idx :className "border"} "...")
 
         ;; long key
-        (or key-limit-reached
-            (> (count key-limit-text) 22))
-        (html/div {:key idx
-                   :className "border-b hover:bg-gray-200"
-                   :onClick
-                   (fn [e]
-                     (fc/transact! this [(nav-object {:oid oid
-                                                      :idx idx
-                                                      :key key})]))}
-          (html/div {:className "px-4 py-1 font-bold whitespace-no-wrap cursor-pointer truncate"}
-            (render-edn-limit key))
-          (html/div {:className "pl-4 pr-4 py-1 cursor-pointer truncate"}
-            "↳ " (render-edn-limit val)))
+        #_#_(or key-limit-reached
+                (> (count key-limit-text) 22))
+            (html/div {:key idx
+                       :className "border-b hover:bg-gray-200"
+                       :onClick
+                       (fn [e]
+                         (fc/transact! this [(nav-object {:oid oid
+                                                          :idx idx
+                                                          :key key})]))}
+              (html/div {:className "px-4 py-1 font-bold whitespace-no-wrap cursor-pointer truncate"}
+                (render-edn-limit key))
+              (html/div {:className "pl-4 pr-4 py-1 cursor-pointer truncate"}
+                "↳ " (render-edn-limit val)))
 
         :else
-        (html/div {:key idx
-                   :className "flex py-1 border-b hover:bg-gray-200"
-                   :onClick ;; FIXME: only add if nav is actually supported
-                   (fn [e]
-                     (fc/transact! this [(nav-object {:oid oid
-                                                      :idx idx
-                                                      :key key})]))}
-          (html/div
-            {:className "pl-4 pr-2 font-bold whitespace-no-wrap cursor-pointer truncate"
-             :style {:flex "220px 0 0"}}
-            (render-edn-limit key)
-            #_(let [[limit-reached text] key
-                    len (count text)]
-                (if (> len 22)
-                  (str (subs text 0 6) "..." (subs text (- len 13) len))
-                  text)))
-          (html/div
-            {:className "pr-4 cursor-pointer truncate"}
-            (render-edn-limit val)
-            ))))))
+        (map-entry {:key idx
+                    :onClick
+                    (fn [e]
+                      (fc/transact! this [(nav-object {:oid oid
+                                                       :idx idx
+                                                       :key key})]))}
+          (map-key
+            (render-edn-limit key))
+          (map-val
+            (render-edn-limit val)))
+        ))))
 
 (defsc Runtime [this {::keys [rid] :as props}]
   {:ident
@@ -861,65 +885,26 @@
   [this {::keys [rid] :as props}]
   {:ident
    (fn []
-     [::rid rid])
-
-   :initLocalState
-   (fn [this _]
-     (let [state-ref (atom {})]
-       {:state-ref state-ref
-        :scroll-ref
-        (fn [^js node]
-          (swap! state-ref assoc :node node)
-          #_(when node
-              (.addEventListener node "scroll"
-                (gfn/debounce
-                  (fn [e]
-                    (let [max (.-scrollHeight node)
-                          current (+ (.-scrollTop node) (.-offsetHeight node))
-
-                          is-near-bottom
-                          (> current (- max 25))]
-                      (swap! state-ref assoc :is-near-bottom is-near-bottom)))
-                  16))))}))
-
-   ;; FIXME: I'd like to have the last tap at the bottom
-   ;; auto scroll this to bottom has too many issues
-   ;; so leaving it at top for now
-
-   #_:componentDidUpdate
-   #_(fn [this _ _]
-       (let [state-ref (fc/get-state this :state-ref)
-             {:keys [node is-near-bottom]} @state-ref]
-         (when (and node is-near-bottom)
-           (js/setTimeout
-             (fn []
-               (let [scroll-top (.-scrollHeight node)]
-                 (js/console.log "setting scroll-top to" scroll-top)
-                 (set! (.-scrollTop node) scroll-top)))
-             ;; FIXME: do this properly
-             ;; this is only required because componentDidUpdate fires
-             ;; before all all the taps may have been added
-             ;; it might render an empty div first because it is still
-             ;; fetching the data, which means the scrollHeight is
-             ;; lower than it needs to be
-             ;; don't want to set a fixed height either though
-             50))))
+     [::tap-page rid])
 
    :query
    (fn []
      [::rid
-      ::runtime-info
-      ::supported-ops
+      {::runtime [::runtime-info
+                  ::supported-ops]}
       {::objects (fc/get-query ObjectListItem)}
       {::object (fc/get-query ObjectDetail)}
       ::nav-stack])}
 
-  (let [{::keys [runtime-info supported-ops objects object nav-stack]}
+  (let [{::keys [runtime objects object nav-stack]}
         props
+
+        {::keys [runtime-info supported-ops]}
+        runtime
 
         select-fn
         (fn [oid]
-          (fc/transact! this [(select-object {:rid rid :oid oid})]))
+          (fc/transact! this [(select-tap-object {:rid rid :oid oid})]))
 
         scroll-ref
         (fc/get-state this :scroll-ref)
@@ -1042,8 +1027,6 @@
 (routing/register ::ui-model/root-router ::tap-page
   {:class RuntimeTapPage
    :factory ui-runtime-tap-page})
-
-
 
 (defn route [tokens]
   (if-not @tool-ref
