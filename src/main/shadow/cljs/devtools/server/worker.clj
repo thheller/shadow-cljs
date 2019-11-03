@@ -1,21 +1,20 @@
 (ns shadow.cljs.devtools.server.worker
   (:refer-clojure :exclude (compile load-file))
-  (:require [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
-            [shadow.jvm-log :as log]
-            [clojure.java.io :as io]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.model :as m]
-            [shadow.cljs.devtools.server.worker.impl :as impl]
-            [shadow.cljs.devtools.server.util :as util]
-            [shadow.build.classpath :as cp]
-            [shadow.build.npm :as npm]
-            [shadow.cljs.devtools.server.fs-watch :as fs-watch]
-            [shadow.build.babel :as babel]
-            [shadow.build.log :as build-log]
-            [shadow.build.warnings :as warnings]
-            [shadow.cljs.devtools.errors :as errors]
-            [shadow.build.resource :as rc]
-            [shadow.cljs.devtools.server.reload-npm :as reload-npm])
+  (:require
+    [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
+    [clojure.java.io :as io]
+    [shadow.jvm-log :as log]
+    [shadow.build.babel :as babel]
+    [shadow.build.resource :as rc]
+    [shadow.build.classpath :as cp]
+    [shadow.build.npm :as npm]
+    [shadow.cljs.model :as m]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]
+    [shadow.cljs.devtools.server.worker.impl :as impl]
+    [shadow.cljs.devtools.server.util :as util]
+    [shadow.cljs.devtools.server.fs-watch :as fs-watch]
+    [shadow.cljs.devtools.server.reload-npm :as reload-npm]
+    [shadow.remote.relay.api :as relay-api])
   (:import (java.util UUID)))
 
 (defn compile
@@ -84,12 +83,12 @@
         ;; check if the worker stopped while waiting for result
         proc-stop
         ([_]
-          {:type :repl/worker-stop})
+         {:type :repl/worker-stop})
 
         ;; FIXME: things that actually take >10s will timeout and never show their result
         (async/timeout repl-timeout)
         ([_]
-          {:type :repl/timeout}))
+         {:type :repl/timeout}))
 
       (catch InterruptedException e
         {:type :repl/interrupt}))))
@@ -126,6 +125,7 @@
   [config
    system-bus
    executor
+   relay
    cache-root
    http
    classpath
@@ -184,14 +184,25 @@
         config-watch
         (async/chan (async/sliding-buffer 100))
 
+        to-relay
+        (async/chan 100)
+
         channels
         {:proc-stop proc-stop
          :proc-control proc-control
          :output output
+         :to-relay to-relay
          :resource-update resource-update
          :macro-update macro-update
          :asset-update asset-update
          :config-watch config-watch}
+
+        ;; FIXME: figure out better runtime-info
+        from-relay
+        (relay-api/runtime-connect relay to-relay
+          {:lang :clj
+           :worker-id proc-id
+           :cljs-worker-for build-id})
 
         thread-state
         {::impl/worker-state true
@@ -227,7 +238,9 @@
            resource-update impl/do-resource-update
            asset-update impl/do-asset-update
            macro-update impl/do-macro-update
-           config-watch impl/do-config-watch}
+           config-watch impl/do-config-watch
+           from-relay impl/do-relay-msg}
+
           {:server-id [::worker build-id]
            :idle-action impl/do-idle
            :idle-timeout 500
@@ -313,6 +326,7 @@
         (async/close! resource-update)
         (async/close! macro-update)
         (async/close! asset-update)
+        (async/close! to-relay)
         (log/debug ::stop {:build-id build-id :proc-id proc-id}))
 
     worker-proc))

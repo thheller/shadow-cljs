@@ -473,7 +473,7 @@
                    :stop reload-macros/stop}
 
                   :supervisor
-                  {:depends-on [:config :system-bus :build-executor :cache-root :http :classpath :npm :babel]
+                  {:depends-on [:config :system-bus :build-executor :relay :cache-root :http :classpath :npm :babel]
                    :start super/start
                    :stop super/stop}
 

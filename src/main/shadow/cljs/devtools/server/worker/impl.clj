@@ -1055,3 +1055,42 @@
 
         (seq (get-in worker-state [:last-build-resources :used-ts]))
         (check-none-code-resources))))
+
+(defmulti do-relay-msg (fn [worker-state msg] (:op msg)) :default ::default)
+
+(defn relay-msg
+  ([worker-state res]
+   (when-not (async/offer! (get-in worker-state [:channels :to-relay]) res)
+     (log/warn ::worker-relay-overload res))
+   worker-state)
+  ([worker-state {:keys [tid mid] :as req} res]
+   (relay-msg worker-state (cond-> res
+                             tid
+                             (assoc :tid tid)
+                             mid
+                             (assoc :mid mid)))))
+
+(defmethod do-relay-msg ::default [worker-state msg]
+  (relay-msg worker-state msg {:op :unknown-op
+                               :msg msg}))
+
+(defmethod do-relay-msg :unknown-op [worker-state msg]
+  (log/warn ::unknown-op msg)
+  worker-state)
+
+(defmethod do-relay-msg :unknown-relay-op [worker-state msg]
+  (log/warn ::unknown-relay-op msg)
+  worker-state)
+
+(defmethod do-relay-msg :welcome [worker-state {:keys [rid] :as msg}]
+  (assoc worker-state :rid rid))
+
+(defmethod do-relay-msg :request-supported-ops [worker-state msg]
+  (relay-msg worker-state msg {:op :supported-ops
+                               :ops (-> (->> (methods do-relay-msg)
+                                             (keys)
+                                             (set))
+                                        (disj ::default :welcome :unknown-op :unknown-relay-op :tool-disconnect))}))
+
+(defmethod do-relay-msg :tool-disconnect [worker-state msg]
+  worker-state)
