@@ -115,14 +115,18 @@
       ;; :else
       (send msg {:err (pr-str [:FIXME result])}))))
 
-(defn do-cljs-eval [{::keys [worker] :keys [ns session code runtime-id] :as msg}]
+(defn do-cljs-eval [{::keys [worker] :keys [ns session code] :as msg}]
   (let [reader (StringReader. code)
 
         session-id
         (-> session meta :id str)
 
         {:keys [last-msg-ref] :as repl-state}
-        (get @session #'*repl-state*)]
+        (get @session #'*repl-state*)
+
+        runtime-id
+        (or (:runtime-id msg)
+            (:runtime-id repl-state))]
 
     ;; :last-msg-ref is used by the print loop started by repl-init
     ;; to ensure that all prints use the latest message id when sending it out
