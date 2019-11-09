@@ -181,11 +181,13 @@
 
 (defn empty-env
   "Construct an empty analysis environment. Required to analyze forms."
-  [ns]
+  [mode ns]
   {:ns (ana/get-namespace ns)
+   :shadow.build/mode mode
    :context :statement
    :locals {}
    :fn-scope []
+   ;; FIXME: write a patch that gets rid of this. totally pointless to have these in each env
    :js-globals ana-js-globals})
 
 (defn analyze
@@ -215,7 +217,7 @@
                  (:macros-ns compile-state)
                  (assoc :macros-ns true)))]
 
-       (-> (empty-env ns) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
+       (-> (empty-env (:shadow.build/mode state) ns) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
            (cond->
              repl-context?
              (assoc
