@@ -113,16 +113,20 @@
         handler-fn
         ((apply comp (reverse middleware-stack)) server/unknown-op)
 
-        {:keys [host port]
+        {:keys [host port transport-fn]
          :or {host "0.0.0.0"
               port 0}}
-        merged-config]
+        merged-config
+
+        transport-fn
+        (requiring-resolve (or transport-fn 'nrepl.transport/bencode))]
 
     (log/debug ::config merged-config)
 
     (server/start-server
       :bind host
       :port port
+      :transport-fn transport-fn
       ;; breaks vim-fireplace, doesn't even show up in Cursive
       #_:greeting-fn
       #_(fn [transport]
