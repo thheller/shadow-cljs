@@ -20,7 +20,8 @@
     [shadow.cljs.ui.pages.dashboard :as page-dashboard]
     [cljs-test-display.favicon :as favicon]
     [clojure.string :as str]
-    [com.fulcrologic.fulcro.networking.http-remote :as fhr])
+    [com.fulcrologic.fulcro.networking.http-remote :as fhr]
+    [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized])
   (:import [goog.history Html5History]))
 
 (defsc MainNavBuild [this props {:keys [selected]}]

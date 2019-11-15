@@ -1,24 +1,45 @@
 (ns shadow.remote.runtime.eval-support
-  (:require [shadow.remote.runtime.api :as p]
-            [shadow.remote.runtime.obj-support :as obj-support]
-            [clojure.datafy :as d]))
+  (:require
+    [clojure.datafy :as d]
+    [clojure.walk :as walk]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [shadow.remote.runtime.api :as p]
+    [shadow.remote.runtime.obj-support :as obj-support]
+    ))
 
 (def ^:dynamic get-ref nil)
 
 (defn get-ref* [obj-support obj-id]
   (obj-support/get-ref obj-support obj-id))
 
+;; wrap might not be all that useful
+;; could just modify the initial code string but that changes source locations
+;; so code is read first (preserving its metadata and source locations)
+;; then wrap is applied (without preserving its metadata)
+(defn apply-wrap [code wrap]
+  (walk/prewalk-replace
+    {'?CODE? code}
+    wrap))
+
+(comment
+  (apply-wrap 123 `(identity ~'?CODE?)))
+
 (defn eval-clj
   [{:keys [runtime obj-support]}
-   {:keys [code ns]
+   {:keys [code ns wrap]
     :or {ns 'user}
     :as msg}]
 
   (binding [*ns* (find-ns ns)
             get-ref #(get-ref* obj-support %)]
     (try
-      (let [val (read-string code)
-            res (eval val)
+      (let [val
+            (cond-> (read-string code)
+              wrap
+              (apply-wrap (read-string wrap)))
+
+            res
+            (eval val)
 
             ref-oid
             (obj-support/register obj-support res {:code code

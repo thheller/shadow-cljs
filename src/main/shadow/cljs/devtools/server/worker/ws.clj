@@ -131,7 +131,7 @@
     ))
 
 (defn compile-req
-  [{:keys [ring-request] :as ctx} worker-proc]
+  [{:keys [ring-request transit-str transit-read] :as ctx} worker-proc]
   (let [{:keys [request-method body]}
         ring-request
 
@@ -140,7 +140,7 @@
          "Access-Control-Allow-Headers"
          (or (get-in ring-request [:headers "access-control-request-headers"])
              "content-type")
-         "content-type" "application/edn; charset=utf-8"}]
+         "content-type" "application/transit+json; charset=utf-8"}]
 
     ;; CORS sends OPTIONS first
     (case request-method
@@ -151,14 +151,15 @@
        :body ""}
 
       :post
-      (let [{:keys [input]}
+      (let [msg
             (-> (slurp body)
-                (edn/read-string))
+                (transit-read))
 
-            result (worker/repl-compile worker-proc input)]
+            result
+            (worker/repl-compile worker-proc msg)]
         {:status 200
          :headers headers
-         :body (core-ext/safe-pr-str result)})
+         :body (transit-str result)})
 
       ;; bad requests
       {:status 400

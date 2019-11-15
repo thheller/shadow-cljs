@@ -20,6 +20,7 @@
     [shadow.cljs.ui.util :as util]
     ["codemirror" :as cm]
     ["codemirror/mode/clojure/clojure"]
+    ["codemirror/mode/javascript/javascript"]
     ["parinfer-codemirror" :as par-cm])
 
   (:import [goog.i18n DateTimeFormat]))
@@ -28,7 +29,10 @@
 (def time-format (DateTimeFormat. "HH:mm:ss"))
 
 (defn refresh-ui [idents]
-  (fc/transact! env/app [] {:refresh idents}))
+  ;; (js/console.log "refresh-queued" idents)
+  (fa/schedule-render! env/app {:only-refresh idents})
+  ;; (fc/transact! env/app [] {:refresh idents})
+  )
 
 (defonce tool-ref (atom nil))
 (defonce rpc-id-seq (atom 0))
@@ -107,7 +111,7 @@
                    :rid rid
                    :oid oid
                    :request-op :edn-limit
-                   :limit 100}
+                   :limit 150}
 
              {:obj-result
               (fn [{:keys [result] :as msg}]
@@ -128,9 +132,10 @@
      (fn [{:keys [summary] :as msg}]
        (swap! state assoc-in [::oid oid :summary] (add-ts summary))
        ;; FIXME: don't rerender just yet?
+       (maybe-fetch-initial-fragment state (get-in @state [::oid oid]))
        (refresh-ui [[::oid oid]
                     [::tap-page rid]])
-       (maybe-fetch-initial-fragment state (get-in @state [::oid oid])))}))
+       )}))
 
 (defn add-first [prev head max]
   (into [head] (take (min max (count prev))) prev))
@@ -181,8 +186,9 @@
              :supported-ops
              (fn [{:keys [ops] :as msg}]
                (swap! state-ref assoc-in [::rid rid ::supported-ops] ops)
+               (callback)
                (refresh-ui [[::rid rid]])
-               (callback))})))))
+               )})))))
 
 (defmutation select-runtime-page [{:keys [rid] :as params}]
   (action [{:keys [state] :as env}]
@@ -227,8 +233,8 @@
     (let [{::keys [rid] :as obj}
           (get-in @state [::oid oid])]
 
-      (swap! state update-in [::rid rid] merge {::object nil
-                                                ::nav-stack []}))))
+      (swap! state update-in [::tap-page rid] merge {::object nil
+                                                     ::nav-stack []}))))
 
 (defmutation select-tap-object [{:keys [rid oid] :as params}]
   (action [{:keys [state] :as env}]
@@ -268,7 +274,8 @@
                (-> state
                    (update-in [::tap-page rid ::nav-stack] conj params)
                    (assoc-in [::tap-page rid ::object] [::oid ref-oid]))))
-           (refresh-ui [[::tap-page rid]])
+           (refresh-ui [[::tap-page rid]
+                        [::oid ref-oid]])
            (add-new-nav-obj state rid ref-oid))}))))
 
 (defmutation nav-stack-jump [{:keys [rid oid idx] :as params}]
@@ -348,7 +355,7 @@
 (defmethod handle-tool-msg :tap
   [{:keys [state]} {:keys [rid oid] :as msg}]
   (add-new-tap-obj state rid oid)
-  (swap! state update-in [::rid rid ::objects] add-first [::oid oid] 100))
+  (swap! state update-in [::tap-page rid ::objects] add-first [::oid oid] 100))
 
 (declare Page)
 
@@ -368,7 +375,9 @@
         {:supported-ops
          (fn [{:keys [ops] :as msg}]
            (swap! state assoc-in [::rid rid ::supported-ops] ops)
-           (refresh-ui [[::rid rid]]))}))
+           (refresh-ui [[::rid rid]
+                        [::ui-model/page-inspect 1]
+                        ::supported-ops]))}))
 
     (swap! state fam/merge-component Page {::runtimes db-data})))
 
@@ -396,12 +405,11 @@
 
 (defmethod handle-tool-msg :runtime-connect
   [{:keys [state]} {:keys [rid runtime-info]}]
-  (swap! state
-    (fn [state]
-      (-> state
-          (assoc-in [::rid rid] {::rid rid
-                                 ::runtime-info runtime-info})
-          (update-runtimes)))))
+  (swap! state assoc-in [::rid rid] {::rid rid
+                                     ::runtime-info runtime-info})
+  (ensure-runtime-init rid []
+    (fn []
+      (swap! state update-runtimes))))
 
 (defmethod handle-tool-msg :runtime-disconnect
   [{:keys [state]} {:keys [rid]}]
@@ -523,24 +531,27 @@
                :let [{:keys [val] :as entry} (get fragment idx)]]
       (html/div {:key idx :className "border-b"}
 
-        (cond
-          (nil? entry)
-          (html/div
-            {:onMouseEnter
-             (fn [e]
-               (fc/transact! this [(request-fragment {:oid oid
+        (html/div {:className "flex"
+                   :onClick
+                   (fn [e]
+                     (fc/transact! this [(nav-object {:oid oid
                                                       :idx idx})]))}
-            "not available, fetch")
+          (html/div {:className "pl-4 px-2 border-r text-right"
+                     :style {:width "60px"}} idx)
 
-          :else
-          (html/div {:className "flex"
-                     :onClick
-                     (fn [e]
-                       (fc/transact! this [(nav-object {:oid oid
+          (cond
+            (nil? entry)
+            (html/div
+              {:className "px-2"
+               :onMouseEnter
+               (fn [e]
+                 (fc/transact! this [(request-fragment {:oid oid
                                                         :idx idx})]))}
-            (html/div {:className "px-2 border-r"} idx)
-            (html/div {:className "px-2 flex-1 truncate"} (render-edn-limit val)))))
-      )))
+              "not available, fetch")
+
+            :else
+            (html/div {:className "px-2 flex-1 truncate"} (render-edn-limit val))
+            ))))))
 
 (defmethod render-view :vec
   [this summary fragment]
@@ -685,28 +696,13 @@
 
 (def ui-object-list-item (fc/factory ObjectListItem {:keyfn ::oid}))
 
-(defsc ObjectHeader
-  [this {::keys [oid] :as props}]
-  {:ident
-   (fn []
-     [::oid oid])
-
-   :query
-   (fn []
-     [::oid
-      ::display-type
-      :edn-limit
-      :summary
-      :fragment
-      :edn
-      :pprint])}
-
-  (let [{::keys [display-type] :or {display-type :browse} :keys [summary]} props
-        {:keys [data-type obj-type entries]} summary]
+(defsc ObjectHeader [this {::keys [oid] :as props}]
+  (let [{:keys [summary]} props
+        {:keys [obj-type entries]} summary]
     (html/div {:className "flex bg-white py-1 px-2 font-mono border-b-2 text-l"}
       #_(html/div {:className "pr-2 py-2 font-bold"} (str data-type))
       (html/div {:className "px-2 font-bold"} obj-type)
-      (when count
+      (when entries
         (html/div {:className "px-2 font-bold"} (str entries " Entries")))
       (html/div {:className "flex-1"}) ;; fill up space
       (html/div {:className "text-right cursor-pointer font-bold px-2"
@@ -719,24 +715,8 @@
 
 (def ui-object-header (fc/factory ObjectHeader {}))
 
-(defsc ObjectFooter
-  [this {::keys [oid] :as props}]
-  {:ident
-   (fn []
-     [::oid oid])
-
-   :query
-   (fn []
-     [::oid
-      ::display-type
-      :edn-limit
-      :summary
-      :fragment
-      :edn
-      :pprint])}
-
-  (let [{::keys [display-type] :or {display-type :browse} :keys [summary]} props
-        {:keys [data-type obj-type count]} summary]
+(defsc ObjectFooter [this {::keys [oid] :as props}]
+  (let [{::keys [display-type] :or {display-type :browse}} props]
     (html/div {:className "flex bg-white py-2 px-4 font-mono border-t-2"}
       #_(html/div {:className "pr-2 py-2 font-bold"} (str data-type))
       (html/div {:className ""} "View as: ")
@@ -756,12 +736,44 @@
 
 (def ui-object-footer (fc/factory ObjectFooter {}))
 
-(defsc ObjectDetail
-  [this {::keys [oid] :as props}]
+(defsc ObjectDetail [this {::keys [oid] :as props}]
+  (let [{::keys [display-type]
+         :keys [summary fragment edn-limit]
+         :or {display-type :browse}}
+        props]
+
+    (if (nil? summary)
+      (html/div {:className "flex-1 bg-white font-mono p-4"} "Loading ...")
+      (case display-type
+        :edn
+        (html/div {:className "flex-1 font-mono bg-white"}
+          (html/textarea {:className "w-full h-full font-mono border-t p-4"
+                          :readOnly true
+                          :value (:edn props "Loading ...")}))
+
+        :pprint
+        (html/div {:className "flex-1 font-mono bg-white"}
+          (html/textarea {:className "w-full h-full font-mono border-t p-4"
+                          :readOnly true
+                          :value (:pprint props "Loading ...")}))
+
+        :browse
+        (html/div {:className "flex-1 overflow-auto font-mono bg-white"}
+          (render-view
+            this
+            (assoc summary
+              :value (:value props)
+              :oid oid
+              :edn-limit edn-limit)
+            fragment))))
+    ))
+
+(def ui-object-detail (fc/factory ObjectDetail {}))
+
+(defsc ObjectInspect [this {::keys [oid] :as props}]
   {:ident
    (fn []
      [::oid oid])
-
    :query
    (fn []
      [::oid
@@ -773,54 +785,30 @@
       :edn
       :pprint])}
 
-  (let [{::keys [display-type]
-         :keys [summary fragment edn-limit]
-         :or {display-type :browse}}
-        props]
+  (html/fragment
+    (ui-object-header props)
+    (ui-object-detail props)
+    (ui-object-footer props)))
 
-    (case display-type
-      :edn
-      (html/div {:className "flex-1 font-mono bg-white"}
-        (html/textarea {:className "w-full h-full font-mono border-t p-4"
-                        :readOnly true
-                        :value (:edn props "Loading ...")}))
+(def ui-object-inspect (fc/factory ObjectInspect {:keyfn ::oid}))
 
-      :pprint
-      (html/div {:className "flex-1 font-mono bg-white"}
-        (html/textarea {:className "w-full h-full font-mono border-t p-4"
-                        :readOnly true
-                        :value (:pprint props "Loading ...")}))
-
-      :browse
-      (html/div {:className "flex-1 overflow-auto font-mono bg-white"}
-        (render-view
-          this
-          (assoc summary
-            :value (:value props)
-            :oid oid
-            :edn-limit edn-limit)
-          fragment)))
-    ))
-
-(def ui-object-detail (fc/factory ObjectDetail {}))
-
-(defn do-eval [comp]
+(defn do-eval [comp eval-op]
   (let [{::keys [^js editor term]} (util/get-local! comp)
         {::keys [rid]} (fc/props comp)
         state (::fa/state-atom env/app)
 
         ;; FIXME: might be nil
-        oid (get-in @state [::rid rid ::object 1])
+        oid (get-in @state [::tap-page rid ::object 1])
 
         text
         (str/trim (.getValue editor))
 
         ;; extremely hacky way to get access runtime refs
-        code
-        (str "(let [*ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
-             "      *o (:obj *ref)\n"
-             "      *d (-> *ref :desc :data)]\n"
-             text
+        wrap
+        (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
+             "      $o (:obj $ref)\n"
+             "      $d (-> $ref :desc :data)]\n"
+             "?CODE?\n"
              "\n)")]
 
     (when (seq text)
@@ -828,9 +816,15 @@
       (.setValue editor "")
 
       (call!
-        {:op :eval-clj
+        {:op eval-op
          :rid rid
-         :code code}
+         :code text
+         :wrap wrap ;; FIXME: don't do this for :eval-js
+         ;; this is ugly, not sure if text is much better though?
+         #_`(let [~'$ref (shadow.remote.runtime.eval-support/get-ref ~oid)
+                  ~'$o (:obj ~'$ref)
+                  ~'$d (~'-> ~'$ref :desc :data)]
+              ~'?CODE?)}
 
         {:unknown-op
          (fn [msg]
@@ -842,15 +836,15 @@
 
          :eval-result-ref
          (fn [{:keys [ref-oid] :as msg}]
-           (swap! state update-in [::rid rid ::nav-stack] conj {:oid oid :key [false text]})
-           (swap! state assoc-in [::rid rid ::object] [::oid ref-oid])
+           (swap! state update-in [::tap-page rid ::nav-stack] conj {:oid oid :key [false text]})
+           (swap! state assoc-in [::tap-page rid ::object] [::oid ref-oid])
            (add-new-nav-obj state rid ref-oid))
 
          :eval-result
          (fn [msg]
            (js/console.log "eval-result" msg))}))))
 
-(defn attach-codemirror [comp cm-input]
+(defn attach-codemirror-clj [comp cm-input eval-op]
   ;; (js/console.log ::attach-codemirror cm-input comp)
   (if-not cm-input
     (let [{::keys [editor]} (util/get-local! comp)]
@@ -868,18 +862,62 @@
                  :matchBrackets true})]
 
       (.setOption editor "extraKeys"
-        #js {"Ctrl-Enter" #(do-eval comp)
-             "Shift-Enter" #(do-eval comp)})
+        #js {"Ctrl-Enter" #(do-eval comp eval-op)
+             "Shift-Enter" #(do-eval comp eval-op)})
 
       (par-cm/init editor)
       (util/swap-local! comp assoc ::editor editor))))
 
-(defn ui-runtime-eval [this props]
-  (html/div {:className "bg-white font-mono flex flex-col"}
-    (html/div {:className "font-bold px-4 border-b border-t-2 py-1 text-l"}
-      "Runtime Eval (use *o for current obj, ctrl+enter for eval)")
-    (html/div {:style {:height "120px"}}
-      (html/input {:ref (util/comp-fn this ::editor-ref attach-codemirror)}))))
+(defn attach-codemirror-js [comp cm-input eval-op]
+  ;; (js/console.log ::attach-codemirror cm-input comp)
+  (if-not cm-input
+    (let [{::keys [editor]} (util/get-local! comp)]
+      (when editor
+        (.toTextArea editor))
+      (util/swap-local! comp dissoc ::editor))
+
+    (let [editor
+          (cm/fromTextArea
+            cm-input
+            #js {:lineNumbers true
+                 :mode "javascript"
+                 :theme "github"
+                 :autofocus true
+                 :matchBrackets true})]
+
+      (.setOption editor "extraKeys"
+        #js {"Ctrl-Enter" #(do-eval comp eval-op)
+             "Shift-Enter" #(do-eval comp eval-op)})
+
+      (util/swap-local! comp assoc ::editor editor))))
+
+(defsc RuntimeEval [this {::keys [rid supported-ops] :as props}]
+  {:ident
+   (fn []
+     [::rid rid])
+   :query
+   (fn []
+     [::rid
+      ::supported-ops])}
+
+  (when (or (contains? supported-ops :eval-clj)
+            (contains? supported-ops :eval-cljs)
+            (contains? supported-ops :eval-js))
+
+    (html/div {:className "bg-white font-mono flex flex-col"}
+      (html/div {:className "flex font-bold px-4 border-b border-t-2 py-1 text-l"}
+        (html/div {:className "flex-1"} "Runtime Eval (use $o for current obj, ctrl+enter for eval)")
+        (html/div "Language: ")
+        (html/div {}
+          (html/select {}
+            (html/option "Clojure")
+            (html/option "ClojureScript")
+            (html/option "JS"))))
+      (html/div {:style {:height "120px"}}
+        #_(html/input {:ref (util/comp-fn this ::editor-js attach-codemirror-js :eval-js)})
+        (html/input {:ref (util/comp-fn this ::editor-clj attach-codemirror-clj :eval-cljs)})))))
+
+(def ui-runtime-eval (fc/factory RuntimeEval {}))
 
 (defsc RuntimeTapPage
   [this {::keys [rid] :as props}]
@@ -890,24 +928,17 @@
    :query
    (fn []
      [::rid
-      {::runtime [::runtime-info
-                  ::supported-ops]}
+      {::runtime (fc/get-query RuntimeEval)}
       {::objects (fc/get-query ObjectListItem)}
-      {::object (fc/get-query ObjectDetail)}
+      {::object (fc/get-query ObjectInspect)}
       ::nav-stack])}
 
   (let [{::keys [runtime objects object nav-stack]}
         props
 
-        {::keys [runtime-info supported-ops]}
-        runtime
-
         select-fn
         (fn [oid]
           (fc/transact! this [(select-tap-object {:rid rid :oid oid})]))
-
-        scroll-ref
-        (fc/get-state this :scroll-ref)
 
         full-tap?
         (and (empty? nav-stack)
@@ -948,13 +979,9 @@
                        idx)))))))
 
       (when object
-        (html/fragment
-          (ui-object-header object)
-          (ui-object-detail object)
-          (ui-object-footer object)))
+        (ui-object-inspect object))
 
-      (when (contains? supported-ops :eval-clj)
-        (ui-runtime-eval this props)))))
+      (ui-runtime-eval runtime))))
 
 (def ui-runtime-tap-page (fc/factory RuntimeTapPage {}))
 
@@ -967,30 +994,50 @@
    :query
    (fn []
      [::rid
-      {::runtime [::runtime-info
-                  ::supported-ops]}])}
+      {::runtime (fc/get-query Runtime)}])}
 
-  (let [{::keys [runtime]} props
-        {::keys [runtime-info supported-ops]} runtime]
-    (html/fragment
-      (html/div
-        (html/h1 "Runtime Overview"))
-
-      (html/div (pr-str runtime-info))
-      (html/div (pr-str supported-ops))
-      (html/div {:className "flex-1"}
-        ))))
+  (let [{::keys [runtime]} props]
+    (html/div
+      (html/h1 "Runtime Overview"))))
 
 (def ui-runtime-page (fc/factory RuntimePage {}))
 
-(defsc Page [this {::keys [runtimes runtime] :as props}]
+(defsc RuntimeSelect [this {::keys [rid] :as props}]
+  {:ident
+   (fn []
+     [::rid rid])
+
+   :query
+   (fn []
+     [::rid
+      ::runtime-info
+      ::supported-ops])}
+
+  (let [{::keys [supported-ops runtime-info]} props]
+
+    (html/div
+      {:key rid
+       :className "p-2 border font-mono"}
+      (html/div
+        (pr-str runtime-info))
+
+      (html/div {:className "py-8"}
+        (when (contains? supported-ops :tap-subscribe)
+          (html/a {:className "p-4 text-l rounded bg-blue-300"
+                   :href (str "/inspect/" rid "/tap")} "Tap"))
+
+        ))))
+
+(def ui-runtime-select (fc/factory RuntimeSelect {:keyfn ::rid}))
+
+(defsc Page [this {::keys [runtimes] :as props}]
   {:ident
    (fn []
      [::ui-model/page-inspect 1])
 
    :query
    (fn []
-     [{::runtimes (fc/get-query Runtime)}])
+     [{::runtimes (fc/get-query RuntimeSelect)}])
 
    :initial-state
    (fn [p]
@@ -998,19 +1045,9 @@
 
   (html/div {:className "bg-white p-2 mb-2"}
     (html/div {:className "text-xl my-2"} "Runtimes")
-    (html/for [{::keys [rid runtime-info] :as runtime} runtimes]
-      (html/div
-        {:key rid
-         :className "p-2 border font-mono"}
-        (html/div
-          (pr-str runtime-info))
-        (html/div {:className "py-8"}
-          (let [ops (::supported-ops runtime)]
-            (when (contains? ops :tap-subscribe)
-              (html/a {:className "p-4 text-l rounded bg-blue-300"
-                       :href (str "/inspect/" rid "/tap")} "Tap"))
-
-            ))))))
+    (html/for [runtime runtimes]
+      (ui-runtime-select runtime)
+      )))
 
 (def ui-page (fc/factory Page {}))
 
@@ -1034,7 +1071,8 @@
     (do (fc/transact! env/app
           [(routing/set-route
              {:router ::ui-model/root-router
-              :ident [::ui-model/page-loading 1]})])
+              :ident [::ui-model/page-loading 1]})
+           ::ui-model/root-router])
         (start-browser
           (fn []
             (cast! {:op :request-runtimes})
@@ -1044,7 +1082,8 @@
       (fc/transact! env/app
         [(routing/set-route
            {:router ::ui-model/root-router
-            :ident [::ui-model/page-inspect 1]})])
+            :ident [::ui-model/page-inspect 1]})
+         ::ui-model/root-router])
 
       (let [[rid view & more] tokens
             rid (js/parseInt rid)]
@@ -1052,18 +1091,21 @@
         (ensure-runtime-init rid
           [(routing/set-route
              {:router ::ui-model/root-router
-              :ident [::ui-model/page-loading 1]})]
+              :ident [::ui-model/page-loading 1]})
+           ::ui-model/root-router]
           (fn []
             (cond
               (nil? view)
               (fc/transact! env/app
                 [(select-runtime-page {:rid rid})
                  (routing/set-route {:router ::ui-model/root-router
-                                     :ident [::runtime-page rid]})])
+                                     :ident [::runtime-page rid]})
+                 ::ui-model/root-router])
 
               (= "tap" view)
               (fc/transact! env/app
                 [(select-runtime-tap-page {:rid rid})
                  (routing/set-route {:router ::ui-model/root-router
-                                     :ident [::tap-page rid]})])
+                                     :ident [::tap-page rid]})
+                 ::ui-model/root-router])
               )))))))

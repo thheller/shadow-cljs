@@ -11,6 +11,7 @@
     [cljs.tagged-literals :as tags]
     [cljs.compiler :as cljc-comp]
     [cljs.analyzer :as ana]
+    [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.jvm-log :as jvm-log]
     [shadow.build.log :as log]
     [shadow.cljs.util :as util]
@@ -23,7 +24,9 @@
     [shadow.build.compiler :as comp]
     [shadow.build.data :as data]
     [shadow.build.resolve :as res]
-    [shadow.build.classpath :as classpath])
+    [shadow.build.classpath :as classpath]
+    [shadow.remote.runtime.eval-support :as es]
+    )
   (:import
     [java.io StringReader BufferedReader File]
     [java.nio.file Paths Path]
@@ -513,8 +516,10 @@
     (catch Exception e
       (throw (ex-info "Failed to process REPL command" (assoc read-result :tag ::process-ex) e)))))
 
+(defn apply-wrap [form wrap])
+
 (defn read-one
-  [build-state reader {:keys [filename] :or {filename "repl-input.cljs"} :as opts}]
+  [build-state reader {:keys [filename wrap] :or {filename "repl-input.cljs"} :as opts}]
   {:pre [(build-api/build-state? build-state)]}
 
   (try
@@ -577,7 +582,9 @@
            :ns read-ns}
           (cond->
             (not eof?)
-            (assoc :form form
+            (assoc :form (if-not wrap
+                           form
+                           (es/apply-wrap form (read-string wrap)))
                    :source
                    ;; FIXME: poking at the internals of SourceLoggingPushbackReader
                    ;; not using (-> form meta :source) which log-source provides

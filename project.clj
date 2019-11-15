@@ -137,6 +137,7 @@
        edn-query-language/eql
        garden]]
 
+     [thheller/shadow-experiments "0.0.1"]
      [fulcrologic/fulcro-inspect "2.2.5"]
      [funcool/bide "1.6.0"]
      [com.andrewmcveigh/cljs-time "0.5.2"]

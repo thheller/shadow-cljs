@@ -3,6 +3,7 @@
     [cognitect.transit :as transit]
     ;; this will eventually replace shadow.cljs.devtools.client completely
     [shadow.cljs.devtools.client.env :as env]
+    [goog.net.XhrIo :as xhr]
     [shadow.remote.runtime.api :as api]
     [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.cljs.env :as renv]
@@ -12,12 +13,47 @@
     [shadow.remote.runtime.eval-support :as eval-support]
     ))
 
+(defn transit-read [data]
+  (let [t (transit/reader :json)]
+    (transit/read t data)))
+
+(defn transit-str  [obj]
+  (let [w (transit/writer :json)]
+    (transit/write w obj)))
+
+(declare interpret-actions)
+
+(defn abort! [{:keys [callback] :as state} action ex]
+  (-> state
+      (assoc :failed true
+             :completed false
+             :ex ex
+             :ex-action action)
+      (callback)))
+
+(defn interpret-action [{:keys [runtime] :as state} {:keys [type] :as action}]
+  (case type
+    :repl/invoke
+    (let [{:keys [js]} action]
+      (try
+        (let [res (.eval-js runtime js)]
+          (-> state
+              (update :eval-results conj {:value res :action action})
+              (interpret-actions)))
+        (catch :default ex
+          (abort! state action ex))))))
+
+(defn interpret-actions [{:keys [actions] :as state}]
+  (if (empty? actions)
+    ((:callback state) state)
+    (let [{:keys [type] :as action} (first actions)
+          state (update state :actions rest)]
+      (interpret-action state action))))
+
 (defrecord BrowserRuntime [ws state-ref]
   api/IRuntime
   (relay-msg [runtime msg]
-    (let [w (transit/writer :json)
-          json (transit/write w msg)]
-      (.send ws json)))
+    (.send ws (transit-str msg)))
   (add-extension [runtime key spec]
     (shared/add-extension runtime key spec))
   (del-extension [runtime key]
@@ -25,7 +61,30 @@
 
   Object
   (eval-js [this code]
-    (js* "(0,eval)(~{})" code)))
+    (js* "(0,eval)(~{})" code))
+
+  (eval-cljs [this msg callback]
+    ;; FIXME: define that msg is supposed to look like
+    ;; {:code "(some-cljs)" :ns foo.bar}
+    ;; FIXME: transit?
+    (xhr/send
+      (str (env/get-url-base) "/worker/compile/" env/build-id "/" env/proc-id "/browser")
+      (fn [res]
+        (this-as ^goog req
+          (let [{:keys [type] :as result}
+                (transit-read (.getResponseText req))]
+
+            (if-not (= :repl/actions type)
+              (callback {:failed true :result result})
+              (interpret-actions {:runtime this
+                                  :callback callback
+                                  :input msg
+                                  :actions (:actions result)
+                                  :eval-results []
+                                  :errors []})))))
+      "POST"
+      (transit-str msg)
+      #js {"content-type" "application/transit+json; charset=utf-8"})))
 
 (defn start []
   (if-some [{:keys [stop]} @renv/runtime-ref]
@@ -71,11 +130,8 @@
 
       (.addEventListener socket "message"
         (fn [e]
-          (let [t (transit/reader :json)
-                msg (transit/read t (.-data e))]
-
-            ;; FIXME: fire off async?
-            (shared/process runtime msg))))
+          (shared/process runtime (transit-read (.-data e)))
+          ))
 
       (.addEventListener socket "open"
         (fn [e]

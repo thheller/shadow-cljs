@@ -1,29 +1,31 @@
 (ns shadow.cljs.devtools.server.worker.impl
   (:refer-clojure :exclude (compile))
-  (:require [clojure.set :as set]
-            [clojure.string :as str]
-            [clojure.core.async :as async :refer (go >! <! >!! <!! alt!)]
-            [shadow.jvm-log :as log]
-            [cljs.compiler :as cljs-comp]
-            [cljs.analyzer :as cljs-ana]
-            [shadow.cljs.repl :as repl]
-            [shadow.cljs.model :as m]
-            [shadow.cljs.util :as util :refer (set-conj reduce->)]
-            [shadow.build :as build]
-            [shadow.build.api :as build-api]
-            [shadow.build.api :as cljs]
-            [shadow.build.async :as basync]
-            [shadow.build.compiler :as build-comp]
-            [shadow.cljs.devtools.server.util :as server-util]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.devtools.config :as config]
-            [shadow.cljs.devtools.errors :as errors]
-            [shadow.build.warnings :as warnings]
-            [shadow.build.data :as data]
-            [shadow.build.resource :as rc]
-            [shadow.build.log :as build-log]
-            [clojure.java.io :as io]
-            [shadow.cljs.devtools.server.reload-npm :as reload-npm])
+  (:require
+    [clojure.set :as set]
+    [clojure.string :as str]
+    [clojure.core.async :as async :refer (go >! <! >!! <!! alt!)]
+    [clojure.java.io :as io]
+    [cljs.compiler :as cljs-comp]
+    [cljs.analyzer :as cljs-ana]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [shadow.jvm-log :as log]
+    [shadow.cljs.repl :as repl]
+    [shadow.cljs.model :as m]
+    [shadow.cljs.util :as util :refer (set-conj reduce->)]
+    [shadow.build :as build]
+    [shadow.build.api :as build-api]
+    [shadow.build.api :as cljs]
+    [shadow.build.async :as basync]
+    [shadow.build.compiler :as build-comp]
+    [shadow.cljs.devtools.server.util :as server-util]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]
+    [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.errors :as errors]
+    [shadow.build.warnings :as warnings]
+    [shadow.build.data :as data]
+    [shadow.build.resource :as rc]
+    [shadow.build.log :as build-log]
+    [shadow.cljs.devtools.server.reload-npm :as reload-npm])
   (:import [java.util UUID]
            [java.io File]))
 
@@ -768,14 +770,16 @@
 (defmethod do-proc-control :repl-compile
   [{:keys [build-state] :as worker-state}
    {:keys [result-chan input] :as msg}]
+  (?> worker-state ::repl-compile-worker-state)
+  (?> msg ::repl-compile-msg)
   (try
     (let [start-idx
           (count (get-in build-state [:repl-state :repl-actions]))
 
+          {:keys [code]} input
+
           {:keys [repl-state] :as build-state}
-          (if (string? input)
-            (repl/process-input build-state input)
-            (repl/process-read-result build-state input))
+          (repl/process-input build-state code input)
 
           new-actions
           (subvec (:repl-actions repl-state) start-idx)]
@@ -786,6 +790,8 @@
       (assoc worker-state :build-state build-state))
 
     (catch Exception e
+      (log/warn-ex e ::repl-compile-ex {:input input})
+
       (>!! result-chan {:type :repl/error :e e})
       worker-state)))
 
