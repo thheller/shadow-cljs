@@ -981,7 +981,7 @@
       (when object
         (ui-object-inspect object))
 
-      (ui-runtime-eval runtime))))
+      #_ (ui-runtime-eval runtime))))
 
 (def ui-runtime-tap-page (fc/factory RuntimeTapPage {}))
 
