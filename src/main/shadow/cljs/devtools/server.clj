@@ -200,11 +200,36 @@
 (defmethod log/log-msg ::nrepl-fallback [_ _]
   "Using tools.nrepl 0.2.* server!")
 
+(defn- ping-node-process [cli-port]
+  (try
+    (let [inet-address
+          (InetSocketAddress. "localhost" cli-port)
+
+          socket
+          (Socket.)]
+
+      ;; FIXME: what is a good timeout here?
+      ;; 1000ms for a local socket connection is probably overkill
+      (.connect socket inet-address 1000)
+
+      (let [socket-in (.getInputStream socket)]
+        ;; sends OK and closes, node will error out if we don't read this
+        (.skip socket-in 2))
+
+      ;; node will disconnect us also
+      (.close socket)
+      true)
+    (catch Exception e
+      (log/debug-ex e ::cli-check-failed {:cli-port cli-port})
+      false)))
+
 (defn create-cli-checker [cli-port]
   (let [cli-port (Long/valueOf cli-port)
 
         keep-checking-ref
         (atom true)
+
+        max-attempts 3
 
         thread-fn
         (fn []
@@ -212,33 +237,12 @@
             (when @keep-checking-ref
               ;; check regularly so it doesn't take too long to exit after the node process disappeared
               (Thread/sleep 5000)
-              (let [max-attempts 3
-                    ok (try
-                         (let [inet-address
-                               (InetSocketAddress. "localhost" cli-port)
-
-                               socket
-                               (Socket.)]
-
-                           ;; FIXME: what is a good timeout here?
-                           ;; 1000ms for a local socket connection is probably overkill
-                           (.connect socket inet-address 10000)
-
-                           (let [socket-in (.getInputStream socket)]
-                             ;; sends OK and closes, node will error out if we don't read this
-                             (.skip socket-in 2))
-
-                           ;; node will disconnect us also
-                           (.close socket)
-                           true)
-                         (catch Exception e
-                           (log/debug-ex e ::cli-check-failed {:cli-port cli-port :attempts (inc attempts)})
-                           false))]
+              (let [ok (ping-node-process cli-port)]
                 (if (and (not ok)
                          (>= attempts max-attempts))
                   (stop!)
                   (recur (if ok 0 (inc attempts))))
-              ))))]
+                ))))]
 
     (log/debug ::cli-checker-start {:cli-port cli-port})
 
