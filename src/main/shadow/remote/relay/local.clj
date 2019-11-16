@@ -36,11 +36,11 @@
     (let [tool (get-in @state-ref [:tools tid])]
       (if-not tool
         (>!! (:to runtime)
-             (maybe-add-mid msg {:op :tool-not-found :tid tid}))
+          (maybe-add-mid msg {:op :tool-not-found :tid tid}))
         (>!! (:to tool)
-             (-> msg
-                 (dissoc :tid)
-                 (assoc :rid rid)))))
+          (-> msg
+              (dissoc :tid)
+              (assoc :rid rid)))))
 
     tool-broadcast
     (send-to-tools state-ref (assoc msg :rid rid))
@@ -57,14 +57,14 @@
     (let [runtime (get-in @state-ref [:runtimes rid])]
       (if-not runtime
         (>!! (:to tool)
-             (maybe-add-mid msg {:op :runtime-not-found
-                                 :rid rid}))
+          (maybe-add-mid msg {:op :runtime-not-found
+                              :rid rid}))
 
         ;; forward with tid only, replies should be coming from runtime-out
         (>!! (:to runtime)
-             (-> msg
-                 (assoc :tid tid)
-                 (dissoc :rid)))))
+          (-> msg
+              (assoc :tid tid)
+              (dissoc :rid)))))
 
     ;; FIXME: broadcast may not be a good idea, tools or runtimes can always iterate themselves
     runtime-broadcast
@@ -91,17 +91,18 @@
 
       (swap! state-ref assoc-in [:tools tid] tool-data)
 
-      (go (loop []
-            (when-some [msg (<! from-tool)]
-              (handle-tool-msg state-ref tool-data msg)
-              (recur)))
+      (async/thread
+        (loop []
+          (when-some [msg (<!! from-tool)]
+            (handle-tool-msg state-ref tool-data msg)
+            (recur)))
 
-          ;; send to all runtimes so they can cleanup state?
-          (send-to-runtimes state-ref {:op :tool-disconnect
-                                       :tid tid})
+        ;; send to all runtimes so they can cleanup state?
+        (send-to-runtimes state-ref {:op :tool-disconnect
+                                     :tid tid})
 
-          (swap! state-ref update :tools dissoc tid)
-          (async/close! to-tool))
+        (swap! state-ref update :tools dissoc tid)
+        (async/close! to-tool))
 
       (>!! to-tool {:op :welcome
                     :tid tid})
@@ -131,15 +132,16 @@
                                 :rid rid
                                 :runtime-info runtime-info})
 
-      (go (loop []
-            (when-some [msg (<! from-runtime)]
-              (handle-runtime-msg state-ref runtime msg)
-              (recur)))
+      (async/thread
+        (loop []
+          (when-some [msg (<!! from-runtime)]
+            (handle-runtime-msg state-ref runtime msg)
+            (recur)))
 
-          (send-to-tools state-ref {:op :runtime-disconnect
-                                    :rid rid})
+        (send-to-tools state-ref {:op :runtime-disconnect
+                                  :rid rid})
 
-          (swap! state-ref update :runtimes dissoc rid))
+        (swap! state-ref update :runtimes dissoc rid))
 
       (>!! to-runtime {:op :welcome
                        :rid rid})
@@ -169,8 +171,8 @@
                     (map :runtime-info)
                     (vec))]
     (>!! (:to tool)
-         (maybe-add-mid msg {:op :runtimes
-                             :runtimes result}))))
+      (maybe-add-mid msg {:op :runtimes
+                          :runtimes result}))))
 
 (comment
   (def svc (start))
