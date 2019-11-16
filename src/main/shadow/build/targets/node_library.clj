@@ -71,8 +71,15 @@
                 (map namespace)
                 (map symbol)
                 (into #{}))
-           `(cljs.core/js-obj ~@(->> exports (mapcat (fn [[k v]] [(-> k (name) (cljs-comp/munge)) v]))))
-           ])
+           (if (= :release (:shadow.build/mode state))
+             `(cljs.core/js-obj ~@(->> exports (mapcat (fn [[k v]] [(-> k (name) (cljs-comp/munge)) v]))))
+             `(doto (cljs.core/js-obj)
+                ~@(for [[k v] exports]
+                    `(js/Object.defineProperty ~(-> k (name) (cljs-comp/munge))
+                       (cljs.core/js-obj
+                         "enumerable" true
+                         "get" (fn [] ~v)) )))
+             )])
 
         requires
         (conj entries 'cljs.core)
