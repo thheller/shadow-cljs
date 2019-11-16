@@ -190,19 +190,23 @@
     :ok))
 
 (defn watch*
-  [{:keys [build-id] :as build-config} {:keys [autobuild verbose sync] :as opts}]
+  [{:keys [build-id] :as build-config} {:keys [verbose sync] :as opts}]
   {:pre [(map? build-config)
          (keyword? build-id) ;; not required here but by start-worker
          (map? opts)]}
-  (let [out (util/stdout-dump verbose)]
+  (let [out (util/stdout-dump verbose)
+
+        autobuild?
+        (and (not (false? (:autobuild opts)))
+             (not (false? (get-in build-config [:devtools :autobuild]))))]
 
     (-> (start-worker build-config opts)
         (worker/watch out true)
         (cond->
-          (not (false? autobuild))
+          autobuild?
           (worker/start-autobuild)
 
-          (false? autobuild)
+          (not autobuild?)
           (worker/compile)
 
           (not (false? sync))
