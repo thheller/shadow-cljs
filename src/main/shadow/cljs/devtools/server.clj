@@ -200,43 +200,26 @@
 (defmethod log/log-msg ::nrepl-fallback [_ _]
   "Using tools.nrepl 0.2.* server!")
 
-(defn create-cli-checker [cli-port]
-  (let [cli-port (Long/valueOf cli-port)
-
-        keep-checking-ref
+(defn create-cli-checker [check-file cli-pid]
+  (let [keep-checking-ref
         (atom true)
 
         thread-fn
         (fn []
           (loop []
             (when @keep-checking-ref
-              ;; check every sec so it doesn't take too long to exit after the node process disappeared
-              (Thread/sleep 5000)
-              (when (try
-                      (let [inet-address
-                            (InetSocketAddress. "localhost" cli-port)
+              (if (and (.exists check-file)
+                       (= cli-pid (slurp check-file))
+                       ;; check if node is still writing the file
+                       (> (.lastModified check-file) (- (System/currentTimeMillis) 5000)))
+                (do (Thread/sleep 2000)
+                    (recur))
+                (do (log/warn ::cli-checker-shutdown)
+                    (stop!)
+                    ;; (System/exit 0)
+                    )))))]
 
-                            socket
-                            (Socket.)]
-
-                        ;; FIXME: what is a good timeout here?
-                        ;; 1000ms for a local socket connection is probably overkill
-                        (.connect socket inet-address 1000)
-
-                        (let [socket-in (.getInputStream socket)]
-                          ;; sends OK and closes, node will error out if we don't read this
-                          (.skip socket-in 2))
-
-                        ;; node will disconnect us also
-                        (.close socket)
-                        true)
-                      (catch Exception e
-                        (log/debug-ex e ::cli-check-failed {:cli-port cli-port})
-                        (stop!)
-                        false))
-                (recur)))))]
-
-    (log/debug ::cli-checker-start {:cli-port cli-port})
+    (log/debug ::cli-checker-start {:cli-port cli-pid})
 
     (doto (Thread. thread-fn "shadow-cljs-npm-process-checker")
       (.setDaemon true)
@@ -294,9 +277,11 @@
         (socket-repl/start cli-repl-config app-ref)
 
         cli-checker
-        (when-let [cli-port (System/getenv "SHADOW_CLI_PORT")]
-          (let [cli-port (Long/valueOf cli-port)]
-            (create-cli-checker cli-port)))
+        (when-let [cli-pid (System/getenv "SHADOW_CLI_PID")]
+          (let [check-file (io/file (:cache-root config) "cli.check")]
+            (when (and (.exists check-file)
+                       (= cli-pid (slurp check-file)))
+              (create-cli-checker check-file cli-pid))))
 
         disable-nrepl?
         (or (false? (:nrepl config))
@@ -685,12 +670,13 @@
                   ;; done in separate loop since we cannot reliably do a non-blocking read from a blocking socket
                   ;; sort of hacking that as it is when looking at System/in directly
                   (loop []
-                    (when-not (stdin-closed?)
-                      (Thread/sleep 100)
+                    (when (and (not (stdin-closed?))
+                               @runtime/instance-ref)
+                      (Thread/sleep 500)
                       (recur)))
 
-                  (stop-builds!)
-                  ))
+                  (when @runtime/instance-ref
+                    (stop-builds!))))
 
               ;; run until either the instance is removed
               ;; or all builds we started are stopped by other means

@@ -67,60 +67,51 @@
       (do (println (str "Executable '" cmd "' not found on system path."))
           (js/process.exit 1))
 
-      (let [node-server (node-net/Server.)]
+      (let [pid-path
+            (path/resolve project-root ".shadow-cljs" "cli.check")
 
-        (.on node-server "connection"
-          (fn [^js socket]
-            ;; send OK and close socket
-            ;; this is not meant as a persistent connection as I need to verify first
-            ;; under which circumstances that may disconnect for "valid" reasons
-            ;; like switching the WiFi network, sleep mode etc
-            ;; instead just have the java proc periodically check if this is still alive
-            (.end socket "OK")))
+            keep-writing-pid-ref
+            (atom true)
 
-        (.on node-server "error"
-          (fn [err]
-            (js/console.warn "node-server err" err)))
+            ;; repeatedly write our pid to a file
+            ;; that allows the JVM process to check if a PID changed
+            ;; and by checking last-modified of the file if this process
+            ;; is still alive
+            pid-fn
+            (fn pid-fn []
+              (when @keep-writing-pid-ref
+                (fs/writeFileSync pid-path (str js/process.pid) #js {:flag "w+"})
+                (js/setTimeout pid-fn 2000)))
 
-        (js/process.on "SIGTERM"
-          (fn []
-            (.close node-server)
-            (js/process.exit 0)))
+            _ (pid-fn) ;; start writing before actually starting
 
-        (js/process.on "SIGINT"
-          (fn []
-            (.close node-server)
-            (js/process.exit 0)))
+            spawn-opts
+            (-> {:cwd project-root
+                 :env (-> #js {"SHADOW_CLI_PID" js/process.pid}
+                          (js/Object.assign js/process.env))
+                 :stdio "inherit"}
+                (merge proc-opts)
+                (clj->js))
 
-        (.listen node-server
-          (fn []
-            (let [cli-port
-                  (-> node-server (.address) (.-port))
+            ^js proc
+            (cp/spawn executable (into-array args) spawn-opts)]
 
-                  spawn-opts
-                  (-> {:cwd project-root
-                       :env (-> #js {"SHADOW_CLI_PORT" cli-port}
-                                (js/Object.assign js/process.env))
-                       :stdio "inherit"}
-                      (merge proc-opts)
-                      (clj->js))
+        (.on proc "error"
+          (fn [^js error]
+            (reset! keep-writing-pid-ref false)
+            (fs/unlinkSync pid-path)
+            (if (and error (= "ENOENT" (. error -errno)))
+              (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
+              (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
 
-                  ^js proc
-                  (cp/spawn executable (into-array args) spawn-opts)]
+        (.on proc "exit"
+          (fn [code signal]
+            (reset! keep-writing-pid-ref false)
+            (fs/unlinkSync pid-path)
+            (js/process.exit code)))
 
-              (.on proc "error"
-                (fn [^js error]
-                  (if (and error (= "ENOENT" (. error -errno)))
-                    (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
-                    (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
-
-              (.on proc "exit"
-                (fn [code signal]
-                  (.close node-server)
-                  (js/process.exit code)))
-
-              proc
-              )))))))
+        proc
+        ))))
 
 (defn run-java [project-root args opts]
   (let [^js result
