@@ -265,12 +265,15 @@
               ;; none of it reproducible, hope ProcessHandle is more reliable
               )))
 
-        disable-nrepl?
-        (or (false? (:nrepl config))
-            (false? (get-in config [:system-config :nrepl])))
+        merged-nrepl-config
+        (->> [[:system-config :nrepl]
+              [:user-config :nrepl]
+              [:nrepl]]
+             (map #(get-in config %))
+             (reduce shadow.build.api/deep-merge {}))
 
         nrepl
-        (when-not disable-nrepl?
+        (when-not (empty? merged-nrepl-config)
           (try
             (let [nrepl-ns
                   'shadow.cljs.devtools.server.nrepl
@@ -284,7 +287,7 @@
                   (ns-resolve nrepl-ns 'stop)
 
                   server
-                  (nrepl-start (:nrepl config))]
+                  (nrepl-start merged-nrepl-config)]
 
               ;; return a generic stop fn
               (assoc server ::stop #(nrepl-stop server)))
