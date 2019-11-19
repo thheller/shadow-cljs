@@ -413,10 +413,9 @@
     (str (when require?
            (str "var $CLJS = require(\"./cljs_env\");\n"
                 "var $jscomp = $CLJS.$jscomp;\n"))
-         ;; the only actually global var goog sometimes uses that is not on goog.global
-         ;; actually only: goog/promise/thenable.js goog/proto2/util.js?
-         (when (str/starts-with? resource-name "goog")
-           "var COMPILED = false;\n")
+
+         ;; :npm-module is picky about this
+         "var COMPILED = false;\n"
 
          (when require?
            ;; emit requires to actual files to ensure that they were loaded properly
