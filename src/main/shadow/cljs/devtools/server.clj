@@ -122,7 +122,8 @@
       (do-shutdown (stop))))
 
   (when cli-checker
-    (cli-checker))
+    ;; CompletableFuture
+    (.cancel cli-checker true))
 
   (do-shutdown (undertow/stop (:server http)))
 
@@ -200,34 +201,6 @@
 (defmethod log/log-msg ::nrepl-fallback [_ _]
   "Using tools.nrepl 0.2.* server!")
 
-(defn create-cli-checker [check-file cli-pid]
-  (let [keep-checking-ref
-        (atom true)
-
-        thread-fn
-        (fn []
-          (loop []
-            (when @keep-checking-ref
-              (if (and (.exists check-file)
-                       (= cli-pid (slurp check-file))
-                       ;; check if node is still writing the file
-                       (> (.lastModified check-file) (- (System/currentTimeMillis) 5000)))
-                (do (Thread/sleep 2000)
-                    (recur))
-                (do (log/warn ::cli-checker-shutdown)
-                    (stop!)
-                    ;; (System/exit 0)
-                    )))))]
-
-    (log/debug ::cli-checker-start {:cli-port cli-pid})
-
-    (doto (Thread. thread-fn "shadow-cljs-npm-process-checker")
-      (.setDaemon true)
-      (.start))
-
-    (fn []
-      (reset! keep-checking-ref false))))
-
 (defn start-system
   [app-ref app-config {:keys [cache-root] :as config}]
   (when @app-ref
@@ -278,10 +251,19 @@
 
         cli-checker
         (when-let [cli-pid (System/getenv "SHADOW_CLI_PID")]
-          (let [check-file (io/file (:cache-root config) "cli.check")]
-            (when (and (.exists check-file)
-                       (= cli-pid (slurp check-file)))
-              (create-cli-checker check-file cli-pid))))
+          (try
+            ;; 9+ only, fails with ClassNotFoundException otherwise
+            (Class/forName "java.lang.ProcessHandle")
+            ;; separate namespace so it can still run in jdk1.8
+            (let [attach-fn (requiring-resolve 'shadow.cljs.devtools.server.cli-check/attach)]
+              (log/debug ::clj-check {:cli-pid cli-pid})
+              (attach-fn cli-pid))
+            (catch ClassNotFoundException e
+              ;; FIXME: should probably still do something ...
+              ;; checking a socket failed on some systems
+              ;; checking a file failed on some systems
+              ;; none of it reproducible, hope ProcessHandle is more reliable
+              )))
 
         disable-nrepl?
         (or (false? (:nrepl config))

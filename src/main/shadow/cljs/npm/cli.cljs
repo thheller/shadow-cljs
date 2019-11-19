@@ -67,25 +67,7 @@
       (do (println (str "Executable '" cmd "' not found on system path."))
           (js/process.exit 1))
 
-      (let [pid-path
-            (path/resolve project-root ".shadow-cljs" "cli.check")
-
-            keep-writing-pid-ref
-            (atom true)
-
-            ;; repeatedly write our pid to a file
-            ;; that allows the JVM process to check if a PID changed
-            ;; and by checking last-modified of the file if this process
-            ;; is still alive
-            pid-fn
-            (fn pid-fn []
-              (when @keep-writing-pid-ref
-                (fs/writeFileSync pid-path (str js/process.pid) #js {:flag "w+"})
-                (js/setTimeout pid-fn 2000)))
-
-            _ (pid-fn) ;; start writing before actually starting
-
-            spawn-opts
+      (let [spawn-opts
             (-> {:cwd project-root
                  :env (-> #js {"SHADOW_CLI_PID" js/process.pid}
                           (js/Object.assign js/process.env))
@@ -98,16 +80,12 @@
 
         (.on proc "error"
           (fn [^js error]
-            (reset! keep-writing-pid-ref false)
-            (fs/unlinkSync pid-path)
             (if (and error (= "ENOENT" (. error -errno)))
               (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
               (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
 
         (.on proc "exit"
           (fn [code signal]
-            (reset! keep-writing-pid-ref false)
-            (fs/unlinkSync pid-path)
             (js/process.exit code)))
 
         proc
