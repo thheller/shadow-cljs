@@ -387,7 +387,9 @@
   ([sys-config]
    (if (runtime/get-instance)
      ::already-running
-     (do (log/set-level! (get-in sys-config [:log :level] :info))
+     (do (log/set-level! (or (get-in sys-config [:user-config :log :level])
+                             (get-in sys-config [:log :level])
+                             :info))
          (let [app
                (merge
                  {:dev-http
