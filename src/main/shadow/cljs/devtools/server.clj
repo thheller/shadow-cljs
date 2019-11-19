@@ -4,6 +4,7 @@
     [clojure.java.io :as io]
     [clojure.string :as str]
     [shadow.jvm-log :as log]
+    [shadow.build.api :refer (deep-merge)]
     [shadow.http.router :as http]
     [shadow.runtime.services :as rt]
     [shadow.undertow :as undertow]
@@ -270,7 +271,7 @@
               [:user-config :nrepl]
               [:nrepl]]
              (map #(get-in config %))
-             (reduce shadow.build.api/deep-merge {}))
+             (reduce deep-merge {}))
 
         nrepl
         (when-not (empty? merged-nrepl-config)
