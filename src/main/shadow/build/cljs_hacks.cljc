@@ -666,6 +666,138 @@
   ;; (replace-fn! #'test/use-fixtures @#'shadow-use-fixtures)
   )
 
+
+(in-ns 'cljs.compiler)
+
+;; THIS IS FAR TOO MUCH WORK TO BE DONE IN cljs.compiler
+;; it should be done in cljs.analyzer and probably create separate
+;; ast ops for each invoke style
+
+;; customizing it here so I can figure out how to best structure it
+;; one of the problem I need to solve is anonymous functions always getting
+;; invoked via .call and never being able to tell the compiler that it is a
+;; regular function and never IFn.
+
+(defmethod emit* :invoke
+  [{f :fn :keys [args env] :as expr}]
+  (let [info (:info f)
+        ftag (ana/infer-tag env f)
+        fn? (or (= 'function ftag)
+                (and ana/*cljs-static-fns*
+                     (not (:dynamic info))
+                     (:fn-var info)))
+
+        ;; FIXME: no need to check protocols if fn?
+        protocol (:protocol info)
+        tag      (ana/infer-tag env (first (:args expr)))
+        proto? (and (not fn?) protocol tag
+                    (or (and ana/*cljs-static-fns* protocol (= tag 'not-native))
+                        (and
+                          (or ana/*cljs-static-fns*
+                              (:protocol-inline env))
+                          (or (= protocol tag)
+                              ;; ignore new type hints for now - David
+                              (and (not (set? tag))
+                                   (not ('#{any clj clj-or-nil clj-nil number string boolean function object array js} tag))
+                                   (when-let [ps (:protocols (ana/resolve-existing-var env tag))]
+                                     (ps protocol)))))))
+        opt-not? (and (= (:name info) 'cljs.core/not)
+                      (= tag 'boolean))
+        opt-count? (and (= (:name info) 'cljs.core/count)
+                        (boolean ('#{string array} tag)))
+        ns (:ns info)
+        js? (or (= ns 'js) (= ns 'Math) (:foreign info)) ;; foreign - i.e. global / Node.js library
+        goog? (when ns
+                (or (= ns 'goog)
+                    (not (contains? (::ana/namespaces @env/*compiler*) ns))))
+
+        ;; FIXME: this should be generic for IFn
+        ;; but we can't easily determine if something actually implements a given arity
+        ;; but some extra metadata would still let us determine if the arity we need is implemented
+        keyword? (or (= 'cljs.core/Keyword ftag)
+                     (let [f (ana/unwrap-quote f)]
+                       (and (= (-> f :op) :const)
+                            (keyword? (-> f :form)))))
+
+        [f variadic-invoke]
+        (if fn?
+          (let [arity (count args)
+                variadic? (:variadic? info)
+                mps (:method-params info)
+                mfa (:max-fixed-arity info)]
+            (cond
+              ;; short circuit for 'function tags that don't have any additional info
+              (and (nil? variadic?) (nil? mps) (nil? mfa))
+              [f nil]
+
+              ;; if only one method, no renaming needed
+              (and (not variadic?)
+                   (= (count mps) 1))
+              [f nil]
+
+              ;; direct dispatch to variadic case
+              (and variadic? (> arity mfa))
+              [(update-in f [:info]
+                 (fn [info]
+                   (-> info
+                       (assoc :name (symbol (str (munge info) ".cljs$core$IFn$_invoke$arity$variadic")))
+                       ;; bypass local fn-self-name munging, we're emitting direct
+                       ;; shadowing already applied
+                       (update-in [:info]
+                         #(-> % (dissoc :shadow) (dissoc :fn-self-name))))))
+               {:max-fixed-arity mfa}]
+
+              ;; direct dispatch to specific arity case
+              :else
+              (let [arities (map count mps)]
+                (if (some #{arity} arities)
+                  [(update-in f [:info]
+                     (fn [info]
+                       (-> info
+                           (assoc :name (symbol (str (munge info) ".cljs$core$IFn$_invoke$arity$" arity)))
+                           ;; bypass local fn-self-name munging, we're emitting direct
+                           ;; shadowing already applied
+                           (update-in [:info]
+                             #(-> % (dissoc :shadow) (dissoc :fn-self-name)))))) nil]
+                  [f nil]))))
+          [f nil])]
+    (emit-wrap env
+      (cond
+        opt-not?
+        (emits "(!(" (first args) "))")
+
+        opt-count?
+        (emits "((" (first args) ").length)")
+
+        proto?
+        (let [pimpl (str (munge (protocol-prefix protocol))
+                         (munge (name (:name info))) "$arity$" (count args))]
+          (emits (first args) "." pimpl "(" (comma-sep (cons "null" (rest args))) ")"))
+
+        keyword?
+        (emits f ".cljs$core$IFn$_invoke$arity$" (count args) "(" (comma-sep args) ")")
+
+        variadic-invoke
+        (let [mfa (:max-fixed-arity variadic-invoke)]
+          (emits f "(" (comma-sep (take mfa args))
+            (when-not (zero? mfa) ",")
+            "cljs.core.prim_seq.cljs$core$IFn$_invoke$arity$2(["
+            (comma-sep (drop mfa args)) "], 0))"))
+
+        (or fn? js? goog?)
+        (emits f "(" (comma-sep args)  ")")
+
+        :else
+        (if (and ana/*cljs-static-fns* (#{:var :local :js-var} (:op f)))
+          ;; higher order case, static information missing
+          (let [fprop (str ".cljs$core$IFn$_invoke$arity$" (count args))]
+            (if ana/*fn-invoke-direct*
+              (emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
+                f "(" (comma-sep args) "))")
+              (emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
+                f ".call(" (comma-sep (cons "null" args)) "))")))
+          (emits f ".call(" (comma-sep (cons "null" args)) ")"))))))
+
 ;; FIXME: patch this in CLJS. its the only externs inference call I can't work around
 ;; cljs will blindly generate (set! (.. Thing -prototype -something) ...) for
 ;; (deftype Thing []

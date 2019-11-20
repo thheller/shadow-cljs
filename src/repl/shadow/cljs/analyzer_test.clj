@@ -16,7 +16,7 @@
     [shadow.build.npm :as npm]
     [shadow.build.data :as data]
     [shadow.debug :refer (?> ?-> ?->>)]
-    ))
+    [cljs.compiler :as comp]))
 
 (defn test-build []
   (let [npm
@@ -90,6 +90,32 @@
         ))
 
     ))
+
+(deftest test-analyzer-data2
+  (let [test-ns
+        'cljs.core
+
+        {:keys [compiler-env] :as state}
+        (-> (test-build)
+            (api/configure-modules {:base {:entries [test-ns]}})
+            (api/analyze-modules)
+            (api/compile-sources))
+
+        compiler-env-ref
+        (atom compiler-env)
+
+        form
+        '(defn foo [^function bar]
+           (bar 1 2 3))]
+
+    (binding [a/*cljs-ns* 'cljs.core]
+      (e/with-compiler-env compiler-env-ref
+
+        (let [ast (to-ast form)]
+
+          (?> ast :ast)
+          (comp/emit ast))
+        ))))
 
 (deftest test-macroexpand
   (let [test-ns
