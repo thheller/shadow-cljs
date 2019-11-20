@@ -98,16 +98,17 @@
                               ::m/runtime-id runtime-id
                               ::m/runtime-info runtime-info})
 
-    (go (loop []
-          (when-some [msg (<! runtime-out)]
-            (handle-runtime-msg state-ref runtime-data msg)
-            (recur)
-            ))
+    (async/thread
+      (loop []
+        (when-some [msg (<!! runtime-out)]
+          (handle-runtime-msg state-ref runtime-data msg)
+          (recur)
+          ))
 
-        (send-to-tools state-ref {::m/op ::m/runtime-disconnect
-                                  ::m/runtime-id runtime-id})
+      (send-to-tools state-ref {::m/op ::m/runtime-disconnect
+                                ::m/runtime-id runtime-id})
 
-        (swap! state-ref update :runtimes dissoc runtime-id))
+      (swap! state-ref update :runtimes dissoc runtime-id))
 
     runtime-in
     ))
@@ -132,17 +133,18 @@
 
     (swap! state-ref assoc-in [:tools tool-id] tool-data)
 
-    (go (loop []
-          (when-some [msg (<! tool-in)]
-            (handle-tool-msg state-ref tool-data msg)
-            (recur)))
+    (async/thread
+      (loop []
+        (when-some [msg (<!! tool-in)]
+          (handle-tool-msg state-ref tool-data msg)
+          (recur)))
 
-        ;; send to all runtimes so they can cleanup state?
-        (send-to-runtimes state-ref {::m/op ::m/tool-disconnect
-                                     ::m/tool-id tool-id})
+      ;; send to all runtimes so they can cleanup state?
+      (send-to-runtimes state-ref {::m/op ::m/tool-disconnect
+                                   ::m/tool-id tool-id})
 
-        (swap! state-ref update :tools dissoc tool-id)
-        (async/close! tool-out))
+      (swap! state-ref update :tools dissoc tool-id)
+      (async/close! tool-out))
 
     tool-out))
 
