@@ -281,7 +281,10 @@
                         ;; FIXME: ugly hack, make this cleaner
                         (or (nil? prepend)
                             (not (str/includes? prepend "shadow$provide"))))
-               "var shadow$provide = {};\n")
+               ;; when using :output-wrapper the closure compiler will for some reason use $jscomp without declaring it
+               ;; this is the quickest way I can think of to work around that. should figure out why GCC is going that.
+               (str "var $jscomp = {};\n"
+                    "var shadow$provide = {};\n"))
              ;; FIXME: shadow$provide must come before prepend
              ;; since output-wrapper uses prepend and we need this
              ;; to be available cross module, we should however try to avoid
