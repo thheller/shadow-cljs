@@ -267,7 +267,7 @@
 
         disable-nrepl?
         (or (false? (:nrepl config))
-            (false? (get-in config [:system-config :nrepl])))
+            (false? (get-in config [:user-config :nrepl])))
 
         nrepl
         (when-not disable-nrepl?
@@ -363,7 +363,7 @@
     ;; this will clash with lein writing its own .nrepl-port so it is disabled by default
     (when (and nrepl
                (or (get-in config [:nrepl :write-port-file])
-                   (get-in config [:system-config :nrepl :write-port-file])))
+                   (get-in config [:user-config :nrepl :write-port-file])))
       (let [nrepl-port-file (io/file ".nrepl-port")]
         (spit nrepl-port-file (str (:port nrepl)))
         (swap! port-files-ref assoc :nrepl-port nrepl-port-file)
