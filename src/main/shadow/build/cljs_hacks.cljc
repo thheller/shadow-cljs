@@ -687,10 +687,12 @@
                      (not (:dynamic info))
                      (:fn-var info)))
 
-        ;; FIXME: no need to check protocols if fn?
+        ;; can't short circuit since protocols will be :fn-var and thus fn? is true
+        ;; this means the variadic-invoke (if fn? ... stuff below will do all the work
+        ;; but proto? will supersede it. should probably look into skipping those parts
         protocol (:protocol info)
         tag      (ana/infer-tag env (first (:args expr)))
-        proto? (and (not fn?) protocol tag
+        proto? (and protocol tag
                     (or (and ana/*cljs-static-fns* protocol (= tag 'not-native))
                         (and
                           (or ana/*cljs-static-fns*
@@ -726,10 +728,6 @@
                 mps (:method-params info)
                 mfa (:max-fixed-arity info)]
             (cond
-              ;; short circuit for 'function tags that don't have any additional info
-              (and (nil? variadic?) (nil? mps) (nil? mfa))
-              [f nil]
-
               ;; if only one method, no renaming needed
               (and (not variadic?)
                    (= (count mps) 1))
