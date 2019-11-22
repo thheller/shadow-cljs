@@ -48,11 +48,11 @@
   :babel-worker
   {:target :node-script
    :main shadow.cljs.npm.babel-worker/main
-   :output-to "src/ui-release/shadow/cljs/dist/babel-worker.js"
+   :output-to "packages/babel-worker/out/babel-worker.js"
+   ;; :output-to "src/ui-release/shadow/cljs/dist/babel-worker.js"
    :js-options
-   {:js-package-dirs ["packages/babel-worker/node-modules"]
-    :js-provider :shadow
-    :keep-native-requires true}
+   {:js-package-dirs ["packages/babel-worker/node_modules"]
+    :js-provider :require}
    :compiler-options {:infer-externs :auto}
    :devtools {:enabled false}}
 
