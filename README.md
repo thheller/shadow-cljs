@@ -24,6 +24,27 @@
 - [npm](https://www.npmjs.com) (comes bundled with `node.js`) or [yarn](https://www.yarnpkg.com)
 - [Java SDK](https://adoptopenjdk.net/) (Version 8+, Hotspot)
 
+## shadow-cljs vs. figwheel
+
+| Feature                            | shadow-cljs | figwheel |
+| :--------------------------------  |:-----------:|:--------:|
+| live code reload (js and css)      | ✔️ | ✔️ |
+| support node.js                    | ✔️ | ✔️ |
+| no hussle npm interop              | ✔️ |   |
+| static file server                 | ✔️ | ✔️ |
+| heads up display                   | ✔️ | ✔️ |
+| runtime errors with code context   | ✔️ | ✔️ |
+| configuration errors               | ✔️ | ✔️ |
+| cljs repl                          | ✔️ | ✔️ |
+| broadcast to all connected clients |   | ✔️ |
+| load only required dependencies    | ✔️ | ✔️ |
+| won't load with compiler warnings  | ✔️ | ✔️ |
+| support for leiningen              | ✔️ | ✔️ |
+| support for boot                   | ✔️ | ✔️ |
+| support for tools.deps             | ✔️ | ✔️ |
+| standalone build tool              | ✔️ |   |
+| server mode                        | ✔️ |   |
+
 ## Quick Start
 
 Creating your project can be done quickly using the `npx create-cljs-project` utility. `npx` is part of `npm` and lets us run utility scripts quickly without worrying about installing them first. The installer will create a basic project scaffold and install the latest version of `shadow-cljs` in the project.
