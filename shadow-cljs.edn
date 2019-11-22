@@ -480,14 +480,11 @@
        {:http-port 19501
         :http-root "out/TestCRNA/out-android"}}
 
-  #_#_:npm-web
-      {:target :npm-module
-       :runtime :browser
-       :entries [demo.browser]
-       :output-dir "out/npm-web/src/cljs"
-       :compiler-options
-       {:externs ["shadow/cljs/npm/externs.js"
-                  "demo/browser-externs.js"]}}
+  :npm-web
+  {:target :npm-module
+   :runtime :browser
+   :entries [demo.repl]
+   :output-dir "out/npm-web/src/cljs"}
 
   #_#_:node-repl-test
       {:target :node-script

@@ -3,7 +3,8 @@ if (process.env.NODE_ENV !== "production") {
   require("./cljs/shadow.cljs.devtools.client.browser");
 }
 
-var x = require("./cljs/demo.browser");
-x.start();
+var x = require("./cljs/demo.repl");
+console.log(x);
+
 
 
