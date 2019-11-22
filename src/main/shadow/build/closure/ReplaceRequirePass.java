@@ -30,6 +30,12 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
                     // closure names are global, these must be exported so they aren't renamed
                     String global = require.substring(5);
                     node.replaceWith(NodeUtil.newQName(compiler, "global." + global));
+                } else if (require.endsWith(".css")) {
+                    // FIXME: are there projects using require("./some.css") that actually have backing ./some.css.js?
+                    // could just remove the entire node but sometimes the return value of the require will be used
+                    // so it is easier to just replace it with false
+                    node.replaceWith(IR.falseNode());
+                    t.reportCodeChange();
                 } else {
                     String sfn = node.getSourceFileName();
                     if (sfn != null) {
