@@ -827,6 +827,47 @@
               ~(with-meta `(fn ~@(map #(adapt-obj-params type %) meths)) (meta form)))))
     sigs))
 
+
+;; CLJS-3003
+(core/defn- add-ifn-methods [type type-sym [f & meths :as form]]
+  (core/let [this-sym (with-meta 'self__ {:tag type})
+             argsym   (gensym "args")
+
+             ;; we are emulating JS .call where the first argument will become this inside the fn
+             ;; but this is not actually what we want when emulating IFn since we need "this"
+             ;; so the first arg is always dropped instead and we dispatch to the actual protocol fns
+             call-fn
+             `(fn [unused#]
+                (this-as ~this-sym
+                  (case (-> (js-arguments) (alength) (dec))
+                    ~@(reduce
+                        (core/fn [form [args & body]]
+                          (core/let [arity (core/-> args (count) (core/dec))]
+                            (conj
+                              form
+                              arity
+                              (concat
+                                (core/list
+                                  (symbol (core/str ".cljs$core$IFn$_invoke$arity$" arity))
+                                  this-sym)
+                                (core/for [ar (range arity)]
+                                  `(aget (js-arguments) ~(core/inc ar)))))))
+                        []
+                        meths)
+                    (throw (js/Error. (str "Invalid arity: " (-> (js-arguments) (alength) (dec)))))
+                    )))]
+
+    (concat
+      [`(set! ~(extend-prefix type-sym 'call) ~(with-meta call-fn (meta form)))
+       `(set! ~(extend-prefix type-sym 'apply)
+          ~(with-meta
+             `(fn ~[this-sym argsym]
+                (this-as ~this-sym
+                  (.apply (.-call ~this-sym) ~this-sym
+                    (.concat (array ~this-sym) (cljs.core/aclone ~argsym)))))
+             (meta form)))]
+      (ifn-invoke-methods type type-sym form))))
+
 ;; not a super critical issue but foo may resolve to js/module$foo...
 ;; which ends up emitting a bad code check
 ;; if((typeof js !== 'undefined') && (typeof js.module$foo !== 'undefined')){
