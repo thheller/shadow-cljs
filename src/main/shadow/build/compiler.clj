@@ -215,20 +215,44 @@
            (-> (get-in state [:compiler-env :options])
                (cond->
                  (:macros-ns compile-state)
-                 (assoc :macros-ns true)))]
+                 (assoc :macros-ns true)))
 
-       (-> (empty-env (:shadow.build/mode state) ns) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
-           (cond->
-             repl-context?
-             (assoc
-               ::repl-context true
-               :context :expr
-               :def-emits-var true))
-           ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
-           ;; it seems to do this to get rid of duplicated warnings?
-           ;; we just do a distinct later
-           (ana/analyze* form nil opts)
-           (post-analyze state))))))
+           injected-forms-ref
+           (atom [])
+
+           ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
+           base-env
+           (-> (empty-env (:shadow.build/mode state) ns)
+               (cond->
+                 repl-context?
+                 (assoc ::repl-context true
+                        :context :expr
+                        :def-emits-var true)))
+
+           result
+           (-> base-env
+               ;; FIXME: could also use a binding? env is passed everywhere though
+               (assoc ::analyze-top (fn [form]
+                                      ;; will be turned into statements. repl-context would turn them into :expr
+                                      (let [ast (analyze state compile-state form false)]
+                                        (swap! injected-forms-ref conj ast))))
+
+               ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
+               ;; it seems to do this to get rid of duplicated warnings?
+               ;; we just do a distinct later
+               (ana/analyze* form nil opts)
+               (post-analyze state))]
+
+       (let [injected-forms @injected-forms-ref]
+         (if-not (seq injected-forms)
+           result
+           ;; fake rewrite into a (do ...)
+           {:op :do
+            :env base-env
+            :form form
+            :children [:statements :ret]
+            :statements injected-forms
+            :ret result}))))))
 
 (defn do-analyze-cljs-string
   [{:keys [resource-name cljc reader-features] :as init} reduce-fn cljs-source]
