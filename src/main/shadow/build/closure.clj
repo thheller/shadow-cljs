@@ -628,8 +628,8 @@
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
 (def constants-inject
-  (str "function shadow$keyword(name, hash) { return new cljs.core.Keyword(null, name, name, hash); };\n"
-       "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
+  (str "function shadow$keyword(name) { return new cljs.core.Keyword(null, name, name, null); };\n"
+       "function shadow$keyword_fqn(ns, name) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, null); };\n"))
 
 (defn make-js-modules
   [{:keys [build-modules build-sources] :as state}]

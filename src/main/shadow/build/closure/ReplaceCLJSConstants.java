@@ -78,15 +78,13 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                 if (ref.nsNode.isNull()) {
                     constantNode = IR.call(
                             IR.name("shadow$keyword"),
-                            ref.nameNode.detach(),
-                            ref.hashNode.detach()
+                            ref.nameNode.detach()
                     );
                 } else {
                     constantNode = IR.call(
                             IR.name("shadow$keyword_fqn"),
                             ref.nsNode.detach(),
-                            ref.nameNode.detach(),
-                            ref.hashNode.detach()
+                            ref.nameNode.detach()
                     );
                 }
             } else {
