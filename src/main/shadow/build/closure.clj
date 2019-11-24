@@ -836,6 +836,17 @@
           (.resetWarningsGuard)
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
 
+          ;; namespaced keywords will cause a lot of repetition for namespace strings
+          ;; allowing closure to alias them can cut the overall size a bit
+          ;; gzip actually takes quite good care of this already but this squeezes
+          ;; another few bytes out for no additional work
+          (.setAliasableStrings
+            (->> (:compiler-env state)
+                 (::ana/namespaces)
+                 (keys)
+                 (map str)
+                 (set)))
+
           (.setWarningLevel DiagnosticGroups/CHECK_TYPES CheckLevel/OFF)
           ;; really only want the undefined variables warnings
           ;; must turn off CHECK_VARIABLES first or it will complain too much (REDECLARED_VARIABLES)
