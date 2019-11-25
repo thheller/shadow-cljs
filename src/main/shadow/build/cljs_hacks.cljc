@@ -691,7 +691,7 @@
         ;; this means the variadic-invoke (if fn? ... stuff below will do all the work
         ;; but proto? will supersede it. should probably look into skipping those parts
         protocol (:protocol info)
-        tag      (ana/infer-tag env (first (:args expr)))
+        tag (ana/infer-tag env (first (:args expr)))
         proto? (and protocol tag
                     (or (and ana/*cljs-static-fns* protocol (= tag 'not-native))
                         (and
@@ -713,13 +713,14 @@
                 (or (= ns 'goog)
                     (not (contains? (::ana/namespaces @env/*compiler*) ns))))
 
-        ;; FIXME: this should be generic for IFn
-        ;; but we can't easily determine if something actually implements a given arity
-        ;; but some extra metadata would still let us determine if the arity we need is implemented
-        keyword? (or (= 'cljs.core/Keyword ftag)
-                     (let [f (ana/unwrap-quote f)]
-                       (and (= (-> f :op) :const)
-                            (keyword? (-> f :form)))))
+        ifn? (or (= 'cljs.core/Keyword ftag)
+                 ;; experiment with allowing not-native for ftag
+                 ;; (^not-native thing 1 2 3) as a way to tell the compiler to use IFn invoke
+                 ;; without checking. breaks if arity is not implemented, just like not-native for other protocols?
+                 (= 'not-native ftag)
+                 (let [f (ana/unwrap-quote f)]
+                   (and (= (-> f :op) :const)
+                        (keyword? (-> f :form)))))
 
         [f variadic-invoke]
         (if fn?
@@ -772,7 +773,7 @@
                          (munge (name (:name info))) "$arity$" (count args))]
           (emits (first args) "." pimpl "(" (comma-sep (cons "null" (rest args))) ")"))
 
-        keyword?
+        ifn?
         (emits f ".cljs$core$IFn$_invoke$arity$" (count args) "(" (comma-sep args) ")")
 
         variadic-invoke
@@ -783,7 +784,7 @@
             (comma-sep (drop mfa args)) "], 0))"))
 
         (or fn? js? goog?)
-        (emits f "(" (comma-sep args)  ")")
+        (emits f "(" (comma-sep args) ")")
 
         :else
         (if (and ana/*cljs-static-fns* (#{:var :local :js-var} (:op f)))
@@ -831,7 +832,7 @@
 ;; CLJS-3003
 (core/defn- add-ifn-methods [type type-sym [f & meths :as form]]
   (core/let [this-sym (with-meta 'self__ {:tag type})
-             argsym   (gensym "args")
+             argsym (gensym "args")
 
              ;; we are emulating JS .call where the first argument will become this inside the fn
              ;; but this is not actually what we want when emulating IFn since we need "this"
@@ -915,10 +916,10 @@
              (core/true? default)
              (core/false? default)) "a string, number or boolean as default value")
   (core/let [defname (comp/munge (core/str *ns* "/" sym))
-             type    (core/cond
-                       (core/string? default) "string"
-                       (core/number? default) "number"
-                       (core/or (core/true? default) (core/false? default)) "boolean")]
+             type (core/cond
+                    (core/string? default) "string"
+                    (core/number? default) "number"
+                    (core/or (core/true? default) (core/false? default)) "boolean")]
 
     `(def ~(core/vary-meta sym
              (core/fn [m]
