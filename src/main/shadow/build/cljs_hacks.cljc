@@ -650,6 +650,40 @@
     (log/debug ::replace-fn! {:the-var the-var})
     (alter-var-root the-var (fn [_] the-fn))))
 
+
+;; overriding for the closure-compiler, closure-library
+;; releases where goog.define must be assigned and will otherwise throw
+;; which makes this actually much easier to use
+(defn goog-define
+  "Defines a var using `goog.define`. Passed default value must be
+  string, number or boolean.
+
+  Default value can be overridden at compile time using the
+  compiler option `:closure-defines`.
+
+  Example:
+    (ns your-app.core)
+    (goog-define DEBUG! false)
+    ;; can be overridden with
+    :closure-defines {\"your_app.core.DEBUG_BANG_\" true}
+    or
+    :closure-defines {'your-app.core/DEBUG! true}"
+  [&form &env sym default]
+  (let [defname (comp/munge (str *ns* "/" sym))
+        type (cond
+               (string? default) "string"
+               (number? default) "number"
+               (or (true? default) (false? default)) "boolean")]
+
+    `(def ~(vary-meta sym
+             (fn [m]
+               (-> m
+                   (update :jsdoc conj (str "@define {" type "}"))
+                   (cond->
+                     (not (contains? m :tag))
+                     (assoc :tag (symbol type))))))
+       (js/goog.define ~defname ~default))))
+
 (defn install-hacks! []
   ;; cljs.analyzer tweaks
   (replace-fn! #'ana/load-core shadow-load-core)
@@ -660,6 +694,8 @@
   (replace-fn! #'comp/emitln shadow-emitln)
 
   (replace-fn! #'comp/find-ns-starts-with shadow-find-ns-starts-with)
+
+  (replace-fn! #'cljs.core/goog-define goog-define)
 
   ;; remove these for now, not worth the trouble
   ;; (replace-fn! #'test/deftest @#'shadow-deftest)
@@ -890,46 +926,6 @@
                js (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
       (bool-expr (concat (core/list 'js* js) syms)))
     `(some? ~x)))
-
-
-;; overriding for the closure-compiler, closure-library
-;; releases where goog.define must be assigned and will otherwise throw
-;; which makes this actually much easier to use
-(core/defmacro goog-define
-  "Defines a var using `goog.define`. Passed default value must be
-  string, number or boolean.
-
-  Default value can be overridden at compile time using the
-  compiler option `:closure-defines`.
-
-  Example:
-    (ns your-app.core)
-    (goog-define DEBUG! false)
-    ;; can be overridden with
-    :closure-defines {\"your_app.core.DEBUG_BANG_\" true}
-    or
-    :closure-defines {'your-app.core/DEBUG! true}"
-  [sym default]
-  (assert-args goog-define
-    (core/or (core/string? default)
-             (core/number? default)
-             (core/true? default)
-             (core/false? default)) "a string, number or boolean as default value")
-  (core/let [defname (comp/munge (core/str *ns* "/" sym))
-             type (core/cond
-                    (core/string? default) "string"
-                    (core/number? default) "number"
-                    (core/or (core/true? default) (core/false? default)) "boolean")]
-
-    `(def ~(core/vary-meta sym
-             (core/fn [m]
-               (-> m
-                   (update :jsdoc conj (core/str "@define {" type "}"))
-                   (core/cond->
-                     (core/not (core/contains? m :tag))
-                     (core/assoc :tag (core/symbol type))))))
-       (js/goog.define ~defname ~default))))
-
 
 (core/defmacro defonce
   "defs name to have the root value of init iff the named var has no root value,
