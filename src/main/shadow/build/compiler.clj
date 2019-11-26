@@ -190,6 +190,8 @@
    ;; FIXME: write a patch that gets rid of this. totally pointless to have these in each env
    :js-globals ana-js-globals})
 
+(def ^:dynamic *analyze-top* nil)
+
 (defn analyze
   ([state compile-state form]
    (analyze state compile-state form false))
@@ -229,19 +231,19 @@
                         :context :expr
                         :def-emits-var true)))
 
-           result
-           (-> base-env
-               ;; FIXME: could also use a binding? env is passed everywhere though
-               (assoc ::analyze-top (fn [form]
-                                      ;; will be turned into statements. repl-context would turn them into :expr
-                                      (let [ast (analyze state compile-state form false)]
-                                        (swap! injected-forms-ref conj ast))))
 
-               ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
-               ;; it seems to do this to get rid of duplicated warnings?
-               ;; we just do a distinct later
-               (ana/analyze* form nil opts)
-               (post-analyze state))]
+           result
+           (binding [*analyze-top*
+                     (fn [form]
+                       ;; will be turned into statements. repl-context would turn them into :expr
+                       (let [ast (analyze state compile-state form false)]
+                         (swap! injected-forms-ref conj ast)))]
+             (-> base-env
+                 ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
+                 ;; it seems to do this to get rid of duplicated warnings?
+                 ;; we just do a distinct later
+                 (ana/analyze* form nil opts)
+                 (post-analyze state)))]
 
        (let [injected-forms @injected-forms-ref]
          (if-not (seq injected-forms)
