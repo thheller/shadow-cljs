@@ -23,7 +23,7 @@
 
 (defn devtools-msg [msg & args]
   (if (seq env/log-style)
-    (js/console.log.apply js/console (into-array (into [(str "%c\uD83D\uDCAB shadow-cljs: " msg) env/log-style] args)))
+    (js/console.log.apply js/console (into-array (into [(str "%c\uD83E\uDC36 shadow-cljs: " msg) env/log-style] args)))
     (js/console.log.apply js/console (into-array (into [(str "shadow-cljs: " msg)] args)))))
 
 (defn ws-msg [msg]
