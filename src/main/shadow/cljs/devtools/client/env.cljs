@@ -35,7 +35,7 @@
 
 (goog-define ignore-warnings false)
 
-(goog-define log-style "color: blue;")
+(goog-define log-style "font-weight: bold; color: #3390ff;")
 
 (defn devtools-info []
   #js {:server-port server-port
