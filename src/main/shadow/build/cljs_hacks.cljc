@@ -926,12 +926,3 @@
                js (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
       (bool-expr (concat (core/list 'js* js) syms)))
     `(some? ~x)))
-
-(core/defmacro defonce
-  "defs name to have the root value of init iff the named var has no root value,
-  else init is unevaluated"
-  [x init]
-  (if (= :release (:shadow.build/mode &env))
-    `(def ~x ~init)
-    `(when-not (exists? ~x)
-       (def ~x ~init))))
