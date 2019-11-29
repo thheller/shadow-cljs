@@ -753,7 +753,7 @@
                  ;; experiment with allowing not-native for ftag
                  ;; (^not-native thing 1 2 3) as a way to tell the compiler to use IFn invoke
                  ;; without checking. breaks if arity is not implemented, just like not-native for other protocols?
-                 (= 'not-native ftag)
+                 (and (not proto?) (= 'not-native ftag))
                  (let [f (ana/unwrap-quote f)]
                    (and (= (-> f :op) :const)
                         (keyword? (-> f :form)))))
