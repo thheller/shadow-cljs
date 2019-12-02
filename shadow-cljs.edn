@@ -147,26 +147,20 @@
    ;; :module-hash-names true
    :modules
    {:base
-    {:entries
-     [cljs.core demo.sm-before]
-     :depends-on
-     #{}}
+    {:entries [cljs.core demo.sm-before]
+     :depends-on #{}}
 
     :demo
-    {:entries
-     [demo.browser]
-     :depends-on
-     #{:base}}
+    {:init-fn demo.browser/init
+     :depends-on #{:base}
+     :preloads [shadow.remote.runtime.cljs.browser]}
 
     :extra
-    {:entries
-     [demo.browser-extra]
-     :depends-on
-     #{:demo}}
+    {:entries [demo.browser-extra]
+     :depends-on #{:demo}}
 
     :worker
-    {:entries
-     [demo.worker]
+    {:init-fn demo.worker/init
      :depends-on #{:base}
      :web-worker true}}
 
@@ -175,9 +169,9 @@
     :external-index "target/external.js"}
 
    :devtools
-   {;; :loader-mode :script
-    :repl-init-ns demo.browser
-    :preloads [shadow.remote.runtime.cljs.browser]
+   { ;; :loader-mode :script
+    :browser-inject :demo
+    :worker-inject :worker
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 

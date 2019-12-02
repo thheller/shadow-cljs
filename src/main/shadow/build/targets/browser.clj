@@ -211,9 +211,12 @@
 
 (defn rewrite-modules
   "rewrites :modules to add browser related things"
-  [{:keys [worker-info] :as state} mode {:keys [modules module-loader release-version] :as config}]
+  [{:keys [worker-info] :as state} mode {:keys [modules module-loader release-version devtools] :as config}]
 
-  (let [default-module (pick-default-module-from-config modules)]
+  (let [default-module (pick-default-module-from-config modules)
+        {:keys [enabled browser-inject worker-inject]} devtools
+        enabled? (not (false? enabled))
+        build-worker? (and enabled? (= :dev mode) worker-info)]
     (reduce-kv
       (fn [mods module-id {:keys [web-worker init-fn preloads] :as module-config}]
         (let [default?
@@ -233,16 +236,23 @@
                           ;; call this before init
                           (update :append-js str "\nshadow.loader.init(\"\");")))
 
-                    init-fn
-                    (merge-init-fn init-fn)
-
                     ;; REPL client - only for watch (via worker-info), not compile
+                    ;; this needs to be in base module
+                    (and default? build-worker?)
+                    (update :entries shared/prepend '[cljs.user shadow.cljs.devtools.client.env])
 
-                    (and default? (= :dev mode) worker-info)
-                    (inject-repl-client state config)
+                    (and build-worker?
+                         (or (and default? (nil? browser-inject))
+                             (= browser-inject module-id)))
+                    (update :entries shared/prepend '[shadow.cljs.devtools.client.browser])
 
-                    (and worker-info (not web-worker) (not (false? (get-in config [:devtools :enabled]))))
-                    (update :append-js str "\nshadow.cljs.devtools.client.browser.module_loaded('" (name module-id) "');\n")
+                    (and build-worker?
+                         (or (and web-worker (nil? worker-inject))
+                             (= worker-inject module-id)))
+                    (update :entries shared/prepend '[shadow.cljs.devtools.client.worker])
+
+                    build-worker?
+                    (update :append-js str "\nshadow.cljs.devtools.client.env.module_loaded('" (name module-id) "');\n")
 
                     ;; other modules just need to tell the loader they finished loading
                     (and module-loader (not (or default? web-worker)))
@@ -252,6 +262,10 @@
                     ;; per module :preloads
                     (and (seq preloads) (= :dev mode))
                     (update :entries shared/prepend preloads)
+
+                    ;; should run after any other append-js
+                    init-fn
+                    (merge-init-fn init-fn)
 
                     ;; global :devtools :preloads
                     (and default? (= :dev mode))
@@ -508,9 +522,22 @@
                 (into sources))))
 
         source-loads
-        (->> sources
-             (map #(get-in state [:output % :eval-js]))
-             (str/join "\n"))
+        (if-not web-worker
+          (->> sources
+               (map #(get-in state [:output % :eval-js]))
+               (str/join "\n"))
+
+          ;; don't use evalLoad in worker, source maps don't work and not sure why
+          ;; guess it doesn't support sourceURL or sourceMappingURL would require full url?
+          ;; can't seem to get it to work right with eval. works fine when just loading files
+          (str "SHADOW_ENV.load({}, "
+               (->> sources
+                    (remove #{output/goog-base-id})
+                    (map #(data/get-source-by-id state %))
+                    (map :output-name)
+                    (into [])
+                    (json/write-str))
+               ");\n"))
 
         out
         (str prepend
@@ -533,11 +560,7 @@
                  (when (and (or goog-base web-worker) (seq polyfill-js))
                    (str "\n" polyfill-js)))
 
-               (-> state
-                   (cond->
-                     web-worker
-                     (assoc-in [:compiler-options :closure-defines "shadow.cljs.devtools.client.env.enabled"] false))
-                   (output/closure-defines-and-base))
+               (output/closure-defines-and-base state)
 
                (if web-worker
                  (slurp (io/resource "shadow/boot/worker.js"))
@@ -631,11 +654,7 @@
                  (when (and goog-base (seq polyfill-js))
                    (str "\n" polyfill-js)))
 
-               (-> state
-                   (cond->
-                     web-worker
-                     (assoc-in [:compiler-options :closure-defines "shadow.cljs.devtools.client.env.enabled"] false))
-                   (output/closure-defines-and-base))
+               (output/closure-defines-and-base state)
 
                (if web-worker
                  (slurp (io/resource "shadow/boot/worker.js"))

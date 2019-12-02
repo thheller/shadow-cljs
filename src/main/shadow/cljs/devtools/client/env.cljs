@@ -6,6 +6,15 @@
     [cljs.pprint :refer (pprint)]
     ))
 
+(defonce active-modules-ref
+  (volatile! #{}))
+
+(defn module-loaded [name]
+  (vswap! active-modules-ref conj (keyword name)))
+
+(defn module-is-active? [module]
+  (contains? @active-modules-ref module))
+
 ;; FIXME: make this persistent somehow?
 (defonce runtime-id (str (random-uuid)))
 
