@@ -234,8 +234,7 @@
   (update state :js-options deep-merge opts))
 
 (defn enable-source-maps [state]
-  (update state :compiler-options merge {:source-map "/dev/null"
-                                         :source-map-comment true}))
+  (update state :compiler-options merge {:source-map "/dev/null"}))
 
 (defn configure-modules [state modules]
   (modules/configure state modules))

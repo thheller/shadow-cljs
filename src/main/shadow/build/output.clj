@@ -311,6 +311,9 @@
   (let [{:keys [output prepend-offset shadow-js-outputs]}
         (finalize-module-output state mod)
 
+        add-source-mapping-url?
+        (not (false? (get-in state [:compiler-options :source-map-comment])))
+
         target
         (data/output-file state output-name)]
 
@@ -327,7 +330,7 @@
 
             final-output
             (str output
-                 (when source-map-json
+                 (when (and add-source-mapping-url? source-map-json)
                    (str "\n//# sourceMappingURL=" source-map-name "\n")))]
 
         (spit target final-output)
