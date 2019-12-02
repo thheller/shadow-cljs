@@ -211,7 +211,7 @@
 
 (defn rewrite-modules
   "rewrites :modules to add browser related things"
-  [{:keys [worker-info] :as state} mode {:keys [modules module-loader] :as config}]
+  [{:keys [worker-info] :as state} mode {:keys [modules module-loader release-version] :as config}]
 
   (let [default-module (pick-default-module-from-config modules)]
     (reduce-kv
@@ -256,6 +256,9 @@
                     ;; global :devtools :preloads
                     (and default? (= :dev mode))
                     (inject-preloads state config)
+
+                    (and release-version (= :release mode))
+                    (assoc :output-name (str (name module-id) "." release-version ".js"))
 
                     ;; DEVTOOLS console, it is prepended so it loads first in case anything wants to log
                     (and default? (= :dev mode))
