@@ -30,7 +30,7 @@
    [com.cognitect/transit-clj "0.8.313"]
    [com.cognitect/transit-cljs "0.8.256"]
 
-   [org.clojure/core.async "0.5.527"]
+   [org.clojure/core.async "0.6.532"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.10.597"
