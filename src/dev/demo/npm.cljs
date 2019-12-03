@@ -6,9 +6,11 @@
 
 (def x (rc/inline "./lib.cljs"))
 
+(goog-define SOMETHING "foo")
+
 (defn ^:export foo []
   #_(es6/foo)
-  "hello from cljs!")
+  #js["hello from cljs!" SOMETHING js/goog.DEBUG x])
 
 (defn ^:export test-file [name]
   (fs/existsSync name))
