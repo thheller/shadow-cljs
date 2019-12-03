@@ -235,9 +235,12 @@
            result
            (binding [*analyze-top*
                      (fn [form]
-                       ;; will be turned into statements. repl-context would turn them into :expr
-                       (let [ast (analyze state compile-state form false)]
-                         (swap! injected-forms-ref conj ast)))]
+                       ;; need to clear potential loop bindings, dunno why it doesn't use env to track these ...
+                       (binding [ana/*recur-frames* nil
+                                 ana/*loop-lets* ()]
+                         ;; will be turned into statements. repl-context would turn them into :expr
+                         (let [ast (analyze state compile-state form false)]
+                           (swap! injected-forms-ref conj ast))))]
              (-> base-env
                  ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
                  ;; it seems to do this to get rid of duplicated warnings?
