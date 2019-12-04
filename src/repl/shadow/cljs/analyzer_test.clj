@@ -111,7 +111,13 @@
     (binding [a/*cljs-ns* 'cljs.core]
       (e/with-compiler-env compiler-env-ref
 
-        (let [ast (to-ast form)]
+        (let [env
+              (-> (a/empty-env)
+                  (assoc :shadow.build/tweaks true)
+                  (assoc-in [:ns :name] test-ns))
+              ast
+              (binding [a/*passes* [a/infer-type]]
+                (a/analyze env form))]
 
           (?> ast :ast)
           (comp/emit ast))

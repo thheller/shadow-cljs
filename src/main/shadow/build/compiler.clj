@@ -181,9 +181,10 @@
 
 (defn empty-env
   "Construct an empty analysis environment. Required to analyze forms."
-  [mode ns]
+  [state ns]
   {:ns (ana/get-namespace ns)
-   :shadow.build/mode mode
+   :shadow.build/mode (:shadow.build/mode state)
+   :shadow.build/tweaks (true? (get-in state [:compiler-options :shadow-tweaks]))
    :context :statement
    :locals {}
    :fn-scope []
@@ -224,7 +225,7 @@
 
            ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
            base-env
-           (-> (empty-env (:shadow.build/mode state) ns)
+           (-> (empty-env state  ns)
                (cond->
                  repl-context?
                  (assoc ::repl-context true
@@ -637,6 +638,7 @@
    [:compiler-options :elide-asserts]
    [:compiler-options :reader-features]
    [:compiler-options :load-tests]
+   [:compiler-options :shadow-tweaks]
    [:compiler-options :warnings]
    ;; some community macros seem to use this
    ;; hard to track side-effecting macros but even more annoying to run into caching bugs

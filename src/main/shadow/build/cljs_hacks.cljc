@@ -718,7 +718,7 @@
   [{f :fn :keys [args env] :as expr}]
   (let [info (:info f)
         ftag (ana/infer-tag env f)
-        fn? (or (= 'function ftag)
+        fn? (or (and (:shadow.build/tweaks env) (= 'function ftag))
                 (and ana/*cljs-static-fns*
                      (not (:dynamic info))
                      (:fn-var info)))
@@ -755,7 +755,7 @@
                  ;; without checking. breaks if arity is not implemented, just like not-native for other protocols?
                  ;; needs to back off on protocol fns tagged with not-native
                  ;; (defprotocol Something (^not-native some-fn [x]))
-                 (and (not protocol) (= 'not-native ftag))
+                 (and (:shadow.build/tweaks env) (not protocol) (= 'not-native ftag))
                  (let [f (ana/unwrap-quote f)]
                    (and (= (-> f :op) :const)
                         (keyword? (-> f :form)))))
