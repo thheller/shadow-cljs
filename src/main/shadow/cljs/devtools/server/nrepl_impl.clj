@@ -126,7 +126,9 @@
 
         runtime-id
         (or (:runtime-id msg)
-            (:runtime-id repl-state))]
+            (:runtime-id repl-state)
+            (get-in repl-state [:opts :runtime-id]))]
+
 
     ;; :last-msg-ref is used by the print loop started by repl-init
     ;; to ensure that all prints use the latest message id when sending it out
