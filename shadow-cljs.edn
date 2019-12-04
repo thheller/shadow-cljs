@@ -19,6 +19,7 @@
  :plugins [demo.dummy-plugin]
 
  :nrepl {:port 8202 :middleware []}
+ :socket-repl {:port 8204}
 
  :source-paths
  ["src/dev"

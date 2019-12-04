@@ -279,8 +279,6 @@
          target-fn
          (get-target-fn target build-id)]
 
-     (tap> [:after-configure config])
-
      ;; must do this after calling get-target-fn
      ;; the namespace that it is in may have added to the multi-spec
      (when-not (s/valid? ::config/build+target config)
