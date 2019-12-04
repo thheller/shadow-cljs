@@ -25,15 +25,14 @@
   "src/main"
   "src/test"]
 
+ :build-defaults
+ {:compiler-options {:infer-externs :auto}}
+
  :builds
  {:cli
   {:target :npm-module
    :entries [shadow.cljs.npm.cli]
    :output-dir "packages/shadow-cljs/cli/dist"
-
-   :compiler-options
-   {:optimizations :advanced
-    :infer-externs :auto}
 
    :devtools
    {:enabled false}}
@@ -42,7 +41,6 @@
   {:target :node-script
    :main shadow.cljs.npm.create/main
    :output-to "packages/create-cljs-project/dist/script.js"
-   :compiler-options {:infer-externs :auto}
    :devtools {:enabled false}}
 
   :babel-worker
@@ -53,7 +51,6 @@
    :js-options
    {:js-package-dirs ["packages/babel-worker/node_modules"]
     :js-provider :require}
-   :compiler-options {:infer-externs :auto}
    :devtools {:enabled false}}
 
   :ui
@@ -64,8 +61,7 @@
    :asset-path "/js"
 
    :compiler-options
-   {:infer-externs :auto
-    :output-wrapper false
+   {:output-wrapper false
     :warnings {:invalid-arithmetic false}}
 
    :js-options
@@ -98,9 +94,6 @@
   {:target :browser
    :output-dir "src/ui-release/shadow/cljs/build_report/dist/js"
 
-   :compiler-options
-   {:infer-externs :auto}
-
    :modules
    {:main {:entries [shadow.cljs.build-report.ui]}}
 
@@ -129,8 +122,7 @@
    :asset-path "/js"
 
    :compiler-options
-   {:infer-externs :auto
-    ;; :strip-type-prefixes #{"cljs.pprint"}
+   {;; :strip-type-prefixes #{"cljs.pprint"}
     :shadow-keywords true
     :output-feature-set :es6
     :output-wrapper false
@@ -169,7 +161,7 @@
     :external-index "target/external.js"}
 
    :devtools
-   { ;; :loader-mode :script
+   {;; :loader-mode :script
     :browser-inject :demo
     :worker-inject :worker
     :before-load-async demo.browser/stop-from-config
@@ -198,9 +190,7 @@
        :asset-path "/js"
 
        :compiler-options
-       {:infer-externs :auto
-        :shadow-keywords true
-        :closure-defines {demo.browser/FOO "bar"}}
+       {:closure-defines {demo.browser/FOO "bar"}}
 
        :modules
        {:demo {:entries [demo.browser]}}

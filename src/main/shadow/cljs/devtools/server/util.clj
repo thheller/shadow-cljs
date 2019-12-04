@@ -105,7 +105,7 @@
           (set? cache-blockers)
           (update-in [:build-options :cache-blockers] set/union cache-blockers))
 
-        (assoc :mode mode))))
+        (assoc :mode mode :runtime-config config))))
 
 (defn print-warnings [warnings]
   (doseq [{:keys [msg line column source-name] :as w} warnings]
