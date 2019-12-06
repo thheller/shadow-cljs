@@ -182,11 +182,14 @@
   {:pre [(rc/valid-resource? src)
          (map? output)]}
   (when (has-source-map? output)
-    (let [sm-text
-          (str "\n//# sourceMappingURL=" output-name ".map\n")
+    (let [sm-suffix
+          (get-in state [:compiler-options :source-map-suffix] ".map")
+
+          sm-text
+          (str "\n//# sourceMappingURL=" output-name sm-suffix "\n")
 
           src-map-file
-          (io/file (str (.getAbsolutePath js-file) ".map"))
+          (io/file (str (.getAbsolutePath js-file) sm-suffix))
 
           use-fs-path?
           (true? (get-in state [:compiler-options :source-map-use-fs-paths]))
@@ -326,7 +329,7 @@
       (spit target "")
 
       (let [source-map-name
-            (str output-name ".map")
+            (str output-name (get-in state [:compiler-options :source-map-suffix] ".map"))
 
             final-output
             (str output

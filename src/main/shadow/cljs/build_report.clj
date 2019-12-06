@@ -120,7 +120,7 @@
                             (data/output-file state output-name)
 
                             out-map-file
-                            (data/output-file state (str output-name ".map"))
+                            (data/output-file state (str output-name (get-in state [:compiler-options :source-map-suffix] ".map")))
 
                             byte-map
                             (SourceMapReport/getByteMap out-file out-map-file)
