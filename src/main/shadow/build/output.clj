@@ -468,6 +468,9 @@
                           "\", { enumerable: true, get: function() { return " export "." (comp/munge def) "; } });")))
               (str/join "\n")))))
 
+(def goog-global-snippet
+  "goog.global =\n    // Check `this` first for backwards compatibility.\n    // Valid unless running as an ES module or in a function wrapper called\n    //   without setting `this` properly.\n    // Note that base.js can't usefully be imported as an ES module, but it may\n    // be compiled into bundles that are loadable as ES modules.\n    this ||\n    // https://developer.mozilla.org/en-US/docs/Web/API/Window/self\n    // For in-page browser environments and workers.\n    self;")
+
 (defn js-module-env
   [{:keys [polyfill-js] :as state} {:keys [runtime] :or {runtime :node} :as config}]
   (str "var $CLJS = {};\n"
@@ -483,7 +486,10 @@
        ;; but we need it on $CLJS
        (-> (data/get-output! state {:resource-id goog-base-id})
            (get :js)
-           (str/replace "goog.global = global;" "goog.global = $CLJS;"))
+           ;; FIXME: this is using the compiled variant of goog/base.js
+           ;; don't use goog-global-snippet, that is used for uncompiled goog/base.js
+           ;; keeping both variants for now until I can make this cleaner
+           (str/replace "goog.global = this || self;" "goog.global = $CLJS;"))
 
        (if (seq polyfill-js)
          (str "\n" polyfill-js
