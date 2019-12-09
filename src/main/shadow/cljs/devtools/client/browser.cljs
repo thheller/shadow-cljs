@@ -356,7 +356,8 @@
     (ws-connect-impl)))
 
 (defn maybe-reconnect []
-  (when-not @stale-client-detected
+  (when (and (not @stale-client-detected)
+             (not= @ws-status :init))
     (vreset! ws-status :init)
     (js/setTimeout ws-connect 3000)))
 
