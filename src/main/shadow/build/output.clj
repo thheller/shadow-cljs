@@ -175,7 +175,7 @@
 
 (defn generate-source-map
   [state
-   {:keys [resource-name output-name file input] :as src}
+   {:keys [resource-name output-name file] :as src}
    output
    js-file
    prepend]
@@ -204,7 +204,7 @@
           (encode-source-map-json
             state
             ;; ugly hack to change the "sources":["/absolute/path/to/file.cljs"] in source maps
-            (assoc src :resource-name source-name)
+            (assoc src :resource-name source-name :prepend prepend)
             output)]
 
       (io/make-parents src-map-file)
@@ -411,7 +411,7 @@
       (subs s 0 idx)
       s)))
 
-(defn js-module-src-prepend [state {:keys [resource-id resource-name output-name provides requires deps] :as src} require?]
+(defn js-module-src-prepend [state {:keys [output-name] :as src} require?]
   (let [dep-syms
         (data/deps->syms state src)
 
