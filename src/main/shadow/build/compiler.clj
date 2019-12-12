@@ -800,7 +800,7 @@
               ns-spec-vars
               (->> (cljs-spec/speced-vars)
                    (filter spec-filter-fn)
-                   (into []))
+                   (into #{}))
 
               ana-data
               (get-in @env/*compiler* [::ana/namespaces ns])
