@@ -313,12 +313,12 @@
     nil
 
     :client/stale
-    (do
-      (vreset! stale-client-detected true)
-      (vreset! close-reason-ref "Stale Client! You are not using the latest compilation output!"))
+    (do (vreset! stale-client-detected true)
+        (vreset! close-reason-ref "Stale Client! You are not using the latest compilation output!"))
 
     :client/no-worker
-    (vreset! close-reason-ref (str "watch for build \"" env/build-id "\" not running"))
+    (do (vreset! stale-client-detected true)
+        (vreset! close-reason-ref (str "watch for build \"" env/build-id "\" not running")))
 
     :custom-msg
     (env/publish! (:payload msg))
