@@ -266,6 +266,7 @@
   (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
 
 (def close-reason-ref (volatile! nil))
+(def stale-client-detected (volatile! false))
 
 ;; FIXME: core.async-ify this
 (defn handle-message [{:keys [type] :as msg} done]
@@ -312,7 +313,9 @@
     nil
 
     :client/stale
-    (vreset! close-reason-ref "Stale Client! You are not using the latest compilation output!")
+    (do
+      (vreset! stale-client-detected true)
+      (vreset! close-reason-ref "Stale Client! You are not using the latest compilation output!"))
 
     :client/no-worker
     (vreset! close-reason-ref (str "watch for build \"" env/build-id "\" not running"))
@@ -341,7 +344,25 @@
     (pr-str {:input text})
     #js {"content-type" "application/edn; charset=utf-8"}))
 
+;; :init
+;; :connecting
+;; :connected
+(defonce ws-status (volatile! :init))
+
+(declare ws-connect-impl)
+
 (defn ws-connect []
+  (when (= (@ws-status :init))
+    (ws-connect-impl)))
+
+(defn maybe-reconnect []
+  (when (and (not @stale-client-detected)
+             (not= @ws-status :init))
+    (vreset! ws-status :init)
+    (js/setTimeout ws-connect 3000)))
+
+(defn ws-connect-impl []
+  (vreset! ws-status :connecting)
   (try
     (let [print-fn
           cljs.core/*print-fn*
@@ -361,6 +382,7 @@
 
       (set! (.-onopen socket)
         (fn [e]
+          (vreset! ws-status :connected)
           (hud/connection-error-clear!)
           (vreset! close-reason-ref nil)
           ;; :module-format :js already patches provide
@@ -381,11 +403,13 @@
           (hud/connection-error (or @close-reason-ref "Connection closed!"))
           (vreset! socket-ref nil)
           (env/reset-print-fns!)
+          (maybe-reconnect)
           ))
 
       (set! (.-onerror socket)
         (fn [e]
           (hud/connection-error "Connection failed!")
+          (maybe-reconnect)
           (devtools-msg "websocket error" e))))
     (catch :default e
       (devtools-msg "WebSocket setup failed" e))))
