@@ -226,6 +226,7 @@
                     :right "0px"
                     :display "flex"
                     :flex-direction "column"
+                    :color "#000"
                     :font-family "monospace"
                     :font-size "12px"}}
            [:div {:style {:align-self "flex-end"

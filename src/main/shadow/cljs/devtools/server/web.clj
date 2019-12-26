@@ -23,6 +23,11 @@
     [clojure.data.json :as json]
     [shadow.cljs.devtools.server.dev-http :as dev-http]))
 
+(defn create-index-handler [{:keys [db] :as env}]
+  (fn index-handler [request]
+    {:status 200
+     :body "hello world"}))
+
 (defn index-page [{:keys [dev-http] :as req}]
   (common/page-boilerplate req
     {:modules [:app]
@@ -112,10 +117,10 @@
           :stroke "#FFFFFF"
           :d s-path}]]])))
 
-(defn browser-repl-js [{:keys [config supervisor] :as req}]
+(defn browser-repl-js [{:keys [config supervisor] :as req} build-id]
   (let [{:keys [state-ref] :as worker}
-        (or (super/get-worker supervisor :browser-repl)
-            (-> (api/start-browser-repl* req)
+        (or (super/get-worker supervisor build-id)
+            (-> (api/start-browser-repl* req {:build-id build-id})
                 (worker/compile)))]
 
     (worker/sync! worker)
@@ -147,7 +152,7 @@
 
               [:pre#log]
 
-              [:script {:src "/cache/browser-repl/js/repl.js" :defer true}]])})
+              [:script {:src (str "/cache/" (name build-id) "/js/repl.js") :defer true}]])})
         (no-cache!))))
 
 (defn browser-test-page [{:keys [supervisor] :as req}]
@@ -242,7 +247,7 @@
       (http/route
         (:GET "" index-page)
         (:GET "^/cache" serve-cache-file)
-        (:GET "/browser-repl-js" browser-repl-js)
+        (:GET "/repl-js/{build-id:keyword}" browser-repl-js build-id)
         (:GET "/browser-test" browser-test-page)
         (:GET "/workspaces" workspaces-page)
         maybe-index-page #_common/not-found)
@@ -253,6 +258,8 @@
       (update :ring-request ring-params/params-request {})
       (http/route
         ;; temp fix for middleware problem
+        (:ANY "/api/runtime" web-api/api-runtime)
+        (:ANY "/api/tool" web-api/api-tool)
         (:ANY "/api/ws" web-api/api-ws)
         (:ANY "^/api" web-api/root)
         (:ANY "^/ws" ws/process-ws)

@@ -276,7 +276,7 @@
                (not (contains? (:ns-aliases ns-info) ns)))
 
       (throw
-        (ex-info (format "conflict on \"%s\" by \"%s\" used by \"%s\"" sym ns conflict)
+        (ex-info (format "In :require [%s :refer (%s)] already used by [%s :refer (%s)]" ns sym conflict sym)
           {:tag ::require-conflict
            :ns-info ns-info
            :merge-key merge-key

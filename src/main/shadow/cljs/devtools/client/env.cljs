@@ -6,6 +6,15 @@
     [cljs.pprint :refer (pprint)]
     ))
 
+(defonce active-modules-ref
+  (volatile! #{}))
+
+(defn module-loaded [name]
+  (vswap! active-modules-ref conj (keyword name)))
+
+(defn module-is-active? [module]
+  (contains? @active-modules-ref module))
+
 ;; FIXME: make this persistent somehow?
 (defonce runtime-id (str (random-uuid)))
 
@@ -34,6 +43,8 @@
 (goog-define ssl false)
 
 (goog-define ignore-warnings false)
+
+(goog-define log-style "font-weight: bold;")
 
 (defn devtools-info []
   #js {:server-port server-port
@@ -99,7 +110,10 @@
     (let [result-id (str (random-uuid))
           result {:type :repl/result
                   :result-id result-id}
-          ret (repl-expr)]
+
+          start (js/Date.now)
+          ret (repl-expr)
+          runtime (- (js/Date.now) start)]
 
       ;; FIXME: this needs some kind of GC, shouldn't keep every single result forever
       (swap! repl-results-ref assoc result-id {:timestamp (js/Date.now)
@@ -113,10 +127,10 @@
       (try
         (let [printed (repl-print-fn ret)]
           (swap! repl-results-ref assoc-in [result-id :printed] printed)
-          (assoc result :value printed))
+          (assoc result :value printed :ms runtime))
         (catch :default e
           (js/console.log "encoding of result failed" e ret)
-          (assoc result :error "ENCODING FAILED"))))
+          (assoc result :error "ENCODING FAILED, check host console"))))
     (catch :default e
       (set! *e e)
       (repl-error e)
@@ -156,13 +170,29 @@
     (x)
     (reset! reset-print-fn-ref nil)))
 
+(def async-ops #{:repl/require :repl/init :repl/session-start})
+
+(def repl-queue-ref (atom false))
+(defonce repl-queue-arr (array))
+
+(defn process-next! []
+  (when-not @repl-queue-ref
+    (when-some [task (.shift repl-queue-arr)]
+      (reset! repl-queue-ref true)
+      (task))))
+
+(defn done! []
+  (reset! repl-queue-ref false)
+  (process-next!))
+
 (defn process-ws-msg [text handler]
   (binding [reader/*default-data-reader-fn*
             (fn [tag value]
               [:tagged-literal tag value])]
     (try
       (let [msg (reader/read-string text)]
-        (handler msg))
+        (.push repl-queue-arr #(handler msg done!)))
+      (process-next!)
       (catch :default e
         (js/console.warn "failed to parse websocket message" text e)
         (throw e)))))

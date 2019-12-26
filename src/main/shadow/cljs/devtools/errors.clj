@@ -153,11 +153,14 @@
       )))
 
 (defmethod ex-data-format ::resolve/missing-js
-  [w e {:keys [require node-modules-dir] :as data}]
+  [w e {:keys [require js-package-dirs] :as data}]
   (write-msg w e)
   (when (util/is-package-require? require)
     (.write w (str "\n"
-                   "Searched in:" (.getAbsolutePath node-modules-dir) "\n"
+                   "Search in:\n"
+                   (->> (for [module-dir js-package-dirs]
+                          (str "\t" (.getAbsolutePath module-dir)))
+                        (str/join "\n"))
                    "\n"
                    "You probably need to run:\n"
                    "  npm install " require "\n"
@@ -174,6 +177,10 @@
   (write-msg w e)
   (error-format w (.getCause e)))
 
+(defmethod ex-data-format :shadow.build/hook-error
+  [w e data]
+  (write-msg w e)
+  (error-format w (.getCause e)))
 
 (defmethod ex-data-format :shadow.build.classpath/access-outside-classpath
   [w e data]
@@ -340,10 +347,23 @@
           (w/print-source-excerpt-footer err)
           (println (w/sep-line)))))))
 
+(defmethod ex-data-format :shadow.cljs.repl/process-ex
+  [w e {:keys [source] :as data}]
+
+  (.write w (w/coded-str [:bold :red] (w/sep-line " REPL Error while processing " 6)))
+  (.write w "\n")
+  (.write w source)
+  (.write w "\n")
+
+  (error-format w (.getCause e)))
 
 (defmethod ex-data-format :shadow.build.modules/module-entry-moved
   [w e {:keys [entry expected moved-to] :as data}]
 
+  (.write w (.getMessage e)))
+
+(defmethod ex-data-format :shadow.build.ns-form/require-conflict
+  [w e data]
   (.write w (.getMessage e)))
 
 (defmethod ex-data-format :shadow.build.macros/macro-load

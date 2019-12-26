@@ -47,7 +47,12 @@
 (defstyled toolbar-action :button
   [env]
   {:display "inline-block"
-   :margin-right 10})
+   :background-color "white"
+   :border "1px solid #ccc"
+   :padding 10
+   :margin-right 10
+   "&:hover"
+   {:background-color "#ccc"}})
 
 (defstyled simple-toolbar :div
   [env]
@@ -186,8 +191,9 @@
 
 (defstyled source-excerpt-container :div
   [env]
-  {:padding [10 0]
+  {:padding 10
    :border "1px solid #eee"
+   :background-color "#fff"
    :overflow-x "auto"})
 
 (defstyled source-line :pre

@@ -3,44 +3,55 @@
             [clojure.java.io :as io]
             [shadow.build.api :as cljs]
             [shadow.cljs.repl :as repl]
-            [shadow.repl :as r]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.supervisor :as super]
             [shadow.build.log :as build-log]
-            [shadow.jvm-log :as log])
+            [shadow.jvm-log :as log]
+            [shadow.build.warnings :as warnings]
+            [shadow.cljs.devtools.errors :as errors])
   (:import (java.io StringReader PushbackReader File)
            [java.util UUID]))
 
-(defn print-result [result]
+(defn handle-repl-action-result [{:keys [warnings result] :as action}]
+  (doseq [warning warnings]
+    (warnings/print-short-warning warning))
+
+  (case (:type result)
+    (:repl/require-error :repl/invoke-error)
+    (println (or (:stack result)
+                 (:error result)
+                 (:message result)))
+
+    :repl/set-ns-complete
+    (println "nil")
+
+    :repl/require-complete
+    (println "nil")
+
+    :repl/result
+    (let [{:keys [error value]} result]
+      (if-not (some? error)
+        (println value)
+        ;; FIXME: let worker format the error and source map
+        ;; worker has full access to build info, this here doesn't
+        (let [{:keys [ex-data error stack]} result]
+          (println "== JS EXCEPTION ==============================")
+          (if (seq stack)
+            (println stack)
+            (println error))
+          (when (seq ex-data)
+            (println "Error Data:")
+            (prn ex-data))
+          (println "==============================================")
+          )))))
+
+(defn handle-repl-result [worker result]
   (locking build-log/stdout-lock
     (case (:type result)
-      :repl/result
-      (let [{:keys [error value]} result]
-        (if-not (some? error)
-          (println value)
-          ;; FIXME: let worker format the error and source map
-          ;; worker has full access to build info, this here doesn't
-          (let [{:keys [ex-data error stack]} result]
-            (println "== JS EXCEPTION ==============================")
-            (if (seq stack)
-              (println stack)
-              (println error))
-            (when (seq ex-data)
-              (println "Error Data:")
-              (prn ex-data))
-            (println "==============================================")
-            )))
-
-      :repl/invoke-error
-      (println (or (:stack result)
-                   (:message result)))
-
-      :repl/set-ns-complete
-      (println "nil")
-
-      :repl/require-complete
-      (println "nil")
+      :repl/results
+      (doseq [action (:results result)]
+        (handle-repl-action-result action))
 
       :repl/interrupt
       nil
@@ -56,6 +67,9 @@
 
       :repl/worker-stop
       (println "The REPL worker has stopped.")
+
+      :repl/error
+      (errors/error-format *out* (:ex result))
 
       (prn [:result result]))
     (flush)))
@@ -73,15 +87,6 @@
         (worker-build-state worker)]
 
     (repl/read-one build-state rdr {})))
-
-(defn repl-level [worker]
-  {::r/lang :cljs
-   ::r/get-current-ns
-   #(get-in (worker-build-state worker) [:repl-state :current-ns])
-
-   ::r/read-string
-   #(worker-read-string worker %)
-   })
 
 (def repl-api-fns
   ;; return value of these is ignored, print to *out* should work?
@@ -131,49 +136,47 @@
 
     (worker/watch worker print-chan true)
 
-    (r/takeover (repl-level worker)
-      (loop []
-        ;; unlock stdin when we can't get repl-state, just in case
-        (when-let [build-state (worker-build-state worker)]
+    (loop []
+      ;; unlock stdin when we can't get repl-state, just in case
+      (when-let [build-state (worker-build-state worker)]
 
-          ;; FIXME: inf-clojure fails when there is a space between \n and =>
-          (print (format "[%d:%d]~%s=> " r/*root-id* r/*level-id* (-> build-state :repl-state :current-ns)))
-          (flush)
+        ;; FIXME: inf-clojure fails when there is a space between \n and =>
+        (print (format "%s=> " (-> build-state :repl-state :current-ns)))
+        (flush)
 
-          ;; need the repl state to properly support reading ::alias/foo
-          (let [{:keys [eof? error? ex form] :as read-result}
-                (repl/read-one build-state *in* {})]
+        ;; need the repl state to properly support reading ::alias/foo
+        (let [{:keys [eof? error? ex form] :as read-result}
+              (repl/read-one build-state *in* {})]
 
-            (log/debug ::read-result read-result)
+          (log/debug ::read-result read-result)
 
-            (cond
-              eof?
-              :eof
+          (cond
+            eof?
+            :eof
 
-              error?
-              (do (println (str "Failed to read: " ex))
-                  (recur))
+            error?
+            (do (println (str "Failed to read: " ex))
+                (recur))
 
-              (nil? form)
-              (recur)
+            (nil? form)
+            (recur)
 
-              (= :repl/quit form)
-              :quit
+            (= :repl/quit form)
+            :quit
 
-              (= :cljs/quit form)
-              :quit
+            (= :cljs/quit form)
+            :quit
 
-              (and (list? form)
-                   (contains? repl-api-fns (first form)))
-              (do (do-repl-api-fn app worker build-state read-result)
-                  (recur))
+            (and (list? form)
+                 (contains? repl-api-fns (first form)))
+            (do (do-repl-api-fn app worker build-state read-result)
+                (recur))
 
-              :else
-              (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
-                (print-result result)
-                (when (and (not= :repl/interrupt (:type result))
-                           (not= :repl/worker-stop (:type result)))
-                  (recur))))))))
+            :else
+            (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
+              (handle-repl-result worker result)
+              (when-not (contains? #{:repl/interrupt :repl/worker-stop} (:type result))
+                (recur)))))))
     (async/close! print-chan)
 
     nil
@@ -183,17 +186,19 @@
   [{:keys [supervisor config] :as app}
    {:keys [via
            verbose
+           build-id
            node-args
            node-command
            pwd]
     :or {node-args []
+         build-id :node-repl
          node-command "node"}
     :as opts}]
   (let [script-name
         (str (:cache-root config) File/separatorChar "shadow-node-repl.js")
 
         build-config
-        {:build-id :node-repl
+        {:build-id build-id
          :target :node-script
          :main 'shadow.cljs.devtools.client.node-repl/main
          :hashbang false
@@ -249,7 +254,7 @@
           (let [code (.waitFor node-proc)]
             (log/info ::node-repl-exit {:code code}))
           (finally
-            (super/stop-worker supervisor :node-repl)
+            (super/stop-worker supervisor build-id)
             )))
 
       (assoc worker

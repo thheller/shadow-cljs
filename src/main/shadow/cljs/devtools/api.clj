@@ -3,10 +3,11 @@
   (:require
     [clojure.core.async :as async :refer (go <! >! >!! <!! alt! alt!!)]
     [clojure.java.io :as io]
-    [shadow.jvm-log :as log]
     [clojure.pprint :refer (pprint)]
     [clojure.java.browse :refer (browse-url)]
     [clojure.string :as str]
+    [cljs.repl :as cljs-repl]
+    [shadow.jvm-log :as log]
     [shadow.runtime.services :as rt]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
@@ -21,19 +22,13 @@
     [shadow.cljs.devtools.errors :as e]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-    [shadow.cljs.devtools.server.runtime :as runtime])
-  (:import [java.net Inet4Address NetworkInterface]
-           [clojure.lang Var]))
+    [shadow.cljs.devtools.server.runtime :as runtime]
+    [cljs.repl :as repl])
+  (:import [java.net Inet4Address NetworkInterface]))
 
 ;; nREPL support
 
-(def ^:dynamic *nrepl-cljs* nil)
-(def ^:dynamic *nrepl-clj-ns* nil)
-(def ^:dynamic *nrepl-active* false)
-(def ^:dynamic *nrepl-quit-signal* nil)
-(def ^:dynamic *nrepl-session* nil)
-(def ^:dynamic *nrepl-msg* nil)
-(def ^:dynamic *nrepl-worker-exit* nil)
+(def ^:dynamic *nrepl-init* nil)
 
 (defonce reload-deps-fn-ref (atom nil))
 
@@ -195,19 +190,23 @@
     :ok))
 
 (defn watch*
-  [{:keys [build-id] :as build-config} {:keys [autobuild verbose sync] :as opts}]
+  [{:keys [build-id] :as build-config} {:keys [verbose sync] :as opts}]
   {:pre [(map? build-config)
          (keyword? build-id) ;; not required here but by start-worker
          (map? opts)]}
-  (let [out (util/stdout-dump verbose)]
+  (let [out (util/stdout-dump verbose)
+
+        autobuild?
+        (and (not (false? (:autobuild opts)))
+             (not (false? (get-in build-config [:devtools :autobuild]))))]
 
     (-> (start-worker build-config opts)
         (worker/watch out true)
         (cond->
-          (not (false? autobuild))
+          autobuild?
           (worker/start-autobuild)
 
-          (false? autobuild)
+          (not autobuild?)
           (worker/compile)
 
           (not (false? sync))
@@ -235,6 +234,38 @@
   (let [{:keys [supervisor]}
         (runtime/get-instance!)]
     (super/active-builds supervisor)))
+
+(defn repl-runtimes
+  "lists all connected REPL runtimes for a given build watch worker"
+  [build-id]
+  (when-let [worker (get-worker build-id)]
+    (->> (-> worker :state-ref deref :runtimes vals)
+         (map #(dissoc % :runtime-out :init-sent))
+         (vec))))
+
+(defn repl-runtime-select
+  "switches to a specific REPL runtime to be used for eval"
+  [build-id runtime-id]
+  (when-let [{:keys [proc-control] :as worker} (get-worker build-id)]
+    (>!! proc-control {:type :runtime-select :runtime-id runtime-id})))
+
+(defn repl-runtime-kick
+  "forcibly disconnects a connected REPL runtime"
+  [build-id runtime-id]
+  (when-let [{:keys [proc-control] :as worker} (get-worker build-id)]
+    (>!! proc-control {:type :runtime-kick :runtime-id runtime-id})))
+
+(defn repl-runtime-clear []
+  "kick all registered runtimes that haven't responded to ping within 5sec
+
+   only needed in cases where the runtime doesn't properly disconnect which
+   is currently the case for reloading a react-native app on android"
+  []
+  (doseq [build-id (active-builds)
+          {:keys [runtime-id last-ping last-pong] :as repl-runtime} (repl-runtimes build-id)
+          :let [diff (- last-ping last-pong)]
+          :when (> diff 5000)]
+    (repl-runtime-kick build-id runtime-id)))
 
 (defn compiler-env [build-id]
   (let [{:keys [supervisor]}
@@ -372,95 +403,17 @@
 (defn nrepl-select
   ([id]
    (nrepl-select id {}))
-  ([id {:keys [skip-repl-out] :as opts}]
-   (let [{:keys [proc-stop] :as worker} (get-worker id)]
+  ([id opts]
+   (let [worker (get-worker id)]
      (cond
        (nil? worker)
        [:no-worker id]
 
+       (nil? *nrepl-init*)
+       :missing-nrepl-middleware
+
        :else
-       (do (set! *nrepl-cljs* id)
-
-           ;; doing this to make cider prompt not show "user" as prompt after calling this
-           (set! *nrepl-clj-ns* *ns*)
-           (let [repl-ns (some-> worker :state-ref deref :build-state :repl-state :current :ns)]
-             (set! *ns* (create-ns (or repl-ns 'cljs.user))))
-
-           (go (alt!
-                 *nrepl-quit-signal*
-                 ([_]
-                   :quit)
-
-                 proc-stop
-                 ([_]
-                   (*nrepl-worker-exit*)
-                   :quit)))
-
-           ;; calling (node-repl) in a REPL will cause the stdout and the repl prn forward
-           ;; to both print which is not what we want
-           (when-not skip-repl-out
-             ;; nrepl doesn't have a clear way to signal the end of a session
-             ;; so this keeps running even is the nrepl is disconnected
-             ;; I hope the print just fails and kills the loop?
-             (when-let [quit *nrepl-quit-signal*]
-               (let [chan (async/chan 100)]
-
-                 (go (try
-                       (loop []
-                         (alt! :priority true
-                           chan
-                           ([msg]
-                             (when (some? msg)
-                               (case (:type msg)
-                                 :repl/out
-                                 (do (println (:text msg))
-                                     (flush))
-
-                                 :repl/err
-                                 (binding [*out* *err*]
-                                   (println (:text msg))
-                                   (flush))
-
-                                 :ignored)
-                               (recur)
-                               ))
-
-                           quit
-                           ([_] :quit)))
-                       (log/debug ::nrepl-print-loop-end)
-                       (catch Exception e
-                         (log/debug-ex e ::nrepl-print-loop-ex)
-                         (async/close! chan))))
-
-                 (worker/watch worker chan true))))
-
-           ;; need to set the var immediately since some cider middleware needs it to
-           ;; switch REPL type to cljs. can't get to the nrepl session from here.
-           (try
-             (let [^Var pvar (find-var 'cemerick.piggieback/*cljs-compiler-env*)]
-               (when (and pvar (thread-bound? pvar))
-                 (.set pvar
-                   (reify
-                     clojure.lang.IDeref
-                     (deref [_]
-                       (when-let [worker (get-worker id)]
-                         (-> worker :state-ref deref :build-state :compiler-env)))))))
-             (catch Exception e
-               (log/warn-ex e ::piggieback-cemerick)))
-
-           (try
-             (let [^Var pvar (find-var 'cider.piggieback/*cljs-compiler-env*)]
-               (when (and pvar (thread-bound? pvar))
-                 (.set pvar
-                   (reify
-                     clojure.lang.IDeref
-                     (deref [_]
-                       (when-let [worker (get-worker id)]
-                         (-> worker :state-ref deref :build-state :compiler-env)))))))
-             (catch Exception e
-               (log/warn-ex e ::piggieback-cider)))
-
-
+       (do (*nrepl-init* worker opts)
            ;; Cursive uses this to switch repl type to cljs
            (println "To quit, type: :cljs/quit")
            [:selected id])))))
@@ -496,7 +449,7 @@
   ([build-id]
    (repl-next build-id {}))
   ([build-id {:keys [stop-on-eof] :as opts}]
-   (if *nrepl-active*
+   (if *nrepl-init*
      (nrepl-select build-id opts)
      (let [{:keys [supervisor] :as app}
            (runtime/get-instance!)
@@ -526,7 +479,7 @@
   ([build-id]
    (repl build-id {}))
   ([build-id {:keys [stop-on-eof] :as opts}]
-   (if *nrepl-active*
+   (if *nrepl-init*
      (nrepl-select build-id opts)
      (let [{:keys [supervisor] :as app}
            (runtime/get-instance!)
@@ -539,33 +492,33 @@
              (when stop-on-eof
                (super/stop-worker supervisor build-id))))))))
 
-
-
 ;; FIXME: should maybe allow multiple instances
 (defn node-repl
   ([]
    (node-repl {}))
-  ([opts]
+  ([{:keys [build-id] :or {build-id :node-repl} :as opts}]
    (let [{:keys [supervisor] :as app}
          (runtime/get-instance!)
 
          was-running?
-         (worker-running? node-repl)
+         (worker-running? build-id)
 
          worker
-         (or (super/get-worker supervisor :node-repl)
+         (or (super/get-worker supervisor build-id)
              (repl-impl/node-repl* app opts))]
 
-     (repl :node-repl {:skip-repl-out (not was-running?)})
+     (repl build-id {:skip-repl-out (not was-running?)})
      )))
 
 ;; FIXME: should maybe allow multiple instances
-(defn start-browser-repl* [{:keys [config supervisor] :as app}]
+(defn start-browser-repl*
+  [{:keys [config supervisor] :as app}
+   {:keys [build-id] :or {build-id :browser-repl} :as opts}]
   (let [cfg
-        {:build-id :browser-repl
+        {:build-id build-id
          :target :browser
-         :output-dir (str (:cache-root config) "/builds/browser-repl/js")
-         :asset-path "/cache/browser-repl/js"
+         :output-dir (str (:cache-root config) "/builds/" (name build-id) "/js")
+         :asset-path (str "/cache/" (name build-id) "/js")
          :modules
          {:repl {:entries '[shadow.cljs.devtools.client.browser-repl]}}
          :devtools
@@ -576,40 +529,48 @@
 (defn browser-repl
   ([]
    (browser-repl {}))
-  ([{:keys [verbose open] :as opts}]
-   (let [{:keys [supervisor config http] :as app}
-         (runtime/get-instance!)
+  ([{:keys [verbose open build-id]
+     :or {build-id :browser-repl}
+     :as opts}]
+   (let [{:keys [supervisor http] :as app} (runtime/get-instance!)]
 
-         worker
-         (or (super/get-worker supervisor :browser-repl)
-             (let [worker
-                   (start-browser-repl* app)
+     (or (when-let [{:keys [state-ref] :as worker}
+                    (super/get-worker supervisor build-id)]
 
-                   out-chan
-                   (-> (async/sliding-buffer 10)
-                       (async/chan))]
+           (if-not (-> @state-ref :runtimes empty?)
+             worker ;; browser still connected. continue using previous worker.
+             (do (super/stop-worker supervisor build-id)
+                 nil)))
 
-               (go (loop []
-                     (when-some [msg (<! out-chan)]
-                       (try
-                         (util/print-worker-out msg verbose)
-                         (catch Exception e
-                           (prn [:print-worker-out-error e])))
-                       (recur)
-                       )))
+         ;; no previous worker, start new one
+         (let [worker
+               (start-browser-repl* app opts)
 
-               (worker/watch worker out-chan)
-               (worker/compile! worker)
+               out-chan
+               (-> (async/sliding-buffer 10)
+                   (async/chan))]
 
-               (let [url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/browser-repl-js")]
-                 (try
-                   (browse-url url)
-                   (catch Exception e
-                     (println
-                       (format "Failed to open Browser automatically.\nPlease open the URL below in your Browser:\n\t%s" url)))))
-               worker))]
+           (go (loop []
+                 (when-some [msg (<! out-chan)]
+                   (try
+                     (util/print-worker-out msg verbose)
+                     (catch Exception e
+                       (prn [:print-worker-out-error e])))
+                   (recur)
+                   )))
 
-     (repl :browser-repl)
+           (worker/watch worker out-chan)
+           (worker/compile! worker)
+
+           (let [url (str "http" (when (:ssl http) "s") "://localhost:" (:port http) "/repl-js/" (name build-id))]
+             (try
+               (browse-url url)
+               (catch Exception e
+                 (println
+                   (format "Failed to open Browser automatically.\nPlease open the URL below in your Browser:\n\t%s" url)))))
+           worker))
+
+     (repl build-id)
      )))
 
 (defn dev*
@@ -634,7 +595,7 @@
                     (worker/sync!))))]
 
       ;; for normal REPL loops we wait for the CLJS loop to end
-      (when-not *nrepl-active*
+      (when-not *nrepl-init*
         (repl-impl/stdin-takeover! worker app nil)
         (super/stop-worker supervisor (:build-id build-config)))
 
@@ -663,68 +624,6 @@
 (defn test []
   (println "TBD"))
 
-(defn release-snapshot [& args]
-  (println "release-snapshot was moved!")
-  (println "from the CLI use:")
-  (println "\tshadow-cljs run shadow.cljs.build-report <build-id> some.html")
-  (println "from the REPL use:")
-  (println "\t(require '[shadow.cljs.build-report :as r])")
-  (println "\t(r/generate :build-id {:report-file \"some.html\"})")
-  (println "both commands generate a standalone \"some.html\" file with the full report"))
-
-(comment
-  (release-snapshot :browser {})
-
-  (defn node-execute! [node-args file]
-    (let [script-args
-          ["node"]
-
-          pb
-          (doto (ProcessBuilder. script-args)
-            (.directory nil))]
-
-
-      ;; not using this because we only get output once it is done
-      ;; I prefer to see progress
-      ;; (prn (apply shell/sh script-args))
-
-      (let [node-proc (.start pb)]
-
-        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-        (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
-
-        (let [out (.getOutputStream node-proc)]
-          (io/copy (io/file file) out)
-          (.close out))
-
-        ;; FIXME: what if this doesn't terminate?
-        (let [exit-code (.waitFor node-proc)]
-          exit-code))))
-
-
-  (defn test-all []
-    (-> (build/configure :dev '{:build-id :shadow-build-api/test
-                                :target :node-script
-                                :main shadow.test-runner/main
-                                :output-to "target/shadow-test-runner.js"
-                                :hashbang false})
-        (node/make-test-runner)
-        (build/compile)
-        (build/flush))
-
-    (node-execute! [] "target/shadow-test-runner.js")
-    ::test-all)
-
-  (defn test-affected
-    [source-names]
-    {:pre [(seq source-names)
-           (not (string? source-names))
-           (every? string? source-names)]}
-    (-> (test-setup)
-        (node/execute-affected-tests! source-names))
-    ::test-affected))
-
-
 (defn- find-local-addrs []
   (for [ni (enumeration-seq (NetworkInterface/getNetworkInterfaces))
         :when (not (.isLoopback ni))
@@ -739,8 +638,6 @@
         ;; probably don't need ipv6 for dev
         :when (instance? Inet4Address addr)]
     [ni addr]))
-
-;; (prn (find-local-addrs))
 
 (defmethod log/log-msg ::multiple-ips [_ {:keys [addrs] :as data}]
   (str "Found multiple IPs, might be using the wrong one. Please report all interfaces should the chosen one be incorrect.\n"

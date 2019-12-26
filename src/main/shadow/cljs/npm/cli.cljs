@@ -67,60 +67,29 @@
       (do (println (str "Executable '" cmd "' not found on system path."))
           (js/process.exit 1))
 
-      (let [node-server (node-net/Server.)]
+      (let [spawn-opts
+            (-> {:cwd project-root
+                 :env (-> #js {"SHADOW_CLI_PID" js/process.pid}
+                          (js/Object.assign js/process.env))
+                 :stdio "inherit"}
+                (merge proc-opts)
+                (clj->js))
 
-        (.on node-server "connection"
-          (fn [^js socket]
-            ;; send OK and close socket
-            ;; this is not meant as a persistent connection as I need to verify first
-            ;; under which circumstances that may disconnect for "valid" reasons
-            ;; like switching the WiFi network, sleep mode etc
-            ;; instead just have the java proc periodically check if this is still alive
-            (.end socket "OK")))
+            ^js proc
+            (cp/spawn executable (into-array args) spawn-opts)]
 
-        (.on node-server "error"
-          (fn [err]
-            (js/console.warn "node-server err" err)))
+        (.on proc "error"
+          (fn [^js error]
+            (if (and error (= "ENOENT" (. error -errno)))
+              (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
+              (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
 
-        (js/process.on "SIGTERM"
-          (fn []
-            (.close node-server)
-            (js/process.exit 0)))
+        (.on proc "exit"
+          (fn [code signal]
+            (js/process.exit code)))
 
-        (js/process.on "SIGINT"
-          (fn []
-            (.close node-server)
-            (js/process.exit 0)))
-
-        (.listen node-server
-          (fn []
-            (let [cli-port
-                  (-> node-server (.address) (.-port))
-
-                  spawn-opts
-                  (-> {:cwd project-root
-                       :env (-> #js {"SHADOW_CLI_PORT" cli-port}
-                                (js/Object.assign js/process.env))
-                       :stdio "inherit"}
-                      (merge proc-opts)
-                      (clj->js))
-
-                  ^js proc
-                  (cp/spawn executable (into-array args) spawn-opts)]
-
-              (.on proc "error"
-                (fn [^js error]
-                  (if (and error (= "ENOENT" (. error -errno)))
-                    (log (str "shadow-cljs - failed to execute \"" cmd "\", command not found."))
-                    (log (str "shadow-cljs - failed to execute \"" cmd "\", " (. error -message))))))
-
-              (.on proc "exit"
-                (fn [code signal]
-                  (.close node-server)
-                  (js/process.exit code)))
-
-              proc
-              )))))))
+        proc
+        ))))
 
 (defn run-java [project-root args opts]
   (let [^js result
@@ -394,6 +363,13 @@
           (into (map #(str "-J" %)) jvm-opts)
           ))))
 
+(defn powershell-escape [s]
+  (-> s
+      (str/replace " " "` ")
+      (str/replace "{" "`{")
+      (str/replace "}" "`}")
+      (str/replace \" "`\"`\"")))
+
 (defn run-clojure [project-root config args opts]
   (let [clojure-args
         (-> (get-clojure-args project-root config opts)
@@ -403,7 +379,7 @@
     (log "shadow-cljs - starting via \"clojure\"")
     (if-not (is-windows?)
       (run! project-root "clojure" clojure-args {})
-      (let [ps-args (into ["-command" "clojure"] clojure-args)]
+      (let [ps-args (into ["-command" "clojure"] (map powershell-escape) clojure-args)]
         (run! project-root "powershell" ps-args {})))))
 
 (defn wait-for-server-start! [port-file ^js proc]
@@ -732,6 +708,36 @@
     :else
     (run-standalone project-root config args opts)))
 
+(defn print-classpath [project-root config opts]
+  (cond
+    (:deps config)
+    (let [clojure-args
+          (-> (get-clojure-args project-root config opts)
+              (conj "-Spath"))]
+
+      (if-not (is-windows?)
+        (run! project-root "clojure" clojure-args {})
+        (let [ps-args (into ["-command" "clojure"] (map powershell-escape) clojure-args)]
+          (run! project-root "powershell" ps-args {}))))
+
+    (:lein config)
+    (let [lein-args
+          (-> (get-lein-args config opts)
+              (conj "classpath"))]
+
+      (run! project-root "lein" lein-args {}))
+
+    :else
+    (let [classpath
+          (get-classpath project-root config)
+
+          classpath-str
+          (->> (:files classpath)
+               (concat (:source-paths config))
+               (str/join path/delimiter))]
+
+      (println classpath-str))))
+
 (defn ^:export main [args]
 
   (try
@@ -796,6 +802,9 @@
 
                 (= :pom action)
                 (generate-pom project-root config-path config opts)
+
+                (= :classpath action)
+                (print-classpath project-root config opts)
 
                 (= :start action)
                 (if server-running?

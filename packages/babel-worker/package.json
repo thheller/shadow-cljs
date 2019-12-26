@@ -5,13 +5,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "ncc build out/babel-worker.js -o dist && cp dist/index.js ../../src/ui-release/shadow/cljs/dist/babel-worker.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@babel/core": "^7.4.3",
-    "@babel/preset-env": "^7.4.3"
+    "@babel/core": "^7.7.2",
+    "@babel/preset-env": "^7.7.1",
+    "@zeit/ncc": "^0.20.5"
   }
 }

@@ -1,32 +1,34 @@
 (ns shadow.build.compiler
-  (:require [clojure.spec.alpha :as s]
-            [clojure.string :as str]
-            [clojure.set :as set]
-            [clojure.java.io :as io]
-            [clojure.tools.reader.reader-types :as readers]
-            [clojure.tools.reader :as reader]
-            [cljs.analyzer :as cljs-ana]
-            [cljs.analyzer :as ana]
-            [cljs.compiler :as comp]
-            [cljs.spec.alpha :as cljs-spec]
-            [cljs.env :as env]
-            [cljs.tagged-literals :as tags]
-            [cljs.core] ;; do not remove, need to ensure this is loaded before compiling anything
-            [cljs.source-map :as sm]
-            [shadow.lazy :as lazy]
-            [shadow.cljs.util :as util]
-            [shadow.build.warnings :as warnings]
-            [shadow.build.macros :as macros]
-            [shadow.build.cache :as cache]
-            [shadow.build.cljs-hacks :as cljs-hacks]
-            [shadow.build.cljs-bridge :as cljs-bridge]
-            [shadow.build.resource :as rc]
-            [shadow.build.ns-form :as ns-form]
-            [shadow.build.data :as data]
-            [shadow.build.closure :as closure]
-            [shadow.build.npm :as npm]
-            [shadow.jvm-log :as log]
-            [shadow.build.async :as async])
+  (:require
+    [clojure.spec.alpha :as s]
+    [clojure.string :as str]
+    [clojure.set :as set]
+    [clojure.java.io :as io]
+    [clojure.tools.reader.reader-types :as readers]
+    [clojure.tools.reader :as reader]
+    [cljs.analyzer :as cljs-ana]
+    [cljs.analyzer :as ana]
+    [cljs.compiler :as comp]
+    [cljs.spec.alpha :as cljs-spec]
+    [cljs.env :as env]
+    [cljs.tagged-literals :as tags]
+    [cljs.core] ;; do not remove, need to ensure this is loaded before compiling anything
+    [cljs.source-map :as sm]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [shadow.lazy :as lazy]
+    [shadow.cljs.util :as util]
+    [shadow.build.warnings :as warnings]
+    [shadow.build.macros :as macros]
+    [shadow.build.cache :as cache]
+    [shadow.build.cljs-hacks :as cljs-hacks]
+    [shadow.build.cljs-bridge :as cljs-bridge]
+    [shadow.build.resource :as rc]
+    [shadow.build.ns-form :as ns-form]
+    [shadow.build.data :as data]
+    [shadow.build.closure :as closure]
+    [shadow.build.npm :as npm]
+    [shadow.jvm-log :as log]
+    [shadow.build.async :as async])
   (:import (java.util.concurrent ExecutorService)
            (java.io File StringReader PushbackReader StringWriter)
            [java.util.concurrent.atomic AtomicLong]))
@@ -142,6 +144,21 @@
           ))))
   ast)
 
+(defn find-js-require-pass [env ast opts]
+  (when (and (= :invoke (:op ast))
+             ;; js/require called at the REPL should not be added to metadata since it becomes sticky
+             (not (::repl-context env)))
+    (let [{:keys [form]} ast]
+      (when (and (seq? form)
+                 (= 'js/require (first form))
+                 (= 2 (count form)))
+        (let [require (second form)
+              ns (-> env :ns :name)]
+          (when (string? require)
+            (swap! env/*compiler* update-in [::cljs-ana/namespaces ns :shadow/js-requires] util/set-conj require)
+            )))))
+  ast)
+
 ;; I don't want to use with-redefs but I also don't want to replace the default
 ;; keep a reference to the default impl and dispatch based on binding
 ;; this ensures that out path is only taken when wanted
@@ -164,12 +181,17 @@
 
 (defn empty-env
   "Construct an empty analysis environment. Required to analyze forms."
-  [ns]
+  [state ns]
   {:ns (ana/get-namespace ns)
+   :shadow.build/mode (:shadow.build/mode state)
+   :shadow.build/tweaks (true? (get-in state [:compiler-options :shadow-tweaks]))
    :context :statement
    :locals {}
    :fn-scope []
+   ;; FIXME: write a patch that gets rid of this. totally pointless to have these in each env
    :js-globals ana-js-globals})
+
+(def ^:dynamic *analyze-top* nil)
 
 (defn analyze
   ([state compile-state form]
@@ -196,19 +218,47 @@
            (-> (get-in state [:compiler-env :options])
                (cond->
                  (:macros-ns compile-state)
-                 (assoc :macros-ns true)))]
+                 (assoc :macros-ns true)))
 
-       (-> (empty-env ns) ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
-           (cond->
-             repl-context?
-             (assoc
-               :context :expr
-               :def-emits-var true))
-           ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
-           ;; it seems to do this to get rid of duplicated warnings?
-           ;; we just do a distinct later
-           (ana/analyze* form resource-name opts)
-           (post-analyze state))))))
+           injected-forms-ref
+           (atom [])
+
+           ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
+           base-env
+           (-> (empty-env state  ns)
+               (cond->
+                 repl-context?
+                 (assoc ::repl-context true
+                        :context :expr
+                        :def-emits-var true)))
+
+
+           result
+           (binding [*analyze-top*
+                     (fn [form]
+                       ;; need to clear potential loop bindings, dunno why it doesn't use env to track these ...
+                       (binding [ana/*recur-frames* nil
+                                 ana/*loop-lets* ()]
+                         ;; will be turned into statements. repl-context would turn them into :expr
+                         (let [ast (analyze state compile-state form false)]
+                           (swap! injected-forms-ref conj ast))))]
+             (-> base-env
+                 ;; ana/analyze rebinds ana/*cljs-warnings* which we already did
+                 ;; it seems to do this to get rid of duplicated warnings?
+                 ;; we just do a distinct later
+                 (ana/analyze* form nil opts)
+                 (post-analyze state)))]
+
+       (let [injected-forms @injected-forms-ref]
+         (if-not (seq injected-forms)
+           result
+           ;; fake rewrite into a (do ...)
+           {:op :do
+            :env base-env
+            :form form
+            :children [:statements :ret]
+            :statements injected-forms
+            :ret result}))))))
 
 (defn do-analyze-cljs-string
   [{:keys [resource-name cljc reader-features] :as init} reduce-fn cljs-source]
@@ -272,7 +322,9 @@
   ;; FIXME: can't remove goog.require/goog.provide from goog sources easily
   ;; keeping them for CLJS for now although they are not needed in JS mode
   #_(when (= :goog (get-in state [:build-options :module-format])))
-  (comp/emitln "goog.provide('" (comp/munge name) "');")
+
+  (when-not (get-in ast [:meta :skip-goog-provide])
+    (comp/emitln "goog.provide('" (comp/munge name) "');"))
 
   (when (= name 'cljs.js)
     ;; this fixes the issue that cljs.js unconditionally attempts to load cljs.core$macros
@@ -322,7 +374,46 @@
               :ns (:name ast)
               :ns-info (dissoc ast :env)))))))
 
-(defn warning-collector [build-env warnings warning-type env extra]
+(defn ns-wildcard-match? [pattern ns]
+  (let [s (cond
+            (symbol? pattern)
+            (str pattern)
+            (string? pattern)
+            pattern
+            :else
+            (throw (ex-info "invalid :ignore entry" {:pattern pattern})))]
+    (if (str/ends-with? s "*")
+      (str/starts-with? (str ns) (subs s 0 (-> s (count) (dec))))
+      (= s (str ns)))))
+
+(comment
+  (ns-wildcard-match? 'foo.* 'foo.bar))
+
+(defn should-warning-throw?
+  [state {:keys [ns] :as rc} {:keys [warning] :as warning-info}]
+  (let [wae (get-in state [:compiler-options :warnings-as-errors])]
+    (or (true? wae)
+        (and (set? wae) (contains? wae warning))
+        (and (map? wae)
+             (let [{:keys [ignore warning-types]} wae]
+               (if (and ns (seq ignore) (some #(ns-wildcard-match? % ns) ignore))
+                 false
+                 (or (not (seq warning-types))
+                     (contains? warning-types warning)
+                     )))))))
+
+(comment
+  (should-warning-throw?
+    {:compiler-options
+     {:warnings-as-errors
+      {:ignore #{'foo.*}
+       ;; :warning-types #{:undeclared-var}
+       }}}
+    {:ns 'foo.bar}
+    {:warning :undeclared-var}))
+
+
+(defn warning-collector [state warnings warning-type env extra]
   ;; FIXME: currently there is no way to turn off :infer-externs
   ;; the work is always done and the warning is always generated
   ;; it is just not emitted when *warn-in-infer* is not set
@@ -343,18 +434,16 @@
           msg
           (ana/error-message warning-type extra)
 
-          extra
-          (if (not= warning-type :fn-deprecated)
-            extra
-            (dissoc extra :fexpr))]
+          warning-info
+          {:warning warning-type
+           :line line
+           :column column
+           :msg msg}]
 
-      (swap! warnings conj
-        {:warning warning-type
-         :line line
-         :column column
-         :msg msg
-         :extra extra}
-        ))))
+      (when (should-warning-throw? state *current-resource* warning-info)
+        (throw (ex-info msg warning-info)))
+
+      (swap! warnings conj warning-info))))
 
 (defmacro with-warnings
   "given a body that produces a compilation result, collect all warnings and assoc into :warnings"
@@ -408,9 +497,9 @@
 
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}
-   {:keys [resource-id resource-name url file output-name] :as rc}
+   {:keys [resource-id resource-name from-jar] :as rc}
    source]
-  (let [{:keys [warnings static-fns elide-asserts load-tests fn-invoke-direct infer-externs]}
+  (let [{:keys [warnings static-fns elide-asserts load-tests fn-invoke-direct infer-externs form-size-threshold]}
         compiler-options]
 
     (binding [ana/*cljs-static-fns*
@@ -432,7 +521,7 @@
               (-> ana/*cljs-warnings*
                   (merge warnings)
                   (cond->
-                    (or (and file (= :auto infer-externs))
+                    (or (and (= :auto infer-externs) (not from-jar))
                         (= :all infer-externs))
                     (assoc :infer-warning true)))
 
@@ -483,19 +572,36 @@
           (let [sw (StringWriter. 65536)
                 sm-ref (atom {:source-map (sorted-map)
                               :gen-col 0
-                              :gen-line 0})]
+                              :gen-line 0})
+
+                size-warnings-ref
+                (atom [])]
 
             (binding [comp/*source-map-data* sm-ref
                       comp/*source-map-data-gen-col* (AtomicLong.)
                       *out* sw]
               (doseq [ast-entry ast]
-                (shadow-emit state ast-entry)))
+                (let [size-before (-> sw (.getBuffer) (.length))]
+                  (shadow-emit state ast-entry)
+                  (.flush sw)
+                  (let [size-after (-> sw (.getBuffer) (.length))
+                        diff (- size-after size-before)]
+                    (when (and form-size-threshold (> diff form-size-threshold))
+                      (let [warning {:warning :form-size-threshold
+                                     :msg (str "Form produced " diff " bytes of JavaScript (exceeding your configured threshold)")
+                                     :extra {:ns ns
+                                             :resource-name resource-name
+                                             :size diff}
+                                     :line (get-in ast-entry [:env :line])
+                                     :column (get-in ast-entry [:env :column])}]
+                        (swap! size-warnings-ref conj warning)))))))
 
             (-> output
                 (assoc :js (.toString sw)
                        :source-map-compact (compact-source-map (:source-map @sm-ref))
                        :compiled-at (System/currentTimeMillis))
                 (dissoc :ast)
+                (update :warnings into @size-warnings-ref)
                 (cond->
                   (= ns 'cljs.core)
                   (update :js str "\n" (make-runtime-setup state))
@@ -511,8 +617,7 @@
   [state rc]
   ;; FIXME: would it be enough to just use the immediate deps?
   ;; all seems like overkill but way safer
-  (let [;; deps (get-in state [:immediate-deps (:id rc)])
-        deps (data/get-deps-for-id state #{} (:resource-id rc))]
+  (let [deps (data/get-deps-for-id state #{} (:resource-id rc))]
 
     ;; must always invalidate cache on version change
     ;; which will always have a new timestamp
@@ -520,23 +625,20 @@
         (util/reduce->
           (fn [cache-map id]
             (assoc cache-map id (get-in state [:sources id :cache-key])))
-          deps)
-        ;; must also account for macro only changes
-        (util/reduce->
-          (fn [cache-map {:keys [ns cache-key] :as macro-rc}]
-            (assoc cache-map [:macro ns] cache-key))
-          (macros/macros-used-by-ids state deps)))))
+          deps))))
 
 (def cache-affecting-options
   ;; paths into the build state
   ;; options which may effect the output of the CLJS compiler
   [[:mode]
    [:js-options :js-provider]
+   [:compiler-options :form-size-threshold] ;; for tracking big suspicious code chunks
    [:compiler-options :source-map]
    [:compiler-options :fn-invoke-direct]
    [:compiler-options :elide-asserts]
    [:compiler-options :reader-features]
    [:compiler-options :load-tests]
+   [:compiler-options :shadow-tweaks]
    [:compiler-options :warnings]
    ;; some community macros seem to use this
    ;; hard to track side-effecting macros but even more annoying to run into caching bugs
@@ -562,10 +664,9 @@
               (some cache-blockers macro-requires))))))
 
 (defn load-cached-cljs-resource
-  [{:keys [build-options compiler-env] :as state}
-   {:keys [ns output-name resource-id resource-name] :as rc}]
-  (let [{:keys [cljs-runtime-path]} build-options
-        cache-file (get-cache-file-for-rc state rc)]
+  [{:keys [compiler-env] :as state}
+   {:keys [ns resource-id resource-name] :as rc}]
+  (let [cache-file (get-cache-file-for-rc state rc)]
 
     (try
       (when (.exists cache-file)
@@ -594,9 +695,10 @@
             ;; which is larger than v2 release date thereby using cache if only checking one timestamp
 
             (when (and (= cache-key-map (:cache-keys cache-data))
+                       (macros/check-clj-info (:clj-info cache-data))
                        (every?
                          #(= (get-in state %)
-                            (get-in cache-data [:compiler-options %]))
+                             (get-in cache-data [:compiler-options %]))
                          cache-affecting-options)
 
                        ;; check if lazy loaded namespaces that a given ns uses were moved to different modules
@@ -659,74 +761,73 @@
         nil)
 
     :else
-    (let [cache-file
-          (get-cache-file-for-rc state rc)
+    (try
+      (util/with-logged-time
+        [state {:type :cache-write
+                :resource-id resource-id
+                :resource-name resource-name
+                :ns ns}]
 
-          cache-compiler-options
-          (reduce
-            (fn [cache-options option-path]
-              (assoc cache-options option-path (get-in state option-path)))
-            {}
-            cache-affecting-options)
+        (let [cache-file
+              (get-cache-file-for-rc state rc)
 
-          ns-str
-          (str ns)
+              cache-compiler-options
+              (reduce
+                (fn [cache-options option-path]
+                  (assoc cache-options option-path (get-in state option-path)))
+                {}
+                cache-affecting-options)
 
-          spec-filter-fn
-          (fn [v]
-            (or (= ns-str (namespace v))
-                (= ns (-> v meta :fdef-ns))))
+              ns-str
+              (str ns)
 
-          ns-specs
-          (reduce-kv
-            (fn [m k v]
-              (if-not (spec-filter-fn k)
-                m
-                (assoc m k v)))
-            {}
-            ;; this is {spec-kw|sym raw-spec-form}
-            @cljs-spec/registry-ref)
+              spec-filter-fn
+              (fn [v]
+                (or (= ns-str (namespace v))
+                    (= ns (-> v meta :fdef-ns))))
 
-          ;; this is a #{fqn-var-sym ...}
-          ns-speced-vars
-          (->> (cljs-spec/speced-vars)
-               (filter spec-filter-fn)
-               (into []))
+              ns-specs
+              (reduce-kv
+                (fn [m k v]
+                  (if-not (spec-filter-fn k)
+                    m
+                    (assoc m k v)))
+                {}
+                ;; this is {spec-kw|sym raw-spec-form}
+                @cljs-spec/registry-ref)
 
-          ana-data
-          (get-in @env/*compiler* [::ana/namespaces ns])
+              ;; this is a #{fqn-var-sym ...}
+              ns-spec-vars
+              (->> (cljs-spec/speced-vars)
+                   (filter spec-filter-fn)
+                   (into #{}))
 
-          cache-data
-          {:output output
-           :cache-keys (make-cache-key-map state rc)
-           :analyzer ana-data
-           :ns ns
-           :ns-specs ns-specs
-           :ns-speced-vars ns-speced-vars
-           :compiler-options cache-compiler-options}]
+              ana-data
+              (get-in @env/*compiler* [::ana/namespaces ns])
 
-      ;; FIXME: the write can still happen before flush
-      ;; should maybe safe this data somewhere instead and actually flush in flush
-      (try
-        (util/with-logged-time
-          [state {:type :cache-write
-                  :resource-id resource-id
-                  :resource-name resource-name
-                  :ns ns}]
+              cache-data
+              {:output output
+               :cache-keys (make-cache-key-map state rc)
+               :clj-info (macros/gather-clj-info state rc)
+               :analyzer ana-data
+               :ns ns
+               :ns-specs ns-specs
+               :ns-spec-vars ns-spec-vars
+               :compiler-options cache-compiler-options}]
 
+          ;; FIXME: the write can still happen before flush
+          ;; should maybe safe this data somewhere instead and actually flush in flush
           ;; FIXME: is this thread-safe?
           (io/make-parents cache-file)
+          (cache/write-file cache-file cache-data)))
 
-          (cache/write-file cache-file cache-data))
-
-        (catch Exception e
-          (util/warn state {:type :cache-error
-                            :action :write
-                            :ns ns
-                            :id resource-id
-                            :error e})
-          nil)
-        ))))
+      (catch Exception e
+        (util/warn state {:type :cache-error
+                          :action :write
+                          :ns ns
+                          :id resource-id
+                          :error e})
+        nil))))
 
 (defn maybe-compile-cljs
   "take current state and cljs resource to compile
@@ -1133,8 +1234,8 @@
   ([{:keys [build-sources] :as state}]
    (compile-all state build-sources))
   ([{:keys [mode build-sources] :as state} source-ids]
-    ;; throwing js parser errors here so they match other error sources
-    ;; as other errors will be thrown later on in this method as well
+   ;; throwing js parser errors here so they match other error sources
+   ;; as other errors will be thrown later on in this method as well
    (throw-js-errors-now! state)
 
    (cljs-hacks/install-hacks!)

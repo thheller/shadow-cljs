@@ -136,9 +136,9 @@
         (or (get-in config [:node-modules :install-cmd])
             (case (guess-node-package-manager config)
               :yarn
-              ["yarn" "add"]
+              ["yarn" "add" "--exact"]
               :npm
-              ["npm" "install" "--save"]))
+              ["npm" "install" "--save" "--save-exact"]))
 
         full-cmd
         (fill-packages-placeholder install-cmd args)

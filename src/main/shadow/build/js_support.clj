@@ -27,13 +27,14 @@
          (str js-ns-alias ".js")
 
          require-fn
-         (get-in state [:js-options :require-fn] "require")]
+         (or (and (= :external (get-in state [:js-options :js-provider])) "shadow$bridge")
+             (get-in state [:js-options :require-fn] "require"))]
 
      {:resource-id [::require js-name]
       :resource-name name
       :output-name (util/flat-js-name name)
       :type :goog
-      :cache-key [js-ns-alias name]
+      :cache-key [js-ns-alias name require-fn]
       :last-modified 0
       ::require-shim true
       :js-require js-require

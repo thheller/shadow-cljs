@@ -115,6 +115,19 @@
        "var $CLJS = this;\n"
        "goog.global[\"$CLJS\"] = $CLJS;\n"))
 
+(defn eval-load-sources [state sources]
+  (->> sources
+       (remove #{output/goog-base-id})
+       (map #(data/get-source-by-id state %))
+       (map (fn [{:keys [output-name] :as rc}]
+              (let [{:keys [js] :as output} (data/get-output! state rc)
+
+                    source-map?
+                    (output/has-source-map? output)]
+                (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape browser/js-escaper ^String js) "\");")
+                )))
+       (str/join "\n")))
+
 (defn flush-dev-module [state {:keys [output-type output-name] :as mod}]
   (spit (data/output-file state output-name)
     (case output-type
@@ -141,7 +154,7 @@
 
 
       :chrome/shared
-      (browser/eval-load-sources state (:sources mod))
+      (eval-load-sources state (:sources mod))
 
       ;; anything else assumes that can load files via normal browser methods
       (str (dev-header state)
@@ -150,7 +163,7 @@
                           (conj mod))]
              (->> mods
                   (mapcat :sources)
-                  (browser/eval-load-sources state))
+                  (eval-load-sources state))
              )))))
 
 (defn mod-files [{::b/keys [mode] :as state} {:keys [output-name sources] :as mod}]

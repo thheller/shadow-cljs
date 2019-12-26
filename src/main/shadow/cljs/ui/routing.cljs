@@ -1,7 +1,7 @@
 (ns shadow.cljs.ui.routing
   (:require
     [clojure.string :as str]
-    [fulcro.client.primitives :as fp]
+    [com.fulcrologic.fulcro.components :as fc]
     [shadow.cljs.ui.transactions :as tx]
     [shadow.cljs.ui.model :as ui-model]
     [shadow.cljs.model :as m]
@@ -37,7 +37,7 @@
         {:keys [class] :as config}
         (get-in @routes-ref [:routers router-id :routes route-key])]
 
-    (fp/get-query class)))
+    (fc/get-query class)))
 
 (defn get-ident [router-id props]
   (check-active! router-id)
@@ -82,11 +82,11 @@
      (select! router ident)
      (set-route* state router ident))})
 
-(defn load [r loadable]
+(defn load [loadable]
   (when-not (sl/ready? loadable)
     ;; FIXME: only do this after a timeout, load should be more or less instant always here
     (swap! routes-ref update :loading util/conj-set ::ui-model/root-router)
-    (fp/transact! r [(set-route {:router ::ui-model/root-router
+    (fc/transact! env/app [(set-route {:router ::ui-model/root-router
                                  :ident [::ui-model/page-loading 1]})]))
 
   (-> (sl/load loadable)
@@ -95,29 +95,33 @@
                x))))
 
 
-(defn navigate-to-token! [{:keys [state] :as r} token]
+(defn navigate-to-token! [token]
   (js/console.log "NAVIGATE" token)
 
   (let [[main & more :as tokens] (str/split token #"/")]
     (case main
       "dashboard"
-      (fp/transact! r [(set-route {:router ::ui-model/root-router
-                                   :ident [::ui-model/page-dashboard 1]})])
+      (fc/transact! env/app [(set-route {:router ::ui-model/root-router
+                                         :ident [::ui-model/page-dashboard 1]})])
 
       "repl"
-      (-> (load r (sl/loadable shadow.cljs.ui.pages.repl/route))
-          (.then (fn [route] (route r more))))
+      (-> (load (sl/loadable shadow.cljs.ui.pages.repl/route))
+          (.then (fn [route] (route more))))
 
       "builds"
-      (-> (load r (sl/loadable shadow.cljs.ui.pages.build/route))
-          (.then (fn [route] (route r more))))
+      (-> (load (sl/loadable shadow.cljs.ui.pages.build/route))
+          (.then (fn [route] (route more))))
 
       "build"
-      (-> (load r (sl/loadable shadow.cljs.ui.pages.build/route-build))
-          (.then (fn [route] (route r more))))
+      (-> (load (sl/loadable shadow.cljs.ui.pages.build/route-build))
+          (.then (fn [route] (route more))))
+
+      "inspect"
+      (-> (load (sl/loadable shadow.cljs.ui.pages.inspect/route))
+          (.then (fn [route] (route more))))
       )))
 
-(defn setup-history [reconciler ^goog history]
+(defn setup-history [^goog history]
   (let [start-token "dashboard"
         first-token (.getToken history)]
     (when (and (= "" first-token) (seq start-token))
@@ -125,7 +129,7 @@
 
   (.listen history js/goog.history.EventType.NAVIGATE
     (fn [^goog e]
-      (navigate-to-token! reconciler (.-token e))))
+      (navigate-to-token! (.-token e))))
 
   (js/document.body.addEventListener "click"
     (fn [^js e]

@@ -7,6 +7,8 @@
     "react": "^16.0.0",
     "react-dom": "^16.0.0",
     "react-table": "^6.8.2",
+    "react-virtualized-auto-sizer": "^1.0.2",
+    "react-window": "^1.8.5",
     "xterm": "3.10.1"
   }
 }

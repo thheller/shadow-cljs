@@ -104,12 +104,14 @@
 (s/def ::modules
   (s/map-of
     simple-keyword?
-    ::module))
+    ::module
+    :min-count 1))
 
 (s/def ::chunks
   (s/map-of
     simple-keyword?
-    ::module))
+    ::module
+    :min-count 1))
 
 (defn prepend [tail head]
   {:pre [(vector? head)]}
@@ -155,7 +157,8 @@
                 after-load
                 autoload
                 use-document-host
-                repl-pprint]
+                repl-pprint
+                log-style]
          :as devtools}
         (:devtools build-config)]
 
@@ -195,6 +198,8 @@
 
        'shadow.cljs.devtools.client.env/devtools-url
        (or devtools-url "")}
+      (when log-style
+        {'shadow.cljs.devtools.client.env/log-style log-style})
       (when (contains? devtools :hud)
         (hud-defines (:hud devtools))))))
 

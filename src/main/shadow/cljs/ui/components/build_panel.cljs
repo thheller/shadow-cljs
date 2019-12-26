@@ -1,6 +1,6 @@
 (ns shadow.cljs.ui.components.build-panel
   (:require
-    [fulcro.client.primitives :as fp :refer (defsc)]
+    [com.fulcrologic.fulcro.components :as fc :refer (defsc)]
     [shadow.markup.react :as html :refer (defstyled)]
     [shadow.cljs.ui.components.build-status :as build-status]
     [shadow.cljs.model :as m]
@@ -62,13 +62,13 @@
 
       #_(if build-worker-active
           (build-panel-toolbar
-            (build-panel-action {:onClick #(fp/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
-            (build-panel-action {:onClick #(fp/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
+            (build-panel-action {:onClick #(fc/transact! this [(tx/build-watch-compile {:build-id build-id})])} "force-compile")
+            (build-panel-action {:onClick #(fc/transact! this [(tx/build-watch-stop {:build-id build-id})])} "stop watch"))
 
           (build-panel-toolbar
-            (build-panel-action {:onClick #(fp/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
-            (build-panel-action {:onClick #(fp/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
-            (build-panel-action {:onClick #(fp/transact! this [(tx/build-release {:build-id build-id})])} "release"))
+            (build-panel-action {:onClick #(fc/transact! this [(tx/build-watch-start {:build-id build-id})])} "start watch")
+            (build-panel-action {:onClick #(fc/transact! this [(tx/build-compile {:build-id build-id})])} "compile")
+            (build-panel-action {:onClick #(fc/transact! this [(tx/build-release {:build-id build-id})])} "release"))
           ))))
 
-(def ui-build-panel (fp/factory BuildPanel {:keyfn ::m/build-id}))
+(def ui-build-panel (fc/factory BuildPanel {:keyfn ::m/build-id}))

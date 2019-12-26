@@ -12,6 +12,7 @@
             [shadow.build.api :as build-api]
             [shadow.build :as build]
             [shadow.build.targets.shared :as shared]
+            [shadow.build.targets.external-index :as external-index]
             [shadow.build.config :as config]
             [shadow.build.output :as output]
             [shadow.build.closure :as closure]
@@ -28,19 +29,32 @@
 
 (s/def ::module-loader boolean?)
 
+(defn has-either-chunks-or-modules? [x]
+  (or (contains? x :modules)
+      (contains? x :chunks)
+      false))
+
 (s/def ::target
-  (s/keys
-    :req-un
-    []
-    :opt-un
-    [::shared/modules
-     ::shared/chunks
-     ::module-loader
-     ::shared/output-dir
-     ::shared/asset-path
-     ::shared/public-dir
-     ::shared/public-path
-     ::shared/devtools]))
+  (s/and
+    (s/keys
+      :req-un
+      []
+      :opt-un
+      [::shared/modules
+       ::shared/chunks
+       ::module-loader
+       ::shared/output-dir
+       ::shared/asset-path
+       ::shared/public-dir
+       ::shared/public-path
+       ::shared/devtools])
+    has-either-chunks-or-modules?))
+
+(comment
+  (s/explain :shadow.build.config/build+target
+    '{:target :browser
+      :build-id :foo
+      :modulesx {:foo {:init-fn foo/bar}}}))
 
 (defmethod config/target-spec :browser [_]
   (s/spec ::target))
@@ -83,7 +97,7 @@
                     default
                     []
 
-                    (or release? (= :eval (get-in config [:devtools :loader-mode])))
+                    (or release? (= :eval (get-in config [:devtools :loader-mode] :eval)))
                     [(str asset-path "/" (:output-name module))]
 
                     :else ;; dev-mode
@@ -197,9 +211,12 @@
 
 (defn rewrite-modules
   "rewrites :modules to add browser related things"
-  [{:keys [worker-info] :as state} mode {:keys [modules module-loader] :as config}]
+  [{:keys [worker-info] :as state} mode {:keys [modules module-loader release-version devtools] :as config}]
 
-  (let [default-module (pick-default-module-from-config modules)]
+  (let [default-module (pick-default-module-from-config modules)
+        {:keys [enabled browser-inject worker-inject]} devtools
+        enabled? (not (false? enabled))
+        build-worker? (and enabled? (= :dev mode) worker-info)]
     (reduce-kv
       (fn [mods module-id {:keys [web-worker init-fn preloads] :as module-config}]
         (let [default?
@@ -219,16 +236,23 @@
                           ;; call this before init
                           (update :append-js str "\nshadow.loader.init(\"\");")))
 
-                    init-fn
-                    (merge-init-fn init-fn)
-
                     ;; REPL client - only for watch (via worker-info), not compile
+                    ;; this needs to be in base module
+                    (and default? build-worker?)
+                    (update :entries shared/prepend '[cljs.user shadow.cljs.devtools.client.env])
 
-                    (and default? (= :dev mode) worker-info)
-                    (inject-repl-client state config)
+                    (and build-worker?
+                         (or (and default? (nil? browser-inject))
+                             (= browser-inject module-id)))
+                    (update :entries shared/prepend '[shadow.cljs.devtools.client.browser])
 
-                    (and worker-info (not web-worker) (not (false? (get-in config [:devtools :enabled]))))
-                    (update :append-js str "\nshadow.cljs.devtools.client.browser.module_loaded('" (name module-id) "');\n")
+                    (and build-worker?
+                         (or (and web-worker (nil? worker-inject))
+                             (= worker-inject module-id)))
+                    (update :entries shared/prepend '[shadow.cljs.devtools.client.worker])
+
+                    build-worker?
+                    (update :append-js str "\nshadow.cljs.devtools.client.env.module_loaded('" (name module-id) "');\n")
 
                     ;; other modules just need to tell the loader they finished loading
                     (and module-loader (not (or default? web-worker)))
@@ -239,9 +263,16 @@
                     (and (seq preloads) (= :dev mode))
                     (update :entries shared/prepend preloads)
 
+                    ;; should run after any other append-js
+                    init-fn
+                    (merge-init-fn init-fn)
+
                     ;; global :devtools :preloads
                     (and default? (= :dev mode))
                     (inject-preloads state config)
+
+                    (and release-version (= :release mode))
+                    (assoc :output-name (str (name module-id) "." release-version ".js"))
 
                     ;; DEVTOOLS console, it is prepended so it loads first in case anything wants to log
                     (and default? (= :dev mode))
@@ -273,10 +304,8 @@
               (assoc :modules chunks)))
 
         output-wrapper?
-        (let [x (get-in state [:compiler-options :output-wrapper])]
-          (if (false? x)
-            false
-            (or x (and (= :release mode) (= 1 (count modules))))))]
+        (and (= :release mode)
+             (not (false? (get-in state [:compiler-options :output-wrapper]))))]
 
     (-> state
         (assoc ::build/config config) ;; so the merged defaults don't get lost
@@ -465,22 +494,23 @@
 (def ^Escaper js-escaper
   (SourceCodeEscapers/javascriptEscaper))
 
-(defn eval-load-sources [state sources]
+(defn generate-eval-js-output [state {:keys [sources] :as mod}]
   (->> sources
        (remove #{output/goog-base-id})
-       (map #(data/get-source-by-id state %))
-       (map (fn [{:keys [output-name] :as rc}]
-              (let [{:keys [js] :as output} (data/get-output! state rc)
+       (reduce
+         (fn [state src-id]
+           (let [{:keys [output-name] :as rc} (data/get-source-by-id state src-id)
+                 {:keys [js eval-js] :as output} (data/get-output! state rc)]
+             (if eval-js
+               state
+               (let [source-map? (output/has-source-map? output)
+                     eval-js (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")]
+                 (assoc-in state [:output src-id :eval-js] eval-js)))))
+         state)))
 
-                    source-map?
-                    (output/has-source-map? output)]
-                (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")
-                )))
-       (str/join "\n")))
-
-(defn flush-unoptimized-module-eval!
-  [{:keys [unoptimizable build-options] :as state}
-   {:keys [goog-base output-name prepend append sources web-worker] :as mod}
+(defn flush-unoptimized-module-eval
+  [{:keys [unoptimizable] :as state}
+   {:keys [goog-base prepend append sources web-worker] :as mod}
    target]
 
   (let [sources
@@ -492,7 +522,22 @@
                 (into sources))))
 
         source-loads
-        (eval-load-sources state sources)
+        (if-not web-worker
+          (->> sources
+               (map #(get-in state [:output % :eval-js]))
+               (str/join "\n"))
+
+          ;; don't use evalLoad in worker, source maps don't work and not sure why
+          ;; guess it doesn't support sourceURL or sourceMappingURL would require full url?
+          ;; can't seem to get it to work right with eval. works fine when just loading files
+          (str "SHADOW_ENV.load({}, "
+               (->> sources
+                    (remove #{output/goog-base-id})
+                    (map #(data/get-source-by-id state %))
+                    (map :output-name)
+                    (into [])
+                    (json/write-str))
+               ");\n"))
 
         out
         (str prepend
@@ -515,11 +560,7 @@
                  (when (and (or goog-base web-worker) (seq polyfill-js))
                    (str "\n" polyfill-js)))
 
-               (-> state
-                   (cond->
-                     web-worker
-                     (assoc-in [:compiler-options :closure-defines "shadow.cljs.devtools.client.env.enabled"] false))
-                   (output/closure-defines-and-base))
+               (output/closure-defines-and-base state)
 
                (if web-worker
                  (slurp (io/resource "shadow/boot/worker.js"))
@@ -534,9 +575,10 @@
           out)]
 
     (io/make-parents target)
-    (spit target out)))
+    (spit target out))
+  state)
 
-(defn flush-unoptimized-module-fetch!
+(defn flush-unoptimized-module-fetch
   [{:keys [unoptimizable build-options] :as state}
    {:keys [goog-base output-name prepend append sources web-worker] :as mod}
    target]
@@ -612,11 +654,7 @@
                  (when (and goog-base (seq polyfill-js))
                    (str "\n" polyfill-js)))
 
-               (-> state
-                   (cond->
-                     web-worker
-                     (assoc-in [:compiler-options :closure-defines "shadow.cljs.devtools.client.env.enabled"] false))
-                   (output/closure-defines-and-base))
+               (output/closure-defines-and-base state)
 
                (if web-worker
                  (slurp (io/resource "shadow/boot/worker.js"))
@@ -631,15 +669,19 @@
           out)]
 
     (io/make-parents target)
-    (spit target out)))
+    (spit target out))
 
-(defn flush-unoptimized-module!
+  state)
+
+(defn flush-unoptimized-module
   [state module target]
-  (if (= :eval (get-in state [:shadow.build/config :devtools :loader-mode]))
-    (flush-unoptimized-module-eval! state module target)
-    (flush-unoptimized-module-fetch! state module target)))
+  (if (= :eval (get-in state [:shadow.build/config :devtools :loader-mode] :eval))
+    (-> state
+        (generate-eval-js-output module)
+        (flush-unoptimized-module-eval module target))
+    (flush-unoptimized-module-fetch state module target)))
 
-(defn flush-unoptimized!
+(defn flush-unoptimized
   [{:keys [build-modules] :as state}]
 
   ;; FIXME: this always flushes
@@ -656,51 +698,46 @@
   (util/with-logged-time
     [state {:type :flush-unoptimized}]
 
-    (doseq [{:keys [output-name] :as mod} build-modules]
-      (flush-unoptimized-module! state mod (data/output-file state output-name)))
-
-    state
-    ))
-
-(defn flush-unoptimized
-  [state]
-  "util for ->"
-  (flush-unoptimized! state)
-  state)
+    (reduce
+      (fn [state {:keys [output-name] :as mod}]
+        (flush-unoptimized-module state mod (data/output-file state output-name)))
+      state
+      build-modules)))
 
 (defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
-  (case mode
-    :dev
-    (-> state
-        (cond->
-          module-loader
-          (-> (inject-loader-setup-dev config)
-              (flush-module-data)))
-        (flush-unoptimized)
-        (flush-manifest))
-    :release
-    (-> state
-        ;; must hash before adding loader since it needs to know the final uris of the modules
-        ;; it will change the uri of the base module after
-        (cond->
-          module-hash-names
-          (hash-optimized-modules module-hash-names)
+  (-> state
+      (cond->
+        (= :external (get-in state [:js-options :js-provider]))
+        (external-index/flush-js)
 
-          ;; true to inject the loader data (which changes the signature)
-          ;; any other true-ish value still generates the module-loader.edn data files
-          ;; but does not inject (ie. change the signature)
-          (true? module-loader)
-          (inject-loader-setup-release config)
+        (= :dev mode)
+        (-> (cond->
+              module-loader
+              (-> (inject-loader-setup-dev config)
+                  (flush-module-data)))
+            (flush-unoptimized)
+            (flush-manifest))
 
-          (get-in state [:compiler-options :output-wrapper])
-          (apply-output-wrapper))
-        (output/flush-optimized)
-        (cond->
-          module-loader
-          (flush-module-data))
-        (flush-manifest))))
+        (= :release mode)
+        (-> (cond->
+              ;; must hash before adding loader since it needs to know the final uris of the modules
+              ;; it will change the uri of the base module after
+              module-hash-names
+              (hash-optimized-modules module-hash-names)
 
+              ;; true to inject the loader data (which changes the signature)
+              ;; any other true-ish value still generates the module-loader.edn data files
+              ;; but does not inject (ie. change the signature)
+              (true? module-loader)
+              (inject-loader-setup-release config)
 
+              (get-in state [:compiler-options :output-wrapper])
+              (apply-output-wrapper))
+            (output/flush-optimized)
+            (cond->
+              module-loader
+              (flush-module-data))
+            (flush-manifest)))))
 
 (defn make-web-worker-prepend [state mod]
   (let [all

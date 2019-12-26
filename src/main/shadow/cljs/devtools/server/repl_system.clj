@@ -1,12 +1,10 @@
 (ns shadow.cljs.devtools.server.repl-system
   (:require
     [clojure.core.async :as async :refer (go >! <! >!! <!!)]
-    [clojure.main :as cm]
+    [shadow.cljs.devtools.server.repl-system.clojure :as clojure]
     [shadow.cljs.model :as m]
     [shadow.jvm-log :as log])
-  (:import [java.util UUID Date]
-           [clojure.lang LineNumberingPushbackReader]
-           [java.io PipedInputStream PipedOutputStream BufferedReader InputStreamReader Writer OutputStreamWriter BufferedWriter StringWriter]))
+  (:import [java.util UUID Date]))
 
 (defn send-to-tools [state-ref msg]
   (doseq [{:keys [tool-out]} (-> @state-ref :tools vals)]
@@ -33,11 +31,31 @@
                           (assoc ::m/runtime-id runtime-id))))
       )))
 
+(defmulti handle-sys-msg (fn [state-ref tool-data msg] (::m/op msg ::default)) :default ::default)
+
+(defmethod handle-sys-msg ::default [state-ref tool-data msg]
+  (log/debug ::handle-tool-msg-noop msg))
+
+(defmethod handle-sys-msg ::m/runtimes
+  [state-ref
+   {:keys [tool-out] :as tool-data}
+   {::m/keys [request-id] :as msg}]
+  (let [{:keys [runtimes]} @state-ref
+        result (reduce-kv
+                 (fn [v runtime-id {:keys [runtime-info]}]
+                   (conj v {::m/runtime-id runtime-id
+                            ::m/runtime-info runtime-info}))
+                 []
+                 runtimes)]
+    (>!! tool-out {::m/op ::m/runtimes-result
+                   ::m/request-id request-id
+                   ::m/runtimes result})))
+
 (defn handle-tool-msg [state-ref {:keys [tool-id tool-out] :as tool-data} {::m/keys [request-id runtime-id] :as msg}]
   ;; (log/debug ::handle-tool-msg msg)
   (if-not runtime-id
-    ;; client didn't send runtime. handle system ops later
-    (log/debug ::handle-tool-msg-noop msg)
+    ;; client didn't send runtime. tread at system op
+    (handle-sys-msg state-ref tool-data msg)
 
     ;; client did send ::m/runtime-id, forward to runtime if found
     (let [{:keys [runtime-in] :as runtime-info}
@@ -80,16 +98,17 @@
                               ::m/runtime-id runtime-id
                               ::m/runtime-info runtime-info})
 
-    (go (loop []
-          (when-some [msg (<! runtime-out)]
-            (handle-runtime-msg state-ref runtime-data msg)
-            (recur)
-            ))
+    (async/thread
+      (loop []
+        (when-some [msg (<!! runtime-out)]
+          (handle-runtime-msg state-ref runtime-data msg)
+          (recur)
+          ))
 
-        (send-to-tools state-ref {::m/op ::m/runtime-disconnect
-                                  ::m/runtime-id runtime-id})
+      (send-to-tools state-ref {::m/op ::m/runtime-disconnect
+                                ::m/runtime-id runtime-id})
 
-        (swap! state-ref update :runtimes dissoc runtime-id))
+      (swap! state-ref update :runtimes dissoc runtime-id))
 
     runtime-in
     ))
@@ -114,197 +133,27 @@
 
     (swap! state-ref assoc-in [:tools tool-id] tool-data)
 
-    (go (loop []
-          (when-some [msg (<! tool-in)]
-            (handle-tool-msg state-ref tool-data msg)
-            (recur)))
+    (async/thread
+      (loop []
+        (when-some [msg (<!! tool-in)]
+          (handle-tool-msg state-ref tool-data msg)
+          (recur)))
 
-        ;; send to all runtimes so they can cleanup state?
-        (send-to-runtimes state-ref {::m/op ::m/tool-disconnect
-                                     ::m/tool-id tool-id})
+      ;; send to all runtimes so they can cleanup state?
+      (send-to-runtimes state-ref {::m/op ::m/tool-disconnect
+                                   ::m/tool-id tool-id})
 
-        (swap! state-ref update :tools dissoc tool-id)
-        (async/close! tool-out))
+      (swap! state-ref update :tools dissoc tool-id)
+      (async/close! tool-out))
 
     tool-out))
 
-(defmulti process-clj-msg* (fn [state msg] (::m/op msg)))
-
-(defmethod process-clj-msg* :default [state msg]
-  (log/debug ::unknown-clj-msg msg)
-  state)
-
-(defmethod process-clj-msg* ::m/tool-disconnect [state {::m/keys [tool-id] :as msg}]
-  (update state :repl-sessions
-    (fn [s]
-      (reduce-kv
-        (fn [s session-id {:keys [pipe-out] :as session}]
-          (if (not= tool-id (:tool-id session))
-            s
-            (do (log/debug ::tool-close-session msg)
-                (.close pipe-out)
-                (dissoc s session-id)
-                )))
-        s
-        s))))
-
-
-;; taken from clojure/core/server.clj 1.10 alphas PrintWriter_on
-;; renamed to prevent name collision
-
-(defn ^java.io.PrintWriter writer->fn
-  "implements java.io.PrintWriter given flush-fn, which will be called
-  when .flush() is called, with a string built up since the last call to .flush().
-  if not nil, close-fn will be called with no arguments when .close is called"
-  {:added "1.10"}
-  [flush-fn close-fn]
-  (let [sb (StringBuilder.)]
-    (-> (proxy [Writer] []
-          (flush []
-            (when (pos? (.length sb))
-              (flush-fn (.toString sb)))
-            (.setLength sb 0))
-          (close []
-            (.flush ^Writer this)
-            (when close-fn (close-fn))
-            nil)
-          (write [str-cbuf off len]
-            (when (pos? len)
-              (if (instance? String str-cbuf)
-                (.append sb ^String str-cbuf ^int off ^int len)
-                (.append sb ^chars str-cbuf ^int off ^int len)))))
-        java.io.BufferedWriter.
-        java.io.PrintWriter.)))
-
-(defmethod process-clj-msg* ::m/session-start
-  [{:keys [runtime-id sys-out] :as state} {::m/keys [session-id tool-id] :as msg}]
-
-  (let [pipe-out
-        (PipedOutputStream.)
-
-        session-in
-        (-> (PipedInputStream. pipe-out)
-            (InputStreamReader.)
-            (LineNumberingPushbackReader.))
-
-        send-msg
-        (fn [msg]
-          (let [msg (assoc msg
-                      ::m/tool-id tool-id
-                      ::m/runtime-id runtime-id
-                      ::m/session-id session-id)]
-            (when-not (async/offer! sys-out msg)
-              (log/warn ::clj-session-overload msg))))
-
-        session-out
-        (writer->fn
-          (fn [text]
-            (send-msg {::m/op ::m/session-out
-                       ::m/session-out text}))
-          nil)
-
-        session-err
-        (writer->fn
-          (fn [text]
-            (send-msg {::m/op ::m/session-err
-                       ::m/session-err text}))
-          nil)
-
-        session-ns-ref
-        (atom 'user)
-
-        thread-fn
-        (bound-fn []
-          (binding [*in* session-in
-                    *out* session-out
-                    *err* session-err]
-            (cm/repl
-              :need-prompt
-              (constantly false)
-
-              :print
-              (fn [val]
-                (let [result-id (str (UUID/randomUUID))
-                      printed (pr-str val)]
-                  ;; FIXME: store val for later
-                  (send-msg {::m/op ::m/session-result
-                             ::m/printed-result printed
-                             ::m/result-id result-id}))
-
-                (let [ns (symbol (str *ns*))]
-                  (when (not= ns @session-ns-ref)
-                    (send-msg {::m/op ::m/session-update
-                               ::m/session-ns ns})
-                    (reset! session-ns-ref ns)
-                    )))
-
-              :caught
-              (fn [ex]
-                (log/debug-ex ex ::clj-session-ex {:session-id session-id})
-                (let [sw (StringWriter.)]
-                  (binding [*err* sw]
-                    (cm/repl-caught ex))
-
-                  (send-msg {::m/op ::m/session-err
-                             ::m/session-err (.toString sw)}))
-                )))
-
-          (send-msg {::m/op ::m/session-end}))
-
-        session-thread
-        (Thread. thread-fn (str "shadow-clj-repl-" runtime-id))]
-
-    (send-msg {::m/op ::m/session-started
-               ;; FIXME: the loop should probably send this
-               ::m/session-ns 'user})
-
-    (.start session-thread)
-
-    (assoc-in state [:repl-sessions session-id]
-      {:tool-id tool-id
-       :session-id session-id
-       :session-in session-in
-       :session-out session-out
-       :session-err session-err
-       :session-thread session-thread
-       :pipe-out pipe-out})))
-
-(defmethod process-clj-msg* ::m/session-eval
-  [state {::m/keys [session-id input-text] :as msg}]
-  (let [session (get-in state [:repl-sessions session-id])]
-    (if-not session
-      (do (log/warn ::session-not-found msg)
-          state)
-      (let [{:keys [pipe-out]} session]
-
-        (.write pipe-out (.getBytes (str input-text "\n")))
-        (.flush pipe-out)
-        (log/debug ::session-eval {:pipe-out pipe-out :text input-text})
-
-        state
-        ))))
-
-(defn process-clj-msg [state msg]
-  (log/debug ::process-clj-msg msg)
-  (try
-    (process-clj-msg* state msg)
-    (catch Exception ex
-      (log/warn-ex ex ::process-clj-msg msg)
-      state)))
-
-(defn clj-loop! [svc runtime-id sys-in sys-out]
-  (loop [state {:repl-system svc
-                :runtime-id runtime-id
-                :sys-in sys-in
-                :sys-out sys-out
-                :repl-sessions {}}]
-    (when-some [msg (<!! sys-in)]
-      (-> state
-          (process-clj-msg msg)
-          (recur)
-          )))
-
-  (async/close! sys-out))
+(defn find-runtimes-for-build
+  [{:keys [state-ref] :as svc} build-id]
+  (->> (:runtimes @state-ref)
+       (vals)
+       (filter #(= build-id (-> % :runtime-info :build-id)))
+       (vec)))
 
 (defn start []
   (let [svc
@@ -327,7 +176,7 @@
            :runtime-type :clj}
           clj-out)]
 
-    (async/thread (clj-loop! svc clj-id clj-in clj-out))
+    (async/thread (clojure/clj-loop! svc clj-id clj-in clj-out))
     svc
     ))
 
@@ -336,3 +185,76 @@
 
     (doseq [{:keys [tool-out]} (vals tools)]
       (async/close! tool-out))))
+
+
+(comment
+  (def svc (start))
+
+  svc
+  (stop svc)
+
+  (def svc (:repl-system @shadow.cljs.devtools.server.runtime/instance-ref))
+
+  (def clj-runtime-id (-> svc :state-ref deref :runtimes keys first))
+
+  (def tool-in (async/chan))
+  (def tool-out (tool-connect svc 1 tool-in))
+
+  (go (loop []
+        (when-some [msg (<! tool-out)]
+          (clojure.pprint/pprint msg)
+          (recur)))
+      (prn ::loop-shutdown))
+
+  (>!! tool-out :foo)
+
+  (>!! tool-in {::m/op ::m/runtimes})
+
+  ;; runtime eval just evals in specified ns
+  ;; does not maintain set of bindings (only for length of input-text)
+  ;; can eval multiple forms at once, will eof at end of string
+  ;; intended to be used by tools that want to eval
+  ;; events originating from the user should use session
+  (>!! tool-in {::m/op ::m/runtime-eval
+                ::m/runtime-id clj-runtime-id
+                ::m/input-text "::foo `foo"
+                ::m/ns 'user})
+
+  ;; start new session (fresh set of bindings, thread for clojure)
+  (>!! tool-in {::m/op ::m/session-start
+                ::m/runtime-id clj-runtime-id
+                ::m/session-id 1})
+
+  ;; eval in session
+  (>!! tool-in {::m/op ::m/session-eval
+                ::m/runtime-id clj-runtime-id
+                ::m/session-id 1
+                ::m/input-text "(ns foo.bar)"})
+
+  (>!! tool-in {::m/op ::m/session-eval
+                ::m/runtime-id clj-runtime-id
+                ::m/session-id 1
+                ::m/input-text "::foo"})
+
+  ;; second session not affected by ns form of first
+  (>!! tool-in {::m/op ::m/session-start
+                ::m/runtime-id clj-runtime-id
+                ::m/session-id 2})
+
+  (>!! tool-in {::m/op ::m/session-eval
+                ::m/runtime-id clj-runtime-id
+                ::m/session-id 2
+                ::m/input-text "::foo"})
+
+  ;; should it even be allowed to "chunk" output? or just assume a full form is sent?
+  (>!! tool-in {::m/op ::m/session-eval
+                ::m/runtime-id clj-runtime-id
+                ::m/session-id 1
+                ::m/input-text "(+ 1"})
+
+  (>!! tool-in {::m/op ::m/session-eval
+                ::m/runtime-id clj-runtime-id
+                ::m/session-id 1
+                ::m/input-text "1)"})
+
+  )

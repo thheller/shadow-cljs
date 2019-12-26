@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.8.41"
+(defproject thheller/shadow-cljs "2.8.83"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -17,45 +17,43 @@
    [com.google.errorprone/error_prone_annotations "2.1.3"]
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
-  ;; FIXME: not actually using any 1.10 features since I don't want
-  ;; not sure how to best handle this in a library situation
-  ;; can't use :scope "provided" since I otherwise need to track
-  ;; it manually in the npm launcher which just installs shadow-cljs
-  ;; and would be missing clojure then
   :dependencies
   [[org.clojure/clojure "1.10.1"]
 
    [org.clojure/data.json "0.2.6"]
    [org.clojure/tools.cli "0.3.7"]
    [org.clojure/tools.reader "1.3.2"]
+
    [nrepl "0.6.0"]
+   [cider/piggieback "0.4.1"]
 
    [com.cognitect/transit-clj "0.8.313"]
    [com.cognitect/transit-cljs "0.8.256"]
 
-   [org.clojure/core.async "0.4.500"]
+   [org.clojure/core.async "0.6.532"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.10.520"
+   [org.clojure/clojurescript "1.10.597"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded
-     org.clojure/google-closure-library]]
+     org.clojure/google-closure-library
+     org.clojure/google-closure-library-third-party]]
 
-   ;; [com.google.javascript/closure-compiler-unshaded "v20180319"]
-   ;;  v20180506
-   [com.google.javascript/closure-compiler-unshaded "v20190618"]
-   [org.clojure/google-closure-library "0.0-20190213-2033d5d9"]
+   [com.google.javascript/closure-compiler-unshaded "v20191027"]
+
+   [org.clojure/google-closure-library "0.0-20191016-6ae1f72f"]
+   [org.clojure/google-closure-library-third-party "0.0-20191016-6ae1f72f"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.22.Final"
+   [io.undertow/undertow-core "2.0.25.Final"
     :exclusions
     [org.jboss.xnio/xnio-api
      org.jboss.xnio/xnio-nio]]
 
-   [org.jboss.xnio/xnio-api "3.7.2.Final"]
-   [org.jboss.xnio/xnio-nio "3.7.2.Final"
+   [org.jboss.xnio/xnio-api "3.7.3.Final"]
+   [org.jboss.xnio/xnio-nio "3.7.3.Final"
     :exlusions [org.jboss.threads/jboss-threads]]
 
    [org.jboss.threads/jboss-threads "2.3.2.Final"]
@@ -82,7 +80,7 @@
 
    ;; experimental
    [hawk "0.2.11"]
-   [thheller/shadow-cljsjs "0.0.18"]]
+   [thheller/shadow-cljsjs "0.0.21"]]
 
   :source-paths
   ["src/main"]
@@ -111,8 +109,13 @@
     ["src/dev"
      "src/repl"]
 
+    :jvm-opts
+    ["-XX:+UnlockDiagnosticVMOptions"
+     "-XX:+DebugNonSafepoints"]
+
     :dependencies
-    [#_[org.slf4j/slf4j-log4j12 "1.7.25"]
+    [[com.clojure-goes-fast/clj-async-profiler "0.4.0"]
+     #_[org.slf4j/slf4j-log4j12 "1.7.25"]
      #_[log4j "1.2.17"]]}
 
    :aot
@@ -125,13 +128,19 @@
     :main shadow.cljs.devtools.cli}
 
    :cljs
-   {:java-opts ^:replace ["-XX:-OmitStackTraceInFastThrow"]
+   {:java-opts
+    ^:replace
+    ["-XX:-OmitStackTraceInFastThrow"
+     "-Dclojure.core.async.go-checking=true"]
     :dependencies
-    [[fulcrologic/fulcro "2.8.3"
+    [[com.fulcrologic/fulcro "3.0.6"
       :exclusions
       [clojure-future-spec
        com.stuartsierra/component
+       edn-query-language/eql
        garden]]
+
+     #_ [thheller/shadow-experiments "0.0.1"]
      [fulcrologic/fulcro-inspect "2.2.5"]
      [funcool/bide "1.6.0"]
      [com.andrewmcveigh/cljs-time "0.5.2"]
@@ -144,12 +153,7 @@
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware
-     [shadow.cljs.devtools.server.nrepl/cljs-load-file
-      shadow.cljs.devtools.server.nrepl/cljs-eval
-      shadow.cljs.devtools.server.nrepl/cljs-select
-      ;; required by some tools, not by shadow-cljs.
-      ;; cemerick.piggieback/wrap-cljs-repl
-      ]}
+     [shadow.cljs.devtools.server.nrepl/middleware]}
     :source-paths
     ["src/dev"
      "src/gen"

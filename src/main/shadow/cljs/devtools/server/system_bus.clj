@@ -15,11 +15,12 @@
 (defn broadcast!
   [{:keys [bus-mult-chan] :as svc} msg]
   {:pre [(svc? svc)]}
-  (async/>!! bus-mult-chan msg))
+  (when-not (async/offer! bus-mult-chan msg)
+    (throw (ex-info "failed to broadcast! message, offer! failed" {:msg msg}))))
 
 (defn sub
   ([svc topic sub-chan]
-    (sub svc topic sub-chan true))
+   (sub svc topic sub-chan true))
   ([{:keys [bus-pub] :as svc} topic sub-chan close?]
    {:pre [(svc? svc)]}
    (async/sub bus-pub topic sub-chan close?)))
@@ -33,17 +34,18 @@
   [{:keys [bus-pub-chan] :as svc} topic msg]
   {:pre [(svc? svc)
          (map? msg)]}
-  (async/>!! bus-pub-chan (assoc msg ::m/topic topic)))
+  (when-not (async/offer! bus-pub-chan (assoc msg ::m/topic topic))
+    (throw (ex-info "failed to publish!, offer! failed" {:msg msg :topic topic}))))
 
 (defn start []
   (let [bus-mult-chan
-        (async/chan)
+        (async/chan 1000)
 
         bus-mult
         (async/mult bus-mult-chan)
 
         bus-pub-chan
-        (async/chan)
+        (async/chan 1000)
 
         bus-pub
         (async/pub bus-pub-chan ::m/topic)]

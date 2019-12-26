@@ -14,24 +14,26 @@
  {8600 "out/demo-browser/public"
   8606 "out/demo-test-browser"}
 
+ :prepl {:browser 12345}
+
  :plugins [demo.dummy-plugin]
 
  :nrepl {:port 8202 :middleware []}
+ :socket-repl {:port 8204}
 
  :source-paths
  ["src/dev"
   "src/main"
   "src/test"]
 
+ :build-defaults
+ {:compiler-options {:infer-externs :auto}}
+
  :builds
  {:cli
   {:target :npm-module
    :entries [shadow.cljs.npm.cli]
    :output-dir "packages/shadow-cljs/cli/dist"
-
-   :compiler-options
-   {:optimizations :advanced
-    :infer-externs :auto}
 
    :devtools
    {:enabled false}}
@@ -40,18 +42,16 @@
   {:target :node-script
    :main shadow.cljs.npm.create/main
    :output-to "packages/create-cljs-project/dist/script.js"
-   :compiler-options {:infer-externs :auto}
    :devtools {:enabled false}}
 
   :babel-worker
   {:target :node-script
    :main shadow.cljs.npm.babel-worker/main
-   :output-to "src/ui-release/shadow/cljs/dist/babel-worker.js"
+   :output-to "packages/babel-worker/out/babel-worker.js"
+   ;; :output-to "src/ui-release/shadow/cljs/dist/babel-worker.js"
    :js-options
-   {:node-modules-dir "packages/babel-worker"
-    :js-provider :shadow
-    :keep-native-requires true}
-   :compiler-options {:infer-externs :auto}
+   {:js-package-dirs ["packages/babel-worker/node_modules"]
+    :js-provider :require}
    :devtools {:enabled false}}
 
   :ui
@@ -62,11 +62,11 @@
    :asset-path "/js"
 
    :compiler-options
-   {:infer-externs :auto
-    :warnings {:invalid-arithmetic true}}
+   {:output-wrapper false
+    :warnings {:invalid-arithmetic false}}
 
    :js-options
-   {:node-modules-dir "packages/ui"}
+   {:js-package-dirs ["packages/ui/node_modules"]}
 
    :module-loader true
    :modules
@@ -74,13 +74,20 @@
     {:init-fn shadow.cljs.ui.app/init}
     :repl
     {:init-fn shadow.cljs.ui.pages.repl/init
-     :depends-on #{:app}}
+     :depends-on #{:app :codemirror}}
     :build
     {:init-fn shadow.cljs.ui.pages.build/init
+     :depends-on #{:app}}
+    :inspect
+    {:init-fn shadow.cljs.ui.pages.inspect/init
+     :depends-on #{:app :codemirror}}
+    :codemirror
+    {:entries []
      :depends-on #{:app}}}
 
    :devtools
-   {:preloads [fulcro.inspect.preload]
+   {:preloads [com.fulcrologic.fulcro.inspect.preload
+               shadow.remote.runtime.cljs.browser]
     ;; :loader-mode :eval
     }}
 
@@ -88,14 +95,11 @@
   {:target :browser
    :output-dir "src/ui-release/shadow/cljs/build_report/dist/js"
 
-   :compiler-options
-   {:infer-externs :auto}
-
    :modules
    {:main {:entries [shadow.cljs.build-report.ui]}}
 
    :js-options
-   {:node-modules-dir "packages/ui"}
+   {:js-package-dirs ["packages/ui/node_modules"]}
 
    :devtools
    {:enabled false}}
@@ -119,65 +123,48 @@
    :asset-path "/js"
 
    :compiler-options
-   {:infer-externs :auto
-    ;; :strip-type-prefixes #{"cljs.pprint"}
+   {;; :strip-type-prefixes #{"cljs.pprint"}
     :shadow-keywords true
     :output-feature-set :es6
+    :output-wrapper false
     ;; :closure-output-charset "US-ASCII"
     :closure-defines
     {demo.browser/FOO "bar"}}
 
    :build-hooks
-   [(demo.hooks/dummy 1 2 3)]
+   [(shadow.html/copy-file
+      "out/demo-browser/index.src.html"
+      "out/demo-browser/public/index.html")]
 
    :module-loader true
    ;; :module-hash-names true
    :modules
    {:base
-    {:entries
-     [cljs.core demo.sm-before]
-     :depends-on
-     #{}}
+    {:entries [cljs.core demo.sm-before]
+     :depends-on #{}}
 
     :demo
-    {:entries
-     [demo.browser]
-     :depends-on
-     #{:base}}
+    {:init-fn demo.browser/init
+     :depends-on #{:base}
+     :preloads [shadow.remote.runtime.cljs.browser]}
 
     :extra
-    {:entries
-     [demo.browser-extra]
-     :depends-on
-     #{:demo}}
+    {:entries [demo.browser-extra]
+     :depends-on #{:demo}}
 
     :worker
-    {:entries
-     [demo.worker]
+    {:init-fn demo.worker/init
      :depends-on #{:base}
      :web-worker true}}
 
    :js-options
-   {:js-provider :shadow
-    :variable-renaming :local
-    :babel-preset-config
-    {:targets {:safari 11}}
-
-    :resolve
-    {"moment"
-     false
-
-     "circular-test"
-     {:target :file
-      :file "test/dummy/circular-a.js"}
-     "babel-test"
-     {:target :file
-      :file "test/es6/babel.js"}
-     }}
+   {;; :js-provider :external
+    :external-index "target/external.js"}
 
    :devtools
-   {;; :loader-mode :eval
-    :repl-init-ns demo.browser
+   {;; :loader-mode :script
+    :browser-inject :demo
+    :worker-inject :worker
     :before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 
@@ -204,9 +191,7 @@
        :asset-path "/js"
 
        :compiler-options
-       {:infer-externs :auto
-        :shadow-keywords true
-        :closure-defines {demo.browser/FOO "bar"}}
+       {:closure-defines {demo.browser/FOO "bar"}}
 
        :modules
        {:demo {:entries [demo.browser]}}
@@ -448,6 +433,7 @@
   :npm
   {:target :npm-module
    :output-dir "out/demo-npm/lib"
+   :closure-defines {demo.npm/SOMETHING "BAR"}
    :entries [demo.npm
              #_demo.rel-require]}
 
@@ -463,6 +449,13 @@
    :devtools {:autoload true
               :preload [shadow.expo.keep-awake]}}
 
+  :test-rn
+  {:target :react-native
+   :init-fn demo.rn/init
+   :chunks {:foo demo.rn-foo/component}
+   :output-dir "out/TestCRNA/app"
+   :devtools {:autoload true}}
+
   #_#_:expo-android
       {:target :expo
        :init-fn demo.rn/init
@@ -473,14 +466,11 @@
        {:http-port 19501
         :http-root "out/TestCRNA/out-android"}}
 
-  #_#_:npm-web
-      {:target :npm-module
-       :runtime :browser
-       :entries [demo.browser]
-       :output-dir "out/npm-web/src/cljs"
-       :compiler-options
-       {:externs ["shadow/cljs/npm/externs.js"
-                  "demo/browser-externs.js"]}}
+  :npm-web
+  {:target :npm-module
+   :runtime :browser
+   :entries [demo.repl]
+   :output-dir "out/npm-web/src/cljs"}
 
   #_#_:node-repl-test
       {:target :node-script

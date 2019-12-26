@@ -35,7 +35,7 @@
 
 (defn replace-goog-global [state]
   (update-in state [:sources output/goog-base-id :source]
-    str/replace "goog.global = this;" "goog.global = global;"))
+    str/replace output/goog-global-snippet "goog.global = global;"))
 
 (defn configure
   [state {:keys [main output-to] :as opts}]

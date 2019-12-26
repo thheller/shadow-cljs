@@ -8,20 +8,23 @@
     [clojure.pprint :refer (pprint)]
     [clojure.spec.alpha :as s]
     [clojure.spec.gen.alpha :as gen]
-    [shadow.api :refer (ns-ready)]
     [cljs.core.async :as async :refer (go alt!)]
     ["./es6.js" :as es6]
     ["./foo" :as foo]
     #_["circular-test" :as circ]
     #_["/demo/myComponent" :refer (myComponent)]
-    [demo.never-load]
-    [demo.always-load]
+    [demo.macro :as m]
     [shadow.resource :as rc]
     [shadow.loader :as sl]
     [cljs.loader :as cl]
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
+    [demo.googClass :refer (Foo)]
     ))
+
+(js/console.log "foo" Foo)
+
+(js/console.log "macro" (m/foo 1 2 3))
 
 (def lazy-x
   (lazy/loadable demo.browser-extra/x))
@@ -109,22 +112,20 @@
 (defn ^:dev/after-load start []
   (js/console.log "browser-start")
   (set! (.-innerHTML (js/document.querySelector "h1")) "loaded!")
-  #_(let [worker (js/Worker. "/js/worker.js")]
-      (reset! worker-ref worker)
-
-      (.addEventListener worker "message"
-        (fn [e]
-          (js/console.log "mesage from worker" e)))))
+  )
 
 (defn start-from-config []
   (js/console.log "browser-start-from-config"))
 
-(defn ^:export init []
-  (js/console.log "browser-init")
-  (-> (lazy/load lazy-xym)
-      (.then
-        (fn [x] (js/console.log "finished loading" x))
-        (fn [err] (js/console.log "failed loading" err))))
+(defn init []
+  (js/console.warn "browser-init")
+
+  (let [worker (js/Worker. "/js/worker.js")]
+    (reset! worker-ref worker)
+
+    (.addEventListener worker "message"
+      (fn [e]
+        (js/console.log "mesage from worker" e))))
 
   (start))
 
@@ -158,8 +159,6 @@
   (js/console.log (test-macro 1 2 3))
 
   (js/console.log {:something [:nested #{1 2 3}]}))
-
-(ns-ready)
 
 (goog-define DEBUG false)
 

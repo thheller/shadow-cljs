@@ -116,7 +116,7 @@
           )))))
 
 (defn repl-error [e]
-  (js/console.error "repl/invoke error" e)
+  (js/console.error "repl/invoke error" (.-message e) e)
   (env/repl-error e))
 
 (defn repl-invoke [{:keys [id js]}]
@@ -125,7 +125,7 @@
         (assoc :id id)
         (ws-msg))))
 
-(defn repl-require [{:keys [id sources reload-namespaces js-requires] :as msg}]
+(defn repl-require [{:keys [id sources reload-namespaces js-requires] :as msg} done]
   (let [sources-to-load
         (->> sources
              (remove (fn [{:keys [provides] :as src}]
@@ -138,9 +138,10 @@
       (fn [sources]
         (do-js-load sources)
         (ws-msg {:type :repl/require-complete :id id})
+        (done)
         ))))
 
-(defn repl-init [{:keys [repl-state id]}]
+(defn repl-init [{:keys [repl-state id]} done]
   (reset! repl-ns-ref (get-in repl-state [:current :ns]))
   (load-sources
     ;; maybe need to load some missing files to init REPL
@@ -150,27 +151,31 @@
     (fn [sources]
       (do-js-load sources)
       (ws-msg {:type :repl/init-complete :id id})
-      (devtools-msg "REPL init successful"))))
+      (devtools-msg "REPL init successful")
+      (done))))
 
 (defn repl-set-ns [{:keys [id ns]}]
   (reset! repl-ns-ref ns)
   (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
 
 ;; FIXME: core.async-ify this
-(defn handle-message [{:keys [type] :as msg}]
+(defn handle-message [{:keys [type] :as msg} done]
   ;; (js/console.log "ws-msg" (pr-str msg))
   (case type
     :repl/invoke
     (repl-invoke msg)
 
     :repl/require
-    (repl-require msg)
+    (repl-require msg done)
 
     :repl/set-ns
     (repl-set-ns msg)
 
     :repl/init
-    (repl-init msg)
+    (repl-init msg done)
+
+    :repl/ping
+    (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
 
     :build-complete
     (handle-build-complete msg)
@@ -194,12 +199,10 @@
     (devtools-msg (str "watch for build \"" env/build-id "\" not running"))
 
     ;; default
-    :ignored))
+    :ignored)
 
-(defn heartbeat! []
-  (when-let [s @socket-ref]
-    (.send s (pr-str {:type :ping :v (js/Date.now)}))
-    (js/setTimeout heartbeat! 30000)))
+  (when-not (contains? env/async-ops type)
+    (done)))
 
 (defn ws-connect []
   (let [ws-url
@@ -239,9 +242,9 @@
 
     (set! (.-onerror socket)
       (fn [e]
-        (devtools-msg "websocket error" e)))
+        (js/console.error (str "WebSocket connect failed:" (.-message e) "\n"
+                               "It was trying to connect to: " (subs ws-url 0 (str/index-of ws-url "/" 6)) "\n"))))
 
-    (js/setTimeout heartbeat! 30000)
     ))
 
 (when ^boolean env/enabled

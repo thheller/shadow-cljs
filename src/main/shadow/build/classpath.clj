@@ -125,7 +125,14 @@
                    (remove npm/asset-require?)
                    (distinct)
                    (map npm/maybe-convert-goog)
-                   (into []))]
+                   (into []))
+
+              js-deps
+              (cond-> js-deps
+                (:uses-global-buffer info)
+                (conj "buffer")
+                (:uses-global-process info)
+                (conj "process"))]
 
           (-> info
               (merge rc)
@@ -402,7 +409,7 @@
                           (assoc info :url (.getTextContent node))
 
                           "description"
-                          (assoc info :description (.getTextContent node))
+                          (assoc info :description (str/trim (.getTextContent node)))
 
                           info
                           )))))
@@ -573,10 +580,27 @@
      :file file
      :url (.toURL file)}))
 
+(defn is-gitlib-file? [^File file]
+  (loop [file (.getAbsoluteFile file)]
+    (cond
+      (nil? file)
+      false
+
+      (and (.exists file) (.isDirectory file) (= ".gitlibs" (.getName file)))
+      true
+
+      :else
+      (recur (.getParentFile file)))))
+
+(comment
+  (is-gitlib-file? (io/file "src" "main" "shadow" "build.clj"))
+  (is-gitlib-file? (io/file (System/getProperty "user.home") ".gitlibs" "libs")))
+
 (defn find-fs-resources*
   [cp ^File root]
   (let [root-path (.getCanonicalPath root)
-        root-len (inc (count root-path))]
+        root-len (inc (count root-path))
+        is-gitlib-root? (is-gitlib-file? root)]
     (into []
       (for [^File file (file-seq root)
             :when (and (.isFile file)
@@ -590,7 +614,12 @@
                            (rc/normalize-name))]
             :when (not (should-ignore-resource? cp name))]
 
-        (make-fs-resource file name)
+        (-> (make-fs-resource file name)
+            ;; treat gitlibs as if they were from a .jar
+            ;; affects hot-reload and warnings logic
+            (cond->
+              is-gitlib-root?
+              (assoc :from-jar true)))
         ))))
 
 (defn find-fs-resources [cp ^File root]
@@ -604,6 +633,7 @@
 
     (.isDirectory file)
     (find-fs-resources cp file)
+
     (and (.isFile file) (util/is-jar? (.getName file)))
     (find-jar-resources cp file)
 
@@ -1043,6 +1073,36 @@
          (symbol? sym)]}
   (contains? (-> cp :index-ref deref :foreign-provides) sym))
 
+(defn as-path ^Path [^String path]
+  (Paths/get path (into-array String [])))
+
+(defn resolve-rel-path [^String resource-name ^String require]
+  (let [parent (-> (as-path resource-name) (.getParent))
+
+        ^Path path
+        (cond
+          (not (nil? parent))
+          (.resolve parent require)
+
+          (str/starts-with? require "./")
+          (as-path (subs require 2))
+
+          (str/starts-with? require "../")
+          (throw (ex-info
+                   (str "Cannot access \"" require "\" from \"" resource-name "\".\n"
+                        "Access outside the classpath is not allowed for relative requires.")
+                   {:tag ::access-outside-classpath
+                    :require-from resource-name
+                    :require require}))
+
+          :else
+          (as-path require))]
+
+    (-> path
+        (.normalize)
+        (.toString)
+        (rc/normalize-name))))
+
 (defn find-js-resource
   ;; absolute require "/some/foo/bar.js" or "/some/foo/bar"
   ([{:keys [index-ref] :as cp} ^String require]
@@ -1059,14 +1119,7 @@
    (when-not require-from
      (throw (ex-info "relative requires only allowed in files" {:require require})))
 
-   (let [path
-         (-> (Paths/get resource-name (into-array String []))
-             (.getParent)
-             (.resolve require)
-             (.normalize)
-             (.toString)
-             (rc/normalize-name))]
-
+   (let [path (resolve-rel-path resource-name require)]
      (when (str/starts-with? path ".")
        (throw (ex-info
                 (str "Cannot access \"" require "\" from \"" resource-name "\".\n"
@@ -1081,7 +1134,8 @@
 (comment
   ;; FIXME: implement correctly
 
-
+  (resolve-rel-path "foo.cljs" "../bar.js")
+  (resolve-rel-path "foo.cljs" "./../bar.js")
 
   (defn find-dependents-for-names [state source-names]
     (->> source-names

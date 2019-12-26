@@ -120,6 +120,14 @@
 
     (pprint repl-state)))
 
+(deftest test-repl-ns-with-js
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(ns hello.world (:require [\"react\" :as r]))"))]
+
+    (pprint repl-state)))
+
 (deftest test-repl-require-current-ns
   (let [{:keys [repl-state] :as state}
         (-> (basic-repl-setup)
@@ -128,5 +136,30 @@
             (repl/process-input "(in-ns 'demo.browser)")
             (repl/process-input "(require 'demo.browser :reload)")
             )]
+
+    (pprint repl-state)))
+
+
+(deftest test-repl-anon-fn
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(fn [foo] foo)"))]
+
+    (pprint repl-state)))
+
+(deftest test-repl-warnings
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(require 'demo.warnings)"))]
+
+    (pprint repl-state)))
+
+(deftest test-repl-self-require-doesnt-blow-up
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(require 'cljs.user)"))]
 
     (pprint repl-state)))

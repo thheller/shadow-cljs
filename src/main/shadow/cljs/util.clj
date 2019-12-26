@@ -10,7 +10,7 @@
             [clojure.java.io :as io]
             [clojure.java.shell :as sh])
   (:import (clojure.lang Namespace IDeref)
-           (java.io File StringWriter ByteArrayOutputStream)
+           (java.io File StringWriter ByteArrayOutputStream IOException)
            (java.security MessageDigest)
            (java.nio.charset Charset)
            [java.net URLConnection URL]))
@@ -296,15 +296,29 @@
             exit-code (.waitFor proc)]
         {:exit exit-code :out @out :err @err}))))
 
+(defn url-last-modified* [^URL url]
+  (try
+    (let [^URLConnection con (.openConnection url)
+          ;; not looking at it but only way to close file:... connections
+          ;; which keep the file open and will leak otherwise
+          stream (.getInputStream con)]
+      (try
+        (.getLastModified con)
+        (finally
+          (.close stream))))
+    (catch IOException e
+      -1)))
+
+(defonce last-mod-cache-ref (atom {}))
+
 (defn url-last-modified [^URL url]
-  (let [^URLConnection con (.openConnection url)
-        ;; not looking at it but only way to close file:... connections
-        ;; which keep the file open and will leak otherwise
-        stream (.getInputStream con)]
-    (try
-      (.getLastModified con)
-      (finally
-        (.close stream)))))
+  (if (not= "jar" (.getProtocol url))
+    (url-last-modified* url)
+    ;; cache all .jar lookups since they can't change at runtime
+    (or (get @last-mod-cache-ref url)
+        (let [mod (url-last-modified* url)]
+          (swap! last-mod-cache-ref assoc url mod)
+          mod))))
 
 (defn resource-last-modified [path]
   {:pre [(string? path)]}

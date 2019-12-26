@@ -22,19 +22,18 @@
      (into [] (map #(to-clj % opts)) (array-seq x))
 
      :else ;; object
-     (reduce
-       (fn [result key]
-         (let [value
-               (gobj/get x key)
-
-               key-fn
-               (get opts :key-fn keyword)]
-
-           (assoc result (key-fn (to-clj key opts)) (to-clj value opts))
-           ))
-       {}
-       (gobj/getKeys x)
-       ))))
+     (let [key-fn (get opts :key-fn keyword)]
+       (->> (gobj/getKeys x)
+            (reduce
+              (fn [result key]
+                (let [value (gobj/get x key)]
+                  (assoc! result
+                    (if (string? key)
+                      (key-fn key)
+                      (to-clj key opts))
+                    (to-clj value opts))))
+              (transient {}))
+            (persistent!))))))
 
 (defn read-str [str opts]
   (to-clj (js/JSON.parse str) opts))

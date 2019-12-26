@@ -1,4 +1,5 @@
-(ns demo.macro)
+(ns demo.macro
+  (:require [demo.macro-dep :as dep]))
 
 (defmacro foo [& body]
-  `(seq ~@body))
+  (dep/foo))

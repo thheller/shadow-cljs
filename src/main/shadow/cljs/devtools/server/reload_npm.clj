@@ -1,13 +1,13 @@
 (ns shadow.cljs.devtools.server.reload-npm
   "service that watches fs updates and ensures npm resources are updated
    will emit system-bus messages for inform about changed resources"
-  (:require [clojure.core.async :as async :refer (alt!! thread)]
-            [shadow.jvm-log :as log]
-            [shadow.build.npm :as npm]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.model :as m]
-            [shadow.cljs.util :as util]
-            [clojure.set :as set]))
+  (:require
+    [clojure.set :as set]
+    [shadow.jvm-log :as log]
+    [shadow.build.npm :as npm]
+    [shadow.cljs.model :as m]
+    [shadow.debug :refer (?> ?-> ?->>)])
+  (:import [java.util.concurrent Executors TimeUnit]))
 
 (defn dissoc-all [m files]
   (reduce dissoc m files))
@@ -20,18 +20,31 @@
 (defn invalidate-files [index modified-files]
   (update index :files dissoc-all modified-files))
 
-(defn check-files! [system-bus {:keys [index-ref] :as npm}]
+(defn check-files! [{:keys [index-ref] :as npm} update-fn]
   ;; this only needs to check files that were already referenced in some build
   ;; new files will be discovered when resolving
 
-  (let [{:keys [files] :as index}
+  (let [{:keys [files package-json-cache] :as index}
         @index-ref
 
+        modified-packages
+        (reduce-kv
+          (fn [modified package-json-file {:keys [last-modified content]}]
+            (if (= last-modified (.lastModified package-json-file))
+              modified
+              (conj modified (:package-name content))))
+          #{}
+          package-json-cache)
+
         modified-resources
-        (->> (:files @index-ref)
-             (vals)
-             (filter was-modified?)
-             (into []))
+        (when (seq modified-packages)
+          (reduce-kv
+            (fn [modified js-file {:keys [package-name] :as rc}]
+              (if-not (contains? modified-packages package-name)
+                modified
+                (conj modified rc)))
+            []
+            files))
 
         modified-files
         (into [] (map :file) modified-resources)]
@@ -49,41 +62,26 @@
                  (map :provides)
                  (reduce set/union #{}))]
 
-        (sys-bus/publish! system-bus ::m/resource-update {:added #{}
-                                                          :namespaces modified-provides})
-        ))))
+        (update-fn {:added #{} :namespaces modified-provides})))))
 
-(defn watch-loop [system-bus npm control-chan]
-  (loop []
-    (alt!!
-      control-chan
-      ([_] :stop)
+(defn start [npm update-fn]
+  {:pre [(npm/service? npm)
+         (fn? update-fn)]}
+  (let [ex (Executors/newSingleThreadScheduledExecutor)
 
-      ;; FIXME: figure out how much CPU this uses
-      ;; this is mostly watching node_modules which is unlikely to change
-      ;; but JS modules usually contain a whole bunch of files
-      ;; so increasing this would be fine
-      (async/timeout 2000)
-      ([_]
-        (try
-          (check-files! system-bus npm)
-          (catch Exception e
-            (log/warn-ex e ::npm-check-ex)))
-        (recur))))
+        check-fn
+        (fn []
+          (try
+            (check-files! npm update-fn)
+            (catch Exception e
+              (log/warn-ex e ::npm-check-ex))))]
 
-  ::terminated)
+    {:npm npm
+     :update-fn update-fn
+     :check-fn check-fn
+     :ex ex
+     :fut (.scheduleWithFixedDelay ex check-fn 2 2 TimeUnit/SECONDS)}))
 
-(defn start [system-bus npm]
-  (let [control-chan
-        (async/chan)]
-
-    {:system-bus system-bus
-     :npm npm
-     :control-chan control-chan
-     :watch-thread (thread (watch-loop system-bus npm control-chan))}))
-
-
-(defn stop [{:keys [watch-thread control-chan]}]
-  (async/close! control-chan)
-  (async/<!! watch-thread))
+(defn stop [{:keys [ex]}]
+  (.shutdown ex))
 

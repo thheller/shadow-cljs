@@ -15,6 +15,7 @@
     [shadow.build.data :as data]
     [shadow.build.log :as build-log]
     [shadow.build.async :as async]
+    [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.cljs-specs] ;; FIXME: move these
     ))
 
@@ -123,9 +124,13 @@
                                        :hook-id hook-id}]
           (hook-fn state))
         (catch Exception e
-          (log/warn-ex e ::hook-execute-ex {:hook-id hook-id
-                                            :build-id build-id})
-          state)))
+          (throw (ex-info
+                   (format "Hook %s failed in stage %s" hook-id stage)
+                   {:tag ::hook-error
+                    :build-id build-id
+                    :stage stage
+                    :hook-id hook-id}
+                   e)))))
     state
     (get-in state [:build-hooks stage])))
 
@@ -232,111 +237,135 @@
 (defn copy-js-options-to-npm [{:keys [mode js-options] :as state}]
   (update-in state [:npm :js-options] merge js-options {:mode mode}))
 
+;; may not be a good idea to expose this but it is the easiest way I can currently
+;; think of to work around re-frame-debug tracing stubs problem which requires
+;; switching the classpath. with this we just tell it to use a different ns when resolving
+;; day8.re-frame.tracing and switching the implementation that way.
+;; :ns-aliases functionality already exist, it just wasn't exposed to config
+(defn copy-ns-aliases
+  [state]
+  (let [m (get-in state [:build-options :ns-aliases])]
+    (if-not (seq m)
+      state
+      (-> state
+          (update :ns-aliases merge m)
+          (update :ns-aliases-reverse merge (set/map-invert m)))
+      )))
+
+(defn get-build-defaults [state]
+  (get-in state [:runtime-config :build-defaults] {}))
+
+(defn get-target-defaults [state target]
+  (get-in state [:runtime-config :target-defaults target] {}))
+
 (defn configure
   ([build-state mode config]
-    (configure build-state mode config {}))
+   (configure build-state mode config {}))
   ([build-state mode {:keys [build-id target] :as config} cli-opts]
-    {:pre [(build-api/build-state? build-state)
-           (map? config)
-           (keyword? mode)
-           (keyword? build-id)
-           (some? target)]
-     :post [(build-api/build-state? %)]}
+   {:pre [(build-api/build-state? build-state)
+          (map? config)
+          (keyword? mode)
+          (keyword? build-id)
+          (some? target)]
+    :post [(build-api/build-state? %)]}
 
-    (let [{:keys [build-options closure-defines compiler-options js-options build-hooks] :as config}
-          (-> config
-              (config-merge mode)
-              (util/reduce-> build-api/deep-merge (:config-merge cli-opts)))
+   (let [{:keys [build-options closure-defines compiler-options js-options build-hooks] :as config}
+         (-> (get-build-defaults build-state)
+             (build-api/deep-merge (get-target-defaults build-state target))
+             (build-api/deep-merge config)
+             (config-merge mode)
+             (util/reduce-> build-api/deep-merge (:config-merge cli-opts)))
 
-          target-fn
-          (get-target-fn target build-id)]
+         target-fn
+         (get-target-fn target build-id)]
 
-      ;; must do this after calling get-target-fn
-      ;; the namespace that it is in may have added to the multi-spec
-      (when-not (s/valid? ::config/build+target config)
-        (throw (ex-info "invalid build config" (assoc (s/explain-data ::config/build+target config)
-                                                 :tag ::config
-                                                 :config config))))
+     ;; must do this after calling get-target-fn
+     ;; the namespace that it is in may have added to the multi-spec
+     (when-not (s/valid? ::config/build+target config)
+       (throw (ex-info "invalid build config" (assoc (s/explain-data ::config/build+target config)
+                                                :tag ::config
+                                                :config config))))
 
-      (when (contains? config :source-paths)
-        (throw (ex-info
-                 ":source-paths only work at the top level and not per build."
-                 {:tag ::source-paths :config config})))
+     (when (contains? config :source-paths)
+       (throw (ex-info
+                ":source-paths only work at the top level and not per build."
+                {:tag ::source-paths :config config})))
 
-      (let [externs-file (io/file "externs" (str (name build-id) ".txt"))
-            {:keys [devtools]} config]
+     (let [externs-file (io/file "externs" (str (name build-id) ".txt"))
+           {:keys [devtools]} config]
 
-        (-> build-state
-            (assoc
-              :build-id build-id
-              ::build-id build-id
-              ::stage :init
-              ::config config
-              ::target-fn target-fn
-              :mode mode
-              ::mode mode)
-            ;; FIXME: not setting this for :release builds may cause errors
-            ;; http://dev.clojure.org/jira/browse/CLJS-2002
-            (update :runtime assoc :print-fn :console)
+       (-> build-state
+           (assoc
+             :build-id build-id
+             ::build-id build-id
+             ::stage :init
+             ::config config
+             ::target-fn target-fn
+             :mode mode
+             ::mode mode)
+           ;; FIXME: not setting this for :release builds may cause errors
+           ;; http://dev.clojure.org/jira/browse/CLJS-2002
+           (update :runtime assoc :print-fn :console)
 
-            (cond->
-              (seq build-hooks)
-              (configure-hooks-from-config build-hooks)
+           (cond->
+             (seq build-hooks)
+             (configure-hooks-from-config build-hooks)
 
-              ;; generic dev mode, each target can overwrite in :init stage
-              (= :dev mode)
-              (-> (build-api/enable-source-maps)
-                  (build-api/with-build-options
-                    {:use-file-min false})
-                  (build-api/with-compiler-options
-                    {:optimizations :none})
-                  (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG true})
-                  (assoc :devtools devtools)
-                  (build-api/with-js-options
-                    {:variable-renaming :off}))
+             ;; generic dev mode, each target can overwrite in :init stage
+             (= :dev mode)
+             (-> (build-api/enable-source-maps)
+                 (build-api/with-build-options
+                   {:use-file-min false})
+                 (build-api/with-compiler-options
+                   {:optimizations :none})
+                 (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG true})
+                 (assoc :devtools devtools)
+                 (build-api/with-js-options
+                   {:variable-renaming :off}))
 
-              ;; generic release mode
-              (= :release mode)
-              (-> (build-api/with-compiler-options
-                    {:optimizations :advanced
-                     :elide-asserts true
-                     :load-tests false
-                     :pretty-print false})
-                  (build-api/with-js-options {:minimize-require true})
-                  (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG false}))
+             ;; generic release mode
+             (= :release mode)
+             (-> (build-api/with-compiler-options
+                   {:optimizations :advanced
+                    :elide-asserts true
+                    :load-tests false
+                    :pretty-print false})
+                 (build-api/with-js-options {:minimize-require true})
+                 (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG false}))
 
-              closure-defines
-              (update-in [:compiler-options :closure-defines] merge closure-defines)
+             closure-defines
+             (update-in [:compiler-options :closure-defines] merge closure-defines)
 
-              compiler-options
-              (build-api/with-compiler-options compiler-options)
+             compiler-options
+             (build-api/with-compiler-options compiler-options)
 
-              build-options
-              (build-api/with-build-options build-options)
+             build-options
+             (build-api/with-build-options build-options)
 
-              (.exists externs-file)
-              (assoc :externs-file externs-file)
+             (.exists externs-file)
+             (assoc :externs-file externs-file)
 
-              js-options
-              (build-api/with-js-options js-options)
+             js-options
+             (build-api/with-js-options js-options)
 
-              (and (= :dev mode)
-                   (:keep-native-requires js-options))
-              (update-in [:js-options :keep-as-require] util/set-conj "ws"))
+             (and (= :dev mode)
+                  (:keep-native-requires js-options))
+             (update-in [:js-options :keep-as-require] util/set-conj "ws"))
 
-            ;; should do all configuration necessary
-            (process-stage :configure true)
+           ;; should do all configuration necessary
+           (process-stage :configure true)
 
-            ;; :optimizations is ignored in dev mode
-            ;; but cljs-devtools still reads it from the options and complains
-            ;; when it is not equal to :none
-            ;; so we overwrite whatever configure did since dev/release configs are shared
-            (cond->
-              (= :dev mode)
-              (assoc-in [:compiler-options :optimizations] :none))
+           ;; :optimizations is ignored in dev mode
+           ;; but cljs-devtools still reads it from the options and complains
+           ;; when it is not equal to :none
+           ;; so we overwrite whatever configure did since dev/release configs are shared
+           (cond->
+             (= :dev mode)
+             (assoc-in [:compiler-options :optimizations] :none))
 
-            (copy-js-options-to-npm)
-            )))))
+           (copy-ns-aliases)
+           (copy-js-options-to-npm)
+           )))))
 
 (defn- extract-build-macros [{:keys [build-sources] :as state}]
   (let [build-macros
@@ -403,6 +432,7 @@
   [state]
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
+  ;; (?> state ::flush)
   (-> state
       (process-stage :flush true)
       ;; FIXME: technically don't need to wait for this to complete

@@ -12,7 +12,8 @@
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.runtime :as runtime]
     [clojure.set :as set]
-    [clojure.core.async.impl.protocols :as async-prot])
+    [clojure.core.async.impl.protocols :as async-prot]
+    [shadow.build.npm :as npm])
   (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream PrintWriter File)
            [java.net SocketException]
            [java.util List]))
@@ -66,7 +67,7 @@
 
 (defn new-build
   [{:keys [build-id] :or {build-id :custom} :as build-config} mode opts]
-  (let [{:keys [npm classpath cache-root build-executor babel config] :as runtime}
+  (let [{:keys [classpath cache-root build-executor babel config] :as runtime}
         (runtime/get-instance!)
 
         {:keys [cache-blockers]}
@@ -75,37 +76,17 @@
         cache-dir
         (config/make-cache-dir cache-root build-id mode)
 
-        node-modules-dir
-        (when-let [nmd (get-in build-config [:js-options :node-modules-dir])]
-          (let [nmdf (io/file nmd)
-                abs-file
-                (cond
-                  (and (str/ends-with? nmd "node_modules")
-                       (.exists nmdf))
-                  (.getAbsoluteFile nmdf)
+        npm-config
+        (merge
+          ;; global config so it doesn't have to be configured per build
+          (select-keys (:js-options config) [:js-package-dirs :node-modules-dir :entry-keys :extensions])
+          ;; build config supersedes global
+          (select-keys (:js-options build-config) [:js-package-dirs :node-modules-dir :entry-keys :extensions]))
 
-                  (.exists (io/file nmdf "node_modules"))
-                  (-> (io/file nmdf "node_modules")
-                      (.getAbsoluteFile))
-
-                  (.exists nmdf)
-                  (.getAbsoluteFile nmdf)
-
-                  :else
-                  (throw (ex-info "invalid :node-modules-dir" {:node-modules-dir nmd})))]
-
-            ;; :node-modules-dir can be a relative path like "./foo" or "../"
-            (normalize-file abs-file)))
-
-        ;; FIXME: this should not happen here. move to more appropriate place
-        ;; somewhere in build targets maybe
+        ;; don't use shared npm instance since lookups are cached and
+        ;; js-package-dirs may affect what things resolve to
         npm
-        (-> (select-keys (:js-options build-config) [:entry-keys :extensions])
-            (merge npm)
-            (cond->
-              node-modules-dir
-              (assoc :node-modules-dir node-modules-dir)
-              ))]
+        (npm/start npm-config)]
 
     (-> (build-api/init)
         (build-api/with-npm npm)
@@ -124,11 +105,12 @@
           (set? cache-blockers)
           (update-in [:build-options :cache-blockers] set/union cache-blockers))
 
-        (assoc :mode mode))))
+        (assoc :mode mode :runtime-config config))))
 
 (defn print-warnings [warnings]
   (doseq [{:keys [msg line column source-name] :as w} warnings]
-    (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
+    (warnings/print-warning w)
+    #_ (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
 
 (defn print-build-start [{:keys [build-id] :as x}]
   (println (format "[%s] Compiling ..." build-id)))
@@ -188,8 +170,7 @@
           (println "Build shutdown.")
 
           :repl/action
-          (let [warnings (get-in x [:action :warnings])]
-            (print-warnings warnings))
+          :ignored
 
           ;; should have been handled somewhere else
           :repl/result

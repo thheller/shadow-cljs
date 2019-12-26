@@ -11,18 +11,14 @@
     [shadow.cljs.devtools.client.hud :as hud]
     ))
 
-(defonce active-modules-ref
-  (volatile! #{}))
-
 (defonce repl-ns-ref (atom nil))
-
-(defn module-loaded [name]
-  (vswap! active-modules-ref conj (keyword name)))
 
 (defonce socket-ref (volatile! nil))
 
 (defn devtools-msg [msg & args]
-  (.apply (.-log js/console) nil (into-array (into [(str "%cshadow-cljs: " msg) "color: blue;"] args))))
+  (if (seq env/log-style)
+    (js/console.log.apply js/console (into-array (into [(str "%c\uD83E\uDC36 shadow-cljs: " msg) env/log-style] args)))
+    (js/console.log.apply js/console (into-array (into [(str "shadow-cljs: " msg)] args)))))
 
 (defn ws-msg [msg]
   (if-let [s @socket-ref]
@@ -45,9 +41,6 @@
   (or (= goog-base-rc resource-id)
       (goog-is-loaded? output-name)))
 
-(defn module-is-active? [module]
-  (contains? @active-modules-ref module))
-
 (defn script-eval [code]
   (js/goog.globalEval code))
 
@@ -60,7 +53,11 @@
 
     (devtools-msg "load JS" resource-name)
     (env/before-load-src src)
-    (script-eval (str js "\n//# sourceURL=" resource-name))))
+    (try
+      (script-eval (str js "\n//# sourceURL=" resource-name))
+      (catch :default e
+        (js/console.error (str "Failed to load " resource-name) e)
+        (throw (js/Error. (str "Failed to load " resource-name ": " (.-message e))))))))
 
 (defn do-js-reload [msg sources complete-fn failure-fn]
   (env/do-js-reload
@@ -131,7 +128,7 @@
                    (filter
                      (fn [{:keys [module] :as rc}]
                        (or (= "js" env/module-format)
-                           (module-is-active? module))))
+                           (env/module-is-active? module))))
                    ;; don't reload namespaces that have ^:dev/never-reload meta
                    (remove (fn [{:keys [ns]}]
                              (contains? (:never-load reload-info) ns)))
@@ -218,13 +215,21 @@
       (assoc :ua-product (get-ua-product)
              :asset-root (get-asset-root))))
 
+(defn global-eval [js]
+  (if (not= "undefined" (js* "typeof(module)"))
+    ;; don't eval in the global scope in case of :npm-module builds running in webpack
+    (js/eval js)
+    ;; hack to force eval in global scope
+    ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
+    (js* "(0,eval)(~{});" js)))
+
 (defn repl-invoke [{:keys [id js]}]
-  (let [result (env/repl-call #(js/eval js) repl-error)]
+  (let [result (env/repl-call #(global-eval js) repl-error)]
     (-> result
         (assoc :id id)
         (ws-msg))))
 
-(defn repl-require [{:keys [id sources reload-namespaces js-requires] :as msg}]
+(defn repl-require [{:keys [id sources reload-namespaces js-requires] :as msg} done]
   (let [sources-to-load
         (->> sources
              (remove (fn [{:keys [provides] :as src}]
@@ -235,13 +240,17 @@
     (load-sources
       sources-to-load
       (fn [sources]
-        (do-js-load sources)
-        (when (seq js-requires)
-          (do-js-requires js-requires))
-        (ws-msg {:type :repl/require-complete :id id})
-        ))))
+        (try
+          (do-js-load sources)
+          (when (seq js-requires)
+            (do-js-requires js-requires))
+          (ws-msg {:type :repl/require-complete :id id})
+          (catch :default e
+            (ws-msg {:type :repl/require-error :id id :error (.-message e)}))
+          (finally
+            (done)))))))
 
-(defn repl-init [{:keys [repl-state id]}]
+(defn repl-init [{:keys [repl-state id]} done]
   (load-sources
     ;; maybe need to load some missing files to init REPL
     (->> (:repl-sources repl-state)
@@ -250,15 +259,17 @@
     (fn [sources]
       (do-js-load sources)
       (ws-msg {:type :repl/init-complete :id id})
-      (devtools-msg "REPL session start successful"))))
+      (devtools-msg "REPL session start successful")
+      (done))))
 
 (defn repl-set-ns [{:keys [id ns]}]
   (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
 
 (def close-reason-ref (volatile! nil))
+(def stale-client-detected (volatile! false))
 
 ;; FIXME: core.async-ify this
-(defn handle-message [{:keys [type] :as msg}]
+(defn handle-message [{:keys [type] :as msg} done]
   ;; (js/console.log "ws-msg" msg)
   (hud/connection-error-clear!)
   (case type
@@ -269,16 +280,19 @@
     (repl-invoke msg)
 
     :repl/require
-    (repl-require msg)
+    (repl-require msg done)
 
     :repl/set-ns
     (repl-set-ns msg)
 
     :repl/init
-    (repl-init msg)
+    (repl-init msg done)
 
     :repl/session-start
-    (repl-init msg)
+    (repl-init msg done)
+
+    :repl/ping
+    (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
 
     :build-complete
     (do (hud/hud-warnings msg)
@@ -299,16 +313,21 @@
     nil
 
     :client/stale
-    (vreset! close-reason-ref "Stale Client! You are not using the latest compilation output!")
+    (do (vreset! stale-client-detected true)
+        (vreset! close-reason-ref "Stale Client! You are not using the latest compilation output!"))
 
     :client/no-worker
-    (vreset! close-reason-ref (str "watch for build \"" env/build-id "\" not running"))
+    (do (vreset! stale-client-detected true)
+        (vreset! close-reason-ref (str "watch for build \"" env/build-id "\" not running")))
 
     :custom-msg
     (env/publish! (:payload msg))
 
     ;; default
-    :ignored))
+    :ignored)
+
+  (when-not (contains? env/async-ops type)
+    (done)))
 
 (defn compile [text callback]
   (xhr/send
@@ -325,13 +344,25 @@
     (pr-str {:input text})
     #js {"content-type" "application/edn; charset=utf-8"}))
 
-(defn heartbeat! []
-  (when-let [s @socket-ref]
-    (.send s (pr-str {:type :ping :v (js/Date.now)}))
-    (js/setTimeout heartbeat! 30000)))
+;; :init
+;; :connecting
+;; :connected
+(defonce ws-status (volatile! :init))
 
+(declare ws-connect-impl)
 
 (defn ws-connect []
+  (when (= (@ws-status :init))
+    (ws-connect-impl)))
+
+(defn maybe-reconnect []
+  (when (and (not @stale-client-detected)
+             (not= @ws-status :init))
+    (vreset! ws-status :init)
+    (js/setTimeout ws-connect 3000)))
+
+(defn ws-connect-impl []
+  (vreset! ws-status :connecting)
   (try
     (let [print-fn
           cljs.core/*print-fn*
@@ -351,6 +382,7 @@
 
       (set! (.-onopen socket)
         (fn [e]
+          (vreset! ws-status :connected)
           (hud/connection-error-clear!)
           (vreset! close-reason-ref nil)
           ;; :module-format :js already patches provide
@@ -371,14 +403,14 @@
           (hud/connection-error (or @close-reason-ref "Connection closed!"))
           (vreset! socket-ref nil)
           (env/reset-print-fns!)
+          (maybe-reconnect)
           ))
 
       (set! (.-onerror socket)
         (fn [e]
           (hud/connection-error "Connection failed!")
-          (devtools-msg "websocket error" e)))
-
-      (js/setTimeout heartbeat! 30000))
+          (maybe-reconnect)
+          (devtools-msg "websocket error" e))))
     (catch :default e
       (devtools-msg "WebSocket setup failed" e))))
 

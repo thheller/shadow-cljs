@@ -1,19 +1,22 @@
 (ns shadow.cljs.analyzer-test
-  (:require [shadow.build.api :as api]
-            [clojure.java.io :as io]
-            [shadow.cljs.util :as util]
-            [shadow.build.classpath :as cp]
-            [shadow.build.npm :as npm]
-            [shadow.build.data :as data]
-            [cljs.env :as cljs-env]
-            [cljs.analyzer :as cljs-ana]
-            [cljs.analyzer :as a]
-            [cljs.env :as e]
-            [clojure.pprint :refer (pprint)]
-            [clojure.test :refer (deftest is)]
-            [clojure.inspector :refer (inspect)]
-            [clojure.tools.analyzer :as ana]
-            [cljs.analyzer.api :as ana-api]))
+  (:require
+    [clojure.java.io :as io]
+    [clojure.pprint :refer (pprint)]
+    [clojure.test :refer (deftest is)]
+    [clojure.inspector :refer (inspect)]
+    [clojure.tools.analyzer :as ana]
+    [cljs.env :as cljs-env]
+    [cljs.analyzer :as cljs-ana]
+    [cljs.analyzer :as a]
+    [cljs.env :as e]
+    [cljs.analyzer.api :as ana-api]
+    [shadow.build.api :as api]
+    [shadow.cljs.util :as util]
+    [shadow.build.classpath :as cp]
+    [shadow.build.npm :as npm]
+    [shadow.build.data :as data]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [cljs.compiler :as comp]))
 
 (defn test-build []
   (let [npm
@@ -46,7 +49,7 @@
   (let [env (:env ast)
         ast (if (= op :fn)
               (assoc ast :methods
-                     (map #(simplify-env nil % opts) (:methods ast)))
+                         (map #(simplify-env nil % opts) (:methods ast)))
               ast)]
     (-> ast
         (dissoc :env)
@@ -59,7 +62,7 @@
   ([form] (to-ast 'cljs.user form))
   ([ns form]
    (let [env (assoc-in (a/empty-env) [:ns :name] ns)]
-     (binding [a/*passes* [elide-children simplify-env a/infer-type]]
+     (binding [a/*passes* [a/infer-type]]
        (a/analyze env form)))))
 
 (deftest test-analyzer-data
@@ -79,14 +82,46 @@
         '(fn [{:as c}]
            (.render ^js c))]
 
-    (binding [a/*cljs-ns* 'cljs.user]
+    (binding [a/*cljs-ns* 'cljs.core]
       (e/with-compiler-env compiler-env-ref
 
-        (pprint (to-ast form))
-
-        (pprint (get-in @compiler-env-ref [::a/namespaces 'cljs.user]))))
+        (?> (to-ast form) :ast)
+        (?> (get-in @compiler-env-ref [::a/namespaces 'cljs.core]) :cljs.core)
+        ))
 
     ))
+
+(deftest test-analyzer-data2
+  (let [test-ns
+        'cljs.core
+
+        {:keys [compiler-env] :as state}
+        (-> (test-build)
+            (api/configure-modules {:base {:entries [test-ns]}})
+            (api/analyze-modules)
+            (api/compile-sources))
+
+        compiler-env-ref
+        (atom compiler-env)
+
+        form
+        '(defn foo [^function bar]
+           (bar 1 2 3))]
+
+    (binding [a/*cljs-ns* 'cljs.core]
+      (e/with-compiler-env compiler-env-ref
+
+        (let [env
+              (-> (a/empty-env)
+                  (assoc :shadow.build/tweaks true)
+                  (assoc-in [:ns :name] test-ns))
+              ast
+              (binding [a/*passes* [a/infer-type]]
+                (a/analyze env form))]
+
+          (?> ast :ast)
+          (comp/emit ast))
+        ))))
 
 (deftest test-macroexpand
   (let [test-ns

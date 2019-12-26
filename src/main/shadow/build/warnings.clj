@@ -144,7 +144,9 @@
 
 (defn print-warning-header
   [{::keys [idx] :keys [resource-name file line column source-excerpt msg] :as warning}]
-  (println (coded-str [:bold] (sep-line (str " WARNING #" idx " - " (:warning warning) " ") 6)))
+  (if idx
+    (println (coded-str [:bold] (sep-line (str " WARNING #" idx " - " (:warning warning) " ") 6)))
+    (println (coded-str [:bold] (sep-line (str " WARNING - " (:warning warning) " ") 6))))
   (print (if file
            " File: "
            " Resource: "))

@@ -17,7 +17,7 @@
         (closure/make-options)
 
         externs
-        closure/default-externs
+        @closure/default-externs
 
         result
         (.compile cc externs [] co)]

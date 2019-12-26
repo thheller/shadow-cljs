@@ -4,7 +4,6 @@
     [clojure.java.io :as io]
     [clojure.string :as str]
     [shadow.jvm-log :as log]
-    [shadow.repl :as r]
     [shadow.http.router :as http]
     [shadow.runtime.services :as rt]
     [shadow.undertow :as undertow]
@@ -18,6 +17,7 @@
     [shadow.cljs.devtools.server.common :as common]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.repl-system :as repl-system]
+    [shadow.cljs.devtools.server.prepl :as prepl]
     [shadow.cljs.devtools.server.ns-explorer :as ns-explorer]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.util :as util]
@@ -28,7 +28,13 @@
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.reload-macros :as reload-macros]
     [shadow.cljs.devtools.server.build-history :as build-history]
-    [shadow.cljs.devtools.server.system-bus :as system-bus])
+    [shadow.remote.relay.local :as relay]
+    [shadow.remote.runtime.clojure :as clj-runtime]
+    [shadow.remote.runtime.obj-support :as obj-support]
+    [shadow.remote.runtime.tap-support :as tap-support]
+    [shadow.remote.runtime.eval-support :as eval-support]
+    [shadow.cljs.devtools.server.system-bus :as system-bus]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus])
   (:import (java.net BindException Socket SocketException InetSocketAddress)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
@@ -116,7 +122,8 @@
       (do-shutdown (stop))))
 
   (when cli-checker
-    (cli-checker))
+    ;; CompletableFuture
+    (.cancel cli-checker true))
 
   (do-shutdown (undertow/stop (:server http)))
 
@@ -194,51 +201,6 @@
 (defmethod log/log-msg ::nrepl-fallback [_ _]
   "Using tools.nrepl 0.2.* server!")
 
-(defn create-cli-checker [cli-port]
-  (let [cli-port (Long/valueOf cli-port)
-
-        keep-checking-ref
-        (atom true)
-
-        thread-fn
-        (fn []
-          (loop []
-            (when @keep-checking-ref
-              ;; check every sec so it doesn't take too long to exit after the node process disappeared
-              (Thread/sleep 1000)
-              (when (try
-                      (let [inet-address
-                            (InetSocketAddress. "localhost" cli-port)
-
-                            socket
-                            (Socket.)]
-
-                        ;; FIXME: what is a good timeout here?
-                        ;; 1000ms for a local socket connection is probably overkill
-                        (.connect socket inet-address 1000)
-
-                        (let [socket-in (.getInputStream socket)]
-                          ;; sends OK and closes, node will error out if we don't read this
-                          (.skip socket-in 2))
-
-                        ;; node will disconnect us also
-                        (.close socket)
-                        true)
-                      (catch Exception e
-                        (log/debug-ex e ::cli-check-failed {:cli-port cli-port})
-                        (stop!)
-                        false))
-                (recur)))))]
-
-    (log/debug ::cli-checker-start {:cli-port cli-port})
-
-    (doto (Thread. thread-fn "shadow-cljs-npm-process-checker")
-      (.setDaemon true)
-      (.start))
-
-    (fn []
-      (reset! keep-checking-ref false))))
-
 (defn start-system
   [app-ref app-config {:keys [cache-root] :as config}]
   (when @app-ref
@@ -288,36 +250,30 @@
         (socket-repl/start cli-repl-config app-ref)
 
         cli-checker
-        (when-let [cli-port (System/getenv "SHADOW_CLI_PORT")]
-          (let [cli-port (Long/valueOf cli-port)]
-            (create-cli-checker cli-port)))
+        (when-let [cli-pid (System/getenv "SHADOW_CLI_PID")]
+          (try
+            ;; 9+ only, fails with ClassNotFoundException otherwise
+            (Class/forName "java.lang.ProcessHandle")
+            ;; separate namespace so it can still run in jdk1.8
+            (let [attach-fn (requiring-resolve 'shadow.cljs.devtools.server.cli-check/attach)]
+              (log/debug ::clj-check {:cli-pid cli-pid})
+              (attach-fn cli-pid))
+            (catch ClassNotFoundException e
+              ;; FIXME: should probably still do something ...
+              ;; checking a socket failed on some systems
+              ;; checking a file failed on some systems
+              ;; none of it reproducible, hope ProcessHandle is more reliable
+              )))
 
         disable-nrepl?
         (or (false? (:nrepl config))
-            (false? (get-in config [:system-config :nrepl])))
+            (false? (get-in config [:user-config :nrepl])))
 
         nrepl
         (when-not disable-nrepl?
           (try
-            ;; problem child nrepl
-            ;; we need to start a 0.2 nrepl server
-            ;; if an older cider-nrepl version is used
-            ;; otherwise it should be fine to start 0.4
-            (let [use-old-nrepl?
-                  (when (io/resource "cider/nrepl.clj")
-                    (require 'cider.nrepl)
-
-                    (when-let [the-ns (find-ns 'cider.nrepl)]
-                      (= 'clojure.tools.nrepl.server
-                        (-> (.getAliases the-ns)
-                            (.get 'nrepl-server)
-                            (.getName)))))
-
-                  nrepl-ns
-                  (if use-old-nrepl?
-                    (do (log/info ::nrepl-fallback)
-                        'shadow.cljs.devtools.server.nrepl)
-                    'shadow.cljs.devtools.server.nrepl04)
+            (let [nrepl-ns
+                  'shadow.cljs.devtools.server.nrepl
 
                   _ (require nrepl-ns)
 
@@ -335,6 +291,22 @@
             (catch Exception e
               (log/warn-ex e ::nrepl-ex)
               nil)))
+
+        ;; prepl
+        ;; FIXME: this integration is kinda dirty
+        ;; probably should only start servers when build is actually running?
+        app-config
+        (if-not (:prepl config)
+          app-config
+          (let [prepl-svc
+                {:depends-on [:repl-system]
+                 :start (fn [repl-system]
+                          (let [svc (prepl/start repl-system)]
+                            (doseq [[build-id port] (:prepl config)]
+                              (prepl/start-server svc build-id (if (map? port) port {:port port})))
+                            svc))
+                 :stop prepl/stop}]
+            (assoc app-config :prepl prepl-svc)))
 
         port-files-ref
         (atom nil)
@@ -391,7 +363,7 @@
     ;; this will clash with lein writing its own .nrepl-port so it is disabled by default
     (when (and nrepl
                (or (get-in config [:nrepl :write-port-file])
-                   (get-in config [:system-config :nrepl :write-port-file])))
+                   (get-in config [:user-config :nrepl :write-port-file])))
       (let [nrepl-port-file (io/file ".nrepl-port")]
         (spit nrepl-port-file (str (:port nrepl)))
         (swap! port-files-ref assoc :nrepl-port nrepl-port-file)
@@ -415,7 +387,9 @@
   ([sys-config]
    (if (runtime/get-instance)
      ::already-running
-     (do (log/set-level! (get-in sys-config [:log :level] :info))
+     (do (log/set-level! (or (get-in sys-config [:log :level])
+                             (get-in sys-config [:user-config :log :level])
+                             :info))
          (let [app
                (merge
                  {:dev-http
@@ -457,11 +431,6 @@
                    :start reload-classpath/start
                    :stop reload-classpath/stop}
 
-                  :reload-npm
-                  {:depends-on [:system-bus :npm]
-                   :start reload-npm/start
-                   :stop reload-npm/stop}
-
                   :build-history
                   {:depends-on [:system-bus]
                    :start build-history/start
@@ -473,7 +442,7 @@
                    :stop reload-macros/stop}
 
                   :supervisor
-                  {:depends-on [:config :system-bus :build-executor :cache-root :http :classpath :npm :babel]
+                  {:depends-on [:config :system-bus :build-executor :relay :cache-root :http :classpath :npm :babel]
                    :start super/start
                    :stop super/stop}
 
@@ -481,6 +450,32 @@
                   {:depends-on []
                    :start repl-system/start
                    :stop repl-system/stop}
+
+                  :relay
+                  {:depends-on []
+                   :start relay/start
+                   :stop relay/stop}
+
+                  :clj-runtime
+                  {:depends-on [:relay]
+                   :start clj-runtime/start
+                   :stop clj-runtime/stop}
+
+                  :clj-runtime-obj-support
+                  {:depends-on [:clj-runtime]
+                   :start obj-support/start
+                   :stop obj-support/stop}
+
+                  :clj-runtime-tap-support
+                  {:depends-on [:clj-runtime :clj-runtime-obj-support]
+                   :start tap-support/start
+                   :stop tap-support/stop}
+
+                  :clj-runtime-eval-support
+                  {:depends-on [:clj-runtime :clj-runtime-obj-support]
+                   :start eval-support/start
+                   :stop eval-support/stop}
+
 
                   :out
                   {:depends-on [:config]
@@ -659,12 +654,13 @@
                   ;; done in separate loop since we cannot reliably do a non-blocking read from a blocking socket
                   ;; sort of hacking that as it is when looking at System/in directly
                   (loop []
-                    (when-not (stdin-closed?)
-                      (Thread/sleep 100)
+                    (when (and (not (stdin-closed?))
+                               @runtime/instance-ref)
+                      (Thread/sleep 500)
                       (recur)))
 
-                  (stop-builds!)
-                  ))
+                  (when @runtime/instance-ref
+                    (stop-builds!))))
 
               ;; run until either the instance is removed
               ;; or all builds we started are stopped by other means
@@ -686,8 +682,7 @@
                 (.close s)))
 
             :clj-repl
-            (r/enter-root {}
-              (socket-repl/repl {}))
+            (socket-repl/repl {})
 
             :cljs-repl
             (let [{:keys [supervisor] :as app}

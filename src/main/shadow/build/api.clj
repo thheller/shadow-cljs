@@ -187,7 +187,7 @@
 
        ;; FIXME: should these ever be configurable?
        :analyzer-passes
-       [cljs-ana/infer-type impl/find-protocols-pass]}
+       [cljs-ana/infer-type impl/find-protocols-pass impl/find-js-require-pass]}
       (data/init)))
 
 ;; helper methods that validate their args, sort of
@@ -234,8 +234,7 @@
   (update state :js-options deep-merge opts))
 
 (defn enable-source-maps [state]
-  (update state :compiler-options merge {:source-map "/dev/null"
-                                         :source-map-comment true}))
+  (update state :compiler-options merge {:source-map "/dev/null"}))
 
 (defn configure-modules [state modules]
   (modules/configure state modules))

@@ -175,18 +175,21 @@
 
 (defn generate-source-map
   [state
-   {:keys [resource-name output-name file input] :as src}
+   {:keys [resource-name output-name file] :as src}
    output
    js-file
    prepend]
   {:pre [(rc/valid-resource? src)
          (map? output)]}
   (when (has-source-map? output)
-    (let [sm-text
-          (str "\n//# sourceMappingURL=" output-name ".map\n")
+    (let [sm-suffix
+          (get-in state [:compiler-options :source-map-suffix] ".map")
+
+          sm-text
+          (str "\n//# sourceMappingURL=" output-name sm-suffix "\n")
 
           src-map-file
-          (io/file (str (.getAbsolutePath js-file) ".map"))
+          (io/file (str (.getAbsolutePath js-file) sm-suffix))
 
           use-fs-path?
           (true? (get-in state [:compiler-options :source-map-use-fs-paths]))
@@ -201,7 +204,7 @@
           (encode-source-map-json
             state
             ;; ugly hack to change the "sources":["/absolute/path/to/file.cljs"] in source maps
-            (assoc src :resource-name source-name)
+            (assoc src :resource-name source-name :prepend prepend)
             output)]
 
       (io/make-parents src-map-file)
@@ -217,7 +220,9 @@
         (data/get-output! state src)
 
         js-file
-        (data/output-file state (get-in state [:build-options :cljs-runtime-path]) output-name)]
+        (if-some [sub-path (get-in state [:build-options :cljs-runtime-path])]
+          (data/output-file state sub-path output-name)
+          (data/output-file state output-name))]
 
     ;; skip files we already have
     (when (or (not (.exists js-file))
@@ -279,7 +284,10 @@
                         ;; FIXME: ugly hack, make this cleaner
                         (or (nil? prepend)
                             (not (str/includes? prepend "shadow$provide"))))
-               "var shadow$provide = {};\n")
+               ;; when using :output-wrapper the closure compiler will for some reason use $jscomp without declaring it
+               ;; this is the quickest way I can think of to work around that. should figure out why GCC is going that.
+               (str "var $jscomp = {};\n"
+                    "var shadow$provide = {};\n"))
              ;; FIXME: shadow$provide must come before prepend
              ;; since output-wrapper uses prepend and we need this
              ;; to be available cross module, we should however try to avoid
@@ -306,6 +314,9 @@
   (let [{:keys [output prepend-offset shadow-js-outputs]}
         (finalize-module-output state mod)
 
+        add-source-mapping-url?
+        (not (false? (get-in state [:compiler-options :source-map-comment])))
+
         target
         (data/output-file state output-name)]
 
@@ -318,11 +329,11 @@
       (spit target "")
 
       (let [source-map-name
-            (str output-name ".map")
+            (str output-name (get-in state [:compiler-options :source-map-suffix] ".map"))
 
             final-output
             (str output
-                 (when source-map-json
+                 (when (and add-source-mapping-url? source-map-json)
                    (str "\n//# sourceMappingURL=" source-map-name "\n")))]
 
         (spit target final-output)
@@ -400,7 +411,7 @@
       (subs s 0 idx)
       s)))
 
-(defn js-module-src-prepend [state {:keys [resource-id resource-name output-name provides requires deps] :as src} require?]
+(defn js-module-src-prepend [state {:keys [output-name] :as src} require?]
   (let [dep-syms
         (data/deps->syms state src)
 
@@ -411,10 +422,9 @@
     (str (when require?
            (str "var $CLJS = require(\"./cljs_env\");\n"
                 "var $jscomp = $CLJS.$jscomp;\n"))
-         ;; the only actually global var goog sometimes uses that is not on goog.global
-         ;; actually only: goog/promise/thenable.js goog/proto2/util.js?
-         (when (str/starts-with? resource-name "goog")
-           "var COMPILED = false;\n")
+
+         ;; :npm-module is picky about this
+         "var COMPILED = false;\n"
 
          (when require?
            ;; emit requires to actual files to ensure that they were loaded properly
@@ -448,17 +458,25 @@
              (map comp/munge)
              (first))]
 
-    (str "\nmodule.exports = " export ";\n"
-         ;; work around cljs.compiler munging default to default$ unconditionally
-         (when (get-in state [:compiler-env ::ana/namespaces ns :defs 'default])
-           (str "Object.defineProperty(module.exports, \"default\", { get: function() { return " export ".default$; } });\n")))))
+    (str (when-not ns ;; none-cljs
+           (str "\nmodule.exports = " export ";\n"))
+         (->> (get-in state [:compiler-env ::ana/namespaces ns :defs])
+              (keys)
+              (map (fn [def]
+                     (str "Object.defineProperty(module.exports, \""
+                          (if (= 'default def) "default" (comp/munge def)) ;; avoid munge to default$
+                          "\", { enumerable: true, get: function() { return " export "." (comp/munge def) "; } });")))
+              (str/join "\n")))))
+
+(def goog-global-snippet
+  "goog.global =\n    // Check `this` first for backwards compatibility.\n    // Valid unless running as an ES module or in a function wrapper called\n    //   without setting `this` properly.\n    // Note that base.js can't usefully be imported as an ES module, but it may\n    // be compiled into bundles that are loadable as ES modules.\n    this ||\n    // https://developer.mozilla.org/en-US/docs/Web/API/Window/self\n    // For in-page browser environments and workers.\n    self;")
 
 (defn js-module-env
   [{:keys [polyfill-js] :as state} {:keys [runtime] :or {runtime :node} :as config}]
   (str "var $CLJS = {};\n"
        "var CLJS_GLOBAL = process.browser ? (typeof(window) != 'undefined' ? window : self) : global;\n"
        ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
-       "var CLOSURE_DEFINES = $CLJS.CLOSURE_DEFINES = " (closure-defines-json state) ";\n"
+       "var CLOSURE_DEFINES = CLJS_GLOBAL.CLOSURE_DEFINES = $CLJS.CLOSURE_DEFINES = " (closure-defines-json state) ";\n"
        "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
        ;; so devtools can access it
        "CLJS_GLOBAL.$CLJS = $CLJS;\n"
@@ -468,7 +486,10 @@
        ;; but we need it on $CLJS
        (-> (data/get-output! state {:resource-id goog-base-id})
            (get :js)
-           (str/replace "goog.global = global;" "goog.global = $CLJS;"))
+           ;; FIXME: this is using the compiled variant of goog/base.js
+           ;; don't use goog-global-snippet, that is used for uncompiled goog/base.js
+           ;; keeping both variants for now until I can make this cleaner
+           (str/replace "goog.global = this || self;" "goog.global = $CLJS;"))
 
        (if (seq polyfill-js)
          (str "\n" polyfill-js
@@ -484,7 +505,7 @@
        ))
 
 (defn flush-dev-js-modules
-  [{::comp/keys [build-info] :as state} mode config]
+  [{:shadow.build/keys [build-info] :as state} mode config]
 
   (util/with-logged-time [state {:type :npm-flush
                                  :output-path (.getAbsolutePath (get-in state [:build-options :output-dir]))}]
@@ -508,7 +529,7 @@
               :let [src (get-in state [:sources src-id])]
               :when (not (util/foreign? src))]
 
-        (let [{:keys [resource-name output-name last-modified]}
+        (let [{:keys [output-name last-modified]}
               src
 
               {:keys [js] :as output}
@@ -519,7 +540,7 @@
 
           ;; flush everything if env was modified, otherwise only flush modified
           (when (or env-modified?
-                    (contains? (:compiled build-info) resource-name)
+                    (contains? (:compiled build-info) src-id)
                     (not (.exists target))
                     (>= last-modified (.lastModified target)))
 

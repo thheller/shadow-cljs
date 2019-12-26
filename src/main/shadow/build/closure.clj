@@ -15,7 +15,9 @@
     [shadow.build.npm :as npm]
     [shadow.build.cache :as cache]
     [shadow.core-ext :as core-ext]
-    [shadow.build.resource :as rc])
+    [shadow.build.resource :as rc]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [clojure.data.json :as json])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
@@ -215,7 +217,7 @@
     (.setCodingConvention (ClosureCodingConvention.))))
 
 (def default-externs
-  (into [] (CommandLineRunner/getDefaultExterns)))
+  (delay (into [] (CommandLineRunner/getDefaultExterns))))
 
 ;; should use the exters/externs-map?
 (def known-js-globals
@@ -410,7 +412,7 @@
 
         all-externs
         (-> []
-            (into default-externs)
+            (into @default-externs)
             (into deps-externs)
             (into manual-externs)
             ;; closure gets picky when things are defined multiple times
@@ -531,7 +533,10 @@
 (defn js-error-xf [state ^com.google.javascript.jscomp.Compiler cc]
   (map (fn [^JSError err]
          (let [source-name
-               (.-sourceName err)
+               (.getSourceName err)
+
+               description
+               (.getDescription err)
 
                line
                (.getLineNumber err)
@@ -558,7 +563,7 @@
               :source-name source-name
               :line line
               :column column
-              :msg (.-description err)}
+              :msg description}
 
              (let [{:keys [resource-id resource-name file url]} src
 
@@ -585,7 +590,7 @@
                 :file file
                 :line line
                 :column column
-                :msg (.-description err)
+                :msg description
                 :source-excerpt source-excerpt}
                ))))))
 
@@ -623,8 +628,8 @@
   "\ngoog.nodeGlobalRequire = function(path) { return false };\n")
 
 (def constants-inject
-  (str "function shadow$keyword(name, hash) { return new cljs.core.Keyword(null, name, name, hash); };\n"
-       "function shadow$keyword_fqn(ns, name, hash) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, hash); };\n"))
+  (str "function shadow$keyword(name) { return new cljs.core.Keyword(null, name, name, null); };\n"
+       "function shadow$keyword_fqn(ns, name) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, null); };\n"))
 
 (defn make-js-modules
   [{:keys [build-modules build-sources] :as state}]
@@ -830,6 +835,17 @@
         (doto (make-options)
           (.resetWarningsGuard)
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
+
+          ;; namespaced keywords will cause a lot of repetition for namespace strings
+          ;; allowing closure to alias them can cut the overall size a bit
+          ;; gzip actually takes quite good care of this already but this squeezes
+          ;; another few bytes out for no additional work
+          (.setAliasableStrings
+            (->> (:compiler-env state)
+                 (::ana/namespaces)
+                 (keys)
+                 (map str)
+                 (set)))
 
           (.setWarningLevel DiagnosticGroups/CHECK_TYPES CheckLevel/OFF)
           ;; really only want the undefined variables warnings
@@ -1416,7 +1432,7 @@
             ;; ensure the proper polyfills are re-injected from cache
             ;; so they don't get lost
             (try
-              (.init cc default-externs source-files co)
+              (.init cc @default-externs source-files co)
               (when-not (.hasErrors cc)
                 (.parseForCompilation cc)
 
@@ -1681,6 +1697,20 @@
     {}
     str->sym))
 
+(defn cleanup-package-json-source
+  "npm adds a bunch of keys to package.json on install. none of those should ever be relevant in code
+   eg. _where _resolve _shasum"
+  [source]
+  (let [obj (json/read-str source)]
+    (-> (reduce-kv
+          (fn [m k v]
+            (if-not (str/starts-with? k "_")
+              m
+              (dissoc m k)))
+          obj
+          obj)
+        (json/write-str))))
+
 (defn convert-sources-simple*
   "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
   [{:keys [project-dir js-options npm mode build-sources] :as state} sources]
@@ -1698,8 +1728,14 @@
                               "var process = require('process');\n")
                             (when (:uses-global-buffer src)
                               "var Buffer = require('buffer').Buffer;\n")
-                            (if (str/ends-with? resource-name ".json")
+                            (cond
+                              (str/ends-with? resource-name "package.json")
+                              (str "module.exports=(" (cleanup-package-json-source source) ");")
+
+                              (str/ends-with? resource-name ".json")
                               (str "module.exports=(" source ");")
+
+                              :else
                               source)
                             "\n};"))]
 
@@ -1807,7 +1843,7 @@
         (try
           (util/with-logged-time [state {:type ::shadow-convert
                                          :num-sources (count sources)}]
-            (.compile cc default-externs source-files closure-opts))
+            (.compile cc @default-externs source-files closure-opts))
           ;; catch internal closure errors
           (catch Exception e
             (throw (ex-info "failed to convert sources"
@@ -2035,6 +2071,15 @@
                  :live-js-deps live-js-deps))
       )))
 
+(defn goog-compiler-options [state]
+  (merge
+    {:pretty-print true
+     :pseudo-names false
+     :language-in :ecmascript-next
+     :output-feature-set :es5
+     :source-map true}
+    (get-output-options state)))
+
 (defn convert-goog*
   "convert Closure Library code since it may contain a random mix of ClosureJS and Closure Modules"
   [{:keys [js-options mode] :as state} sources]
@@ -2061,13 +2106,7 @@
         (data/make-closure-compiler)
 
         co-opts
-        (merge
-          {:pretty-print true
-           :pseudo-names false
-           :language-in :ecmascript-next
-           :output-feature-set :es5
-           :source-map true}
-          (get-output-options state))
+        (goog-compiler-options state)
 
         generate-source-map?
         (not (false? (:source-map js-options)))
@@ -2086,7 +2125,7 @@
         (try
           (util/with-logged-time [state {:type ::goog-convert
                                          :num-files (count sources)}]
-            (.compile cc default-externs source-files closure-opts))
+            (.compile cc @default-externs source-files closure-opts))
           ;; catch internal closure errors
           (catch Exception e
             (throw (ex-info "failed to convert sources"
@@ -2160,9 +2199,9 @@
             (do (io/make-parents cache-index-file)
                 {}))
 
-        ;; FIXME: currently this doesn't accept any outside compiler options
+        ;; must invalidate cache if :output-feature-set changes
         cache-options
-        []
+        (goog-compiler-options state)
 
         cache-files
         (if (or (not= SHADOW-CACHE-KEY (:SHADOW-CACHE-KEY cache-index))
@@ -2263,3 +2302,23 @@
 (defmethod build-log/event->str ::goog-convert
   [{:keys [num-files]}]
   (format "Closure JS convert: %d JS files" num-files))
+
+(defn get-polyfills []
+  (let [cc
+        (data/make-closure-compiler)
+
+        co-opts
+        {}
+
+        closure-opts
+        (doto (make-options)
+          (set-options co-opts {})
+          (.setRewritePolyfills true)
+          (.setPrettyPrint true)
+          (.setForceLibraryInjection
+            ["base" "es6_runtime"]))
+
+        result
+        (.compile cc [] [] closure-opts)]
+
+    (.toSource cc)))
