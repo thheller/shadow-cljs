@@ -133,20 +133,11 @@
     ["-XX:-OmitStackTraceInFastThrow"
      "-Dclojure.core.async.go-checking=true"]
 
-
     :dependencies
-    [[com.fulcrologic/fulcro "3.0.6"
-      :exclusions
-      [clojure-future-spec
-       com.stuartsierra/component
-       edn-query-language/eql
-       garden]]
+    [[aysylu/loom "1.0.2"]
 
+     ;; no proper release yet, included via source-paths below
      #_ [thheller/shadow-experiments "0.0.1"]
-     [fulcrologic/fulcro-inspect "2.2.5"]
-     [funcool/bide "1.6.0"]
-     [com.andrewmcveigh/cljs-time "0.5.2"]
-     [aysylu/loom "1.0.2"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
@@ -161,6 +152,6 @@
      "src/gen"
      "src/test"
      "test-project/src/main"
-     ;; lein checkouts seems buggy af
+     ;; lein checkouts seems buggy af in cursive
      ;; can't be bothered to figure out how to fix it
      "../shadow-experiments/src/main"]}})
