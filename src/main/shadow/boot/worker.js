@@ -3,13 +3,6 @@ var SHADOW_ENV = (function () {
 
   var env = {};
 
-  var scriptBase = self.location.origin;
-  if (CLOSURE_BASE_PATH[0] == '/') {
-     scriptBase = scriptBase + CLOSURE_BASE_PATH;
-  } else {
-     scriptBase = CLOSURE_BASE_PATH;
-  }
-
   env.load = function (opts, paths) {
     paths.forEach(function (path) {
       if (!loadedFiles[path]) {
@@ -30,7 +23,7 @@ var SHADOW_ENV = (function () {
 
   env.evalLoad = function(path, sourceMap, code) {
     loadedFiles[path] = true;
-    code += ("\n//# sourceURL=" + scriptBase  + path);
+    code += ("\n//# sourceURL=" + CLOSURE_BASE_PATH + path);
     if (sourceMap) {
       code += ("\n//# sourceMappingURL=" + path + ".map");
     }
