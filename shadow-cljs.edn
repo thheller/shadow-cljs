@@ -28,10 +28,7 @@
 
  :build-defaults
  {:compiler-options
-  {:fn-invoke-direct true
-   :infer-externs :auto
-   :shadow-tweaks true
-   :shadow-keywords true}}
+  {:infer-externs :auto}}
 
  :builds
  {:cli
@@ -68,7 +65,10 @@
    :compiler-options
    {:infer-externs :auto
     :output-wrapper false
-    :warnings {:invalid-arithmetic false}}
+    :warnings {:invalid-arithmetic false}
+    :fn-invoke-direct true
+    :shadow-tweaks true
+    :shadow-keywords true}
 
    :js-options
    {:js-package-dirs ["packages/ui/node_modules"]}
@@ -131,8 +131,8 @@
 
    :build-hooks
    [(shadow.html/copy-file
-          "out/demo-browser/index.src.html"
-          "out/demo-browser/public/index.html")]
+      "out/demo-browser/index.src.html"
+      "out/demo-browser/public/index.html")]
 
    :module-loader true
    ;; :module-hash-names true
