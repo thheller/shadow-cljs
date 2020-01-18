@@ -205,7 +205,7 @@
 (defn init []
   (set! ui-env (-> ui-env
                    (sg/init ::ui)
-                   (worker-eng/init (js/Worker. "/js/worker.js"))
+                   (worker-eng/init js/SHADOW_WORKER)
                    (history/init)))
 
   (js/setTimeout start 0))

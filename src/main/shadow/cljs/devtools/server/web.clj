@@ -32,16 +32,7 @@
   (common/page-boilerplate req
     {:modules [:shared :main]
      :body-class "app-frame"}
-    (html
-      [:div#root.fixed.inset-0]
-      )))
-
-(defn repl-page [{:keys [config] :as req}]
-  (common/page-boilerplate req
-    {:modules [:app]}
-    (html
-      [:div#root]
-      (assets/js-queue :none 'shadow.cljs.ui.repl/init))))
+    (html [:div#root.fixed.inset-0])))
 
 (defn no-cache! [res]
   (update-in res [:headers] assoc
