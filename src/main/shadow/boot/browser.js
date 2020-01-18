@@ -9,6 +9,14 @@ var SHADOW_ENV = function() {
     throw new Error("browser bootstrap used in incorrect target");
   }
 
+  var scriptBase = goog.global.window.location.origin;
+  if (CLOSURE_BASE_PATH[0] == '/') {
+    scriptBase = scriptBase + CLOSURE_BASE_PATH;
+  } else {
+    // FIXME: need to handle relative paths
+    scriptBase = CLOSURE_BASE_PATH;
+  }
+
   var wentAsync = false;
 
   var canDocumentWrite = function() {
@@ -84,7 +92,7 @@ var SHADOW_ENV = function() {
       if (!loadedFiles[path]) {
         loadedFiles[path] = true;
 
-        var uri = CLOSURE_BASE_PATH + path;
+        var uri = scriptBase + path;
 
         if (docWrite) {
           document.write(
@@ -109,7 +117,7 @@ var SHADOW_ENV = function() {
 
   env.evalLoad = function(path, sourceMap, code) {
     loadedFiles[path] = true;
-    code += ("\n//# sourceURL=" + CLOSURE_BASE_PATH + path);
+    code += ("\n//# sourceURL=" + scriptBase + path);
     if (sourceMap) {
       code += ("\n//# sourceMappingURL=" + path + ".map");
     }
