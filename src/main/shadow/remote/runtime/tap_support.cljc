@@ -4,45 +4,48 @@
     [shadow.remote.runtime.obj-support :as obj]))
 
 (defn tap-subscribe
-  [{:keys [subs-ref]} {:keys [tid]}]
-  (swap! subs-ref conj tid))
+  [{:keys [subs-ref obj-support runtime] :as svc} {:keys [tid summary history num] :or {num 10} :as msg}]
+  (swap! subs-ref assoc tid msg)
+  ;; FIXME: should this always confirm?
+  ;; tool may want to do stuff even if it didn't request a history?
+  ;; but it can do so optimistically and just receive taps?
+
+  ;; we need an option to send out the history because of concurrency issues
+  ;; otherwise it may do a :request-tap-history before :tap-subscribe
+  ;; which may cause it to miss taps inbetween
+  ;; or after which means it may have received taps before receiving the history
+  (when history
+    (p/reply runtime msg
+      {:op :tap-subscribed
+       :history (->> (obj/get-tap-history obj-support num)
+                     ;; FIXME: only send summary if requested
+                     (map (fn [oid] {:oid oid :summary (obj/obj-describe* obj-support oid)}))
+                     (into []))})))
 
 (defn tap-unsubscribe
   [{:keys [subs-ref]} {:keys [tid]}]
-  (swap! subs-ref disj tid))
+  (swap! subs-ref dissoc tid))
 
 (defn request-tap-history
   [{:keys [obj-support runtime]}
    {:keys [num] :or {num 10} :as msg}]
-  ;; FIXME: add actual API fn, don't reach into obj-svc directly
-  (let [{:keys [state-ref]} obj-support
-
-        tap-ids
-        (->> (:objects @state-ref)
-             (vals)
-             (filter #(= :tap (get-in % [:obj-info :from])))
-             (sort-by #(get-in % [:obj-info :added-at]))
-             (reverse)
-             (take num)
-             (map :oid)
-             (into []))]
-
+  (let [tap-ids (obj/get-tap-history obj-support num)]
     (p/reply runtime msg {:op :tap-history
                           :oids tap-ids})))
 
 (defn tool-disconnect
   [{:keys [subs-ref] :as svc} tid]
-  (swap! subs-ref disj tid))
+  (swap! subs-ref dissoc tid))
 
 (defn start [runtime obj-support]
   (let [subs-ref
-        (atom #{})
+        (atom {})
 
         tap-fn
         (fn runtime-tap [obj]
           (when (some? obj)
             (let [oid (obj/register obj-support obj {:from :tap})]
-              (doseq [tid @subs-ref]
+              (doseq [[tid tap-config] @subs-ref]
                 (p/relay-msg runtime {:op :tap :tid tid :oid oid})))))
 
         svc

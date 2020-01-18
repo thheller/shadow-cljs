@@ -200,9 +200,8 @@
         ;; FIXME: figure out better runtime-info
         from-relay
         (relay-api/runtime-connect relay to-relay
-          {:lang :clj
-           :worker-id proc-id
-           :cljs-worker-for build-id})
+          {::m/worker-id proc-id
+           ::m/worker-for build-id})
 
         thread-state
         {::impl/worker-state true

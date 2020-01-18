@@ -263,10 +263,10 @@
             (first more)
 
             state
-            (::fa/state-atom env/app)
+            (::fa/state-atom env/app-ref)
 
             {::env/keys [^goog history]}
-            (-> env/app ::fa/runtime-atom deref ::fa/static-shared-props)]
+            (-> env/app-ref ::fa/runtime-atom deref ::fa/static-shared-props)]
 
         ;; FIXME: has fulcro something built-in for this?
         (if-not (get-in @state [::m/session-id session-id])
@@ -274,13 +274,13 @@
               (.replaceToken history "repl"))
 
           ;; session found
-          (fc/transact! env/app
+          (fc/transact! env/app-ref
             [(routing/set-route
                {:router ::ui-model/root-router
                 :ident [::m/session-id session-id]})])))
 
       ;; default
-      (fc/transact! env/app
+      (fc/transact! env/app-ref
         [(routing/set-route
            {:router ::ui-model/root-router
             :ident [::ui-model/page-repl 1]})]))))
@@ -351,5 +351,5 @@
       )))
 
 (defn init []
-  (fdf/load env/app ::m/repl-runtimes RuntimeInfo
+  (fdf/load env/app-ref ::m/repl-runtimes RuntimeInfo
     {:target [::ui-model/page-repl 1 ::ui-model/runtimes]}))

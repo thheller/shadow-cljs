@@ -132,6 +132,8 @@
     ^:replace
     ["-XX:-OmitStackTraceInFastThrow"
      "-Dclojure.core.async.go-checking=true"]
+
+
     :dependencies
     [[com.fulcrologic/fulcro "3.0.6"
       :exclusions
@@ -158,4 +160,7 @@
     ["src/dev"
      "src/gen"
      "src/test"
-     "test-project/src/main"]}})
+     "test-project/src/main"
+     ;; lein checkouts seems buggy af
+     ;; can't be bothered to figure out how to fix it
+     "../shadow-experiments/src/main"]}})

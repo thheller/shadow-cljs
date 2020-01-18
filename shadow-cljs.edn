@@ -27,7 +27,11 @@
   "src/test"]
 
  :build-defaults
- {:compiler-options {:infer-externs :auto}}
+ {:compiler-options
+  {:fn-invoke-direct true
+   :infer-externs :auto
+   :shadow-tweaks true
+   :shadow-keywords true}}
 
  :builds
  {:cli
@@ -57,12 +61,13 @@
   :ui
   {:target :browser
 
-   :output-dir "src/ui-release/shadow/cljs/ui/dist/js"
-   :dev {:output-dir ".shadow-cljs/ui/js"}
+   ;; :output-dir "src/ui-release/shadow/cljs/ui/dist/inspect-js"
+   :output-dir ".shadow-cljs/ui/js"
    :asset-path "/js"
 
    :compiler-options
-   {:output-wrapper false
+   {:infer-externs :auto
+    :output-wrapper false
     :warnings {:invalid-arithmetic false}}
 
    :js-options
@@ -70,26 +75,19 @@
 
    :module-loader true
    :modules
-   {:app
-    {:init-fn shadow.cljs.ui.app/init}
-    :repl
-    {:init-fn shadow.cljs.ui.pages.repl/init
-     :depends-on #{:app :codemirror}}
-    :build
-    {:init-fn shadow.cljs.ui.pages.build/init
-     :depends-on #{:app}}
-    :inspect
-    {:init-fn shadow.cljs.ui.pages.inspect/init
-     :depends-on #{:app :codemirror}}
-    :codemirror
+   {:shared
     {:entries []
-     :depends-on #{:app}}}
+     :preloads [shadow.remote.runtime.cljs.browser]}
+    :main
+    {:init-fn shadow.cljs.ui.main/init
+     :depends-on #{:shared}
+     :preloads [shadow.experiments.grove.dev-support]}
+    :worker
+    {:init-fn shadow.cljs.ui.worker/init
+     :web-worker true
+     :depends-on #{:shared}}}
 
-   :devtools
-   {:preloads [com.fulcrologic.fulcro.inspect.preload
-               shadow.remote.runtime.cljs.browser]
-    ;; :loader-mode :eval
-    }}
+   :devtools {:browser-inject :main}}
 
   :build-report
   {:target :browser
@@ -133,8 +131,8 @@
 
    :build-hooks
    [(shadow.html/copy-file
-      "out/demo-browser/index.src.html"
-      "out/demo-browser/public/index.html")]
+          "out/demo-browser/index.src.html"
+          "out/demo-browser/public/index.html")]
 
    :module-loader true
    ;; :module-hash-names true

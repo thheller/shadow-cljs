@@ -4,7 +4,7 @@
     [clojure.java.shell :as sh]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.web.common :as common]
-    [shadow.cljs.devtools.server.web.graph :as graph]
+    [shadow.cljs.devtools.graph :as graph]
     [shadow.build.closure :as closure]
     [shadow.http.router :as http]
     [shadow.cljs.devtools.server.util :as server-util]
@@ -16,15 +16,22 @@
     [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
     [shadow.core-ext :as core-ext]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.devtools.server.repl-system :as repl-system]
-    [shadow.remote.relay.api :as relay])
+    [shadow.remote.relay.api :as relay]
+    [shadow.cljs.devtools.errors :as errors]
+    [shadow.build.warnings :as warnings]
+    [shadow.build :as build]
+    [shadow.build.api :as build-api]
+    [shadow.cljs.devtools.config :as config]
+    [shadow.cljs.devtools.server.supervisor :as super]
+    [shadow.cljs.devtools.server.worker :as worker]
+    [shadow.build.log :as build-log])
   (:import [java.util UUID]))
 
 (defn index-page [req]
   {:status 200
    :body "foo"})
 
-(defn open-file [{:keys [config ring-request] :as req}]
+(defn open-file [{:keys [config transit-str] :as req}]
 
   (let [data
         (-> req
@@ -56,7 +63,7 @@
 
     {:status 200
      :headers {"content-type" "application/edn; charset=utf-8"}
-     :body (core-ext/safe-pr-str result)}))
+     :body (transit-str result)}))
 
 (defmulti process-api-msg (fn [state msg] (::m/op msg)) :default ::default)
 
@@ -88,51 +95,101 @@
 
     (update state ::subs conj sub-chan)))
 
-(defn tool-forward*
-  [{:keys [tool-in] :as state} msg]
-  (>!! tool-in msg)
+(defmethod process-api-msg ::m/build-watch-start!
+  [{:keys [supervisor] :as state} {::m/keys [build-id]}]
+  (let [config (config/get-build build-id)
+        ;; FIXME: needs access to cli opts used to start server?
+        worker (super/start-worker supervisor config {})]
+    (worker/start-autobuild worker))
   state)
 
-(defn tool-forward [id]
-  (.addMethod process-api-msg id tool-forward*))
+(defmethod process-api-msg ::m/build-watch-stop!
+  [{:keys [supervisor] :as state} {::m/keys [build-id]}]
+  (super/stop-worker supervisor build-id)
+  state)
 
-(tool-forward ::m/session-start)
-(tool-forward ::m/session-eval)
+(defmethod process-api-msg ::m/build-watch-compile!
+  [{:keys [supervisor] :as state} {::m/keys [build-id]}]
+  (let [worker (super/get-worker supervisor build-id)]
+    (worker/compile worker))
+  state)
 
-(defn api-ws-loop! [{:keys [repl-system ws-out] :as ws-state}]
-  (let [tool-in
-        (async/chan 10)
+(defn do-build [{:keys [system-bus] :as state} build-id mode]
+  (future
+    (let [build-config
+          (config/get-build build-id)
 
-        tool-id
-        (str (UUID/randomUUID))
+          status-ref
+          (atom {:status :pending
+                 :mode mode
+                 :log []})
 
-        tool-out
-        (repl-system/tool-connect repl-system tool-id tool-in)
+          build-logger
+          (reify
+            build-log/BuildLog
+            (log*
+              [_ state event]
+              (sys-bus/publish! system-bus ::m/build-log {:type :build-log
+                                                          :build-id build-id
+                                                          :event event})))
 
-        {:keys [subs] :as final-state}
-        (loop [{:keys [ws-in] :as ws-state}
-               (assoc ws-state
-                 :tool-id tool-id
-                 :tool-in tool-in)]
-          (alt!!
-            ws-in
-            ([msg]
-             (if-not (some? msg)
-               ws-state
-               (-> ws-state
-                   (process-api-msg msg)
-                   (recur))))
+          pub-msg
+          (fn [msg]
+            ;; FIXME: this is not worker output but adding an extra channel seems like overkill
+            (sys-bus/publish! system-bus ::m/worker-broadcast msg)
+            (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
+      (try
+        ;; not at all useful to send this message but want to match worker message flow for now
+        (pub-msg {:type :build-configure
+                  :build-id build-id
+                  :build-config build-config})
 
-            tool-out
-            ([msg]
-             (if-not (some? msg)
-               ws-state
-               (do (>!! ws-out {::m/op ::m/tool-msg
-                                ::m/tool-msg msg})
+        (pub-msg {:type :build-start
+                  :build-id build-id})
 
-                   (recur ws-state))))))]
+        (let [build-state
+              (-> (server-util/new-build build-config mode {})
+                  (build-api/with-logger build-logger)
+                  (build/configure mode build-config {})
+                  (build/compile)
+                  (cond->
+                    (= :release mode)
+                    (build/optimize))
+                  (build/flush))]
 
-    (async/close! tool-in)
+          (pub-msg {:type :build-complete
+                    :build-id build-id
+                    :info (::build/build-info build-state)}))
+
+        (catch Exception e
+          (pub-msg {:type :build-failure
+                    :build-id build-id
+                    :report (binding [warnings/*color* false]
+                              (errors/error-format e))
+                    }))
+        ))))
+
+(defmethod process-api-msg ::m/build-compile!
+  [env {::m/keys [build-id]}]
+  (do-build env build-id :dev)
+  {::m/build-id build-id}
+  env)
+
+(defmethod process-api-msg ::m/build-release!
+  [env {::m/keys [build-id]}]
+  (do-build env build-id :release)
+  {::m/build-id build-id}
+  env)
+
+(defn api-ws-loop! [{:keys [ws-in ws-out] :as ws-state}]
+  (let [{:keys [subs] :as final-state}
+        (loop [ws-state ws-state]
+          (when-some [msg (<!! ws-in)]
+            (-> ws-state
+                (process-api-msg msg)
+                (recur))))]
+
+    (async/close! ws-out)
 
     (doseq [sub subs]
       (async/close! sub))
@@ -168,11 +225,25 @@
                          :project-home project-home
                          :version (server-util/find-version)})}))
 
+(defn graph-serve [{:keys [transit-read transit-str] :as req}]
+  (let [query
+        (-> (get-in req [:ring-request :body])
+            (transit-read))
+
+        result
+        (graph/parser req query)]
+
+    {:status 200
+     :header {"content-type" "application/transit+json"}
+     :body (transit-str result)}
+    ))
+
+
 (defn root* [req]
   (http/route req
     (:GET "" index-page)
     (:GET "/project-info" project-info)
-    (:POST "/graph" graph/serve)
+    (:POST "/graph" graph-serve)
     (:POST "/open-file" open-file)
     common/not-found))
 
@@ -183,7 +254,7 @@
          "Access-Control-Allow-Headers"
          (or (get-in ring-request [:headers "access-control-request-headers"])
              "content-type")
-         "content-type" "application/edn; charset=utf-8"}]
+         "content-type" "application/transit+json; charset=utf-8"}]
 
     (if-not (= :options (:request-method ring-request))
       (-> req

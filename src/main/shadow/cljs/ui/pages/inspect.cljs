@@ -30,7 +30,7 @@
 
 (defn refresh-ui [idents]
   ;; (js/console.log "refresh-queued" idents)
-  (fa/schedule-render! env/app {:only-refresh idents})
+  (fa/schedule-render! env/app-ref {:only-refresh idents})
   ;; (fc/transact! env/app [] {:refresh idents})
   )
 
@@ -168,7 +168,7 @@
            )}))))
 
 (defn get-state-ref []
-  (::fa/state-atom env/app))
+  (::fa/state-atom env/app-ref))
 
 (defn ensure-runtime-init [rid pending-tx callback]
   (let [state-ref (get-state-ref)]
@@ -176,7 +176,7 @@
       (callback)
 
       (do (swap! state-ref update-in [::rid rid] merge {::rid rid})
-          (fc/transact! env/app pending-tx)
+          (fc/transact! env/app-ref pending-tx)
           (call! {:op :request-supported-ops :rid rid}
             {:runtime-not-found
              (fn [msg]
@@ -422,7 +422,7 @@
   )
 
 (defn start-browser [connect-callback]
-  (let [{::fa/keys [state-atom runtime-atom]} env/app
+  (let [{::fa/keys [state-atom runtime-atom]} env/app-ref
 
         socket (js/WebSocket. (str "ws://" js/document.location.host "/api/tool"))
 
@@ -447,7 +447,7 @@
                 (handler msg)))
 
             ;; (js/console.log "tool-msg" msg)
-            (fc/transact! env/app [(tool-msg-tx msg)])))))
+            (fc/transact! env/app-ref [(tool-msg-tx msg)])))))
 
     (.addEventListener socket "open"
       (fn [e]
@@ -795,7 +795,7 @@
 (defn do-eval [comp eval-op]
   (let [{::keys [^js editor term]} (util/get-local! comp)
         {::keys [rid]} (fc/props comp)
-        state (::fa/state-atom env/app)
+        state (::fa/state-atom env/app-ref)
 
         ;; FIXME: might be nil
         oid (get-in @state [::tap-page rid ::object 1])
@@ -1068,7 +1068,7 @@
 (defn route [tokens]
   (if-not @tool-ref
     ;; wait for websocket connect first, then do actual route
-    (do (fc/transact! env/app
+    (do (fc/transact! env/app-ref
           [(routing/set-route
              {:router ::ui-model/root-router
               :ident [::ui-model/page-loading 1]})
@@ -1079,7 +1079,7 @@
             (route tokens))))
 
     (if (empty? tokens)
-      (fc/transact! env/app
+      (fc/transact! env/app-ref
         [(routing/set-route
            {:router ::ui-model/root-router
             :ident [::ui-model/page-inspect 1]})
@@ -1096,14 +1096,14 @@
           (fn []
             (cond
               (nil? view)
-              (fc/transact! env/app
+              (fc/transact! env/app-ref
                 [(select-runtime-page {:rid rid})
                  (routing/set-route {:router ::ui-model/root-router
                                      :ident [::runtime-page rid]})
                  ::ui-model/root-router])
 
               (= "tap" view)
-              (fc/transact! env/app
+              (fc/transact! env/app-ref
                 [(select-runtime-tap-page {:rid rid})
                  (routing/set-route {:router ::ui-model/root-router
                                      :ident [::tap-page rid]})

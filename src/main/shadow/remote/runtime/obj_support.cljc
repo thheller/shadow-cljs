@@ -288,18 +288,33 @@
     (assoc entry :desc (-> (p/describe obj obj-info)
                            (add-supports)))))
 
+(defn get-tap-history [{:keys [state-ref] :as svc} num]
+  (->> (:objects @state-ref)
+       (vals)
+       (filter #(= :tap (get-in % [:obj-info :from])))
+       (sort-by #(get-in % [:obj-info :added-at]))
+       (reverse)
+       (take num)
+       (map :oid)
+       (into [])))
+
+(defn obj-describe*
+  [{:keys [state-ref]}
+   oid]
+  (when (contains? (:objects @state-ref) oid)
+    (swap! state-ref update-in [:objects oid] ensure-descriptor)
+    (swap! state-ref assoc-in [:objects oid :access-at] (now))
+    (let [summary (get-in @state-ref [:objects oid :desc :summary])]
+      summary)))
 
 (defn obj-describe
-  [{:keys [state-ref runtime]}
+  [{:keys [runtime] :as svc}
    {:keys [oid] :as msg}]
-  (if-not (contains? (:objects @state-ref) oid)
-    (p/reply runtime msg {:op :obj-not-found :oid oid})
-    (do (swap! state-ref update-in [:objects oid] ensure-descriptor)
-        (swap! state-ref assoc-in [:objects oid :access-at] (now))
-        (let [summary (get-in @state-ref [:objects oid :desc :summary])]
-          (p/reply runtime msg {:op :obj-summary
-                                :oid oid
-                                :summary summary})))))
+  (if-let [summary (obj-describe* svc oid)]
+    (p/reply runtime msg {:op :obj-summary
+                          :oid oid
+                          :summary summary})
+    (p/reply runtime msg {:op :obj-not-found :oid oid})))
 
 (defn obj-request
   [{:keys [state-ref runtime]}

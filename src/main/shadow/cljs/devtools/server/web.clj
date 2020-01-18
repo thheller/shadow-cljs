@@ -28,27 +28,12 @@
     {:status 200
      :body "hello world"}))
 
-(defn index-page [{:keys [dev-http] :as req}]
+(defn index-page [req]
   (common/page-boilerplate req
-    {:modules [:app]
+    {:modules [:shared :main]
      :body-class "app-frame"}
     (html
-      (comment
-        [:h1 "shadow-cljs"]
-        [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
-
-        (let [{:keys [servers]} @dev-http]
-          (when (seq servers)
-            (html
-              [:h2 "HTTP Servers"]
-              [:ul
-               (for [{:keys [build-id instance] :as srv} servers
-                     :let [{:keys [http-port https-port]} instance]]
-                 (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
-                   [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]))))
-
-      [:div#root
-       [:div "Loading ..."]]
+      [:div#root.fixed.inset-0]
       )))
 
 (defn repl-page [{:keys [config] :as req}]

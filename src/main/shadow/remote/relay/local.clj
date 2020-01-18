@@ -118,7 +118,7 @@
           (async/chan 10)
 
           runtime-info
-          (assoc runtime-info :since (Date.) :rid rid)
+          (assoc runtime-info :since (Date.))
 
           runtime
           {:rid rid
@@ -160,15 +160,14 @@
     (doseq [{:keys [to]} (vals runtimes)]
       (async/close! to))
     (doseq [{:keys [to]} (vals tools)]
-      (async/close! to))
-    ))
+      (async/close! to))))
 
 (defmethod handle-sys-msg :request-runtimes
   [state-ref tool msg]
   (let [{:keys [runtimes]} @state-ref
         result (->> runtimes
                     (vals)
-                    (map :runtime-info)
+                    (map #(select-keys % [:rid :runtime-info]))
                     (vec))]
     (>!! (:to tool)
       (maybe-add-mid msg {:op :runtimes

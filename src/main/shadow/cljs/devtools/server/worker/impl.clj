@@ -38,6 +38,18 @@
 (defn gen-msg-id []
   (str (UUID/randomUUID)))
 
+(defn relay-msg
+  ([worker-state res]
+   (when-not (async/offer! (get-in worker-state [:channels :to-relay]) res)
+     (log/warn ::worker-relay-overload res))
+   worker-state)
+  ([worker-state {:keys [tid mid] :as req} res]
+   (relay-msg worker-state (cond-> res
+                             tid
+                             (assoc :tid tid)
+                             mid
+                             (assoc :mid mid)))))
+
 (defn repl-sources-as-client-resources
   "transforms a seq of resource-ids to return more info about the resource
    a REPL client needs to know more since resource-ids are not available at runtime"
@@ -1064,18 +1076,6 @@
 
 (defmulti do-relay-msg (fn [worker-state msg] (:op msg)) :default ::default)
 
-(defn relay-msg
-  ([worker-state res]
-   (when-not (async/offer! (get-in worker-state [:channels :to-relay]) res)
-     (log/warn ::worker-relay-overload res))
-   worker-state)
-  ([worker-state {:keys [tid mid] :as req} res]
-   (relay-msg worker-state (cond-> res
-                             tid
-                             (assoc :tid tid)
-                             mid
-                             (assoc :mid mid)))))
-
 (defmethod do-relay-msg ::default [worker-state msg]
   (relay-msg worker-state msg {:op :unknown-op
                                :msg msg}))
@@ -1096,7 +1096,12 @@
                                :ops (-> (->> (methods do-relay-msg)
                                              (keys)
                                              (set))
-                                        (disj ::default :welcome :unknown-op :unknown-relay-op :tool-disconnect))}))
+                                        (disj ::default
+                                          :welcome
+                                          :unknown-op
+                                          :unknown-relay-op
+                                          :tool-disconnect
+                                          :request-supported-ops))}))
 
 (defmethod do-relay-msg :tool-disconnect [worker-state msg]
   worker-state)

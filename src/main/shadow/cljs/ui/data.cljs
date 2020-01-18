@@ -1,0 +1,68 @@
+(ns shadow.cljs.ui.data
+  (:require
+    [clojure.string :as str]
+    [shadow.experiments.grove.worker :as sw]
+    [shadow.experiments.grove.db :as db]
+    [shadow.cljs.model :as m]
+    [shadow.cljs.ui.env :as env]
+    [shadow.cljs.ui.inspect.db]))
+
+(sw/reg-event-fx env/app-ref ::init!
+  []
+  (fn [{:keys [db] :as env} token]
+    {:graph-api
+     {:request {:body [::m/http-servers
+                       ;; FIXME: what would be a good place for this definition so that
+                       ;; the main and worker can share it
+                       ;; either the full query or just the attributes the components want
+                       {::m/build-configs
+                        [::m/build-id
+                         ::m/build-target
+                         ::m/build-config-raw
+                         ::m/build-worker-active
+                         ]}]}
+      :on-success [::init-data]}}))
+
+(sw/reg-event-fx env/app-ref ::init-data
+  []
+  (fn [{:keys [db] :as env} {::m/keys [http-servers build-configs] :as data}]
+    (let [merged
+          (-> db
+              (assoc ::m/init-complete true)
+              (db/merge-seq ::m/http-server http-servers [::m/http-servers])
+              (db/merge-seq ::m/build build-configs [::m/builds]))]
+      {:db merged})))
+
+(sw/reg-event-fx env/app-ref :ui/route!
+  []
+  (fn [{:keys [db] :as env} token]
+    (let [[main & more :as tokens] (str/split token #"/")
+          db (assoc db ::current-route token)]
+      (case main
+        "inspect"
+        {:db (assoc db ::m/current-page :inspect)}
+
+        "builds"
+        {:db (assoc db ::m/current-page :builds)}
+
+        "build"
+        (let [[build-id-token] more
+              build-id (keyword build-id-token)
+              build-ident (db/make-ident ::m/build build-id)]
+          {:db (-> db
+                   (assoc ::m/current-page :build)
+                   (assoc ::m/current-build build-ident))})
+
+        "dashboard"
+        {:db (assoc db ::m/current-page :dashboard)}
+
+        (js/console.warn "unknown-route" token)
+        ))))
+
+(defmethod db/query-calc ::m/active-builds
+  [env db _ query-part params]
+  (->> (db/all-of db ::m/build)
+       (filter ::m/build-worker-active)
+       (sort-by ::m/build-id)
+       (map :db/ident)
+       (into [])))

@@ -265,13 +265,13 @@
    :factory ui-page})
 
 (defn route [[build-id :as tokens]]
-  (fc/transact! env/app
+  (fc/transact! env/app-ref
     [(tx/select-build {:build-id (keyword build-id)})
      (routing/set-route {:router ::ui-model/root-router
                          :ident [::ui-model/page-builds 1]})]))
 
 (defn route-build [[build-id :as tokens]]
-  (fc/transact! env/app
+  (fc/transact! env/app-ref
     [(tx/select-build {:build-id (keyword build-id)})
      (routing/set-route {:router ::ui-model/root-router
                          :ident [::m/build-id (keyword build-id)]})]))

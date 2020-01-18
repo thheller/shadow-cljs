@@ -33,8 +33,6 @@
    (html5
      {:lang "en"}
      [:head
-      ;; lol preload for local dev
-      [:link {:as "script" :href "/js/app.js" :rel "preload"}]
       [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
       [:title (-> (io/file ".")
                   (.getCanonicalFile)
