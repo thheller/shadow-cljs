@@ -1,4 +1,4 @@
-(ns shadow.cljs.ui.inspect.views
+(ns shadow.cljs.ui.components.inspect
   (:require
     [shadow.experiments.arborist :as sa]
     [shadow.experiments.grove :as sg :refer (<< defc)]
@@ -158,11 +158,14 @@
      [:path
       {:d "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2zm0 2v14h14V5H5zm8.41 7l1.42 1.41a1 1 0 1 1-1.42 1.42L12 13.4l-1.41 1.42a1 1 0 1 1-1.42-1.42L10.6 12l-1.42-1.41a1 1 0 1 1 1.42-1.42L12 10.6l1.41-1.42a1 1 0 1 1 1.42 1.42L13.4 12z"}]]))
 
+(def css-button-selected "mx-2 border bg-blue-400 px-4 rounded")
+(def css-button "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded")
+
 (defn view-as-button [current val label]
   (<< [:button
        {:class (if (= current val)
-                 "mx-2 border bg-blue-400 px-4 rounded"
-                 "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded")
+                 css-button-selected
+                 css-button)
         :on-click [::inspect-switch-display! val]}
        label]))
 
@@ -215,7 +218,7 @@
           :browse
           (<< [:div.flex-1.overflow-auto.font-mono (render-view object)]))
 
-        [:div {:class "flex bg-white py-2 px-4 font-mono border-t-2"}
+        [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
          [:div "View as: "]
          (view-as-button display-type :browse "Browse")
          (view-as-button display-type :pprint "Pretty-Print")
@@ -280,12 +283,21 @@
    closing?
    (sg/watch closing-ref)]
 
-  (<< [:div.flex-1.flex.flex-col.overflow-hidden.bg-white.pt-4
+  (<< [:div.flex-1.overflow-hidden.bg-white.pt-4.relative
        ;; [:div.bg-gray-200.p-1.text-l "Tap Stream"]
-       [:div.flex-1 tap-stream]
-       [:div.border-t-2.flex.flex-col
-        {:style {:transition (str "height .2s " (if closing? "ease-in" "ease-out"))
-                 :height (if (or closing? (not inspect-active?))
-                           0 "75%")}}
+       [:div.h-full tap-stream]
+       [:div.border-t-2.absolute.bg-white.flex.flex-col
+        ;; fly-in from the bottom, translateY not height so the embedded vlist
+        ;; can get the correct height immediately and doesn't start with 0
+        ;; should also be better performance wise I think
+        {:style {:transition (str "transform .2s " (if closing? "ease-in" "ease-out"))
+                 :transform (str "translateY("
+                                 (if (or closing? (not inspect-active?))
+                                   "100%" 0)
+                                 ")")
+                 :right 0
+                 :bottom 0
+                 :left 0
+                 :top "200px"}}
         (when inspect-active?
           (ui-inspect))]]))

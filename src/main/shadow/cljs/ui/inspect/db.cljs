@@ -9,6 +9,11 @@
 (defn without [v item]
   (into [] (remove #{item}) v))
 
+(defn vec-conj [x y]
+  (if (nil? x)
+    [y]
+    (conj x y)))
+
 (defmulti tool-ws (fn [env msg] (:op msg)) :default ::default)
 
 (defmethod tool-ws ::default [env msg]
@@ -24,19 +29,20 @@
    [{:op :request-runtimes}]})
 
 (defmethod tool-ws :runtimes
-  [{:keys [db] :as env} msg]
+  [{:keys [db] :as env} {:keys [runtimes] :as msg}]
   {:db
-   (db/merge-seq db ::m/runtime (:runtimes msg) [::m/runtimes])
+   (db/merge-seq db ::m/runtime runtimes [::m/runtimes])
 
    :ws-send
-   (->> (:runtimes msg)
+   (->> runtimes
         (map (fn [{:keys [rid]}]
                {:op :request-supported-ops :rid rid}))
         (into []))})
 
 (defmethod tool-ws :runtime-connect
   [{:keys [db] :as env} {:keys [runtime-info rid]}]
-  (let [runtime {:rid rid :runtime-info runtime-info}]
+  (let [runtime {:rid rid
+                 :runtime-info runtime-info}]
     {:db
      (db/add db ::m/runtime runtime [::m/runtimes])
 
@@ -332,3 +338,25 @@
     (->> runtimes
          (sort-by #(get-in db [% :runtime-info :since]))
          (vec))))
+
+(defmethod db/query-calc ::m/cljs-runtimes-sorted
+  [env db current query-part params]
+  (->> (db/all-of db ::m/runtime)
+       (filter #(contains? (:supported-ops %) :eval-cljs))
+       (sort-by #(get-in % [:runtime-info :since]))
+       (map :db/ident)
+       (vec)))
+
+(defmethod db/query-calc ::m/clj-runtimes-sorted
+  [env db current query-part params]
+  (->> (db/all-of db ::m/runtime)
+       (filter #(contains? (:supported-ops %) :eval-clj))
+       (sort-by #(get-in % [:runtime-info :since]))
+       (map :db/ident)
+       (vec)))
+
+(sw/reg-event-fx env/app-ref ::m/process-eval-input!
+  []
+  (fn [{:keys [db] :as env} runtime-ident code]
+    {:db (update-in db [runtime-ident ::m/eval-history] vec-conj {:id (random-uuid)
+                                                                  :code code})}))

@@ -29,10 +29,27 @@
      :body "hello world"}))
 
 (defn index-page [req]
-  (common/page-boilerplate req
-    {:modules [:shared :main]
-     :body-class "app-frame"}
-    (html [:div#root.fixed.inset-0])))
+  {:status 200
+   :headers {"content-type" "text/html; charset=utf-8"}
+   :body
+   (html5
+     {:lang "en"}
+     [:head
+      ;; starting the worker ASAP
+      ;; if the script starts it we have to wait for the script to download and execute
+      ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
+      [:script "var SHADOW_WORKER = new Worker(\"/js/worker.js\");"]
+      [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
+      [:title (-> (io/file ".")
+                  (.getCanonicalFile)
+                  (.getName))]
+      [:link {:rel "stylesheet" :href "/css/main.css"}]
+      [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]
+      [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
+     [:body
+      [:div#root.fixed.inset-0]
+      [:script {:src "/js/shared.js" :defer true}]
+      [:script {:src "/js/main.js" :defer true}]])})
 
 (defn no-cache! [res]
   (update-in res [:headers] assoc

@@ -82,6 +82,9 @@
     {:init-fn shadow.cljs.ui.main/init
      :depends-on #{:shared}
      :preloads [shadow.experiments.grove.dev-support]}
+    :ui-eval ;; codemirror
+    {:entries [shadow.cljs.ui.components.eval]
+     :depends-on #{:main}}
     :worker
     {:init-fn shadow.cljs.ui.worker/init
      :web-worker true

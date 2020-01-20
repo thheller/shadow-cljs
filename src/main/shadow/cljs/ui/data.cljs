@@ -40,21 +40,32 @@
           db (assoc db ::current-route token)]
       (case main
         "inspect"
-        {:db (assoc db ::m/current-page :inspect)}
+        {:db (assoc db ::m/current-page {:id :inspect})}
 
         "builds"
-        {:db (assoc db ::m/current-page :builds)}
+        {:db (assoc db ::m/current-page {:id :builds})}
 
         "build"
         (let [[build-id-token] more
               build-id (keyword build-id-token)
               build-ident (db/make-ident ::m/build build-id)]
           {:db (-> db
-                   (assoc ::m/current-page :build)
+                   (assoc ::m/current-page {:id :build :ident build-ident})
                    (assoc ::m/current-build build-ident))})
 
         "dashboard"
-        {:db (assoc db ::m/current-page :dashboard)}
+        {:db (assoc db ::m/current-page {:id :dashboard})}
+
+        "runtimes"
+        {:db (assoc db ::m/current-page {:id :runtimes})}
+
+        "runtime"
+        (let [[runtime-id sub-page] more
+              ;; FIXME: assuming sub-page /repl for now
+              runtime-id (js/parseInt runtime-id 10)
+              runtime-ident (db/make-ident ::m/runtime runtime-id)]
+          {:db (-> db
+                   (assoc ::m/current-page {:id :repl :ident runtime-ident}))})
 
         (js/console.warn "unknown-route" token)
         ))))

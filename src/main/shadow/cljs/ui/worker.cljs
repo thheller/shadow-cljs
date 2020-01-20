@@ -8,7 +8,8 @@
     [shadow.cljs.ui.api-ws :as api-ws]
     [shadow.cljs.ui.data :as data]))
 
-(defn ^:dev/after-load start [])
+(defn ^:dev/after-load after-load []
+  (sw/refresh-all-queries! env/app-ref))
 
 (defn init []
   ;; FIXME: this needs to be better, feels kinda ugly and clunky
