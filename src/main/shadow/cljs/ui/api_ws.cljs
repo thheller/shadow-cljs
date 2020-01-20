@@ -81,7 +81,7 @@
 
       (.addEventListener socket "open"
         (fn [e]
-          (js/console.log "api-open" e socket)
+          ;; (js/console.log "api-open" e socket)
           (go (loop []
                 (when-some [msg (<! api-out)]
                   (.send socket (transit-str msg))

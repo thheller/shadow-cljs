@@ -46,7 +46,7 @@
 
     (.addEventListener socket "open"
       (fn [e]
-        (js/console.log "tool-open" e socket)
+        ;; (js/console.log "tool-open" e socket)
         ))
 
     (.addEventListener socket "close"
