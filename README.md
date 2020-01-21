@@ -178,7 +178,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 
 ## License
 
-Copyright © 2018 Thomas Heller
+Copyright © 2020 Thomas Heller
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
