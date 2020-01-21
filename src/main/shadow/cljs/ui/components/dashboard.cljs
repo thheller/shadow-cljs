@@ -66,5 +66,5 @@
 (defn ui-page []
   (<< [:div.flex-1.overflow-auto
        (ui-http-servers)
-       (ui-active-runtimes)
+       #_ (ui-active-runtimes)
        (ui-active-builds)]))
