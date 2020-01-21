@@ -1,10 +1,10 @@
-(ns shadow.cljs.ui.api-ws
+(ns shadow.cljs.ui.worker.api-ws
   (:require
     [cljs.core.async :as async :refer (go <!)]
     [shadow.experiments.grove.worker :as sw]
     [shadow.experiments.grove.db :as db]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.env :as env]
+    [shadow.cljs.ui.worker.env :as env]
     ))
 
 (defmulti handle-ws (fn [env msg] (::m/op msg)) :default ::default)

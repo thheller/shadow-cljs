@@ -3,10 +3,13 @@
     [shadow.experiments.grove.worker :as sw]
     [shadow.experiments.grove.http-fx :as http-fx]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.env :as env]
-    [shadow.cljs.ui.tool-ws :as tool-ws]
-    [shadow.cljs.ui.api-ws :as api-ws]
-    [shadow.cljs.ui.data :as data]))
+    [shadow.cljs.ui.worker.env :as env]
+    [shadow.cljs.ui.worker.tool-ws :as tool-ws]
+    [shadow.cljs.ui.worker.api-ws :as api-ws]
+    [shadow.cljs.ui.worker.generic]
+    [shadow.cljs.ui.worker.builds]
+    [shadow.cljs.ui.worker.inspect]
+    ))
 
 (defn ^:dev/after-load after-load []
   (sw/refresh-all-queries! env/app-ref))
@@ -16,7 +19,7 @@
   (sw/init! env/app-ref)
   (sw/reg-fx env/app-ref :graph-api
     (http-fx/make-handler
-      {:on-error [::data/request-error!]
+      {:on-error [::m/request-error!]
        :base-url "/api/graph"
        :request-format :transit}))
 
@@ -41,5 +44,5 @@
     {::m/op ::m/subscribe
      ::m/topic ::m/build-status-update})
 
-  (sw/run-tx @env/app-ref [::data/init!])
+  (sw/run-tx @env/app-ref [::m/init!])
   (tap> env/app-ref))

@@ -1,10 +1,10 @@
-(ns shadow.cljs.ui.inspect.db
+(ns shadow.cljs.ui.worker.inspect
   (:require
     [shadow.experiments.grove.worker :as sw]
     [shadow.experiments.grove.db :as db]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.env :as env]
-    [shadow.cljs.ui.tool-ws :as tool-ws]))
+    [shadow.cljs.ui.worker.env :as env]
+    [shadow.cljs.ui.worker.tool-ws :as tool-ws]))
 
 (defn without [v item]
   (into [] (remove #{item}) v))

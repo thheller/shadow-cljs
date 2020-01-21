@@ -1,4 +1,4 @@
-(ns shadow.cljs.ui.env
+(ns shadow.cljs.ui.worker.env
   (:require
     [shadow.experiments.grove.worker :as sw]
     [shadow.experiments.grove.db :as db]

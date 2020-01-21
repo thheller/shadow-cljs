@@ -1,8 +1,8 @@
-(ns shadow.cljs.ui.tool-ws
+(ns shadow.cljs.ui.worker.tool-ws
   (:require
     [shadow.experiments.grove.worker :as sw]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.env :as env]))
+    [shadow.cljs.ui.worker.env :as env]))
 
 (defonce rpc-id-seq (atom 0))
 (defonce rpc-ref (atom {}))

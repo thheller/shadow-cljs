@@ -1,13 +1,12 @@
-(ns shadow.cljs.ui.data
+(ns shadow.cljs.ui.worker.generic
   (:require
     [clojure.string :as str]
     [shadow.experiments.grove.worker :as sw]
     [shadow.experiments.grove.db :as db]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.env :as env]
-    [shadow.cljs.ui.inspect.db]))
+    [shadow.cljs.ui.worker.env :as env]))
 
-(sw/reg-event-fx env/app-ref ::init!
+(sw/reg-event-fx env/app-ref ::m/init!
   []
   (fn [{:keys [db] :as env} token]
     {:graph-api
@@ -70,10 +69,3 @@
         (js/console.warn "unknown-route" token)
         ))))
 
-(defmethod db/query-calc ::m/active-builds
-  [env db _ query-part params]
-  (->> (db/all-of db ::m/build)
-       (filter ::m/build-worker-active)
-       (sort-by ::m/build-id)
-       (map :db/ident)
-       (into [])))
