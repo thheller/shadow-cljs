@@ -82,9 +82,13 @@
     {:init-fn shadow.cljs.ui.main/init
      :depends-on #{:shared}
      :preloads [shadow.experiments.grove.dev-support]}
-    :ui-eval ;; codemirror
-    {:entries [shadow.cljs.ui.components.eval]
+
+    ;; trying something to split out features not pages
+    ;; maybe thats a better pattern overall, should be less config
+    :code-editor
+    {:entries [shadow.cljs.ui.components.code-editor]
      :depends-on #{:main}}
+
     :worker
     {:init-fn shadow.cljs.ui.worker/init
      :web-worker true

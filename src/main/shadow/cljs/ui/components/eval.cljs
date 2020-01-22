@@ -1,10 +1,10 @@
 (ns shadow.cljs.ui.components.eval
   (:require
     [shadow.experiments.grove :as sg :refer (<< defc)]
-    [shadow.cljs.model :as m]
-    [shadow.cljs.ui.components.code-editor :as code-editor]
-    ))
+    [shadow.experiments.grove.main.loadable :refer (refer-lazy)]
+    [shadow.cljs.model :as m]))
 
+(refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
 (defn ui-eval-item [data]
   (<< [:div.bg-white.border.shadow.mb-2
@@ -33,6 +33,6 @@
     [:div.border-t-2.bg-white.px-2.py-1
      "Eval toolbar - current ns: user, ctrl+enter or shift+enter to eval"]
     [:div.bg-white.border-t-2 {:style {:height "120px"}}
-     (code-editor/codemirror
+     (codemirror
        {:on-submit process-eval-input!})]))
 

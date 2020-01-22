@@ -27,7 +27,7 @@
   (fn [{:keys [db] :as env} {::m/keys [http-servers build-configs] :as data}]
     (let [merged
           (-> db
-              (assoc ::m/init-complete true)
+              (assoc ::m/init-complete? true)
               (db/merge-seq ::m/http-server http-servers [::m/http-servers])
               (db/merge-seq ::m/build build-configs [::m/builds]))]
       {:db merged})))

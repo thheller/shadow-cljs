@@ -4,7 +4,6 @@
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.main.vlist :as vlist]
     [shadow.cljs.model :as m]
-    [fipp.edn :refer (pprint)]
     ))
 
 (defn render-edn-limit [[limit-reached text]]
@@ -40,7 +39,8 @@
   (<< [:div.p-4
        [:div.py-1.text-xl.font-bold "Object does not support Browser view."]
        [:pre
-        (with-out-str (pprint summary))]]))
+        ;; pprint is too large, figure out a better way to display this
+        (pr-str summary)]]))
 
 (defn render-simple [value]
   (<< [:div.border.bg-gray-200

@@ -1,7 +1,6 @@
 (ns shadow.cljs.ui.main
   (:require
     [shadow.experiments.grove :as sg :refer (<< defc)]
-    [shadow.experiments.grove.main.loadable :refer (refer-lazy)]
     [shadow.experiments.grove.history :as history]
     [shadow.experiments.grove.worker-engine :as worker-eng]
     [shadow.cljs.model :as m]
@@ -9,16 +8,15 @@
     [shadow.cljs.ui.components.dashboard :as dashboard]
     [shadow.cljs.ui.components.runtimes :as runtimes]
     [shadow.cljs.ui.components.builds :as builds]
+    [shadow.cljs.ui.components.eval :as eval]
     ))
-
-(refer-lazy shadow.cljs.ui.components.eval/ui-repl-page)
 
 (defc ui-root* []
   [{::m/keys [current-page]}
    (sg/query-root
      [::m/current-page
       ;; load marker for suspense, ensures that all basic data is loaded
-      ::m/init-complete])
+      ::m/init-complete?])
 
    nav-items
    [{:pages #{:dashboard} :label "Dashboard" :path "/dashboard"}
@@ -63,7 +61,7 @@
            (runtimes/ui-page)
 
            :repl
-           (ui-repl-page (:ident current-page))
+           (eval/ui-repl-page (:ident current-page))
 
            "Unknown Page"))]))
 

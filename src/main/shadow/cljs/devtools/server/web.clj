@@ -21,7 +21,8 @@
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.graph.env :as genv]
     [clojure.data.json :as json]
-    [shadow.cljs.devtools.server.dev-http :as dev-http]))
+    [shadow.cljs.devtools.server.dev-http :as dev-http]
+    [shadow.jvm-log :as jvm-log]))
 
 (defn create-index-handler [{:keys [db] :as env}]
   (fn index-handler [request]
@@ -220,6 +221,64 @@
           [:script "shadow.test.workspaces.init();"]
           ])})))
 
+(defonce active-cards-clients (atom 0))
+
+(defn grove-cards-page [{:keys [supervisor] :as req}]
+  (if-not (io/resource "shadow/experiments/grove/cards/env.cljs")
+    {:status 404
+     :headers {"content-type" "text/plain; charset=utf-8"}
+     :body "shadow.experiments.grove.cards.env namespace not found on classpath!"}
+
+    (let [worker
+          (or (super/get-worker supervisor :grove-cards)
+              (let [config
+                    {:build-id :grove-cards
+                     :target :browser-test
+                     :ns-regexp "-cards$"
+                     :runner-ns 'shadow.experiments.grove.cards.runner
+                     :asset-path "/cache/grove-cards/out/js"
+                     :test-dir ".shadow-cljs/builds/grove-cards/out"}]
+
+                (log/debug ::grove-cards-start config)
+
+                (-> (super/start-worker supervisor config {})
+                    (worker/start-autobuild))))]
+
+      (worker/sync! worker)
+
+      (swap! active-cards-clients inc)
+
+      {:status 200
+       :headers {"content-type" "text/html; charset=utf-8"}
+       :body
+       (html5
+         {:lang "en"}
+         [:head
+          [:title "grove cards"]
+          [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+          [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]]
+         [:body
+          [:div#app]
+          [:script {:src "/cache/grove-cards/out/js/test.js"}]
+          [:script "shadow.experiments.grove.cards.runner.init();"]
+          [:script
+           (str "window.addEventListener(\"beforeunload\", function() {"
+                "navigator.sendBeacon(\"/grove/cards-unload\", \"\");"
+                "});")]
+          ])})))
+
+(defn grove-cards-unload [{:keys [supervisor] :as req}]
+  (future
+    ;; FIXME: delay this a bit since it might just be a page reload
+    (Thread/sleep 1000)
+    (swap! active-cards-clients dec)
+    (when (zero? @active-cards-clients)
+      (super/stop-worker supervisor :grove-cards)))
+
+  {:status 201
+   :headers {}
+   :body ""})
+
 ;; add SameSite cookie to protect UI websockets later
 (defn add-secret-header [{:keys [status] :as res} {:keys [server-secret] :as req}]
   (let [cookie (get-in req [:ring-request :headers "cookie"])]
@@ -243,6 +302,8 @@
         (:GET "/repl-js/{build-id:keyword}" browser-repl-js build-id)
         (:GET "/browser-test" browser-test-page)
         (:GET "/workspaces" workspaces-page)
+        (:GET "/grove/cards" grove-cards-page)
+        (:ANY "/grove/cards-unload" grove-cards-unload)
         maybe-index-page #_common/not-found)
       (add-secret-header req)))
 
