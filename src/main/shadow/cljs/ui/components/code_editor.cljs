@@ -17,7 +17,7 @@
    ^:mutable editor
    ^:mutable editor-el]
 
-  ap/IUpdatable
+  ap/IManaged
   (supports? [this ^EditorInit next]
     (instance? EditorInit next))
 
@@ -29,7 +29,6 @@
         (.setValue editor value)
         )))
 
-  ap/IManageNodes
   (dom-insert [this parent anchor]
     (.insertBefore parent marker anchor))
 
@@ -67,7 +66,6 @@
 
       (par-cm/init ed)))
 
-  ap/IDestructible
   (destroy! [this]
     (when editor-el
       ;; FIXME: can't find a dispose method on codemirror?

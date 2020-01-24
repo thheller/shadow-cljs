@@ -35,6 +35,7 @@
 (sw/reg-event-fx env/app-ref :ui/route!
   []
   (fn [{:keys [db] :as env} token]
+    ;; FIXME: reitit?
     (let [[main & more :as tokens] (str/split token #"/")
           db (assoc db ::current-route token)]
       (case main
@@ -60,11 +61,19 @@
 
         "runtime"
         (let [[runtime-id sub-page] more
-              ;; FIXME: assuming sub-page /repl for now
               runtime-id (js/parseInt runtime-id 10)
               runtime-ident (db/make-ident ::m/runtime runtime-id)]
-          {:db (-> db
-                   (assoc ::m/current-page {:id :repl :ident runtime-ident}))})
+
+          (if-not (contains? db runtime-ident)
+            ;; FIXME: could try to load it?
+            {:ui/redirect! "/runtimes"}
+
+            (case sub-page
+              ("eval-clj" "eval-cljs" "eval-js") ;; FIXME: should these be separate page types?
+              {:db (-> db (assoc ::m/current-page {:id :repl :ident runtime-ident}))}
+              "db-explorer"
+              {:db (-> db (assoc ::m/current-page {:id :db-explorer :ident runtime-ident}))}
+              (js/console.warn "unknown-runtime-route" token))))
 
         (js/console.warn "unknown-route" token)
         ))))

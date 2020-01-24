@@ -1,7 +1,7 @@
 (ns shadow.cljs.ui.components.eval
   (:require
     [shadow.experiments.grove :as sg :refer (<< defc)]
-    [shadow.experiments.grove.main.loadable :refer (refer-lazy)]
+    [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.cljs.model :as m]))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)

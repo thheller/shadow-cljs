@@ -2,9 +2,11 @@
   (:require
     [shadow.experiments.arborist :as sa]
     [shadow.experiments.grove :as sg :refer (<< defc)]
-    [shadow.experiments.grove.main.vlist :as vlist]
-    [shadow.cljs.model :as m]
-    ))
+    [shadow.experiments.grove.ui.vlist :as vlist]
+    [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
+    [shadow.cljs.model :as m]))
+
+(refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
 (defn render-edn-limit [[limit-reached text]]
   (if limit-reached

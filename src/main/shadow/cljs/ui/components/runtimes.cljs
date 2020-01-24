@@ -24,7 +24,13 @@
               {:class inspect/css-button
                :href (str "/runtime/" rid "/eval-clj")}
               "clj eval"]))
-       [:div.flex-1.truncate (:user-agent runtime-info)]]))
+       (when (contains? supported-ops :db/get-databases)
+         (<< [:a
+              {:class inspect/css-button
+               :href (str "/runtime/" rid "/db-explorer")}
+              "db explorer"]))
+       [:div.flex-1.truncate (:user-agent runtime-info)]]
+      [:div.w-full.truncate (pr-str supported-ops)]))
 
 (defc ui-page []
   [{::m/keys [cljs-runtimes-sorted clj-runtimes-sorted]}

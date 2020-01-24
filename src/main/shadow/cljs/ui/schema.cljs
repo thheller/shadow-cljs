@@ -18,4 +18,11 @@
 
    ::m/build
    {:type :entity
-    :attrs {::m/build-id [:primary-key keyword?]}}})
+    :attrs {::m/build-id [:primary-key keyword?]}}
+
+   ;; FIXME: this should have its own namespace for db-explorer
+   ::m/database
+   {:type :entity
+    :attrs {:db-id [:primary-key some?]
+            ::m/runtime [:one ::m/runtime]}}
+   })

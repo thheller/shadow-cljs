@@ -19,4 +19,4 @@
 
 (defonce app-ref
   (-> {}
-      (sw/prepare data-ref)))
+      (sw/prepare data-ref ::db)))

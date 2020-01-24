@@ -9,6 +9,7 @@
     [shadow.cljs.ui.components.runtimes :as runtimes]
     [shadow.cljs.ui.components.builds :as builds]
     [shadow.cljs.ui.components.eval :as eval]
+    [shadow.cljs.ui.components.db-explorer :as db-explorer]
     ))
 
 (defc ui-root* []
@@ -62,6 +63,9 @@
 
            :repl
            (eval/ui-repl-page (:ident current-page))
+
+           :db-explorer
+           (db-explorer/ui-page (:ident current-page))
 
            "Unknown Page"))]))
 

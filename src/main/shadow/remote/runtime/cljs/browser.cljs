@@ -17,7 +17,7 @@
   (let [t (transit/reader :json)]
     (transit/read t data)))
 
-(defn transit-str  [obj]
+(defn transit-str [obj]
   (let [w (transit/writer :json)]
     (transit/write w obj)))
 
@@ -122,11 +122,12 @@
             (eval-support/stop eval-support)
             (.close socket))]
 
-      (reset! renv/runtime-ref {:runtime runtime
-                                :obj-support obj-support
-                                :tap-support tap-support
-                                :eval-support eval-support
-                                :stop stop})
+      (renv/init-runtime!
+        {:runtime runtime
+         :obj-support obj-support
+         :tap-support tap-support
+         :eval-support eval-support
+         :stop stop})
 
       (.addEventListener socket "message"
         (fn [e]
