@@ -126,22 +126,19 @@
 
 (def map-vlist
   (vlist/configure :fragment-vlist
-    {:item-height 22}
+    {:item-height 22
+     :box-style
+     {:display "grid"
+      :grid-template-columns "min-content minmax(25%, auto)"
+      :grid-row-gap "1px"
+      :grid-column-gap ".5rem"}}
     (fn [{:keys [key val] :as entry} idx opts]
-      (<< [:div.border-b.flex
+      (<< [:div.whitespace-no-wrap.font-bold.pl-4.px-2.border-r.truncate.bg-gray-100.hover:bg-gray-300
            {:on-click [::inspect-nav! idx]}
-           [:div.whitespace-no-wrap.font-bold.pl-4.px-2.border-r.truncate.bg-gray-100.hover:bg-gray-300
-            {:style {:width "50%"}}
-            ;; FIXME: track key length and adjust css var accordingly?
-            ;; truncating long keys sucks
-            ;; maybe figure out if possible for vlist to support grid
-            ;; kinda liked the previous grid setup .. although it didn't work in JVM webview
-            ;; so might be good to figure out good alternative
-            ;; want all values to align but the key should reserve only as much space as needed
-            ;; and never more than 75% or so
-            (render-edn-limit key)]
-           [:div.whitespace-no-wrap.px-2.flex-1.truncate
-            (render-edn-limit val)]])
+           (render-edn-limit key)]
+          [:div.whitespace-no-wrap.px-2.flex-1.truncate
+           {:on-click [::inspect-nav! idx]}
+           (render-edn-limit val)])
       )))
 
 (defmethod render-view :map
