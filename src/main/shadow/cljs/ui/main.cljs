@@ -35,7 +35,7 @@
         [:div.py-2.px-4
          [:span.font-bold "shadow-cljs"]]
         [:div
-         (sg/render-seq nav-items :path
+         (sg/render-seq nav-items nil
            (fn [{:keys [pages label path]}]
              (<< [:a
                   {:class (if (contains? pages (:id current-page)) nav-selected nav-normal)

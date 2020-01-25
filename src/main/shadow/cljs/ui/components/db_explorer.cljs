@@ -59,9 +59,10 @@
         (form/select form :table table-options)]
 
        (if-not (:table table-query)
-         (<< [:div.flex "No Table selected."])
-         (<< [:div.flex-1.flex.h-full.border-t-2
-              [:div {:class "w-1/3"} (rows-vlist {:ident db-ident})]
+         (<< [:div "No Table selected."])
+         (<< [:div.flex-1.flex.border-t-2.overflow-hidden
+              [:div.overflow-hidden {:class "w-1/3 overflow-hidden"}
+               (rows-vlist {:ident db-ident})]
               [:div.flex-1.border-l-2
                ;; FIXME: don't use pprint, create proper dom structure like inspect
                ;; not using inspect because we have the full value and I eventually want to be able to
@@ -96,13 +97,13 @@
    form
    (ui-page-form {:db selected-database})]
 
-  (<< [:div.flex-1.flex.flex-col.h-full
+  (<< [:div.flex-1.flex.flex-col.overflow-hidden
        [:div.p-2.flex
         [:div.p-1.pr-2.w-20 "Database:"]
         ;; FIXME: where to pass in styles/maybe extra dom-attrs?
         (form/select form :db db-options)]
 
-       [:div.flex-1
+       [:div.flex-1.overflow-hidden
         (if-not selected-database
           (<< [:div.p-2 "No database selected."])
           (ui-database selected-database))]]))

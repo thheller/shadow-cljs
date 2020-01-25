@@ -216,8 +216,8 @@
                    (let [val (get fragment idx)]
                      (if-not val
                        (reduced nil)
-                       (assoc! m idx val))))
-                 (transient {})))]
+                       (conj! m val))))
+                 (transient [])))]
 
       ;; all requested elements are already present
       (if slice
@@ -454,8 +454,8 @@
                      (let [val (get table-rows idx)]
                        (if-not val
                          (reduced nil)
-                         (assoc! m idx val))))
-                   (transient {})))]
+                         (conj! m val))))
+                   (transient [])))]
 
         ;; all requested elements are already present
         (if-not slice
