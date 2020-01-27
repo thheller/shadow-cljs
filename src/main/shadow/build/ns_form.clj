@@ -528,14 +528,18 @@
            (reduce reduce-ns-clause ns-info clauses)]
 
        (if (= 'cljs.core name)
-         ns-info
+         (update ns-info :deps
+           (fn [deps]
+             (->> (concat '[goog shadow.cljs_helpers] deps)
+                  (distinct)
+                  (into []))))
          (-> ns-info
              (update :requires assoc 'cljs.core 'cljs.core 'goog 'goog)
              ;; FIXME: this might blow up CLJS since it has all kinds of special cases for cljs.core
              (update :require-macros assoc 'cljs.core 'cljs.core)
              (update :deps
                (fn [deps]
-                 (->> (concat '[goog cljs.core] deps)
+                 (->> (concat '[goog shadow.cljs_helpers cljs.core] deps)
                       ;; just in case someone manually required cljs.core
                       (distinct)
                       (into [])

@@ -168,7 +168,7 @@
     :external-index "target/external.js"}
 
    :devtools
-   {;; :loader-mode :script
+   {:loader-mode :script
     :browser-inject :demo
     :worker-inject :worker
     :before-load-async demo.browser/stop-from-config

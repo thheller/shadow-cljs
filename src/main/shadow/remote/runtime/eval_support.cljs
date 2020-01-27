@@ -11,7 +11,7 @@
   (obj-support/get-ref obj-support-inst oid))
 
 (defn eval-cljs
-  [{:keys [runtime obj-support] :as svc} msg]
+  [{:keys [^Runtime runtime obj-support] :as svc} msg]
   ;; can't use binding because this has to go async
   (set! obj-support-inst obj-support)
   (.eval-cljs runtime msg
@@ -31,7 +31,7 @@
                :ref-oid ref-oid})))))))
 
 (defn eval-js
-  [{:keys [runtime obj-support] :as svc} {:keys [code] :as msg}]
+  [{:keys [^Runtime runtime obj-support] :as svc} {:keys [code] :as msg}]
 
   (try
     ;; FIXME: protocol-ize? eval semantics are different in node/browser

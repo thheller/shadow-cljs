@@ -31,7 +31,7 @@
              :ex-action action)
       (callback)))
 
-(defn interpret-action [{:keys [runtime] :as state} {:keys [type] :as action}]
+(defn interpret-action [{:keys [^BrowserRuntime runtime] :as state} {:keys [type] :as action}]
   (case type
     :repl/invoke
     (let [{:keys [js]} action]

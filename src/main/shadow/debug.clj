@@ -48,10 +48,26 @@
   ([opts obj]
    `(tap-> ~obj ~(dbg-info &env &form opts))))
 
+(defmacro locals []
+  (let [locals
+        (reduce-kv
+          (fn [m local info]
+            (assoc m (keyword (name local)) local))
+          {}
+          (if (:ns &env)
+            (:locals &env)
+            &env))]
+
+    `(tap> [:shadow.remote/wrap ~locals ~(dbg-info &env &form {})])))
+
 (comment
   (?> (:clj-runtime (shadow.cljs.devtools.server.runtime/get-instance))
     :view-opts
     )
+
+  (let [x 1
+        y 2]
+    (locals))
 
   (-> :thing
       (?-> :view-opts))
