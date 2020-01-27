@@ -684,10 +684,16 @@
                      (assoc :tag (symbol type))))))
        (js/goog.define ~defname ~default))))
 
+;; https://github.com/clojure/clojurescript/commit/1589e5848ebb56ab451cb73f955dbc0b01e7aba0
+;; oops, seem to have missed keyword?
+(defn shadow-all-values? [exprs]
+  (every? #(or (nil? %) (symbol? %) (string? %) (number? %) (keyword? %) (true? %) (false? %)) exprs))
+
 (defn install-hacks! []
   ;; cljs.analyzer tweaks
   (replace-fn! #'ana/load-core shadow-load-core)
   (replace-fn! #'ana/resolve-var shadow-resolve-var)
+  (replace-fn! #'ana/all-values? shadow-all-values?)
 
   ;; cljs.compiler tweaks
   (replace-fn! #'comp/emits shadow-emits)
