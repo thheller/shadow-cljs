@@ -32,7 +32,8 @@
    ::m/build-watch-start! sg/tx
    ::m/build-watch-stop! sg/tx
    ::m/build-compile! sg/tx
-   ::m/build-release! sg/tx]
+   ::m/build-release! sg/tx
+   ::m/build-release-debug! sg/tx]
 
   (let [{::m/keys [build-id build-target build-status build-worker-active]} data]
     (<< [:div.flex-1.overflow-auto
@@ -44,19 +45,22 @@
              (<< [:button.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
                   {:on-click [::m/build-watch-compile! build-id]}
                   "force compile"]
-               [:button.ml-2.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-                {:on-click [::m/build-watch-stop! build-id]}
-                "stop watch"])
+                 [:button.ml-2.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
+                  {:on-click [::m/build-watch-stop! build-id]}
+                  "stop watch"])
 
              (<< [:button.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
                   {:on-click [::m/build-watch-start! build-id]}
                   "start watch"]
-               [:button.ml-2.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-                {:on-click [::m/build-compile! build-id]}
-                "compile"]
-               [:button.ml-2.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-                {:on-click [::m/build-release! build-id]}
-                "release"]))]]
+                 [:button.ml-2.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
+                  {:on-click [::m/build-compile! build-id]}
+                  "compile"]
+                 [:button.ml-2.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
+                  {:on-click [::m/build-release! build-id]}
+                  "release"]
+                 [:button.ml-2.py-2.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
+                  {:on-click [::m/build-release-debug! build-id]}
+                  "release debug"]))]]
 
          [:div.p-2
           [:div.text-lg "Build Status"]

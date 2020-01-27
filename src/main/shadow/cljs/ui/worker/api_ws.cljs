@@ -52,6 +52,7 @@
 (sw/reg-event-fx env/app-ref ::m/build-watch-start! [] fx-to-ws)
 (sw/reg-event-fx env/app-ref ::m/build-compile! [] fx-to-ws)
 (sw/reg-event-fx env/app-ref ::m/build-release! [] fx-to-ws)
+(sw/reg-event-fx env/app-ref ::m/build-release-debug! [] fx-to-ws)
 
 (defn send! [app-ref msg]
   (let [{::keys [out]} @app-ref]

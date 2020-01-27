@@ -133,10 +133,10 @@
       :grid-row-gap "1px"
       :grid-column-gap ".5rem"}}
     (fn [{:keys [key val] :as entry} idx opts]
-      (<< [:div.whitespace-no-wrap.font-bold.pl-4.px-2.border-r.truncate.bg-gray-100.hover:bg-gray-300
+      (<< [:div.whitespace-no-wrap.font-bold.px-2.border-r.truncate.bg-gray-100.hover:bg-gray-300
            {:on-click [::inspect-nav! idx]}
            (render-edn-limit key)]
-          [:div.whitespace-no-wrap.px-2.flex-1.truncate
+          [:div.whitespace-no-wrap.truncate
            {:on-click [::inspect-nav! idx]}
            (render-edn-limit val)])
       )))
@@ -294,9 +294,10 @@
                                  (if (or closing? (not inspect-active?))
                                    "100%" 0)
                                  ")")
+                 :box-shadow "0px 20px 20px 20px rgba(0,0,0,0.5)"
                  :right 0
                  :bottom 0
                  :left 0
-                 :top "200px"}}
+                 :top "212px"}}
         (when inspect-active?
           (ui-inspect))]]))

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     version="1.1"
+     viewBox="0 0 400 400"
+     height="39"
+     width="39">
+    <title>shadow-cljs</title>
+    <defs><mask fill="#fff" id="shadow-cljs-logo-mask"><circle r="200" cy="200" cx="200"></circle></mask></defs><g fill-rule="evenodd" fill="none" stroke-width="0" stroke="none" mask="url(#shadow-cljs-logo-mask)"><g><circle r="200" cy="200" cx="200" fill="#4F80DF"></circle><circle r="71.5" cy="200" cx="370" fill="#89B4FF"></circle><circle r="180" cy="360" cx="60" fill="#40B400"></circle><circle r="129" cy="320" cx="280" fill="#76E013"></circle></g><g transform="translate(10,10)"><path stroke-linecap="square" stroke-width="16" stroke="#aaa" d="M247.183941,141.416413 C247.183941,74.7839971 148.383423,78.9723529 148.383423,141.416413 C148.383423,203.860473 265.090698,171.864644 265.090698,248.900057 C265.090698,325.93547 135,325.851749 135,251.708304"></path></g><path stroke-linecap="square" stroke-width="16" stroke="#FFFFFF" d="M247.183941,141.416413 C247.183941,74.7839971 148.383423,78.9723529 148.383423,141.416413 C148.383423,203.860473 265.090698,171.864644 265.090698,248.900057 C265.090698,325.93547 135,325.851749 135,251.708304"></path></g></svg>

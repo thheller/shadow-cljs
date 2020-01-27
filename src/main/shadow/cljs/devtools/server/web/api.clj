@@ -114,7 +114,7 @@
     (worker/compile worker))
   state)
 
-(defn do-build [{:keys [system-bus] :as state} build-id mode]
+(defn do-build [{:keys [system-bus] :as state} build-id mode cli-opts]
   (future
     (let [build-config
           (config/get-build build-id)
@@ -150,7 +150,7 @@
         (let [build-state
               (-> (server-util/new-build build-config mode {})
                   (build-api/with-logger build-logger)
-                  (build/configure mode build-config {})
+                  (build/configure mode build-config cli-opts)
                   (build/compile)
                   (cond->
                     (= :release mode)
@@ -171,13 +171,19 @@
 
 (defmethod process-api-msg ::m/build-compile!
   [env {::m/keys [build-id]}]
-  (do-build env build-id :dev)
+  (do-build env build-id :dev {})
   {::m/build-id build-id}
   env)
 
 (defmethod process-api-msg ::m/build-release!
   [env {::m/keys [build-id]}]
-  (do-build env build-id :release)
+  (do-build env build-id :release {})
+  {::m/build-id build-id}
+  env)
+
+(defmethod process-api-msg ::m/build-release-debug!
+  [env {::m/keys [build-id]}]
+  (do-build env build-id :release {:config-merge [{:compiler-options {:pseudo-names true :pretty-print true}}]})
   {::m/build-id build-id}
   env)
 

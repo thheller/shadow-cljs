@@ -1,5 +1,6 @@
 (ns shadow.cljs.ui.main
   (:require
+    [shadow.experiments.arborist :as sa]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.history :as history]
     [shadow.experiments.grove.worker-engine :as worker-eng]
@@ -32,8 +33,7 @@
 
   (<< [:div.flex.flex-col.h-full.bg-gray-100
        [:div.bg-white.shadow-md.z-10
-        [:div.py-2.px-4
-         [:span.font-bold "shadow-cljs"]]
+        #_ [:div.py-2.px-4 [:span.font-bold "shadow-cljs"]]
         [:div
          (sg/render-seq nav-items nil
            (fn [{:keys [pages label path]}]
