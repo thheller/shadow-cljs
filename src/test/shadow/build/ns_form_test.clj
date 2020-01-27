@@ -161,7 +161,7 @@
            '{something {"react" alias$react}}})]
 
     (is (= 'alias$react (get-in ast-resolved [:requires 'react])))
-    (is (= '[goog cljs.core alias$react] (:deps ast-resolved)))
+    (is (= '[goog shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
     ;; (pprint ast)
     ;; (pprint ast-resolved)
     ))
@@ -180,7 +180,7 @@
            '{react alias$react}})]
 
     (is (= 'alias$react (get-in ast-resolved [:requires 'react])))
-    (is (= '[goog cljs.core alias$react] (:deps ast-resolved)))
+    (is (= '[goog shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
     ;; (pprint ast)
     ;; (pprint ast-resolved)
     ))
@@ -210,7 +210,7 @@
            '{react-dnd-html5-backend alias$react-dnd-html5-backend}})]
 
     (is (= 'alias$react-dnd-html5-backend (get-in ast-resolved [:requires 'react-dnd-html5-backend])))
-    (is (= '[goog cljs.core alias$react-dnd-html5-backend] (:deps ast-resolved)))
+    (is (= '[goog shadow.cljs_helpers cljs.core alias$react-dnd-html5-backend] (:deps ast-resolved)))
     (is (= 'alias$react-dnd-html5-backend/default (get-in ast-resolved [:renames 'HTML5Backend])))
     ;; (pprint ast)
     ;; (pprint ast-resolved)
