@@ -217,6 +217,7 @@
 
   :test-node
   {:target :node-test
+   :ns-regexp "test.(.+)-test$"
    :output-to "out/demo-test-node/script.js"}
 
   #_#_:test-fail
@@ -492,4 +493,77 @@
    {:core {:entries [cljs.core]}
     :main {:entries [demo.dce]
            :depends-on #{:core}}}
-   }}}
+   }
+
+  ;; REQUIRES LEIN PROFILE
+
+  :cljs-tests
+  {:target :node-test
+   :output-to "out/cljs-tests/runner.js"
+   :ns-regexp "cljs.primitives-test" ;; "^cljs(.+)-test$"
+   :compiler-options
+   {:infer-externs false
+    :static-fns true
+    ;; this breaks test-cljs-2741
+    ;; ({} 1 2 3)
+    ;; IFn impl but arity doesn't exist
+    ;; :fn-invoke-direct true
+    :source-map false}
+
+   :namespaces
+   [cljs.apply-test
+    cljs.primitives-test
+    cljs.destructuring-test
+    cljs.new-new-test
+    ;; assuming these fail because of node?
+    cljs.printing-test
+    cljs.seqs-test
+    cljs.collections-test
+    cljs.hashing-test
+    cljs.core-test
+    cljs.reader-test
+    clojure.string-test
+    clojure.data-test
+    clojure.datafy-test
+    clojure.edn-test
+    clojure.walk-test
+    cljs.letfn-test
+    cljs.reducers-test
+    cljs.binding-test
+    cljs.macro-test
+    cljs.top-level
+    cljs.keyword-test
+    cljs.ns-test
+    cljs.ns-test.foo
+    foo.ns-shadow-test
+    cljs.import-test
+    cljs.pprint
+    cljs.spec-test
+    cljs.specials-test
+    cljs.spec.test-test
+    cljs.clojure-alias-test
+    cljs.hash-map-test
+    cljs.map-entry-test
+    cljs.metadata-test
+    cljs.pprint-test
+    cljs.predicates-test
+    cljs.syntax-quote-test
+    ;; cljs.tagged-literals-test
+    cljs.test-test
+    static.core-test
+    cljs.recur-test
+    cljs.array-access-test
+    cljs.inference-test
+    cljs.walk-test
+    cljs.repl-test
+    ;; FIXME: this bricks other tests if they run before this
+    ;; cljs.extend-to-native-test
+    ]
+
+   :exclude
+   #{cljs.npm-deps-test
+     cljs.tagged-literals-test
+     cljs.printing-test ;; assuming those fail because of node?
+     cljs.eval-test
+     cljs.invoke-test}}
+  }}

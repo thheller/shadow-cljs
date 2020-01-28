@@ -100,6 +100,10 @@
     :jar-exclusions
     [#"^clojure/core"]}}
 
+  :aliases
+  {"cljs-tests-compile" ["with-profiles" "+cljs-tests" "run" "-m" "shadow.cljs.devtools.cli" "compile" "cljs-tests"]
+   "cljs-tests-release" ["with-profiles" "+cljs-tests" "run" "-m" "shadow.cljs.devtools.cli" "release" "cljs-tests"]}
+
   :profiles
   {:provided
    {:source-paths
@@ -154,4 +158,13 @@
      "test-project/src/main"
      ;; lein checkouts seems buggy af in cursive
      ;; can't be bothered to figure out how to fix it
-     "../shadow-experiments/src/main"]}})
+     "../shadow-experiments/src/main"]}
+
+   :cljs-tests
+   {:source-paths
+    ["../oss/clojurescript/src/test/clojure"
+     "../oss/clojurescript/src/test/cljs"
+     "../oss/clojurescript/src/test/self"
+     "../oss/clojurescript/src/test/cljs_cp"
+     "../oss/clojurescript/benchmark"
+     ]}})

@@ -523,8 +523,7 @@
   [{:keys [info env form] :as ast}]
   (if-let [const-expr (:const-expr ast)]
     (comp/emit (assoc const-expr :env env))
-    (let [{:keys [options] :as cenv} @env/*compiler*
-          var-name (:name info)]
+    (let [var-name (:name info)]
 
       ;; We need a way to write bindings out to source maps and javascript
       ;; without getting wrapped in an emit-wrap calls, otherwise we get
@@ -534,6 +533,9 @@
         ;; (prevents duplicate fn-param-names)
         (:binding-form? ast)
         (comp/emits (comp/munge ast))
+
+        (= 'js/-Infinity form)
+        (comp/emits "-Infinity")
 
         ;; insufficient fix still rewriting unless es5+
         ;; https://dev.clojure.org/jira/browse/CLJS-1620
@@ -561,10 +563,7 @@
         :else
         (when-not (= :statement (:context env))
           (comp/emit-wrap env
-            (comp/emits
-              (cond-> info
-                (not= form 'js/-Infinity)
-                (comp/munge)))))))))
+            (comp/emits (comp/munge info))))))))
 
 (defmethod comp/emit* :var [expr] (shadow-emit-var expr))
 (defmethod comp/emit* :binding [expr] (shadow-emit-var expr))
@@ -706,7 +705,7 @@
 (defn record-basis
   [tag]
   (let [positional-factory (symbol (str "->" (name tag)))
-        fields             (first (get-in @env/*compiler* [::ana/namespaces (symbol (namespace tag)) :defs positional-factory :method-params]))]
+        fields (first (get-in @env/*compiler* [::ana/namespaces (symbol (namespace tag)) :defs positional-factory :method-params]))]
     (into #{} fields)))
 
 (defn record-with-field?
@@ -727,12 +726,14 @@
   [env [f & args :as form]]
   (let
     [enve (assoc env :context :expr)
-     {:keys [info] :as fexpr} (ana/analyze enve f)
+     fexpr (ana/analyze enve f)
+
      argc (count args)
      ftag (ana/infer-tag env fexpr)
 
      args-exprs (mapv #(ana/analyze enve %) args)
 
+     info (:info fexpr)
      ;; fully-qualified symbol name of protocol-fn (if protocol-fn)
      protocol (:protocol info)]
 
@@ -782,9 +783,9 @@
 
                 use-direct-invoke?
                 (and arg-tag
-                     ana/*cljs-static-fns*
+                     ;; dunno why its in env but defprotocol sets it to make the helper fns it creates
+                     (or ana/*cljs-static-fns* (:protocol-inline env))
                      (or (= arg-tag 'not-native)
-                         (:protocol-inline env)
                          (= protocol arg-tag)
                          ;; ignore new type hints for now - David
                          (and (not (set? arg-tag))
@@ -829,7 +830,9 @@
 
       ;; no further optimizations for development code, always go through .call
       ;; FIXME: should still check arity
-      (not ana/*cljs-static-fns*)
+      ;; (def ^:dynamic *thing* ...) should go through .call always
+      (or (not ana/*cljs-static-fns*)
+          (:dynamic info))
       (make-invoke :dot-call env form fexpr args-exprs)
 
       ;; (defn thing ...) might be variadic or have multiple arities
@@ -877,14 +880,7 @@
 
           ;; dispatch to variadic helper fn
           :else
-          {:op :invoke
-           :env env
-           :form form
-           :fn fexpr
-           :invoke-type :variadic-invoke
-           :max-fixed-arity mfa
-           :args args-exprs
-           :children [:fn :args]}))
+          (make-invoke :fn env form fexpr args-exprs)))
 
       ;; fallback where something might be a function or IFn impl but we can't tell at compile time
 
@@ -934,6 +930,8 @@
 
       :variadic-invoke
       (let [mfa (:max-fixed-arity expr)]
+        (when (= 'cljs.spec.test-test (get-in expr [:env :ns :name]))
+          (?> expr :variadic-invoke))
         (comp/emits f ".cljs$core$IFn$_invoke$arity$variadic(" (comma-sep (take mfa args))
           (when-not (zero? mfa) ",")
           "cljs.core.prim_seq.cljs$core$IFn$_invoke$arity$2(["
@@ -947,8 +945,8 @@
 
       :maybe-ifn
       (if (seq args)
-        (comp/emits "shadow.cljs_helpers.maybe_ifn" (count args) "(" f ", " (comma-sep args) ")")
-        (comp/emits "shadow.cljs_helpers.maybe_ifn0(" f ")"))
+        (comp/emits "shadow.cljs_helpers.maybe_ifn" (count args) (when ana/*fn-invoke-direct* "_direct") "(" f ", " (comma-sep args) ")")
+        (comp/emits "shadow.cljs_helpers.maybe_ifn0" (when ana/*fn-invoke-direct* "_direct") "(" f ")"))
 
       :dot-call
       (comp/emits f ".call(" (comma-sep (cons "null" args)) ")"))))

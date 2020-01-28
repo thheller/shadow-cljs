@@ -284,7 +284,7 @@
 
   (<< [:div.flex-1.overflow-hidden.bg-white.pt-4.relative
        ;; [:div.bg-gray-200.p-1.text-l "Tap Stream"]
-       [:div.h-full tap-stream]
+       [:div {:style {:height (if inspect-active? "212px" "100%")}} tap-stream]
        [:div.border-t-2.absolute.bg-white.flex.flex-col
         ;; fly-in from the bottom, translateY not height so the embedded vlist
         ;; can get the correct height immediately and doesn't start with 0
