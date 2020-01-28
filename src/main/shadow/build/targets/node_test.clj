@@ -29,11 +29,8 @@
 ;; need to come up with a cleaner API for this
 (defn test-resolve
   [{::build/keys [mode config] :as state}]
-  (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
-        config
-
-        test-namespaces
-        (tu/find-namespaces-by-regexp state ns-regexp)
+  (let [test-namespaces
+        (tu/find-test-namespaces state config)
 
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod

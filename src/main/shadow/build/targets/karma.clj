@@ -49,12 +49,9 @@
 ;; we delay setting the :entries until compile-prepare which is called every cycle
 ;; need to come up with a cleaner API for this
 (defn test-resolve
-  [{:keys [classpath] ::tu/keys [runner-ns] :as state} mode config]
-  (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
-        config
-
-        test-namespaces
-        (tu/find-namespaces-by-regexp state ns-regexp)
+  [{::tu/keys [runner-ns] :as state} mode config]
+  (let [test-namespaces
+        (tu/find-test-namespaces state config)
 
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod

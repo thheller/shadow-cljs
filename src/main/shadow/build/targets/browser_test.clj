@@ -58,13 +58,9 @@
 ;; need to come up with a cleaner API for this
 (defn test-resolve
   [{::build/keys [mode config] :as state}]
-  (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
-        config
+  (let [test-namespaces (tu/find-test-namespaces state config)]
 
-        test-namespaces
-        (tu/find-namespaces-by-regexp state ns-regexp)]
-
-    (log/debug ::test-resolve {:ns-regexp ns-regexp
+    (log/debug ::test-resolve {:config config
                                :test-namespaces test-namespaces})
 
     (-> state

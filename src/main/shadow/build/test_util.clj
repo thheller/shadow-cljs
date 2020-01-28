@@ -2,14 +2,21 @@
   (:require [shadow.build.data :as data]
             [shadow.build.classpath :as cp]))
 
-(defn find-namespaces-by-regexp [{:keys [classpath] :as state} ns-regexp]
-  (->> (cp/get-all-resources classpath)
-       (filter :file) ;; only test with files, ie. not tests in jars.
-       (filter #(= :cljs (:type %)))
-       (map :ns)
-       (filter (fn [ns]
-                 (re-find (re-pattern ns-regexp) (str ns))))
-       (into [])))
+(defn find-test-namespaces [{:keys [classpath] :as state} config]
+  (let [{:keys [namespaces ns-regexp exclude] :or {ns-regexp "-test$" exclude #{}}}
+        config]
+
+    (if (seq namespaces)
+      namespaces
+      (->> (cp/get-all-resources classpath)
+           (filter :file) ;; only test with files, ie. not tests in jars.
+           (filter #(= :cljs (:type %)))
+           (map :ns)
+           (filter (fn [ns]
+                     (re-find (re-pattern ns-regexp) (str ns))))
+           (remove exclude)
+           (sort)
+           (into [])))))
 
 (defn inject-extra-requires
   [{::keys [runner-ns test-namespaces] :as state}]
