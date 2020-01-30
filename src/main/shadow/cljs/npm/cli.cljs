@@ -311,6 +311,19 @@
             (into args))]
 
     (log "shadow-cljs - running: lein" (str/join " " lein-args))
+
+    (when (seq (:dependencies config))
+      (log "==============================================================================")
+      (log "WARNING: The configured :dependencies in shadow-cljs.edn were ignored!")
+      (log "         When using :lein they must be configured in project.clj!")
+      (log "=============================================================================="))
+
+    (when (seq (:source-paths config))
+      (log "==============================================================================")
+      (log "WARNING: The configured :source-paths in shadow-cljs.edn were ignored!")
+      (log "         When using :lein they must be configured in project.clj!")
+      (log "=============================================================================="))
+
     (run! project-root "lein" lein-args {})))
 
 (defn get-clojure-args [project-root {:keys [jvm-opts user-config] :as config} opts]
@@ -377,6 +390,19 @@
             (into args))]
 
     (log "shadow-cljs - starting via \"clojure\"")
+
+    (when (seq (:dependencies config))
+      (log "=============================================================================")
+      (log "WARNING: The configured :dependencies in shadow-cljs.edn were ignored!")
+      (log "         When using :deps they must be configured in deps.edn")
+      (log "=============================================================================="))
+
+    (when (seq (:source-paths config))
+      (log "==============================================================================")
+      (log "WARNING: The configured :source-paths in shadow-cljs.edn were ignored!")
+      (log "         When using :deps they must be configured in deps.edn")
+      (log "=============================================================================="))
+
     (if-not (is-windows?)
       (run! project-root "clojure" clojure-args {})
       (let [ps-args (into ["-command" "clojure"] (map powershell-escape) clojure-args)]
