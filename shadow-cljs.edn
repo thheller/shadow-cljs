@@ -58,8 +58,8 @@
   :ui
   {:target :browser
 
-   ;; :output-dir "src/ui-release/shadow/cljs/ui/dist/inspect-js"
-   :output-dir ".shadow-cljs/ui/js"
+   :output-dir "src/ui-release/shadow/cljs/ui/dist/js"
+   :dev {:output-dir ".shadow-cljs/ui/js"}
    :asset-path "/js"
 
    :compiler-options
@@ -139,8 +139,8 @@
 
    :build-hooks
    [(shadow.html/copy-file
-      "out/demo-browser/index.src.html"
-      "out/demo-browser/public/index.html")]
+          "out/demo-browser/index.src.html"
+          "out/demo-browser/public/index.html")]
 
    :module-loader true
    ;; :module-hash-names true

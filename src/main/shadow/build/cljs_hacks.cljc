@@ -1067,3 +1067,172 @@
                js (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
       (bool-expr (concat (core/list 'js* js) syms)))
     `(some? ~x)))
+
+(core/defmacro defprotocol
+  "A protocol is a named set of named methods and their signatures:
+
+  (defprotocol AProtocolName
+    ;optional doc string
+    \"A doc string for AProtocol abstraction\"
+
+  ;method signatures
+    (bar [this a b] \"bar docs\")
+    (baz [this a] [this a b] [this a b c] \"baz docs\"))
+
+  No implementations are provided. Docs can be specified for the
+  protocol overall and for each method. The above yields a set of
+  polymorphic functions and a protocol object. All are
+  namespace-qualified by the ns enclosing the definition The resulting
+  functions dispatch on the type of their first argument, which is
+  required and corresponds to the implicit target object ('this' in
+  JavaScript parlance). defprotocol is dynamic, has no special compile-time
+  effect, and defines no new types.
+
+  (defprotocol P
+    (foo [this])
+    (bar-me [this] [this y]))
+
+  (deftype Foo [a b c]
+    P
+    (foo [this] a)
+    (bar-me [this] b)
+    (bar-me [this y] (+ c y)))
+
+  (bar-me (Foo. 1 2 3) 42)
+  => 45
+
+  (foo
+    (let [x 42]
+      (reify P
+        (foo [this] 17)
+        (bar-me [this] x)
+        (bar-me [this y] x))))
+  => 17"
+  [psym & doc+methods]
+  (core/let [p (:name (cljs.analyzer/resolve-var (dissoc &env :locals) psym))
+             [opts methods]
+             (core/loop [opts {:protocol-symbol true}
+                         methods []
+                         sigs doc+methods]
+               (core/if-not (seq sigs)
+                 [opts methods]
+                 (core/let [[head & tail] sigs]
+                   (core/cond
+                     (core/string? head)
+                     (recur (assoc opts :doc head) methods tail)
+                     (core/keyword? head)
+                     (recur (assoc opts head (first tail)) methods (rest tail))
+                     (core/list? head)
+                     (recur opts (conj methods head) tail)
+                     :else
+                     (throw #?(:clj  (Exception.
+                                       (core/str "Invalid protocol, " psym " received unexpected argument"))
+                               :cljs (js/Error.
+                                       (core/str "Invalid protocol, " psym " received unexpected argument"))))
+                     ))))
+             psym (vary-meta psym merge opts)
+             ns-name (core/-> &env :ns :name)
+             fqn (core/fn [n] (symbol (core/str ns-name) (core/str n)))
+             prefix (protocol-prefix p)
+             _ (core/doseq [[mname & arities] methods]
+                 (core/when (some #{0} (map count (filter vector? arities)))
+                   (throw
+                     #?(:clj (Exception.
+                               (core/str "Invalid protocol, " psym
+                                         " defines method " mname " with arity 0"))
+                        :cljs (js/Error.
+                                (core/str "Invalid protocol, " psym
+                                          " defines method " mname " with arity 0"))))))
+             expand-sig (core/fn [fname slot sig]
+                          (core/let [sig (core/if-not (every? core/symbol? sig)
+                                           (mapv (core/fn [arg]
+                                                   (core/cond
+                                                     (core/symbol? arg) arg
+                                                     (core/and (map? arg) (core/some? (:as arg))) (:as arg)
+                                                     :else (gensym))) sig)
+                                           sig)
+
+                                     fqn-fname (fqn fname)
+                                     fsig (first sig)
+
+                                     impl-sym (with-meta (gensym "impl_fn") {:tag 'function})
+
+                                     ;; last check protocol on js null,string,function,array,object or default
+                                     ;; this is identical for all impls so handled in a helper fn
+                                     ;; default impls are registered via (goog.object/set protocol-fn "string" (fn [...] ...))
+                                     ;; invoke still happens here since the arity varies
+                                     check
+                                     `(let [~impl-sym (js/shadow.cljs_helpers.find_protocol_impl ~fqn-fname ~fsig)]
+                                        (if-not (nil? ~impl-sym)
+                                          (~impl-sym ~@sig)
+                                          (throw
+                                            (missing-protocol
+                                              ~(core/str psym "." fname) ~fsig))))
+
+                                     ;; FIXME: this should actually be the first check, but that requires rewriting direct protocol invoke too
+                                     ;; then check protocol fn in metadata (only when protocol is marked with :extend-via-metadata true)
+                                     check
+                                     (core/if-not (:extend-via-metadata opts)
+                                       check
+                                       `(if-let [meta-impl# (-> ~fsig (core/meta) (core/get '~fqn-fname))]
+                                          ;; FIXME: this will go through IFn property check, can this even be IFn? likely only function?
+                                          (meta-impl# ~@sig)
+                                          ~check))
+
+                                     ;; check protocol property on object (first check actually executed)
+                                     check
+                                     `(if (and (not (nil? ~fsig))
+                                               (not (nil? (. ~fsig ~(symbol (core/str "-" slot)))))) ;; Property access needed here.
+                                        (. ~fsig ~slot ~@sig)
+                                        ~check)]
+                            `(~sig ~check)))
+             psym (core/-> psym
+                           (vary-meta update-in [:jsdoc] conj "@interface")
+                           (vary-meta assoc-in [:protocol-info :methods]
+                             (into {}
+                               (map
+                                 (core/fn [[fname & sigs]]
+                                   (core/let [doc (core/as-> (last sigs) doc
+                                                    (core/when (core/string? doc) doc))
+                                              sigs (take-while vector? sigs)]
+                                     [(vary-meta fname assoc :doc doc)
+                                      (vec sigs)]))
+                                 methods)))
+                           ;; for compatibility with Clojure
+                           (vary-meta assoc-in [:sigs]
+                             (into {}
+                               (map
+                                 (core/fn [[fname & sigs]]
+                                   (core/let [doc (core/as-> (last sigs) doc
+                                                    (core/when (core/string? doc) doc))
+                                              sigs (take-while vector? sigs)]
+                                     [(keyword fname) {:name fname :arglists (list* sigs) :doc doc}]))
+                                 methods))))
+             method (core/fn [[fname & sigs]]
+                      (core/let [doc (core/as-> (last sigs) doc
+                                       (core/when (core/string? doc) doc))
+                                 sigs (take-while vector? sigs)
+                                 amp (core/when (some #{'&} (apply concat sigs))
+                                       (cljs.analyzer/warning
+                                         :protocol-with-variadic-method
+                                         &env {:protocol psym :name fname}))
+                                 _ (core/when-some [existing (core/get (-> &env :ns :defs) fname)]
+                                     (core/when-not (= p (:protocol existing))
+                                       (cljs.analyzer/warning
+                                         :protocol-with-overwriting-method
+                                         {} {:protocol psym :name fname :existing existing})))
+                                 slot (symbol (core/str prefix (munge (name fname))))
+                                 fname (vary-meta fname assoc
+                                         :protocol p
+                                         :doc doc)]
+                        `(defn ~fname
+                           ~@(map (core/fn [sig]
+                                    (expand-sig fname
+                                      (symbol (core/str slot "$arity$" (count sig)))
+                                      sig))
+                               sigs))))]
+    `(do
+       (set! ~'*unchecked-if* true)
+       (def ~psym (~'js* "function(){}"))
+       ~@(map method methods)
+       (set! ~'*unchecked-if* false))))

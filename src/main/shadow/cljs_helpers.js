@@ -1,4 +1,10 @@
 goog.provide("shadow.cljs_helpers");
+goog.require("goog.object");
+
+shadow.cljs_helpers.find_protocol_impl = function(protocol, target) {
+  // protocol impls for string,array,object,function,null and lastly default via "_"
+  return goog.object.get(protocol, goog.typeOf(target)) || goog.object.get(protocol, "_");
+}
 
 // these are called by the emitted CLJS code
 // unused versions will be removed by DCE
