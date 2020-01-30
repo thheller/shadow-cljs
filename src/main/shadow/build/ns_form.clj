@@ -530,7 +530,7 @@
        (if (= 'cljs.core name)
          (update ns-info :deps
            (fn [deps]
-             (->> (concat '[goog shadow.cljs_helpers] deps)
+             (->> (concat '[goog #_ shadow.cljs_helpers] deps)
                   (distinct)
                   (into []))))
          (-> ns-info
@@ -539,7 +539,7 @@
              (update :require-macros assoc 'cljs.core 'cljs.core)
              (update :deps
                (fn [deps]
-                 (->> (concat '[goog shadow.cljs_helpers cljs.core] deps)
+                 (->> (concat '[goog #_ shadow.cljs_helpers cljs.core] deps)
                       ;; just in case someone manually required cljs.core
                       (distinct)
                       (into [])

@@ -732,11 +732,7 @@
        argc (count args)
        ftag (ana/infer-tag env fexpr)
 
-       ;; delay parsing args until needed
-       ;; the :maybe-ifn case may decide to that the args need to be wrapped in which cause
-       ;; they need to be analyzed again later,
-       args-exprs
-       (delay (mapv #(ana/analyze enve %) args))
+       args-exprs (mapv #(ana/analyze enve %) args)
 
        info (:info fexpr)
        ;; fully-qualified symbol name of protocol-fn (if protocol-fn)
@@ -746,24 +742,24 @@
         ;; :opt-not, optimizes to !thing, skipping call to (not thing)
         ;; FIXME: a cljs.core/not macro could do this? all the other stuff does? probably not done for legacy reasons?
         (and (= (:name info) 'cljs.core/not) (= 1 argc))
-        (let [arg-tag (ana/infer-tag enve (first @args-exprs))]
+        (let [arg-tag (ana/infer-tag enve (first args-exprs))]
           (if (= 'boolean arg-tag)
-            (make-invoke :opt-not env form fexpr @args-exprs)
+            (make-invoke :opt-not env form fexpr args-exprs)
             ;; regular cljs.core/not call
-            (make-invoke :fn env form fexpr @args-exprs)))
+            (make-invoke :fn env form fexpr args-exprs)))
 
         ;; :opt-count, optimized call to .length for strings/arrays, skipping actual (count ...)
         (and (= (:name info) 'cljs.core/count)
-             (let [arg-tag (ana/infer-tag enve (first @args-exprs))]
+             (let [arg-tag (ana/infer-tag enve (first args-exprs))]
                (contains? '#{string array} arg-tag)))
-        (make-invoke :opt-count env form fexpr @args-exprs)
+        (make-invoke :opt-count env form fexpr args-exprs)
 
         ;; (:foo bar), use optimized ifn invoke
         (or (keyword? f) (= 'cljs.core/Keyword ftag))
         (do (when-not (or (== 1 argc) (== 2 argc))
               (ana/warning :fn-arity env {:name f :argc argc}))
             ;; FIXME: check first arg for defrecord field access opt
-            (let [arg-expr (first @args-exprs)
+            (let [arg-expr (first args-exprs)
                   arg-tag (ana/infer-tag enve arg-expr)
                   field-sym (symbol (name f))]
 
@@ -777,13 +773,13 @@
                     (meta form)))
 
                 ;; kw.ifn1(foo)
-                (make-invoke :ifn env form fexpr @args-exprs))))
+                (make-invoke :ifn env form fexpr args-exprs))))
 
         ;; f is a protocol-fn, figure out if it can be invoke directly or through dispatch fn
         protocol
         ;; FIXME: throw proper error
         (do (assert (pos? argc) "protocol functions require at least one argument")
-            (let [arg-expr (first @args-exprs)
+            (let [arg-expr (first args-exprs)
                   arg-tag (ana/infer-tag enve arg-expr)
 
                   use-direct-invoke?
@@ -808,17 +804,17 @@
                  :invoke-type :protocol
                  :protocol-name protocol
                  :protocol-fn (:name info)
-                 :args @args-exprs
+                 :args args-exprs
                  :children [:fn :args]}
 
                 ;; invoke protocol dispatch directly, which is always a function
-                (make-invoke :fn env form fexpr @args-exprs))))
+                (make-invoke :fn env form fexpr args-exprs))))
 
         ;; optional/dangerous optimization!
         ;; (thing foo bar) when thing is tagged not-native, invoke as IFn directly
         ;; breaks code if tagged incorrectly but bypasses property check
         (= 'not-native ftag)
-        (make-invoke :ifn env form fexpr @args-exprs)
+        (make-invoke :ifn env form fexpr args-exprs)
 
         ;; cases where (thing foo bar) should be invoked directly as thing(foo, bar)
         ;; without going through further CLJS related checks for variadic/IFn support
@@ -831,14 +827,14 @@
               (or (= 'js ns)
                   (= 'Math ns)
                   (and ns (not (contains? (::ana/namespaces @env/*compiler*) ns))))))
-        (make-invoke :fn env form fexpr @args-exprs)
+        (make-invoke :fn env form fexpr args-exprs)
 
         ;; no further optimizations for development code, always go through .call
         ;; FIXME: should still check arity
         ;; (def ^:dynamic *thing* ...) should go through .call always
         (or (not ana/*cljs-static-fns*)
             (:dynamic info))
-        (make-invoke :dot-call env form fexpr @args-exprs)
+        (make-invoke :dot-call env form fexpr args-exprs)
 
         ;; (defn thing ...) might be variadic or have multiple arities
         (:fn-var info)
@@ -848,7 +844,7 @@
           (cond
             ;; if only one method, invoke directly, always a function
             (and (not variadic?) (= (count mps) 1))
-            (make-invoke :fn env form fexpr @args-exprs)
+            (make-invoke :fn env form fexpr args-exprs)
 
             ;; direct dispatch to variadic case
             (and variadic? (> argc mfa))
@@ -867,7 +863,7 @@
                            #(-> % (dissoc :shadow) (dissoc :fn-self-name))))))
              :invoke-type :variadic-invoke
              :max-fixed-arity mfa
-             :args @args-exprs
+             :args args-exprs
              :children [:fn :args]}
 
             ;; direct dispatch to specific arity case
@@ -881,11 +877,11 @@
                       ;; shadowing already applied
                       (update-in [:info]
                         #(-> % (dissoc :shadow) (dissoc :fn-self-name))))))
-              @args-exprs)
+              args-exprs)
 
             ;; dispatch to variadic helper fn
             :else
-            (make-invoke :fn env form fexpr @args-exprs)))
+            (make-invoke :fn env form fexpr args-exprs)))
 
         ;; fallback where something might be a function or IFn impl but we can't tell at compile time
 
