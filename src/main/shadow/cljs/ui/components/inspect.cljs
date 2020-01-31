@@ -6,7 +6,7 @@
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.cljs.model :as m]))
 
-(refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
+;; (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
 (defn render-edn-limit [[limit-reached text]]
   (if limit-reached
