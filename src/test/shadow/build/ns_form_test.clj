@@ -161,7 +161,7 @@
            '{something {"react" alias$react}}})]
 
     (is (= 'alias$react (get-in ast-resolved [:requires 'react])))
-    (is (= '[goog shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
+    (is (= '[goog #_ shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
     ;; (pprint ast)
     ;; (pprint ast-resolved)
     ))
@@ -180,7 +180,7 @@
            '{react alias$react}})]
 
     (is (= 'alias$react (get-in ast-resolved [:requires 'react])))
-    (is (= '[goog shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
+    (is (= '[goog #_ shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
     ;; (pprint ast)
     ;; (pprint ast-resolved)
     ))
