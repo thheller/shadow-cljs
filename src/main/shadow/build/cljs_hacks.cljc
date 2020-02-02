@@ -970,8 +970,6 @@
 
       :variadic-invoke
       (let [mfa (:max-fixed-arity expr)]
-        (when (= 'cljs.spec.test-test (get-in expr [:env :ns :name]))
-          (?> expr :variadic-invoke))
         (comp/emits f ".cljs$core$IFn$_invoke$arity$variadic(" (comma-sep (take mfa args))
           (when-not (zero? mfa) ",")
           "cljs.core.prim_seq.cljs$core$IFn$_invoke$arity$2(["
