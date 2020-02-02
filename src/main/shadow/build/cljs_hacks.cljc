@@ -902,6 +902,10 @@
           :else
           (make-invoke :fn env form fexpr @args-exprs)))
 
+      ;; can always invoke multi-methods via ifn. don't need to check
+      (= 'cljs.core/MultiFn ftag)
+      (make-invoke :ifn env form fexpr @args-exprs)
+
       ;; fallback where something might be a function or IFn impl but we can't tell at compile time
       ;; need to wrap higher order calls to avoid repeating argument construction code
       ;;   (x {:foo "bar"})
