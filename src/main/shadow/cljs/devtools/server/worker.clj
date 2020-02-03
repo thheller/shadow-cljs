@@ -177,9 +177,6 @@
         asset-update
         (async/chan (async/sliding-buffer 10))
 
-        macro-update
-        (async/chan (async/sliding-buffer 10))
-
         ;; same deal here, 1 msg is sent per build so this may produce many messages
         config-watch
         (async/chan (async/sliding-buffer 100))
@@ -193,7 +190,6 @@
          :output output
          :to-relay to-relay
          :resource-update resource-update
-         :macro-update macro-update
          :asset-update asset-update
          :config-watch config-watch}
 
@@ -236,7 +232,6 @@
            proc-control impl/do-proc-control
            resource-update impl/do-resource-update
            asset-update impl/do-asset-update
-           macro-update impl/do-macro-update
            config-watch impl/do-config-watch
            from-relay impl/do-relay-msg}
 
@@ -279,7 +274,6 @@
              :build-id build-id
              :system-bus system-bus
              :resource-update resource-update
-             :macro-update macro-update
              :output output
              :output-mult output-mult
              :status-ref status-ref
@@ -314,7 +308,6 @@
 
     (sys-bus/sub system-bus ::m/resource-update resource-update)
     (sys-bus/sub system-bus ::m/asset-update asset-update)
-    (sys-bus/sub system-bus ::m/macro-update macro-update)
     (sys-bus/sub system-bus [::m/config-watch build-id] config-watch)
 
     ;; ensure all channels are cleaned up properly
@@ -323,7 +316,6 @@
         (async/close! proc-stop)
         (async/close! proc-control)
         (async/close! resource-update)
-        (async/close! macro-update)
         (async/close! asset-update)
         (async/close! to-relay)
         (log/debug ::stop {:build-id build-id :proc-id proc-id}))

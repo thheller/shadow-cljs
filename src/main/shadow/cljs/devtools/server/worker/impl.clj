@@ -312,7 +312,7 @@
           :used-ts {}})))
 
 (defn build-compile
-  [{:keys [build-state namespaces-modified] :as worker-state}]
+  [{:keys [build-state macros-modified namespaces-modified] :as worker-state}]
   ;; this may be nil if configure failed, just silently do nothing for now
   (if (nil? build-state)
     worker-state
@@ -323,7 +323,11 @@
             (-> build-state
                 (cond->
                   (seq namespaces-modified)
-                  (build-api/reset-namespaces namespaces-modified))
+                  (build-api/reset-namespaces namespaces-modified)
+
+                  (seq macros-modified)
+                  (build-api/reset-resources-using-macros macros-modified))
+
                 (build-api/reset-always-compile-namespaces)
                 (build/compile)
                 (build/flush)
@@ -343,6 +347,7 @@
                      ;; tracking added/modified namespaces since we finished compiling
                      :namespaces-added #{}
                      :namespaces-modified #{}
+                     :macros-modified #{}
                      :last-build-resources none-code-resources
                      :last-build-provides (-> build-state :sym->id keys set)
                      :last-build-sources build-sources
@@ -902,7 +907,7 @@
 
     ;; the updated macro may not be used by this build
     ;; so we can skip the rebuild
-    (and (seq last-build-macros) (some last-build-macros macro-namespaces))
+    (and (seq last-build-macros) )
     (-> worker-state
         (update :build-state build-api/reset-resources-using-macros macro-namespaces)
         (cond->
@@ -915,15 +920,21 @@
         worker-state)))
 
 (defn do-resource-update
-  [{:keys [autobuild last-build-provides build-state] :as worker-state}
-   {:keys [namespaces added] :as msg}]
+  [{:keys [autobuild last-build-macros last-build-provides build-state] :as worker-state}
+   {:keys [namespaces added macros] :as msg}]
 
   (if-not build-state
     worker-state
     (let [namespaces-used-by-build
           (->> namespaces
                (filter #(contains? last-build-provides %))
-               (into #{}))]
+               (into #{}))
+
+          macros-used-by-build
+          (when (seq last-build-macros)
+            (->> macros
+                 (filter last-build-macros)
+                 (set)))]
 
       (cond
         ;; always recompile if the first compile attempt failed
@@ -949,6 +960,7 @@
             ;; which break if the state is already half cleaned
             (update :namespaces-added set/union added)
             (update :namespaces-modified set/union added namespaces)
+            (update :macros-modified set/union macros-used-by-build)
             (cond->
               autobuild
               (build-compile)))))))

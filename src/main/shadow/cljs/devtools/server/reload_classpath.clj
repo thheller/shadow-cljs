@@ -1,23 +1,28 @@
 (ns shadow.cljs.devtools.server.reload-classpath
   "service that watches fs updates and ensures classpath resources are updated
    will emit system-bus messages for inform about changed resources"
-  (:require [clojure.core.async :as async :refer (alt!! thread)]
-            [shadow.jvm-log :as log]
-            [shadow.build.classpath :as cp]
-            [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.model :as m]
-            [shadow.cljs.util :as util]
-            [shadow.build.resource :as rc]
-            [clojure.set :as set]))
-
+  (:require
+    [clojure.core.async :as async :refer (alt!! thread)]
+    [clojure.set :as set]
+    [shadow.jvm-log :as log]
+    [shadow.build.classpath :as cp]
+    [shadow.cljs.devtools.server.system-bus :as sys-bus]
+    [shadow.cljs.model :as m]
+    [shadow.cljs.util :as util]
+    [shadow.build.resource :as rc]
+    [shadow.build.macros :as bm]))
 
 ;; FIXME: rewrite this similar to npm-update so that it only checks files that are actually used
 ;; checking all source paths all the time is overkill
 
-(def interesting-file-exts
+(def cljs-file-exts
   #{"cljs"
     "cljc"
     "js"})
+
+(def macro-file-exts
+  #{"clj"
+    "cljc"})
 
 (defn process-update
   [{:keys [classpath] :as state} {:keys [event name file dir ext] :as fs-update}]
@@ -36,12 +41,21 @@
       (log/warn-ex e ::update-failed fs-update))))
 
 (defn process-updates [{:keys [system-bus classpath] :as state} updates]
-  (let [fs-updates
+  (let [cljs-updates
         (->> updates
-             (filter #(contains? interesting-file-exts (:ext %)))
+             (filter #(contains? cljs-file-exts (:ext %)))
              (into []))
 
-        _ (log/debug ::classpath-update-count {:count (count fs-updates)})
+        ;; must check macros here since otherwise there are 2 separate watchers
+        ;; that may trigger at different times and leading builds to recompile
+        ;; twice whenever a .cljc file with macros is modified
+        updated-macros
+        (->> updates
+             (filter #(contains? macro-file-exts (:ext %)))
+             (map :name)
+             (map util/clj-name->ns)
+             (filter #(contains? @bm/reloadable-macros-ref %))
+             (into #{}))
 
         ;; classpath is treated as an external process so knowing what updates
         ;; actually did is kind of tough
@@ -53,7 +67,7 @@
         provides-before
         (cp/get-provided-names classpath)
 
-        _ (run! #(process-update state %) fs-updates)
+        _ (run! #(process-update state %) cljs-updates)
 
         provides-after
         (cp/get-provided-names classpath)
@@ -65,7 +79,7 @@
         (into #{} (remove provides-before) provides-after)
 
         provides-updated
-        (->> fs-updates
+        (->> cljs-updates
              (map :name)
              (map rc/normalize-name)
              (map #(cp/find-resource-by-name classpath %))
@@ -80,10 +94,27 @@
         {:namespaces (set/union provides-updated provides-new provides-deleted)
          :deleted provides-deleted
          :updated provides-updated
-         :added provides-new}]
+         :added provides-new
+         :macros updated-macros}]
 
-    (log/debug ::m/resource-update update-msg)
-    (sys-bus/publish! system-bus ::m/resource-update update-msg)
+    ;; FIXME: this should be somehow coordinated with the workers
+    ;; don't want to do it in the worker since that would mean loading things
+    ;; twice if 2 builds are running. this already only reloads macros that
+    ;; are already active
+    (doseq [ns-sym updated-macros]
+      (locking bm/require-lock
+        (try
+          (require ns-sym :reload)
+          (catch Exception e
+            ;; FIXME: better reporting for this!
+            (log/warn-ex e ::macro-reload-ex {:ns-sym ns-sym})))))
+
+    (when (or (seq updated-macros)
+              (seq provides-deleted)
+              (seq provides-updated)
+              (seq provides-new))
+      (log/debug ::m/resource-update update-msg)
+      (sys-bus/publish! system-bus ::m/resource-update update-msg))
 
     state
     ))
@@ -98,10 +129,10 @@
 
       watch-chan
       ([{:keys [updates] :as msg}]
-        (when (some? msg)
-          (-> state
-              (process-updates updates)
-              (recur))))))
+       (when (some? msg)
+         (-> state
+             (process-updates updates)
+             (recur))))))
   ::terminated)
 
 (defn start [system-bus classpath]

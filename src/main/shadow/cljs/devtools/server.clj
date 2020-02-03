@@ -26,7 +26,6 @@
     [shadow.cljs.devtools.server.dev-http :as dev-http]
     [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
-    [shadow.cljs.devtools.server.reload-macros :as reload-macros]
     [shadow.cljs.devtools.server.build-history :as build-history]
     [shadow.remote.relay.local :as relay]
     [shadow.remote.runtime.clojure :as clj-runtime]
@@ -410,8 +409,7 @@
                               (->> (build-classpath/get-classpath-entries classpath)
                                    (filter #(.isDirectory %))
                                    (into []))
-                              ;; no longer watches .clj files, reload-macros directly looks at used macros
-                              ["cljs" "cljc" "js"]
+                              ["cljs" "cljc" "clj" "js"]
                               #(system-bus/publish! system-bus ::m/cljs-watch {:updates %})
                               ))
                    :stop fs-watch/stop}
@@ -435,11 +433,6 @@
                   {:depends-on [:system-bus]
                    :start build-history/start
                    :stop build-history/stop}
-
-                  :reload-macros
-                  {:depends-on [:system-bus]
-                   :start reload-macros/start
-                   :stop reload-macros/stop}
 
                   :supervisor
                   {:depends-on [:config :system-bus :build-executor :relay :cache-root :http :classpath :npm :babel]

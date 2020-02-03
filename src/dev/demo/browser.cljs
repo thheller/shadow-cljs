@@ -20,6 +20,7 @@
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
     [demo.googClass :refer (Foo)]
+    [demo.dummy-cljc]
     ))
 
 (js/console.log "foo" Foo)
