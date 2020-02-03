@@ -358,8 +358,46 @@
 (sw/reg-event-fx env/app-ref ::m/process-eval-input!
   []
   (fn [{:keys [db] :as env} runtime-ident code]
-    {:db (update-in db [runtime-ident ::m/eval-history] vec-conj {:id (random-uuid)
-                                                                  :code code})}))
+    (let [eval-id (random-uuid)
+          eval-ident (db/make-ident ::m/eval eval-id)
+          {:keys [rid] :as runtime} (get db runtime-ident)
+
+          ns 'user
+
+          wrap ""
+          #_(str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
+                 "      $o (:obj $ref)\n"
+                 "      $d (-> $ref :desc :data)]\n"
+                 "?CODE?\n"
+                 "\n)")]
+
+      (tool-ws/call! env
+        {:op :eval-clj
+         :rid rid
+         :ns ns
+         :code code}
+        {:eval-result-ref [::process-eval-result-ref! eval-ident]})
+
+      {:db (assoc db eval-ident {:db/ident eval-ident
+                                 :runtime runtime-ident
+                                 :eval-id eval-id
+                                 :rid rid
+                                 :code code
+                                 :ns ns
+                                 :status :requested})
+       :stream-add
+       [[[::m/eval-stream runtime-ident] {:ident eval-ident}]]})))
+
+(sw/reg-event-fx env/app-ref ::process-eval-result-ref!
+  []
+  (fn [{:keys [db] :as env} eval-ident {:keys [ref-oid] :as msg}]
+    (let [object-ident (db/make-ident ::m/object ref-oid)
+          {:keys [rid]} (get db eval-ident)]
+      {:db
+       (-> db
+           (assoc object-ident {:db/ident object-ident :oid ref-oid :rid rid})
+           (update eval-ident merge {:result object-ident
+                                     :status :done}))})))
 
 (defmethod db/query-calc ::m/databases [env db {:keys [rid] ::m/keys [databases] :as current} query-part params]
   (cond

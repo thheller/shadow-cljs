@@ -108,7 +108,8 @@
         '(defn foo [^function bar]
            (bar 1 2 3))]
 
-    (binding [a/*cljs-ns* 'cljs.core]
+    (binding [a/*cljs-ns* 'cljs.core
+              a/*cljs-static-fns* true]
       (e/with-compiler-env compiler-env-ref
 
         (let [env

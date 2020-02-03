@@ -14,7 +14,7 @@
 
   (<< [:div.px-2.py-1.flex
        [:div {:style {:width "50px"}} (str "#" rid)]
-       (when (contains? supported-ops :eval-cljs)
+       #_ (when (contains? supported-ops :eval-cljs)
          (<< [:a
               {:class inspect/css-button
                :href (str "/runtime/" rid "/eval-cljs")}
@@ -22,7 +22,7 @@
        (when (contains? supported-ops :eval-clj)
          (<< [:a
               {:class inspect/css-button
-               :href (str "/runtime/" rid "/eval-clj")}
+               :href (str "/runtime/" rid "/repl")}
               "clj eval"]))
        (when (contains? supported-ops :db/get-databases)
          (<< [:a

@@ -69,7 +69,7 @@
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
-   [com.wsscode/pathom "2.2.7"
+   [com.wsscode/pathom "2.2.30"
     :exclusions
     [org.clojure/data.json
      fulcrologic/fulcro

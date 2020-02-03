@@ -69,8 +69,10 @@
             {:ui/redirect! "/runtimes"}
 
             (case sub-page
-              ("eval-clj" "eval-cljs" "eval-js") ;; FIXME: should these be separate page types?
-              {:db (-> db (assoc ::m/current-page {:id :repl :ident runtime-ident}))}
+              "repl" ;; FIXME: should these be separate page types?
+              (let [stream-key [::m/eval-stream runtime-ident]]
+                {:db (-> db (assoc ::m/current-page {:id :repl :ident runtime-ident}))
+                 :stream-init {stream-key {}}})
               "db-explorer"
               {:db (-> db (assoc ::m/current-page {:id :db-explorer :ident runtime-ident}))}
               (js/console.warn "unknown-runtime-route" token))))

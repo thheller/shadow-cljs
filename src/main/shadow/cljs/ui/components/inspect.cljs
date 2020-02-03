@@ -92,38 +92,6 @@
 (defmethod render-view :list [data]
   (render-seq data))
 
-(comment
-  (defstyled map-root :div [env]
-    {:display "grid"
-     :padding "0 1rem"
-     :grid-template-columns "min-content minmax(25%, auto)"
-     :grid-row-gap "1px"
-     :grid-column-gap ".5rem"})
-
-  (defstyled map-span :div [env]
-    {:grid-column-start "span 2"})
-
-  (defstyled map-entry :div [env]
-    {:display "contents"
-     :cursor "pointer"})
-
-  ;; {:class "pl-4 pr-2 font-bold whitespace-no-wrap truncate"}
-  (defstyled map-key :div [env]
-    {:font-weight "bold"
-     :padding "0 .25rem"
-     :white-space "nowrap"
-     :overflow "hidden"
-     :text-overflow "ellipsis"
-     :background-color "#fafafa"
-     "&:hover"
-     {:background-color "#eee"}})
-
-  ;; {:class "pr-4 truncate"}
-  (defstyled map-val :div [env]
-    {:white-space "nowrap"
-     :overflow "hidden"
-     :text-overflow "ellipsis"}))
-
 (def map-vlist
   (vlist/configure :fragment-vlist
     {:item-height 22
@@ -294,7 +262,7 @@
                                  (if (or closing? (not inspect-active?))
                                    "100%" 0)
                                  ")")
-                 :box-shadow "0px 20px 20px 20px rgba(0,0,0,0.5)"
+                 :box-shadow (if inspect-active? "0px 20px 20px 20px rgba(0,0,0,0.5)" "none")
                  :right 0
                  :bottom 0
                  :left 0
