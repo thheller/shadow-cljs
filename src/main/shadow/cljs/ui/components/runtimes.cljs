@@ -4,7 +4,6 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.inspect :as inspect]))
 
-
 (defc ui-runtime-overview [ident]
   [{:keys [rid runtime-info supported-ops] :as data}
    (sg/query-ident ident
