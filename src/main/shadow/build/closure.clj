@@ -931,8 +931,11 @@
 
       (when-not (.success result)
         (throw (ex-info
-                (str "Error processing externs:\n"
-                     (str/join "\n" (map #(.toString %) (.errors result)))) {})))
+                 (str "Error processing externs:\n"
+                      (->> (.errors result)
+                           (map str)
+                           (str/join "\n")))
+                 {:tag ::load-externs-failed})))
 
       (assoc state ::extern-properties extern-properties)
       )))

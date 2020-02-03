@@ -255,6 +255,10 @@
       (.write w "--- remaining errors ommitted ...\n")
       )))
 
+(defmethod ex-data-format ::closure/load-externs-failed
+  [w e {:keys [errors] :as data}]
+  (.write w (.getMessage e)))
+
 (defmethod ex-data-format ::config/no-build
   [w e {:keys [id] :as data}]
   ;; FIXME: show list of all build ids?
