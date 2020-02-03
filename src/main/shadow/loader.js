@@ -16,11 +16,31 @@ shadow.loader.mm.setLoader(shadow.loader.ml);
 shadow.loader.initCalled = false;
 
 shadow.loader.init = function(uriPrefix) {
+  const removeDuplicateSlashesFromUrl = function(url) {
+    return url.replace(/([^:]\/)\/+/g, "$1");
+  };
+  const rebaseModulesUris = function (modules) {
+    // we want to prefer absolute uris when loading modules
+    // this plays better with Chrome DevTools
+    // see https://github.com/thheller/shadow-cljs/issues/637
+    if (typeof goog.global.window !== "undefined") {
+      Object.values(modules["uris"]).forEach(function (uris) {
+        const rebasedUris = uris.map(function (uri) {
+          const loc = goog.global.window.location;
+          return removeDuplicateSlashesFromUrl(loc.origin + loc.pathname + uri);
+        });
+        // replace uris array content in-place
+        Array.prototype.splice.apply(uris, [0, uris.length].concat(rebasedUris));
+      });
+    }
+  };
+
   if (shadow.loader.initCalled) {
     throw new Error("shadow.loader.init was already called! If you are calling it manually set :module-loader-init false in your config.");
   }
 
   if (goog.global.shadow$modules) {
+    rebaseModulesUris(goog.global.shadow$modules);
     var mm = shadow.loader.mm;
     mm.setAllModuleInfo(goog.global.shadow$modules["infos"]);
 
