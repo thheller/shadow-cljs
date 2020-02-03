@@ -930,7 +930,9 @@
           (into #{} (ShadowAccess/getExternProperties cc))]
 
       (when-not (.success result)
-        (throw (ex-info "externs trouble" {})))
+        (throw (ex-info
+                (str "Error processing externs:\n"
+                     (str/join "\n" (map #(.toString %) (.errors result)))) {})))
 
       (assoc state ::extern-properties extern-properties)
       )))
