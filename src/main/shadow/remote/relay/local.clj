@@ -30,7 +30,7 @@
 
 (defn handle-runtime-msg
   [state-ref {:keys [rid] :as runtime} {:keys [tool-broadcast tid] :as msg}]
-  (log/debug ::runtime-msg msg)
+  ;; (log/debug ::runtime-msg msg)
   (cond
     ;; only send to specific tool
     tid
@@ -51,7 +51,7 @@
 
 (defn handle-tool-msg
   [state-ref {:keys [tid] :as tool} {:keys [rid runtime-broadcast] :as msg}]
-  (log/debug ::tool-msg msg)
+  ;; (log/debug ::tool-msg msg)
   (cond
     ;; client did send :rid, forward to runtime if found
     rid

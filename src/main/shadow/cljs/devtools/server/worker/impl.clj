@@ -787,8 +787,6 @@
 (defmethod do-proc-control :repl-compile
   [{:keys [build-state] :as worker-state}
    {:keys [result-chan input] :as msg}]
-  (?> worker-state ::repl-compile-worker-state)
-  (?> msg ::repl-compile-msg)
   (try
     (let [start-idx
           (count (get-in build-state [:repl-state :repl-actions]))
@@ -944,6 +942,7 @@
         ;; (eg. browser-test since it dynamically adds file to the build)
         (and (pos? (::compile-attempt build-state))
              (not (seq namespaces-used-by-build))
+             (not (seq macros-used-by-build))
              (if-not (get-in build-state [:build-options :greedy])
                ;; build is not greedy, not interested in new files
                true

@@ -225,7 +225,7 @@
 
            ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
            base-env
-           (-> (empty-env state  ns)
+           (-> (empty-env state ns)
                (cond->
                  repl-context?
                  (assoc ::repl-context true
@@ -367,7 +367,7 @@
       (vreset! last-progress-ref (System/currentTimeMillis))
 
       (-> compile-state
-          (update-in [:ast] conj ast)
+          (update :ast conj ast)
           (cond->
             (= op :ns)
             (assoc
@@ -495,6 +495,27 @@
   (-> (sm/encode* {"unused" source-map} {})
       (select-keys ["mappings" "names"])))
 
+(defn walk-ast [{:keys [children] :as ast} init visit-fn]
+  (reduce
+    (fn [result child-key]
+      (let [child (get ast child-key)]
+        (cond
+          (map? child)
+          (walk-ast child result visit-fn)
+
+          (sequential? child)
+          (reduce
+            (fn [result child]
+              (walk-ast child result visit-fn))
+            result
+            child)
+
+          :else
+          (throw (ex-info "unexpected :children entry, should be map or sequential?" {:ast ast}))
+          )))
+    (visit-fn init ast)
+    children))
+
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}
    {:keys [resource-id resource-name from-jar] :as rc}
@@ -575,7 +596,23 @@
                               :gen-line 0})
 
                 size-warnings-ref
-                (atom [])]
+                (atom [])
+
+                ;; track which vars a namespace references for later
+                ;; plan to use it for some UI stuff.
+                ;; could maybe implement some naive CLJS native DCE
+                ;; by delaying emit until everything is analyzed and then
+                ;; only emitting vars that were actually used
+                used-vars
+                (reduce
+                  (fn [result ast-entry]
+                    (walk-ast ast-entry result
+                      (fn [result {:keys [op] :as ast}]
+                        (if-not (contains? #{:var :js-var} op)
+                          result
+                          (conj result (:name ast))))))
+                  #{}
+                  ast)]
 
             (binding [comp/*source-map-data* sm-ref
                       comp/*source-map-data-gen-col* (AtomicLong.)
@@ -599,7 +636,8 @@
             (-> output
                 (assoc :js (.toString sw)
                        :source-map-compact (compact-source-map (:source-map @sm-ref))
-                       :compiled-at (System/currentTimeMillis))
+                       :compiled-at (System/currentTimeMillis)
+                       :used-vars used-vars)
                 (dissoc :ast)
                 (update :warnings into @size-warnings-ref)
                 (cond->

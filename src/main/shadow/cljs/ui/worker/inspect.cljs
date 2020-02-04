@@ -261,6 +261,8 @@
   (fn [{:keys [db] :as env} ident]
     (let [{:keys [summary oid rid] :as object} (get db ident)]
       (-> {:db (assoc db ::m/inspect {:object ident
+                                      :rid rid
+                                      :runtime (db/make-ident ::m/runtime rid)
                                       :display-type :browse
                                       :nav-stack []})
            :ws-send []}
@@ -354,6 +356,58 @@
        (sort-by #(get-in % [:runtime-info :since]))
        (map :db/ident)
        (vec)))
+
+(sw/reg-event-fx env/app-ref ::m/inspect-code-eval!
+  []
+  (fn [{:keys [db] :as env} code]
+    (let [{::m/keys [inspect] :as data}
+          (db/query env db
+            [{::m/inspect
+              [{:object [:oid]}
+               {:runtime [:rid :supported-ops]}]}])
+
+          {:keys [object runtime]} inspect
+          {:keys [oid]} object
+          {:keys [rid supported-ops]} runtime
+
+          ;; FIXME: ns and eval mode should come from UI
+          [eval-mode ns]
+          (cond
+            (contains? supported-ops :eval-clj)
+            [:eval-clj 'user]
+            (contains? supported-ops :eval-cljs)
+            [:eval-cljs 'cljs.user])
+
+          wrap
+          (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
+               "      $o (:obj $ref)\n"
+               "      $d (-> $ref :desc :data)]\n"
+               "?CODE?\n"
+               "\n)")]
+
+      ;; FIXME: fx-ify
+      (tool-ws/call! env
+        {:op eval-mode
+         :rid rid
+         :ns ns
+         :code code
+         :wrap wrap}
+        {:eval-result-ref [::inspect-code-result! code rid]})
+
+      {})))
+
+(sw/reg-event-fx env/app-ref ::inspect-code-result!
+  []
+  (fn [{:keys [db] :as env} code rid {:keys [ref-oid] :as msg}]
+    (let [object-ident (db/make-ident ::m/object ref-oid)]
+      {:db
+       (-> db
+           (assoc object-ident {:db/ident object-ident :oid ref-oid :rid rid})
+           (assoc-in [::m/inspect :object] object-ident)
+           (update-in [::m/inspect :nav-stack] conj
+             {:idx (count (get-in db [::m/inspect :nav-stack]))
+              :code code
+              :ident (get-in db [::m/inspect :object])}))})))
 
 (sw/reg-event-fx env/app-ref ::m/process-eval-input!
   []

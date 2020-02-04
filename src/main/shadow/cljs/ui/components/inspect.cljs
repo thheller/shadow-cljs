@@ -6,7 +6,7 @@
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.cljs.model :as m]))
 
-;; (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
+(refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
 (defn render-edn-limit [[limit-reached text]]
   (if limit-reached
@@ -149,7 +149,11 @@
    ;; could just use a local setting with an atom?
    ::inspect-switch-display!
    (fn [env e display-type]
-     (sg/run-tx env [::m/inspect-switch-display! display-type]))]
+     (sg/run-tx env [::m/inspect-switch-display! display-type]))
+
+   code-submit!
+   (fn [env code]
+     (sg/run-tx env [::m/inspect-code-eval! code]))]
 
   (let [{:keys [object nav-stack display-type]} inspect
         {:keys [summary]} object
@@ -158,10 +162,10 @@
     (<< (when (seq nav-stack)
           (<< [:div.bg-white.py-4.font-mono
                (sg/render-seq nav-stack :idx
-                 (fn [{:keys [idx key]}]
+                 (fn [{:keys [idx key code]}]
                    (<< [:div.px-4.cursor-pointer.hover:bg-gray-200
                         {:on-click [::inspect-nav-jump! idx]}
-                        (str "<< " (if key (second key) idx))])))]))
+                        (str "<< " (or code (and key (second key)) idx))])))]))
 
         [:div {:class "flex bg-white py-1 px-2 font-mono border-b-2 text-l"}
          [:div {:class "px-2 font-bold"} obj-type]
@@ -183,11 +187,11 @@
           :browse
           (<< [:div.flex-1.overflow-auto.font-mono (render-view object)]))
 
-        #_[:div.bg-white.font-mono.flex.flex-col
-           [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
-            [:div.flex-1 "cljs.user - Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-           [:div {:style {:height "120px"}}
-            (codemirror {:on-submit (fn [env code] (js/console.log "code submit" code))})]]
+        (<< [:div.bg-white.font-mono.flex.flex-col
+             [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
+              [:div.flex-1 "cljs.user - Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
+             [:div {:style {:height "120px"}}
+              (codemirror {:on-submit code-submit!})]])
 
         [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
          [:div "View as: "]
@@ -254,9 +258,9 @@
    closing?
    (sg/watch closing-ref)]
 
-  (<< [:div.flex-1.overflow-hidden.bg-white.pt-4.relative
+  (<< [:div.flex-1.bg-white.pt-4.relative
        ;; [:div.bg-gray-200.p-1.text-l "Tap Stream"]
-       [:div {:style {:height (if inspect-active? "212px" "100%")}} tap-stream]
+       [:div.h-full.overflow-auto tap-stream]
        [:div.border-t-2.absolute.bg-white.flex.flex-col
         ;; fly-in from the bottom, translateY not height so the embedded vlist
         ;; can get the correct height immediately and doesn't start with 0
