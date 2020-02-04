@@ -45,8 +45,9 @@
 
   (<< [:div.m-4.rounded.border.shadow.bg-white
        [:div.p-2.font-bold.border-b "Active Builds"]
-       (sg/render-seq active-builds identity ui-active-build)
-       ]))
+
+       (sg/render-seq active-builds identity ui-active-build)]
+      ))
 
 (defc ui-active-runtimes []
   [{::m/keys [runtimes-sorted]}

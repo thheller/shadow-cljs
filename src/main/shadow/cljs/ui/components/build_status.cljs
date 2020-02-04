@@ -8,11 +8,11 @@
 (defn render-build-log [{:keys [log] :as build-status}]
   ;; FIXME: are these useful at all?
   (when (seq log)
-    (<< [:div
+    (<< [:div.p-2
          [:div (str (count log) " Log messages")]
-         (sg/render-seq log identity
+         (sg/render-seq log nil
            (fn [entry]
-             (<< [:div entry])))])))
+             (<< [:pre.text-sm entry])))])))
 
 (defn render-compiling-status [{:keys [active] :as build-status}]
   (<< [:div
@@ -30,25 +30,27 @@
   [start-idx lines]
   (sg/render-seq (map-indexed vector lines) first
     (fn [[idx body]]
-      (<< [:div (format "%4d | " (+ 1 idx start-idx)) body]))))
+      (<< [:pre (format "%4d | " (+ 1 idx start-idx)) body]))))
 
 (defn render-build-warning [{:keys [source-excerpt file line column msg resource-name] :as warning}]
-  (<< [:div ;; build-warning-container
-       [:div ;; build-warning-title
+  (<< [:div.font-mono.border.shadow.bg-white.mb-2.overflow-x-auto ;; build-warning-container
+
+       [:div.px-2.py-1.border-b ;; build-warning-title
         (str "Warning " (:warning warning) " in ")
         [:a {:href file} resource-name]
         " at " line ":" column]
 
-       [:div ;; build-warning-message
+       [:div.font-bold.text-lg.p-2.border-b ;; build-warning-message
         msg]
 
        (if-not source-excerpt
-         (pr-str warning)
+         [:div.p-1
+          (pr-str warning)]
          (let [{:keys [start-idx before line after]} source-excerpt]
-           (<< [:div ;; source-excerpt-container
+           (<< [:div.p-1 ;; source-excerpt-container
                 (render-source-line start-idx before)
                 (if-not column
-                  (<< [:div ;;source-line-highlight
+                  (<< [:pre.font-bold ;;source-line-highlight
                        (format "%4d | " (+ 1 (count before) start-idx))
                        [:div ;; source-line-part-highlight
                         line]])
@@ -66,11 +68,11 @@
                               ))
                           [suffix ""])]
 
-                    (<< [:div ;; source-line-highlight
+                    (<< [:pre.font-bold ;; source-line-highlight
                          (format "%4d | " (+ 1 (count before) start-idx))
                          [:span ;; source-line-part
                           prefix]
-                         [:span ;; source-line-part-highlight
+                         [:span.border-b-2.border-red-700 ;; source-line-part-highlight
                           highlight]
                          [:span ;; source-line-part
                           suffix]])))
@@ -83,10 +85,12 @@
        [:div (str (if (seq warnings) "!" "✔") " Compilation completed in " duration " seconds.")]
        (when (seq warnings)
          (<< [:div
-              [:div (str (count warnings) " Warnings")]
-              (sg/render-seq warnings identity
+              [:div.text-xl.px-1.py-2 (str (count warnings) " Warnings")]
+              (sg/render-seq warnings nil
                 (fn [warning]
-                  (render-build-warning warning)))]))]))
+                  (render-build-warning warning)))]))
+
+       ]))
 
 (defn render-failed-status [{:keys [report] :as build-status}]
   (<< [:div

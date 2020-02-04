@@ -64,4 +64,7 @@
 
          [:div.p-2
           [:div.text-lg "Build Status"]
-          (build-status/render-build-status build-status)]])))
+          (build-status/render-build-status build-status)
+          (when (= :completed (:status build-status))
+            (build-status/render-build-log build-status))
+          ]])))
