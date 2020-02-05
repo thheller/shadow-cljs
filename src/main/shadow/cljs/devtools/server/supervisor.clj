@@ -53,12 +53,12 @@
       (sys-bus/publish! system-bus ::m/supervisor {:op :worker-start
                                                          :build-id build-id})
 
-      (vswap! workers-ref assoc build-id proc)
+      (swap! workers-ref assoc build-id proc)
 
       (go (<! proc-stop)
           (sys-bus/publish! system-bus ::m/supervisor {:op :worker-stop
                                                              :build-id build-id})
-          (vswap! workers-ref dissoc build-id))
+          (swap! workers-ref dissoc build-id))
 
       proc
       )))
@@ -80,7 +80,7 @@
    :classpath classpath
    :npm npm
    :babel babel
-   :workers-ref (volatile! {})})
+   :workers-ref (atom {})})
 
 (defn stop [{:keys [workers-ref] :as svc}]
   (doseq [[id proc] @workers-ref]
