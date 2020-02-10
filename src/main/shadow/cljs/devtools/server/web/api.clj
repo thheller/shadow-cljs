@@ -119,11 +119,6 @@
     (let [build-config
           (config/get-build build-id)
 
-          status-ref
-          (atom {:status :pending
-                 :mode mode
-                 :log []})
-
           build-logger
           (reify
             build-log/BuildLog

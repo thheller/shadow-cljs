@@ -139,8 +139,8 @@
 
    :build-hooks
    [(shadow.html/copy-file
-          "out/demo-browser/index.src.html"
-          "out/demo-browser/public/index.html")]
+      "out/demo-browser/index.src.html"
+      "out/demo-browser/public/index.html")]
 
    :module-loader true
    ;; :module-hash-names true
@@ -206,10 +206,12 @@
        {:before-load-async demo.browser/stop-from-config
         :after-load demo.browser/start-from-config}}
 
-  #_#_:chrome-ext
-      {:target :chrome-extension
-       :extension-dir "out/chrome-ext"
-       :manifest-file "out/chrome-manifest.edn"}
+  :chrome-ext
+  {:target :chrome-extension
+   :compiler-options
+   {:closure-output-charset "us-ascii"}
+   :extension-dir "out/chrome-ext"
+   :manifest-file "out/chrome-manifest.edn"}
 
   :test-browser
   {:target :browser-test

@@ -119,3 +119,8 @@
 
     (do (js/console.warn "unhandled status" build-status)
         (pr-str build-status))))
+
+(defn render-build-overview [overview]
+  (when overview
+    (<< [:div.p-2
+         (pr-str overview)])))

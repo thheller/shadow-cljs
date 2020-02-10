@@ -2,6 +2,7 @@
   (:require
     [shadow.experiments.grove.worker :as sw]
     [shadow.experiments.grove.db :as db]
+    [shadow.experiments.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
     [shadow.cljs.ui.worker.tool-ws :as tool-ws]))
@@ -104,7 +105,7 @@
     ;; (js/console.log ::tool-ws op msg)
     (tool-ws env msg)))
 
-(defmethod db/query-calc :obj-preview [env db {:keys [oid rid edn-limit] :as current} query-part params]
+(defmethod eql/attr :obj-preview [env db {:keys [oid rid edn-limit] :as current} query-part params]
   (cond
     edn-limit
     edn-limit
@@ -130,7 +131,7 @@
 
         :db/loading)))
 
-(defmethod db/query-calc :summary [env db {:keys [oid rid summary] :as current} query-part params]
+(defmethod eql/attr :summary [env db {:keys [oid rid summary] :as current} query-part params]
   (cond
     summary
     summary
@@ -147,7 +148,7 @@
 
         :db/loading)))
 
-(defmethod db/query-calc ::m/object-as-edn [env db {:keys [oid rid edn] :as current} query-part params]
+(defmethod eql/attr ::m/object-as-edn [env db {:keys [oid rid edn] :as current} query-part params]
   (cond
     edn
     edn
@@ -170,7 +171,7 @@
   (fn [{:keys [db]} ident {:keys [result]}]
     {:db (assoc-in db [ident :edn] result)}))
 
-(defmethod db/query-calc ::m/object-as-pprint [env db {:keys [oid rid pprint] :as current} query-part params]
+(defmethod eql/attr ::m/object-as-pprint [env db {:keys [oid rid pprint] :as current} query-part params]
   (cond
     pprint
     pprint
@@ -193,7 +194,7 @@
   (fn [{:keys [db]} ident {:keys [result]}]
     {:db (assoc-in db [ident :pprint] result)}))
 
-(defmethod db/query-calc :fragment-vlist
+(defmethod eql/attr :fragment-vlist
   [env
    db
    {:keys [oid rid summary fragment] :as current}
@@ -279,7 +280,7 @@
   (fn [{:keys [db] :as env}]
     {:db (dissoc db ::m/inspect)}))
 
-(defmethod db/query-calc ::m/inspect-active?
+(defmethod eql/attr ::m/inspect-active?
   [env db current _ params]
   (contains? db ::m/inspect))
 
@@ -334,14 +335,14 @@
                (db/add ::m/object obj)
                (assoc-in [::m/inspect :object] obj-ident))})))
 
-(defmethod db/query-calc ::m/runtimes-sorted
+(defmethod eql/attr ::m/runtimes-sorted
   [env db current query-part params]
   (let [runtimes (::m/runtimes db)]
     (->> runtimes
          (sort-by #(get-in db [% :runtime-info :since]))
          (vec))))
 
-(defmethod db/query-calc ::m/cljs-runtimes-sorted
+(defmethod eql/attr ::m/cljs-runtimes-sorted
   [env db current query-part params]
   (->> (db/all-of db ::m/runtime)
        (filter #(contains? (:supported-ops %) :eval-cljs))
@@ -349,7 +350,7 @@
        (map :db/ident)
        (vec)))
 
-(defmethod db/query-calc ::m/clj-runtimes-sorted
+(defmethod eql/attr ::m/clj-runtimes-sorted
   [env db current query-part params]
   (->> (db/all-of db ::m/runtime)
        (filter #(contains? (:supported-ops %) :eval-clj))
@@ -361,7 +362,7 @@
   []
   (fn [{:keys [db] :as env} code]
     (let [{::m/keys [inspect] :as data}
-          (db/query env db
+          (eql/query env db
             [{::m/inspect
               [{:object [:oid]}
                {:runtime [:rid :supported-ops]}]}])
@@ -453,7 +454,7 @@
            (update eval-ident merge {:result object-ident
                                      :status :done}))})))
 
-(defmethod db/query-calc ::m/databases [env db {:keys [rid] ::m/keys [databases] :as current} query-part params]
+(defmethod eql/attr ::m/databases [env db {:keys [rid] ::m/keys [databases] :as current} query-part params]
   (cond
     databases
     databases
@@ -488,7 +489,7 @@
              (assoc-in db [runtime-ident ::m/databases] [])
              databases)})))
 
-(defmethod db/query-calc ::m/tables [env db {:keys [rid db-id] ::m/keys [tables] :as current} query-part params]
+(defmethod eql/attr ::m/tables [env db {:keys [rid db-id] ::m/keys [tables] :as current} query-part params]
   (cond
     tables
     tables
@@ -512,7 +513,7 @@
                                     {:table :db/globals
                                      :row nil}})}))
 
-(defmethod db/query-calc ::m/table-rows-vlist
+(defmethod eql/attr ::m/table-rows-vlist
   [env
    db
    {db-ident :db/ident :keys [db-id rid] ::m/keys [table-query table-rows] :as current}
@@ -559,7 +560,6 @@
 (sw/reg-event-fx env/app-ref ::list-rows
   []
   (fn [{:keys [db] :as env} db-ident {:keys [rows] :as msg}]
-    (js/console.log "received table rows" msg)
     {:db (update db db-ident merge {::m/table-rows rows})}))
 
 (sw/reg-event-fx env/app-ref ::m/table-query-update!

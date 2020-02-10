@@ -31,6 +31,7 @@
                (into []))]
 
       (assoc state
+        :info info
         :status :completed
         :resources (count sources)
         :compiled (count compiled)
