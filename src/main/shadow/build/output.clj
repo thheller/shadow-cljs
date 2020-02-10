@@ -165,7 +165,9 @@
   (when (has-source-map? output)
 
     (let [source-map-json
-          (encode-source-map-json state src output)
+          (encode-source-map-json state
+            (assoc src :prepend prepend)
+            output)
 
           b64
           (-> (Base64/getEncoder)
@@ -173,7 +175,7 @@
 
       (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n"))))
 
-(defn generate-source-map
+(defn generate-source-map-regular
   [state
    {:keys [resource-name output-name file] :as src}
    output
@@ -211,6 +213,18 @@
       (spit src-map-file source-map-json)
 
       sm-text)))
+
+(defn generate-source-map
+  [state
+   src
+   output
+   js-file
+   prepend]
+  {:pre [(rc/valid-resource? src)
+         (map? output)]}
+  (if (true? (get-in state [:compiler-options :source-map-inline]))
+    (generate-source-map-inline state src output prepend)
+    (generate-source-map-regular state src output js-file prepend)))
 
 (defn flush-source [state src-id]
   (let [{:keys [resource-name output-name last-modified] :as src}

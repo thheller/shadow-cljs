@@ -116,17 +116,29 @@
        "goog.global[\"$CLJS\"] = $CLJS;\n"))
 
 (defn eval-load-sources [state sources]
-  (->> sources
-       (remove #{output/goog-base-id})
-       (map #(data/get-source-by-id state %))
-       (map (fn [{:keys [output-name] :as rc}]
-              (let [{:keys [js] :as output} (data/get-output! state rc)
+  (let [source-map-inline?
+        (true? (get-in state [:compiler-options :source-map-inline]))]
 
-                    source-map?
-                    (output/has-source-map? output)]
-                (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape browser/js-escaper ^String js) "\");")
-                )))
-       (str/join "\n")))
+    (->> sources
+         (remove #{output/goog-base-id})
+         (map #(data/get-source-by-id state %))
+         (map (fn [{:keys [output-name] :as rc}]
+                (let [{:keys [js] :as output} (data/get-output! state rc)
+
+                      source-map?
+                      (output/has-source-map? output)]
+
+
+                  (if (and source-map? source-map-inline?)
+                    (str "SHADOW_ENV.evalLoad(\""
+                         output-name
+                         "\", false, \""
+                         (.escape browser/js-escaper ^String js)
+                         (output/generate-source-map-inline state rc output "")
+                         "\");")
+                    (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape browser/js-escaper ^String js) "\");"))
+                  )))
+         (str/join "\n"))))
 
 (defn flush-dev-module [state {:keys [output-type output-name] :as mod}]
   (spit (data/output-file state output-name)

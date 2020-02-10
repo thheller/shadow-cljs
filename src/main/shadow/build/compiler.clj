@@ -672,6 +672,7 @@
    [:js-options :js-provider]
    [:compiler-options :form-size-threshold] ;; for tracking big suspicious code chunks
    [:compiler-options :source-map]
+   [:compiler-options :source-map-inline]
    [:compiler-options :fn-invoke-direct]
    [:compiler-options :elide-asserts]
    [:compiler-options :reader-features]

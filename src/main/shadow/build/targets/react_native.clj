@@ -152,7 +152,7 @@
                 (str "\n//# sourceURL=http://localhost:8081/app/" output-name "\n"
                      ;; "\n//# sourceMappingURL=http://localhost:8081/app/cljs-runtime/" output-name ".map\n"
                      ;; FIXME: inline map saves having to know the actual URL
-                     (output/generate-source-map-inline state rc output nil)
+                     (output/generate-source-map-inline state rc output "")
                      ))]
 
           ;; pre-cache for later so it doesn't get regenerated on hot-compiles
