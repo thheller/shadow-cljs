@@ -216,6 +216,17 @@
     ;; (pprint ast-resolved)
     ))
 
+(deftest test-rename-clears-refer
+  (let [test
+        '(ns something (:require [other :refer (foo xzy) :rename {foo bar}]))
+
+        ast
+        (ns-form/parse test)]
+
+    (is (= '{xzy other} (:uses ast)))
+    (is (= '{bar other/foo} (:renames ast)))
+    ))
+
 (deftest test-parse-repl-require
   (let [test-ns
         '(ns cljs.user)
