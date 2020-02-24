@@ -128,13 +128,13 @@
                       source-map?
                       (output/has-source-map? output)]
 
-
                   (if (and source-map? source-map-inline?)
                     (str "SHADOW_ENV.evalLoad(\""
                          output-name
                          "\", false, \""
-                         (.escape browser/js-escaper ^String js)
-                         (output/generate-source-map-inline state rc output "")
+                         (.escape browser/js-escaper
+                           (str js
+                                (output/generate-source-map-inline state rc output "")))
                          "\");")
                     (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape browser/js-escaper ^String js) "\");"))
                   )))
