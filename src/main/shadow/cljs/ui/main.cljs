@@ -33,7 +33,7 @@
 
   (<< [:div.flex.flex-col.h-full.bg-gray-100
        [:div.bg-white.shadow-md.z-10
-        #_ [:div.py-2.px-4 [:span.font-bold "shadow-cljs"]]
+        #_[:div.py-2.px-4 [:span.font-bold "shadow-cljs"]]
         [:div
          (sg/render-seq nav-items nil
            (fn [{:keys [pages label path]}]

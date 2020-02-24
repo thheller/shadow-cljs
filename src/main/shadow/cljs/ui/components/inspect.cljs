@@ -21,16 +21,15 @@
      {:suspend false})]
 
   (let [val (get data attr)]
-    (<< [:div.flex-1.relative
-         #_[:button.absolute.rounded-full.shadow-lg.p-4.bg-blue-200.bottom-0.right-0.m-4.mr-8
-            {:on-click [::copy-to-clipboard val]
-             :disabled (not= :ready loading-state)}
-            "COPY"]
-         [:textarea.w-full.h-full.font-mono.border-t.p-4
-          {:readOnly true}
-          (if (= :ready loading-state)
-            val
-            "Loading ...")]])))
+    #_[:button.absolute.rounded-full.shadow-lg.p-4.bg-blue-200.bottom-0.right-0.m-4.mr-8
+       {:on-click [::copy-to-clipboard val]
+        :disabled (not= :ready loading-state)}
+       "COPY"]
+    (<< [:textarea.w-full.h-full.font-mono.border-t.p-4
+         {:readOnly true}
+         (if (= :ready loading-state)
+           val
+           "Loading ...")])))
 
 (defmulti render-view
   (fn [data]
@@ -268,9 +267,10 @@
         {:style {:transition (str "transform .2s " (if closing? "ease-in" "ease-out"))
                  :transform (str "translateY("
                                  (if (or closing? (not inspect-active?))
-                                   "100%" 0)
+                                   "103%" 0)
                                  ")")
-                 :box-shadow (if inspect-active? "0px 20px 20px 20px rgba(0,0,0,0.5)" "none")
+                 :will-change "transform"
+                 :box-shadow "0px 20px 20px 20px rgba(0,0,0,0.5)"
                  :right 0
                  :bottom 0
                  :left 0
