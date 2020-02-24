@@ -157,6 +157,7 @@
                 after-load
                 autoload
                 use-document-host
+                reload-strategy
                 repl-pprint
                 log-style]
          :as devtools}
@@ -189,6 +190,11 @@
 
        'shadow.cljs.devtools.client.env/ssl
        (true? ssl)
+
+       'shadow.cljs.devtools.client.env/reload-strategy
+       (if (= :full reload-strategy)
+         "full"
+         "optimized")
 
        'shadow.cljs.devtools.client.env/build-id
        (name build-id)

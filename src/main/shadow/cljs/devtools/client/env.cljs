@@ -40,6 +40,8 @@
 
 (goog-define devtools-url "")
 
+(goog-define reload-strategy "optimized")
+
 (goog-define ssl false)
 
 (goog-define ignore-warnings false)

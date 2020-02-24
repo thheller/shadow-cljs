@@ -9,7 +9,7 @@
     [shadow.cljs.devtools.client.env :as env]
     [shadow.cljs.devtools.client.console]
     [shadow.cljs.devtools.client.hud :as hud]
-    ))
+    [clojure.set :as set]))
 
 (defonce repl-ns-ref (atom nil))
 
@@ -101,12 +101,63 @@
                :sources (into [] (map :resource-id) sources)})
       #js {"content-type" "application/edn; charset=utf-8"})))
 
-(defn handle-build-complete [{:keys [info reload-info] :as msg}]
-  (let [{:keys [sources compiled]}
-        info
+(defn prefilter-sources [reload-info sources]
+  (->> sources
+       (filter
+         (fn [{:keys [module] :as rc}]
+           (or (= "js" env/module-format)
+               (env/module-is-active? module))))
+       ;; don't reload namespaces that have ^:dev/never-reload meta
+       (remove (fn [{:keys [ns]}]
+                 (contains? (:never-load reload-info) ns)))))
 
-        warnings
-        (->> (for [{:keys [resource-name warnings] :as src} sources
+(defn filter-sources-to-get-optimized [{:keys [sources compiled] :as info} reload-info]
+  (->> sources
+       (prefilter-sources reload-info)
+       (filter
+         (fn [{:keys [ns resource-id] :as src}]
+           (or (contains? (:always-load reload-info) ns)
+               (not (src-is-loaded? src))
+               (and (contains? compiled resource-id)
+                    ;; never reload files from jar
+                    ;; they can't be hot-swapped so the only way they get re-compiled
+                    ;; is if they have warnings, which we can't to anything about
+                    (not (:from-jar src))))))
+       (into [])))
+
+(defn filter-sources-to-get-full [{:keys [sources compiled] :as info} reload-info]
+  (loop [affected #{}
+         sources-to-get []
+         [src & more] (prefilter-sources reload-info sources)]
+
+    (if-not src
+      sources-to-get
+      (let [{:keys [ns resource-id deps provides]}
+            src
+
+            should-reload?
+            (or (contains? (:always-load reload-info) ns)
+                ;; always load sources that haven't been loaded yet
+                ;; this fixes issues where a namespace is added to a build that has
+                ;; dependencies that haven't been loaded yet but were compiled before
+                (not (src-is-loaded? src))
+                (and (or (contains? compiled resource-id)
+                         (some affected deps))
+                     ;; never reload files from jar
+                     ;; they can't be hot-swapped so the only way they get re-compiled
+                     ;; is if they have warnings, which we can't to anything about
+                     (not (:from-jar src))))]
+
+        (if-not should-reload?
+          (recur affected sources-to-get more)
+          (recur
+            (set/union affected provides)
+            (conj sources-to-get src)
+            more))))))
+
+(defn handle-build-complete [{:keys [info reload-info] :as msg}]
+  (let [warnings
+        (->> (for [{:keys [resource-name warnings] :as src} (:sources info)
                    :when (not (:from-jar src))
                    warning warnings]
                (assoc warning :resource-name resource-name))
@@ -118,30 +169,11 @@
 
     (if-not env/autoload
       (hud/load-end-success)
-      ;; load all files for current build:
-      ;; of modules that are active
-      ;; and are either not loaded yet
-      ;; or specifically marked for reload
       (when (or (empty? warnings) env/ignore-warnings)
         (let [sources-to-get
-              (->> sources
-                   (filter
-                     (fn [{:keys [module] :as rc}]
-                       (or (= "js" env/module-format)
-                           (env/module-is-active? module))))
-                   ;; don't reload namespaces that have ^:dev/never-reload meta
-                   (remove (fn [{:keys [ns]}]
-                             (contains? (:never-load reload-info) ns)))
-                   (filter
-                     (fn [{:keys [ns resource-id] :as src}]
-                       (or (contains? (:always-load reload-info) ns)
-                           (not (src-is-loaded? src))
-                           (and (contains? compiled resource-id)
-                                ;; never reload files from jar
-                                ;; they can't be hot-swapped so the only way they get re-compiled
-                                ;; is if they have warnings, which we can't to anything about
-                                (not (:from-jar src))))))
-                   (into []))]
+              (if (= "full" env/reload-strategy)
+                (filter-sources-to-get-full info reload-info)
+                (filter-sources-to-get-optimized info reload-info))]
 
           (if-not (seq sources-to-get)
             (hud/load-end-success)
