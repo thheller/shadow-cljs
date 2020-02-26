@@ -25,22 +25,6 @@
     (.send s (pr-str msg))
     (js/console.warn "WEBSOCKET NOT CONNECTED" (pr-str msg))))
 
-(defonce scripts-to-load (atom []))
-
-(def loaded? js/goog.isProvided_)
-
-(defn goog-is-loaded? [name]
-  (js/$CLJS.SHADOW_ENV.isLoaded name))
-
-(def goog-base-rc
-  [:shadow.build.classpath/resource "goog/base.js"])
-
-(defn src-is-loaded? [{:keys [resource-id output-name] :as src}]
-  ;; FIXME: don't like this special case handling, but goog/base.js will always be loaded
-  ;; but not as a separate file
-  (or (= goog-base-rc resource-id)
-      (goog-is-loaded? output-name)))
-
 (defn script-eval [code]
   (js/goog.globalEval code))
 
@@ -101,60 +85,6 @@
                :sources (into [] (map :resource-id) sources)})
       #js {"content-type" "application/edn; charset=utf-8"})))
 
-(defn prefilter-sources [reload-info sources]
-  (->> sources
-       (filter
-         (fn [{:keys [module] :as rc}]
-           (or (= "js" env/module-format)
-               (env/module-is-active? module))))
-       ;; don't reload namespaces that have ^:dev/never-reload meta
-       (remove (fn [{:keys [ns]}]
-                 (contains? (:never-load reload-info) ns)))))
-
-(defn filter-sources-to-get-optimized [{:keys [sources compiled] :as info} reload-info]
-  (->> sources
-       (prefilter-sources reload-info)
-       (filter
-         (fn [{:keys [ns resource-id] :as src}]
-           (or (contains? (:always-load reload-info) ns)
-               (not (src-is-loaded? src))
-               (and (contains? compiled resource-id)
-                    ;; never reload files from jar
-                    ;; they can't be hot-swapped so the only way they get re-compiled
-                    ;; is if they have warnings, which we can't to anything about
-                    (not (:from-jar src))))))
-       (into [])))
-
-(defn filter-sources-to-get-full [{:keys [sources compiled] :as info} reload-info]
-  (loop [affected #{}
-         sources-to-get []
-         [src & more] (prefilter-sources reload-info sources)]
-
-    (if-not src
-      sources-to-get
-      (let [{:keys [ns resource-id deps provides]}
-            src
-
-            should-reload?
-            (or (contains? (:always-load reload-info) ns)
-                ;; always load sources that haven't been loaded yet
-                ;; this fixes issues where a namespace is added to a build that has
-                ;; dependencies that haven't been loaded yet but were compiled before
-                (not (src-is-loaded? src))
-                (and (or (contains? compiled resource-id)
-                         (some affected deps))
-                     ;; never reload files from jar
-                     ;; they can't be hot-swapped so the only way they get re-compiled
-                     ;; is if they have warnings, which we can't to anything about
-                     (not (:from-jar src))))]
-
-        (if-not should-reload?
-          (recur affected sources-to-get more)
-          (recur
-            (set/union affected provides)
-            (conj sources-to-get src)
-            more))))))
-
 (defn handle-build-complete [{:keys [info reload-info] :as msg}]
   (let [warnings
         (->> (for [{:keys [resource-name warnings] :as src} (:sources info)
@@ -171,9 +101,7 @@
       (hud/load-end-success)
       (when (or (empty? warnings) env/ignore-warnings)
         (let [sources-to-get
-              (if (= "full" env/reload-strategy)
-                (filter-sources-to-get-full info reload-info)
-                (filter-sources-to-get-optimized info reload-info))]
+              (env/filter-reload-sources info reload-info)]
 
           (if-not (seq sources-to-get)
             (hud/load-end-success)
@@ -265,7 +193,7 @@
   (let [sources-to-load
         (->> sources
              (remove (fn [{:keys [provides] :as src}]
-                       (and (src-is-loaded? src)
+                       (and (env/src-is-loaded? src)
                             (not (some reload-namespaces provides)))))
              (into []))]
 
@@ -286,7 +214,7 @@
   (load-sources
     ;; maybe need to load some missing files to init REPL
     (->> (:repl-sources repl-state)
-         (remove src-is-loaded?)
+         (remove env/src-is-loaded?)
          (into []))
     (fn [sources]
       (do-js-load sources)

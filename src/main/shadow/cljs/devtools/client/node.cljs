@@ -85,7 +85,7 @@
 
     (when (and env/autoload
                (or (empty? warnings) env/ignore-warnings))
-      
+
       (let [{:keys [sources compiled]}
             info
 

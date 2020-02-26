@@ -4,7 +4,7 @@
     [clojure.string :as str]
     [cljs.tools.reader :as reader]
     [cljs.pprint :refer (pprint)]
-    ))
+    [clojure.set :as set]))
 
 (defonce active-modules-ref
   (volatile! #{}))
@@ -280,3 +280,74 @@
       (callback msg)
       (catch :default e
         (js/console.warn "failed to handle custom msg" id msg)))))
+
+(defn goog-is-loaded? [name]
+  (js/$CLJS.SHADOW_ENV.isLoaded name))
+
+(def goog-base-rc
+  [:shadow.build.classpath/resource "goog/base.js"])
+
+(defn src-is-loaded? [{:keys [resource-id output-name] :as src}]
+  ;; FIXME: don't like this special case handling, but goog/base.js will always be loaded
+  ;; but not as a separate file
+  (or (= goog-base-rc resource-id)
+      (goog-is-loaded? output-name)))
+
+(defn prefilter-sources [reload-info sources]
+  (->> sources
+       (filter
+         (fn [{:keys [module] :as rc}]
+           (or (= "js" module-format)
+               (module-is-active? module))))
+       ;; don't reload namespaces that have ^:dev/never-reload meta
+       (remove (fn [{:keys [ns]}]
+                 (contains? (:never-load reload-info) ns)))))
+
+(defn filter-sources-to-get-optimized [{:keys [sources compiled] :as info} reload-info]
+  (->> sources
+       (prefilter-sources reload-info)
+       (filter
+         (fn [{:keys [ns resource-id] :as src}]
+           (or (contains? (:always-load reload-info) ns)
+               (not (src-is-loaded? src))
+               (and (contains? compiled resource-id)
+                    ;; never reload files from jar
+                    ;; they can't be hot-swapped so the only way they get re-compiled
+                    ;; is if they have warnings, which we can't to anything about
+                    (not (:from-jar src))))))
+       (into [])))
+
+(defn filter-sources-to-get-full [{:keys [sources compiled] :as info} reload-info]
+  (loop [affected #{}
+         sources-to-get []
+         [src & more] (prefilter-sources reload-info sources)]
+
+    (if-not src
+      sources-to-get
+      (let [{:keys [ns resource-id deps provides]}
+            src
+
+            should-reload?
+            (or (contains? (:always-load reload-info) ns)
+                ;; always load sources that haven't been loaded yet
+                ;; this fixes issues where a namespace is added to a build that has
+                ;; dependencies that haven't been loaded yet but were compiled before
+                (not (src-is-loaded? src))
+                (and (or (contains? compiled resource-id)
+                         (some affected deps))
+                     ;; never reload files from jar
+                     ;; they can't be hot-swapped so the only way they get re-compiled
+                     ;; is if they have warnings, which we can't to anything about
+                     (not (:from-jar src))))]
+
+        (if-not should-reload?
+          (recur affected sources-to-get more)
+          (recur
+            (set/union affected provides)
+            (conj sources-to-get src)
+            more))))))
+
+(defn filter-reload-sources [info reload-info]
+  (if (= "full" reload-strategy)
+    (filter-sources-to-get-full info reload-info)
+    (filter-sources-to-get-optimized info reload-info)))
