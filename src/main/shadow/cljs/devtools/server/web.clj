@@ -11,7 +11,6 @@
     [shadow.server.assets :as assets]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
-    [shadow.cljs.devtools.server.web.repl :as web-repl]
     [shadow.cljs.devtools.server.worker.ws :as ws]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
@@ -318,6 +317,5 @@
         (:ANY "^/api" web-api/root)
         (:ANY "^/ws" ws/process-ws)
         (:ANY "^/worker" ws/process-req)
-        (:ANY "/repl-ws" web-repl/repl-ws)
         (:GET "^/cache" serve-cache-file)
         pages)))

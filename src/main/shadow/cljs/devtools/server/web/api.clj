@@ -14,6 +14,7 @@
     [hiccup.page :refer (html5)]
     [clojure.java.io :as io]
     [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
+    [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.core-ext :as core-ext]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.remote.relay.api :as relay]
@@ -24,7 +25,8 @@
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
-    [shadow.build.log :as build-log])
+    [shadow.build.log :as build-log]
+    [clojure.set :as set])
   (:import [java.util UUID]))
 
 (defn index-page [req]
@@ -303,13 +305,24 @@
 
 (defn api-tool [{:keys [relay transit-read transit-str] :as req}]
   ;; FIXME: negotiate encoding somehow? could just as well use edn
-  (let [ws-in (async/chan 10 (map transit-read))
-        ws-out (async/chan 10 (map transit-str))]
-    {:ws-in ws-in
-     :ws-out ws-out
-     :ws-loop
-     (async/thread
-       (api-tool-loop!
-         {:relay relay
-          :ws-in ws-in
-          :ws-out ws-out}))}))
+  (let [remote-addr (get-in req [:ring-request :remote-addr])
+        trusted-hosts
+        (set/union
+          (set (get-in req [:config :trusted-hosts]))
+          #{"127.0.0.1" "localhost"})]
+
+    ;; FIXME: maybe needs to do host->addr translation?
+    (if-not (contains? trusted-hosts remote-addr)
+      {:status 403
+       :headers {"content-type" "text/plain"}
+       :body (str remote-addr " not trusted. Add :trusted-hosts #{" (pr-str remote-addr) "} in shadow-cljs.edn to trust.")}
+      (let [ws-in (async/chan 10 (map transit-read))
+            ws-out (async/chan 10 (map transit-str))]
+        {:ws-in ws-in
+         :ws-out ws-out
+         :ws-loop
+         (async/thread
+           (api-tool-loop!
+             {:relay relay
+              :ws-in ws-in
+              :ws-out ws-out}))}))))
