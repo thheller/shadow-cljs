@@ -76,7 +76,19 @@
     modules
     chunks))
 
-(defn configure [state mode {:keys [chunks init-fn output-dir] :as config}]
+(defn prepend-str [a b]
+  (str b a))
+
+(defn add-module-loaded-calls [modules]
+  (reduce-kv
+    (fn [m module-id module]
+      (update-in m [module-id :append-js]
+        prepend-str (str "\nshadow.cljs.devtools.client.env.module_loaded('" (name module-id) "');\n")))
+    modules
+    modules))
+
+(defn configure
+  [{:keys [worker-info] :as state} mode {:keys [chunks init-fn output-dir] :as config}]
   (let [output-dir
         (io/file output-dir)
 
@@ -86,13 +98,22 @@
         dev?
         (= :dev mode)
 
+        enabled?
+        (not (false? (get-in config [:devtools :enabled])))
+
+        build-worker?
+        (and enabled? (= :dev mode) worker-info)
+
         modules
         (-> {:index {:entries [(output/ns-only init-fn)]
                      :append-js (output/fn-call init-fn)}}
             (cond->
               (seq chunks)
               (-> (update :index assoc :prepend "var $APP = global.$APP = {};\n")
-                  (add-chunk-modules mode chunks))))]
+                  (add-chunk-modules mode chunks))
+
+              build-worker?
+              (add-module-loaded-calls)))]
 
     (io/make-parents output-file)
 
