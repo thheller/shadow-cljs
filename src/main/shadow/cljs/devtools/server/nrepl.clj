@@ -114,7 +114,7 @@
         ((apply comp (reverse middleware-stack)) server/unknown-op)
 
         {:keys [host port transport-fn]
-         :or {host "0.0.0.0"
+         :or {host "127.0.0.1"
               port 0}}
         merged-config
 
