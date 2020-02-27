@@ -309,7 +309,9 @@
         trusted-hosts
         (set/union
           (set (get-in req [:config :trusted-hosts]))
-          #{"127.0.0.1" "localhost"})]
+          #{"127.0.0.1"
+            "0:0:0:0:0:0:0:1"
+            "localhost"})]
 
     ;; FIXME: maybe needs to do host->addr translation?
     (if-not (contains? trusted-hosts remote-addr)
