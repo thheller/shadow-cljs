@@ -305,13 +305,15 @@
 
 (defn api-tool [{:keys [relay transit-read transit-str] :as req}]
   ;; FIXME: negotiate encoding somehow? could just as well use edn
+  (?> req ::api-tool)
   (let [remote-addr (get-in req [:ring-request :remote-addr])
         trusted-hosts
         (set/union
-          (set (get-in req [:config :trusted-hosts]))
           #{"127.0.0.1"
             "0:0:0:0:0:0:0:1"
-            "localhost"})]
+            "localhost"}
+          (set (get-in req [:config :trusted-hosts]))
+          (set (get-in req [:config :user-config :trusted-hosts])))]
 
     ;; FIXME: maybe needs to do host->addr translation?
     (if-not (contains? trusted-hosts remote-addr)
