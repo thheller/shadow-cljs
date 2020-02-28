@@ -5,7 +5,7 @@
     [shadow.experiments.grove.db :as db]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
-    ))
+    [clojure.string :as str]))
 
 (defmulti handle-ws (fn [env msg] (::m/op msg)) :default ::default)
 
@@ -66,7 +66,7 @@
         (.send socket (transit-str msg))))))
 
 (defn init [app-ref]
-  (let [socket (js/WebSocket. (str "ws://" js/self.location.host "/api/ws"))
+  (let [socket (js/WebSocket. (str (str/replace js/self.location.protocol "http" "ws") "//" js/self.location.host "/api/ws"))
         ws-ref (atom socket)
 
         api-out

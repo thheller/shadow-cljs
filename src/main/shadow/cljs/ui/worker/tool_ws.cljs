@@ -2,7 +2,8 @@
   (:require
     [shadow.experiments.grove.worker :as sw]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.worker.env :as env]))
+    [shadow.cljs.ui.worker.env :as env]
+    [clojure.string :as str]))
 
 (defonce rpc-id-seq (atom 0))
 (defonce rpc-ref (atom {}))
@@ -26,7 +27,7 @@
         (.send socket (transit-str msg))))))
 
 (defn init [app-ref]
-  (let [socket (js/WebSocket. (str "ws://" js/self.location.host "/api/tool"))
+  (let [socket (js/WebSocket. (str (str/replace js/self.location.protocol "http" "ws") "//" js/self.location.host "/api/tool"))
         ws-ref (atom socket)]
 
     (swap! app-ref assoc ::ws-ref ws-ref ::socket socket)
