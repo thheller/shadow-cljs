@@ -18,10 +18,13 @@
        [:ol.pl-6.pt-1.list-disc
         (sg/render-seq http-servers ::m/http-server-id
           (fn [{::m/keys [http-url https-url http-config]}]
-            (let [url (or http-url https-url)]
+            (let [url (or http-url https-url)
+                  display-name (:display-name http-config)]
               (<< [:li.pb-1
                    [:a.font-bold {:href url :target "_blank"} url]
                    " - "
+                   (when (seq display-name)
+                     (str display-name " - "))
                    (pr-str (:roots http-config))]))))]]))
 
 (defc ui-active-build [ident]
@@ -67,5 +70,5 @@
 (defn ui-page []
   (<< [:div.flex-1.overflow-auto
        (ui-http-servers)
-       #_ (ui-active-runtimes)
+       #_(ui-active-runtimes)
        (ui-active-builds)]))
