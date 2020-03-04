@@ -74,11 +74,10 @@
         )))
 
 (defn flush-karma-test-file
-  [{::keys [output-to] :keys [polyfill-js unoptimizable build-options build-sources] :as state} config]
+  [{::keys [output-to] :keys [polyfill-js build-options build-sources] :as state} config]
 
   (let [prepend
         (str "var shadow$provide = {};\n"
-             unoptimizable
              (output/closure-defines-and-base state)
              "goog.global[\"$CLJS\"] = goog.global;\n")
 

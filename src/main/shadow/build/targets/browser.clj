@@ -509,7 +509,7 @@
          state)))
 
 (defn flush-unoptimized-module-eval
-  [{:keys [unoptimizable] :as state}
+  [state
    {:keys [goog-base prepend append sources web-worker] :as mod}
    target]
 
@@ -547,11 +547,10 @@
 
         out
         (if (or goog-base web-worker)
-          (str unoptimizable
+          (str "var shadow$provide = {};\n"
                ;; always include this in dev builds
                ;; a build may not include any shadow-js initially
                ;; but load some from the REPL later
-               "var shadow$provide = {};\n"
 
                (when (and web-worker (get-in state [::build/config :module-loader]))
                  "var shadow$modules = false;\n")
@@ -579,7 +578,7 @@
   state)
 
 (defn flush-unoptimized-module-fetch
-  [{:keys [unoptimizable build-options] :as state}
+  [{:keys [build-options] :as state}
    {:keys [goog-base output-name prepend append sources web-worker] :as mod}
    target]
 
@@ -641,11 +640,10 @@
 
         out
         (if (or goog-base web-worker)
-          (str unoptimizable
+          (str "var shadow$provide = {};\n"
                ;; always include this in dev builds
                ;; a build may not include any shadow-js initially
                ;; but load some from the REPL later
-               "var shadow$provide = {};\n"
 
                (when (and web-worker (get-in state [::build/config :module-loader]))
                  "var shadow$modules = false;\n")
@@ -764,7 +762,9 @@
            (map (fn [{:keys [goog-base web-worker] :as mod}]
                   (-> mod
                       (cond->
-                        goog-base
+                        ;; I doubt that any of the devices that had the Math.imul bug are still in use
+                        ;; so it's time to start removing it from build output
+                        (and goog-base (true? (get-in state [:compiler-options :imul-js-fix])))
                         (update :prepend str imul-js-fix "\n")
 
                         (and (= :release mode) web-worker)
