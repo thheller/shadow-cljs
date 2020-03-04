@@ -149,7 +149,9 @@
 
   (let [filename (str (util/ns->path require) ".clj")]
     (when-let [rc (io/resource filename)]
-      (.write w (str "\"" filename "\" was found on the classpath. Should this be a .cljs file?\n"))
+      (if (= "file" (.getProtocol rc))
+        (.write w (str "\"" filename "\" was found on the classpath. Should this be a .cljs file?\n"))
+        (.write w (str "\"" filename "\" was found on the classpath. Maybe this library only supports CLJ?")))
       )))
 
 (defmethod ex-data-format ::resolve/missing-js
