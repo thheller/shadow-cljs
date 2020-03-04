@@ -38,6 +38,7 @@
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
   [(util/resource-last-modified "shadow/build/compiler.clj")
+   (util/resource-last-modified "shadow/build/cljs_hacks.cljc")
    ;; check a cljs file as well in case the user uses a different cljs version directly
    (util/resource-last-modified "cljs/analyzer.cljc")])
 
