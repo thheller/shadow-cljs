@@ -190,18 +190,21 @@
     :ok))
 
 (defn watch*
-  [{:keys [build-id] :as build-config} {:keys [verbose sync] :as opts}]
+  [{:keys [build-id] :as build-config}
+   {:keys [verbose sync log-chan log-close?]
+    :or {log-close? true}
+    :as opts}]
   {:pre [(map? build-config)
          (keyword? build-id) ;; not required here but by start-worker
          (map? opts)]}
-  (let [out (util/stdout-dump verbose)
+  (let [out (or log-chan (util/stdout-dump verbose))
 
         autobuild?
         (and (not (false? (:autobuild opts)))
              (not (false? (get-in build-config [:devtools :autobuild]))))]
 
     (-> (start-worker build-config opts)
-        (worker/watch out true)
+        (worker/watch out log-close?)
         (cond->
           autobuild?
           (worker/start-autobuild)
@@ -354,6 +357,15 @@
       (build/optimize)
       (build/flush)
       (build-finish build-config)))
+
+(defn release!
+  ([build]
+   (release! build {}))
+  ([build opts]
+   (with-runtime
+     (let [build-config (config/get-build! build)]
+       (release* build-config opts)))
+   :done))
 
 (defn release
   ([build]
