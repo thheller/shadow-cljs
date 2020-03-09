@@ -54,6 +54,9 @@
     (keyword? b)
     b
 
+    (symbol? b)
+    b
+
     :else
     (throw (ex-info "failed to merge config value" {:a a :b b}))
     ))
