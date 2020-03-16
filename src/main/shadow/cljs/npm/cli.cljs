@@ -697,6 +697,7 @@
                                [:plugin
                                 [:groupId "org.codehaus.mojo"]
                                 [:artifactId "build-helper-maven-plugin"]
+                                [:version "3.1.0"]
                                 [:executions
                                  [:execution
                                   [:phase "generate-sources"]
