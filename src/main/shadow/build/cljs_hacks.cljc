@@ -779,12 +779,12 @@
             (ana/warning :fn-arity env {:name f :argc argc}))
           ;; FIXME: check first arg for defrecord field access opt
           (let [arg-expr (first @args-exprs)
-                arg-tag (ana/infer-tag enve arg-expr)
-                field-sym (symbol (name f))]
+                arg-tag (ana/infer-tag enve arg-expr)]
 
             (if (and (and (keyword? f) (nil? (namespace f)))
                      (== 1 argc)
-                     (record-with-field? arg-tag field-sym))
+                     (let [field-sym (symbol (name f))]
+                       (record-with-field? arg-tag field-sym)))
               ;; emit optimized (. thing -foo) for (:foo thing) if thing is a known record with foo field
               (ana/analyze env
                 (with-meta
