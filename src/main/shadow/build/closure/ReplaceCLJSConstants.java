@@ -4,6 +4,7 @@ package shadow.build.closure;
 import com.google.javascript.jscomp.*;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
+import com.google.javascript.rhino.InputId;
 
 import java.util.*;
 
@@ -57,14 +58,9 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
             }
 
             if (target == null) {
-                throw new IllegalStateException(
-                        String.format(
-                                "Could not find where to put constant %s. Used by %s, selected common dep %s",
-                                ref.varName,
-                                ref.usedIn,
-                                targetModule.getName()
-                        )
-                );
+                // No suitable target was found, default to cljs.core.
+                InputId cljsCoreId = new InputId("shadow/cljs/constants/cljs/core.cljs");
+                target = compiler.getInput(cljsCoreId).getAstRoot(compiler);
             }
 
             Node constantNode;
