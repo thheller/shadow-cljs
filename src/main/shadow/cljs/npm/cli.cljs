@@ -6,7 +6,6 @@
     ["os" :as os]
     ["child_process" :as cp]
     ["readline-sync" :as rl-sync] ;; FIXME: drop this?
-    ["mkdirp" :as mkdirp]
     ["net" :as node-net]
     ["which" :as which]
     [cljs.core.async :as async :refer (go go-loop alt!)]
@@ -36,6 +35,10 @@
 
 (defn ensure-dir [dir]
   (when-not (fs/existsSync dir)
+    (let [parent (path/resolve dir "..")]
+      (ensure-dir parent))
+    ;; node v10 supports #js {:recursive true} option
+    ;; don't want to bump the dependency just for that though
     (fs/mkdirSync dir)))
 
 (defn is-directory? [path]
@@ -813,7 +816,7 @@
                   (and (fs/existsSync server-port-file)
                        (fs/existsSync server-pid-file))]
 
-              (mkdirp/sync (path/resolve project-root cache-root))
+              (ensure-dir (path/resolve project-root cache-root))
 
               (when (and (not server-running?) (fs/existsSync server-pid-file))
                 (log "shadow-cljs - server pid exists but server appears to be dead, proceeding without server.")
