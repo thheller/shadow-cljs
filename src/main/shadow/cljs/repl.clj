@@ -255,7 +255,6 @@
                  (filter #(.isDirectory %))
                  (map #(.toPath %))
                  (filter (fn [^Path path]
-                           (prn [:match abs-path path (.startsWith abs-path path)])
                            (.startsWith abs-path path))))]
 
         (when (seq matched-paths)
