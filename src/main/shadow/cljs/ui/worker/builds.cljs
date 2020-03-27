@@ -21,3 +21,8 @@
            (sort-by :resource-name)
            (vec)
            ))))
+
+(defmethod eql/attr ::m/build-warnings-count
+  [env db current query-part params]
+  (let [{:keys [warnings] :as info} (::m/build-status current)]
+    (count warnings)))
