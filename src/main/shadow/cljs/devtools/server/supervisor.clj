@@ -51,13 +51,13 @@
             cli-opts)]
 
       (sys-bus/publish! system-bus ::m/supervisor {:op :worker-start
-                                                         :build-id build-id})
+                                                   :build-id build-id})
 
       (swap! workers-ref assoc build-id proc)
 
       (go (<! proc-stop)
           (sys-bus/publish! system-bus ::m/supervisor {:op :worker-stop
-                                                             :build-id build-id})
+                                                       :build-id build-id})
           (swap! workers-ref dissoc build-id))
 
       proc
