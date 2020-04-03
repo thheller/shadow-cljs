@@ -73,7 +73,7 @@
 (def native-node-modules
   #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
     "constants" "crypto" "_debugger" "dgram" "dns" "domain" "events" "freelist"
-    "fs" "http" "https" "_linklist" "module" "net" "os" "path" "punycode"
+    "fs" "http" "http2" "https" "_linklist" "module" "net" "os" "path" "punycode"
     "querystring" "readline" "repl" "stream" "string_decoder" "sys" "timers"
     "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
 
