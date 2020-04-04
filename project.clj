@@ -13,24 +13,24 @@
    "-source" "1.8"]
 
   :managed-dependencies
-  [[commons-codec "1.11"]
+  [[commons-codec "1.14"]
    [com.google.errorprone/error_prone_annotations "2.1.3"]
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
   [[org.clojure/clojure "1.10.1"]
 
-   [org.clojure/data.json "0.2.6"]
-   [org.clojure/tools.cli "0.3.7"]
+   [org.clojure/data.json "1.0.0"]
+   [org.clojure/tools.cli "1.0.194"]
    [org.clojure/tools.reader "1.3.2"]
 
-   [nrepl "0.6.0"]
-   [cider/piggieback "0.4.1"]
+   [nrepl "0.7.0"]
+   [cider/piggieback "0.4.2"]
 
-   [com.cognitect/transit-clj "0.8.313"]
+   [com.cognitect/transit-clj "1.0.324"]
    [com.cognitect/transit-cljs "0.8.256"]
 
-   [org.clojure/core.async "1.0.567"]
+   [org.clojure/core.async "1.1.587"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.10.597"
@@ -47,36 +47,36 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.25.Final"
+   [io.undertow/undertow-core "2.0.30.Final"
     :exclusions
     [org.jboss.xnio/xnio-api
      org.jboss.xnio/xnio-nio]]
 
-   [org.jboss.xnio/xnio-api "3.7.3.Final"]
-   [org.jboss.xnio/xnio-nio "3.7.3.Final"
+   [org.jboss.xnio/xnio-api "3.8.0.Final"]
+   [org.jboss.xnio/xnio-nio "3.8.0.Final"
     :exlusions [org.jboss.threads/jboss-threads]]
 
-   [org.jboss.threads/jboss-threads "2.3.2.Final"]
+   [org.jboss.threads/jboss-threads "3.1.0.Final"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.7.1"
+   [ring/ring-core "1.8.0"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [expound "0.7.2"]
-   [fipp "0.6.18"]
+   [expound "0.8.4"]
+   [fipp "0.6.22"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
-   [com.wsscode/pathom "2.2.30"
+   [com.wsscode/pathom "2.2.31"
     :exclusions
     [org.clojure/data.json
      fulcrologic/fulcro
      ;; org.clojure/test.check
      camel-snake-kebab]]
    ;; for pathom
-   [org.clojure/test.check "0.10.0-alpha3"]
+   [org.clojure/test.check "1.0.0"]
 
    ;; experimental
    [hawk "0.2.11"]
@@ -118,7 +118,7 @@
      "-XX:+DebugNonSafepoints"]
 
     :dependencies
-    [[com.clojure-goes-fast/clj-async-profiler "0.4.0"]
+    [[com.clojure-goes-fast/clj-async-profiler "0.4.1"]
      #_[org.slf4j/slf4j-log4j12 "1.7.25"]
      #_[log4j "1.2.17"]]}
 
@@ -145,8 +145,8 @@
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
-     [reagent "0.8.1"]
-     [nubank/workspaces "1.0.4"]]
+     [reagent "0.10.0"]
+     [nubank/workspaces "1.0.15"]]
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware
