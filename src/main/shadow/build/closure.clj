@@ -1751,9 +1751,6 @@
              #_(map #(do (println (.getCode %)) %))
              (into []))
 
-        source-file-names
-        (into #{} (map #(.getName %)) source-files)
-
         ;; this includes all files (sources + package.json files)
         source-files-by-name
         (->> source-files
@@ -1848,7 +1845,11 @@
         (try
           (util/with-logged-time [state {:type ::shadow-convert
                                          :num-sources (count sources)}]
-            (.compile cc @default-externs source-files closure-opts))
+            (.compile cc
+              (-> @default-externs
+                  (conj (load-simplified-externs state)))
+              source-files
+              closure-opts))
           ;; catch internal closure errors
           (catch Exception e
             (throw (ex-info "failed to convert sources"

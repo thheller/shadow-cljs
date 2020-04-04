@@ -9,7 +9,7 @@
      (:require
        [goog.string.format]
        [goog.string :refer (format)]
-       [cljs.tools.cli :as cli]
+       [clojure.tools.cli :as cli]
        [shadow.cli-util :as cli-util]
        [clojure.string :as str])))
 
