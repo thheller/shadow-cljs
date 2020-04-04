@@ -158,6 +158,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [CN] [shadow-cljs 2.x 使用教程](https://segmentfault.com/a/1190000011499210)
 - [EN] [ClojureScript with Middleman via Shadow-CLJS](http://bobnadler.com/articles/2018/01/28/clojurescript-with-middleman-via-shadow-cljs.html)
 - [EN] [Clojurescript Development for JavaScript Developers in Atom with Shadow-cljs and ProtoREPL](https://medium.com/@loganpowell/clojurescript-development-for-javascript-developers-in-atom-with-shadow-cljs-and-protorepl-ec5e38e3de26)
+- [EN] [Confidence and Joy: React Native Development with ClojureScript and re-frame](https://hackmd.io/@byc70E6fQy67hPMN0WM9_A/rJilnJxE8)
 - ... please let me know if you created something to include here
 
 ## Examples
@@ -174,6 +175,11 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [manuel-uberti/boodle](https://github.com/manuel-uberti/boodle) - re-frame based Accounting SPA with `deps.edn` based backend
 - [shadow-cljs-kitchen-async-puppeteer](https://github.com/iku000888/shadow-cljs-kitchen-async-puppeteer) - Automated browser test with puppeteer and cljs.test, built with shadow-cljs
 - [baskeboler/cljs-karaoke-client](https://github.com/baskeboler/cljs-karaoke-client) - web karaoke player using shadow-cljs + reagent + re-frame + re-frame-10x + re-frame-async-flow-fx + build hooks for minifying css and generating seo pages ([Demo](https://karaoke.uyuyuy.xyz/#/songs/Rolling%20Stones-all%20over%20now%20rolling%20stones?offset=0))
+- [flexsurfer/ClojureRNProject](https://github.com/flexsurfer/ClojureRNProject) - simple React Native application with ClojureScript, re-frame and react navigation v5
+- ... please let me know if you created something to include here
+
+## Libraries
+- [flexsurfer/rn-shadow-steroid](https://github.com/flexsurfer/rn-shadow-steroid) - React Native with shadow-cljs on steroids
 - ... please let me know if you created something to include here
 
 ## License
