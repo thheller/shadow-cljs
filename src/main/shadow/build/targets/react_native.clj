@@ -141,8 +141,7 @@
           (-> (shared/merge-repl-defines config)
               (set-server-host config)
               (update-in [::modules/config :index :entries] shared/prepend
-                '[cljs.user
-                  shadow.cljs.devtools.client.react-native]))
+                '[shadow.cljs.devtools.client.react-native]))
 
           dev?
           (shared/inject-preloads :index config)))))

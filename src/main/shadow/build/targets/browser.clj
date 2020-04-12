@@ -132,7 +132,7 @@
         (-> []
             (cond->
               (not (false? enabled))
-              (into '[cljs.user shadow.cljs.devtools.client.browser]))
+              (into '[shadow.cljs.devtools.client.browser]))
 
             (into entries))]
 
@@ -239,7 +239,7 @@
                     ;; REPL client - only for watch (via worker-info), not compile
                     ;; this needs to be in base module
                     (and default? build-worker?)
-                    (update :entries shared/prepend '[cljs.user shadow.cljs.devtools.client.env])
+                    (update :entries shared/prepend '[shadow.cljs.devtools.client.env])
 
                     (and build-worker?
                          (or (and default? (nil? browser-inject))

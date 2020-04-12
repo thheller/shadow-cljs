@@ -140,6 +140,7 @@
               used-by (get src-refs src-id)]
 
           (when (not= assigned-mod module-id)
+            (tap> [::move assigned-mod module-id mod state])
             (throw
               (ex-info
                 (str "Module Entry \"" entry "\" was moved out of module \"" module-id "\".\n"

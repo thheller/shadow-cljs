@@ -85,8 +85,7 @@
           (:worker-info state)
           (-> (shared/merge-repl-defines (assoc-in config [:devtools :autoload] true))
               (update-in [::modules/config :index :entries] shared/prepend
-                '[cljs.user
-                  shadow.expo.keep-awake
+                '[shadow.expo.keep-awake
                   shadow.cljs.devtools.client.react-native]))))))
 
 (defn flush-expo-bundle

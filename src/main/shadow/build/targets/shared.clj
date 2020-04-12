@@ -218,7 +218,7 @@
     state
     (-> state
         (update-in [:compiler-options :closure-defines] merge (repl-defines state config))
-        (update-in [::modules/config :main :entries] prepend '[cljs.user shadow.cljs.devtools.client.node])
+        (update-in [::modules/config :main :entries] prepend '[shadow.cljs.devtools.client.node])
         )))
 
 (defn set-output-dir [state mode {:keys [id output-dir] :as config}]

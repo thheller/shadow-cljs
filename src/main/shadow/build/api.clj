@@ -324,32 +324,37 @@
    intended for cache invalidation if one or more resources are changed
    a resource may change a function signature and we need to invalidate all namespaces
    that may be using that function to immediately get warnings"
-  [state source-ids]
-  (let [modified
-        (set source-ids)]
+  [state modified]
+  {:pre [(set? modified)]}
 
-    (->> (:sources state)
-         (vals)
-         (map :resource-id)
-         (filter (fn [other-id]
-                   (let [deps-of
-                         (get-in state [:immediate-deps other-id])
+  (->> (:sources state)
+       (vals)
+       (map :resource-id)
+       (filter (fn [other-id]
+                 (let [deps-of
+                       (get-in state [:immediate-deps other-id])
 
-                         uses-modified-resources
-                         (set/intersection modified deps-of)]
-                     (seq uses-modified-resources)
-                     )))
-         (into modified))))
+                       uses-modified-resources
+                       (set/intersection modified deps-of)]
+                   (seq uses-modified-resources)
+                   )))
+       (into modified)))
 
 (defn reset-resources [state source-ids]
   {:pre [(coll? source-ids)]}
 
-  (let [modified
-        (set source-ids)
+  (let [modified (set source-ids)
+        all-deps-to-reset (find-resources-affected-by state source-ids)]
 
-        all-deps-to-reset
-        (find-resources-affected-by state source-ids)]
-    (reduce data/remove-source-by-id state all-deps-to-reset)))
+    (reduce
+      (fn [state resource-id]
+        (if (contains? modified resource-id)
+          ;; fully remove specified resources (eg. modified sources found by watch)
+          (data/remove-source-by-id state resource-id)
+          ;; affected deps only have their output removed since their source didn't change
+          (data/remove-output-by-id state resource-id)))
+      state
+      all-deps-to-reset)))
 
 (defn reset-namespaces [state provides]
   (let [source-ids

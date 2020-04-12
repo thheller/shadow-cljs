@@ -75,10 +75,10 @@
               (browser/inject-devtools-console state config))
 
           (and repl? (= :node runtime))
-          (update :entries shared/prepend '[cljs.user shadow.cljs.devtools.client.node])
+          (update :entries shared/prepend '[shadow.cljs.devtools.client.node])
 
           (and repl? (= :react-native runtime))
-          (-> (update :entries shared/prepend '[cljs.user shadow.cljs.devtools.client.react-native])
+          (-> (update :entries shared/prepend '[shadow.cljs.devtools.client.react-native])
               ;; rn itself doesn't support this but the remote debug chrome thing does
               (browser/inject-devtools-console state config)))
 

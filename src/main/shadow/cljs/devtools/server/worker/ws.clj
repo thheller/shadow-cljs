@@ -183,6 +183,8 @@
              "content-type")
          "content-type" "application/edn; charset=utf-8"}]
 
+
+
     ;; CORS sends OPTIONS first
     (case request-method
 

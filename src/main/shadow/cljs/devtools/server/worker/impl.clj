@@ -181,11 +181,7 @@
                       ;; temp hack for repl/setup since it needs access to repl-init-ns but configure wasn't called yet
                       :shadow.build/config build-config
                       })
-              (build/configure :dev build-config (:cli-opts worker-state {}))
-              ;; FIXME: this should be done on session-start
-              ;; only keeping it until everything uses new repl-system
-              ;; must be done after config in case config has non-default resolve settings
-              (repl/setup))
+              (build/configure :dev build-config (:cli-opts worker-state {})))
 
           extra-config-files
           (reduce
@@ -418,25 +414,46 @@
   (async/close! chan)
   worker-state)
 
-(defmethod do-proc-control :runtime-connect
-  [{:keys [build-state] :as worker-state} {:keys [runtime-id runtime-out runtime-info]}]
-  (log/debug ::runtime-connect {:runtime-id runtime-id})
-  (>!! runtime-out {:type :repl/init
-                    :repl-state
-                    (-> (:repl-state build-state)
-                        (update :repl-sources repl-sources-as-client-resources build-state))})
+(defn ensure-repl-init [{:keys [build-state] :as worker-state}]
+  (let [{:keys [repl-state]} build-state]
+    (if repl-state
+      worker-state
+      ;; ensure that all REPL related things have been compiled
+      ;; so the runtime can properly load them
+      ;; delaying this until a runtime actually connects
+      (let [build-state (repl/prepare build-state)]
+        (assoc worker-state :build-state build-state)
+        ))))
 
-  ;; (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
-  (-> worker-state
-      (cond->
-        (zero? (count (:runtimes worker-state)))
-        (assoc :default-runtime-id runtime-id))
-      (update :runtimes assoc runtime-id
-        {:runtime-id runtime-id
-         :runtime-out runtime-out
-         :runtime-info runtime-info
-         :connected-since (System/currentTimeMillis)
-         :init-sent true})))
+(defmethod do-proc-control :runtime-connect
+  [worker-state {:keys [runtime-id runtime-out runtime-info]}]
+  (log/debug ::runtime-connect {:runtime-id runtime-id})
+
+  (let [{:keys [build-state] :as worker-state} (ensure-repl-init worker-state)]
+
+    ;; FIXME: potential race condition, this is sent out immediately
+    ;; and may arrive before the rest of this handler completes and has a chance to
+    ;; "save" the updated worker-state. should really get rid of this handling and just use
+    ;; an atom for the state directly instead of hidden by server-thread
+    (>!! runtime-out {:type :repl/init
+                      :repl-state
+                      (-> (:repl-state build-state)
+                          (update :repl-sources repl-sources-as-client-resources build-state))})
+
+    ;; (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
+
+    ;; don't do anything that takes time here until race condition is fixed
+    ;; otherwise things may try to access the repl-state that hasn't been set yet
+    (-> worker-state
+        (cond->
+          (zero? (count (:runtimes worker-state)))
+          (assoc :default-runtime-id runtime-id))
+        (update :runtimes assoc runtime-id
+          {:runtime-id runtime-id
+           :runtime-out runtime-out
+           :runtime-info runtime-info
+           :connected-since (System/currentTimeMillis)
+           :init-sent true}))))
 
 (defn maybe-pick-different-default-runtime [{:keys [runtimes default-runtime-id] :as worker-state} runtime-id]
   (cond
@@ -905,7 +922,7 @@
 
     ;; the updated macro may not be used by this build
     ;; so we can skip the rebuild
-    (and (seq last-build-macros) )
+    (and (seq last-build-macros))
     (-> worker-state
         (update :build-state build-api/reset-resources-using-macros macro-namespaces)
         (cond->
