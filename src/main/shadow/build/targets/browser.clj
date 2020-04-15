@@ -214,7 +214,7 @@
   [{:keys [worker-info] :as state} mode {:keys [modules module-loader release-version devtools] :as config}]
 
   (let [default-module (pick-default-module-from-config modules)
-        {:keys [enabled browser-inject worker-inject]} devtools
+        {:keys [enabled]} devtools
         enabled? (not (false? enabled))
         build-worker? (and enabled? (= :dev mode) worker-info)]
     (reduce-kv
@@ -241,15 +241,8 @@
                     (and default? build-worker?)
                     (update :entries shared/prepend '[shadow.cljs.devtools.client.env])
 
-                    (and build-worker?
-                         (or (and default? (nil? browser-inject))
-                             (= browser-inject module-id)))
+                    (and build-worker? default?)
                     (update :entries shared/prepend '[shadow.cljs.devtools.client.browser])
-
-                    (and build-worker?
-                         (or (and web-worker (nil? worker-inject))
-                             (= worker-inject module-id)))
-                    (update :entries shared/prepend '[shadow.cljs.devtools.client.worker])
 
                     build-worker?
                     (update :append-js str "\nshadow.cljs.devtools.client.env.module_loaded('" (name module-id) "');\n")

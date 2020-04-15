@@ -47,8 +47,11 @@
   (env/do-js-reload
     (assoc msg
       :log-missing-fn
+      ;; FIXME: this gets noisy when using web-workers and either main or the workers not having certain code loaded
+      ;; should properly filter hook-fns and only attempt to call those that actually apply
+      ;; but thats a bit of work since we don't currently track the namespaces that are loaded.
       (fn [fn-sym]
-        (devtools-msg (str "can't find fn " fn-sym)))
+        #_ (devtools-msg (str "can't find fn " fn-sym)))
       :log-call-async
       (fn [fn-sym]
         (devtools-msg (str "call async " fn-sym)))
@@ -386,12 +389,13 @@
   ;; for /browser-repl in case the page is reloaded
   ;; otherwise the browser seems to still have the websocket open
   ;; when doing the reload
-  (js/window.addEventListener "beforeunload"
-    (fn []
-      (when-let [s @socket-ref]
-        (.close s))))
+  (when js/goog.global.window
+    (js/window.addEventListener "beforeunload"
+      (fn []
+        (when-let [s @socket-ref]
+          (.close s)))))
 
   ;; async connect so other stuff while loading runs first
-  (if (and js/document (= "loading" js/document.readyState))
+  (if (and js/goog.global.document (= "loading" js/goog.global.document.readyState))
     (js/window.addEventListener "DOMContentLoaded" ws-connect)
     (js/setTimeout ws-connect 10)))
