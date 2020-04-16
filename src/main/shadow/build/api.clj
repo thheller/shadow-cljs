@@ -391,7 +391,7 @@
        (vals)
        (filter (macro-test-fn macros))
        (map :resource-id)
-       (into [])))
+       (into #{})))
 
 (defn reset-resources-using-macros [state macros]
   {:pre [(set? macros)]}
