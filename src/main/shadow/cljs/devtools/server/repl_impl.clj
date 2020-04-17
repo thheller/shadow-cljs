@@ -88,19 +88,6 @@
 
     (repl/read-one build-state rdr {})))
 
-(def repl-api-fns
-  ;; return value of these is ignored, print to *out* should work?
-  {})
-
-(defn do-repl-api-fn [app worker repl-state {:keys [form] :as read-result}]
-  (let [[special-fn & args]
-        form
-
-        handler
-        (get repl-api-fns special-fn)]
-
-    (apply handler app worker repl-state read-result args)))
-
 (defn repl-print-chan []
   (let [print-chan
         (async/chan)]
@@ -166,11 +153,6 @@
 
             (= :cljs/quit form)
             :quit
-
-            (and (list? form)
-                 (contains? repl-api-fns (first form)))
-            (do (do-repl-api-fn app worker build-state read-result)
-                (recur))
 
             :else
             (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
