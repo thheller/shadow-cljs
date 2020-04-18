@@ -149,13 +149,13 @@
 (defn prepare
   [build-state]
   {:pre [(build-api/build-state? build-state)]}
-  (let [{:keys [repl-state] :as state}
+  (let [{:keys [repl-state] :as build-state}
         (setup build-state)
 
         {:keys [repl-sources]}
         repl-state]
 
-    (-> state
+    (-> build-state
         (build-api/compile-sources repl-sources)
         ;; make sure sources exist on disk so the REPL can actually load them
         (output/flush-sources repl-sources)
