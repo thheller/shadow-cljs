@@ -171,6 +171,8 @@
                                                           :event event})
               (async/offer! log-chan {:type :build-log :event event})))
 
+          repl-init-ns
+          (get-in build-config [:devtools :repl-init-ns] 'cljs.user)
 
           {:keys [npm extra-config-files] :as build-state}
           (-> (server-util/new-build build-config :dev (:cli-opts worker-state {}))
@@ -181,6 +183,8 @@
                       ;; temp hack for repl/setup since it needs access to repl-init-ns but configure wasn't called yet
                       :shadow.build/config build-config
                       })
+              ;; FIXME: work around issues where this is used by clients before a runtime connects
+              (assoc :repl-state {:current-ns repl-init-ns})
               (build/configure :dev build-config (:cli-opts worker-state {})))
 
           extra-config-files
@@ -415,15 +419,15 @@
   worker-state)
 
 (defn ensure-repl-init [{:keys [build-state] :as worker-state}]
-  (let [{:keys [repl-state]} build-state]
-    (if repl-state
-      worker-state
-      ;; ensure that all REPL related things have been compiled
-      ;; so the runtime can properly load them
-      ;; delaying this until a runtime actually connects
-      (let [build-state (repl/prepare build-state)]
-        (assoc worker-state :build-state build-state)
-        ))))
+  ;; FIXME: repl-state should be coupled to the client "session" not the runtime
+  (if (seq (get-in build-state [:repl-state :repl-sources]))
+    worker-state
+    ;; ensure that all REPL related things have been compiled
+    ;; so the runtime can properly load them
+    ;; delaying this until a runtime actually connects
+    (let [build-state (repl/prepare build-state)]
+      (assoc worker-state :build-state build-state)
+      )))
 
 (defmethod do-proc-control :runtime-connect
   [worker-state {:keys [runtime-id runtime-out runtime-info]}]
