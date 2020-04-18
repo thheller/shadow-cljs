@@ -17,34 +17,37 @@
   (doseq [warning warnings]
     (warnings/print-short-warning warning))
 
-  (case (:type result)
-    (:repl/require-error :repl/invoke-error)
-    (println (or (:stack result)
-                 (:error result)
-                 (:message result)))
+  ;; don't forward results to internal actions to clients
+  ;; ns results in require, eval, set-ns but the client doesn't need to know that
+  (when-not (:internal action)
+    (case (:type result)
+      (:repl/require-error :repl/invoke-error)
+      (println (or (:stack result)
+                   (:error result)
+                   (:message result)))
 
-    :repl/set-ns-complete
-    (println "nil")
+      :repl/set-ns-complete
+      (println "nil")
 
-    :repl/require-complete
-    (println "nil")
+      :repl/require-complete
+      (println "nil")
 
-    :repl/result
-    (let [{:keys [error value]} result]
-      (if-not (some? error)
-        (println value)
-        ;; FIXME: let worker format the error and source map
-        ;; worker has full access to build info, this here doesn't
-        (let [{:keys [ex-data error stack]} result]
-          (println "== JS EXCEPTION ==============================")
-          (if (seq stack)
-            (println stack)
-            (println error))
-          (when (seq ex-data)
-            (println "Error Data:")
-            (prn ex-data))
-          (println "==============================================")
-          )))))
+      :repl/result
+      (let [{:keys [error value]} result]
+        (if-not (some? error)
+          (println value)
+          ;; FIXME: let worker format the error and source map
+          ;; worker has full access to build info, this here doesn't
+          (let [{:keys [ex-data error stack]} result]
+            (println "== JS EXCEPTION ==============================")
+            (if (seq stack)
+              (println stack)
+              (println error))
+            (when (seq ex-data)
+              (println "Error Data:")
+              (prn ex-data))
+            (println "==============================================")
+            ))))))
 
 (defn handle-repl-result [worker result]
   (locking build-log/stdout-lock

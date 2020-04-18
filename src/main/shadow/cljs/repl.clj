@@ -342,12 +342,14 @@
         ns-requires
         {:type :repl/require
          :sources dep-sources
+         :internal true
          :warnings (warnings-for-sources state dep-sources)
          :reload-namespaces (into #{} (:reload-deps ns-info))}
 
         ns-provide
         {:type :repl/invoke
          :name "<eval>"
+         :internal true
          :js (with-out-str
                (comp/shadow-emit state (assoc ns-info :op :ns))
 

@@ -63,36 +63,40 @@
       :repl/results
       (let [{:keys [results]} result]
         (doseq [{:keys [warnings result] :as action} results]
+
           (binding [warnings/*color* false]
             (doseq [warning warnings]
               (send msg {:err (with-out-str (warnings/print-short-warning warning))})))
 
-          (case (:type result)
-            :repl/result
-            (send msg {:value (:value result)
-                       :printed-value 1
-                       :ns (pr-str repl-ns)})
+          ;; don't forward results to internal actions to clients
+          ;; ns results in require, eval, set-ns but the client doesn't need to know that
+          (when-not (:internal action)
+            (case (:type result)
+              :repl/result
+              (send msg {:value (:value result)
+                         :printed-value 1
+                         :ns (pr-str repl-ns)})
 
-            :repl/set-ns-complete
-            (send msg {:value (pr-str repl-ns)
-                       :printed-value 1
-                       :ns (pr-str repl-ns)})
+              :repl/set-ns-complete
+              (send msg {:value (pr-str repl-ns)
+                         :printed-value 1
+                         :ns (pr-str repl-ns)})
 
-            (:repl/invoke-error
-              :repl/require-error)
-            (send msg {:err (or (:stack result)
-                                (:error result))})
+              (:repl/invoke-error
+                :repl/require-error)
+              (send msg {:err (or (:stack result)
+                                  (:error result))})
 
-            :repl/require-complete
-            (send msg {:value "nil"
-                       :printed-value 1
-                       :ns (pr-str repl-ns)})
+              :repl/require-complete
+              (send msg {:value "nil"
+                         :printed-value 1
+                         :ns (pr-str repl-ns)})
 
-            :repl/error
-            (send msg {:err (errors/error-format (:ex result))})
+              :repl/error
+              (send msg {:err (errors/error-format (:ex result))})
 
-            ;; :else
-            (send msg {:err (pr-str [:FIXME action])}))))
+              ;; :else
+              (send msg {:err (pr-str [:FIXME action])})))))
 
       :repl/interrupt
       nil
