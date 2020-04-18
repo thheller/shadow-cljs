@@ -26,7 +26,7 @@
     [shadow.build.resolve :as res]
     [shadow.build.classpath :as classpath]
     [shadow.remote.runtime.eval-support :as es]
-    )
+    [shadow.build.async :as async])
   (:import
     [java.io StringReader BufferedReader File]
     [java.nio.file Paths Path]
@@ -147,19 +147,19 @@
     ))
 
 (defn prepare
-  [state]
-  {:pre [(build-api/build-state? state)]}
-
-  ;; must compile an empty cljs.user to properly populate the ::ana/namespaces
-  ;; could just manually set the values needed but I don't want to keep track what gets set
-  ;; so just pretend there is actually an empty ns we never user
+  [build-state]
+  {:pre [(build-api/build-state? build-state)]}
   (let [{:keys [repl-state] :as state}
-        (setup state)
+        (setup build-state)
 
         {:keys [repl-sources]}
         repl-state]
 
-    (build-api/compile-sources state repl-sources)))
+    (-> state
+        (build-api/compile-sources repl-sources)
+        ;; make sure sources exist on disk so the REPL can actually load them
+        (output/flush-sources repl-sources)
+        (async/wait-for-pending-tasks!))))
 
 (defn load-macros-and-set-ns-info
   "modifies the repl and analyzer state to reflect the updated ns changes done by require in the REPL"
