@@ -147,7 +147,7 @@
     ))
 
 (defn prepare
-  [build-state]
+  [{:keys [build-sources] :as build-state}]
   {:pre [(build-api/build-state? build-state)]}
   (let [{:keys [repl-state] :as build-state}
         (setup build-state)
@@ -159,7 +159,8 @@
         (build-api/compile-sources repl-sources)
         ;; make sure sources exist on disk so the REPL can actually load them
         (output/flush-sources repl-sources)
-        (async/wait-for-pending-tasks!))))
+        (async/wait-for-pending-tasks!)
+        (assoc :build-sources build-sources))))
 
 (defn load-macros-and-set-ns-info
   "modifies the repl and analyzer state to reflect the updated ns changes done by require in the REPL"
