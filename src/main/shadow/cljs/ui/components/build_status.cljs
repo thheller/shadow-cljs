@@ -81,16 +81,13 @@
                 ])))]))
 
 (defn render-completed-status [{:keys [duration warnings] :as build-status}]
-  (<< [:div
-       [:div (str (if (seq warnings) "!" "✔") " Compilation completed in " duration " seconds.")]
-       (when (seq warnings)
-         (<< [:div
-              [:div.text-xl.px-1.py-2 (str (count warnings) " Warnings")]
-              (sg/render-seq warnings nil
-                (fn [warning]
-                  (render-build-warning warning)))]))
-
-       ]))
+  (<< [:div.p-2 (str (if (seq warnings) "!" "✔") " Compilation completed in " duration " seconds.")]
+      (when (seq warnings)
+        (<< [:div.flex-1.overflow-auto
+             [:div.text-xl.px-1.py-2 (str (count warnings) " Warnings")]
+             (sg/render-seq warnings nil
+               (fn [warning]
+                 (render-build-warning warning)))]))))
 
 (defn render-failed-status [{:keys [report] :as build-status}]
   (<< [:div
@@ -132,8 +129,8 @@
 
     :completed
     (<< [:div.p-2
-         [:div.text-lg "Build Status"]
-         (render-completed-status build-status)]
+         [:div.text-lg "Build Status"]]
+        (render-completed-status build-status)
         [:div.flex-1.overflow-auto
          (render-build-log build-status)])
 
