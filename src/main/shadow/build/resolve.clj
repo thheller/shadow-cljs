@@ -356,7 +356,12 @@
                    {:tag ::missing-js
                     :js-package-dirs (get-in state [:npm :js-package-dirs])
                     :require require
-                    :require-from (:resource-name require-from)})))
+                    :require-from (:resource-name require-from)
+                    :resolved-stack
+                    (->> (:resolved-stack state)
+                         (map :resource-id)
+                         (map #(get-in state [:sources % :resource-name]))
+                         (into []))})))
 
         (-> state
             (data/maybe-add-source rc)

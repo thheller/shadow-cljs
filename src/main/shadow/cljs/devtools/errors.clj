@@ -155,17 +155,24 @@
       )))
 
 (defmethod ex-data-format ::resolve/missing-js
-  [w e {:keys [require js-package-dirs] :as data}]
+  [w e {:keys [require resolved-stack js-package-dirs] :as data}]
   (write-msg w e)
+
+  (when (seq resolved-stack)
+    (.write w
+      (str "\nDependency Trace:\n"
+           (->> resolved-stack
+                (map #(str "\t" %))
+                (str/join "\n"))
+           "\n")))
+
   (when (util/is-package-require? require)
     (.write w (str "\n"
-                   "Search in:\n"
+                   "Searched for npm packages in:\n"
                    (->> (for [module-dir js-package-dirs]
                           (str "\t" (.getAbsolutePath module-dir)))
                         (str/join "\n"))
                    "\n"
-                   "You probably need to run:\n"
-                   "  npm install " require "\n"
                    "\n"
                    "See: https://shadow-cljs.github.io/docs/UsersGuide.html#npm-install\n"
                    ))))
