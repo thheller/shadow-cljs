@@ -344,7 +344,7 @@
   {:pre [(coll? source-ids)]}
 
   (let [modified (set source-ids)
-        all-deps-to-reset (find-resources-affected-by state source-ids)]
+        all-deps-to-reset (find-resources-affected-by state modified)]
 
     (reduce
       (fn [state resource-id]
