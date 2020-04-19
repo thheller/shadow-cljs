@@ -175,14 +175,8 @@
          [:h1.text-xl.px-2.py-4 (name build-id) " - " (name build-target)]
          [:div.p-2 (build-buttons build-id build-worker-active)]]
 
-        [:div.p-2
-         [:div.text-lg "Build Status"]
-         (build-status/render-build-status build-status)]
+        (build-status/render-build-status-full build-status)
 
-        [:div.flex-1.overflow-auto
-         (when (= :completed (:status build-status))
-           (<< (build-status/render-build-log build-status)
-               #_(ui-build-overview build-ident)))]
         )))
 
 

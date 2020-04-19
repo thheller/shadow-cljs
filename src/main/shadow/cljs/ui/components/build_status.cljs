@@ -97,7 +97,7 @@
        [:div "X Compilation failed."]
        [:pre report]]))
 
-(defn render-build-status [{:keys [status] :as build-status}]
+(defn render-build-status-short [{:keys [status] :as build-status}]
   (case status
     nil
     (<< [:div "Missing."])
@@ -119,6 +119,40 @@
 
     (do (js/console.warn "unhandled status" build-status)
         (pr-str build-status))))
+
+(defn render-build-status-full [{:keys [status] :as build-status}]
+  (case status
+    nil
+    (<< [:div "Missing."])
+
+    :compiling
+    (<< [:div.p-2
+         [:div.text-lg "Build Status"]
+         (render-compiling-status build-status)])
+
+    :completed
+    (<< [:div.p-2
+         [:div.text-lg "Build Status"]
+         (render-completed-status build-status)]
+        [:div.flex-1.overflow-auto
+         (render-build-log build-status)])
+
+    :failed
+    (<< [:div.p-2
+         [:div.text-lg "Build Status"]
+         [:div "X Compilation failed."]]
+        [:div.p-2.flex-1.overflow-auto
+         [:pre (:report build-status)]])
+
+    :inactive
+    (<< [:div "Watch not active."])
+
+    :pending
+    (<< [:div "Watch starting ..."])
+
+    (do (js/console.warn "unhandled status" build-status)
+        (pr-str build-status))))
+
 
 (defn render-build-overview [overview]
   (when overview

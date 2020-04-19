@@ -40,7 +40,7 @@
         [:a {:href (str "/build/" (name build-id))}
          (name build-id) " - " (name build-target)]]
 
-       (build-status/render-build-status build-status)]))
+       (build-status/render-build-status-short build-status)]))
 
 (defc ui-active-builds []
   [{::m/keys [active-builds]}
