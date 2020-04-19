@@ -933,6 +933,7 @@
            #"^com/google/javascript"
            ;; way too many jars contain a public folder
            #"^public/"
+           #"^out/(.+)\.js$"
            ;; these files fail to parse correctly but we don't need them anyways
            #"^jdk/nashorn/*"
            #"goog/transpile\.js"
