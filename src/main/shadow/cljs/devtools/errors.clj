@@ -170,6 +170,12 @@
                    "See: https://shadow-cljs.github.io/docs/UsersGuide.html#npm-install\n"
                    ))))
 
+(defmethod ex-data-format :shadow.build.compiler/fail-many
+  [w e {:keys [errors] :as data}]
+  (.write w "Multiple files failed to compile.\n")
+  (doseq [e (vals errors)]
+    (error-format w e)))
+
 (defmethod ex-data-format ::resolve/circular-dependency
   [w e data]
   (write-msg w e))
