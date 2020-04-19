@@ -1,6 +1,13 @@
+;; before using this file via :local/root
+;; you must compile some files
+
+;;   lein javac
+;;   shadow-cljs release ui
+
 {:paths ["src/main"
          "src/repl"
          "src/dev"
+         "src/ui-release"
          "target/classes"]
 
  :deps
@@ -8,9 +15,10 @@
 
   org.clojure/clojurescript
   {:mvn/version "1.10.597"
-   :exclusions [com.google.javascript/closure-compiler-unshaded
-                org.clojure/google-closure-library
-                org.clojure/google-closure-library-third-party]}
+   :exclusions
+   [com.google.javascript/closure-compiler-unshaded
+    org.clojure/google-closure-library
+    org.clojure/google-closure-library-third-party]}
 
   com.google.javascript/closure-compiler-unshaded {:mvn/version "v20191027"}
   org.clojure/google-closure-library {:mvn/version "0.0-20191016-6ae1f72f"}
@@ -20,6 +28,8 @@
   org.clojure/core.async {:mvn/version "1.1.587"}
 
   nrepl/nrepl {:mvn/version "0.7.0"}
+  cider/piggieback {:mvn/version "0.4.2"}
+
   org.clojure/tools.cli {:mvn/version "1.0.194"}
 
   com.cognitect/transit-clj {:mvn/version "1.0.324"}
@@ -55,6 +65,5 @@
     fulcrologic/fulcro
     ;; org.clojure/test.check
     camel-snake-kebab]}
-  org.clojure/test.check {:mvn/version "1.0.0"}
 
-  }}
+  org.clojure/test.check {:mvn/version "1.0.0"}}}
