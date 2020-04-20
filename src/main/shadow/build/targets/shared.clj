@@ -90,16 +90,19 @@
   (s/coll-of keyword? :kind set?))
 
 (s/def ::module
-  (s/keys
-    :opt-un
-    [::entries
-     ::entry
-     ::init-fn
-     ::depends-on
-     ::prepend
-     ::prepend-js
-     ::append-js
-     ::append]))
+  (s/and
+    ;; {init-fn foo.bar/init} should fail
+    (s/map-of keyword? any?)
+    (s/keys
+      :opt-un
+      [::entries
+       ::entry
+       ::init-fn
+       ::depends-on
+       ::prepend
+       ::prepend-js
+       ::append-js
+       ::append])))
 
 (s/def ::modules
   (s/map-of
