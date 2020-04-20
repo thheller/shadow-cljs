@@ -29,7 +29,8 @@
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel DiagnosticGroups CheckLevel DiagnosticGroup VarCheck)
            (javax.net.ssl KeyManagerFactory)
            (java.io FileInputStream)
-           (java.security KeyStore)))
+           (java.security KeyStore)
+           [org.graalvm.polyglot Context Source Engine]))
 
 
 (comment
@@ -923,3 +924,28 @@
     (pprint info)
 
     ))
+
+(deftest test-graaljs
+  (api/release :graal)
+
+  (with-open [engine
+              (Engine/create)
+
+              context
+              (-> (Context/newBuilder (into-array String ["js"]))
+                  (.engine engine)
+                  (.option "js.timer-resolution" "1")
+                  (.option "js.java-package-globals" "false")
+                  (.out System/out)
+                  (.err System/err)
+                  (.allowAllAccess true)
+                  (.allowNativeAccess true)
+                  (.build))]
+
+    (let [src
+          (-> (Source/newBuilder "js" (io/file "out" "demo-graal" "lib.js"))
+              (.build))]
+      (prn (.eval context src))
+      (prn (.eval context "js" "demo.graal.hello('foo');"))
+      (prn context)
+      )))

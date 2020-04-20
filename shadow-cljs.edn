@@ -179,6 +179,11 @@
    :exports-var demo.now/handler
    :output-to "out/demo-now/index.js"}
 
+  :graal
+  {:target :graaljs
+   :output-to "out/demo-graal/lib.js"
+   :entries [demo.graal]}
+
   :self-contained-script
   {:target :node-script
    :main demo.script/main
