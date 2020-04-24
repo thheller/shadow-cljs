@@ -192,6 +192,11 @@
         :all-unquoted PropertyRenamingPolicy/ALL_UNQUOTED
         (throw (ex-info "invalid :property-renaming (use :off or :all-unquoted)" {})))))
 
+  ;; required to fix https://clojure.atlassian.net/browse/CLJS-3207
+  ;; sometimes creates problems with reify + multiple :modules
+  (when (contains? opts :cross-chunk-method-motion)
+    (.setCrossChunkMethodMotion closure-opts (:cross-chunk-method-motion opts)))
+
   (when (contains? opts :strip-types)
     (.setStripTypes closure-opts (:strip-types opts)))
 
