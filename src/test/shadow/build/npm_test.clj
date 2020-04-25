@@ -45,6 +45,22 @@
       (is (= "node_modules/pkg-a/index-browser.js" resource-name))
       )))
 
+(deftest test-nested-browser-override
+  (with-npm [x {}]
+    (let [{:keys [file] :as require-from-rc}
+          (find-npm-resource x nil "pkg-nested-override/dir/bar")
+
+          ;; emulate require("./foo") from bar.js
+          {:keys [resource-name ns file package-name] :as rc}
+          (find-npm-resource x file "./foo")]
+
+      (is rc)
+      (is (string? resource-name))
+      (is (= 'module$node_modules$pkg_nested_override$dir$foo_browser ns))
+      (is (= "node_modules/pkg-nested-override/dir/foo.browser.js" resource-name))
+      )))
+
+
 (deftest test-no-browser-override
   (with-npm [x {}]
     (let [{:keys [resource-name ns file package-name] :as rc}

@@ -343,8 +343,31 @@
 
 (defn find-file
   [npm ^File require-from ^String require]
-  (let [use-browser-overrides (get-in npm [:js-options :use-browser-overrides])]
+  (let [use-browser-overrides
+        (get-in npm [:js-options :use-browser-overrides])
+
+        require-from-pkg
+        (when require-from ;; no overrides for entries
+          (find-package-for-file npm require-from))
+
+        browser-override
+        (when (and use-browser-overrides require-from-pkg)
+          (get-in require-from-pkg [:browser-overrides require]))]
+
     (cond
+      ;; browser override { "./foo" : false } to signal ignoring this dep
+      (false? browser-override)
+      false
+
+      ;; if package.json has browser: { "./foo" : "./foo.browser" } then all
+      ;; requires in that package using require("./foo") apparantely should be using
+      ;; ./foo.browser instead. regardless of which directory they are in.
+      ;; this seems to be in addition to overriding files with an package-relative path after
+      ;; they have been resolved.
+      ;; if we have a match then just continue resolving that directly in place of the original
+      (seq browser-override)
+      (find-file npm require-from browser-override)
+
       (util/is-absolute? require)
       (throw (ex-info "absolute require not allowed for node_modules files"
                {:tag ::absolute-path
@@ -356,19 +379,11 @@
       (find-relative npm require-from require)
 
       :else
-      (let [require-from-pkg
-            (when require-from ;; no overrides for entries
-              (find-package-for-file npm require-from))
-
-            browser-override
-            (and use-browser-overrides
-                 require-from-pkg
-                 (get-in require-from-pkg [:browser-overrides require]))
-
-            override
-            (when use-browser-overrides
+      (let [override
+            (when (and use-browser-overrides browser-override)
               (if (some? browser-override)
                 browser-override
+                ;; potentially override require("fs") to the browser polyfill for that
                 (get node-libs-browser require)))]
 
         (cond
