@@ -60,6 +60,21 @@
       (is (= "node_modules/pkg-nested-override/dir/foo.browser.js" resource-name))
       )))
 
+(deftest test-browser-override-npm-package
+  (with-npm [x {}]
+    (let [{:keys [file] :as require-from-rc}
+          (find-npm-resource x nil "pkg-nested-override/dir/bar")
+
+          ;; emulate require("fs") in file
+          ;; should end up serving the empty rc because fs can't be loaded in the browser
+          {:keys [resource-name ns] :as rc}
+          (find-npm-resource x file "fs")]
+
+      (is rc)
+      (is (string? resource-name))
+      (is (= 'shadow$empty ns))
+      (is (= "shadow$empty.js" resource-name))
+      )))
 
 (deftest test-no-browser-override
   (with-npm [x {}]

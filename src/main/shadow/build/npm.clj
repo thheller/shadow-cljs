@@ -380,11 +380,9 @@
 
       :else
       (let [override
-            (when (and use-browser-overrides browser-override)
-              (if (some? browser-override)
-                browser-override
-                ;; potentially override require("fs") to the browser polyfill for that
-                (get node-libs-browser require)))]
+            (when use-browser-overrides
+              ;; node-libs-browser replacements
+              (get node-libs-browser require))]
 
         (cond
           (nil? override)
