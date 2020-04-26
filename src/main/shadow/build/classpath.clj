@@ -559,6 +559,37 @@
   (->> (process-deps-cljs cp source-path root-contents)
        (inspect-resources cp)))
 
+;; if a jar contains a cljs.core file (compiled or source) filter out all other files
+;; from that directory as it is compiled output that shouldn't be in the jar in the first place
+(defn quarantine-bad-jar-contents [^File jar-file resources]
+  (let [bad
+        (->> resources
+             (filter (fn [{:keys [resource-name] :as rc}]
+                       (or (str/ends-with? resource-name "/cljs/core.js")
+                           (str/ends-with? resource-name "/cljs/core.cljs"))))
+             (first))]
+
+    (if-not bad
+      resources
+      ;; .jar file contains a compiled version of cljs.core
+      ;; filter out all sources in that directory, likely contains many other compiled
+      ;; and uncompiled sources
+      (let [{:keys [resource-name]} bad
+            bad-prefix (subs resource-name 0 (str/index-of resource-name "cljs/core."))
+
+            filtered
+            (->> resources
+                 (remove (fn [{:keys [resource-name] :as rc}]
+                           (str/starts-with? resource-name bad-prefix)))
+                 (vec))]
+
+        (log/warn ::bad-jar-contents
+          {:jar-file (.getAbsolutePath jar-file)
+           :bad-prefix bad-prefix
+           :bad-count (- (count resources) (count filtered))})
+
+        filtered))))
+
 (defn find-jar-resources
   [{:keys [manifest-cache-dir] :as cp} ^File jar-file]
   (let [checksum
@@ -589,6 +620,7 @@
 
         (let [jar-contents
               (->> (find-jar-resources* cp jar-file checksum)
+                   (quarantine-bad-jar-contents jar-file)
                    (process-root-contents cp jar-file))]
           (io/make-parents mfile)
           (try
@@ -596,6 +628,21 @@
             (catch Throwable e
               (log/info-ex e ::jar-cache-write-ex {:file mfile})))
           jar-contents))))
+
+(comment
+  (tap>
+    (let [svc (start (io/file "tmp" "jar-manifests"))]
+      (find-jar-resources
+        svc
+        (io/file
+          (System/getProperty "user.home")
+          ".m2"
+          "repository"
+          "viz-cljc"
+          "viz-cljc"
+          "0.1.3"
+          "viz-cljc-0.1.3.jar"
+          )))))
 
 (defn make-fs-resource [^File file name]
   (let [last-mod
@@ -935,6 +982,13 @@
       (index-rc-remove index resource-name)
       )))
 
+(comment
+  (let [svc (start (io/file ".shadow-cljs" "jar-manifests"))]
+    (index-classpath svc)
+
+    (tap> svc)
+    (stop svc)))
+
 (defn start [cache-root]
   (let [co
         (doto (CompilerOptions.)
@@ -962,14 +1016,10 @@
            ;; closure library test files
            #"^goog/demos/"
            #"^goog/(.+)_test\.js$"
+           #"goog/transpile\.js"
            ;; closure compiler support and test files
            #"^com/google/javascript"
-           ;; way too many jars contain a public folder
-           #"^public/"
-           #"^out/(.+)\.js$"
-           ;; these files fail to parse correctly but we don't need them anyways
            #"^jdk/nashorn/*"
-           #"goog/transpile\.js"
            ;; just in case the :output-dir of a dev build is on the classpath
            #"cljs-runtime/"}
 
