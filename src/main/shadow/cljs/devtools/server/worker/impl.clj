@@ -96,8 +96,8 @@
     {:type :build-message
      :msg msg}))
 
-(defn repl-error [e]
-  (log/debug-ex e ::repl-error)
+(defn repl-error [e data]
+  (log/warn-ex e ::repl-error data)
   {:type :repl/error
    :ex e})
 
@@ -759,7 +759,7 @@
               (pop-repl-state session-id)))
 
         (catch Exception e
-          (let [msg (repl-error e)]
+          (let [msg (repl-error e {:when ::session-eval :msg msg})]
             (>!! tool-out msg)
             (>!!output worker-state msg))
           worker-state)))))
@@ -906,7 +906,7 @@
                 new-actions)))
 
         (catch Exception e
-          (let [msg (repl-error e)]
+          (let [msg (repl-error e {:when ::do-repl-rpc :command command :msg msg})]
             (>!! result-chan msg)
             (>!!output worker-state msg))
           worker-state)))))
