@@ -746,7 +746,7 @@
 
     (when (:fn-var info)
       (when (invalid-arity? (:info fexpr) argc)
-        (ana/warning :fn-arity env {:name name :argc argc})))
+        (ana/warning :fn-arity env {:name (:name info) :argc argc})))
 
     (let [deprecated? (-> fexpr :info :deprecated)
           no-warn? (-> form meta :deprecation-nowarn)]
