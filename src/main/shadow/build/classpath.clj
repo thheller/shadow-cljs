@@ -18,7 +18,7 @@
             [shadow.build.npm :as npm]
             [shadow.build.data :as data])
   (:import (java.io File)
-           (java.util.jar JarFile JarEntry)
+           (java.util.jar JarFile JarEntry Attributes$Name)
            (java.net URL)
            (java.util.zip ZipException)
            (shadow.build.closure JsInspector)
@@ -37,12 +37,38 @@
   ;; we can't use java.class.path so its used last
   ;; shadow-cljs-launcher sets shadow.class.path
   ;; boot-clj sets boot.class-path
-  (-> (or (System/getProperty "shadow.class.path")
-          (System/getProperty "boot.class.path")
-          (System/getProperty "java.class.path"))
-      (.split File/pathSeparator)
-      (->> (into [] (map io/file)))
-      ))
+  (let [classpath-entries
+        (-> (or (System/getProperty "shadow.class.path")
+                (System/getProperty "boot.class.path")
+                (System/getProperty "java.class.path"))
+            (.split File/pathSeparator)
+            (->> (into [] (map io/file))))]
+
+    ;; java -cp helper.jar foo.main
+    ;; java supports a single jar with a manifest Class-Path entry to further
+    ;; expand the classpath. sometimes used when the classpath is too long
+    ;; on Windows to be invoked as a command. the original jar will likely be empty
+    (if (not= 1 (count classpath-entries))
+      classpath-entries
+      (let [^File entry (nth classpath-entries 0)]
+        ;; don't think it is even possible to get here
+        ;; with one classpath entry that isn't a jar but who knows
+        (if-not (.endsWith (-> entry (.getName) (.toLowerCase)) ".jar")
+          classpath-entries
+          (let [jar-file (JarFile. entry)
+                manifest (.getManifest jar-file)
+                cp-from-jar
+                (-> (.getMainAttributes manifest)
+                    (.getValue Attributes$Name/CLASS_PATH))]
+            ;; no Class-Path:, might be uberjar?
+            (if-not cp-from-jar
+              classpath-entries
+              (->> (str/split cp-from-jar #"\s")
+                   ;; spec says they must he urls, so assuming file:/...
+                   ;; spec also allows remote urls but unlikely we have that?
+                   ;; FIXME: should likely check just in case
+                   (map (fn [s] (-> (URL. s) (.getPath) (io/file))))
+                   (vec)))))))))
 
 (defn service? [x]
   (and (map? x) (::service x)))
