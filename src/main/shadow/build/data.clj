@@ -8,7 +8,9 @@
     [shadow.jvm-log :as log]
     [shadow.build.resource :as rc])
   (:import
-    [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]))
+    [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]
+    [org.apache.commons.codec.digest DigestUtils]
+    [java.io FileInputStream File]))
 
 ;; FIXME: there are still lots of places that work directly with the map
 ;; that is ok for most things but makes it really annoying to change the structure of the data
@@ -327,3 +329,7 @@
         (slurp url))
 
       (throw (ex-info (format "failed to get code for %s" resource-id) rc))))
+
+(defn sha1-file [^File file]
+  (with-open [in (FileInputStream. file)]
+    (DigestUtils/sha1Hex in)))

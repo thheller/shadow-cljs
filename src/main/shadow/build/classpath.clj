@@ -15,7 +15,8 @@
             [shadow.build.ns-form :as ns-form]
             [shadow.build.config :as config]
             [shadow.build.cljs-bridge :as cljs-bridge]
-            [shadow.build.npm :as npm])
+            [shadow.build.npm :as npm]
+            [shadow.build.data :as data])
   (:import (java.io File)
            (java.util.jar JarFile JarEntry)
            (java.net URL)
@@ -431,7 +432,7 @@
   (doseq [x (get-classpath)]
     (prn (pom-info-for-jar x))))
 
-(defn find-jar-resources* [cp ^File file]
+(defn find-jar-resources* [cp ^File file checksum]
   (try
     (let [jar-path
           (.getCanonicalPath file)
@@ -462,7 +463,7 @@
                 (-> result
                     (conj! (-> {:resource-id [::resource name]
                                 :resource-name (rc/normalize-name name)
-                                :cache-key [last-modified]
+                                :cache-key [checksum]
                                 :last-modified last-modified
                                 :url url
                                 :from-jar true}
@@ -534,8 +535,11 @@
 
 (defn find-jar-resources
   [{:keys [manifest-cache-dir] :as cp} ^File jar-file]
-  (let [manifest-name
-        (str (.lastModified jar-file) "-" (.getName jar-file) ".manifest")
+  (let [checksum
+        (data/sha1-file jar-file)
+
+        manifest-name
+        (str (.getName jar-file) "." checksum ".manifest")
 
         mfile
         (io/file manifest-cache-dir manifest-name)]
@@ -558,7 +562,7 @@
               nil)))
 
         (let [jar-contents
-              (->> (find-jar-resources* cp jar-file)
+              (->> (find-jar-resources* cp jar-file checksum)
                    (process-root-contents cp jar-file))]
           (io/make-parents mfile)
           (try
@@ -571,11 +575,14 @@
   (let [last-mod
         (if (.exists file)
           (.lastModified file)
-          (System/currentTimeMillis))]
+          (System/currentTimeMillis))
+
+        checksum
+        (data/sha1-file file)]
 
     {:resource-id [::resource name]
      :resource-name name
-     :cache-key [last-mod]
+     :cache-key [checksum]
      :last-modified last-mod
      :file file
      :url (.toURL file)}))
