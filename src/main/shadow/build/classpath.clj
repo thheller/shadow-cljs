@@ -561,12 +561,16 @@
 
 ;; if a jar contains a cljs.core file (compiled or source) filter out all other files
 ;; from that directory as it is compiled output that shouldn't be in the jar in the first place
+
+;; cljs-bean contains an actual legit
+;;   cljs-bean.from.cljs.core
+;; ns that needs to be accounted for and not quarantined
+;; will be filtered at a later stage if the ns does not match the filename
 (defn quarantine-bad-jar-contents [^File jar-file resources]
   (let [bad
         (->> resources
              (filter (fn [{:keys [resource-name] :as rc}]
-                       (or (str/ends-with? resource-name "/cljs/core.js")
-                           (str/ends-with? resource-name "/cljs/core.cljs"))))
+                       (str/ends-with? resource-name "/cljs/core.js")))
              (first))]
 
     (if-not bad
@@ -575,7 +579,7 @@
       ;; filter out all sources in that directory, likely contains many other compiled
       ;; and uncompiled sources
       (let [{:keys [resource-name]} bad
-            bad-prefix (subs resource-name 0 (str/index-of resource-name "cljs/core."))
+            bad-prefix (subs resource-name 0 (str/index-of resource-name "cljs/core.js"))
 
             filtered
             (->> resources
