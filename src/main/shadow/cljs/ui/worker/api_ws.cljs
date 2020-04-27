@@ -41,6 +41,23 @@
     ;; (js/console.log ::api-ws op msg)
     (handle-ws env msg)))
 
+(sw/reg-event-fx env/app-ref ::m/api-ws-connect
+  []
+  (fn [{:keys [db] :as env} _]
+    {:db (assoc db ::m/api-ws-connected true)}))
+
+(sw/reg-event-fx env/app-ref ::m/api-ws-close
+  []
+  (fn [{:keys [db] :as env} _]
+    {:db (assoc db ::m/api-ws-connected false)}
+    ))
+
+(sw/reg-event-fx env/app-ref ::m/api-ws-error
+  []
+  (fn [{:keys [db] :as env} _]
+    {:db (assoc db ::m/api-ws-connected false)}))
+
+
 (defn fx-to-ws
   [env build-id]
   {:api-ws
@@ -83,6 +100,7 @@
       (.addEventListener socket "open"
         (fn [e]
           ;; (js/console.log "api-open" e socket)
+          (sw/tx* @env/app-ref [::m/api-ws-connect])
           (go (loop []
                 (when-some [msg (<! api-out)]
                   (.send socket (transit-str msg))
@@ -90,8 +108,10 @@
 
     (.addEventListener socket "close"
       (fn [e]
+        (sw/tx* @env/app-ref [::m/api-ws-close])
         (js/console.log "api-close" e)))
 
     (.addEventListener socket "error"
       (fn [e]
+        (sw/tx* @env/app-ref [::m/api-ws-error])
         (js/console.warn "api-error" e)))))

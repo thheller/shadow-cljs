@@ -14,11 +14,12 @@
     ))
 
 (defc ui-root* []
-  [{::m/keys [current-page]}
+  [{::m/keys [current-page api-ws-connected] :as data}
    (sg/query-root
      [::m/current-page
       ;; load marker for suspense, ensures that all basic data is loaded
-      ::m/init-complete?])
+      ::m/init-complete?
+      ::m/api-ws-connected])
 
    nav-items
    [{:pages #{:dashboard} :label "Dashboard" :path "/dashboard"}
@@ -32,6 +33,9 @@
    "inline-block px-4 py-2"]
 
   (<< [:div.flex.flex-col.h-full.bg-gray-100
+       (when-not api-ws-connected
+         (<< [:div.p-4.bg-red-700.text-white.text-lg.font-bold "UI WebSocket not connected! Reload page to reconnect."]))
+
        [:div.bg-white.shadow-md.z-10
         #_[:div.py-2.px-4 [:span.font-bold "shadow-cljs"]]
         [:div
