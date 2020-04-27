@@ -279,12 +279,8 @@
           :else
           file)]
 
-    (when-not (and file (.isFile file))
-      (throw (ex-info (format "failed to resolve: %s from %s" require relative-to require)
-               {:relative-to relative-to
-                :entry require})))
-
-    file))
+    (when (and file (.isFile file))
+      file)))
 
 ;; https://github.com/webpack/node-libs-browser/blob/master/index.js
 ;; using this package so have the same dependencies that webpack would use
@@ -343,72 +339,89 @@
 
 (defn find-file
   [npm ^File require-from ^String require]
-  (let [use-browser-overrides
-        (get-in npm [:js-options :use-browser-overrides])
+  ;; early exit if a npm file contains an absolute require, eg. require("/foo.js")
+  (if (util/is-absolute? require)
+    (throw (ex-info "absolute require not allowed for node_modules files"
+             {:tag ::absolute-path
+              :require-from require-from
+              :require require}))
 
-        require-from-pkg
-        (when require-from ;; no overrides for entries
-          (find-package-for-file npm require-from))
+    ;; only require("foo") or require("./foo")
+    (let [use-browser-overrides
+          (get-in npm [:js-options :use-browser-overrides])
 
-        browser-override
-        (when (and use-browser-overrides require-from-pkg)
-          (get-in require-from-pkg [:browser-overrides require]))]
+          require-from-pkg
+          (when require-from ;; no overrides for entries
+            (find-package-for-file npm require-from))
 
-    (cond
-      ;; browser override { "./foo" : false } to signal ignoring this dep
-      (false? browser-override)
-      false
+          browser-override
+          (when (and use-browser-overrides require-from-pkg)
+            (get-in require-from-pkg [:browser-overrides require]))]
 
-      ;; if package.json has browser: { "./foo" : "./foo.browser" } then all
-      ;; requires in that package using require("./foo") apparantely should be using
-      ;; ./foo.browser instead. regardless of which directory they are in.
-      ;; this seems to be in addition to overriding files with an package-relative path after
-      ;; they have been resolved.
-      ;; if we have a match then just continue resolving that directly in place of the original
-      (seq browser-override)
-      (find-file npm require-from browser-override)
+      (cond
+        ;; browser override { "./foo" : false } to signal to ignore this dep
+        (false? browser-override)
+        false
 
-      (util/is-absolute? require)
-      (throw (ex-info "absolute require not allowed for node_modules files"
-               {:tag ::absolute-path
-                :require-from require-from
-                :require require}
-               ))
+        (and browser-override
+             (not (string? browser-override)))
+        (throw (ex-info (format "invalid browser override in package: %s" require-from)
+                 {:require require
+                  :require-from require-from
+                  :override browser-override}))
 
-      (util/is-relative? require)
-      (find-relative npm require-from require)
+        ;; if package.json has browser: { "./foo" : "./foo.browser" } then all
+        ;; requires in that package using require("./foo") apparantely should be using
+        ;; ./foo.browser instead. regardless of which directory they are in.
+        ;; this seems to be in addition to overriding files with an package-relative path after
+        ;; they have been resolved.
+        ;; if we have a match then just continue resolving that directly in place of the original
+        (seq browser-override)
+        (if-not (util/is-relative? browser-override)
+          ;; don't know if this exists but probably does "./foo":"foo"
+          ;; replacing a local file with a different package
+          (find-package-require npm browser-override)
+          ;; target is a relative path, it may either be relative to the
+          ;; file it was required from or relative to the package
+          (or (find-relative npm require-from browser-override)
+              (find-relative npm (:package-dir require-from-pkg) browser-override)
+              (throw (ex-info
+                       (format "failed to resolve: %s from %s, it was overridden from %s to %s"
+                         require require-from require browser-override)
+                       {:require-from require-from
+                        :require require
+                        :package-dir (:package-dir require-from-pkg)
+                        :browser-override browser-override}))))
 
-      :else
-      (let [override
-            (when use-browser-overrides
-              ;; node-libs-browser replacements
-              (get node-libs-browser require))]
+        ;; no override, require("./foo.js")
+        (util/is-relative? require)
+        (or (find-relative npm require-from require)
+            (throw (ex-info (format "failed to resolve: %s from %s" require require-from)
+                     {:require-from require-from
+                      :require require})))
 
-        (cond
-          (nil? override)
-          (find-package-require npm require)
+        ;; last check to see if a node built-in package was required
+        ;; and maybe replace it by a node-libs-browser polyfill or
+        ;; skip this require
+        :else
+        (let [override
+              (when use-browser-overrides
+                ;; node-libs-browser replacements
+                (get node-libs-browser require))]
 
-          ;; "canvas": false
-          (false? override)
-          false
+          (cond
+            (nil? override)
+            (find-package-require npm require)
 
-          (not (string? override))
-          (throw (ex-info (format "invalid override in package: %s" require-from)
-                   {:require require
-                    :require-from require-from
-                    :override override}))
+            ;; "canvas": false
+            (false? override)
+            false
 
-          ;; jsdom
-          ;; "contextify": "./lib/jsdom/contextify-shim.js"
-          ;; overrides a package require from within the package to a local file
-          (util/is-relative? override)
-          (find-relative npm (:package-dir require-from-pkg) override)
-
-          ;; "foo":"bar"
-          ;; swap one package with the other
-          :else
-          (find-package-require npm override)
-          )))))
+            ;; "foo":"bar"
+            ;; swap one package with the other
+            :else
+            (find-package-require npm override)
+            ))))))
 
 (defn maybe-convert-goog [dep]
   (if-not (str/starts-with? dep "goog:")

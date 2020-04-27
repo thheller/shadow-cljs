@@ -60,6 +60,21 @@
       (is (= "node_modules/pkg-nested-override/dir/foo.browser.js" resource-name))
       )))
 
+(deftest test-nested-pkg-override
+  (with-npm [x {}]
+    (let [{:keys [file] :as require-from-rc}
+          (find-npm-resource x nil "pkg-nested-override/dir/bar")
+
+          ;; emulate require("pkg") when browser { "pkg" : "./pkg-override.js" }
+          {:keys [resource-name ns file package-name] :as rc}
+          (find-npm-resource x file "pkg")]
+
+      (is rc)
+      (is (string? resource-name))
+      (is (= 'module$node_modules$pkg_nested_override$pkg_override ns))
+      (is (= "node_modules/pkg-nested-override/pkg-override.js" resource-name))
+      )))
+
 (deftest test-browser-override-npm-package
   (with-npm [x {}]
     (let [{:keys [file] :as require-from-rc}
@@ -90,13 +105,6 @@
       (is (= 'module$node_modules$pkg_a$index ns))
       (is (= "node_modules/pkg-a/index.js" resource-name))
       )))
-
-(comment (deftest test-babel-transform
-           (with-npm [x {}]
-
-             (let [source "var foo = 1; export { foo };"]
-               (pprint (npm/babel-convert-source x nil source))
-               ))))
 
 (deftest test-resolve-to-global
   (with-npm [x {}]

@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "browser":{
-    "./foo":"./foo.browser"
+    "./foo": "./foo.browser",
+    "pkg": "./pkg-override.js"
   }
 }
