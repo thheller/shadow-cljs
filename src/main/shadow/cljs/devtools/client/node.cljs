@@ -152,7 +152,7 @@
         (env/ws-url :node)
 
         client
-        (ws. url [])]
+        (ws. url #js {:rejectUnauthorized false})]
 
     (.on client "open"
       (fn []
