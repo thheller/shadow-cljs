@@ -267,6 +267,27 @@
   (fn [state mod]
     (get mod :output-type ::default)))
 
+
+;; closure compiler emits
+;;   var $jscomp=$jscomp||{};
+;; in the output of the compilation containing polyfills
+;; but we wrap the output via :output-wrapper so it is declared in the wrong scope
+;; and not using the one we already set up
+;; need to figure out how to make closure not emit that in the first place
+;; until then just fix is by replacing the code
+
+(defn fix-jscomp-scoping-issue [js]
+  (str/replace js
+    ;; replace with same length so source maps don't get messed up
+    ;; we the modules already make sure var $jscomp is declared properly
+    ;; outside the output-wrapper
+    ;; must not break code semantics, might be in
+    ;; var $jscomp=$jscomp||{};
+    ;; var $jscomp=$jscomp||{},
+    ;; var x=1,$jscomp=$jscomp||{},
+    "$jscomp=$jscomp||{}"
+    "$js_fixpolyscope={}"))
+
 (defn finalize-module-output
   [state {:keys [goog-base prepend output append sources] :as mod}]
   (let [any-shadow-js?
@@ -286,9 +307,11 @@
                 (->> shadow-js-outputs
                      (map :js)
                      (str/join ";\n"))]
-            (str provides
-                 (when (seq provides)
-                   ";\n"))))
+            (-> (str provides
+                     (when (seq provides)
+                       ";\n"))
+                ;; FIXME: this might be duplicated if the CLJS code also contains some polyfills
+                (fix-jscomp-scoping-issue))))
 
         final-output
         (str (when (and any-shadow-js?

@@ -695,29 +695,13 @@
       state
       build-modules)))
 
-
-;; closure compiler emits
-;;   var $jscomp=$jscomp||{};
-;; in the output of the compilation containing polyfills
-;; but we wrap the output via :output-wrapper so it is declared in the wrong scope
-;; and not using the one we already set up
-;; need to figure out how to make closure not emit that in the first place
-;; until then just fix is by replacing the code
-(defn fix-jscomp-scoping-issue [{::closure/keys [modules] :as state}]
+(defn fix-jscomp-scoping-issue [state]
   (update state ::closure/modules
     (fn [modules]
       (->> modules
-           (map (fn [mod]
-                  (update mod :output str/replace
-                    ;; replace with same length so source maps don't get messed up
-                    ;; we the modules already make sure var $jscomp is declared properly
-                    ;; outside the output-wrapper
-                    "$jscomp=$jscomp||{}"
-                    ;; must not break code semantics, might be in
-                    ;; var $jscomp=$jscomp||{};
-                    ;; var $jscomp=$jscomp||{},
-                    ;; var x=1,$jscomp=$jscomp||{},
-                    "$js_fixpolyscope={}")))))))
+           (mapv (fn [mod]
+                   (update mod :output output/fix-jscomp-scoping-issue)))
+           ))))
 
 (defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
   (-> state
