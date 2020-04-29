@@ -509,6 +509,7 @@
   ([]
    (node-repl {}))
   ([{:keys [build-id] :or {build-id :node-repl} :as opts}]
+   {:pre [(map? opts)]}
    (let [{:keys [supervisor] :as app}
          (runtime/get-instance!)
 
