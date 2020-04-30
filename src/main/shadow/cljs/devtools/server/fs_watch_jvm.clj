@@ -8,12 +8,11 @@
   (:import (shadow.util FileWatcher)
            (java.io File)))
 
-
 (defn service? [x]
   (and (map? x)
        (::service x)))
 
-(defn poll-changes [{:keys [dir watcher]}]
+(defn poll-changes [{:keys [dir ^FileWatcher watcher]}]
   (let [changes (.pollForChanges watcher)]
     (when (seq changes)
       (->> changes
@@ -25,7 +24,7 @@
                    :file (io/file dir name)
                    :event event}))
            ;; ignore empty files
-           (remove (fn [{:keys [event file] :as x}]
+           (remove (fn [{:keys [event ^File file] :as x}]
                      (and (not= event :del)
                           (zero? (.length file)))))
            ))))
@@ -52,7 +51,7 @@
           (recur)))))
 
   ;; shut down watchers when loop ends
-  (doseq [{:keys [watcher]} watch-dirs]
+  (doseq [{:keys [^FileWatcher watcher]} watch-dirs]
     (.close watcher))
 
   ::shutdown-complete)
@@ -66,7 +65,7 @@
 
         watch-dirs
         (->> directories
-             (map (fn [dir]
+             (map (fn [^File dir]
                     {:dir dir
                      :watcher (FileWatcher/create dir (vec file-exts))}))
              (into []))]
