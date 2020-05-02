@@ -36,7 +36,12 @@ var SHADOW_ENV = function() {
           loadState[uri] = true;
           if (state != "") {
             var code = state + "\n//# sourceURL=" + uri + "\n";
-            goog.globalEval(code);
+            try {
+              goog.globalEval(code);
+            } catch (e) {
+              console.error("An error occurred when loading", uri);
+              console.error(e.stack);
+            }
           }
         } else if (state === true) {
           continue;
@@ -124,7 +129,8 @@ var SHADOW_ENV = function() {
     try {
       goog.globalEval(code);
     } catch (e) {
-      console.warn("failed to load", path, e);
+      console.error("An error occurred when loading", path);
+      console.error(e.stack);
     }
   }
 

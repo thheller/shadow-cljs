@@ -77,7 +77,7 @@
 
 (defn fn-call [sym]
   {:pre [(qualified-symbol? sym)]}
-  (str "\n" (comp/munge sym) "();"))
+  (str "\ntry { " (comp/munge sym) "(); } catch (e) { console.error(\"An error occurred when calling (" sym ")\"); throw(e); }"))
 
 (defn- ns-list-string [coll]
   (->> coll
