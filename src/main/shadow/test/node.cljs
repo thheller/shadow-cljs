@@ -26,6 +26,9 @@
         (= "--help" arg)
         (assoc opts :help true)
 
+        (= "--list" arg)
+        (assoc opts :list true)
+
         (str/starts-with? arg "--test=")
         (let [test-arg (subs arg 7)
               test-syms
@@ -54,7 +57,7 @@
                          (contains? test-var-syms (symbol ns name))))))
          )))
 
-(defn execute-cli [{:keys [test-syms help] :as opts}]
+(defn execute-cli [{:keys [test-syms help list] :as opts}]
   (let [test-env
         (-> (ct/empty-env)
             ;; can't think of a proper way to let CLI specify custom reporter?
@@ -66,7 +69,19 @@
 
     (cond
       help
-      (println "Usage:\n\t--test=<ns-to-test>,<fqn-symbol-to-test>")
+      (do (println "Usage:")
+          (println "  --list (list known test names)")
+          (println "  --test=<ns-to-test>,<fqn-symbol-to-test> (run test for namespace or single var, separated by comma)"))
+
+      list
+      (doseq [[ns ns-info]
+              (->> (env/get-tests)
+                   (sort-by first))]
+        (println "Namespace:" ns)
+        (doseq [var (:vars ns-info)
+                :let [m (meta var)]]
+          (println (str "  " (:ns m) "/" (:name m))))
+        (println "---------------------------------"))
 
       (seq test-syms)
       (let [test-vars (find-matching-test-vars test-syms)]
