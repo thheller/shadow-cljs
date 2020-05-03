@@ -6,8 +6,6 @@
     [shadow.test :as st]
     [clojure.string :as str]))
 
-(goog-define UI-DRIVEN false)
-
 ;; FIXME: add option to not exit the node process?
 (defmethod ct/report [::ct/default :end-run-tests] [m]
   (if (ct/successful? m)
@@ -94,6 +92,7 @@
 (defn main [& args]
   (reset-test-data!)
 
-  (when-not UI-DRIVEN
+  (if env/UI-DRIVEN
+    (js/console.log "Waiting for UI ...")
     (let [opts (parse-args args)]
       (execute-cli opts))))
