@@ -54,7 +54,7 @@
   org.jboss.xnio/xnio-api {:mvn/version "3.8.0.Final"}
   org.jboss.xnio/xnio-nio
   {:mvn/version "3.8.0.Final"
-   :exlusions [org.jboss.threads/jboss-threads]}
+   :exclusions [org.jboss.threads/jboss-threads]}
 
   org.jboss.threads/jboss-threads {:mvn/version "3.1.0.Final"}
 
