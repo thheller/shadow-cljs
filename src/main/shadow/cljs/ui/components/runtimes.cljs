@@ -2,7 +2,8 @@
   (:require
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.components.inspect :as inspect]))
+    [shadow.cljs.ui.components.inspect :as inspect]
+    [clojure.string :as str]))
 
 (defc ui-runtime-overview [ident]
   [{:keys [rid runtime-info supported-ops] :as data}
@@ -29,7 +30,11 @@
                :href (str "/runtime/" rid "/db-explorer")}
               "db explorer"]))
        [:div.flex-1.truncate (:user-agent runtime-info)]]
-      [:div.w-full.truncate (pr-str supported-ops)]))
+      [:div.px-2.w-full.truncate
+       (->> supported-ops
+            (sort)
+            (map str)
+            (str/join ", "))]))
 
 (defc ui-page []
   [{::m/keys [cljs-runtimes-sorted clj-runtimes-sorted]}

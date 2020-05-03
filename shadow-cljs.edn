@@ -168,10 +168,7 @@
     :external-index "target/external.js"}
 
    :devtools
-   {:loader-mode :script
-    :browser-inject :demo
-    :worker-inject :worker
-    :before-load-async demo.browser/stop-from-config
+   {:before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config}}
 
   :now-lambda

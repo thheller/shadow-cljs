@@ -345,7 +345,7 @@
 (defmethod eql/attr ::m/cljs-runtimes-sorted
   [env db current query-part params]
   (->> (db/all-of db ::m/runtime)
-       (filter #(contains? (:supported-ops %) :eval-cljs))
+       (filter #(= :cljs (get-in % [:runtime-info :lang])))
        (sort-by #(get-in % [:runtime-info :since]))
        (map :db/ident)
        (vec)))
@@ -353,7 +353,7 @@
 (defmethod eql/attr ::m/clj-runtimes-sorted
   [env db current query-part params]
   (->> (db/all-of db ::m/runtime)
-       (filter #(contains? (:supported-ops %) :eval-clj))
+       (filter #(= :clj (get-in % [:runtime-info :lang])))
        (sort-by #(get-in % [:runtime-info :since]))
        (map :db/ident)
        (vec)))

@@ -9,7 +9,8 @@
     [shadow.cljs.util :as util]
     [shadow.cljs.devtools.server.util :refer (pipe)]
     [shadow.build.async :as async]
-    [shadow.build.test-util :as tu]))
+    [shadow.build.test-util :as tu]
+    [shadow.build.targets.shared :as shared]))
 
 (defn configure [{::build/keys [config mode] :as state}]
   (let [runner-ns (or (when-let [main (:main config)]
@@ -22,7 +23,13 @@
         (update :build-options merge {:greedy true
                                       :dynamic-resolve true})
         (update ::build/config merge {:main (get config :main 'shadow.test.node/main)})
-        (update-in [::build/config :devtools] assoc :enabled false))))
+        ;; (update-in [::build/config :devtools] assoc :enabled false)
+
+        (cond->
+          (and (:ui-driven config) (:worker-info state))
+          ;; just the defines, preloads are added in resolve
+          (shared/inject-node-repl config)
+          ))))
 
 ;; since :configure is only called once in :dev
 ;; we delay setting the :entries until compile-prepare which is called every cycle
@@ -35,6 +42,9 @@
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
             (cond->
+              (and (:ui-driven config) (:worker-info state))
+              (conj 'shadow.cljs.devtools.client.node 'shadow.remote.runtime.cljs.node 'shadow.test.remote-inject)
+
               (= :dev mode)
               (into (get-in config [:devtools :preloads])))
             (into test-namespaces)

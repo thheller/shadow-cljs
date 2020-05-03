@@ -13,6 +13,11 @@
 (defn get-tests []
   (get @tests-ref :namespaces))
 
+(defn get-test-vars []
+  (for [[ns ns-info] (get-tests)
+        var (:vars ns-info)]
+    var))
+
 (defn get-test-ns-info [ns]
   {:pre [(symbol? ns)]}
   (get-in @tests-ref [:namespaces ns]))
