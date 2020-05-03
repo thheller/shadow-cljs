@@ -772,7 +772,7 @@
     ;; compile immediately, autobuild is then checked later
     (-> worker-state
         (assoc :autobuild true)
-        (build-configure)
+        #_(build-configure)
         (build-compile)
         )))
 
