@@ -49,11 +49,12 @@
 (goog-define log-style "font-weight: bold;")
 
 (defn devtools-info []
-  #js {:server-port server-port
-       :server-host server-host
-       :build-id build-id
-       :proc-id proc-id
-       :runtime-id runtime-id})
+  #js {:server_port server-port
+       :server_host server-host
+       :build_id build-id
+       :proc_id proc-id
+       :runtime_id runtime-id
+       :ssl ssl})
 
 (defn get-server-host []
   (cond
