@@ -311,6 +311,14 @@
          {:used-by {}
           :used-ts {}})))
 
+(defn ensure-repl-init [build-state]
+  ;; FIXME: repl-state should be coupled to the client "session" not the runtime
+  (if (seq (get-in build-state [:repl-state :repl-sources]))
+    build-state
+    ;; ensure that all REPL related things have been compiled
+    ;; so the runtime can properly load them
+    (repl/prepare build-state)))
+
 (defn build-compile
   [{:keys [build-state macros-modified namespaces-modified] :as worker-state}]
   ;; this may be nil if configure failed, just silently do nothing for now
@@ -332,6 +340,7 @@
                 (build/compile)
                 (build/flush)
                 (build-find-hooks)
+                (ensure-repl-init)
                 (update ::compile-attempt inc))]
 
         (>!!output worker-state
@@ -418,46 +427,29 @@
   (async/close! chan)
   worker-state)
 
-(defn ensure-repl-init [{:keys [build-state] :as worker-state}]
-  ;; FIXME: repl-state should be coupled to the client "session" not the runtime
-  (if (seq (get-in build-state [:repl-state :repl-sources]))
-    worker-state
-    ;; ensure that all REPL related things have been compiled
-    ;; so the runtime can properly load them
-    ;; delaying this until a runtime actually connects
-    (let [build-state (repl/prepare build-state)]
-      (assoc worker-state :build-state build-state)
-      )))
-
 (defmethod do-proc-control :runtime-connect
-  [worker-state {:keys [runtime-id runtime-out runtime-info]}]
+  [{:keys [build-state] :as worker-state} {:keys [runtime-id runtime-out runtime-info]}]
   (log/debug ::runtime-connect {:runtime-id runtime-id})
 
-  (let [{:keys [build-state] :as worker-state} (ensure-repl-init worker-state)]
+  (>!! runtime-out {:type :repl/init
+                    :repl-state
+                    (-> (:repl-state build-state)
+                        (update :repl-sources repl-sources-as-client-resources build-state))})
 
-    ;; FIXME: potential race condition, this is sent out immediately
-    ;; and may arrive before the rest of this handler completes and has a chance to
-    ;; "save" the updated worker-state. should really get rid of this handling and just use
-    ;; an atom for the state directly instead of hidden by server-thread
-    (>!! runtime-out {:type :repl/init
-                      :repl-state
-                      (-> (:repl-state build-state)
-                          (update :repl-sources repl-sources-as-client-resources build-state))})
+  ;; (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
 
-    ;; (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
-
-    ;; don't do anything that takes time here until race condition is fixed
-    ;; otherwise things may try to access the repl-state that hasn't been set yet
-    (-> worker-state
-        (cond->
-          (zero? (count (:runtimes worker-state)))
-          (assoc :default-runtime-id runtime-id))
-        (update :runtimes assoc runtime-id
-          {:runtime-id runtime-id
-           :runtime-out runtime-out
-           :runtime-info runtime-info
-           :connected-since (System/currentTimeMillis)
-           :init-sent true}))))
+  ;; don't do anything that takes time here until race condition is fixed
+  ;; otherwise things may try to access the repl-state that hasn't been set yet
+  (-> worker-state
+      (cond->
+        (zero? (count (:runtimes worker-state)))
+        (assoc :default-runtime-id runtime-id))
+      (update :runtimes assoc runtime-id
+        {:runtime-id runtime-id
+         :runtime-out runtime-out
+         :runtime-info runtime-info
+         :connected-since (System/currentTimeMillis)
+         :init-sent true})))
 
 (defn maybe-pick-different-default-runtime [{:keys [runtimes default-runtime-id] :as worker-state} runtime-id]
   (cond
@@ -765,14 +757,16 @@
           worker-state)))))
 
 (defmethod do-proc-control :start-autobuild
-  [{:keys [build-config autobuild] :as worker-state} msg]
+  [{:keys [build-state autobuild] :as worker-state} msg]
   (if autobuild
     ;; do nothing if already in auto mode
     worker-state
     ;; compile immediately, autobuild is then checked later
     (-> worker-state
         (assoc :autobuild true)
-        (build-configure)
+        (cond->
+          (not build-state)
+          (build-configure))
         (build-compile)
         )))
 
