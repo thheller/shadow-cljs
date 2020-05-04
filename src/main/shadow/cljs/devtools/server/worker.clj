@@ -203,6 +203,7 @@
         {::impl/worker-state true
          :resource-update-chan resource-update
          :http http
+         :system-config config
          :classpath classpath
          :cache-root cache-root
          :cli-opts cli-opts

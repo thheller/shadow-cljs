@@ -442,7 +442,11 @@
   ;; otherwise things may try to access the repl-state that hasn't been set yet
   (-> worker-state
       (cond->
-        (zero? (count (:runtimes worker-state)))
+        (or (zero? (count (:runtimes worker-state)))
+            ;; allow user to configure to auto switch to fresh connected runtimes
+            ;; instead of staying with the first connected one
+            (= :latest (get-in worker-state [:system-config :repl :runtime-select]))
+            (= :latest (get-in worker-state [:system-config :user-config :repl :runtime-select])))
         (assoc :default-runtime-id runtime-id))
       (update :runtimes assoc runtime-id
         {:runtime-id runtime-id
