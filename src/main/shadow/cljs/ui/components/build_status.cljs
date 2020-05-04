@@ -97,7 +97,7 @@
 (defn render-build-status-short [{:keys [status] :as build-status}]
   (case status
     nil
-    (<< [:div "Missing."])
+    (<< [:div "Unknown, waiting for recompile."])
 
     :compiling
     (render-compiling-status build-status)
@@ -120,7 +120,7 @@
 (defn render-build-status-full [{:keys [status] :as build-status}]
   (case status
     nil
-    (<< [:div "Missing."])
+    (<< [:div "Unknown, waiting for recompile."])
 
     :compiling
     (<< [:div.p-2
