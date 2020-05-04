@@ -58,7 +58,7 @@
           (println (str "Namespace: " ns " not found, no tests to run.")))]
        (test-vars-grouped-block vars)))))
 
-(defn prepare-test-run [{:keys [report-fn] :as env}]
+(defn prepare-test-run [{:keys [report-fn] :as env} vars]
   (let [orig-report ct/report]
     [(fn []
        (ct/set-env! (assoc env ::report-fn orig-report))
@@ -76,7 +76,12 @@
            (ct/update-current-env! [:each-fixtures] assoc test-ns fix)))
 
        ;; just in case report-fn wants to know when things starts
-       (ct/report {:type :begin-run-tests}))]))
+       (ct/report {:type :begin-run-tests
+                   :var-count (count vars)
+                   :ns-count (->> vars
+                                  (map #(-> % meta :ns))
+                                  (set)
+                                  (count))}))]))
 
 (defn finish-test-run [block]
   {:pre [(vector? block)]}
@@ -94,9 +99,9 @@
   "tests all vars grouped by namespace, expects seq of test vars, can be obtained from env"
   ([test-vars]
    (run-test-vars (ct/empty-env) test-vars))
-  ([env test-vars]
-   (-> (prepare-test-run env)
-       (into (test-vars-grouped-block test-vars))
+  ([env vars]
+   (-> (prepare-test-run env vars)
+       (into (test-vars-grouped-block vars))
        (finish-test-run)
        (ct/run-block))))
 
@@ -105,10 +110,11 @@
   ([ns]
    (test-ns (ct/empty-env) ns))
   ([env ns]
-   (-> (prepare-test-run env)
-       (into (test-ns-block ns))
-       (finish-test-run)
-       (ct/run-block))))
+   (let [{:keys [vars]} (env/get-test-ns-info ns)]
+     (-> (prepare-test-run env vars)
+         (into (test-vars-grouped-block vars))
+         (finish-test-run)
+         (ct/run-block)))))
 
 (defn run-tests
   "test all vars in specified namespace symbol set"
@@ -118,12 +124,12 @@
    (run-tests env (env/get-test-namespaces)))
   ([env namespaces]
    {:pre [(set? namespaces)]}
-   (-> (prepare-test-run env)
-       (into (->> (env/get-test-vars)
-                  (filter #(contains? namespaces (-> % meta :ns)))
-                  (test-vars-grouped-block)))
-       (finish-test-run)
-       (ct/run-block))))
+   (let [vars (->> (env/get-test-vars)
+                   (filter #(contains? namespaces (-> % meta :ns))))]
+     (-> (prepare-test-run env vars)
+         (into (test-vars-grouped-block vars))
+         (finish-test-run)
+         (ct/run-block)))))
 
 (defn run-all-tests
   "Runs all tests in all namespaces; prints results.
