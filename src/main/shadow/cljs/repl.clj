@@ -124,9 +124,14 @@
         repl-init-ns
         (get-in state [:shadow.build/config :devtools :repl-init-ns] 'cljs.user)
 
+        entries
+        (if (= 'cljs.user repl-init-ns)
+          [repl-init-ns]
+          ['cljs.user repl-init-ns])
+
         [repl-sources state]
         (-> state
-            (build-api/resolve-entries [repl-init-ns]))
+            (build-api/resolve-entries entries))
 
         repl-rc
         (data/get-source-by-provide state repl-init-ns)
