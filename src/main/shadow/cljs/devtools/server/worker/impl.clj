@@ -84,8 +84,8 @@
   (let [msg (assoc msg :build-id build-id)
         output (get-in worker-state [:channels :output])]
 
-    (sys-bus/publish! system-bus ::m/worker-broadcast msg)
-    (sys-bus/publish! system-bus [::m/worker-output build-id] msg)
+    (sys-bus/publish system-bus ::m/worker-broadcast msg)
+    (sys-bus/publish system-bus [::m/worker-output build-id] msg)
 
     (>!! output msg)
     worker-state))
@@ -166,9 +166,10 @@
             build-log/BuildLog
             (log*
               [_ state event]
-              (sys-bus/publish! system-bus ::m/build-log {:type :build-log
-                                                          :build-id build-id
-                                                          :event event})
+              (sys-bus/publish system-bus ::m/build-log
+                {:type :build-log
+                 :build-id build-id
+                 :event event})
               (async/offer! log-chan {:type :build-log :event event})))
 
           repl-init-ns

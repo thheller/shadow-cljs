@@ -37,15 +37,22 @@
   (when-not (async/offer! bus-pub-chan (assoc msg ::m/topic topic))
     (throw (ex-info "failed to publish!, offer! failed" {:msg msg :topic topic}))))
 
+(defn publish
+  [{:keys [bus-pub-chan] :as svc} topic msg]
+  {:pre [(svc? svc)
+         (map? msg)]}
+  (async/offer! bus-pub-chan (assoc msg ::m/topic topic)))
+
+;; FIXME: these buffers are too large, should have a separate publish for non-criticial messages
 (defn start []
   (let [bus-mult-chan
-        (async/chan 1000)
+        (async/chan 4096)
 
         bus-mult
         (async/mult bus-mult-chan)
 
         bus-pub-chan
-        (async/chan 1000)
+        (async/chan 4096)
 
         bus-pub
         (async/pub bus-pub-chan ::m/topic)]

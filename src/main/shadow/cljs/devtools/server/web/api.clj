@@ -126,15 +126,16 @@
             build-log/BuildLog
             (log*
               [_ state event]
-              (sys-bus/publish! system-bus ::m/build-log {:type :build-log
-                                                          :build-id build-id
-                                                          :event event})))
+              (sys-bus/publish system-bus ::m/build-log
+                {:type :build-log
+                 :build-id build-id
+                 :event event})))
 
           pub-msg
           (fn [msg]
             ;; FIXME: this is not worker output but adding an extra channel seems like overkill
-            (sys-bus/publish! system-bus ::m/worker-broadcast msg)
-            (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
+            (sys-bus/publish system-bus ::m/worker-broadcast msg)
+            (sys-bus/publish system-bus [::m/worker-output build-id] msg))]
       (try
         ;; not at all useful to send this message but want to match worker message flow for now
         (pub-msg {:type :build-configure
