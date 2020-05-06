@@ -601,33 +601,36 @@
 ;;   cljs-bean.from.cljs.core
 ;; ns that needs to be accounted for and not quarantined
 ;; will be filtered at a later stage if the ns does not match the filename
-(defn quarantine-bad-jar-contents [^File jar-file resources]
+(defn quarantine-bad-jar-contents [^File jar-file banned-name resources]
   (let [bad
         (->> resources
              (filter (fn [{:keys [resource-name] :as rc}]
-                       (str/ends-with? resource-name "/cljs/core.js")))
-             (first))]
+                       (str/ends-with? resource-name banned-name))))]
 
-    (if-not bad
+    (if-not (seq bad)
       resources
       ;; .jar file contains a compiled version of cljs.core
       ;; filter out all sources in that directory, likely contains many other compiled
       ;; and uncompiled sources
-      (let [{:keys [resource-name]} bad
-            bad-prefix (subs resource-name 0 (str/index-of resource-name "cljs/core.js"))
+      (reduce
+        (fn [resources {:keys [resource-name] :as bad-rc}]
+          (let [bad-prefix
+                (subs resource-name 0 (str/index-of resource-name banned-name))
 
-            filtered
-            (->> resources
-                 (remove (fn [{:keys [resource-name] :as rc}]
-                           (str/starts-with? resource-name bad-prefix)))
-                 (vec))]
+                filtered
+                (->> resources
+                     (remove (fn [{:keys [resource-name] :as rc}]
+                               (str/starts-with? resource-name bad-prefix)))
+                     (vec))]
 
-        (log/warn ::bad-jar-contents
-          {:jar-file (.getAbsolutePath jar-file)
-           :bad-prefix bad-prefix
-           :bad-count (- (count resources) (count filtered))})
+            (log/warn ::bad-jar-contents
+              {:jar-file (.getAbsolutePath jar-file)
+               :bad-prefix bad-prefix
+               :bad-count (- (count resources) (count filtered))})
 
-        filtered))))
+            filtered))
+        resources
+        bad))))
 
 (defn find-jar-resources
   [{:keys [manifest-cache-dir] :as cp} ^File jar-file]
@@ -659,7 +662,8 @@
 
         (let [jar-contents
               (->> (find-jar-resources* cp jar-file checksum)
-                   (quarantine-bad-jar-contents jar-file)
+                   (quarantine-bad-jar-contents jar-file "/cljs/core.js")
+                   (quarantine-bad-jar-contents jar-file "/goog/base.js")
                    (process-root-contents cp jar-file))]
           (io/make-parents mfile)
           (try
