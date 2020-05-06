@@ -550,16 +550,20 @@
                 ;; all imports are collected into
                 ;; :js-imports ["react"]
                 {:keys [js-requires js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
-                (JsInspector/getFileInfoMap
-                  compiler
-                  ;; SourceFile/fromFile seems to leak file descriptors
-                  (SourceFile/fromCode (.getAbsolutePath file) source))
+                (try
+                  (JsInspector/getFileInfoMap
+                    compiler
+                    ;; SourceFile/fromFile seems to leak file descriptors
+                    (SourceFile/fromCode (.getAbsolutePath file) source))
+                  (catch Exception e
+                    (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
+                             {:tag ::file-info-errors
+                              :info {:js-errors [{:line 1 :column 1 :message "The file could not be parsed as JavaScript."}]}
+                              :file file}
+                             e))))
 
                 js-deps
                 (->> (concat js-requires js-imports)
-                     ;; FIXME: not sure I want to go down this road or how
-                     ;; require("./some.css") should not break the build though
-                     (remove asset-require?)
                      (distinct)
                      (map maybe-convert-goog)
                      (into []))
@@ -573,9 +577,9 @@
 
             (when (seq js-errors)
               (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
-                       (assoc info
-                         :resource-name resource-name
-                         :tag ::errors))))
+                       {:tag ::file-info-errors
+                        :info info
+                        :file file})))
 
             ;; moment.js has require('./locale/' + name); inside a function
             ;; it shouldn't otherwise hurt though
@@ -617,8 +621,6 @@
 (defn find-package-resource [npm require]
   (when-let [file (find-package-require npm require)]
     (get-file-info npm file)))
-
-
 
 (defn js-resource-for-global
   "a dependency might come from something already included in the page by other means
@@ -700,7 +702,19 @@
         (cond
           ;; good to go, no browser overrides
           (nil? override)
-          (get-file-info npm file)
+          (try
+            (get-file-info npm file)
+            (catch Exception e
+              ;; user may opt to just ignore a require("./something.css")
+              (if (and (:ignore-asset-requires js-options)
+                       (asset-require? require))
+                empty-rc
+                (throw (ex-info "failed to inspect node_modules file"
+                         {:tag ::file-info-failed
+                          :file file
+                          :require-from require-from
+                          :require require}
+                         e)))))
 
           ;; disabled require
           (false? override)
@@ -722,7 +736,19 @@
                         :file file
                         :override override
                         :override-file override-file})))
-            (get-file-info npm override-file))
+            (try
+              (get-file-info npm override-file)
+              (catch Exception e
+                ;; not doing asset-require check here since I doubt anyone will
+                ;; override one asset to another
+                (throw (ex-info "failed to inspect node_modules file"
+                         {::tag ::file-info-failed
+                          :file file
+                          :require-from require-from
+                          :require require
+                          :override override
+                          :override-file override-file}
+                         e)))))
 
           :else
           (throw (ex-info "invalid override"

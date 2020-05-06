@@ -5,7 +5,8 @@
             [shadow.build.npm :as npm]
             [shadow.build.resolve :refer (find-npm-resource)]
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
-            [shadow.cljs.util :as util]))
+            [shadow.cljs.util :as util])
+  (:import [clojure.lang ExceptionInfo]))
 
 (defmacro with-npm [[sym config] & body]
   `(let [~sym (npm/start (merge {:js-package-dirs ["test-env"]} ~config))]
@@ -315,6 +316,24 @@
       (is (string? resource-name))
       (is (= "node_modules/extra-package/index.js" resource-name))
       )))
+
+(deftest test-asset-require
+  (with-npm [x {}]
+    (let [{:keys [file] :as rc1}
+          (find-npm-resource x nil "with-assets/index.js")]
+
+      (is (thrown-with-msg? ExceptionInfo #"failed to inspect"
+            (find-npm-resource x file "./foo.css")))
+
+      ;; can be configured to return empty instead of failing
+      (let [{:keys [ns]}
+            (find-npm-resource
+              (assoc-in x [:js-options :ignore-asset-requires] true)
+              file
+              "./foo.css")]
+
+        (is (= 'shadow$empty ns))
+        ))))
 
 (comment
   ;; FIXME: write proper tests for these

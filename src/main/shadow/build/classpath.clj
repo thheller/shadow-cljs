@@ -147,9 +147,6 @@
         :else
         (let [js-deps
               (->> (concat js-requires js-imports)
-                   ;; FIXME: not sure I want to go down this road or how
-                   ;; require("./some.css") should not break the build though
-                   (remove npm/asset-require?)
                    (distinct)
                    (map npm/maybe-convert-goog)
                    (into []))

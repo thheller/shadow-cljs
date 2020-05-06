@@ -192,6 +192,27 @@
   (write-msg w e)
   (error-format w (.getCause e)))
 
+(defmethod ex-data-format :shadow.build.npm/file-info-errors
+  [w e {:keys [file info] :as data}]
+  (.write w "Errors encountered while trying to parse file\n  ")
+  (.write w (.getAbsolutePath file))
+  (doseq [js-error (:js-errors info)]
+    (.write w (str "\n  " (pr-str js-error))))
+
+  (when-some [cause (.getCause e)]
+    (.write w "\n\n")
+    (error-format w cause)))
+
+(defmethod ex-data-format :shadow.build.npm/file-info-failed
+  [w e {:keys [file require-from] :as data}]
+  (.write w "Failed to inspect file\n  ")
+  (.write w (.getAbsolutePath file))
+  (when require-from
+    (.write w "\n\nit was required from\n  ")
+    (.write w (.getAbsolutePath require-from)))
+  (.write w "\n\n")
+  (error-format w (.getCause e)))
+
 (defmethod ex-data-format :shadow.build/hook-error
   [w e data]
   (write-msg w e)
