@@ -196,7 +196,9 @@
         ;; FIXME: figure out better runtime-info
         from-relay
         (relay-api/runtime-connect relay to-relay
-          {::m/worker-id proc-id
+          {:type :build-worker
+           :desc (str "Worker for build " build-id)
+           ::m/worker-id proc-id
            ::m/worker-for build-id})
 
         thread-state

@@ -12,7 +12,6 @@
        (map :db/ident)
        (into [])))
 
-
 (defmethod eql/attr ::m/build-sources-sorted
   [env db current query-part params]
   (when-let [info (get-in current [::m/build-status :info])]
@@ -26,3 +25,14 @@
   [env db current query-part params]
   (let [{:keys [warnings] :as info} (::m/build-status current)]
     (count warnings)))
+
+(defmethod eql/attr ::m/build-runtimes
+  [env db current query-part params]
+  (let [build-ident (get current :db/ident)
+        {::m/keys [build-id] :as build} (get db build-ident)]
+
+    (->> (db/all-of db ::m/runtime)
+         (filter (fn [{:keys [runtime-info]}]
+                   (and (= :cljs (:lang runtime-info))
+                        (= build-id (:build-id runtime-info)))))
+         (mapv :db/ident))))

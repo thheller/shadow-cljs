@@ -69,7 +69,7 @@
             (async/chan))
 
         from-relay
-        (relay/runtime-connect relay to-relay {:lang :clj})
+        (relay/runtime-connect relay to-relay {:lang :clj :type :clj-embed :desc "JVM Clojure Runtime"})
 
         ex
         (Executors/newCachedThreadPool)

@@ -223,6 +223,7 @@
   :test-node
   {:target :node-test
    :ns-regexp "test.(.+)-test$"
+   :ui-driven true
    :output-to "out/demo-test-node/script.js"}
 
   #_#_:test-fail

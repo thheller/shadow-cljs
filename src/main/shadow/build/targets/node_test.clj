@@ -28,7 +28,8 @@
         (cond->
           (and (:ui-driven config) (:worker-info state))
           ;; just the defines, preloads are added in resolve
-          (shared/inject-node-repl config)
+          (-> (shared/inject-node-repl config)
+              (assoc-in [:compiler-options :closure-defines 'shadow.test.env/UI-DRIVEN] true))
           ))))
 
 ;; since :configure is only called once in :dev

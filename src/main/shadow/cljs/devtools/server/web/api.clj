@@ -290,6 +290,8 @@
          {:relay relay
           :runtime-info
           {:lang :cljs
+           :type (keyword (get-in req [:ring-request :query-params "type"]))
+           :build-id (keyword (get-in req [:ring-request :query-params "build-id"]))
            :remote-addr (get-in req [:ring-request :remote-addr])
            :user-agent (get-in req [:ring-request :headers "user-agent"])}
           :ws-in ws-in

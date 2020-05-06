@@ -96,7 +96,11 @@
         (reset! renv/runtime-ref nil)
         (js/setTimeout start 10))
 
-    (let [ws-url (str (env/get-ws-url-base) "/api/runtime")
+    (let [ws-url (str (env/get-ws-url-base) "/api/runtime"
+                      (if (exists? js/document)
+                        "?type=browser"
+                        "?type=browser-worker")
+                      "&build-id=" (js/encodeURIComponent env/build-id))
           socket (js/WebSocket. ws-url)
 
           state-ref

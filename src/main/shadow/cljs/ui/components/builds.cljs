@@ -2,6 +2,7 @@
   (:require
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.cljs.ui.components.build-status :as build-status]
+    [shadow.cljs.ui.components.runtimes :as runtimes]
     [shadow.cljs.model :as m]
     ))
 
@@ -154,6 +155,21 @@
          (sg/render-seq build-sources-sorted nil render-source-entry)]
         [:div.flex-1 "right"]]]))
 
+(defc ui-build-runtimes [build-ident]
+  [{::m/keys [build-runtimes] :as data}
+   (sg/query-ident build-ident
+     [::m/build-runtimes])]
+
+  (let [runtime-count (count build-runtimes)]
+    (<< [:div.px-2
+         [:div.pt-2
+          (condp = runtime-count
+            0 "No connected runtimes."
+            1 "1 connected runtime:"
+            (str runtime-count " connected runtimes:"))]
+
+         (runtimes/ui-runtime-listing build-runtimes)])))
+
 (defc ui-build-page [build-ident]
   [data
    (sg/query-ident build-ident
@@ -172,8 +188,13 @@
 
   (let [{::m/keys [build-id build-target build-status build-worker-active]} data]
     (<< [:div
-         [:h1.text-xl.px-2.py-4 (name build-id) " - " (name build-target)]
+         [:div.px-2
+          [:h1.text-xl.pt-4 (name build-id)]
+          [:div " target: " (name build-target)]]
          [:div.p-2 (build-buttons build-id build-worker-active)]]
+
+        (when build-worker-active
+          (ui-build-runtimes build-ident))
 
         (build-status/render-build-status-full build-status)
 

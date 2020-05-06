@@ -23,7 +23,7 @@
     (shared/del-extension runtime key)))
 
 (defn start []
-  (let [ws-url (str (env/get-ws-url-base) "/api/runtime")
+  (let [ws-url (str (env/get-ws-url-base) "/api/runtime?type=node&build-id=" env/build-id)
         socket (ws. ws-url)
 
         state-ref

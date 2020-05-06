@@ -22,18 +22,6 @@
   (doseq [id ids]
     (run-test-by-id svc {:id id})))
 
-(defmethod ct/report [::ui :pass] [m])
-(defmethod ct/report [::ui :fail] [m])
-(defmethod ct/report [::ui :error] [m])
-(defmethod ct/report [::ui :summary] [m])
-(defmethod ct/report [::ui :begin-test-ns] [m])
-(defmethod ct/report [::ui :end-test-ns] [m])
-(defmethod ct/report [::ui :begin-test-var] [m])
-(defmethod ct/report [::ui :end-test-var] [m])
-(defmethod ct/report [::ui :end-run-tests] [m])
-(defmethod ct/report [::ui :end-test-all-vars] [m])
-(defmethod ct/report [::ui :end-test-vars] [m])
-
 (defn update-test-state [state {:keys [namespaces] :as test-data}]
   (reduce-kv
     (fn [state ns-sym ns-info]
