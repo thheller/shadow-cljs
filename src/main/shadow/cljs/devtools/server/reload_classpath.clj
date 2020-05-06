@@ -24,22 +24,6 @@
   #{"clj"
     "cljc"})
 
-(defn process-update
-  [{:keys [classpath] :as state} {:keys [event name file dir ext] :as fs-update}]
-  (try
-    (log/debug ::classpath-update fs-update)
-
-    (case event
-      :mod
-      (cp/file-update classpath dir file)
-      :new
-      (cp/file-add classpath dir file)
-      :del
-      (cp/file-remove classpath dir file))
-
-    (catch Exception e
-      (log/warn-ex e ::update-failed fs-update))))
-
 (defn process-updates [{:keys [system-bus classpath] :as state} updates]
   (let [cljs-updates
         (->> updates
@@ -57,44 +41,24 @@
              (filter #(contains? @bm/reloadable-macros-ref %))
              (into #{}))
 
-        ;; classpath is treated as an external process so knowing what updates
-        ;; actually did is kind of tough
-        ;; fs events occur in weird order as well, just saving a file on windows
-        ;; produces del -> new -> mod
-        ;; new might be an empty file so it doesn't provide anything
-        ;; so the most reliable option seems to be comparing which provides were added, updated, removed?
-
-        provides-before
-        (cp/get-provided-names classpath)
-
-        _ (run! #(process-update state %) cljs-updates)
-
-        provides-after
-        (cp/get-provided-names classpath)
-
-        provides-deleted
-        (into #{} (remove provides-after) provides-before)
-
-        provides-new
-        (into #{} (remove provides-before) provides-after)
-
-        provides-updated
-        (->> cljs-updates
-             (map :name)
-             (map rc/normalize-name)
-             (map #(cp/find-resource-by-name classpath %))
-             ;; :del will have removed the resource so we can no longer find it
-             ;; but we want to know which provides where deleted so we this is done
-             ;; above
-             (remove nil?)
-             (mapcat :provides)
-             (into #{}))
+        ns-updates
+        (reduce
+          (fn [result {:keys [event name]}]
+            (let [ns (util/filename->ns name)]
+              (-> result
+                  (update :namespaces conj ns)
+                  (update event conj ns))))
+          {:namespaces #{}
+           :mod #{}
+           :del #{}
+           :new #{}}
+          cljs-updates)
 
         update-msg
-        {:namespaces (set/union provides-updated provides-new provides-deleted)
-         :deleted provides-deleted
-         :updated provides-updated
-         :added provides-new
+        {:namespaces (:namespaces ns-updates)
+         :deleted (:del ns-updates)
+         :updated (:mod ns-updates)
+         :added (:new ns-updates)
          :macros updated-macros}]
 
     ;; FIXME: this should be somehow coordinated with the workers
@@ -110,9 +74,7 @@
             (log/warn-ex e ::macro-reload-ex {:ns-sym ns-sym})))))
 
     (when (or (seq updated-macros)
-              (seq provides-deleted)
-              (seq provides-updated)
-              (seq provides-new))
+              (seq (:namespaces ns-updates)))
       (log/debug ::m/resource-update update-msg)
       (sys-bus/publish! system-bus ::m/resource-update update-msg))
 

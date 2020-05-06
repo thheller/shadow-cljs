@@ -1117,9 +1117,6 @@
      (swap! index-ref #(reduce index-path* % paths)))
    cp))
 
-(defn get-provided-names [{:keys [index-ref] :as cp}]
-  (-> @index-ref :provide->source keys set))
-
 (defn find-resource-by-name
   "returns nil if name is not on the classpath (or was filtered)"
   [{:keys [index-ref] :as cp} name]
