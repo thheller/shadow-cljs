@@ -10,7 +10,7 @@
     [clojure.spec.gen.alpha :as gen]
     [cljs.core.async :as async :refer (go alt!)]
     ["./es6.js" :as es6]
-    ["./foo" :as foo]
+    ["./foo.js" :as foo]
     #_["circular-test" :as circ]
     #_["/demo/myComponent" :refer (myComponent)]
     [demo.macro :as m]

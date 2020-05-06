@@ -1,22 +1,24 @@
 (ns shadow.build.classpath
-  (:require [clojure.tools.reader.reader-types :as readers]
-            [clojure.tools.reader :as reader]
-            [clojure.edn :as edn]
-            [clojure.spec.alpha :as s]
-            [clojure.string :as str]
-            [clojure.java.io :as io]
-            [clojure.set :as set]
-            [cljs.tagged-literals :as tags]
-            [shadow.jvm-log :as log]
-            [shadow.spec :as ss]
-            [shadow.build.resource :as rc]
-            [shadow.cljs.util :as util]
-            [shadow.build.cache :as cache]
-            [shadow.build.ns-form :as ns-form]
-            [shadow.build.config :as config]
-            [shadow.build.cljs-bridge :as cljs-bridge]
-            [shadow.build.npm :as npm]
-            [shadow.build.data :as data])
+  (:require
+    [clojure.tools.reader.reader-types :as readers]
+    [clojure.tools.reader :as reader]
+    [clojure.edn :as edn]
+    [clojure.spec.alpha :as s]
+    [clojure.string :as str]
+    [clojure.java.io :as io]
+    [clojure.set :as set]
+    [cljs.tagged-literals :as tags]
+    [shadow.debug :as dbg :refer (?> ?-> ?->>)]
+    [shadow.jvm-log :as log]
+    [shadow.spec :as ss]
+    [shadow.build.resource :as rc]
+    [shadow.cljs.util :as util]
+    [shadow.build.cache :as cache]
+    [shadow.build.ns-form :as ns-form]
+    [shadow.build.config :as config]
+    [shadow.build.cljs-bridge :as cljs-bridge]
+    [shadow.build.npm :as npm]
+    [shadow.build.data :as data])
   (:import (java.io File)
            (java.util.jar JarFile JarEntry Attributes$Name)
            (java.net URL)
@@ -455,6 +457,42 @@
   (doseq [x (get-classpath)]
     (prn (pom-info-for-jar x))))
 
+(defn get-jar-info* [jar-path]
+  (let [file (io/file jar-path)]
+    (when-not (and (.exists file) (.isFile file))
+      (throw (ex-info "expected to find jar file but didn't" {:jar-path jar-path})))
+    (let [pom-info (pom-info-for-jar file)
+          checksum (data/sha1-file file)]
+      {:checksum checksum
+       :pom-info pom-info
+       :last-modified (.lastModified file)})))
+
+(def get-jar-info (memoize get-jar-info*))
+
+(defn get-jar-info-for-url [^URL rc-url]
+  (let [path (.getFile rc-url)]
+    (when-not (str/starts-with? path "file:")
+      (throw (ex-info "expected to file: in jar url but didn't" {:rc-url rc-url})))
+    (let [idx (str/index-of path "!/")]
+      (when-not idx
+        (throw (ex-info "expected to find !/ in jar url but didn't" {:rc-url rc-url})))
+      (let [jar-path (subs path 5 idx)]
+        (get-jar-info jar-path)))))
+
+(defn make-jar-resource [^URL rc-url name]
+  (let [{:keys [checksum last-modified pom-info]}
+        (get-jar-info-for-url rc-url)]
+
+    (-> {:resource-id [::resource name]
+         :resource-name name
+         :cache-key [checksum]
+         :last-modified last-modified
+         :url rc-url
+         :from-jar true}
+        (cond->
+          pom-info
+          (assoc :pom-info pom-info)))))
+
 (defn find-jar-resources* [cp ^File file checksum]
   (try
     (let [jar-path
@@ -479,7 +517,7 @@
           ;; next entry
           (let [^JarEntry jar-entry (.nextElement entries)
                 name (.getName jar-entry)]
-            (if (or (not (util/is-cljs-resource? name))
+            (if (or (not (util/is-js-file? name))
                     (should-ignore-resource? cp name))
               (recur result)
               (let [url (URL. (str "jar:file:" jar-path "!/" name))]
@@ -645,22 +683,6 @@
           "viz-cljc-0.1.3.jar"
           )))))
 
-(defn make-fs-resource [^File file name]
-  (let [last-mod
-        (if (.exists file)
-          (.lastModified file)
-          (System/currentTimeMillis))
-
-        checksum
-        (data/sha1-file file)]
-
-    {:resource-id [::resource name]
-     :resource-name name
-     :cache-key [checksum]
-     :last-modified last-mod
-     :file file
-     :url (.toURL file)}))
-
 (defn is-gitlib-file? [^File file]
   (loop [file (.getAbsoluteFile file)]
     (cond
@@ -672,6 +694,25 @@
 
       :else
       (recur (.getParentFile file)))))
+
+(defn make-fs-resource [^File file name]
+  (let [last-mod
+        (if (.exists file)
+          (.lastModified file)
+          (System/currentTimeMillis))
+
+        checksum
+        (data/sha1-file file)]
+
+    (-> {:resource-id [::resource name]
+         :resource-name name
+         :cache-key [checksum]
+         :last-modified last-mod
+         :file file
+         :url (.toURL file)}
+        (cond->
+          (is-gitlib-file? file)
+          (assoc :from-jar true)))))
 
 (comment
   (is-gitlib-file? (io/file "src" "main" "shadow" "build.clj"))
@@ -686,7 +727,7 @@
       (for [^File file (file-seq root)
             :when (and (.isFile file)
                        (not (.isHidden file))
-                       (util/is-cljs-resource? (.getName file)))
+                       (util/is-js-file? (.getName file)))
             :let [file (.getAbsoluteFile file)
                   abs-path (.getAbsolutePath file)
                   _ (assert (str/starts-with? abs-path root-path))
@@ -778,7 +819,6 @@
 
 (defmethod log/log-msg ::provide-conflict [_ {:keys [provides resource-name conflicts]}]
   (format "provide conflict for %s provided by %s and %s" provides resource-name conflicts))
-
 
 (defn index-rc-merge-js
   [index {:keys [type ns resource-name provides url file] :as rc}]
@@ -1073,16 +1113,6 @@
      (swap! index-ref #(reduce index-path* % paths)))
    cp))
 
-(defn find-resource-for-provide
-  [{:keys [index-ref] :as cp} provide-sym]
-  {:pre [(service? cp)
-         (symbol? provide-sym)]}
-  (let [index @index-ref]
-    (when-let [src-name (get-in index [:provide->source provide-sym])]
-      (or (get-in index [:sources src-name])
-          (throw (ex-info "missing classpath source" {:src-name src-name :sym provide-sym}))
-          ))))
-
 (defn get-provided-names [{:keys [index-ref] :as cp}]
   (-> @index-ref :provide->source keys set))
 
@@ -1091,7 +1121,30 @@
   [{:keys [index-ref] :as cp} name]
   {:pre [(service? cp)
          (string? name)]}
-  (get-in @index-ref [:sources name]))
+  (when-let [rc-url (io/resource name)]
+    (case (.getProtocol rc-url)
+      "file"
+      (->> (make-fs-resource (io/file (.getPath rc-url)) name)
+           (inspect-resource cp)
+           (set-output-name))
+      "jar"
+      (->> (make-jar-resource rc-url name)
+           (inspect-resource cp)
+           (set-output-name))
+      )))
+
+(defn find-resource-for-provide
+  [{:keys [index-ref] :as cp} provide-sym]
+  {:pre [(service? cp)
+         (symbol? provide-sym)]}
+  (let [base-name (util/ns->path provide-sym)]
+    (or (find-resource-by-name cp (str base-name ".cljs"))
+        (find-resource-by-name cp (str base-name ".cljc"))
+        (let [index @index-ref]
+          (or (when-let [src-name (get-in index [:provide->source provide-sym])]
+                (or (get-in index [:sources src-name])
+                    (throw (ex-info "missing classpath source" {:src-name src-name :sym provide-sym}))))
+              )))))
 
 (defn find-resource-by-file
   "returns nil if file is not registered on the classpath"
@@ -1190,14 +1243,9 @@
 
 (defn find-js-resource
   ;; absolute require "/some/foo/bar.js" or "/some/foo/bar"
-  ([{:keys [index-ref] :as cp} ^String require]
-   (let [index @index-ref
-         require (cond-> require (str/starts-with? require "/") (subs 1))]
-     (or (get-in index [:sources require])
-         (get-in index [:sources (str require ".js")])
-         ;; FIXME: I'm not sure this is a good idea
-         (get-in index [:sources (str require "/index.js")])
-         )))
+  ([cp ^String require]
+   (let [require (cond-> require (str/starts-with? require "/") (subs 1))]
+     (find-resource-by-name cp require)))
 
   ;; relative require "./foo.js" from another rc
   ([cp {:keys [resource-name] :as require-from} ^String require]

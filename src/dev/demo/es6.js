@@ -1,5 +1,5 @@
 import core from "goog:cljs.core";
-import { bar } from "./more-es6";
+import { bar } from "./more-es6.js";
 
 var foo = (x = "any old string") => {
   console.log(`Printing ${x} from cljs!`);
