@@ -1852,6 +1852,9 @@
                                          :num-sources (count sources)}]
             (.compile cc
               (-> @default-externs
+                  (conj (SourceFile/fromCode
+                          "externs-header.shadow.js"
+                          "/** @constructor */\nfunction ShadowJS() {};\n"))
                   (conj (load-simplified-externs state)))
               source-files
               closure-opts))
