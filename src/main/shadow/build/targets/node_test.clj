@@ -10,7 +10,8 @@
     [shadow.cljs.devtools.server.util :refer (pipe)]
     [shadow.build.async :as async]
     [shadow.build.test-util :as tu]
-    [shadow.build.targets.shared :as shared]))
+    [shadow.build.targets.shared :as shared]
+    [shadow.jvm-log :as log]))
 
 (defn configure [{::build/keys [config mode] :as state}]
   (let [runner-ns (or (when-let [main (:main config)]
@@ -50,6 +51,9 @@
               (into (get-in config [:devtools :preloads])))
             (into test-namespaces)
             (conj (::tu/runner-ns state)))]
+
+    (log/debug ::test-resolve {:config config
+                               :test-namespaces test-namespaces})
 
     (-> state
         (assoc ::tu/test-namespaces test-namespaces)

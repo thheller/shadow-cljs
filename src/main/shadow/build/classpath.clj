@@ -1132,6 +1132,8 @@
       (->> (make-jar-resource rc-url name)
            (inspect-resource cp)
            (set-output-name))
+
+      (throw (ex-info "unexpected resource url protocol" {:name name :rc-url rc-url}))
       )))
 
 (defn find-resource-for-provide
@@ -1164,6 +1166,7 @@
 (defn get-source-provides
   "returns the set of provided symbols from sources not in jars"
   [{:keys [index-ref] :as cp}]
+  (throw (ex-info "TBD, classpath indexing is gone." {}))
   (->> (:sources @index-ref)
        (vals)
        (remove :from-jar)
@@ -1194,6 +1197,8 @@
 (defn find-resources-using-ns
   [{:keys [index-ref] :as cp} ns-sym]
   {:pre [(symbol? ns-sym)]}
+  (throw (ex-info "TBD, classpath indexing is gone." {:ns-sym ns-sym}))
+
   (->> (:sources @index-ref)
        (vals)
        (filter (fn [{:keys [ns requires]}]
@@ -1204,8 +1209,30 @@
 
 (defn get-all-resources
   [{:keys [index-ref] :as cp}]
+  (throw (ex-info "TBD, classpath indexing is gone." {}))
   (->> (:sources @index-ref)
        (vals)))
+
+(defn find-cljs-namespaces-in-files
+  "searches classpath for clj(s|c) files (not in jars), returns expected namespaces"
+  [cp]
+  (for [^File cp-entry (get-classpath-entries cp)
+        :when (and (.isDirectory cp-entry)
+                   (not (is-gitlib-file? cp-entry)))
+        :let [root-path (.toPath cp-entry)]
+        ^File file (file-seq cp-entry)
+        :when (and (not (.isHidden file))
+                   (util/is-cljs-file? (.getName file)))
+        :let [file-path (.toPath file)
+              resource-name (-> (.relativize root-path file-path)
+                                (.toString)
+                                (rc/normalize-name))]
+        :when (not (should-ignore-resource? cp resource-name))]
+    (util/filename->ns resource-name)))
+
+(comment
+  (let [cp (start (io/file "tmp"))]
+    (find-cljs-namespaces-in-files cp)))
 
 (defn is-foreign-provide? [cp sym]
   {:pre [(service? cp)
@@ -1246,7 +1273,10 @@
   ;; absolute require "/some/foo/bar.js" or "/some/foo/bar"
   ([cp ^String require]
    (let [require (cond-> require (str/starts-with? require "/") (subs 1))]
-     (find-resource-by-name cp require)))
+     (or (find-resource-by-name cp require)
+         ;; FIXME: should really enforce using the full filename, don't repeat the mistakes node made ...
+         ;; should warn for a while first though, don't want to break too many builds
+         (find-resource-by-name cp (str require ".js")))))
 
   ;; relative require "./foo.js" from another rc
   ([cp {:keys [resource-name] :as require-from} ^String require]

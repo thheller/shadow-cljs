@@ -185,6 +185,7 @@
       ))
 
 (defn maybe-babel-rewrite [{:keys [js-esm deps] :as rc}]
+  {:pre [(map? rc)]}
   (if (and (:classpath rc) js-esm)
     ;; es6 from the classpath is left as :js type so its gets processed by closure
     rc
@@ -255,10 +256,14 @@
       (util/is-absolute? require)
       (if-not cp-rc?
         (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
-        (maybe-babel-rewrite (cp/find-js-resource classpath require)))
+        (some->
+          (cp/find-js-resource classpath require)
+          (maybe-babel-rewrite)))
 
       (util/is-relative? require)
-      (maybe-babel-rewrite (cp/find-js-resource classpath require-from require))
+      (some->
+        (cp/find-js-resource classpath require-from require)
+        (maybe-babel-rewrite))
 
       :else
       (when (or (contains? native-node-modules require)

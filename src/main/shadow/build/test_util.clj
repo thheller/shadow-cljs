@@ -1,19 +1,20 @@
 (ns shadow.build.test-util
   (:require [shadow.build.data :as data]
-            [shadow.build.classpath :as cp]))
+            [shadow.build.classpath :as cp]
+            [shadow.cljs.util :as util]))
 
 (defn find-test-namespaces [{:keys [classpath] :as state} config]
   (let [{:keys [namespaces ns-regexp exclude] :or {ns-regexp "-test$" exclude #{}}}
-        config]
+        config
+
+        ns-regexp
+        (re-pattern ns-regexp)]
 
     (if (seq namespaces)
       namespaces
-      (->> (cp/get-all-resources classpath)
-           (filter :file) ;; only test with files, ie. not tests in jars.
-           (filter #(= :cljs (:type %)))
-           (map :ns)
+      (->> (cp/find-cljs-namespaces-in-files classpath)
            (filter (fn [ns]
-                     (re-find (re-pattern ns-regexp) (str ns))))
+                     (re-find ns-regexp (str ns))))
            (remove exclude)
            (sort)
            (into [])))))
