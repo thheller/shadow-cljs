@@ -16,13 +16,16 @@
 
 (s/def ::runtime #{:node :browser :react-native})
 
+(s/def ::entries
+  (s/coll-of simple-symbol? :kind vector? :min-count 1 :distinct true))
+
 (s/def ::target
   (s/keys
     :req-un
-    [::shared/output-dir]
+    [::shared/output-dir
+     ::entries]
     :opt-un
     [::runtime
-     ::shared/entries
      ::shared/devtools]))
 
 (defmethod config/target-spec :npm-module [_]
@@ -57,15 +60,7 @@
 
 (defn resolve* [module-config {:keys [classpath] :as state} mode {:keys [entries runtime] :as config}]
   (let [repl?
-        (some? (:worker-info state))
-
-        entries
-        (-> (or entries
-                ;; if the user didn't specify any entries we default to compiling everything in the source-path (but not in jars)
-                (cp/get-source-provides classpath))
-
-            ;; just to ensure entries are never empty
-            (conj 'cljs.core))]
+        (some? (:worker-info state))]
 
     (-> module-config
         (assoc :entries (vec entries))
