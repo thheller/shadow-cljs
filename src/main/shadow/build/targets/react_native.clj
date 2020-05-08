@@ -150,36 +150,37 @@
   (SourceCodeEscapers/javascriptEscaper))
 
 (defn generate-eval-js [{:keys [build-sources] :as state}]
-  (reduce
-    (fn [state src-id]
-      (cond
-        (= src-id output/goog-base-id)
-        state
+  (let [gen-source-map? (not (false? (get-in state [:compiler-options :source-map])))]
+    (reduce
+      (fn [state src-id]
+        (cond
+          (= src-id output/goog-base-id)
+          state
 
-        ;; already generated
-        (get-in state [:output src-id :eval-js])
-        state
+          ;; already generated
+          (get-in state [:output src-id :eval-js])
+          state
 
-        :else
-        (let [{:keys [output-name] :as rc} (data/get-source-by-id state src-id)
-              {:keys [js] :as output} (data/get-output! state rc)
-              source-map? (output/has-source-map? output)
+          :else
+          (let [{:keys [output-name] :as rc} (data/get-source-by-id state src-id)
+                {:keys [js] :as output} (data/get-output! state rc)
+                source-map? (and gen-source-map? (output/has-source-map? output))
 
-              code
-              (cond-> js
-                source-map?
-                ;; FIXME: the url here isn't really used, wonder if there is a way to do something useful here
-                (str "\n//# sourceURL=http://localhost:8081/app/" output-name "\n"
-                     ;; "\n//# sourceMappingURL=http://localhost:8081/app/cljs-runtime/" output-name ".map\n"
-                     ;; FIXME: inline map saves having to know the actual URL
-                     (output/generate-source-map-inline state rc output "")
-                     ))]
+                code
+                (cond-> js
+                  source-map?
+                  ;; FIXME: the url here isn't really used, wonder if there is a way to do something useful here
+                  (str "\n//# sourceURL=http://localhost:8081/app/" output-name "\n"
+                       ;; "\n//# sourceMappingURL=http://localhost:8081/app/cljs-runtime/" output-name ".map\n"
+                       ;; FIXME: inline map saves having to know the actual URL
+                       (output/generate-source-map-inline state rc output "")
+                       ))]
 
-          ;; pre-cache for later so it doesn't get regenerated on hot-compiles
-          (assoc-in state [:output src-id :eval-js]
-            (str "SHADOW_ENV.evalLoad(\"" output-name "\", \"" (.escape js-escaper ^String code) "\");")))))
-    state
-    build-sources))
+            ;; pre-cache for later so it doesn't get regenerated on hot-compiles
+            (assoc-in state [:output src-id :eval-js]
+              (str "SHADOW_ENV.evalLoad(\"" output-name "\", \"" (.escape js-escaper ^String code) "\");")))))
+      state
+      build-sources)))
 
 (defn eval-load-sources [state sources]
   (->> sources
