@@ -117,6 +117,8 @@
              (assoc m package-json-file (.lastModified package-json-file)))
            {}))))
 
+(declare add-entry)
+
 (defn build-failure
   [{:keys [build-config] :as worker-state} e]
   (let [{:keys [resource-id resource-ids tag] :as data} (ex-data e)]
@@ -139,6 +141,10 @@
            :report
            (binding [warnings/*color* false]
              (errors/error-format e))
+           :reload-info {:build-notify
+                         (add-entry
+                          []
+                          (get-in build-config [:devtools :build-notify]))}
            }))))
 
 (defn build-configure
@@ -218,7 +224,8 @@
   (-> {:never-load #{}
        :always-load #{}
        :after-load []
-       :before-load []}
+       :before-load []
+       :build-notify []}
       (reduce->
         (fn [info resource-id]
           (let [hooks (get-in build-state [:output resource-id ::hooks])]
@@ -241,13 +248,14 @@
   (let [{:keys [name meta defs] :as ns-info}
         (get-in compiler-env [::cljs-ana/namespaces ns])
 
-        {:keys [after-load after-load-async before-load before-load-async] :as devtools-config}
+        {:keys [after-load after-load-async before-load before-load-async build-notify] :as devtools-config}
         (get-in build-state [::build/config :devtools])
 
         hooks
         (-> {:never-load #{}
              :after-load []
-             :before-load []}
+             :before-load []
+             :build-notify []}
             (cond->
               (or (:dev/never-load meta)
                   (:dev/once meta) ;; can't decide on which meta to use
@@ -276,7 +284,12 @@
 
                   (or (:dev/after-load-async meta)
                       (= name after-load-async))
-                  (update :after-load add-entry name :async true)))
+                  (update :after-load add-entry name :async true)
+
+                  (or (:dev/build-notify meta)
+                      (= name build-notify))
+                  (update :build-notify add-entry name)
+                  ))
               defs))]
 
     (assoc-in build-state [:output resource-id ::hooks] hooks)))
@@ -326,7 +339,11 @@
   (if (nil? build-state)
     worker-state
     (try
-      (>!!output worker-state {:type :build-start})
+      (>!!output worker-state {:type :build-start
+                               :reload-info {:build-notify
+                                             (add-entry
+                                              []
+                                              (get-in build-state [::build/config :devtools :build-notify]))}})
 
       (let [{:keys [build-sources build-macros] :as build-state}
             (-> build-state

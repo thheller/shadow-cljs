@@ -42,6 +42,8 @@
 
 (s/def ::before-load-async unquoted-qualified-symbol?)
 
+(s/def ::build-notify unquoted-qualified-symbol?)
+
 (s/def ::devtools-url non-empty-string?)
 
 (s/def ::use-document-host boolean?)
@@ -57,6 +59,7 @@
      ::after-load
      ::before-load
      ::before-load-async
+     ::build-notify
      ::use-document-host
      ::devtools-url]))
 

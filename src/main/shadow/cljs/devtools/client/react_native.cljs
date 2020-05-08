@@ -66,7 +66,7 @@
 
 (defn noop [& args])
 
-(defn handle-build-complete [{:keys [info reload-info] :as msg}]
+(defn handle-build-complete [{:keys [info reload-info] :as msg} build-notify]
   (let [{:keys [sources compiled]}
         info
 
@@ -77,6 +77,9 @@
                (assoc warning :resource-name resource-name))
              (distinct)
              (into []))]
+
+    (when build-notify
+      (build-notify "build-complete" (clj->js warnings)))
 
     (when (and env/autoload
                (or (empty? warnings) env/ignore-warnings))
@@ -131,47 +134,53 @@
   (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
 
 ;; FIXME: core.async-ify this
-(defn handle-message [{:keys [type] :as msg} done]
-  ;; (js/console.log "ws-msg" (pr-str msg))
-  (case type
-    :repl/invoke
-    (repl-invoke msg)
+(defn handle-message [{:keys [type reload-info] :as msg} done]
+  ;;(js/console.log "ws-msg" (pr-str msg))
+  (let [build-notify (when reload-info
+                      (js/goog.getObjectByName
+                       (get-in reload-info [:build-notify 0 :fn-str])
+                       js/$CLJS))]
+    (case type
+      :repl/invoke
+      (repl-invoke msg)
 
-    :repl/require
-    (repl-require msg done)
+      :repl/require
+      (repl-require msg done)
 
-    :repl/set-ns
-    (repl-set-ns msg)
+      :repl/set-ns
+      (repl-set-ns msg)
 
-    :repl/init
-    (repl-init msg done)
+      :repl/init
+      (repl-init msg done)
 
-    :repl/ping
-    (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
+      :repl/ping
+      (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
 
-    :build-complete
-    (handle-build-complete msg)
+      :build-complete
+      (handle-build-complete msg build-notify)
 
-    :build-failure
-    nil
+      :build-failure
+      (when build-notify
+        (build-notify "build-failure"))
 
-    :build-init
-    nil
+      :build-init
+      nil
 
-    :build-start
-    nil
+      :build-start
+      (when build-notify
+        (build-notify "build-start"))
 
-    :pong
-    nil
+      :pong
+      nil
 
-    :client/stale
-    (devtools-msg "Stale Client! You are not using the latest compilation output!")
+      :client/stale
+      (devtools-msg "Stale Client! You are not using the latest compilation output!")
 
-    :client/no-worker
-    (devtools-msg (str "watch for build \"" env/build-id "\" not running"))
+      :client/no-worker
+      (devtools-msg (str "watch for build \"" env/build-id "\" not running"))
 
-    ;; default
-    :ignored)
+      ;; default
+      :ignored))
 
   (when-not (contains? env/async-ops type)
     (done)))
