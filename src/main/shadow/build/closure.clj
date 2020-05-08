@@ -170,6 +170,9 @@
   (when (contains? opts :rewrite-polyfills)
     (. closure-opts (setRewritePolyfills (:rewrite-polyfills opts))))
 
+  (when (contains? opts :isolate-polyfills)
+    (. closure-opts (setIsolatePolyfills (:isolate-polyfills opts))))
+
   (. closure-opts (setOutputCharset (Charset/forName (:closure-output-charset opts "UTF-8"))))
 
   (when (contains? opts :variable-renaming)
