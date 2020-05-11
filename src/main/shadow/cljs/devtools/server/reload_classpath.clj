@@ -10,7 +10,8 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.util :as util]
     [shadow.build.resource :as rc]
-    [shadow.build.macros :as bm]))
+    [shadow.build.macros :as bm])
+  (:import [com.google.javascript.jscomp.deps ModuleNames]))
 
 ;; FIXME: rewrite this similar to npm-update so that it only checks files that are actually used
 ;; checking all source paths all the time is overkill
@@ -44,7 +45,9 @@
         ns-updates
         (reduce
           (fn [result {:keys [event name]}]
-            (let [ns (util/filename->ns name)]
+            (let [ns (if (util/is-cljs-file? name)
+                       (util/filename->ns name)
+                       (symbol (ModuleNames/fileToModuleName name)))]
               (-> result
                   (update :namespaces conj ns)
                   (update event conj ns))))
