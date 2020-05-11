@@ -166,6 +166,7 @@
      ;; breaks cache when ending up with older version
      com.cognitect/transit-clj
      com.cognitect/transit-java
+     org.clojure/core.async
      })
 
 (defn drop-unwanted-deps [dependencies]
@@ -179,7 +180,8 @@
                    (when (or (contains? unwanted-deps dep-id)
                              (contains? unwanted-deps fq-dep-id))
                      (js/console.warn
-                       (str "WARNING: The " dep-id " dependency in shadow-cljs.edn was ignored. Default version is used and override is not allowed to ensure compatibility."))
+                       (str "WARNING: The " dep-id " dependency in shadow-cljs.edn was ignored. Default version is used and override is not allowed to ensure compatibility.\n"
+                            "The versions provided by shadow-cljs can be found here: https://clojars.org/thheller/shadow-cljs"))
                      true))))
        (into [])))
 
