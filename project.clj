@@ -28,9 +28,9 @@
    [cider/piggieback "0.4.2"]
 
    [com.cognitect/transit-clj "1.0.324"]
-   [com.cognitect/transit-cljs "0.8.256"]
+   [com.cognitect/transit-cljs "0.8.264"]
 
-   [org.clojure/core.async "1.1.587"]
+   [org.clojure/core.async "1.2.598"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.10.758"
@@ -47,25 +47,16 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.2"]
 
-   [io.undertow/undertow-core "2.0.30.Final"
-    :exclusions
-    [org.jboss.xnio/xnio-api
-     org.jboss.xnio/xnio-nio]]
-
-   [org.jboss.xnio/xnio-api "3.8.0.Final"]
-   [org.jboss.xnio/xnio-nio "3.8.0.Final"
-    :exlusions [org.jboss.threads/jboss-threads]]
-
-   [org.jboss.threads/jboss-threads "3.1.0.Final"]
+   [io.undertow/undertow-core "2.1.0.Final"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.8.0"
+   [ring/ring-core "1.8.1"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
    [expound "0.8.4"]
-   [fipp "0.6.22"]
+   [fipp "0.6.23"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
