@@ -100,16 +100,7 @@
       #js {"content-type" "application/edn; charset=utf-8"})))
 
 (defn handle-build-complete [{:keys [info reload-info] :as msg}]
-  (let [{:keys [sources compiled]}
-        info
-
-        warnings
-        (->> (for [{:keys [resource-name warnings] :as src} sources
-                   :when (not (:from-jar src))
-                   warning warnings]
-               (assoc warning :resource-name resource-name))
-             (distinct)
-             (into []))]
+  (let [{:keys [sources compiled warnings]} info]
 
     (doseq [{:keys [msg line column resource-name] :as w} warnings]
       (js/console.warn (str "BUILD-WARNING in " resource-name " at [" line ":" column "]\n\t" msg)))

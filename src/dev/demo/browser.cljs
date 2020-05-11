@@ -45,6 +45,9 @@
 
 ::foo
 
+(defn custom-notify [{:keys [type] :as msg}]
+  (js/console.warn "CUSTOM-NOTIFY" type msg))
+
 (when-not (identical? sl/load cl/load)
   (js/console.warn "cljs.loader NOT aliased to shadow.loader"))
 

@@ -48,6 +48,8 @@
 
 (goog-define log-style "font-weight: bold;")
 
+(goog-define custom-notify-fn "")
+
 (defn devtools-info []
   #js {:server_port server-port
        :server_host server-host
@@ -188,13 +190,54 @@
   (reset! repl-queue-ref false)
   (process-next!))
 
+;; do work that all client impls would share here instead of repeating the code
+(defn preprocess-ws-msg [{:keys [type] :as msg}]
+  (case type
+    :build-completed
+    (let [{:keys [info]} msg
+
+          warnings
+          (->> (for [{:keys [resource-name warnings] :as src} (:sources info)
+                     :when (not (:from-jar src))
+                     warning warnings]
+                 (assoc warning :resource-name resource-name))
+               (distinct)
+               (into []))]
+      (assoc-in msg [:info :warnings] warnings))
+
+    msg))
+
+(def custom-notify-types
+  #{:build-complete
+    :build-failure
+    :build-init
+    :build-start})
+
+(defn run-custom-notify! [msg]
+  (when (seq custom-notify-fn)
+    ;; look up every time it case it gets reloaded
+    (let [fn (js/goog.getObjectByName custom-notify-fn js/$CLJS)]
+      (if-not (fn? fn)
+        (js/console.warn "couldn't find custom :build-notify" custom-notify-fn)
+        (try
+          (fn msg)
+          (catch :default e
+            (js/console.error "Failed to run custom :build-notify" custom-notify-fn)
+            (js/console.error e))))))
+  (done!))
+
 (defn process-ws-msg [text handler]
   (binding [reader/*default-data-reader-fn*
             (fn [tag value]
               [:tagged-literal tag value])]
     (try
-      (let [msg (reader/read-string text)]
-        (.push repl-queue-arr #(handler msg done!)))
+      (let [msg (-> text (reader/read-string) (preprocess-ws-msg))]
+        (.push repl-queue-arr #(handler msg done!))
+        ;; ensure custom notify is called after the message is handled by shadow-cljs itself
+        ;; FIXME: :build-complete isn't actually treated as async so this runs before the code is reloaded
+        ;; only actually an issue when reloading the ns that has the notify-fn since the old one will be called
+        (when (contains? custom-notify-types (:type msg))
+          (.push repl-queue-arr #(run-custom-notify! msg))))
       (process-next!)
       (catch :default e
         (js/console.warn "failed to parse websocket message" text e)

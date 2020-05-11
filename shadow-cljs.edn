@@ -169,7 +169,8 @@
 
    :devtools
    {:before-load-async demo.browser/stop-from-config
-    :after-load demo.browser/start-from-config}}
+    :after-load demo.browser/start-from-config
+    :build-notify demo.browser/custom-notify}}
 
   :now-lambda
   {:target :node-library

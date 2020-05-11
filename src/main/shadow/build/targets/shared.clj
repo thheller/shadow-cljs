@@ -46,6 +46,8 @@
 
 (s/def ::use-document-host boolean?)
 
+(s/def ::build-notify unquoted-qualified-symbol?)
+
 (s/def ::devtools
   (s/keys
     :opt-un
@@ -58,6 +60,7 @@
      ::before-load
      ::before-load-async
      ::use-document-host
+     ::build-notify
      ::devtools-url]))
 
 (s/def ::entry
@@ -155,9 +158,7 @@
 
         {:keys [ignore-warnings
                 devtools-url
-                before-load
-                before-load-async
-                after-load
+                build-notify
                 autoload
                 use-document-host
                 reload-strategy
@@ -207,8 +208,13 @@
 
        'shadow.cljs.devtools.client.env/devtools-url
        (or devtools-url "")}
+
+      (when build-notify
+        {'shadow.cljs.devtools.client.env/custom-notify-fn (cljs-comp/munge build-notify)})
+
       (when log-style
         {'shadow.cljs.devtools.client.env/log-style log-style})
+
       (when (contains? devtools :hud)
         (hud-defines (:hud devtools))))))
 

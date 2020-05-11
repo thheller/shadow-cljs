@@ -72,24 +72,12 @@
 
 (defn build-complete
   [{:keys [info reload-info] :as msg}]
-  (let [{:keys [sources compiled]}
-        info
-
-        warnings
-        (->> (for [{:keys [resource-name warnings] :as src} sources
-                   :when (not (:from-jar src))
-                   warning warnings]
-               (assoc warning :resource-name resource-name))
-             (distinct)
-             (into []))]
+  (let [{:keys [sources compiled warnings]} info]
 
     (when (and env/autoload
                (or (empty? warnings) env/ignore-warnings))
 
-      (let [{:keys [sources compiled]}
-            info
-
-            files-to-require
+      (let [files-to-require
             (->> sources
                  (remove (fn [{:keys [ns]}]
                            (contains? (:never-load reload-info) ns)))
