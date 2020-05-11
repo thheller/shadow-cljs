@@ -1324,7 +1324,7 @@
   "takes a list of :js sources and rewrites them to using closure
    partial compiles must supply the cached sources so closure doesn't complain about things
    it cannot resolve"
-  [{:keys [project-dir npm mode] :as state} sources cached-sources]
+  [{:keys [mode] :as state} sources]
 
   (let [source-files
         (for [{:keys [resource-name file] :as src} sources]
@@ -1361,21 +1361,12 @@
         source-file-names
         (into #{} (map #(.getName %)) source-files)
 
-        cached-source-files
-        (for [{:keys [resource-name ns] :as src} cached-sources]
-          ;; cannot pass the rewritten code in here again since closure identifies it as the wrong type
-          ;; previously it was an ES MODULE now its SCRIPT which blows up internally
-          ;; FIXME: figure out a more fool proof way of doing this or skip incremental compiles entirely
-          (closure-source-file resource-name
-            (str "goog.provide(\"" (cljs-comp/munge ns) "\");")))
-
         source-files
         ;; closure prepends polyfills to the first resource
         ;; adding an empty placeholder ensures we can take them out easily
         (-> [(closure-source-file polyfill-name "")]
             ;; then add all resources
             (into shadow-js-files)
-            (into cached-source-files)
             (into source-files))
 
         ;; this includes all files (sources + package.json files)
@@ -1625,10 +1616,9 @@
         need-compile?
         (boolean (seq recompile-sources))
 
-        ;; restore cached output so the convert can use it
         state
-        (if-not (seq cache-files)
-          state
+        (if-not need-compile?
+          ;; restore cached output, cannot do incremental compiled due to closure being picky about names
           (util/with-logged-time [state {:type ::closure-cache-read
                                          :num-files (count sources)}]
             (-> state
@@ -1649,18 +1639,15 @@
                             (assoc-in [:output resource-id] cached-output)
                             (update :js-properties set/union properties))
                         )))
-                  cache-files))))
-
-        state
-        (if-not need-compile?
-          state
-          (convert-sources* state recompile-sources cache-files))
+                  cache-files)))
+          ;; compile all again
+          (convert-sources* state sources))
 
         cache-index-updated
         (if-not need-compile?
           cache-index
           (util/with-logged-time [state {:type ::closure-cache-write
-                                         :num-files (count recompile-sources)}]
+                                         :num-files (count sources)}]
             (-> cache-index
                 (assoc :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
                        :CACHE-OPTIONS cache-options
@@ -1677,7 +1664,7 @@
                       (cache/write-file cache-file output)
 
                       (assoc idx resource-id cache-key)))
-                  recompile-sources))))]
+                  sources))))]
 
     (when need-compile?
       (cache/write-file cache-index-file cache-index-updated))
@@ -1726,7 +1713,7 @@
 
 (defn convert-sources-simple*
   "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
-  [{:keys [project-dir js-options npm mode build-sources] :as state} sources]
+  [{:keys [js-options mode] :as state} sources]
   (let [source-files
         (->> (for [{:keys [resource-id resource-name ns require-id file deps] :as src} sources]
                (let [source (data/get-source-code state src)
@@ -2107,7 +2094,6 @@
              #_(map #(do (println (.getCode %)) %))
              (into []))
 
-        ;; this includes all files (sources + package.json files)
         source-files-by-name
         (->> source-files
              (map (juxt #(.getName %) identity))
