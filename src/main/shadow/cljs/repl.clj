@@ -235,7 +235,9 @@
                           (remove nil?)
                           (into [])))))]
 
-    (output/flush-sources state new-sources)
+    (doto state
+      (output/flush-sources new-sources)
+      (async/wait-for-pending-tasks!))
 
     (update-in state [:repl-state :repl-actions] conj action)
     ))
@@ -377,7 +379,9 @@
         {:type :repl/set-ns
          :ns ns}]
 
-    (output/flush-sources state dep-sources)
+    (doto state
+      (output/flush-sources dep-sources)
+      (async/wait-for-pending-tasks!))
 
     (-> state
         (assoc-in [:repl-state :current-ns] ns)
