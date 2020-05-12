@@ -42,15 +42,23 @@
              (filter #(contains? @bm/reloadable-macros-ref %))
              (into #{}))
 
+        add-ns
+        (fn [result event ns]
+          (-> result
+              (update :namespaces conj ns)
+              (update event conj ns)))
+
         ns-updates
         (reduce
           (fn [result {:keys [event name]}]
-            (let [ns (if (util/is-cljs-file? name)
-                       (util/filename->ns name)
-                       (symbol (ModuleNames/fileToModuleName name)))]
-              (-> result
-                  (update :namespaces conj ns)
-                  (update event conj ns))))
+            (-> result
+                (add-ns event (util/filename->ns name))
+                ;; JS file might be old style goog.provide/goog.module with regular js
+                ;; or ESM with generic name, so add both. engine will look at the file
+                ;; later and find the correct one
+                (cond->
+                  (util/is-js-file? name)
+                  (add-ns event (symbol (ModuleNames/fileToModuleName name))))))
           {:namespaces #{}
            :mod #{}
            :del #{}
