@@ -189,7 +189,10 @@
    {:js-provider :shadow
     :keep-native-requires true
     ;; :keep-as-require #{"which"}
-    }
+
+    :package-overrides
+    {"codemirror"
+     {"./lib/codemirror.js" "./addon/runmode/runmode.node.js"}}}
 
    :output-to "out/demo-script-bundle/script.js"}
 
@@ -373,9 +376,6 @@
    {:optimizations :simple
     :source-map-use-fs-paths true}
 
-   :js-options
-   {:resolve
-    {"codemirror" false}}
 
    :devtools
    {:before-load-async demo.script/stop

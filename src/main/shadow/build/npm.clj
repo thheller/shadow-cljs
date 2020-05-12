@@ -682,9 +682,14 @@
       (let [{:keys [browser-overrides ^File package-dir] :as pkg}
             (find-package-for-file npm file)
 
+            {:keys [package-overrides]} js-options
+
             ;; the package may have "browser":{"./a":"./b"} overrides
             override
-            (when (and pkg (:use-browser-overrides js-options) (seq browser-overrides))
+            (when (and pkg
+                       (or (and (:use-browser-overrides js-options) (seq browser-overrides))
+                           (seq package-overrides)))
+
               (let [package-path
                     (.toPath package-dir)
 
@@ -695,9 +700,12 @@
                          (rc/normalize-name)
                          (str "./"))]
 
-                ;; FIXME: I'm almost certain that browser allows overriding without extension
-                ;; "./lib/some-file":"./lib/some-other-file"
-                (get browser-overrides rel-name)))]
+                ;; allow :js-options config to replace files in package by name
+                ;; :js-options {:package-overrides {"codemirror" {"./lib/codemirror.js" "./addon/runmode/runmode.node.js"}}
+                (or (get-in package-overrides [(:package-name pkg) rel-name])
+                    ;; FIXME: I'm almost certain that browser allows overriding without extension
+                    ;; "./lib/some-file":"./lib/some-other-file"
+                    (get browser-overrides rel-name))))]
 
         (cond
           ;; good to go, no browser overrides
