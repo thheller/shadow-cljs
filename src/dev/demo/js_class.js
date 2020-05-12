@@ -1,5 +1,10 @@
-goog.module('demo.googClass');
+goog.module('demo.js_class');
 goog.module.declareLegacyNamespace();
+
+// requires polyfills
+let [a, ...rest] = [1, 2, 3, 4, 5];
+
+console.log("foo3");
 
 class Foo {
     /**
@@ -19,5 +24,7 @@ class Foo {
         return "Hello " + this.a;
     }
 }
+
+exports.a = a;
 
 exports.Foo = Foo;

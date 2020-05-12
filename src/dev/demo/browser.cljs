@@ -19,7 +19,7 @@
     [cljs.loader :as cl]
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
-    [demo.googClass :refer (Foo)]
+    [demo.js-class :refer (Foo)]
     [demo.dummy-cljc]
     ))
 
