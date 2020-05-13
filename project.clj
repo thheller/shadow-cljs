@@ -84,7 +84,8 @@
 
   :classifiers
   {:aot
-   {:aot [shadow.cljs.devtools.cli
+   {:aot [shadow.cljs.cli
+          shadow.cljs.devtools.cli
           shadow.cljs.devtools.api
           shadow.cljs.devtools.server]
 
