@@ -498,11 +498,12 @@
     (str (when-not ns ;; none-cljs
            (str "\nmodule.exports = " export ";\n"))
          (->> (get-in state [:compiler-env ::ana/namespaces ns :defs])
-              (keys)
+              (vals)
               (map (fn [def]
-                     (str "Object.defineProperty(module.exports, \""
-                          (if (= 'default def) "default" (comp/munge def)) ;; avoid munge to default$
-                          "\", { enumerable: true, get: function() { return " export "." (comp/munge def) "; } });")))
+                     (let [def-name (symbol (name (:name def)))]
+                       (str "Object.defineProperty(module.exports, \""
+                            (if (= 'default def-name) "default" (comp/munge def-name)) ;; avoid munge to default$
+                            "\", { enumerable: " (get-in def [:meta :export] false) ", get: function() { return " export "." (comp/munge def-name) "; } });"))))
               (str/join "\n")))))
 
 (def goog-global-snippet
