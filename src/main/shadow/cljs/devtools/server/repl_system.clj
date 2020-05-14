@@ -114,12 +114,12 @@
     ))
 
 (defn tool-connect
-  [svc tool-id tool-in]
   "tool-in is messages coming from tools (potentially forwarded to runtimes)
    returns tool-out for messages to the connected tool
 
    tool-in closing means tool disconnected
    tool-out closing means its connection should end (eg. system shutdown)"
+  [svc tool-id tool-in]
 
   (let [{:keys [state-ref]} svc
 
