@@ -258,7 +258,7 @@
   (when-let [{:keys [proc-control] :as worker} (get-worker build-id)]
     (>!! proc-control {:type :runtime-kick :runtime-id runtime-id})))
 
-(defn repl-runtime-clear []
+(defn repl-runtime-clear
   "kick all registered runtimes that haven't responded to ping within 5sec
 
    only needed in cases where the runtime doesn't properly disconnect which
