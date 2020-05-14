@@ -343,18 +343,20 @@
 (defn reset-resources [state source-ids]
   {:pre [(coll? source-ids)]}
 
-  (let [modified (set source-ids)
-        all-deps-to-reset (find-resources-affected-by state modified)]
+  (if-not (seq source-ids)
+    state
+    (let [modified (set source-ids)
+          all-deps-to-reset (find-resources-affected-by state modified)]
 
-    (reduce
-      (fn [state resource-id]
-        (if (contains? modified resource-id)
-          ;; fully remove specified resources (eg. modified sources found by watch)
-          (data/remove-source-by-id state resource-id)
-          ;; affected deps only have their output removed since their source didn't change
-          (data/remove-output-by-id state resource-id)))
-      state
-      all-deps-to-reset)))
+      (reduce
+        (fn [state resource-id]
+          (if (contains? modified resource-id)
+            ;; fully remove specified resources (eg. modified sources found by watch)
+            (data/remove-source-by-id state resource-id)
+            ;; affected deps only have their output removed since their source didn't change
+            (data/remove-output-by-id state resource-id)))
+        state
+        all-deps-to-reset))))
 
 (defn reset-namespaces [state provides]
   (let [source-ids
