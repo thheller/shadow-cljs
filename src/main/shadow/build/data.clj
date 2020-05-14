@@ -222,19 +222,25 @@
         )))
 
 (defn remove-output-by-id [state resource-id]
-  (update state :output dissoc resource-id))
-
-(defn remove-source-by-id [state resource-id]
   (let [{:keys [ns] :as rc} (get-in state [:sources resource-id])]
     (if-not rc
       state
       (-> state
           (update :output dissoc resource-id)
-          (update :immediate-deps dissoc resource-id)
           ;; remove analyzer data so removed vars don't stick around
+          ;; also fixes issues with ^:const otherwise ending up in compile errors
           (cond->
             ns
             (update-in [:compiler-env :cljs.analyzer/namespaces] dissoc ns))
+          ))))
+
+(defn remove-source-by-id [state resource-id]
+  (let [rc (get-in state [:sources resource-id])]
+    (if-not rc
+      state
+      (-> state
+          (remove-output-by-id resource-id)
+          (update :immediate-deps dissoc resource-id)
           (remove-provides rc)
           (update :sources dissoc resource-id)
           ))))

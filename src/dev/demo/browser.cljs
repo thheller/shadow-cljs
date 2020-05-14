@@ -23,6 +23,8 @@
     [demo.dummy-cljc]
     ))
 
+(def ^:const some-const 1)
+
 (js/console.log "foo" Foo)
 
 (js/console.log "macro" (m/foo 1 2 3))
