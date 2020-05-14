@@ -415,10 +415,16 @@
    'cljs.core/require
    repl-require
 
+   'clojure.core/require
+   repl-require
+
    'load-file
    repl-load-file
 
    'cljs.core/load-file
+   repl-load-file
+
+   'clojure.core/load-file
    repl-load-file
 
    'in-ns
