@@ -86,6 +86,7 @@
   {:aot
    {:aot [shadow.cljs.cli
           shadow.cljs.devtools.cli
+          shadow.cljs.devtools.cli-actual
           shadow.cljs.devtools.api
           shadow.cljs.devtools.server]
 
