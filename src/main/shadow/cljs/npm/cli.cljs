@@ -279,7 +279,7 @@
 (defn run-standalone [project-root config args opts]
   (let [cli-args
         (-> (get-jvm-opts project-root config)
-            (conj "clojure.main" "-m" "shadow.cljs.cli" "--npm")
+            (conj "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
     #_(log "shadow-cljs - starting ...")
@@ -312,7 +312,7 @@
 (defn run-lein [project-root config args opts]
   (let [lein-args
         (-> (get-lein-args config opts)
-            (conj "run" "-m" "shadow.cljs.cli" "--npm")
+            (conj "run" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
     (log "shadow-cljs - running: lein" (str/join " " lein-args))
@@ -391,7 +391,7 @@
 (defn run-clojure [project-root config args opts]
   (let [clojure-args
         (-> (get-clojure-args project-root config opts)
-            (conj "-m" "shadow.cljs.cli" "--npm")
+            (conj "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
     (log "shadow-cljs - starting via \"clojure\"")
@@ -442,7 +442,7 @@
                (conj "clojure.main" "-m"))])
 
         server-args
-        (conj server-args "shadow.cljs.cli" "--npm" "server")]
+        (conj server-args "shadow.cljs.devtools.cli" "--npm" "server")]
 
     (js/process.stderr.write "shadow-cljs - server starting ")
 

@@ -67,7 +67,7 @@
 (defn -main [& args]
   (when-let [actual-main
              (try
-               (requiring-resolve 'shadow.cljs.devtools.cli/-main)
+               (requiring-resolve 'shadow.cljs.devtools.cli-actual/-main)
                (catch Exception e
                  (load-error e)
                  (System/exit 1)))]
