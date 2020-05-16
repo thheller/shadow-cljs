@@ -175,6 +175,13 @@
     (x)
     (reset! reset-print-fn-ref nil)))
 
+(defn patch-goog! []
+  (when (= "goog" module-format)
+    ;; patch away the already declared exception
+    (set! js/goog.provide js/goog.constructNamespace_)
+    ;; goog.module calls this directly
+    (set! js/goog.isProvided_ (constantly false))))
+
 (def async-ops #{:repl/require :repl/init :repl/session-start})
 
 (def repl-queue-ref (atom false))

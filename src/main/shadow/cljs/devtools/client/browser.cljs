@@ -348,11 +348,8 @@
           (vreset! ws-status :connected)
           (hud/connection-error-clear!)
           (vreset! close-reason-ref nil)
-          ;; :module-format :js already patches provide
-          (when (= "goog" env/module-format)
-            ;; patch away the already declared exception
-            (set! (.-provide js/goog) js/goog.constructNamespace_))
 
+          (env/patch-goog!)
           (env/set-print-fns! ws-msg)
 
           (devtools-msg "WebSocket connected!")
