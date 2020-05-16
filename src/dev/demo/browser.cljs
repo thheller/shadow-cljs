@@ -21,7 +21,10 @@
     ["./cjs.js" :as cjs]
     [demo.js-class :refer (Foo)]
     [demo.dummy-cljc]
+    [demo.didnt-follow-the-rules :as rule-breaker]
     ))
+
+(assert (= 1 rule-breaker/foo) "rule-breaker not handled correctly")
 
 (def ^:const some-const 1)
 

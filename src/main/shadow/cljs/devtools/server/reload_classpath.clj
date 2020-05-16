@@ -18,17 +18,49 @@
 
 (def cljs-file-exts
   #{"cljs"
-    "cljc"
-    "js"})
+    "cljc"})
+
+(def js-file-exts
+  #{"js" #_".mjs" #_".cjs"})
 
 (def macro-file-exts
   #{"clj"
     "cljc"})
 
+(defn update-classpath-index
+  [{:keys [classpath] :as state} ns-updates {:keys [event name file dir ext] :as fs-update}]
+  (try
+    (log/debug ::classpath-js-update fs-update)
+
+    (case event
+      :mod
+      (do (cp/file-update classpath dir file)
+          (let [{:keys [provides] :as rc} (cp/find-resource-by-name classpath name)]
+            (update ns-updates :mod set/union provides)))
+      :new
+      (do (cp/file-add classpath dir file)
+          (let [{:keys [provides] :as rc} (cp/find-resource-by-name classpath name)]
+            (update ns-updates :new set/union provides)))
+      :del
+      (let [current (cp/find-resource-by-name classpath name)]
+        (cp/file-remove classpath dir file)
+        (when current
+          (update ns-updates :del set/union (:provides current)))))
+
+    (catch Exception e
+      (log/warn-ex e ::update-failed fs-update)
+      ns-updates)))
+
 (defn process-updates [{:keys [system-bus classpath] :as state} updates]
   (let [cljs-updates
         (->> updates
              (filter #(contains? cljs-file-exts (:ext %)))
+             (into []))
+
+        ;; js files live in classpath index, need to udpate index for those
+        js-updates
+        (->> updates
+             (filter #(contains? js-file-exts (:ext %)))
              (into []))
 
         ;; must check macros here since otherwise there are 2 separate watchers
@@ -42,34 +74,26 @@
              (filter #(contains? @bm/reloadable-macros-ref %))
              (into #{}))
 
-        add-ns
-        (fn [result event ns]
-          (-> result
-              (update :namespaces conj ns)
-              (update event conj ns)))
-
+        ;; cljs files are no longer in classpath index
+        ;; so just assume the file ns matches the name and continue
+        ;; will fail later when name doesn't match
         ns-updates
         (reduce
           (fn [result {:keys [event name]}]
-            (-> result
-                (add-ns event (util/filename->ns name))
-                ;; JS file might be old style goog.provide/goog.module with regular js
-                ;; or ESM with generic name, so add both. engine will look at the file
-                ;; later and find the correct one
-                (cond->
-                  (util/is-js-file? name)
-                  (add-ns event (symbol (ModuleNames/fileToModuleName name))))))
-          {:namespaces #{}
-           :mod #{}
+            (update result event conj (util/filename->ns name)))
+          {:mod #{}
            :del #{}
            :new #{}}
           cljs-updates)
 
+        {:keys [mod del new] :as ns-updates}
+        (reduce #(update-classpath-index state %1 %2) ns-updates js-updates)
+
         update-msg
-        {:namespaces (:namespaces ns-updates)
-         :deleted (:del ns-updates)
-         :updated (:mod ns-updates)
-         :added (:new ns-updates)
+        {:namespaces (set/union mod del new)
+         :deleted del
+         :updated mod
+         :added new
          :macros updated-macros}]
 
     ;; FIXME: this should be somehow coordinated with the workers
@@ -85,7 +109,7 @@
             (log/warn-ex e ::macro-reload-ex {:ns-sym ns-sym})))))
 
     (when (or (seq updated-macros)
-              (seq (:namespaces ns-updates)))
+              (seq (:namespaces update-msg)))
       (log/debug ::m/resource-update update-msg)
       (sys-bus/publish! system-bus ::m/resource-update update-msg))
 

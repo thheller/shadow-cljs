@@ -5,7 +5,8 @@
             [shadow.jvm-log :as log]
             [cljs.util :refer (distinct-by)]
             [hawk.core :as hawk]
-            [shadow.cljs.devtools.server.fs-watch-jvm :as fs-watch]))
+            [shadow.cljs.devtools.server.fs-watch-jvm :as fs-watch]
+            [shadow.build.resource :as rc]))
 
 (defn buffer-loop [hawk-in publish-fn]
   ;; this loop buffers all hawk watch events so they can be processed in batch
@@ -69,7 +70,7 @@
                                               (str/lower-case abs-name)
                                               (str/lower-case root-prefix)))
                                    (let [name
-                                         (subs abs-name root-prefix-len)
+                                         (rc/normalize-name (subs abs-name root-prefix-len))
 
                                          ext
                                          (when-let [x (str/last-index-of name ".")]

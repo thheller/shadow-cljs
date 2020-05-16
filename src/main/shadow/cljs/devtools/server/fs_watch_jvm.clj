@@ -4,7 +4,8 @@
             [shadow.cljs.devtools.server.util :as util]
             [shadow.cljs.devtools.server.system-bus :as system-bus]
             [clojure.java.io :as io]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [shadow.build.resource :as rc])
   (:import (shadow.util FileWatcher)
            (java.io File)))
 
@@ -18,7 +19,7 @@
       (->> changes
            (map (fn [[name event]]
                   {:dir dir
-                   :name name
+                   :name (rc/normalize-name name)
                    :ext (when-let [x (str/last-index-of name ".")]
                           (subs name (inc x)))
                    :file (io/file dir name)
