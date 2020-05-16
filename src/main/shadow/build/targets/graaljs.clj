@@ -53,6 +53,10 @@
         (build-api/with-js-options
           {:js-provider :shadow})
 
+        (cond->
+          (nil? (get-in config [:compiler-options :output-feature-set]))
+          (assoc-in [:compiler-options :output-feature-set] :es6))
+
         (modules/configure module-config)
         )))
 

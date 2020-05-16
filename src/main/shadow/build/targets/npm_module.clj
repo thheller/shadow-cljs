@@ -52,6 +52,9 @@
         output-dir
         (build-api/with-build-options {:output-dir (io/file output-dir)})
 
+        (= :node runtime)
+        (node/set-defaults)
+
         (and (= :dev mode) (:worker-info state))
         (shared/merge-repl-defines
           (update config :devtools merge {:autoload false ;; doesn't work yet, use built-in for now

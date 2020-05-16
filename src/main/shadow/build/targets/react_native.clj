@@ -143,6 +143,9 @@
               (update-in [::modules/config :index :entries] shared/prepend
                 '[shadow.cljs.devtools.client.react-native]))
 
+          (nil? (get-in config [:compiler-options :output-feature-set]))
+          (assoc-in [:compiler-options :output-feature-set] :es6)
+
           dev?
           (shared/inject-preloads :index config)))))
 

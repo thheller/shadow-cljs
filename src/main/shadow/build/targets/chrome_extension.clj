@@ -99,7 +99,10 @@
 
         (cond->
           (and (= :dev mode) (:worker-info state))
-          (shared/merge-repl-defines config))
+          (shared/merge-repl-defines config)
+
+          (nil? (get-in config [:compiler-options :output-feature-set]))
+          (assoc-in [:compiler-options :output-feature-set] :es8))
 
         (browser/configure-modules mode (assoc config :modules modules)))))
 
