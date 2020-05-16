@@ -1328,7 +1328,7 @@
   "takes a list of :js sources and rewrites them to using closure
    partial compiles must supply the cached sources so closure doesn't complain about things
    it cannot resolve"
-  [{:keys [mode] :as state} sources]
+  [{:keys [mode] :as state} sources cache-files]
 
   (let [source-files
         (for [{:keys [resource-name file] :as src} sources]
@@ -1337,6 +1337,9 @@
                 source
                 (replace-file-references state src source)]
             (closure-source-file resource-name source)))
+
+        cache-file-names
+        (into #{} (map :resource-name) cache-files)
 
         required-shadow-js
         (->> sources
@@ -1483,88 +1486,92 @@
           (fn [state source-node]
             (.reset source-map)
 
-            (let [name
-                  (.getSourceFileName source-node)
-
-                  source-file
-                  (get source-files-by-name name)
-
-                  {:keys [resource-id output-name ns] :as rc}
-                  (get resource-by-name name)]
-
-              (cond
-                (= polyfill-name name)
-                (let [js (ShadowAccess/nodeToJs cc source-map source-node)]
-                  (assoc state :polyfill-js js))
-
-                (nil? rc)
+            (let [name (.getSourceFileName source-node)]
+              (if (contains? cache-file-names name)
+                ;; don't update output for cached file, otherwise will cause
+                ;; them all to be reloaded and written to disk although they shouldn't have changed
+                ;; and were only fed to GCC because incremental compiles are bad
                 state
+                ;; actually compiled files record :output
+                (let [source-file
+                      (get source-files-by-name name)
 
-                :else
-                (let [js
-                      (try
-                        (ShadowAccess/nodeToJs cc source-map source-node)
-                        (catch Exception e
-                          (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                      {:keys [resource-id output-name ns] :as rc}
+                      (get resource-by-name name)]
 
-                      shadow-js-prefix
-                      (when (= :dev mode)
-                        (let [shadow-js-deps
-                              (->> (for [dep-sym (data/deps->syms state rc)
-                                         :let [{:keys [type ns] :as dep} (data/get-source-by-provide state dep-sym)]
-                                         :when (= :shadow-js type)]
-                                     dep)
-                                   (map (fn [{:keys [ns] :as require-rc}]
-                                          (str "var " ns " = "
-                                               (npm/shadow-js-require require-rc))))
-                                   (str/join "\n"))]
-                          (when (seq shadow-js-deps)
-                            (str shadow-js-deps "\n"))))
+                  (cond
+                    (= polyfill-name name)
+                    (let [js (ShadowAccess/nodeToJs cc source-map source-node)]
+                      (assoc state :polyfill-js js))
 
-                      sw
-                      (StringWriter.)
+                    (nil? rc)
+                    state
 
-                      _
-                      (doto source-map
-                        ;; for sourcesContent
-                        (.addSourceFile (.getName source-file) (.getCode source-file))
-                        (.setWrapperPrefix (or shadow-js-prefix ""))
-                        (.appendTo sw output-name))
+                    :else
+                    (let [js
+                          (try
+                            (ShadowAccess/nodeToJs cc source-map source-node)
+                            (catch Exception e
+                              (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
 
-                      ;; must ensure that all shadow-js deps are properly required during dev
-                      ;; as closure just emits the reference directly
-                      js
-                      (str shadow-js-prefix js)
+                          shadow-js-prefix
+                          (when (= :dev mode)
+                            (let [shadow-js-deps
+                                  (->> (for [dep-sym (data/deps->syms state rc)
+                                             :let [{:keys [type ns] :as dep} (data/get-source-by-provide state dep-sym)]
+                                             :when (= :shadow-js type)]
+                                         dep)
+                                       (map (fn [{:keys [ns] :as require-rc}]
+                                              (str "var " ns " = "
+                                                   (npm/shadow-js-require require-rc))))
+                                       (str/join "\n"))]
+                              (when (seq shadow-js-deps)
+                                (str shadow-js-deps "\n"))))
 
-                      sm-json
-                      (.toString sw)
+                          sw
+                          (StringWriter.)
 
-                      properties
-                      (-> (into #{} (-> property-collector (.-properties) (.get name)))
-                          (clean-collected-properties))
+                          _
+                          (doto source-map
+                            ;; for sourcesContent
+                            (.addSourceFile (.getName source-file) (.getCode source-file))
+                            (.setWrapperPrefix (or shadow-js-prefix ""))
+                            (.appendTo sw output-name))
 
-                      output
-                      {:resource-id resource-id
-                       :compiled-at (System/currentTimeMillis)
-                       :js (str js
-                                ;; closure only declares var module$src$dev$demo$es6 = {};
-                                ;; but since we are in separate files that var is not available globally
-                                ;; in node envs. this doesn't hurt the browser so its fine.
-                                ;; dont need it in release since everything is one file after
-                                (when (and (= :dev mode)
-                                           ;; closure won't generate the alias for files without exports
-                                           ;; looking for this pattern
-                                           ;; var module$demo$reducers$profile = ...
-                                           ;; FIXME: not sure if it will always emit this exact pattern
-                                           (str/includes? js (str "var " ns " =")))
-                                  (str "\n$CLJS." ns "=" ns ";")))
-                       :properties properties
-                       :source (.getCode source-file)
-                       :source-map-json sm-json}]
+                          ;; must ensure that all shadow-js deps are properly required during dev
+                          ;; as closure just emits the reference directly
+                          js
+                          (str shadow-js-prefix js)
 
-                  (-> state
-                      (assoc-in [:output resource-id] output)
-                      (update :js-properties set/union properties))))))
+                          sm-json
+                          (.toString sw)
+
+                          properties
+                          (-> (into #{} (-> property-collector (.-properties) (.get name)))
+                              (clean-collected-properties))
+
+                          output
+                          {:resource-id resource-id
+                           :compiled-at (System/currentTimeMillis)
+                           :js (str js
+                                    ;; closure only declares var module$src$dev$demo$es6 = {};
+                                    ;; but since we are in separate files that var is not available globally
+                                    ;; in node envs. this doesn't hurt the browser so its fine.
+                                    ;; dont need it in release since everything is one file after
+                                    (when (and (= :dev mode)
+                                               ;; closure won't generate the alias for files without exports
+                                               ;; looking for this pattern
+                                               ;; var module$demo$reducers$profile = ...
+                                               ;; FIXME: not sure if it will always emit this exact pattern
+                                               (str/includes? js (str "var " ns " =")))
+                                      (str "\n$CLJS." ns "=" ns ";")))
+                           :properties properties
+                           :source (.getCode source-file)
+                           :source-map-json sm-json}]
+
+                      (-> state
+                          (assoc-in [:output resource-id] output)
+                          (update :js-properties set/union properties))))))))
 
           (->> (ShadowAccess/getJsRoot cc)
                (.children) ;; the inputs
@@ -1644,7 +1651,7 @@
                         )))
                   cache-files)))
           ;; compile all again
-          (convert-sources* state sources))
+          (convert-sources* state sources cache-files))
 
         cache-index-updated
         (if-not need-compile?
@@ -2093,13 +2100,16 @@
 
 (defn convert-goog*
   "convert Closure Library code since it may contain a random mix of ClosureJS and Closure Modules"
-  [{:keys [js-options mode] :as state} sources]
+  [{:keys [js-options mode] :as state} sources cached-files]
   (let [source-files
         (->> (for [{:keys [resource-name] :as src} sources]
                (let [source (data/get-source-code state src)]
                  (closure-source-file resource-name source)))
              #_(map #(do (println (.getCode %)) %))
              (into []))
+
+        cached-file-names
+        (into #{} (map :resource-name) cached-files)
 
         source-files-by-name
         (->> source-files
@@ -2158,41 +2168,44 @@
           (fn [state source-node]
             (.reset source-map)
 
-            (let [name
-                  (.getSourceFileName source-node)
+            (let [name (.getSourceFileName source-node)]
+              (if (contains? cached-file-names name)
+                ;; don't touch output of files that are supposed to be cached
+                ;; we can't feed partial input to closure
+                state
+                ;; file not cached, store in :output
+                (let [source-file
+                      (get source-files-by-name name)
 
-                  source-file
-                  (get source-files-by-name name)
+                      {:keys [resource-id ns output-name deps] :as rc}
+                      (get resource-by-name name)
 
-                  {:keys [resource-id ns output-name deps] :as rc}
-                  (get resource-by-name name)
+                      js
+                      (try
+                        (ShadowAccess/nodeToJs cc source-map source-node)
+                        (catch Exception e
+                          (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
 
-                  js
-                  (try
-                    (ShadowAccess/nodeToJs cc source-map source-node)
-                    (catch Exception e
-                      (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                      sm-json
+                      (when generate-source-map?
+                        (let [sw (StringWriter.)]
+                          ;; for sourcesContent
+                          (when-not (false? (get-in state [:compiler-options :source-map-include-sources-content]))
+                            (.addSourceFile source-map (.getName source-file) (.getCode source-file)))
+                          (.appendTo source-map sw output-name)
+                          (.toString sw)))
 
-                  sm-json
-                  (when generate-source-map?
-                    (let [sw (StringWriter.)]
-                      ;; for sourcesContent
-                      (when-not (false? (get-in state [:compiler-options :source-map-include-sources-content]))
-                        (.addSourceFile source-map (.getName source-file) (.getCode source-file)))
-                      (.appendTo source-map sw output-name)
-                      (.toString sw)))
+                      output
+                      (-> {:resource-id resource-id
+                           :js js
+                           :source (.getCode source-file)
+                           :compiled-at (System/currentTimeMillis)}
+                          (cond->
+                            generate-source-map?
+                            (assoc :source-map-json sm-json)))]
 
-                  output
-                  (-> {:resource-id resource-id
-                       :js js
-                       :source (.getCode source-file)
-                       :compiled-at (System/currentTimeMillis)}
-                      (cond->
-                        generate-source-map?
-                        (assoc :source-map-json sm-json)))]
-
-              (assoc-in state [:output resource-id] output)
-              ))
+                  (assoc-in state [:output resource-id] output)
+                  ))))
 
           (->> (ShadowAccess/getJsRoot cc)
                (.children) ;; the inputs
@@ -2247,7 +2260,7 @@
         state
         (if-not need-compile?
           state
-          (convert-goog* state (remove :virtual sources)))
+          (convert-goog* state (remove :virtual sources) cache-files))
 
         ;; virtual sources should never be compiled and just be used as is
         state
@@ -2279,7 +2292,7 @@
               (assoc cache-index
                 :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
                 :CACHE-OPTIONS cache-options)
-              sources)))]
+              recompile-sources)))]
 
     (when need-compile?
       (cache/write-file cache-index-file cache-index-updated))

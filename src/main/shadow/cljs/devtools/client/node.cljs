@@ -144,6 +144,7 @@
 
     (.on client "open"
       (fn []
+        (env/patch-goog!)
         (vreset! ws-ref client)))
 
     (.on client "unexpected-response"
