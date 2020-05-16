@@ -102,6 +102,8 @@
             ;; SourceFile/fromFile seems to leak file descriptors
             (SourceFile/fromCode resource-name source))
 
+          rc (assoc rc :inspect-info info)
+
           ns (-> (ModuleNames/fileToModuleName resource-name)
                  (symbol))]
 

@@ -1356,6 +1356,9 @@
               (into #{}))]
 
      (-> state
+         (assoc ::closure/shadow-js-injected-libs #{}
+                ::closure/js-injected-libs #{}
+                ::closure/goog-injected-libs #{})
          (assoc :compile-start (System/currentTimeMillis))
 
          ;; cljs.compiler/munge needs to know which variables become namespace roots
@@ -1385,14 +1388,6 @@
 
            (and (= :dev mode) (seq goog))
            (maybe-closure-convert goog closure/convert-goog)
-
-           ;; FIXME: removed foreign support
-           ;; (seq foreign)
-           ;; (copy-source-to-output foreign)
-
-           ;; FIXME: tbd ... I'm not sure I want to do css
-           ;; (seq css)
-           ;; (compile-css-sources css)
 
            ;; FIXME: figure out if its always safe to pass processed files
            ;; into optimizations or whether that prefers the actual sources to do

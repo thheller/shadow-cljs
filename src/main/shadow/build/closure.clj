@@ -18,7 +18,7 @@
     [shadow.build.resource :as rc]
     [shadow.debug :refer (?> ?-> ?->>)]
     [clojure.data.json :as json])
-  (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File)
+  (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File StringReader)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
@@ -28,7 +28,8 @@
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (java.nio.charset Charset)
            [java.util.logging Logger Level]
-           [com.google.javascript.jscomp.parsing.parser FeatureSet]))
+           [com.google.javascript.jscomp.parsing.parser FeatureSet]
+           [com.google.javascript.rhino Node]))
 
 ;; get rid of some annoying/useless warning log messages
 ;; https://github.com/google/closure-compiler/pull/2998/files
@@ -1007,6 +1008,11 @@
   (doseq [src-file (source-map-sources state)]
     (.addSourceFile source-map (.getName src-file) (.getCode src-file))))
 
+(defn get-injected-libs [compiler]
+  (-> (.get injected-libraries-field compiler)
+      (keys)
+      (into #{})))
+
 (defn compile-js-modules
   [{::keys [externs modules compiler compiler-options] :as state}]
   (let [js-mods
@@ -1029,9 +1035,7 @@
 
         ;; keep track of all the injected polyfills for some reports?
         injected-libs
-        (-> (.get injected-libraries-field compiler)
-            (keys)
-            (into #{}))
+        (get-injected-libs compiler)
 
         source-map
         (when (and success? (get-in state [:compiler-options :source-map]))
@@ -1467,15 +1471,14 @@
         (.getSourceMap cc)
 
         injected-libs
-        (->> (.get injected-libraries-field cc)
-             (keys)
-             (into #{}))]
+        (get-injected-libs cc)]
 
     (throw-errors! state cc result)
 
     (-> state
         (log-warnings cc result)
         (update :closure-injected-libs set/union injected-libs)
+        (update ::js-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
             (.reset source-map)
@@ -1857,11 +1860,15 @@
 
         _ (throw-errors! state cc result)
 
+        injected-libs
+        (get-injected-libs cc)
+
         source-map
         (.getSourceMap cc)]
 
     (-> state
         (log-warnings cc result)
+        (update ::shadow-js-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
             (.reset source-map)
@@ -2139,10 +2146,14 @@
         _ (throw-errors! state cc result)
 
         source-map
-        (.getSourceMap cc)]
+        (.getSourceMap cc)
+
+        injected-libs
+        (get-injected-libs cc)]
 
     (-> state
         (log-warnings cc result)
+        (update ::goog-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
             (.reset source-map)
@@ -2306,22 +2317,49 @@
   [{:keys [num-files]}]
   (format "Closure JS convert: %d JS files" num-files))
 
-(defn get-polyfills []
-  (let [cc
-        (data/make-closure-compiler)
+(defn get-polyfill-infos* []
+  (with-open [rdr
+              (-> (io/resource "com/google/javascript/jscomp/js/polyfills.txt")
+                  (io/reader))]
+    (->> (line-seq rdr)
+         (map (fn [line]
+                (let [[name native-version polyfill-version lib]
+                      (str/split line #" ")]
+                  (when (seq lib)
+                    {:name name
+                     :native-version native-version
+                     :polyfill-version polyfill-version
+                     :lib lib}))))
+         (remove nil?)
+         (vec))))
 
-        co-opts
-        {}
+(def get-polyfill-infos (memoize get-polyfill-infos*))
 
-        closure-opts
-        (doto (make-options)
-          (set-options co-opts {})
-          (.setRewritePolyfills true)
-          (.setPrettyPrint true)
-          (.setForceLibraryInjection
-            ["base" "es6_runtime"]))
+(defn get-polyfills
+  ([]
+   (get-polyfills (into ["base"] (map :lib) (get-polyfill-infos))))
+  ([libs]
+   (let [cc
+         (data/make-closure-compiler)
 
-        result
-        (.compile cc [] [] closure-opts)]
+         co-opts
+         {:optimizations :simple}
 
-    (.toSource cc)))
+         closure-opts
+         (doto (make-options)
+           (set-options co-opts {})
+           (.setRewritePolyfills true)
+           (.setForceLibraryInjection libs))
+
+         result
+         (.compile cc [] [] closure-opts)]
+
+     (assert (.success result) "didn't expect any errors from polyfill extraction?")
+
+     (.toSource cc))))
+
+(comment
+  (let [p (get-polyfills)]
+    (println p)
+    (count p)
+    ))
