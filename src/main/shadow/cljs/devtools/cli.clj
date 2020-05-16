@@ -73,3 +73,7 @@
                  (System/exit 1)))]
 
     (apply actual-main args)))
+
+(defn from-remote [complete-token error-token args]
+  (let [actual (requiring-resolve 'shadow.cljs.devtools.cli-actual/from-remote)]
+    (actual complete-token error-token args)))
