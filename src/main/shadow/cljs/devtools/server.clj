@@ -100,7 +100,7 @@
        (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
 (defn shutdown-system [{:keys [shutdown-hook http port-files-ref socket-repl cli-repl cli-checker nrepl] :as app}]
-  (discard-println "shutting down ...")
+  #_ (discard-println "shutting down ...")
   (try
     (. (Runtime/getRuntime) (removeShutdownHook shutdown-hook))
     (catch IllegalStateException e
@@ -313,7 +313,7 @@
         shutdown-hook
         (Thread.
           (fn []
-            (println "Running shutdown hook.")
+            #_ (println "Running shutdown hook.")
             (stop!)))
 
         app
