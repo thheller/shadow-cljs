@@ -683,6 +683,16 @@
                      (assoc :tag (symbol type))))))
        (js/goog.define ~defname ~default))))
 
+(defn shadow-defonce
+  "defs name to have the root value of init iff the named var has no root value,
+  else init is unevaluated"
+  [&from &env x init]
+  (if (= :release (:shadow.build/mode &env))
+    ;; release builds will never overwrite a defonce, skip DCE-unfriendly verbose code
+    `(def ~x ~init)
+    `(when-not (cljs.core/exists? ~x)
+       (def ~x ~init))))
+
 ;; https://github.com/clojure/clojurescript/commit/1589e5848ebb56ab451cb73f955dbc0b01e7aba0
 ;; oops, seem to have missed keyword?
 (defn shadow-all-values? [exprs]
@@ -1010,6 +1020,7 @@
   (replace-fn! #'comp/find-ns-starts-with shadow-find-ns-starts-with)
 
   (replace-fn! #'cljs.core/goog-define goog-define)
+  (replace-fn! #'cljs.core/defonce shadow-defonce)
 
   ;; remove these for now, not worth the trouble
   ;; (replace-fn! #'test/deftest @#'shadow-deftest)
@@ -1112,17 +1123,6 @@
                js (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
       (bool-expr (concat (core/list 'js* js) syms)))
     `(some? ~x)))
-
-
-(core/defmacro defonce
-  "defs name to have the root value of init iff the named var has no root value,
-  else init is unevaluated"
-  [x init]
-  (if (= :release (:shadow.build/mode &env))
-    ;; release builds will never overwrite a defonce, skip DCE-unfriendly verbose code
-    `(def ~x ~init)
-    `(when-not (exists? ~x)
-       (def ~x ~init))))
 
 (comment
 
