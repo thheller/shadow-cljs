@@ -2318,6 +2318,19 @@
           state
           cache-files)))))
 
+;; avoid processing files twice when passing through :advanced
+;; so only replace the file paths and let regular optimize do the rest
+(defn classpath-js-copy [state sources]
+  (reduce
+    (fn [state {:keys [resource-id] :as src}]
+      (let [source (data/get-source-code state src)
+            source (replace-file-references state src source)]
+        (update state :output assoc resource-id {:resource-id resource-id
+                                                 :source source
+                                                 :js source})))
+    state
+    sources))
+
 (defmethod build-log/event->str ::goog-cache-read
   [{:keys [num-files]}]
   (format "Closure JS Cache read: %d JS files" num-files))

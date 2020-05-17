@@ -1382,6 +1382,7 @@
          ;; order of this is important
          ;; CLJS first since all it needs are the provided names
          (cond->
+           ;; goog
            ;; release builds go through the closure compiler and we want to avoid processing goog sources twice
            (and (= :release mode) (seq goog))
            (copy-source-to-output goog)
@@ -1389,26 +1390,24 @@
            (and (= :dev mode) (seq goog))
            (maybe-closure-convert goog closure/convert-goog)
 
-           ;; FIXME: figure out if its always safe to pass processed files
-           ;; into optimizations or whether that prefers the actual sources to do
-           ;; the conversions while optimizing. conversion may lose information
-           ;; the optimizer may need. it does preserve type annotations but not much else
-
-           ;; only convert for :none?
-           #_(and (not optimizing?) (seq npm))
-           (seq js)
+           ;; classpath-js, meaning ESM code on the classpath
+           ;; in dev process classpath-js now, including polyfills
+           (and (= :dev mode) (seq js))
            (maybe-closure-convert js closure/convert-sources)
 
+           ;; in release just copy classpath-js and run through regular optimizations
+           (and (= :release mode) (seq js))
+           (closure/classpath-js-copy js)
+
+           ;; shadow-js, node_modules or commonjs on the classpath
+           ;; shadow-js is always separate, optimized separately
            (seq shadow-js)
            (maybe-closure-convert shadow-js closure/convert-sources-simple)
 
+           ;; cljs
            ;; do this last as it uses data from above
            (seq cljs)
-           (compile-cljs-sources cljs non-cljs-provides)
-           ;; optimize the unprocessed sources
-           ;; since processing may have lose information
-           #_(and optimizing? (seq npm))
-           #_(copy-source-to-output npm))
+           (compile-cljs-sources cljs non-cljs-provides))
 
          ;; remember which sources were compiled for watch mode
          ;; otherwise it will attempt to load cache from disk although
