@@ -968,23 +968,6 @@
       (str/replace "window.global", "/*****/global")
       ))
 
-(defn dump-js-modules [modules]
-  (doseq [js-mod modules]
-    (println
-      (str (format "--module %s:%d"
-             (.getName js-mod)
-             (count (.getInputs js-mod)))
-           (let [deps (.getDependencies js-mod)]
-             (when (seq deps)
-               (format ":%s" (->> deps
-                                  (map #(.getName %))
-                                  (str/join ",")))))
-           " \\"
-           ))
-
-    (doseq [input (.getInputs js-mod)]
-      (println (format "--js %s \\" (.getName input))))))
-
 (defn source-map-sources [state]
   (->> (:build-sources state)
        (map (fn [src-id]
@@ -1013,6 +996,34 @@
       (keys)
       (into #{})))
 
+
+(defn dump-closure-inputs [state externs js-mods compiler-options]
+  (doseq [extern externs]
+    ;; externs have weird filenames and we don't need to keep folders intact
+    ;; eg externs.zip//v8.js so we munge
+    (let [ext-file (data/cache-file state "closure-inputs" "__externs" (munge (.getName extern)))]
+      (io/make-parents ext-file)
+      (spit ext-file (.getCode extern))))
+
+  (let [opts-file (data/cache-file state "closure-inputs" "__compiler_opts.txt")]
+    ;; not exactly great output but I want the actual options used by closure
+    ;; not their CLJS representation
+    (spit opts-file (str compiler-options)))
+
+  (doseq [js-mod js-mods]
+    (let [mod-file (data/cache-file state "closure-inputs" (.getName js-mod))]
+      (io/make-parents mod-file)
+      (spit mod-file
+        (->> (.getInputs js-mod)
+             (map #(.getName %))
+             (str/join "\n"))))
+
+    (doseq [input (.getInputs js-mod)]
+      (let [input-file (data/cache-file state "closure-inputs" (.getName input))]
+        (io/make-parents input-file)
+        (spit input-file (.getCode input))))))
+
+
 (defn compile-js-modules
   [{::keys [externs modules compiler compiler-options] :as state}]
   (let [js-mods
@@ -1040,6 +1051,10 @@
         source-map
         (when (and success? (get-in state [:compiler-options :source-map]))
           (.getSourceMap compiler))]
+
+
+    (when (get-in state [:compiler-options :dump-closure-inputs])
+      (dump-closure-inputs state externs js-mods compiler-options))
 
     (-> state
         (assoc ::result result ::injected-libs injected-libs)

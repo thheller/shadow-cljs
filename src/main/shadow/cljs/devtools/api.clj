@@ -351,7 +351,8 @@
 
         (or debug pseudo-names)
         (build-api/with-compiler-options
-          {:pretty-print true
+          {:dump-closure-inputs true
+           :pretty-print true
            :pseudo-names true}))
       (build/compile)
       (build/optimize)
