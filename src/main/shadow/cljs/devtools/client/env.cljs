@@ -200,7 +200,7 @@
 ;; do work that all client impls would share here instead of repeating the code
 (defn preprocess-ws-msg [{:keys [type] :as msg}]
   (case type
-    :build-completed
+    :build-complete
     (let [{:keys [info]} msg
 
           warnings
