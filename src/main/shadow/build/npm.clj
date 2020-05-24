@@ -765,33 +765,37 @@
                     :require require
                     :override override})))))))
 
-(defn shadow-js-require [{:keys [ns require-id resource-config] :as rc}]
-  (let [{:keys [export-global export-globals]}
-        resource-config
+(defn shadow-js-require
+  ([rc]
+   (shadow-js-require rc true))
+  ([{:keys [ns require-id resource-config] :as rc} semi-colon?]
+   (let [{:keys [export-global export-globals]}
+         resource-config
 
-        ;; FIXME: not the greatest idea to introduce two keys for this
-        ;; but most of the time there will only be one exported global per resource
-        ;; only in jQuery case sometimes we need jQuery and sometimes $
-        ;; so it must export both
-        globals
-        (-> []
-            (cond->
-              (seq export-global)
-              (conj export-global)
-              (seq export-globals)
-              (into export-globals)))
+         ;; FIXME: not the greatest idea to introduce two keys for this
+         ;; but most of the time there will only be one exported global per resource
+         ;; only in jQuery case sometimes we need jQuery and sometimes $
+         ;; so it must export both
+         globals
+         (-> []
+             (cond->
+               (seq export-global)
+               (conj export-global)
+               (seq export-globals)
+               (into export-globals)))
 
-        opts
-        (-> {}
-            (cond->
-              (seq globals)
-              (assoc :globals globals)))]
+         opts
+         (-> {}
+             (cond->
+               (seq globals)
+               (assoc :globals globals)))]
 
-    (str "shadow.js.require("
-         (if require-id
-           (pr-str require-id)
-           (str "\"" ns "\""))
-         ", " (json/write-str opts) ");")))
+     (str "shadow.js.require("
+          (if require-id
+            (pr-str require-id)
+            (str "\"" ns "\""))
+          ", " (json/write-str opts) ")"
+          (when semi-colon? ";")))))
 
 ;; FIXME: allow configuration of :extensions :entry-keys
 ;; maybe some closure opts

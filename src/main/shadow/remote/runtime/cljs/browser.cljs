@@ -22,11 +22,6 @@
   (let [w (transit/writer :json)]
     (transit/write w obj)))
 
-(defn into-vec [x y]
-  (if (nil? x)
-    (vec y)
-    (into x y)))
-
 (declare interpret-actions)
 
 (defn continue! [state]

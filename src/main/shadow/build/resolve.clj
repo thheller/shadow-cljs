@@ -53,8 +53,8 @@
               (stack-pop)
               (update :resolved-order conj resource-id))))))
 
-(defmulti find-resource-for-string
-  (fn [state rc require was-symbol?]
+(defmulti find-resource-for-string*
+  (fn [state require-from require was-symbol?]
     (get-in state [:js-options :js-provider]))
   :default ::default)
 
@@ -63,8 +63,17 @@
       ;; only :js and :shadow-js are allowed to go off classpath
       (not (contains? #{:js :shadow-js} type))))
 
-(defmethod find-resource-for-string ::default [_ _ _ _]
+(defmethod find-resource-for-string* ::default [_ _ _ _]
   (throw (ex-info "invalid [:js-options :js-provider] config" {})))
+
+(defn find-resource-for-string [state require-from require was-symbol?]
+  (if (str/includes? require "$")
+    ;; syntax sugar
+    ;; (:require ["some$nested.access" :as foo])
+    ;; results in 2 separate resources, one doing the require "some" the other doing "nested.access"
+    (js-support/shim-require-sugar-resource require-from require)
+    ;; regular require
+    (find-resource-for-string* state require-from require was-symbol?)))
 
 (def global-resolve-config
   {"jquery"
@@ -146,7 +155,7 @@
                 (update :cache-key conj resolve-cfg))))))))
 
 ;; FIXME: this is now a near duplicate of :shadow, should refactor and remove dupes
-(defmethod find-resource-for-string :closure
+(defmethod find-resource-for-string* :closure
   [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
   (let [abs? (util/is-absolute? require)
@@ -209,8 +218,8 @@
             (make-babel-source-fn)
             )))))
 
-(defmethod find-resource-for-string :shadow
-  [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
+(defmethod find-resource-for-string* :shadow
+  [{:keys [js-options classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
   (if (and (:keep-native-requires js-options)
            (or (contains? native-node-modules require)
@@ -247,7 +256,7 @@
         (maybe-babel-rewrite rc)
         ))))
 
-(defmethod find-resource-for-string :require
+(defmethod find-resource-for-string* :require
   [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
   (let [cp-rc? (when require-from
                  (classpath-resource? require-from))]
@@ -307,7 +316,7 @@
             (throw (ex-info "override not supported for :js-provider :require" resolve-cfg))
             ))))))
 
-(defmethod find-resource-for-string :external
+(defmethod find-resource-for-string* :external
   [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
   (let [cp-rc? (when require-from
                  (classpath-resource? require-from))]

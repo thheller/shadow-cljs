@@ -1,9 +1,12 @@
 (ns test.js-interop-test
   (:require
     [cljs.test :refer (deftest is)]
-    ["./cjs" :as cjs]
-    ["./es6" :as es6 :default es6-default]
-    ["./converted-esm" :as converted-esm :default converted-esm-default]
+    ["./cjs.js" :as cjs]
+    ["./es6.js" :as es6 :default es6-default]
+    ["./es6.js$default" :as es6-default-sugar]
+    ["./es6.js$nested.extra" :refer (bar)]
+    ["./es6.js$nested.extra.bar" :as bar-direct]
+    ["./converted-esm.js" :as converted-esm :default converted-esm-default]
     ))
 
 (comment
@@ -27,4 +30,7 @@
   (is (= es6/foo "es6/foo"))
   (is (map? es6/map))
   (is (= 1 (get es6/map "a")))
-  (is (= es6-default "es6-default")))
+  (is (= es6-default "es6-default"))
+  (is (identical? es6-default es6-default-sugar))
+  (is (identical? es6/nested.extra.bar bar))
+  (is (identical? bar bar-direct)))
