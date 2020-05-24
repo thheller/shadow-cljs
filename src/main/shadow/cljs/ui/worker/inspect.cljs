@@ -399,9 +399,8 @@
          :rid rid
          :input input}
         {:eval-result-ref [::inspect-eval-result! rid code]
-         :eval-compile-error [::inspect-eval-compile-error! rid code]
-         :eval-runtime-error [::inspect-eval-runtime-error! rid code]})
-
+         :eval-compile-error [::inspect-compile-error! rid code]
+         :eval-runtime-error [::inspect-runtime-error! rid code]})
       {})))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-result!
@@ -423,9 +422,8 @@
 (sw/reg-event-fx env/app-ref ::inspect-compile-error!
   []
   (fn [{:keys [db] :as env} rid code {:keys [report] :as msg}]
-    ;; FIXME: display in UI properly
-    (js/console.error report)
-    {}))
+    {:db (db/add db ::m/error {:error-id (random-uuid)
+                               :text report})}))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-runtime-error!
   []

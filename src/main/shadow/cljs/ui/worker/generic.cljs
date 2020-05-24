@@ -4,7 +4,8 @@
     [shadow.experiments.grove.worker :as sw]
     [shadow.experiments.grove.db :as db]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.worker.env :as env]))
+    [shadow.cljs.ui.worker.env :as env]
+    [shadow.experiments.grove.eql-query :as eql]))
 
 (sw/reg-event-fx env/app-ref ::m/init!
   []
@@ -31,6 +32,14 @@
               (db/merge-seq ::m/http-server http-servers [::m/http-servers])
               (db/merge-seq ::m/build build-configs [::m/builds]))]
       {:db merged})))
+
+(sw/reg-event-fx env/app-ref ::m/dismiss-error!
+  []
+  (fn [{:keys [db] :as env} err-ident]
+    {:db (dissoc db err-ident)}))
+
+(defmethod eql/attr ::m/errors [env db current query-part params]
+  (db/all-idents-of db ::m/error))
 
 (sw/reg-event-fx env/app-ref :ui/route!
   []

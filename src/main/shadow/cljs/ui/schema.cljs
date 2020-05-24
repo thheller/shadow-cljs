@@ -7,6 +7,12 @@
    {:type :entity
     :attrs {:rid [:primary-key number?]}}
 
+   ::m/error
+   {:type :entity
+    :attrs {:error-id [:primary-key any?]
+            ;; :text string?
+            }}
+
    ::m/object
    {:type :entity
     :attrs {:oid [:primary-key number?]

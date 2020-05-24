@@ -11,7 +11,34 @@
     [shadow.cljs.ui.components.builds :as builds]
     [shadow.cljs.ui.components.eval :as eval]
     [shadow.cljs.ui.components.db-explorer :as db-explorer]
-    ))
+    [clojure.string :as str]
+    [shadow.cljs.ui.components.common :as common]))
+
+(defc ui-error [err-ident]
+  [{:keys [text]}
+   (sg/query-ident err-ident
+     [:text])
+
+   ::m/dismiss-error! sg/tx]
+
+  (<< [:div.w-full.h-full.bg-white.shadow.border.flex.flex-col
+       [:div.flex
+        [:div.text-red-700.p-2.font-bold "An error occured:"]
+        [:div.flex-1]
+        [:div.text-right.cursor-pointer.font-bold.p-2
+         {:on-click [::m/dismiss-error! err-ident]}
+         common/svg-close]]
+       [:pre.overflow-auto.p-2.overflow-auto text]]))
+
+(defc ui-errors []
+  [{::m/keys [errors]} (sg/query-root [::m/errors])]
+
+  (when (seq errors)
+    (<< [:div.fixed.inset-0.z-50.w-full.h-full.flex.flex-col
+         {:style "background-color: rgba(0,0,0,0.4)"}
+         [:div.flex-1.p-8.overflow-hidden
+          (ui-error (first errors))
+          ]])))
 
 (defc ui-root* []
   [{::m/keys [current-page api-ws-connected] :as data}
@@ -71,17 +98,20 @@
            :db-explorer
            (db-explorer/ui-page (:ident current-page))
 
-           "Unknown Page"))]))
+           "Unknown Page"))]
+
+      ;; FIXME: portal this?
+      (ui-errors)))
 
 (defc ui-root []
   []
-  (sg/suspense
-    {:timeout 2000
-     :fallback
-     (<< [:div.inset-0.text-center.py-16
-          [:div.text-2xl.font-bold "shadow-cljs"]
-          [:div "Loading ..."]])}
-    (ui-root*)))
+  (<< (sg/suspense
+        {:timeout 2000
+         :fallback
+         (<< [:div.inset-0.text-center.py-16
+              [:div.text-2xl.font-bold "shadow-cljs"]
+              [:div "Loading ..."]])}
+        (ui-root*))))
 
 (defonce root-el (js/document.getElementById "root"))
 

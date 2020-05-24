@@ -4,7 +4,8 @@
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.ui.vlist :as vlist]
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
-    [shadow.cljs.model :as m]))
+    [shadow.cljs.model :as m]
+    [shadow.cljs.ui.components.common :as common]))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
@@ -112,15 +113,7 @@
   [object]
   (map-vlist {:ident (:db/ident object)}))
 
-(def svg-close
-  ;; https://github.com/sschoger/heroicons-ui/blob/master/svg/icon-x-square.svg
-  (<< [:svg
-       {:xmlns "http://www.w3.org/2000/svg"
-        :viewBox "0 0 24 24"
-        :width "24"
-        :height "24"}
-       [:path
-        {:d "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2zm0 2v14h14V5H5zm8.41 7l1.42 1.41a1 1 0 1 1-1.42 1.42L12 13.4l-1.41 1.42a1 1 0 1 1-1.42-1.42L10.6 12l-1.42-1.41a1 1 0 1 1 1.42-1.42L12 10.6l1.41-1.42a1 1 0 1 1 1.42 1.42L13.4 12z"}]]))
+
 
 (def css-button-selected "mx-2 border bg-blue-400 px-4 rounded")
 (def css-button "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded")
@@ -177,7 +170,7 @@
          [:div.flex-1] ;; fill up space
          [:div.text-right.cursor-pointer.font-bold.px-2
           {:on-click [::inspect-cancel!]}
-          svg-close]]
+          common/svg-close]]
 
         (case display-type
           :edn
