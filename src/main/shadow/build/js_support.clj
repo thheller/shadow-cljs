@@ -81,12 +81,6 @@
                  (ModuleNames/fileToModuleName (str prefix "$" suffix)))
             (symbol))
 
-        ;; FIXME: should this generate externs instead?
-        prop-access
-        (->> (str/split suffix #"\.")
-             (map #(str "[\"" % "\"]"))
-             (str/join ""))
-
         resource-name
         (str js-ns-alias ".js")]
 
@@ -109,7 +103,14 @@
          (str "goog.provide(\"" js-ns-alias "\");\n"
               (case type
                 :shadow-js
-                (str js-ns-alias " = " (npm/shadow-js-require rc false) prop-access ";\n")
+                (str js-ns-alias " = " (npm/shadow-js-require rc false)
+                     ;; (:require ["some$foo.bar"]) emitting require("some")["foo"]["bar"]
+                     ;; FIXME: should this generate externs instead?
+                     (->> (str/split suffix #"\.")
+                          (map #(str "[\"" % "\"]"))
+                          (str/join ""))
+                     ";\n")
 
-                (str js-ns-alias " = " ns prop-access ";\n"))
+                ;; plain suffix for sources going through :advanced
+                (str js-ns-alias " = " ns "." suffix ";\n"))
               )))}))
