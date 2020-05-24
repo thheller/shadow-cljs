@@ -111,6 +111,5 @@
                 :shadow-js
                 (str js-ns-alias " = " (npm/shadow-js-require rc false) prop-access ";\n")
 
-                (str "goog.require(\"" ns "\");"
-                     js-ns-alias " = " ns prop-access ";\n"))
+                (str js-ns-alias " = " ns prop-access ";\n"))
               )))}))
