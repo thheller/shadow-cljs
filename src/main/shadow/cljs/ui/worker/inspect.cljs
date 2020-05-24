@@ -5,7 +5,8 @@
     [shadow.experiments.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
-    [shadow.cljs.ui.worker.tool-ws :as tool-ws]))
+    [shadow.cljs.ui.worker.tool-ws :as tool-ws]
+    [clojure.string :as str]))
 
 (defn without [v item]
   (into [] (remove #{item}) v))
@@ -379,31 +380,60 @@
             (contains? supported-ops :eval-cljs)
             [:eval-cljs 'cljs.user])
 
-          wrap
-          (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
-               "      $o (:obj $ref)\n"
-               "      $d (-> $ref :desc :data)]\n"
-               "?CODE?\n"
-               "\n)")]
+          input
+          (-> {:ns ns
+               :code code}
+              (cond->
+                (or (str/includes? code "$o")
+                    (str/includes? code "$d"))
+                (assoc :wrap
+                       (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
+                            "      $o (:obj $ref)\n"
+                            "      $d (-> $ref :desc :data)]\n"
+                            "?CODE?\n"
+                            "\n)"))))]
 
       ;; FIXME: fx-ify
       (tool-ws/call! env
         {:op eval-mode
          :rid rid
-         :ns ns
-         :code code
-         :wrap wrap}
-        {:eval-result-ref [::inspect-code-result! code rid]})
+         :input input}
+        {:eval-result-ref [::inspect-eval-result! rid code]
+         :eval-compile-error [::inspect-eval-compile-error! rid code]
+         :eval-runtime-error [::inspect-eval-runtime-error! rid code]})
 
       {})))
 
-(sw/reg-event-fx env/app-ref ::inspect-code-result!
+(sw/reg-event-fx env/app-ref ::inspect-eval-result!
   []
-  (fn [{:keys [db] :as env} code rid {:keys [ref-oid] :as msg}]
+  (fn [{:keys [db] :as env} rid code {:keys [ref-oid warnings] :as msg}]
+    (when (seq warnings)
+      (doseq [w warnings]
+        (js/console.warn "FIXME: warning not yet displayed in UI" w)))
     (let [object-ident (db/make-ident ::m/object ref-oid)]
       {:db
        (-> db
            (assoc object-ident {:db/ident object-ident :oid ref-oid :rid rid})
+           (assoc-in [::m/inspect :object] object-ident)
+           (update-in [::m/inspect :nav-stack] conj
+             {:idx (count (get-in db [::m/inspect :nav-stack]))
+              :code code
+              :ident (get-in db [::m/inspect :object])}))})))
+
+(sw/reg-event-fx env/app-ref ::inspect-compile-error!
+  []
+  (fn [{:keys [db] :as env} rid code {:keys [report] :as msg}]
+    ;; FIXME: display in UI properly
+    (js/console.error report)
+    {}))
+
+(sw/reg-event-fx env/app-ref ::inspect-eval-runtime-error!
+  []
+  (fn [{:keys [db] :as env} rid code {:keys [ex-oid] :as msg}]
+    (let [object-ident (db/make-ident ::m/object ex-oid)]
+      {:db
+       (-> db
+           (assoc object-ident {:db/ident object-ident :oid ex-oid :rid rid :is-error true})
            (assoc-in [::m/inspect :object] object-ident)
            (update-in [::m/inspect :nav-stack] conj
              {:idx (count (get-in db [::m/inspect :nav-stack]))

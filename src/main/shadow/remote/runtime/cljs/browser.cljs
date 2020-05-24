@@ -3,6 +3,7 @@
     [cognitect.transit :as transit]
     ;; this will eventually replace shadow.cljs.devtools.client completely
     [shadow.cljs.devtools.client.env :as env]
+    [shadow.cljs.devtools.client.browser :as browser]
     [goog.net.XhrIo :as xhr]
     [shadow.remote.runtime.api :as api]
     [shadow.remote.runtime.shared :as shared]
@@ -11,7 +12,7 @@
     [shadow.remote.runtime.tap-support :as tap-support]
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.eval-support :as eval-support]
-    ))
+    [cljs.reader :as reader]))
 
 (defn transit-read [data]
   (let [t (transit/reader :json)]
@@ -21,33 +22,67 @@
   (let [w (transit/writer :json)]
     (transit/write w obj)))
 
+(defn into-vec [x y]
+  (if (nil? x)
+    (vec y)
+    (into x y)))
+
 (declare interpret-actions)
+
+(defn continue! [state]
+  (interpret-actions state))
 
 (defn abort! [{:keys [callback] :as state} action ex]
   (-> state
-      (assoc :failed true
-             :completed false
+      (assoc :result :runtime-error
              :ex ex
              :ex-action action)
+      (dissoc :runtime :callback)
       (callback)))
 
 (defn interpret-action [{:keys [^BrowserRuntime runtime] :as state} {:keys [type] :as action}]
   (case type
+    :repl/set-ns
+    (-> state
+        (assoc :ns (:ns action))
+        (continue!))
+
+    :repl/require
+    (let [{:keys [warnings internal]} action]
+      (.do-repl-require runtime action
+        (fn [sources]
+          (-> state
+              (update :loaded-sources into sources)
+              (update :warnings into warnings)
+              (cond->
+                (not internal)
+                (update :results conj nil))
+              (continue!)))
+        (fn [ex]
+          (abort! state action ex))))
+
     :repl/invoke
     (let [{:keys [js]} action]
       (try
-        (let [res (.eval-js runtime js)]
+        (let [res (renv/eval-js runtime js)]
           (-> state
-              (update :eval-results conj {:value res :action action})
-              (interpret-actions)))
+              (update :results conj res)
+              (continue!)))
         (catch :default ex
-          (abort! state action ex))))))
+          (abort! state action ex))))
 
-(defn interpret-actions [{:keys [actions] :as state}]
-  (if (empty? actions)
-    ((:callback state) state)
-    (let [{:keys [type] :as action} (first actions)
-          state (update state :actions rest)]
+    ;; did I forget any?
+    (throw (ex-info "unhandled repl action" {:state state :action action}))))
+
+(defn interpret-actions [{:keys [queue] :as state}]
+  (if (empty? queue)
+    (let [{:keys [callback]} state]
+      (-> state
+          (dissoc :runtime :callback :queue)
+          (callback)))
+
+    (let [action (first queue)
+          state (update state :queue rest)]
       (interpret-action state action))))
 
 (defrecord BrowserRuntime [ws state-ref]
@@ -59,12 +94,13 @@
   (del-extension [runtime key]
     (shared/del-extension runtime key))
 
-  Object
-  (eval-js [this code]
+  renv/IEvalJS
+  (-eval-js [this code]
     (js* "(0,eval)(~{})" code))
 
-  (eval-cljs [this msg callback]
-    ;; FIXME: define that msg is supposed to look like
+  renv/IEvalCLJS
+  (-eval-cljs [this input callback]
+    ;; FIXME: define what input is supposed to look like
     ;; {:code "(some-cljs)" :ns foo.bar}
     ;; FIXME: transit?
     (xhr/send
@@ -74,17 +110,50 @@
           (let [{:keys [type] :as result}
                 (transit-read (.getResponseText req))]
 
-            (if-not (= :repl/actions type)
-              (callback {:failed true :result result})
-              (interpret-actions {:runtime this
-                                  :callback callback
-                                  :input msg
-                                  :actions (:actions result)
-                                  :eval-results []
-                                  :errors []})))))
+            (case type
+              ;; compile failed
+              :repl/error
+              (callback
+                {:result :compile-error
+                 :report (:report result)})
+
+              :repl/actions
+              (interpret-actions
+                {:runtime this
+                 :callback callback
+                 :input input
+                 :actions (:actions result)
+                 :queue (:actions result)
+                 :ns (:ns input)
+                 :result :ok
+                 :results []
+                 :warnings []
+                 :loaded-sources []})
+
+              (js/console.error "Unhandled compiled result" result)))))
       "POST"
-      (transit-str msg)
-      #js {"content-type" "application/transit+json; charset=utf-8"})))
+      (transit-str input)
+      #js {"content-type" "application/transit+json; charset=utf-8"}))
+
+  Object
+  (do-repl-require [this {:keys [sources reload-namespaces js-requires] :as msg} done error]
+    (let [sources-to-load
+          (->> sources
+               (remove (fn [{:keys [provides] :as src}]
+                         (and (env/src-is-loaded? src)
+                              (not (some reload-namespaces provides)))))
+               (into []))]
+
+      (browser/load-sources
+        sources-to-load
+        (fn [sources]
+          (try
+            (browser/do-js-load sources)
+            (when (seq js-requires)
+              (browser/do-js-requires js-requires))
+            (done sources-to-load)
+            (catch :default ex
+              (error ex))))))))
 
 (defn start []
   (if-some [{:keys [stop]} @renv/runtime-ref]

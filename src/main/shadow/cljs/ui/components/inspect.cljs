@@ -140,7 +140,8 @@
        [{:object
          [:db/ident
           :oid
-          :summary]}
+          :summary
+          :is-error]}
         :nav-stack
         :display-type]}])
 
@@ -155,7 +156,7 @@
      (sg/run-tx env [::m/inspect-code-eval! code]))]
 
   (let [{:keys [object nav-stack display-type]} inspect
-        {:keys [summary]} object
+        {:keys [summary is-error]} object
         {:keys [obj-type entries]} summary]
 
     (<< (when (seq nav-stack)
@@ -166,7 +167,9 @@
                         {:on-click [::inspect-nav-jump! idx]}
                         (str "<< " (or code (and key (second key)) idx))])))]))
 
-        [:div {:class "flex bg-white py-1 px-2 font-mono border-b-2 text-l"}
+        [:div {:class (if is-error
+                        "flex bg-white py-1 px-2 font-mono border-b-2 text-l text-red-700"
+                        "flex bg-white py-1 px-2 font-mono border-b-2 text-l")}
          [:div {:class "px-2 font-bold"} obj-type]
          (when entries
            (<< [:div {:class "px-2 font-bold"} (str entries " Entries")]))

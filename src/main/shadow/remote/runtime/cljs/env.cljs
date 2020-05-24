@@ -32,8 +32,6 @@
 
 (defn init-runtime! [env]
   (reset! runtime-ref env)
-
-
   (when (seq @extensions-ref)
     (start-all-extensions!)))
 
@@ -50,3 +48,32 @@
 
   (when @runtime-ref
     (start-all-extensions!)))
+
+(defprotocol IEvalCLJS
+  (-eval-cljs [runtime input callback]))
+
+(defprotocol IEvalJS
+  (-eval-js [runtime code]))
+
+;; USER API
+
+(defn eval-cljs
+  ([input callback]
+   (let [{:keys [runtime]} @runtime-ref]
+     (if-not runtime
+       (callback {:result :runtime-not-active})
+       (eval-cljs runtime input callback))))
+  ([^IEvalCLJS runtime {:keys [code ns] :as input} callback]
+   {:pre [(string? code)
+          (simple-symbol? ns)]}
+   (-eval-cljs runtime input callback)))
+
+(defn eval-js
+  ([code]
+   (let [{:keys [runtime]} @runtime-ref]
+     (if-not runtime
+       (throw (ex-info "runtime not ready yet!" {}))
+       (eval-js runtime code))))
+  ([^IEvalJS runtime code]
+   {:pre [(string? code)]}
+   (-eval-js runtime code)))

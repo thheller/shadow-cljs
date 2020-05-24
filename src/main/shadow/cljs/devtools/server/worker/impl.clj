@@ -53,10 +53,10 @@
 (defn repl-sources-as-client-resources
   "transforms a seq of resource-ids to return more info about the resource
    a REPL client needs to know more since resource-ids are not available at runtime"
-  [source-ids state]
+  [source-ids build-state]
   (->> source-ids
        (map (fn [src-id]
-              (let [src (get-in state [:sources src-id])]
+              (let [src (get-in build-state [:sources src-id])]
                 (select-keys src [:resource-id
                                   :type
                                   :resource-name
@@ -67,15 +67,15 @@
        (into [])))
 
 (defmulti transform-repl-action
-  (fn [state action]
+  (fn [build-state action]
     (:type action))
   :default ::default)
 
-(defmethod transform-repl-action ::default [state action]
+(defmethod transform-repl-action ::default [build-state action]
   action)
 
-(defmethod transform-repl-action :repl/require [state action]
-  (update action :sources repl-sources-as-client-resources state))
+(defmethod transform-repl-action :repl/require [build-state action]
+  (update action :sources repl-sources-as-client-resources build-state))
 
 (defn >!!output [{:keys [system-bus build-id] :as worker-state} msg]
   {:pre [(map? msg)
@@ -817,7 +817,8 @@
           (repl/process-input build-state code input)
 
           new-actions
-          (subvec (:repl-actions repl-state) start-idx)]
+          (->> (subvec (:repl-actions repl-state) start-idx)
+               (mapv #(transform-repl-action build-state %)))]
 
       (>!! result-chan {:type :repl/actions
                         :actions new-actions})
@@ -827,7 +828,9 @@
     (catch Exception e
       (log/warn-ex e ::repl-compile-ex {:input input})
 
-      (>!! result-chan {:type :repl/error :e e})
+      (>!! result-chan {:type :repl/error
+                        :report (binding [warnings/*color* false]
+                                  (errors/error-format e))})
       worker-state)))
 
 (defn do-repl-rpc

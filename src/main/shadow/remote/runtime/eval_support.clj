@@ -26,33 +26,35 @@
 
 (defn eval-clj
   [{:keys [runtime obj-support]}
-   {:keys [code ns wrap]
-    :or {ns 'user}
-    :as msg}]
+   {:keys [input] :as msg}]
 
-  (binding [*ns* (find-ns ns)
-            get-ref #(get-ref* obj-support %)]
-    (try
-      (let [val
-            (cond-> (read-string code)
-              wrap
-              (apply-wrap (read-string wrap)))
+  (let [{:keys [code ns wrap]
+         :or {ns 'user}}
+        input]
+    (binding [*ns* (find-ns ns)
+              get-ref #(get-ref* obj-support %)]
+      (try
+        (let [val
+              (cond-> (read-string code)
+                wrap
+                (apply-wrap (read-string wrap)))
 
-            res
-            (eval val)
+              res
+              (eval val)
 
-            ref-oid
-            (obj-support/register obj-support res {:code code
-                                                   :ns ns})]
+              ref-oid
+              (obj-support/register obj-support res {:code code
+                                                     :ns ns})]
 
-        (p/reply runtime msg
-          {:op :eval-result-ref
-           :ref-oid ref-oid}))
+          (p/reply runtime msg
+            {:op :eval-result-ref
+             :ref-oid ref-oid}))
 
-      (catch Exception e
-        (p/reply runtime msg
-          {:op :eval-error
-           :e (d/datafy e)})))))
+        (catch Exception e
+          (let [ex-oid (obj-support/register obj-support e {:input input})]
+            (p/reply runtime msg
+              {:op :eval-runtime-error
+               :ex-oid ex-oid})))))))
 
 (defn start [runtime obj-support]
   (let [svc

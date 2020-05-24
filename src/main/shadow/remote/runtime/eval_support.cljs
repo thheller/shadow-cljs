@@ -1,7 +1,8 @@
 (ns shadow.remote.runtime.eval-support
   (:require
     [shadow.remote.runtime.api :as p]
-    [shadow.remote.runtime.obj-support :as obj-support]))
+    [shadow.remote.runtime.obj-support :as obj-support]
+    [shadow.remote.runtime.cljs.env :as renv]))
 
 (def ^:dynamic obj-support-inst nil)
 
@@ -11,31 +12,52 @@
   (obj-support/get-ref obj-support-inst oid))
 
 (defn eval-cljs
-  [{:keys [^Runtime runtime obj-support] :as svc} msg]
+  [{:keys [^Runtime runtime obj-support] :as svc} {:keys [input] :as msg}]
   ;; can't use binding because this has to go async
+  ;; required for $o in the UI to work, would be good to have a cleaner API for this
   (set! obj-support-inst obj-support)
-  (.eval-cljs runtime msg
-    ;; FIXME: do we allow multiple actions per msg?
+  (renv/eval-cljs runtime input
     ;; {:code "1 2 3"} would trigger 3 results
-    (fn [{:keys [eval-results] :as result}]
+    (fn [{:keys [result] :as info}]
       (set! obj-support-inst nil) ;; cleanup
-      (js/console.log "eval-cljs result" result)
-      (doseq [{:keys [value]} eval-results]
-        (if (nil? value)
+
+      ;; (js/console.log "eval-cljs" info msg)
+
+      (case result
+        :compile-error
+        (let [{:keys [report]} info]
           (p/reply runtime msg
-            {:op :eval-result
-             :result nil})
-          (let [ref-oid (obj-support/register obj-support value {:msg msg})]
+            {:op :eval-compile-error
+             :report report}))
+
+        :runtime-error
+        (let [{:keys [ex]} info
+              ex-oid (obj-support/register obj-support ex {:msg input})]
+          (p/reply runtime msg
+            {:op :eval-runtime-error
+             :ex-oid ex-oid}))
+
+        :ok
+        (let [{:keys [results warnings]} info
+              val
+              (if (= 1 (count results))
+                (first results)
+                results)]
+          ;; pretending to be one result always
+          ;; don't want to send multiple results in case code contained multiple forms
+          (let [ref-oid (obj-support/register obj-support val {:msg input})]
             (p/reply runtime msg
               {:op :eval-result-ref
-               :ref-oid ref-oid})))))))
+               :ref-oid ref-oid
+               :warnings warnings})))
+
+        (js/console.error "Unhandled eval-cljs result" info)))))
 
 (defn eval-js
   [{:keys [^Runtime runtime obj-support] :as svc} {:keys [code] :as msg}]
 
   (try
-    ;; FIXME: protocol-ize? eval semantics are different in node/browser
-    (let [res (.eval-js runtime code)
+    (let [res (renv/eval-js runtime code)
           ref-oid (obj-support/register obj-support res {:js-code code})]
 
       (p/reply runtime msg
