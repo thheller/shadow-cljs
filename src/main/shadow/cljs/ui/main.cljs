@@ -51,7 +51,7 @@
    nav-items
    [{:pages #{:dashboard} :label "Dashboard" :path "/dashboard"}
     {:pages #{:builds :build} :label "Builds" :path "/builds"}
-    {:pages #{:repl} :label "Runtimes" :path "/runtimes"}
+    {:pages #{:runtimes} :label "Runtimes" :path "/runtimes"}
     {:pages #{:inspect} :label "Inspect" :path "/inspect"}]
 
    nav-selected
