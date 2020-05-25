@@ -38,14 +38,19 @@
   ;; codemirror doesn't render correctly if added to an element
   ;; that isn't actually in the dcoument, so we delay construction until actually entered
   (dom-entered! [this]
-    (let [cm-opts
+    (let [{:keys [value cm-opts]}
+          opts
+
+          cm-opts
           (js/Object.assign
             #js {:lineNumbers true
                  :mode "clojure"
                  :theme "github"
                  :autofocus true
                  :matchBrackets true}
-            (get opts :cm-opts #js {}))
+            (or cm-opts #js {})
+            (when (seq value)
+              #js {:value value}))
 
           ed
           (cm.

@@ -27,7 +27,11 @@
        {:on-click [::copy-to-clipboard val]
         :disabled (not= :ready loading-state)}
        "COPY"]
-    (codemirror {:value val :cm-opts #js {:readOnly true}})))
+    (if (= :ready loading-state)
+      (codemirror {:value val :cm-opts #js {:readOnly true}})
+      ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
+      (<< [:div.w-full.h-full.font-mono.border-t.p-4
+           "Loading ..."]))))
 
 (defmulti render-view
   (fn [data]
