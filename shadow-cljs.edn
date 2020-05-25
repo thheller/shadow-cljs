@@ -382,7 +382,8 @@
    :devtools
    {:before-load-async demo.script/stop
     :after-load demo.script/start
-    :preloads [demo.preload]}}
+    :preloads [demo.preload
+               shadow.remote.runtime.cljs.node]}}
 
   :bootstrap-script-host
   {:target :node-script

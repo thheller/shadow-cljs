@@ -31,6 +31,8 @@
   (js/console.log "starting server")
   (let [server (http/createServer #(request-handler %1 %2))]
 
+    (tap> [:hello-world js/process.env])
+
     (.listen server 3000
       (fn [err]
         (if err
