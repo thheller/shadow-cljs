@@ -28,7 +28,7 @@
         :disabled (not= :ready loading-state)}
        "COPY"]
     (if (= :ready loading-state)
-      (codemirror {:value val :cm-opts #js {:readOnly true}})
+      (codemirror {:value val :cm-opts #js {:readOnly true :autofocus false}})
       ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
       (<< [:div.w-full.h-full.font-mono.border-t.p-4
            "Loading ..."]))))
