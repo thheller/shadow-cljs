@@ -3,6 +3,7 @@
     [shadow.experiments.arborist :as sa]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.history :as history]
+    [shadow.experiments.grove.keyboard :as keyboard]
     [shadow.experiments.grove.worker-engine :as worker-eng]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.inspect :as inspect]
@@ -18,6 +19,12 @@
   [{:keys [text]}
    (sg/query-ident err-ident
      [:text])
+
+   _
+   (keyboard/listen
+     {"escape"
+      (fn [env e]
+        (sg/run-tx env [::m/dismiss-error! err-ident]))})
 
    ::m/dismiss-error! sg/tx]
 
@@ -122,6 +129,7 @@
   (sg/init ::ui
     {}
     [(worker-eng/init js/SHADOW_WORKER)
-     (history/init)])
+     (history/init)
+     (keyboard/init)])
 
   (js/setTimeout start 0))

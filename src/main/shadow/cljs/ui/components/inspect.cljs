@@ -5,7 +5,8 @@
     [shadow.experiments.grove.ui.vlist :as vlist]
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.components.common :as common]))
+    [shadow.cljs.ui.components.common :as common]
+    [shadow.experiments.grove.keyboard :as keyboard]))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
@@ -146,7 +147,13 @@
 
    code-submit!
    (fn [env code]
-     (sg/run-tx env [::m/inspect-code-eval! code]))]
+     (sg/run-tx env [::m/inspect-code-eval! code]))
+
+   _
+   (keyboard/listen
+     {"escape"
+      (fn [env e]
+        (sg/run-tx env [::m/inspect-cancel!]))})]
 
   (let [{:keys [object nav-stack display-type]} inspect
         {:keys [summary is-error]} object
