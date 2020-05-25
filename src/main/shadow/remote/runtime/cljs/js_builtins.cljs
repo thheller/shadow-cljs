@@ -26,4 +26,27 @@
 
   array
   (datafy [o]
-    (vec o)))
+    (vec o))
+
+  js/Error
+  (datafy [e]
+    (let [data (ex-data e)
+          file (.-fileName e)
+          line (.-lineNumber e)
+          column (.-columnNumber e)]
+      (-> {:message (.-message e)
+           :name (.-name e)
+           :stack (.-stack e)}
+          (cond->
+            (some? data)
+            (assoc :data data)
+
+            file
+            (assoc :file file)
+
+            line
+            (assoc :line line)
+
+            column
+            (assoc :column column)
+            )))))

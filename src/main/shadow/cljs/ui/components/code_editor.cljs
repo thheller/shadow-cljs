@@ -38,17 +38,19 @@
   ;; codemirror doesn't render correctly if added to an element
   ;; that isn't actually in the dcoument, so we delay construction until actually entered
   (dom-entered! [this]
-    (let [{:keys [value cm-opts]}
+    (let [{:keys [value cm-opts clojure]}
           opts
 
+          ;; FIXME: this config stuff needs to be cleaned up, this is horrible
           cm-opts
           (js/Object.assign
             #js {:lineNumbers true
-                 :mode "clojure"
                  :theme "github"
-                 :autofocus true
-                 :matchBrackets true}
+                 :autofocus true}
             (or cm-opts #js {})
+            (when-not (false? clojure)
+              #js {:mode "clojure"
+                   :matchBrackets true})
             (when (seq value)
               #js {:value value}))
 
@@ -70,11 +72,13 @@
 
       (set! editor ed)
 
-      (.setOption ed "extraKeys"
-        #js {"Ctrl-Enter" submit-fn
-             "Shift-Enter" submit-fn})
+      (when (:on-submit opts)
+        (.setOption ed "extraKeys"
+          #js {"Ctrl-Enter" submit-fn
+               "Shift-Enter" submit-fn}))
 
-      (par-cm/init ed)))
+      (when-not (false? clojure)
+        (par-cm/init ed))))
 
   (destroy! [this]
     (when editor-el

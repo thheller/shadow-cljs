@@ -28,7 +28,9 @@
         :disabled (not= :ready loading-state)}
        "COPY"]
     (if (= :ready loading-state)
-      (codemirror {:value val :cm-opts #js {:readOnly true :autofocus false}})
+      (codemirror {:value val
+                   :clojure (not= attr ::m/object-as-str)
+                   :cm-opts #js {:autofocus false}})
       ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
       (<< [:div.w-full.h-full.font-mono.border-t.p-4
            "Loading ..."]))))
@@ -51,7 +53,7 @@
         [:pre.border.p-4 (str value)]]]))
 
 (defmethod render-view :string [object]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn))
+  (ui-object-as-text (:db/ident object) ::m/object-as-str))
 
 (defmethod render-view :number [object]
   (ui-object-as-text (:db/ident object) ::m/object-as-edn))

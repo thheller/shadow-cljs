@@ -167,10 +167,33 @@
            :obj-result [:edn-result (:db/ident current)]})
         :db/loading)))
 
+(defmethod eql/attr ::m/object-as-str [env db {:keys [oid rid str] :as current} query-part params]
+  (cond
+    str
+    str
+
+    (or (not oid) (not rid))
+    (throw (ex-info "can only request edn on objects" {:current current}))
+
+    :hack
+    (do (tool-ws/call! env
+          {:op :obj-request
+           :rid rid
+           :oid oid
+           :request-op :str}
+          {:obj-request-failed [:edn-failed (:db/ident current)]
+           :obj-result [:str-result (:db/ident current)]})
+        :db/loading)))
+
 (sw/reg-event-fx env/app-ref :edn-result
   []
   (fn [{:keys [db]} ident {:keys [result]}]
     {:db (assoc-in db [ident :edn] result)}))
+
+(sw/reg-event-fx env/app-ref :str-result
+  []
+  (fn [{:keys [db]} ident {:keys [result]}]
+    {:db (assoc-in db [ident :str] result)}))
 
 (defmethod eql/attr ::m/object-as-pprint [env db {:keys [oid rid pprint] :as current} query-part params]
   (cond
@@ -399,8 +422,8 @@
          :rid rid
          :input input}
         {:eval-result-ref [::inspect-eval-result! rid code]
-         :eval-compile-error [::inspect-compile-error! rid code]
-         :eval-runtime-error [::inspect-runtime-error! rid code]})
+         :eval-compile-error [::inspect-eval-compile-error! rid code]
+         :eval-runtime-error [::inspect-eval-runtime-error! rid code]})
       {})))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-result!
@@ -419,7 +442,7 @@
               :code code
               :ident (get-in db [::m/inspect :object])}))})))
 
-(sw/reg-event-fx env/app-ref ::inspect-compile-error!
+(sw/reg-event-fx env/app-ref ::inspect-eval-compile-error!
   []
   (fn [{:keys [db] :as env} rid code {:keys [report] :as msg}]
     {:db (db/add db ::m/error {:error-id (random-uuid)

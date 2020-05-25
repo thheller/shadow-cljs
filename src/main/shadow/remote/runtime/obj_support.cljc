@@ -78,6 +78,11 @@
   [data {:keys [limit] :as msg}]
   (lw/pr-str-limit data limit))
 
+;; FIXME: should likely support limit options
+(defn as-str
+  [data msg]
+  (str data))
+
 (defn attempt-to-sort [desc coll]
   (try
     (-> desc
@@ -258,6 +263,7 @@
          :handlers
          {:edn-limit #(as-edn-limit data %)
           :edn #(as-edn data %)
+          :str #(as-str data %)
           :pprint #(as-pprint data %)}}
 
         (inspect-basic o opts)
