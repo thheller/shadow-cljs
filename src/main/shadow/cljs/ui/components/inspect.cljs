@@ -27,11 +27,7 @@
        {:on-click [::copy-to-clipboard val]
         :disabled (not= :ready loading-state)}
        "COPY"]
-    (<< [:textarea.w-full.h-full.font-mono.border-t.p-4
-         {:readOnly true}
-         (if (= :ready loading-state)
-           val
-           "Loading ...")])))
+    (codemirror {:value val :cm-opts #js {:readOnly true}})))
 
 (defmulti render-view
   (fn [data]
