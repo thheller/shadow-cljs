@@ -94,3 +94,6 @@
           (js/console.warn "tap-socket error" e)
           (common/stop-runtime!))))))
 
+;; want things to start when this ns is in :preloads
+(when (pos? env/worker-rid)
+  (start))
