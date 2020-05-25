@@ -106,6 +106,7 @@
 
 (defn guess-node-package-manager [config]
   (or (get-in config [:node-modules :managed-by])
+      (get-in config [:npm-deps :managed-by])
       (let [yarn-lock (io/file "yarn.lock")]
         (when (.exists yarn-lock)
           :yarn))
@@ -132,8 +133,15 @@
         (for [{:keys [id version]} deps]
           (str id "@" version))
 
+        install-dir
+        (get-in config [:npm-deps :install-dir] ".")
+
+        install-package-json
+        (io/file install-dir "package.json")
+
         install-cmd
         (or (get-in config [:node-modules :install-cmd])
+            (get-in config [:npm-deps :install-cmd])
             (case (guess-node-package-manager config)
               :yarn
               ["yarn" "add" "--exact"]
@@ -149,11 +157,15 @@
           (into ["cmd" "/C"] full-cmd)
           full-cmd)
 
+        _ (when-not (.exist install-package-json)
+            (io/make-parents install-package-json)
+            (spit install-package-json "{}"))
+
         _ (println (str "running: " (str/join " " full-cmd)))
 
         proc
         (-> (ProcessBuilder. (into-array full-cmd))
-            (.directory nil)
+            (.directory (io/file install-dir))
             (.start))]
 
     (-> (.getOutputStream proc)
@@ -191,8 +203,8 @@
             :url url}))
     ))
 
-(defn read-package-json []
-  (let [package-json-file (io/file "package.json")]
+(defn read-package-json [install-dir]
+  (let [package-json-file (io/file install-dir "package.json")]
     (if-not (.exists package-json-file)
       {}
       (-> (slurp package-json-file)
@@ -213,15 +225,19 @@
                 url)))
           true))))
 
-(defn main [config opts]
-  (let [package-json
-        (read-package-json)
+(defn main [{:keys [npm-deps] :as config} opts]
+  (when-not (false? (:install npm-deps))
+    (let [{:keys [install-dir] :or {install-dir "."}}
+          npm-deps
 
-        deps
-        (->> (get-deps-from-classpath)
-             (resolve-conflicts)
-             (remove #(is-installed? % package-json)))]
+          package-json
+          (read-package-json install-dir)
 
-    (when (seq deps)
-      (install-deps config deps)
-      )))
+          deps
+          (->> (get-deps-from-classpath)
+               (resolve-conflicts)
+               (remove #(is-installed? % package-json)))]
+
+      (when (seq deps)
+        (install-deps config deps)
+        ))))

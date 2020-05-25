@@ -21,6 +21,8 @@
  :nrepl {:port 8202 :middleware []}
  :socket-repl {:port 8204}
 
+ :npm-deps {:install false}
+
  :source-paths
  ["src/dev"
   "src/main"
