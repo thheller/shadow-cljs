@@ -25,7 +25,8 @@
            [io.undertow.server.handlers.proxy LoadBalancingProxyClient ProxyHandler]
            [java.net URI]
            [io.undertow.protocols.ssl UndertowXnioSsl]
-           [org.xnio.ssl XnioSsl]))
+           [org.xnio.ssl XnioSsl]
+           [io.undertow.websockets.extensions PerMessageDeflateHandshake]))
 
 (defn ring* [handler-fn]
   (reify
@@ -294,58 +295,61 @@
 
   (let [{:keys [handler-fn]} props
 
+        ws-callback
+        (reify
+          WebSocketConnectionCallback
+          (onConnect [_ exchange channel]
+            (let [ws-in (.getAttachment exchange WS-IN)
+                  ws-out (.getAttachment exchange WS-OUT)
+                  ws-loop (.getAttachment exchange WS-LOOP)
+
+                  handler-fn
+                  (fn [channel msg]
+                    (if-not (some? msg)
+                      (async/close! ws-in)
+                      (async/put! ws-in msg)))
+
+                  close-task
+                  (reify ChannelListener
+                    (handleEvent [this ignored-event]
+                      (async/close! ws-in)
+                      (async/close! ws-out)))]
+
+              (.. channel (addCloseTask close-task))
+              (.. channel (getReceiveSetter) (set (WsTextReceiver. handler-fn)))
+              (.. channel (resumeReceives))
+
+              (go (loop []
+                    ;; try to send remaining messages before disconnect
+                    ;; if loop closes after putting something on ws-out
+                    (alt! :priority true
+                      ws-out
+                      ([msg]
+                       (if (nil? msg)
+                         ;; when out closes, also close in
+                         (async/close! ws-in)
+                         ;; try to send message, close everything if that fails
+                         (do (try
+                               (WebSockets/sendTextBlocking msg channel)
+                               ;; just ignore sending to a closed channel
+                               (catch ClosedChannelException e
+                                 (async/close! ws-in)
+                                 (async/close! ws-out)))
+                             (recur))))
+
+                      ws-loop
+                      ([_] :closed)))
+
+                  (.close exchange)
+
+                  ;; probably already closed, just in case
+                  (async/close! ws-out)
+                  (async/close! ws-in)
+                  ))))
+
         ws-handler
-        (Handlers/websocket
-          (reify
-            WebSocketConnectionCallback
-            (onConnect [_ exchange channel]
-              (let [ws-in (.getAttachment exchange WS-IN)
-                    ws-out (.getAttachment exchange WS-OUT)
-                    ws-loop (.getAttachment exchange WS-LOOP)
-
-                    handler-fn
-                    (fn [channel msg]
-                      (if-not (some? msg)
-                        (async/close! ws-in)
-                        (async/put! ws-in msg)))
-
-                    close-task
-                    (reify ChannelListener
-                      (handleEvent [this ignored-event]
-                        (async/close! ws-in)
-                        (async/close! ws-out)))]
-
-                (.. channel (addCloseTask close-task))
-                (.. channel (getReceiveSetter) (set (WsTextReceiver. handler-fn)))
-                (.. channel (resumeReceives))
-
-                (go (loop []
-                      ;; try to send remaining messages before disconnect
-                      ;; if loop closes after putting something on ws-out
-                      (alt! :priority true
-                        ws-out
-                        ([msg]
-                          (if (nil? msg)
-                            ;; when out closes, also close in
-                            (async/close! ws-in)
-                            ;; try to send message, close everything if that fails
-                            (do (try
-                                  (WebSockets/sendTextBlocking msg channel)
-                                  ;; just ignore sending to a closed channel
-                                  (catch ClosedChannelException e
-                                    (async/close! ws-in)
-                                    (async/close! ws-out)))
-                                (recur))))
-
-                        ws-loop
-                        ([_] :closed)))
-
-                    (.close exchange)
-
-                    ;; probably already closed, just in case
-                    (async/close! ws-out)
-                    (async/close! ws-in)
-                    )))))
+        (-> (Handlers/websocket ws-callback)
+            (.addExtension (PerMessageDeflateHandshake. true 6)))
 
         handler
         (ring*
