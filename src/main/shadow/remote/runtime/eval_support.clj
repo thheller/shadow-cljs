@@ -4,6 +4,7 @@
     [clojure.walk :as walk]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.remote.runtime.api :as p]
+    [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.obj-support :as obj-support]
     ))
 
@@ -46,13 +47,13 @@
               (obj-support/register obj-support res {:code code
                                                      :ns ns})]
 
-          (p/reply runtime msg
+          (shared/reply runtime msg
             {:op :eval-result-ref
              :ref-oid ref-oid}))
 
         (catch Exception e
           (let [ex-oid (obj-support/register obj-support e {:input input})]
-            (p/reply runtime msg
+            (shared/reply runtime msg
               {:op :eval-runtime-error
                :ex-oid ex-oid})))))))
 

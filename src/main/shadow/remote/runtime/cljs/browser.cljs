@@ -82,8 +82,12 @@
 
 (defrecord BrowserRuntime [ws state-ref]
   api/IRuntime
-  (relay-msg [runtime msg]
-    (.send ws (transit-str msg)))
+  (relay-msg [this msg]
+    (let [s (try
+              (transit-str msg)
+              (catch :default e
+                (throw (ex-info "failed to encode relay msg" {:msg msg}))))]
+      (.send ws s)))
   (add-extension [runtime key spec]
     (shared/add-extension runtime key spec))
   (del-extension [runtime key]
@@ -97,38 +101,30 @@
   (-eval-cljs [this input callback]
     ;; FIXME: define what input is supposed to look like
     ;; {:code "(some-cljs)" :ns foo.bar}
-    ;; FIXME: transit?
-    (xhr/send
-      (str (env/get-url-base) "/worker/compile/" env/build-id "/" env/proc-id "/browser")
-      (fn [res]
-        (this-as ^goog req
-          (let [{:keys [type] :as result}
-                (transit-read (.getResponseText req))]
+    (shared/call this
+      {:op :cljs-compile
+       :rid env/worker-rid
+       :input input}
 
-            (case type
-              ;; compile failed
-              :repl/error
-              (callback
-                {:result :compile-error
-                 :report (:report result)})
+      {:cljs-actions
+       (fn [{:keys [actions] :as msg}]
+         (interpret-actions
+           {:runtime this
+            :callback callback
+            :input input
+            :actions actions
+            :queue actions
+            :ns (:ns input)
+            :result :ok
+            :results []
+            :warnings []
+            :loaded-sources []}))
 
-              :repl/actions
-              (interpret-actions
-                {:runtime this
-                 :callback callback
-                 :input input
-                 :actions (:actions result)
-                 :queue (:actions result)
-                 :ns (:ns input)
-                 :result :ok
-                 :results []
-                 :warnings []
-                 :loaded-sources []})
-
-              (js/console.error "Unhandled compiled result" result)))))
-      "POST"
-      (transit-str input)
-      #js {"content-type" "application/transit+json; charset=utf-8"}))
+       :cljs-compile-error
+       (fn [{:keys [report]}]
+         (callback
+           {:result :compile-error
+            :report report}))}))
 
   Object
   (do-repl-require [this {:keys [sources reload-namespaces js-requires] :as msg} done error]
@@ -139,16 +135,22 @@
                               (not (some reload-namespaces provides)))))
                (into []))]
 
-      (browser/load-sources
-        sources-to-load
-        (fn [sources]
-          (try
-            (browser/do-js-load sources)
-            (when (seq js-requires)
-              (browser/do-js-requires js-requires))
-            (done sources-to-load)
-            (catch :default ex
-              (error ex))))))))
+      (if-not (seq sources-to-load)
+        (done [])
+        (shared/call this
+          {:op :cljs-load-sources
+           :rid env/worker-rid
+           :sources (into [] (map :resource-id) sources-to-load)}
+
+          {:cljs-sources
+           (fn [{:keys [sources] :as msg}]
+             (try
+               (browser/do-js-load sources)
+               (when (seq js-requires)
+                 (browser/do-js-requires js-requires))
+               (done sources-to-load)
+               (catch :default ex
+                 (error ex))))})))))
 
 (defn start []
   (if-some [{:keys [stop]} @renv/runtime-ref]
@@ -168,7 +170,7 @@
           socket (js/WebSocket. ws-url)
 
           state-ref
-          (atom {})
+          (atom (shared/init-state))
 
           runtime
           (doto (BrowserRuntime. socket state-ref)
@@ -218,5 +220,8 @@
           (stop)
           )))))
 
-;; want things to start when this ns is in :preloads
-(start)
+;; only try to connect automatically if watch is running?
+;; technically nothing stops this from running in :advanced builds
+;; but would need to disable certain things like eval
+(when (pos? env/worker-rid)
+  (start))

@@ -30,6 +30,8 @@
 
 (goog-define proc-id "")
 
+(goog-define worker-rid 0)
+
 (goog-define server-host "")
 
 (goog-define server-port 8200)

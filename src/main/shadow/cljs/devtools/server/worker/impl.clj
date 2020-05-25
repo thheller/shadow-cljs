@@ -25,7 +25,8 @@
     [shadow.build.data :as data]
     [shadow.build.resource :as rc]
     [shadow.build.log :as build-log]
-    [shadow.cljs.devtools.server.reload-npm :as reload-npm])
+    [shadow.cljs.devtools.server.reload-npm :as reload-npm]
+    [shadow.build.output :as output])
   (:import [java.util UUID]
            [java.io File]))
 
@@ -43,10 +44,12 @@
    (when-not (async/offer! (get-in worker-state [:channels :to-relay]) res)
      (log/warn ::worker-relay-overload res))
    worker-state)
-  ([worker-state {:keys [tid mid] :as req} res]
+  ([worker-state {:keys [tid rid mid] :as req} res]
    (relay-msg worker-state (cond-> res
                              tid
                              (assoc :tid tid)
+                             rid
+                             (assoc :rid rid)
                              mid
                              (assoc :mid mid)))))
 
@@ -186,7 +189,8 @@
                       })
               ;; FIXME: work around issues where this is used by clients before a runtime connects
               (assoc :repl-state {:current-ns repl-init-ns})
-              (build/configure :dev build-config (:cli-opts worker-state {})))
+              (build/configure :dev build-config (:cli-opts worker-state {}))
+              (assoc-in [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/worker-rid] (:rid worker-state)))
 
           extra-config-files
           (reduce
@@ -1139,3 +1143,83 @@
 
 (defmethod do-relay-msg :tool-disconnect [worker-state msg]
   worker-state)
+
+(defmethod do-relay-msg :cljs-compile
+  [{:keys [build-state] :as worker-state}
+   {:keys [input] :as msg}]
+  (try
+    (let [start-idx
+          (count (get-in build-state [:repl-state :repl-actions]))
+
+          {:keys [code]} input
+
+          {:keys [repl-state] :as build-state}
+          (repl/process-input build-state code input)
+
+          new-actions
+          (->> (subvec (:repl-actions repl-state) start-idx)
+               (mapv #(transform-repl-action build-state %)))]
+
+      (relay-msg worker-state msg
+        {:op :cljs-actions
+         :actions new-actions})
+
+      (assoc worker-state :build-state build-state))
+
+    (catch Exception e
+      (log/warn-ex e ::repl-compile-ex {:input input})
+
+      (relay-msg worker-state msg
+        {:op :cljs-compile-error
+         :report (binding [warnings/*color* false]
+                   (errors/error-format e))})
+
+      worker-state)))
+
+(defmethod do-relay-msg :cljs-load-sources
+  [{:keys [build-state] :as worker-state}
+   {:keys [sources] :as msg}]
+
+  (let [module-format
+        (get-in build-state [:build-options :module-format])]
+
+    (relay-msg worker-state msg
+      {:op :cljs-sources
+       :sources
+       (->> sources
+            (map (fn [src-id]
+                   (assert (rc/valid-resource-id? src-id))
+                   (let [{:keys [resource-name type output-name ns provides] :as src}
+                         (data/get-source-by-id build-state src-id)
+
+                         {:keys [js] :as output}
+                         (data/get-output! build-state src)]
+
+                     {:resource-name resource-name
+                      :resource-id src-id
+                      :output-name output-name
+                      :type type
+                      :ns ns
+                      :provides provides
+
+                      ;; FIXME: make this pretty ...
+                      :js
+                      (case module-format
+                        :goog
+                        (let [sm-text (output/generate-source-map-inline build-state src output "")]
+                          (str js sm-text))
+                        :js
+                        (let [prepend
+                              (output/js-module-src-prepend build-state src false)
+
+                              append
+                              "" #_(output/js-module-src-append build-state src)
+
+                              sm-text
+                              (output/generate-source-map-inline build-state src output prepend)]
+
+                          (str prepend js append sm-text)))
+                      })))
+            (into []))})
+
+    worker-state))

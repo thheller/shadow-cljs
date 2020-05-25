@@ -5,15 +5,6 @@
   (add-extension [runtime key spec])
   (del-extension [runtime key]))
 
-(defn reply [runtime {:keys [mid tid]} res]
-  (let [res (-> res
-                (cond->
-                  mid
-                  (assoc :mid mid)
-                  tid
-                  (assoc :tid tid)))]
-    (relay-msg runtime res)))
-
 (defprotocol Inspectable
   :extend-via-metadata true
   (describe [thing opts] "returns a map descriptor that tells system how to handle things further"))

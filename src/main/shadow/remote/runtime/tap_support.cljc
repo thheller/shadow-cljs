@@ -1,6 +1,7 @@
 (ns shadow.remote.runtime.tap-support
   (:require
     [shadow.remote.runtime.api :as p]
+    [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.obj-support :as obj]))
 
 (defn tap-subscribe
@@ -15,7 +16,7 @@
   ;; which may cause it to miss taps inbetween
   ;; or after which means it may have received taps before receiving the history
   (when history
-    (p/reply runtime msg
+    (shared/reply runtime msg
       {:op :tap-subscribed
        :history (->> (obj/get-tap-history obj-support num)
                      ;; FIXME: only send summary if requested
@@ -30,8 +31,8 @@
   [{:keys [obj-support runtime]}
    {:keys [num] :or {num 10} :as msg}]
   (let [tap-ids (obj/get-tap-history obj-support num)]
-    (p/reply runtime msg {:op :tap-history
-                          :oids tap-ids})))
+    (shared/reply runtime msg {:op :tap-history
+                               :oids tap-ids})))
 
 (defn tool-disconnect
   [{:keys [subs-ref] :as svc} tid]

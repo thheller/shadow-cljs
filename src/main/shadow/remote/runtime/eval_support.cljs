@@ -1,8 +1,10 @@
 (ns shadow.remote.runtime.eval-support
   (:require
     [shadow.remote.runtime.api :as p]
+    [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.obj-support :as obj-support]
-    [shadow.remote.runtime.cljs.env :as renv]))
+    [shadow.remote.runtime.cljs.env :as renv]
+    ))
 
 (def ^:dynamic obj-support-inst nil)
 
@@ -26,14 +28,14 @@
       (case result
         :compile-error
         (let [{:keys [report]} info]
-          (p/reply runtime msg
+          (shared/reply runtime msg
             {:op :eval-compile-error
              :report report}))
 
         :runtime-error
         (let [{:keys [ex]} info
               ex-oid (obj-support/register obj-support ex {:msg input})]
-          (p/reply runtime msg
+          (shared/reply runtime msg
             {:op :eval-runtime-error
              :ex-oid ex-oid}))
 
@@ -46,7 +48,7 @@
           ;; pretending to be one result always
           ;; don't want to send multiple results in case code contained multiple forms
           (let [ref-oid (obj-support/register obj-support val {:msg input})]
-            (p/reply runtime msg
+            (shared/reply runtime msg
               {:op :eval-result-ref
                :ref-oid ref-oid
                :warnings warnings})))
@@ -60,13 +62,13 @@
     (let [res (renv/eval-js runtime code)
           ref-oid (obj-support/register obj-support res {:js-code code})]
 
-      (p/reply runtime msg
+      (shared/reply runtime msg
         ;; FIXME: separate result ops for :eval-cljs :eval-js :eval-clj?
         {:op :eval-result-ref
          :ref-oid ref-oid}))
 
     (catch :default e
-      (p/reply runtime msg
+      (shared/reply runtime msg
         {:op :eval-error
          :e (.-message e)}))))
 
@@ -75,7 +77,7 @@
         {:runtime runtime
          :obj-support obj-support}]
 
-    (p/add-extension runtime
+    (shared/add-extension runtime
       ::ext
       {:ops
        {:eval-js #(eval-js svc %)

@@ -29,9 +29,10 @@
     (>!! to msg)))
 
 (defn handle-runtime-msg
-  [state-ref {:keys [rid] :as runtime} {:keys [tool-broadcast tid] :as msg}]
-  ;; (log/debug ::runtime-msg msg)
+  [state-ref {:keys [rid] :as runtime} {msg-rid :rid :keys [tool-broadcast tid] :as msg}]
+  (log/debug ::runtime-msg msg)
   (cond
+    ;; runtime->tool
     ;; only send to specific tool
     tid
     (let [tool (get-in @state-ref [:tools tid])]
@@ -41,6 +42,18 @@
         (>!! (:to tool)
           (-> msg
               (dissoc :tid)
+              (assoc :rid rid)))))
+
+    ;; runtime->runtime
+    ;; allow one runtime talking to another runtime directly?
+    ;; FIXME: error out if msg contains own rid?
+    (and msg-rid (not= rid msg-rid))
+    (let [other-runtime (get-in @state-ref [:runtimes msg-rid])]
+      (if-not other-runtime
+        (>!! (:to runtime)
+          (maybe-add-mid msg {:op :runtime-not-found :rid msg-rid}))
+        (>!! (:to other-runtime)
+          (-> msg
               (assoc :rid rid)))))
 
     tool-broadcast

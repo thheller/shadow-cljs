@@ -311,33 +311,34 @@
   [{:keys [runtime] :as svc}
    {:keys [oid] :as msg}]
   (if-let [summary (obj-describe* svc oid)]
-    (p/reply runtime msg {:op :obj-summary
-                          :oid oid
-                          :summary summary})
-    (p/reply runtime msg {:op :obj-not-found :oid oid})))
+    (shared/reply runtime msg {:op :obj-summary
+                               :oid oid
+                               :summary summary})
+    (shared/reply runtime msg {:op :obj-not-found :oid oid})))
 
 (defn obj-request
   [{:keys [state-ref runtime]}
    {:keys [oid request-op] :as msg}]
   (if-not (contains? (:objects @state-ref) oid)
-    (p/reply runtime msg {:op :obj-not-found :oid oid})
+    (shared/reply runtime msg {:op :obj-not-found :oid oid})
     (do (swap! state-ref update-in [:objects oid] ensure-descriptor)
         (swap! state-ref assoc-in [:objects oid :access-at] (now))
         (let [entry (get-in @state-ref [:objects oid])
               request-fn (get-in entry [:desc :handlers request-op])]
           (if-not request-fn
-            (p/reply runtime msg {:op :obj-request-not-supported
-                                  :oid oid
-                                  :request-op request-op})
+            (shared/reply runtime msg {:op :obj-request-not-supported
+                                       :oid oid
+                                       :request-op request-op})
             (try
               (let [result (request-fn msg)]
 
                 ;; FIXME: add support for generic async results
                 ;; all handlers should already be sync but allow async results
                 (if-not (obj-ref? result)
-                  (p/reply runtime msg {:op :obj-result
-                                        :oid oid
-                                        :result result})
+                  (shared/reply runtime msg
+                    {:op :obj-result
+                     :oid oid
+                     :result result})
 
                   (let [new-oid (next-oid)
                         ts (now)
@@ -352,18 +353,20 @@
 
                     (swap! state-ref assoc-in [:objects new-oid] new-entry)
 
-                    (p/reply runtime msg {:op :obj-result-ref
-                                          :oid oid
-                                          :ref-oid new-oid}))))
+                    (shared/reply runtime msg
+                      {:op :obj-result-ref
+                       :oid oid
+                       :ref-oid new-oid}))))
 
               (catch #?(:clj Exception :cljs :default) e
                 #?(:cljs (js/console.warn "action-request-action failed" (:obj entry) e))
-                (p/reply runtime msg {:op :obj-request-failed
-                                      :oid oid
-                                      :msg msg
-                                      ;; FIXME: (d/datafy e) doesn't work for CLJS
-                                      :e (str e) #_#?(:clj  (.toString e)
-                                                      :cljs (.-message e))})))))
+                (shared/reply runtime msg
+                  {:op :obj-request-failed
+                   :oid oid
+                   :msg msg
+                   ;; FIXME: (d/datafy e) doesn't work for CLJS
+                   :e (str e) #_#?(:clj  (.toString e)
+                                   :cljs (.-message e))})))))
         )))
 
 (defn basic-gc! [state]
