@@ -219,7 +219,7 @@
           (recur)))
       (prn :runtime-out-shutdown))
 
-  (require '[shadow.remote.runtime.clojure :as clj])
+  (require '[shadow.remote.runtime.clj.local :as clj])
 
   (def clj (clj/start svc))
   (def clj (:clj-runtime (shadow.cljs.devtools.server.runtime/get-instance)))

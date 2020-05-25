@@ -28,7 +28,7 @@
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.build-history :as build-history]
     [shadow.remote.relay.local :as relay]
-    [shadow.remote.runtime.clojure :as clj-runtime]
+    [shadow.remote.runtime.clj.local :as clj-runtime]
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.tap-support :as tap-support]
     [shadow.remote.runtime.eval-support :as eval-support]

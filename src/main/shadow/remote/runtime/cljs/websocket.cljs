@@ -6,10 +6,7 @@
     [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.cljs.env :as renv]
     [shadow.remote.runtime.cljs.common :as common]
-    [shadow.remote.runtime.cljs.js-builtins]
-    [shadow.remote.runtime.tap-support :as tap-support]
-    [shadow.remote.runtime.obj-support :as obj-support]
-    [shadow.remote.runtime.eval-support :as eval-support]))
+    [shadow.remote.runtime.cljs.js-builtins]))
 
 (extend-type common/Runtime
   renv/IEvalJS
@@ -73,31 +70,9 @@
           (atom (shared/init-state))
 
           runtime
-          (doto (common/Runtime. state-ref send-fn)
-            (shared/add-defaults))
+          (common/Runtime. state-ref send-fn)]
 
-          obj-support
-          (obj-support/start runtime)
-
-          tap-support
-          (tap-support/start runtime obj-support)
-
-          eval-support
-          (eval-support/start runtime obj-support)
-
-          stop
-          (fn []
-            (tap-support/stop tap-support)
-            (obj-support/stop obj-support)
-            (eval-support/stop eval-support)
-            (.close socket))]
-
-      (renv/init-runtime!
-        {:runtime runtime
-         :obj-support obj-support
-         :tap-support tap-support
-         :eval-support eval-support
-         :stop stop})
+      (common/init-runtime! runtime #(.close socket))
 
       (.addEventListener socket "message"
         (fn [e]
@@ -112,11 +87,10 @@
 
       (.addEventListener socket "close"
         (fn [e]
-          (stop)))
+          (common/stop-runtime!)))
 
       (.addEventListener socket "error"
         (fn [e]
           (js/console.warn "tap-socket error" e)
-          (stop)
-          )))))
+          (common/stop-runtime!))))))
 

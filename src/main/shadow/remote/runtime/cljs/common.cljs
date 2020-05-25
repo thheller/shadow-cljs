@@ -5,7 +5,10 @@
     [shadow.remote.runtime.api :as api]
     [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.cljs.env :as renv]
-    [shadow.remote.runtime.cljs.js-builtins]))
+    [shadow.remote.runtime.cljs.js-builtins]
+    [shadow.remote.runtime.obj-support :as obj-support]
+    [shadow.remote.runtime.tap-support :as tap-support]
+    [shadow.remote.runtime.eval-support :as eval-support]))
 
 (defprotocol IHostSpecific
   (do-repl-require [this require-msg done error])
@@ -117,3 +120,39 @@
          (callback
            {:result :compile-error
             :report report}))})))
+
+(defn init-runtime! [{:keys [state-ref] :as runtime} socket-close]
+  (shared/add-defaults runtime)
+
+  (let [obj-support
+        (obj-support/start runtime)
+
+        tap-support
+        (tap-support/start runtime obj-support)
+
+        eval-support
+        (eval-support/start runtime obj-support)
+
+        interval
+        (js/setInterval #(shared/run-on-idle state-ref) 1000)
+
+        stop
+        (fn []
+          (js/clearTimeout interval)
+          (eval-support/stop eval-support)
+          (tap-support/stop tap-support)
+          (obj-support/stop obj-support)
+          (socket-close)
+          (swap! renv/runtime-ref dissoc :obj-support :tap-support :eval-support :stop))]
+
+    (reset! renv/runtime-ref
+      {:runtime runtime
+       :obj-support obj-support
+       :tap-support tap-support
+       :eval-support eval-support
+       :stop stop})))
+
+(defn stop-runtime! []
+  (when-some [runtime @renv/runtime-ref]
+    (let [{:keys [stop]} runtime]
+      (stop))))

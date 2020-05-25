@@ -1,4 +1,4 @@
-(ns shadow.remote.runtime.clojure
+(ns shadow.remote.runtime.clj.local
   (:require
     [clojure.core.async :as async :refer (thread alt!! <!! >!!)]
     [shadow.remote.runtime.shared :as shared]
