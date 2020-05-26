@@ -144,6 +144,8 @@
       "out/demo-browser/index.src.html"
       "out/demo-browser/public/index.html")]
 
+   :dev {:build-options {:auto-require-suffixes ["-specs"]}}
+
    :module-loader true
    ;; :module-hash-names true
    :modules
@@ -377,7 +379,6 @@
    :compiler-options
    {:optimizations :simple
     :source-map-use-fs-paths true}
-
 
    :devtools
    {:before-load-async demo.script/stop

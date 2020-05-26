@@ -5,6 +5,7 @@
     [shadow.cljs.util :as util]
     [shadow.build.classpath :as cp]
     [shadow.build.npm :as npm]
+    [shadow.build.classpath :as classpath]
     [shadow.build.data :as data]
     [shadow.build.js-support :as js-support]
     [shadow.build.cljs-bridge :as cljs-bridge]
@@ -570,19 +571,44 @@
 (defn resolve-entry [state entry]
   (resolve-require state nil entry))
 
+(defn resolve-cleanup [state]
+  (dissoc state :resolved-order :resolved-set :resolved-stack))
+
 (defn resolve-entries
   "returns [resolved-ids updated-state] where each resolved-id can be found in :sources of the updated state"
-  [state entries]
+  [{:keys [classpath] :as state} entries]
   (let [{:keys [resolved-order] :as state}
         (-> state
             (assoc
               :resolved-set #{}
               :resolved-order []
               :resolved-stack [])
-            (util/reduce-> resolve-entry entries))]
+            (util/reduce-> resolve-entry entries))
 
-    [resolved-order
-     (dissoc state :resolved-order :resolved-set :resolved-stack)]))
+        auto-require-suffixes
+        (get-in state [:build-options :auto-require-suffixes])
+
+        auto-require-namespaces
+        (when (seq auto-require-suffixes)
+          (->> resolved-order
+               (map #(get-in state [:sources %]))
+               (filter #(= :cljs (:type %)))
+               ;; FIXME: maybe let use configure to include files from jar?
+               (remove :from-jar)
+               (mapcat (fn [{:keys [ns]}]
+                         (->> auto-require-suffixes
+                              (map #(symbol (str ns %))))))
+               (filter (fn [spec-ns]
+                         (or (get-in state [:sym->id spec-ns])
+                             (classpath/has-resource? classpath spec-ns))))
+               (vec)))]
+
+    (if-not (seq auto-require-namespaces)
+      [resolved-order (resolve-cleanup state)]
+      (let [[extra-sources state]
+            (resolve-entries state auto-require-namespaces)]
+        [(into resolved-order extra-sources)
+         (resolve-cleanup state)]))))
 
 (defn resolve-repl
   "special case for REPL which always resolves based on the current ns"

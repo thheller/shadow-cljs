@@ -1232,6 +1232,11 @@
         :when (not (should-ignore-resource? cp resource-name))]
     (util/filename->ns resource-name)))
 
+(defn has-resource? [classpath ns]
+  (let [resource-name (util/ns->path ns)]
+    (or (io/resource (str resource-name ".cljs"))
+        (io/resource (str resource-name ".cljc")))))
+
 (comment
   (let [cp (start (io/file "tmp"))]
     (find-cljs-namespaces-in-files cp)))
