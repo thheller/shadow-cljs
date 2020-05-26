@@ -27,10 +27,11 @@
 
       (case result
         :compile-error
-        (let [{:keys [report]} info]
+        (let [{:keys [ex-rid ex-oid]} info]
           (shared/reply runtime msg
             {:op :eval-compile-error
-             :report report}))
+             :ex-rid ex-rid
+             :ex-oid ex-oid}))
 
         :runtime-error
         (let [{:keys [ex]} info

@@ -43,8 +43,12 @@
 
 (defn welcome
   [{:keys [state-ref]} {:keys [rid] :as msg}]
-  #?(:cljs (js/console.log "shadow.remote - runtime-id:" rid))
-  (swap! state-ref assoc :runtime-id rid))
+  ;; #?(:cljs (js/console.log "shadow.remote - runtime-id:" rid))
+  (swap! state-ref assoc :rid rid))
+
+(defn get-rid [{:keys [state-ref] :as runtime}]
+  (or (:rid @state-ref)
+      (throw (ex-info "runtime has no assigned runtime-id" {:runtime runtime}))))
 
 (defn tool-disconnect
   [{:keys [state-ref]} {:keys [tid] :as msg}]

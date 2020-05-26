@@ -81,6 +81,7 @@
                (update db object-ident merge {:db/ident object-ident
                                               :oid oid
                                               :rid rid
+                                              :runtime (db/make-ident ::m/runtime rid)
                                               :summary summary})))
            db
            history)
@@ -91,7 +92,7 @@
 (defmethod tool-ws :tap [{:keys [db] :as env} {:keys [oid rid]}]
   (let [object-ident (db/make-ident ::m/object oid)]
     {:db
-     (db/add db ::m/object {:oid oid :rid rid})
+     (db/add db ::m/object {:oid oid :rid rid :runtime (db/make-ident ::m/runtime rid)})
 
      :stream-add
      [[::m/taps {:type :tap :object-ident object-ident}]]}))
@@ -352,7 +353,7 @@
 (sw/reg-event-fx env/app-ref :nav-result-ref
   []
   (fn [{:keys [db] :as env} {:keys [ref-oid rid] :as msg}]
-    (let [obj {:oid ref-oid :rid rid}
+    (let [obj {:oid ref-oid :rid rid :runtime (db/make-ident ::m/runtime rid)}
           obj-ident (db/make-ident ::m/object ref-oid)]
 
       {:db (-> db
@@ -388,11 +389,13 @@
     (let [{::m/keys [inspect] :as data}
           (eql/query env db
             [{::m/inspect
-              [{:object [:oid]}
-               {:runtime [:rid :supported-ops]}]}])
+              [{:object
+                [:oid
+                 {:runtime
+                  [:rid :supported-ops]}]}]}])
 
-          {:keys [object runtime]} inspect
-          {:keys [oid]} object
+          {:keys [object]} inspect
+          {:keys [oid runtime]} object
           {:keys [rid supported-ops]} runtime
 
           ;; FIXME: ns and eval mode should come from UI
@@ -421,21 +424,25 @@
         {:op eval-mode
          :rid rid
          :input input}
-        {:eval-result-ref [::inspect-eval-result! rid code]
-         :eval-compile-error [::inspect-eval-compile-error! rid code]
-         :eval-runtime-error [::inspect-eval-runtime-error! rid code]})
+        {:eval-result-ref [::inspect-eval-result! code]
+         :eval-compile-error [::inspect-eval-compile-error! code]
+         :eval-runtime-error [::inspect-eval-runtime-error! code]})
       {})))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-result!
   []
-  (fn [{:keys [db] :as env} rid code {:keys [ref-oid warnings] :as msg}]
+  (fn [{:keys [db] :as env} code {:keys [ref-oid rid warnings] :as msg}]
     (when (seq warnings)
       (doseq [w warnings]
         (js/console.warn "FIXME: warning not yet displayed in UI" w)))
     (let [object-ident (db/make-ident ::m/object ref-oid)]
       {:db
        (-> db
-           (assoc object-ident {:db/ident object-ident :oid ref-oid :rid rid})
+           (assoc object-ident
+                  {:db/ident object-ident
+                   :oid ref-oid
+                   :rid rid
+                   :runtime (db/make-ident ::m/runtime rid)})
            (assoc-in [::m/inspect :object] object-ident)
            (update-in [::m/inspect :nav-stack] conj
              {:idx (count (get-in db [::m/inspect :nav-stack]))
@@ -444,55 +451,72 @@
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-compile-error!
   []
-  (fn [{:keys [db] :as env} rid code {:keys [report] :as msg}]
-    {:db (db/add db ::m/error {:error-id (random-uuid)
-                               :text report})}))
-
-(sw/reg-event-fx env/app-ref ::inspect-eval-runtime-error!
-  []
-  (fn [{:keys [db] :as env} rid code {:keys [ex-oid] :as msg}]
+  (fn [{:keys [db] :as env} code {:keys [rid ex-oid ex-rid] :as msg}]
     (let [object-ident (db/make-ident ::m/object ex-oid)]
       {:db
        (-> db
-           (assoc object-ident {:db/ident object-ident :oid ex-oid :rid rid :is-error true})
+           (assoc object-ident
+                  {:db/ident object-ident
+                   :oid ex-oid
+                   :rid (or ex-rid rid)
+                   :runtime (db/make-ident ::m/runtime (or ex-rid rid))
+                   :is-error true})
            (assoc-in [::m/inspect :object] object-ident)
            (update-in [::m/inspect :nav-stack] conj
              {:idx (count (get-in db [::m/inspect :nav-stack]))
               :code code
               :ident (get-in db [::m/inspect :object])}))})))
 
-(sw/reg-event-fx env/app-ref ::m/process-eval-input!
+(sw/reg-event-fx env/app-ref ::inspect-eval-runtime-error!
   []
-  (fn [{:keys [db] :as env} runtime-ident code]
-    (let [eval-id (random-uuid)
-          eval-ident (db/make-ident ::m/eval eval-id)
-          {:keys [rid] :as runtime} (get db runtime-ident)
+  (fn [{:keys [db] :as env} code {:keys [rid ex-oid] :as msg}]
+    (let [object-ident (db/make-ident ::m/object ex-oid)]
+      {:db
+       (-> db
+           (assoc object-ident
+                  {:db/ident object-ident
+                   :oid ex-oid
+                   :rid rid
+                   :runtime (db/make-ident ::m/runtime rid)
+                   :is-error true})
+           (assoc-in [::m/inspect :object] object-ident)
+           (update-in [::m/inspect :nav-stack] conj
+             {:idx (count (get-in db [::m/inspect :nav-stack]))
+              :code code
+              :ident (get-in db [::m/inspect :object])}))})))
 
-          ns 'user
+#_(sw/reg-event-fx env/app-ref ::m/process-eval-input!
+    []
+    (fn [{:keys [db] :as env} runtime-ident code]
+      (let [eval-id (random-uuid)
+            eval-ident (db/make-ident ::m/eval eval-id)
+            {:keys [rid] :as runtime} (get db runtime-ident)
 
-          wrap ""
-          #_(str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
-                 "      $o (:obj $ref)\n"
-                 "      $d (-> $ref :desc :data)]\n"
-                 "?CODE?\n"
-                 "\n)")]
+            ns 'user
 
-      (tool-ws/call! env
-        {:op :eval-clj
-         :rid rid
-         :ns ns
-         :code code}
-        {:eval-result-ref [::process-eval-result-ref! eval-ident]})
+            wrap ""
+            #_(str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
+                   "      $o (:obj $ref)\n"
+                   "      $d (-> $ref :desc :data)]\n"
+                   "?CODE?\n"
+                   "\n)")]
 
-      {:db (assoc db eval-ident {:db/ident eval-ident
-                                 :runtime runtime-ident
-                                 :eval-id eval-id
-                                 :rid rid
-                                 :code code
-                                 :ns ns
-                                 :status :requested})
-       :stream-add
-       [[[::m/eval-stream runtime-ident] {:ident eval-ident}]]})))
+        (tool-ws/call! env
+          {:op :eval-clj
+           :rid rid
+           :ns ns
+           :code code}
+          {:eval-result-ref [::process-eval-result-ref! eval-ident]})
+
+        {:db (assoc db eval-ident {:db/ident eval-ident
+                                   :runtime runtime-ident
+                                   :eval-id eval-id
+                                   :rid rid
+                                   :code code
+                                   :ns ns
+                                   :status :requested})
+         :stream-add
+         [[[::m/eval-stream runtime-ident] {:ident eval-ident}]]})))
 
 (sw/reg-event-fx env/app-ref ::process-eval-result-ref!
   []
@@ -501,7 +525,11 @@
           {:keys [rid]} (get db eval-ident)]
       {:db
        (-> db
-           (assoc object-ident {:db/ident object-ident :oid ref-oid :rid rid})
+           (assoc object-ident
+                  {:db/ident object-ident
+                   :oid ref-oid
+                   :rid rid
+                   :runtime (db/make-ident ::m/runtime rid)})
            (update eval-ident merge {:result object-ident
                                      :status :done}))})))
 

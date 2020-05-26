@@ -26,7 +26,9 @@
     [shadow.build.resource :as rc]
     [shadow.build.log :as build-log]
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
-    [shadow.build.output :as output])
+    [shadow.build.output :as output]
+    [shadow.remote.runtime.obj-support :as obj-support]
+    [shadow.remote.runtime.shared :as shared])
   (:import [java.util UUID]
            [java.io File]))
 
@@ -1169,10 +1171,16 @@
     (catch Exception e
       (log/warn-ex e ::repl-compile-ex {:input input})
 
-      (relay-msg worker-state msg
-        {:op :cljs-compile-error
-         :report (binding [warnings/*color* false]
-                   (errors/error-format e))})
+      (let [{:keys [clj-obj-support clj-runtime]} worker-state
+            ex-oid (obj-support/register clj-obj-support e {:msg msg})
+            ex-rid (shared/get-rid clj-runtime)]
+
+        (relay-msg worker-state msg
+          {:op :cljs-compile-error
+           ;; just send oid reference, ui can request report
+           ;; FIXME: not really, need somehow enable that via protocol impl?
+           :ex-oid ex-oid
+           :ex-rid ex-rid}))
 
       worker-state)))
 

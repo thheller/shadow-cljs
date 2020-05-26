@@ -21,6 +21,8 @@
            workers-ref
            executor
            relay
+           clj-runtime
+           clj-obj-support
            cache-root
            http
            classpath
@@ -42,6 +44,8 @@
             system-bus
             executor
             relay
+            clj-runtime
+            clj-obj-support
             cache-root
             http
             classpath
@@ -70,11 +74,13 @@
     (worker/stop proc)))
 
 ;; FIXME: too many args, use a map
-(defn start [config system-bus executor relay cache-root http classpath npm babel]
+(defn start [config system-bus executor relay clj-runtime clj-obj-support cache-root http classpath npm babel]
   {:system-bus system-bus
    :config config
    :executor executor
    :relay relay
+   :clj-runtime clj-runtime
+   :clj-obj-support clj-obj-support
    :cache-root cache-root
    :http http
    :classpath classpath

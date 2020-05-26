@@ -126,6 +126,8 @@
    system-bus
    executor
    relay
+   clj-runtime
+   clj-obj-support
    cache-root
    http
    classpath
@@ -216,6 +218,8 @@
          :build-config build-config
          :autobuild false
          :runtimes {}
+         :clj-runtime clj-runtime
+         :clj-obj-support clj-obj-support
          :repl-sessions {}
          :pending-results {}
          :channels channels
