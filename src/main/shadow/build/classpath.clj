@@ -1127,7 +1127,7 @@
   (when-let [rc-url (io/resource name)]
     (case (.getProtocol rc-url)
       "file"
-      (->> (make-fs-resource (io/file (.getPath rc-url)) name)
+      (->> (make-fs-resource (-> rc-url (.toURI) (io/file)) name)
            (inspect-resource cp)
            (set-output-name))
       "jar"
