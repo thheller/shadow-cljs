@@ -274,7 +274,13 @@
 (extend-protocol p/Inspectable
   #?(:clj Object :cljs default)
   (describe [o opts]
-    (default-describe o opts)))
+    (default-describe o opts))
+
+  nil
+  (describe [o opts]
+    {:data nil
+     :summary {:data-type :nil :obj-type "nil"}
+     :handlers {}}))
 
 (comment
   (p/describe
