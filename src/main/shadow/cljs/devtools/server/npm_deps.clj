@@ -157,7 +157,7 @@
           (into ["cmd" "/C"] full-cmd)
           full-cmd)
 
-        _ (when-not (.exist install-package-json)
+        _ (when-not (.exists install-package-json)
             (io/make-parents install-package-json)
             (spit install-package-json "{}"))
 
