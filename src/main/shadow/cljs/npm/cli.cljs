@@ -770,6 +770,25 @@
 
       (println classpath-str))))
 
+(defn warn-about-missing-project-install! [project-root]
+  (try
+    (let [pjson-path (path/resolve project-root "package.json")
+          pjson (-> (fs/readFileSync pjson-path)
+                    (str)
+                    (js/JSON.parse)
+                    (clj->js))]
+
+      (when-not (or (get-in pjson ["devDependencies" "shadow-cljs"])
+                    (get-in pjson ["dependencies" "shadow-cljs"]))
+
+        (println "------------------------------------------------------------------------------")
+        (println "   WARNING: shadow-cljs not installed in project.")
+        (println "   See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install"))
+        (println "------------------------------------------------------------------------------"))
+
+    (catch :default e
+      (println "WARNING: package.json not found. See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install"))))
+
 (defn ^:export main [args]
 
   (try
@@ -818,6 +837,9 @@
                   server-running?
                   (and (fs/existsSync server-port-file)
                        (fs/existsSync server-pid-file))]
+
+
+              (warn-about-missing-project-install! project-root)
 
               (ensure-dir (path/resolve project-root cache-root))
 

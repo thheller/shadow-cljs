@@ -207,7 +207,7 @@
         (<!! from-relay)
 
         _ (when (not= op :welcome)
-            (throw (ex-info "received unexcpected first message from relay" {:msg welcome-msg})))
+            (throw (ex-info "received unexpected first message from relay" {:msg welcome-msg})))
 
         thread-state
         {::impl/worker-state true
