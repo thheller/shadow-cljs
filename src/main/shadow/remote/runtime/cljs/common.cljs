@@ -1,5 +1,6 @@
 (ns shadow.remote.runtime.cljs.common
   (:require
+    [goog.object :as gobj]
     [cognitect.transit :as transit]
     [shadow.cljs.devtools.client.env :as env]
     [shadow.remote.runtime.api :as api]
@@ -148,6 +149,29 @@
           (socket-close)
           (swap! renv/runtime-ref dissoc :obj-support :tap-support :eval-support :stop))]
 
+    ;; test exporting this into the global so potential consumers
+    ;; don't have to worry about importing a namespace that shouldn't be in release builds
+    ;; can't bind cljs.core/eval since that expects a CLJ form not a string
+    ;; which we could technically also support but I don't want to assume the user
+    ;; knows how to read properly. just accepting a string and optional ns is much easier
+    (set! js/goog.global.CLJS_EVAL
+      (fn [input callback]
+        (let [input
+              (cond
+                ;; preferred when calling from CLJS
+                (map? input)
+                input
+
+                ;; just calling with code
+                (string? input)
+                {:code input :ns 'cljs.user}
+
+                ;; when calling from JS {code: "string", ns: "cljs.user"}
+                (object? input)
+                {:code (gobj/get input "code") :ns (symbol (gobj/get input "ns"))})]
+
+          (renv/eval-cljs runtime input callback))))
+
     (reset! renv/runtime-ref
       {:runtime runtime
        :obj-support obj-support
@@ -157,5 +181,6 @@
 
 (defn stop-runtime! []
   (when-some [runtime @renv/runtime-ref]
+    (reset! renv/runtime-ref nil)
     (let [{:keys [stop]} runtime]
       (stop))))
