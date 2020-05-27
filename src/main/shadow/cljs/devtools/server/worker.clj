@@ -203,6 +203,12 @@
            ::m/worker-id proc-id
            ::m/worker-for build-id})
 
+        {:keys [op rid] :as welcome-msg}
+        (<!! from-relay)
+
+        _ (when (not= op :welcome)
+            (throw (ex-info "received unexcpected first message from relay" {:msg welcome-msg})))
+
         thread-state
         {::impl/worker-state true
          :resource-update-chan resource-update
@@ -211,6 +217,7 @@
          :classpath classpath
          :cache-root cache-root
          :cli-opts cli-opts
+         :rid rid
          :npm npm
          :babel babel
          :proc-id proc-id
