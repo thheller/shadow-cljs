@@ -1128,9 +1128,6 @@
   (log/warn ::unknown-relay-op msg)
   worker-state)
 
-(defmethod do-relay-msg :welcome [worker-state {:keys [rid] :as msg}]
-  (assoc worker-state :rid rid))
-
 (defmethod do-relay-msg :request-supported-ops [worker-state msg]
   (relay-msg worker-state msg {:op :supported-ops
                                :ops (-> (->> (methods do-relay-msg)
@@ -1180,7 +1177,11 @@
            ;; just send oid reference, ui can request report
            ;; FIXME: not really, need somehow enable that via protocol impl?
            :ex-oid ex-oid
-           :ex-rid ex-rid}))
+           :ex-rid ex-rid
+           ;; just always include report for now
+           :report (binding [warnings/*color* false]
+                     (errors/error-format e))
+           }))
 
       worker-state)))
 

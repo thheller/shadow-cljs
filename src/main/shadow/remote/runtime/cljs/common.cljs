@@ -118,12 +118,13 @@
 
        ;; going from cljs specific error
        :cljs-compile-error
-       (fn [{:keys [ex-oid ex-rid]}]
+       (fn [{:keys [ex-oid ex-rid report]}]
          (callback
            ;; to more generic error, that CLJ can also use
            {:result :compile-error
             :ex-oid ex-oid
-            :ex-rid ex-rid}))})))
+            :ex-rid ex-rid
+            :report report}))})))
 
 (defn init-runtime! [{:keys [state-ref] :as runtime} socket-close]
   (shared/add-defaults runtime)
