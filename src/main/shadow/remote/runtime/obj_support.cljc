@@ -42,6 +42,8 @@
 
     (assoc-in state [:objects oid] obj-entry)))
 
+(declare register)
+
 (defn obj-type-string [obj]
   (if (nil? obj)
     "nil"
@@ -326,7 +328,7 @@
     (shared/reply runtime msg {:op :obj-not-found :oid oid})))
 
 (defn obj-request
-  [{:keys [state-ref runtime]}
+  [{:keys [state-ref runtime] :as this}
    {:keys [oid request-op] :as msg}]
   (if-not (contains? (:objects @state-ref) oid)
     (shared/reply runtime msg {:op :obj-not-found :oid oid})
@@ -373,9 +375,7 @@
                   {:op :obj-request-failed
                    :oid oid
                    :msg msg
-                   ;; FIXME: (d/datafy e) doesn't work for CLJS
-                   :e (str e) #_#?(:clj  (.toString e)
-                                   :cljs (.-message e))})))))
+                   :ex-oid (register this e {:msg msg})})))))
         )))
 
 (defn obj-forget
