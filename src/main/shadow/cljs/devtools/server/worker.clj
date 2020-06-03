@@ -93,31 +93,6 @@
       (catch InterruptedException e
         {:type :repl/interrupt}))))
 
-(defn send-to-runtimes! [{:keys [proc-control] :as proc} payload]
-  {:pre [(impl/proc? proc)]}
-  (>!! proc-control {:type :broadcast-msg
-                     :payload payload})
-  proc)
-
-(defn repl-compile [worker input]
-  (worker-request worker
-    {:type :repl-compile
-     :input input}))
-
-(defn repl-eval [worker session-id runtime-id input]
-  (worker-request worker
-    {:type :repl-eval
-     :session-id session-id
-     :runtime-id runtime-id
-     :input input}))
-
-(defn load-file [worker {:keys [source file-path] :as file-info}]
-  {:pre [(string? file-path)]}
-  (worker-request worker
-    {:type :load-file
-     :source source
-     :file-path file-path}))
-
 ;; SERVICE API
 
 ;; FIXME: too many damn args, use a map instead!
@@ -216,11 +191,10 @@
         _
         (>!! to-relay
           {:op :request-notify
-           :notify-op :cljs-runtime-notify
+           :notify-op ::impl/cljs-runtime-notify
            :query
            [:and
             [:eq :type :runtime]
-            [:eq :build-id build-id]
             [:eq :proc-id proc-id]]})
 
         thread-state

@@ -150,7 +150,8 @@
   (let [ws-url (env/get-ws-relay-url)]
     (ws/start ws-url {:host (if js/goog.global.document
                               :browser
-                              :browser-worker)})))
+                              :browser-worker)
+                      :dom (some? js/goog.global.document)})))
 
 (when (and env/enabled (pos? env/worker-client-id))
 
@@ -197,39 +198,7 @@
            (fn []
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
-             (env/patch-goog!)
-
-             (shared/call runtime
-               {:op :cljs-runtime-connect
-                :to env/worker-client-id
-                :build-id (keyword env/build-id)
-                :proc-id env/proc-id
-                :dom (exists? js/document)}
-
-               {:cljs-runtime-init
-                (fn [msg]
-                  (repl-init runtime msg))
-
-                ;; the worker-rid set by the build no longer exists
-                ;; this could mean
-                ;; - the watch was restarted
-                ;; - is not running at all
-                ;; - or the output is stale
-                ;; instead of showing one generic error this should do further querying
-                ;; on the relay to see if a new watch exists
-                :stale
-                (fn [msg]
-                  (hud/connection-error "Stale Output! Make sure you are using the latest compilation output!"))
-
-                ;; in case worker-client-id is re-used after a restart
-                ;; but now a different watch
-                :unknown-op
-                (fn [msg]
-                  (hud/connection-error "Stale Output! Make sure you are using the latest compilation output!"))
-
-                :client-not-found
-                (fn [msg]
-                  (hud/connection-error "Failed to connect to watch process!"))}))
+             (env/patch-goog!))
 
            :ops
            {:access-denied
@@ -238,12 +207,12 @@
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))
 
+            :cljs-runtime-init
+            (fn [msg]
+              (repl-init runtime msg))
+
             :cljs-repl-ping
             #(cljs-shared/cljs-repl-ping runtime %)
-
-            :stale
-            (fn [msg]
-              (hud/connection-error "Stale Output! Make sure you are using the latest compilation output!"))
 
             :cljs-asset-update
             (fn [{:keys [updates] :as msg}]
@@ -272,7 +241,7 @@
               (hud/hud-error msg)
               (env/run-custom-notify! (assoc msg :type :build-failure)))
 
-            :worker-notify
+            ::env/worker-notify
             (fn [{:keys [event-op client-id]}]
               (cond
                 (and (= :client-disconnect event-op)

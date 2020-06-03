@@ -127,22 +127,6 @@
     (contains? (super/active-builds supervisor) build-id)
     ))
 
-(defn send-to-runtimes! [build-state-or-id payload]
-  (let [build-id (cond
-                   (build-api/build-state? build-state-or-id)
-                   (:build-id build-state-or-id)
-                   (keyword? build-state-or-id)
-                   build-state-or-id
-                   :else
-                   (throw (ex-info "invalid argument, requires build-id keyword or build state (from hooks)" {:got build-state-or-id
-                                                                                                              :payload payload})))
-        worker (get-worker build-id)]
-    (if-not worker
-      :watch-not-running
-
-      (do (worker/send-to-runtimes! worker payload)
-          :sent))))
-
 (defn watch-compile!
   "manually trigger a recompile for a watch when {:autobuild false} is used"
   [build-id]

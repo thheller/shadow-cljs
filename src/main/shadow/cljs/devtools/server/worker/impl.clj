@@ -54,7 +54,7 @@
                              (assoc :call-id call-id)))))
 
 (defn send-to-runtimes [{:keys [runtimes] :as worker-state} msg]
-  (log/debug ::send-to-runtimes {:runtimes runtimes :msg (:op msg)})
+  ;; (log/debug ::send-to-runtimes {:runtimes runtimes :msg (:op msg)})
   (when (seq runtimes)
     (relay-msg worker-state (assoc msg :to (-> runtimes keys set))))
   worker-state)
@@ -853,59 +853,38 @@
 
     worker-state))
 
-(defmethod do-relay-msg :cljs-runtime-connect
+(defn add-runtime
   [{:keys [build-state] :as worker-state}
-   {:keys [from build-id proc-id react-native dom] :as msg}]
+   {:keys [client-id client-info] :as msg}]
 
-  ;; FIXME: is it actually possible for proc-id to not match this proc?
-  ;; the client will get a runtime-not-found right?
-  ;; I don't think it can every connect to this runtime with a mismatched proc-id?
-  (log/debug ::runtime-connect {:runtime-id from})
+  (-> worker-state
+      (cond->
+        (or (zero? (count (:runtimes worker-state)))
+            ;; android doesn't disconnect the old websocket for some reason
+            ;; when reloading the app, so instead of sending to a dead runtime
+            ;; we always pick the new one
+            (:react-native client-info)
+            ;; allow user to configure to auto switch to fresh connected runtimes
+            ;; instead of staying with the first connected one
+            (= :latest (get-in worker-state [:system-config :repl :runtime-select]))
+            (= :latest (get-in worker-state [:system-config :user-config :repl :runtime-select])))
+        (assoc :default-runtime-id client-id))
+      (update :runtimes assoc client-id (assoc client-info :client-id client-id))
+      (relay-msg
+        {:op :cljs-runtime-init
+         :to client-id
+         :repl-state
+         (-> (:repl-state build-state)
+             (update :repl-sources repl-sources-as-client-resources build-state))})))
 
-  (if (or (not= (:build-id worker-state) build-id)
-          (not= (:proc-id worker-state) proc-id))
-    ;; shouldn't really get here but in case client-id is re-used after a restart
-    (relay-msg worker-state msg
-      {:op :stale})
-
-    ;; ask relay to notify us when runtime disconnects
-    ;; FIXME: could just let it notify us about the connect as well?
-    ;; just letting the client do it manually so we can send :cljs-runtime-init
-    ;; and know that it is expected. rather than just sending and hoping for the best.
-    (do (relay-msg
-          worker-state
-          msg
-          {:op :cljs-runtime-init
-           :to from
-           :repl-state
-           (-> (:repl-state build-state)
-               (update :repl-sources repl-sources-as-client-resources build-state))})
-
-        (-> worker-state
-            (cond->
-              (or (zero? (count (:runtimes worker-state)))
-                  ;; android doesn't disconnect the old websocket for some reason
-                  ;; when reloading the app, so instead of sending to a dead runtime
-                  ;; we always pick the new one
-                  react-native
-                  ;; allow user to configure to auto switch to fresh connected runtimes
-                  ;; instead of staying with the first connected one
-                  (= :latest (get-in worker-state [:system-config :repl :runtime-select]))
-                  (= :latest (get-in worker-state [:system-config :user-config :repl :runtime-select])))
-              (assoc :default-runtime-id from))
-            (update :runtimes assoc from
-              {:client-id from
-               :dom dom
-               :react-native react-native
-               :connected-since (System/currentTimeMillis)
-               :init-sent true})))))
-
-(defmethod do-relay-msg :cljs-runtime-notify
+(defmethod do-relay-msg ::cljs-runtime-notify
   [worker-state {:keys [event-op client-id] :as msg}]
   (log/debug ::notify msg)
-  (if (= :client-disconnect event-op)
+  (case event-op
+    :client-disconnect
     (remove-runtime worker-state client-id)
-    worker-state))
+    :client-connect
+    (add-runtime worker-state msg)))
 
 (defmethod do-relay-msg :cljs-repl-pong
   [worker-state {:keys [from time-runtime]}]

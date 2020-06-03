@@ -132,29 +132,7 @@
            (fn []
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
-             (env/patch-goog!)
-
-             (shared/call runtime
-               {:op :cljs-runtime-connect
-                :to env/worker-client-id
-                :build-id (keyword env/build-id)
-                :proc-id env/proc-id
-                :dom false}
-
-               {:cljs-runtime-init
-                (fn [msg]
-                  (repl-init runtime msg))
-
-                ;; the worker-rid set by the build no longer exists
-                ;; this could mean
-                ;; - the watch was restarted
-                ;; - is not running at all
-                ;; - or the output is stale
-                ;; instead of showing one generic error this should do further querying
-                ;; on the relay to see if a new watch exists
-                :client-not-found
-                (fn [msg]
-                  (js/console.error "shadow-cljs init failed!"))}))
+             (env/patch-goog!))
 
            :ops
            {:access-denied
@@ -162,6 +140,10 @@
               (js/console.error
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))
+
+            :cljs-runtime-init
+            (fn [msg]
+              (repl-init runtime msg))
 
             :cljs-repl-ping
             #(cljs-shared/cljs-repl-ping runtime %)
@@ -183,7 +165,7 @@
               ;; (js/console.log "cljs-build-failure" msg)
               (env/run-custom-notify! (assoc msg :type :build-failure)))
 
-            :worker-notify
+            ::env/worker-notify
             (fn [{:keys [event-op client-id]}]
               (cond
                 (and (= :client-disconnect event-op)

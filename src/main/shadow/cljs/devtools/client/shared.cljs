@@ -298,12 +298,12 @@
           (swap! print-subs conj from)
           (shared/relay-msg runtime
             {:op :request-notify
-             :notify-op :runtime-print-disconnect
+             :notify-op ::runtime-print-disconnect
              :query [:eq :client-id from]}))
         :runtime-print-unsub
         (fn [{:keys [from] :as msg}]
           (swap! print-subs disj from))
-        :runtime-print-disconnect
+        ::runtime-print-disconnect
         (fn [{:keys [event-op client-id]}]
           (when (= :client-disconnect event-op)
             (swap! print-subs disj client-id)))}
@@ -333,7 +333,7 @@
        (fn []
          (shared/relay-msg runtime
            {:op :request-notify
-            :notify-op :worker-notify
+            :notify-op ::env/worker-notify
             :query [:eq :shadow.cljs.model/worker-for (keyword env/build-id)]}))})
 
     (when (seq @extensions-ref)
