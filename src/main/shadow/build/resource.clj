@@ -41,7 +41,7 @@
 ;; output if the file already exists for incremental compiles
 ;; this does not use cache-key as there is only the file to look at
 ;; and it should not need to parse the file
-(s/def ::last-modified nat-int?)
+(s/def ::last-modified int?)
 
 ;; this is more reliable to use for cljs caching since some inputs
 ;; may have more than one files they reference (ie. :foreign)

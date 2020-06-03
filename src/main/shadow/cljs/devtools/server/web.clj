@@ -11,7 +11,6 @@
     [shadow.server.assets :as assets]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
-    [shadow.cljs.devtools.server.worker.ws :as ws]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.api :as api]
@@ -38,7 +37,10 @@
       ;; starting the worker ASAP
       ;; if the script starts it we have to wait for the script to download and execute
       ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
-      [:script "var SHADOW_WORKER = new Worker(\"/js/worker.js\");"]
+      [:script
+       (str "var SHADOW_WORKER = new Worker(\"/js/worker.js?server-token="
+            (get-in req [:http :server-token])
+            "\");")]
       [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
       [:title (-> (io/file ".")
                   (.getCanonicalFile)
@@ -278,15 +280,6 @@
    :headers {}
    :body ""})
 
-;; add SameSite cookie to protect UI websockets later
-(defn add-secret-header [{:keys [status] :as res} {:keys [server-secret] :as req}]
-  (let [cookie (get-in req [:ring-request :headers "cookie"])]
-    (if (or (>= status 400)
-            (and cookie (str/includes? cookie server-secret)))
-      res
-      ;; not using ring cookies middleware due to its dependency on clj-time, overkill anyways.
-      (assoc-in res [:headers "Set-Cookie"] (str "secret=" server-secret "; HttpOnly; SameSite=Strict;")))))
-
 (defn maybe-index-page [req]
   (let [accept (get-in req [:ring-request :headers "accept"])]
     (if (and accept (not (str/includes? accept "text/html")))
@@ -303,19 +296,15 @@
         (:GET "/workspaces" workspaces-page)
         (:GET "/grove/cards" grove-cards-page)
         (:ANY "/grove/cards-unload" grove-cards-unload)
-        maybe-index-page #_common/not-found)
-      (add-secret-header req)))
+        maybe-index-page #_common/not-found)))
 
 (defn root [req]
   (-> req
       (update :ring-request ring-params/params-request {})
       (http/route
         ;; temp fix for middleware problem
-        (:ANY "/api/runtime" web-api/api-runtime)
-        (:ANY "/api/tool" web-api/api-tool)
+        (:ANY "/api/remote-relay" web-api/api-remote-relay)
         (:ANY "/api/ws" web-api/api-ws)
         (:ANY "^/api" web-api/root)
-        (:ANY "^/ws" ws/process-ws)
-        (:ANY "^/worker" ws/process-req)
         (:GET "^/cache" serve-cache-file)
         pages)))

@@ -5,7 +5,7 @@
 (def schema
   {::m/runtime
    {:type :entity
-    :attrs {:rid [:primary-key number?]}}
+    :attrs {:runtime-id [:primary-key number?]}}
 
    ::m/error
    {:type :entity

@@ -417,19 +417,15 @@
   ([id]
    (nrepl-select id {}))
   ([id opts]
-   (let [worker (get-worker id)]
-     (cond
-       (nil? worker)
-       [:no-worker id]
+   (cond
+     (nil? *nrepl-init*)
+     :missing-nrepl-middleware
 
-       (nil? *nrepl-init*)
-       :missing-nrepl-middleware
-
-       :else
-       (do (*nrepl-init* worker opts)
-           ;; Cursive uses this to switch repl type to cljs
-           (println "To quit, type: :cljs/quit")
-           [:selected id])))))
+     :else
+     (do (*nrepl-init* id opts)
+         ;; Cursive uses this to switch repl type to cljs
+         (println "To quit, type: :cljs/quit")
+         [:selected id]))))
 
 (defn select-cljs-runtime [worker]
   (let [all (-> worker :state-ref deref :runtimes vals vec)]
@@ -458,36 +454,6 @@
         (recur worker)
         ))))
 
-(defn repl-next
-  ([build-id]
-   (repl-next build-id {}))
-  ([build-id {:keys [stop-on-eof] :as opts}]
-   (if *nrepl-init*
-     (nrepl-select build-id opts)
-     (let [{:keys [supervisor] :as app}
-           (runtime/get-instance!)
-
-           worker
-           (super/get-worker supervisor build-id)]
-       (if-not worker
-         :no-worker
-         (let [current-runtimes
-               (-> worker :state-ref deref :runtimes vals)
-
-               {:keys [quit runtime-id runtime-info] :as runtime}
-               (if (= 1 (count current-runtimes))
-                 (-> current-runtimes first)
-                 (select-cljs-runtime worker))]
-
-           (when-not quit
-             (when runtime-id
-               (println (str "Connecting to REPL runtime: " runtime-id)))
-             ;; " " (pr-str runtime-info)
-
-             (repl-impl/stdin-takeover! worker app runtime-id)
-             (when stop-on-eof
-               (super/stop-worker supervisor build-id)))))))))
-
 (defn repl
   ([build-id]
    (repl build-id {}))
@@ -501,7 +467,7 @@
            (super/get-worker supervisor build-id)]
        (if-not worker
          :no-worker
-         (do (repl-impl/stdin-takeover! worker app nil)
+         (do (repl-impl/stdin-takeover! worker app)
              (when stop-on-eof
                (super/stop-worker supervisor build-id))))))))
 
@@ -610,7 +576,7 @@
 
       ;; for normal REPL loops we wait for the CLJS loop to end
       (when-not *nrepl-init*
-        (repl-impl/stdin-takeover! worker app nil)
+        (repl-impl/stdin-takeover! worker app)
         (super/stop-worker supervisor (:build-id build-config)))
 
       :done)))
@@ -638,7 +604,7 @@
 (defn test []
   (println "TBD"))
 
-(defn- find-local-addrs []
+(defn find-local-addrs []
   (for [ni (enumeration-seq (NetworkInterface/getNetworkInterfaces))
         :when (not (.isLoopback ni))
         :when (.isUp ni)

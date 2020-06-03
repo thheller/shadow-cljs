@@ -776,7 +776,7 @@
           pjson (-> (fs/readFileSync pjson-path)
                     (str)
                     (js/JSON.parse)
-                    (clj->js))]
+                    (js->clj))]
 
       (when-not (or (get-in pjson ["devDependencies" "shadow-cljs"])
                     (get-in pjson ["dependencies" "shadow-cljs"]))

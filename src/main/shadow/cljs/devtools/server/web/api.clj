@@ -2,6 +2,10 @@
   (:require
     [clojure.edn :as edn]
     [clojure.java.shell :as sh]
+    [clojure.java.io :as io]
+    [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
+    [clojure.set :as set]
+    [hiccup.page :refer (html5)]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.graph :as graph]
@@ -11,11 +15,8 @@
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.util :as util]
     [shadow.cljs.model :as m]
-    [hiccup.page :refer (html5)]
-    [clojure.java.io :as io]
-    [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
     [shadow.debug :refer (?> ?-> ?->>)]
-    [shadow.core-ext :as core-ext]
+    [shadow.core-ext]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.remote.relay.api :as relay]
     [shadow.cljs.devtools.errors :as errors]
@@ -26,8 +27,7 @@
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.build.log :as build-log]
-    [clojure.set :as set])
-  (:import [java.util UUID]))
+    ))
 
 (defn index-page [req]
   {:status 200
@@ -242,7 +242,6 @@
      :body (transit-str result)}
     ))
 
-
 (defn root* [req]
   (http/route req
     (:GET "" index-page)
@@ -270,65 +269,67 @@
        :body ""}
       )))
 
-(defn api-runtime-loop! [{:keys [relay ws-out ws-in runtime-info] :as ws-state}]
-  (let [from-relay (relay/runtime-connect relay ws-in runtime-info)]
+(defn api-remote-relay-loop! [{:keys [relay ws-out ws-in] :as ws-state}]
+  (let [from-relay (relay/connect relay ws-in {:remote true :websocket true})]
     (loop []
       (when-some [msg (<!! from-relay)]
         (>!! ws-out msg)
         (recur))))
   ::done)
 
-(defn api-runtime [{:keys [relay transit-read transit-str] :as req}]
+(defn api-remote-relay [{:keys [relay transit-read transit-str] :as req}]
   ;; FIXME: negotiate encoding somehow? could just as well use edn
-  (let [ws-in (async/chan 10 (map transit-read))
-        ws-out (async/chan 10 (map transit-str))]
-    {:ws-in ws-in
-     :ws-out ws-out
-     :ws-loop
-     (async/thread
-       (api-runtime-loop!
-         {:relay relay
-          :runtime-info
-          {:lang :cljs
-           :type (keyword (get-in req [:ring-request :query-params "type"]))
-           :build-id (keyword (get-in req [:ring-request :query-params "build-id"]))
-           :remote-addr (get-in req [:ring-request :remote-addr])
-           :user-agent (get-in req [:ring-request :headers "user-agent"])}
-          :ws-in ws-in
-          :ws-out ws-out}))}))
+  (let [remote-addr
+        (get-in req [:ring-request :remote-addr])
 
-(defn api-tool-loop! [{:keys [relay ws-out ws-in] :as ws-state}]
-  ;; FIXME: should take tool-info, just like runtime-connect and runtime-info
-  (let [from-relay (relay/tool-connect relay ws-in {})]
-    (loop []
-      (when-some [msg (<!! from-relay)]
-        (>!! ws-out msg)
-        (recur))))
-  ::done)
-
-(defn api-tool [{:keys [relay transit-read transit-str] :as req}]
-  ;; FIXME: negotiate encoding somehow? could just as well use edn
-  (let [remote-addr (get-in req [:ring-request :remote-addr])
         trusted-hosts
         (set/union
           #{"127.0.0.1"
             "0:0:0:0:0:0:0:1"
             "localhost"}
           (set (get-in req [:config :trusted-hosts]))
-          (set (get-in req [:config :user-config :trusted-hosts])))]
+          (set (get-in req [:config :user-config :trusted-hosts])))
 
-    ;; FIXME: maybe needs to do host->addr translation?
-    (if-not (contains? trusted-hosts remote-addr)
-      {:status 403
-       :headers {"content-type" "text/plain"}
-       :body (str remote-addr " not trusted. Add :trusted-hosts #{" (pr-str remote-addr) "} in shadow-cljs.edn to trust.")}
+        server-token
+        (get-in req [:http :server-token])
+
+        trusted?
+        (or (= server-token
+               (get-in req [:ring-request :query-params "server-token"]))
+
+            ;; cannot trust websocket connections even from localhost
+            ;; a hostile page might include WebSocket("ws://localhost:9630/...")
+            ;; could check Origin but not sure how much that can be trusted either
+            ;; so all relay clients should send this token as part of their request
+
+            #_(contains? trusted-hosts remote-addr))]
+
+    ;; FIXME:
+    (if-not trusted?
+      ;; FIXME: need a better way to return errors
+      ;; this isn't possible to detect in JS since spec forbids exposing the status code
+      #_{:status 403
+         :headers {"content-type" "text/plain"}
+         :body (str remote-addr " not trusted. Add :trusted-hosts #{" (pr-str remote-addr) "} in shadow-cljs.edn to trust.")}
+      ;; this sucks too, client gets first then followed by close
+      ;; {:ws-reject [4000 "Invalid server-token."]}
+      ;; so we just send an access denied message and disconnect
+      (let [ws-in (async/chan)
+            ws-out (async/chan 1 (map transit-str))]
+        {:ws-in ws-in
+         :ws-out ws-out
+         :ws-loop
+         (async/go
+           (async/>! ws-out {:op :access-denied})
+           :access-denied)})
+
       (let [ws-in (async/chan 10 (map transit-read))
             ws-out (async/chan 10 (map transit-str))]
         {:ws-in ws-in
          :ws-out ws-out
          :ws-loop
          (async/thread
-           (api-tool-loop!
+           (api-remote-relay-loop!
              {:relay relay
               :ws-in ws-in
               :ws-out ws-out}))}))))

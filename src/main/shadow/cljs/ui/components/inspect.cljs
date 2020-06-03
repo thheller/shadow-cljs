@@ -204,14 +204,14 @@
          (view-as-button display-type :edn "EDN")])))
 
 (defc ui-tap-stream-item [{:keys [object-ident]}]
-  [{:keys [summary rid obj-preview] :as data}
-   (sg/query-ident object-ident [:oid :rid :obj-preview :summary])]
+  [{:keys [summary runtime-id obj-preview] :as data}
+   (sg/query-ident object-ident [:oid :runtime-id :obj-preview :summary])]
 
   (let [{:keys [ts ns line column label]} summary]
     (<< [:div.font-mono.border-b.px-2.py-1.cursor-pointer.hover:bg-gray-200
          {:on-click [::inspect-object! object-ident]}
          [:div.text-xs.text-gray-500
-          (str "Runtime #" rid " " ts
+          (str "Runtime #" runtime-id " " ts
                (when ns
                  (str " - " ns
                       (when line

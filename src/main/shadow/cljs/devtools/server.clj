@@ -16,7 +16,6 @@
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.common :as common]
     [shadow.cljs.devtools.config :as config]
-    [shadow.cljs.devtools.server.repl-system :as repl-system]
     [shadow.cljs.devtools.server.prepl :as prepl]
     [shadow.cljs.devtools.server.ns-explorer :as ns-explorer]
     [shadow.cljs.devtools.server.worker :as worker]
@@ -27,14 +26,14 @@
     [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.build-history :as build-history]
+    [shadow.cljs.devtools.server.system-bus :as system-bus]
+    [shadow.cljs.devtools.server.nrepl-bridge :as nrepl-bridge]
     [shadow.remote.relay.local :as relay]
     [shadow.remote.runtime.clj.local :as clj-runtime]
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.tap-support :as tap-support]
-    [shadow.remote.runtime.eval-support :as eval-support]
-    [shadow.cljs.devtools.server.system-bus :as system-bus]
-    [shadow.cljs.devtools.server.system-bus :as sys-bus])
-  (:import (java.net BindException Socket SocketException InetSocketAddress)
+    [shadow.remote.runtime.eval-support :as eval-support])
+  (:import (java.net BindException)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
 
@@ -298,9 +297,9 @@
         (if-not (:prepl config)
           app-config
           (let [prepl-svc
-                {:depends-on [:repl-system]
-                 :start (fn [repl-system]
-                          (let [svc (prepl/start repl-system)]
+                {:depends-on [:relay :supervisor]
+                 :start (fn [relay supervisor]
+                          (let [svc (prepl/start relay supervisor)]
                             (doseq [[build-id port] (:prepl config)]
                               (prepl/start-server svc build-id (if (map? port) port {:port port})))
                             svc))
@@ -319,7 +318,6 @@
         app
         (-> {::started (System/currentTimeMillis)
              :server-pid pid
-             :server-secret (str (UUID/randomUUID))
              :config config
              :shutdown-hook shutdown-hook
              :ssl-context ssl-context
@@ -329,7 +327,8 @@
                     :https-port https-port
                     :host (:host http-config)
                     :ssl (boolean https-port)
-                    :server http}
+                    :server http
+                    :server-token (str (UUID/randomUUID))}
              :port-files-ref port-files-ref
              :cli-repl cli-repl}
             (cond->
@@ -344,7 +343,7 @@
         (doto (io/file cache-root "server.pid")
           (.deleteOnExit))]
 
-    (vreset! app-ref app)
+    (reset! app-ref app)
 
     ;; do this as the very last setup to maybe fix circleci timing issue?
     (reset! port-files-ref
@@ -358,6 +357,10 @@
               socket-repl
               (assoc :socket-repl (:port socket-repl)))
             )))
+
+    (let [token-file (io/file cache-root "server.token")]
+      (spit token-file (get-in app [:http :server-token]))
+      (.deleteOnExit token-file))
 
     ;; this will clash with lein writing its own .nrepl-port so it is disabled by default
     (when (and nrepl
@@ -439,11 +442,6 @@
                    :start super/start
                    :stop super/stop}
 
-                  :repl-system
-                  {:depends-on []
-                   :start repl-system/start
-                   :stop repl-system/stop}
-
                   :relay
                   {:depends-on []
                    :start relay/start
@@ -469,6 +467,10 @@
                    :start eval-support/start
                    :stop eval-support/stop}
 
+                  :nrepl-bridge
+                  {:depends-on [:relay :supervisor]
+                   :start nrepl-bridge/start
+                   :stop nrepl-bridge/stop}
 
                   :out
                   {:depends-on [:config]

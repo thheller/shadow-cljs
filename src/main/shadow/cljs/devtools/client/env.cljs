@@ -30,7 +30,7 @@
 
 (goog-define proc-id "")
 
-(goog-define worker-rid 0)
+(goog-define worker-client-id 0)
 
 (goog-define server-host "")
 
@@ -43,6 +43,8 @@
 (goog-define devtools-url "")
 
 (goog-define reload-strategy "optimized")
+
+(goog-define server-token "missing")
 
 (goog-define ssl false)
 
@@ -83,65 +85,8 @@
   (-> (get-url-base)
       (str/replace #"^http" "ws")))
 
-(defn ws-url [runtime-type]
-  {:pre [(keyword? runtime-type)]}
-  (str (get-ws-url-base) "/ws/worker/" build-id "/" proc-id "/" runtime-id "/" (name runtime-type)))
-
-(defn ws-listener-url [client-type]
-  (str (get-ws-url-base) "/ws/listener/" build-id "/" proc-id "/" runtime-id))
-
-(defn files-url []
-  (str (get-url-base) "/worker/files/" build-id "/" proc-id "/" runtime-id))
-
-(def repl-print-fn
-  (if-not repl-pprint
-    pr-str
-    (fn repl-pprint [obj]
-      (with-out-str
-        (pprint obj)
-        ))))
-
-(defn repl-error [e]
-  (-> {:type :repl/invoke-error
-       ;; FIXME: may contain non-printable things and would break the client read
-       ;; :ex-data (ex-data e)
-       :error (.-message e)}
-      (cond->
-        (.hasOwnProperty e "stack")
-        (assoc :stack (.-stack e)))))
-
-(defonce repl-results-ref (atom {}))
-
-(defn repl-call [repl-expr repl-error]
-  (try
-    (let [result-id (str (random-uuid))
-          result {:type :repl/result
-                  :result-id result-id}
-
-          start (js/Date.now)
-          ret (repl-expr)
-          runtime (- (js/Date.now) start)]
-
-      ;; FIXME: this needs some kind of GC, shouldn't keep every single result forever
-      (swap! repl-results-ref assoc result-id {:timestamp (js/Date.now)
-                                               :result ret})
-
-      ;; FIXME: these are nonsense with multiple sessions. refactor this properly
-      (set! *3 *2)
-      (set! *2 *1)
-      (set! *1 ret)
-
-      (try
-        (let [printed (repl-print-fn ret)]
-          (swap! repl-results-ref assoc-in [result-id :printed] printed)
-          (assoc result :value printed :ms runtime))
-        (catch :default e
-          (js/console.log "encoding of result failed" e ret)
-          (assoc result :error "ENCODING FAILED, check host console"))))
-    (catch :default e
-      (set! *e e)
-      (repl-error e)
-      )))
+(defn get-ws-relay-url []
+  (str (get-ws-url-base) "/api/remote-relay?server-token=" server-token))
 
 ;; FIXME: this need to become idempotent somehow
 ;; but is something sets a print-fn we can't tell if that
@@ -161,16 +106,16 @@
         (set-print-err-fn! original-print-err-fn)))
 
     (set-print-fn!
-      (fn repl-print-fn [& args]
-        (msg-fn {:type :repl/out :text (str/join "" args)})
+      (fn repl-print-fn [s]
+        (msg-fn :stdout s)
         (when original-print-fn
-          (apply original-print-fn args))))
+          (original-print-fn s))))
 
     (set-print-err-fn!
-      (fn repl-print-err-fn [& args]
-        (msg-fn {:type :repl/err :text (str/join "" args)})
+      (fn repl-print-err-fn [s]
+        (msg-fn :stderr s)
         (when original-print-err-fn
-          (apply original-print-err-fn args))))))
+          (original-print-err-fn s))))))
 
 (defn reset-print-fns! []
   (when-let [x @reset-print-fn-ref]
@@ -184,37 +129,15 @@
     ;; goog.module calls this directly
     (set! js/goog.isProvided_ (constantly false))))
 
-(def async-ops #{:repl/require :repl/init :repl/session-start})
-
-(def repl-queue-ref (atom false))
-(defonce repl-queue-arr (array))
-
-(defn process-next! []
-  (when-not @repl-queue-ref
-    (when-some [task (.shift repl-queue-arr)]
-      (reset! repl-queue-ref true)
-      (task))))
-
-(defn done! []
-  (reset! repl-queue-ref false)
-  (process-next!))
-
-;; do work that all client impls would share here instead of repeating the code
-(defn preprocess-ws-msg [{:keys [type] :as msg}]
-  (case type
-    :build-complete
-    (let [{:keys [info]} msg
-
-          warnings
-          (->> (for [{:keys [resource-name warnings] :as src} (:sources info)
-                     :when (not (:from-jar src))
-                     warning warnings]
-                 (assoc warning :resource-name resource-name))
-               (distinct)
-               (into []))]
-      (assoc-in msg [:info :warnings] warnings))
-
-    msg))
+(defn add-warnings-to-info [{:keys [info] :as msg}]
+  (let [warnings
+        (->> (for [{:keys [resource-name warnings] :as src} (:sources info)
+                   :when (not (:from-jar src))
+                   warning warnings]
+               (assoc warning :resource-name resource-name))
+             (distinct)
+             (into []))]
+    (assoc-in msg [:info :warnings] warnings)))
 
 (def custom-notify-types
   #{:build-complete
@@ -223,34 +146,15 @@
     :build-start})
 
 (defn run-custom-notify! [msg]
-  (when (seq custom-notify-fn)
-    ;; look up every time it case it gets reloaded
-    (let [fn (js/goog.getObjectByName custom-notify-fn js/$CLJS)]
-      (if-not (fn? fn)
-        (js/console.warn "couldn't find custom :build-notify" custom-notify-fn)
-        (try
-          (fn msg)
-          (catch :default e
-            (js/console.error "Failed to run custom :build-notify" custom-notify-fn)
-            (js/console.error e))))))
-  (done!))
-
-(defn process-ws-msg [text handler]
-  (binding [reader/*default-data-reader-fn*
-            (fn [tag value]
-              [:tagged-literal tag value])]
-    (try
-      (let [msg (-> text (reader/read-string) (preprocess-ws-msg))]
-        (.push repl-queue-arr #(handler msg done!))
-        ;; ensure custom notify is called after the message is handled by shadow-cljs itself
-        ;; FIXME: :build-complete isn't actually treated as async so this runs before the code is reloaded
-        ;; only actually an issue when reloading the ns that has the notify-fn since the old one will be called
-        (when (contains? custom-notify-types (:type msg))
-          (.push repl-queue-arr #(run-custom-notify! msg))))
-      (process-next!)
-      (catch :default e
-        (js/console.warn "failed to parse websocket message" text e)
-        (throw e)))))
+  ;; look up every time it case it gets reloaded
+  (let [fn (js/goog.getObjectByName custom-notify-fn js/$CLJS)]
+    (if-not (fn? fn)
+      (js/console.warn "couldn't find custom :build-notify" custom-notify-fn)
+      (try
+        (fn msg)
+        (catch :default e
+          (js/console.error "Failed to run custom :build-notify" custom-notify-fn)
+          (js/console.error e))))))
 
 (defn make-task-fn [{:keys [log-missing-fn log-call-async log-call]} {:keys [fn-sym fn-str async]}]
   (fn [next]
@@ -321,18 +225,6 @@
   (when (= :cljs type)
     (doseq [x js/goog.global.SHADOW_NS_RESET]
       (x ns))))
-
-(defonce custom-msg-subscribers-ref (atom {}))
-
-(defn subscribe! [sub-id callback]
-  (swap! custom-msg-subscribers-ref assoc sub-id callback))
-
-(defn publish! [msg]
-  (doseq [[id callback] @custom-msg-subscribers-ref]
-    (try
-      (callback msg)
-      (catch :default e
-        (js/console.warn "failed to handle custom msg" id msg)))))
 
 (defn goog-is-loaded? [name]
   (js/$CLJS.SHADOW_ENV.isLoaded name))

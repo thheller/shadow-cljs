@@ -1,15 +1,12 @@
 (ns shadow.cljs.devtools.server.prepl
   (:require
     [clojure.core.async :as async :refer (go <! <!! >! >!! alts! alt!!)]
-    [shadow.cljs.repl :as repl]
-    [shadow.cljs.model :as m]
-    [shadow.cljs.devtools.server.repl-system :as repl-system]
-    [shadow.build.warnings :as warnings]
     [shadow.cljs.devtools.api :as shadow]
     [shadow.core-ext :as core-ext]
-    [shadow.jvm-log :as log])
+    [shadow.jvm-log :as log]
+    [shadow.cljs.devtools.server.repl-impl :as repl-impl]
+    [shadow.cljs.devtools.server.supervisor :as supervisor])
   (:import [java.net ServerSocket InetAddress SocketException]
-           [java.util UUID]
            [java.io OutputStreamWriter BufferedWriter InputStreamReader]))
 
 ;; from clojure.core.server/prepl
@@ -27,7 +24,7 @@
 ;;   :val string} ;chars from during-eval *err*
 
 (defn client-loop
-  [{:keys [state-ref repl-system] :as svc}
+  [{:keys [state-ref relay supervisor] :as svc}
    {:keys [build-id server-close server-socket] :as server-info}
    client-id
    socket]
@@ -40,149 +37,65 @@
             (OutputStreamWriter.)
             (BufferedWriter.))
 
-        out-lock
-        (Object.)
-
         send!
-        (fn send!
-          ([msg]
-           (send! core-ext/safe-pr-str msg))
-          ([transform-fn msg]
-           (locking out-lock
-             (doto socket-out
-               (.write (transform-fn msg))
-               (.write "\n")
-               (.flush)))))
+        (fn send! [msg]
+          (doto socket-out
+            (.write (core-ext/safe-pr-str msg))
+            (.write "\n")
+            (.flush)))
 
-        socket-msg
-        (async/chan) ;; no buffer, avoids reading too far ahead?
+        worker
+        (supervisor/get-worker supervisor build-id)]
 
-        tool-in
-        (async/chan 10)
+    (if-not worker
+      (send! {:tag :err :val (str "The watch for build " build-id " is not running.")})
+      (repl-impl/do-repl
+        worker
+        relay
+        socket-in
+        server-close
+        {:repl-prompt
+         (fn repl-prompt [repl-state])
 
-        tool-out
-        (repl-system/tool-connect repl-system (str "prepl:" client-id) tool-in)
+         :repl-error
+         (fn repl-error [repl-state msg]
+           (send! {:tag :err :val msg}))
 
-        runtimes
-        (repl-system/find-runtimes-for-build repl-system build-id)]
+         :repl-read-ex
+         (fn repl-read-ex [repl-state ex]
+           (send! {:tag :err :val (.getMessage ex)}))
 
-    ;; read loop, blocking IO
-    (async/thread
-      (try
-        (loop []
-          (let [{:keys [eof?] :as next} (repl/dummy-read-one socket-in)]
-            (if eof?
-              (async/close! socket-msg)
-              (do (>!! socket-msg next)
-                  (recur)))))
-        (catch Exception e
-          (log/warn-ex e ::socket-exception)
-          (async/close! socket-msg))))
+         :repl-result
+         (fn repl-result
+           [{:keys [ns eval-result read-result] :as repl-state}
+            result-as-printed-string]
+           (if-not result-as-printed-string
+             ;; repl-result is called even in cases there is no result
+             ;; so prepl always has a :ret
+             (send! {:tag :ret
+                     :val "nil"
+                     :form (:source read-result)
+                     :ns (str ns)
+                     :ms (:eval-ms eval-result 0)})
+             ;; regular return value
+             (send! {:tag :ret
+                     :val result-as-printed-string
+                     :form (:source read-result)
+                     :ns (str ns)
+                     :ms (:eval-ms eval-result 0)})))
 
-    ;; FIXME: the client should pick which runtime it wants
-    ;; (send! {:tag :runtimes :runtimes runtimes})
+         :repl-stderr
+         (fn repl-stderr [repl-state text]
+           (send! {:tag :err
+                   :val text}))
 
-    (if (empty? runtimes)
-      (send! {:tag :err :val "No available JS runtimes!"})
-      ;; work loop
-      (let [session-id (str (UUID/randomUUID))
-            session-ns 'cljs.user
-            runtime-id (-> runtimes first :runtime-id)]
-
-        (>!! tool-in {::m/op ::m/session-start
-                      ::m/runtime-id runtime-id
-                      ::m/session-id session-id
-                      ::m/session-ns session-ns})
-        (loop [loop-state {:session-id session-id
-                           :session-ns session-ns
-                           :runtime-id runtime-id}]
-          (alt!!
-            server-close
-            ([_]
-             (send! {:tag :err :val "The server is shutting down."})
-             :close)
-
-            ;; input from tool
-            socket-msg
-            ([msg]
-             (when-not (nil? msg)
-               (let [{:keys [error? ex source]} msg]
-                 (cond
-                   error?
-                   (do (send! {:tag :err :val (str "Failed to read: " ex)})
-                       (recur loop-state))
-
-                   (= ":repl/quit" source)
-                   :quit
-
-                   (= ":cljs/quit" source)
-                   :quit
-
-                   :else
-                   (do (>!! tool-in {::m/op ::m/session-eval
-                                     ::m/runtime-id runtime-id
-                                     ::m/session-id session-id
-                                     ::m/input-text source})
-                       (recur loop-state))))))
-
-            ;; messages from repl-system
-            tool-out
-            ([{::m/keys [op] :as msg}]
-             (when (some? msg)
-               (case op
-                 ::m/session-started
-                 (recur loop-state)
-
-                 ::m/session-update
-                 (let [{::m/keys [session-ns]} msg]
-                   (-> loop-state
-                       (assoc :session-ns session-ns)
-                       (recur)))
-
-                 ::m/session-result
-                 (let [{:keys [session-ns]} loop-state
-                       {::m/keys [printed-result form eval-ms]} msg]
-                   ;; worst hack in history to prevent having to read-string the result
-                   (send! {:tag :ret
-                           :ns (pr-str session-ns)
-                           :form form
-                           :ms (or eval-ms 0)
-                           :val printed-result})
-                   (recur loop-state))
-
-                 ::m/session-out
-                 (do (when (= session-id (::m/session-id msg))
-                       (send! {:tag :out :val (::m/text msg)}))
-                     (recur loop-state))
-
-                 ::m/session-err
-                 (do (when (= session-id (::m/session-id msg))
-                       (send! {:tag :err :val (::m/text msg)}))
-                     (recur loop-state))
-
-                 ::m/runtime-disconnect
-                 (if-not (= runtime-id (::m/runtime-id msg))
-                   (recur loop-state)
-                   ;; inform client and let loop end, ending in disconnect
-                   (send! {:tag :err :val "The JS Runtime disconnected."}))
-
-                 ;; mostly likely coming after disconnect on the browser reload
-                 ;; FIXME: should disconnect not actually disconnect but rather just wait?
-                 ;; this could also be a second browser connecting
-                 ::m/runtime-connect
-                 (recur loop-state)
-
-                 ;; default
-                 (do (log/debug ::unhandled-tool-out {:msg msg})
-                     (recur loop-state)))))))
-
-        ;; prepl has no way to ever resume a session
-        (>!! tool-in {::m/op ::m/session-close
-                      ::m/runtime-id runtime-id
-                      ::m/session-id session-id})))
+         :repl-stdout
+         (fn repl-stdout [repl-state text]
+           (send! {:tag :out
+                   :val text}))
+         }))
 
     (swap! state-ref update-in [:server server-socket :clients] dissoc client-id)
-    (async/close! tool-in)
     (.close socket)))
 
 (defn server-loop
@@ -260,10 +173,11 @@
                     (map :server-close))]
     (async/close! chan)))
 
-(defn start [repl-system]
+(defn start [relay supervisor]
   {:state-ref (atom {:servers {}})
    :close-chan (async/chan 1)
-   :repl-system repl-system})
+   :relay relay
+   :supervisor supervisor})
 
 (defn stop [{:keys [close-chan state-ref] :as svc}]
   (async/close! close-chan)
@@ -273,9 +187,9 @@
 
 (comment
   (require '[shadow.cljs.devtools.api :as shadow])
-  (def repl-system (:repl-system (shadow/get-runtime!)))
+  (def relay (:relay (shadow/get-runtime!)))
 
-  (def svc (start repl-system))
+  (def svc (start relay))
   svc
   (start-server svc :browser {:port 12345})
   (stop-server-for-build svc :browser)

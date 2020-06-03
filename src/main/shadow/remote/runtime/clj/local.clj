@@ -20,6 +20,7 @@
 
 (defn runtime-loop
   [{:keys [^ExecutorService ex state-ref from-relay to-relay] :as runtime}]
+
   (loop []
     (alt!!
       from-relay
@@ -37,8 +38,8 @@
                      (catch Throwable e
                        (log/debug-ex e ::process-ex {:req req})
                        (>!! to-relay {:op :exception
-                                      :mid (:mid req)
-                                      :tid (:tid req)
+                                      :call-id (:call-id req)
+                                      :to (:from req)
                                       :ex (d/datafy e)})))))]
 
            ;; keeping and cleaning tasks for obversability purposes only for now
@@ -69,13 +70,17 @@
             (async/chan))
 
         from-relay
-        (relay/runtime-connect relay to-relay {:lang :clj :type :clj-embed :desc "JVM Clojure Runtime"})
+        (relay/connect relay to-relay {})
 
         ex
         (Executors/newCachedThreadPool)
 
         state-ref
-        (atom (shared/init-state))
+        (-> {:type :runtime
+             :lang :clj
+             :desc "JVM Clojure Runtime"}
+            (shared/init-state)
+            (atom))
 
         runtime
         (doto (ClojureRuntime. state-ref ex from-relay to-relay)

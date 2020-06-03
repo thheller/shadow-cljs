@@ -9,6 +9,25 @@
   :extend-via-metadata true
   (describe [thing opts] "returns a map descriptor that tells system how to handle things further"))
 
+#?(:cljs
+   (do (defprotocol IEvalCLJS
+         (-cljs-eval [runtime input callback]))
+
+       (defprotocol IEvalJS
+         (-js-eval [runtime code]))
+
+       (defn cljs-eval
+         [^IEvalCLJS runtime {:keys [code ns] :as input} callback]
+         (when-not (and (string? code)
+                        (simple-symbol? ns))
+           (throw (ex-info "invalid cljs-eval input" {:input input})))
+         (-cljs-eval runtime input callback))
+
+       (defn js-eval
+         [^IEvalJS runtime code]
+         {:pre [(string? code)]}
+         (-js-eval runtime code))))
+
 (comment
   ;; nav feels limited by being in metadata
   ;; and coupled to the result of datafy

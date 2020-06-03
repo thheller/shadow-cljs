@@ -10,37 +10,38 @@
   (rel/format since))
 
 (defc ui-runtime-overview [ident]
-  [{:keys [rid runtime-info supported-ops] :as data}
+  [{:keys [runtime-id runtime-info supported-ops] :as data}
    (sg/query-ident ident
-     [:rid
+     [:runtime-id
       :runtime-info
       :supported-ops])]
 
   (let [{:keys [lang type since user-agent desc]} runtime-info]
 
-    (<< [:tr.align-top
-         [:td.pl-2.text-right rid]
-         [:td.pl-2.whitespace-no-wrap (name type)]
-         [:td.pl-2.whitespace-no-wrap (if-not lang "-" (name lang))]
-         [:td.pl-2.whitespace-no-wrap (age-display since)]
-         [:td.pl-2 (or desc user-agent "")]]
-        [:tr
-         [:td.border-b.py-2 {:colSpan 5}
-          #_(when (contains? supported-ops :eval-cljs)
+    (<< [:div runtime-id " - " (pr-str runtime-info)]
+        #_[:tr.align-top
+           [:td.pl-2.text-right runtime-id]
+           [:td.pl-2.whitespace-no-wrap (name type)]
+           [:td.pl-2.whitespace-no-wrap (if-not lang "-" (name lang))]
+           [:td.pl-2.whitespace-no-wrap (age-display since)]
+           [:td.pl-2 (or desc user-agent "")]]
+        #_[:tr
+           [:td.border-b.py-2 {:colSpan 5}
+            #_(when (contains? supported-ops :cljs-eval)
+                (<< [:a
+                     {:class inspect/css-button
+                      :href (str "/runtime/" rid "/cljs-eval")}
+                     "cljs eval"]))
+            #_(when (contains? supported-ops :clj-eval)
+                (<< [:a
+                     {:class inspect/css-button
+                      :href (str "/runtime/" rid "/repl")}
+                     "clj eval"]))
+            (when (contains? supported-ops :db/get-databases)
               (<< [:a
                    {:class inspect/css-button
-                    :href (str "/runtime/" rid "/eval-cljs")}
-                   "cljs eval"]))
-          #_(when (contains? supported-ops :eval-clj)
-              (<< [:a
-                   {:class inspect/css-button
-                    :href (str "/runtime/" rid "/repl")}
-                   "clj eval"]))
-          (when (contains? supported-ops :db/get-databases)
-            (<< [:a
-                 {:class inspect/css-button
-                  :href (str "/runtime/" rid "/db-explorer")}
-                 "db explorer"]))]])))
+                    :href (str "/runtime/" runtime-id "/db-explorer")}
+                   "db explorer"]))]])))
 
 (defn ui-runtime-listing [runtimes]
   (<< [:table.w-full
@@ -51,8 +52,9 @@
          [:th.border-b.py-1.pl-2.font-bold.text-left "Lang"]
          [:th.border-b.py-1.pl-2.font-bold.text-left "Since"]
          [:th.border-b.py-1.pl-2.font-bold.text-left "Desc"]]]
-       [:tbody
-        (sg/render-seq runtimes identity ui-runtime-overview)]]))
+       [:tbody]])
+
+  (sg/render-seq runtimes identity ui-runtime-overview))
 
 (defc ui-page []
   [{::m/keys [runtimes-sorted]}

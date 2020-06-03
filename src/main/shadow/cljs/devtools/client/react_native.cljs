@@ -1,20 +1,10 @@
 (ns shadow.cljs.devtools.client.react-native
   (:require
-    [clojure.string :as str]
-    [cljs.reader :as reader]
-    [goog.object :as gobj]
-    [goog.net.XhrIo :as xhr]
     [shadow.cljs.devtools.client.env :as env]
-    ))
-
-(defonce repl-ns-ref (atom nil))
-
-(defonce socket-ref (volatile! nil))
-
-(defn ws-msg [msg]
-  (if-let [s @socket-ref]
-    (.send s (pr-str msg))
-    (js/console.warn "WEBSOCKET NOT CONNECTED" (pr-str msg))))
+    [shadow.remote.runtime.api :as api]
+    [shadow.remote.runtime.shared :as shared]
+    [shadow.cljs.devtools.client.shared :as cljs-shared]
+    [shadow.cljs.devtools.client.websocket :as ws]))
 
 (defn devtools-msg
   ([x]
@@ -46,27 +36,9 @@
     #(do-js-load sources)
     complete-fn))
 
-(defn load-sources [sources callback]
-  (if (empty? sources)
-    (callback [])
-    (xhr/send
-      (env/files-url)
-      (fn [res]
-        (this-as ^goog req
-          (let [content
-                (-> req
-                    (.getResponseText)
-                    (reader/read-string))]
-            (callback content)
-            )))
-      "POST"
-      (pr-str {:client :browser
-               :sources (into [] (map :resource-id) sources)})
-      #js {"content-type" "application/edn; charset=utf-8"})))
-
 (defn noop [& args])
 
-(defn handle-build-complete [{:keys [info reload-info] :as msg}]
+(defn handle-build-complete [runtime {:keys [info reload-info] :as msg}]
   (let [{:keys [sources compiled warnings]} info]
 
     (when (and env/autoload
@@ -75,144 +47,153 @@
       (let [sources-to-get (env/filter-reload-sources info reload-info)]
 
         (when (seq sources-to-get)
-          (load-sources sources-to-get #(do-js-reload msg % noop))
+          (ws/load-sources runtime sources-to-get #(do-js-reload msg % noop))
           )))))
 
-(defn repl-error [e]
-  (js/console.error "repl/invoke error" (.-message e) e)
-  (env/repl-error e))
+(defn global-eval [js]
+  (if (not= "undefined" (js* "typeof(module)"))
+    ;; don't eval in the global scope in case of :npm-module builds running in webpack
+    (js/eval js)
+    ;; hack to force eval in global scope
+    ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
+    (js* "(0,eval)(~{});" js)))
 
-(defn repl-invoke [{:keys [id js]}]
-  (let [result (env/repl-call #(js/eval js) repl-error)]
-    (-> result
-        (assoc :id id)
-        (ws-msg))))
-
-(defn repl-require [{:keys [id sources reload-namespaces js-requires] :as msg} done]
-  (let [sources-to-load
-        (->> sources
-             (remove (fn [{:keys [provides] :as src}]
-                       (and (env/src-is-loaded? src)
-                            (not (some reload-namespaces provides)))))
-             (into []))]
-
-    (load-sources
-      sources-to-load
-      (fn [sources]
-        (do-js-load sources)
-        (ws-msg {:type :repl/require-complete :id id})
-        (done)
-        ))))
-
-(defn repl-init [{:keys [repl-state id]} done]
-  (reset! repl-ns-ref (get-in repl-state [:current :ns]))
-  (load-sources
+(defn repl-init [runtime {:keys [repl-state]}]
+  (ws/load-sources
+    runtime
     ;; maybe need to load some missing files to init REPL
     (->> (:repl-sources repl-state)
          (remove env/src-is-loaded?)
          (into []))
     (fn [sources]
       (do-js-load sources)
-      (ws-msg {:type :repl/init-complete :id id})
-      (devtools-msg "REPL init successful")
-      (done))))
+      (devtools-msg "ready!"))))
 
-(defn repl-set-ns [{:keys [id ns]}]
-  (reset! repl-ns-ref ns)
-  (ws-msg {:type :repl/set-ns-complete :id id :ns ns}))
+(defn start []
+  (let [ws-url (env/get-ws-relay-url)]
+    (ws/start ws-url {:host :react-native})))
 
-;; FIXME: core.async-ify this
-(defn handle-message [{:keys [type] :as msg} done]
-  ;; (js/console.log "ws-msg" (pr-str msg))
-  (case type
-    :repl/invoke
-    (repl-invoke msg)
+(when (and env/enabled (pos? env/worker-client-id))
 
-    :repl/require
-    (repl-require msg done)
+  (extend-type cljs-shared/Runtime
+    api/IEvalJS
+    (-js-eval [this code]
+      (global-eval code))
 
-    :repl/set-ns
-    (repl-set-ns msg)
+    cljs-shared/IHostSpecific
+    (do-invoke [this {:keys [js] :as _}]
+      (global-eval js))
 
-    :repl/init
-    (repl-init msg done)
+    (do-repl-require [runtime {:keys [sources reload-namespaces js-requires] :as msg} done error]
+      (let [sources-to-load
+            (->> sources
+                 (remove (fn [{:keys [provides] :as src}]
+                           (and (env/src-is-loaded? src)
+                                (not (some reload-namespaces provides)))))
+                 (into []))]
 
-    :repl/ping
-    (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
+        (if-not (seq sources-to-load)
+          (done [])
+          (shared/call runtime
+            {:op :cljs-load-sources
+             :to env/worker-client-id
+             :sources (into [] (map :resource-id) sources-to-load)}
 
-    :build-complete
-    (handle-build-complete msg)
+            {:cljs-sources
+             (fn [{:keys [sources] :as msg}]
+               (try
+                 (do-js-load sources)
+                 (done sources-to-load)
+                 (catch :default ex
+                   (error ex))))})))))
 
-    :build-failure
-    nil
+  (cljs-shared/init-extension! ::client #{}
+    (fn [{:keys [runtime] :as env}]
+      (let [svc {:runtime runtime}]
+        (api/add-extension runtime ::client
+          {:on-connect
+           (fn []
+             ;; FIXME: why does this break stuff when done when the namespace is loaded?
+             ;; why does it have to wait until the websocket is connected?
+             (env/patch-goog!)
 
-    :build-init
-    nil
+             (shared/call runtime
+               {:op :cljs-runtime-connect
+                :to env/worker-client-id
+                :build-id (keyword env/build-id)
+                :proc-id env/proc-id
+                :react-native true
+                :dom (exists? js/document)}
 
-    :build-start
-    nil
+               {:cljs-runtime-init
+                (fn [msg]
+                  (repl-init runtime msg))
 
-    :pong
-    nil
+                ;; the worker-rid set by the build no longer exists
+                ;; this could mean
+                ;; - the watch was restarted
+                ;; - is not running at all
+                ;; - or the output is stale
+                ;; instead of showing one generic error this should do further querying
+                ;; on the relay to see if a new watch exists
+                :stale
+                (fn [msg]
+                  (devtools-msg "Stale Output! Make sure you are using the latest compilation output!"))
 
-    :client/stale
-    (devtools-msg "Stale Client! You are not using the latest compilation output!")
+                ;; in case worker-client-id is re-used after a restart
+                ;; but now a different watch
+                :unknown-op
+                (fn [msg]
+                  (devtools-msg "Stale Output! Make sure you are using the latest compilation output!"))
 
-    :client/no-worker
-    (devtools-msg (str "watch for build \"" env/build-id "\" not running"))
+                :client-not-found
+                (fn [msg]
+                  (devtools-msg "Failed to connect to watch process!"))}))
 
-    ;; default
-    :ignored)
+           :ops
+           {:access-denied
+            (fn [msg]
+              (js/console.error
+                (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
+                     " Is the watch for this build running?")))
 
-  (when-not (contains? env/async-ops type)
-    (done)))
+            :cljs-repl-ping
+            #(cljs-shared/cljs-repl-ping runtime %)
 
-(defn ws-connect []
-  (let [ws-url
-        (env/ws-url :react-native)
+            :cljs-build-start
+            (fn [msg]
+              ;; (js/console.log "cljs-build-start" msg)
+              (env/run-custom-notify! (assoc msg :type :build-start)))
 
-        socket
-        (js/WebSocket. ws-url)]
+            :cljs-build-complete
+            (fn [msg]
+              ;; (js/console.log "cljs-build-complete" msg)
+              (let [msg (env/add-warnings-to-info msg)]
+                (handle-build-complete runtime msg)
+                (env/run-custom-notify! (assoc msg :type :build-complete))))
 
+            :cljs-build-failure
+            (fn [msg]
+              ;; (js/console.log "cljs-build-failure" msg)
+              (env/run-custom-notify! (assoc msg :type :build-failure)))
 
-    (vreset! socket-ref socket)
+            :worker-notify
+            (fn [{:keys [event-op client-id]}]
+              (cond
+                (and (= :client-disconnect event-op)
+                     (= client-id env/worker-client-id))
+                (js/console.warn "The watch for this build was stopped!")
 
-    (set! (.-onmessage socket)
-      (fn [e]
-        (env/process-ws-msg (. e -data) handle-message)
-        ))
+                ;; FIXME: what are the downside to just resuming on that worker?
+                ;; can't know if it changed something in the build
+                ;; all previous analyzer state is gone and might be out of sync with this instance
+                (= :client-connect event-op)
+                (js/console.warn "The watch for this build was restarted. Reload required!")
+                ))}})
+        svc))
 
-    (set! (.-onopen socket)
-      (fn [e]
-        (env/patch-goog!)
-        (env/set-print-fns! ws-msg)
+    (fn [{:keys [runtime] :as svc}]
+      (api/del-extension runtime ::client)))
 
-        (devtools-msg "WebSocket connected!")
-        ))
-
-    (set! (.-onclose socket)
-      (fn [e]
-        ;; not a big fan of reconnecting automatically since a disconnect
-        ;; may signal a change of config, safer to just reload the page
-        (devtools-msg "WebSocket disconnected!")
-        (vreset! socket-ref nil)
-        (env/reset-print-fns!)
-        ))
-
-    (set! (.-onerror socket)
-      (fn [e]
-        (js/console.error (str "WebSocket connect failed:" (.-message e) "\n"
-                               "It was trying to connect to: " (subs ws-url 0 (str/index-of ws-url "/" 6)) "\n"))))
-
-    ))
-
-(when ^boolean env/enabled
-  ;; disconnect an already connected socket, happens if this file is reloaded
-  ;; pretty much only for me while working on this file
-  (when-let [s @socket-ref]
-    (devtools-msg "connection reset!")
-    (set! (.-onclose s) (fn [e]))
-    (.close s)
-    (vreset! socket-ref nil))
-
-  (ws-connect))
+  ;; delay connecting other page stuff has a chance to finish first
+  (js/setTimeout start 100))

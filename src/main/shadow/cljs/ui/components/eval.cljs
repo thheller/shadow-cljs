@@ -18,16 +18,16 @@
        (pr-str data)]))
 
 (defc ui-repl-page [runtime-ident]
-  [{:keys [rid runtime-info] :as data}
+  [{:keys [runtime-id runtime-info] :as data}
    (sg/query-ident runtime-ident
-     [:rid
+     [:runtime-id
       :runtime-info])
 
    process-eval-input!
    (fn [env code]
      (sg/run-tx env [::m/process-eval-input! runtime-ident code]))]
 
-  (<< [:div.p-2 (str "#" rid " - " (str (:lang runtime-info "unknown lang"))
+  (<< [:div.p-2 (str "#" runtime-id " - " (str (:lang runtime-info "unknown lang"))
                      (when-some [ua (:user-agent runtime-info)]
                        (str " - " ua)))]
       [:div.p-2.text-xl "I have no idea how this should look?"]

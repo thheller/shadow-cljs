@@ -3,7 +3,6 @@
     [shadow.remote.runtime.api :as p]
     [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.obj-support :as obj-support]
-    [shadow.remote.runtime.cljs.env :as renv]
     ))
 
 (def ^:dynamic obj-support-inst nil)
@@ -13,17 +12,17 @@
     (throw (ex-info "obj-support not bound, can only call this from eval" {:oid oid})))
   (obj-support/get-ref obj-support-inst oid))
 
-(defn eval-cljs
+(defn cljs-eval
   [{:keys [^Runtime runtime obj-support] :as svc} {:keys [input] :as msg}]
   ;; can't use binding because this has to go async
   ;; required for $o in the UI to work, would be good to have a cleaner API for this
   (set! obj-support-inst obj-support)
-  (renv/eval-cljs runtime input
+  (p/cljs-eval runtime input
     ;; {:code "1 2 3"} would trigger 3 results
     (fn [{:keys [result] :as info}]
       (set! obj-support-inst nil) ;; cleanup
 
-      ;; (js/console.log "eval-cljs" info msg)
+      ;; (js/console.log "cljs-eval" info msg)
 
       (case result
         :compile-error
@@ -41,8 +40,14 @@
             {:op :eval-runtime-error
              :ex-oid ex-oid}))
 
+        :warnings
+        (let [{:keys [warnings]} info]
+          (shared/reply runtime msg
+            {:op :eval-compile-warnings
+             :warnings warnings}))
+
         :ok
-        (let [{:keys [results warnings]} info
+        (let [{:keys [results warnings time-start time-finish]} info
               val
               (if (= 1 (count results))
                 (first results)
@@ -53,19 +58,21 @@
             (shared/reply runtime msg
               {:op :eval-result-ref
                :ref-oid ref-oid
+               :eval-ms (- time-finish time-start)
+               :eval-ns (:ns info)
                :warnings warnings})))
 
-        (js/console.error "Unhandled eval-cljs result" info)))))
+        (js/console.error "Unhandled cljs-eval result" info)))))
 
-(defn eval-js
+(defn js-eval
   [{:keys [^Runtime runtime obj-support] :as svc} {:keys [code] :as msg}]
 
   (try
-    (let [res (renv/eval-js runtime code)
+    (let [res (p/js-eval runtime code)
           ref-oid (obj-support/register obj-support res {:js-code code})]
 
       (shared/reply runtime msg
-        ;; FIXME: separate result ops for :eval-cljs :eval-js :eval-clj?
+        ;; FIXME: separate result ops for :cljs-eval :js-eval :clj-eval?
         {:op :eval-result-ref
          :ref-oid ref-oid}))
 
@@ -82,8 +89,8 @@
     (shared/add-extension runtime
       ::ext
       {:ops
-       {:eval-js #(eval-js svc %)
-        :eval-cljs #(eval-cljs svc %)}})
+       {:js-eval #(js-eval svc %)
+        :cljs-eval #(cljs-eval svc %)}})
 
     svc))
 

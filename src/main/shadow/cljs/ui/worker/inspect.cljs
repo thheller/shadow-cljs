@@ -5,7 +5,7 @@
     [shadow.experiments.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
-    [shadow.cljs.ui.worker.tool-ws :as tool-ws]
+    [shadow.cljs.ui.worker.relay-ws :as relay-ws]
     [clojure.string :as str]))
 
 (defn without [v item]
@@ -16,63 +16,75 @@
     [y]
     (conj x y)))
 
-(defmulti tool-ws (fn [env msg] (:op msg)) :default ::default)
+(defmulti relay-ws (fn [env msg] (:op msg)) :default ::default)
 
-(defmethod tool-ws ::default [env msg]
+(defmethod relay-ws ::default [env msg]
   (js/console.warn "unhandled websocket msg" msg env)
   {})
 
-(defmethod tool-ws :welcome
-  [{:keys [db] :as env} {:keys [tid]}]
+(defmethod relay-ws :welcome
+  [{:keys [db] :as env} {:keys [client-id]}]
   {:db
-   (assoc db ::m/tool-id tid)
+   (assoc db ::m/tool-id client-id)
 
    :ws-send
-   [{:op :request-runtimes}]})
+   [{:op :request-clients
+     :notify true
+     :query [:eq :type :runtime]}]})
 
-(defmethod tool-ws :runtimes
-  [{:keys [db] :as env} {:keys [runtimes] :as msg}]
+(defmethod relay-ws :clients
+  [{:keys [db] :as env} {:keys [clients] :as msg}]
   {:db
-   (db/merge-seq db ::m/runtime runtimes [::m/runtimes])
+   (let [runtimes
+         (->> clients
+              (map (fn [{:keys [client-id client-info]}]
+                     {:runtime-id client-id
+                      :runtime-info client-info}))
+              (vec))]
+     (db/merge-seq db ::m/runtime runtimes [::m/runtimes]))
 
    :ws-send
-   (->> runtimes
-        (map (fn [{:keys [rid]}]
-               {:op :request-supported-ops :rid rid}))
-        (into []))})
+   [{:op :request-supported-ops
+     :to (->> clients
+              (map :client-id)
+              (into #{}))}]})
 
-(defmethod tool-ws :runtime-connect
-  [{:keys [db] :as env} {:keys [runtime-info rid]}]
-  (let [runtime {:rid rid
-                 :runtime-info runtime-info}]
-    {:db
-     (db/add db ::m/runtime runtime [::m/runtimes])
+(defmethod relay-ws :notify
+  [{:keys [db] :as env}
+   {:keys [event-op client-id client-info]}]
+  (case event-op
+    :client-connect
+    (let [runtime {:runtime-id client-id
+                   :runtime-info client-info}]
+      {:db
+       (db/add db ::m/runtime runtime [::m/runtimes])
 
-     :ws-send
-     [{:op :request-supported-ops :rid rid}]}))
+       :ws-send
+       [{:op :request-supported-ops :to client-id}]})
 
-(defmethod tool-ws :runtime-disconnect
-  [{:keys [db] :as env} {:keys [rid]}]
-  (let [runtime-ident (db/make-ident ::m/runtime rid)]
-    {:db
-     (-> (db/remove db runtime-ident)
-         (update ::m/runtimes without runtime-ident))}))
+    :client-disconnect
+    (let [runtime-ident (db/make-ident ::m/runtime client-id)]
+      {:db
+       (-> (db/remove db runtime-ident)
+           (update ::m/runtimes without runtime-ident))})))
 
-(defmethod tool-ws :supported-ops
-  [{:keys [db] :as env} {:keys [ops rid]}]
+(defmethod relay-ws :supported-ops
+  [{:keys [db] :as env} {:keys [ops from]}]
   (-> {:db
-       (db/update-entity db ::m/runtime rid assoc :supported-ops ops)}
+       (db/update-entity db ::m/runtime from assoc :supported-ops ops)}
       (cond->
         (contains? ops :tap-subscribe)
-        (assoc :ws-send [{:op :tap-subscribe :rid rid :summary true :history true}])
+        (assoc :ws-send [{:op :tap-subscribe :to from :summary true :history true}])
         )))
 
-(defmethod tool-ws :tap-subscribed
-  [{:keys [db] :as env} {:keys [history rid]}]
+(defmethod relay-ws :tap-subscribed
+  [{:keys [db] :as env} {:keys [history from]}]
   (let [stream-items
         (->> history
              (map (fn [{:keys [oid summary]}]
-                    {:type :tap :object-ident (db/make-ident ::m/object oid) :added-at (:added-at summary)}))
+                    {:type :tap
+                     :object-ident (db/make-ident ::m/object oid)
+                     :added-at (:added-at summary)}))
              (into []))]
 
     {:db (reduce
@@ -80,8 +92,8 @@
              (let [object-ident (db/make-ident ::m/object oid)]
                (update db object-ident merge {:db/ident object-ident
                                               :oid oid
-                                              :rid rid
-                                              :runtime (db/make-ident ::m/runtime rid)
+                                              :runtime-id from
+                                              :runtime (db/make-ident ::m/runtime from)
                                               :summary summary})))
            db
            history)
@@ -89,30 +101,32 @@
      :stream-merge
      {::m/taps stream-items}}))
 
-(defmethod tool-ws :tap [{:keys [db] :as env} {:keys [oid rid]}]
+(defmethod relay-ws :tap [{:keys [db] :as env} {:keys [oid from]}]
   (let [object-ident (db/make-ident ::m/object oid)]
     {:db
-     (db/add db ::m/object {:oid oid :rid rid :runtime (db/make-ident ::m/runtime rid)})
+     (db/add db ::m/object {:oid oid
+                            :runtime-id from
+                            :runtime (db/make-ident ::m/runtime from)})
 
      :stream-add
      [[::m/taps {:type :tap :object-ident object-ident}]]}))
 
-(defmethod tool-ws :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
+(defmethod relay-ws :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
   (let [object-ident (db/make-ident ::m/object oid)]
     {:db (assoc-in db [object-ident :summary] summary)}))
 
-(sw/reg-event-fx env/app-ref ::m/tool-ws
+(sw/reg-event-fx env/app-ref ::m/relay-ws
   []
   (fn [env {:keys [op] :as msg}]
-    ;; (js/console.log ::tool-ws op msg)
-    (tool-ws env msg)))
+    ;; (js/console.log ::m/relay-ws op msg)
+    (relay-ws env msg)))
 
-(defmethod eql/attr :obj-preview [env db {:keys [oid rid edn-limit] :as current} query-part params]
+(defmethod eql/attr :obj-preview [env db {:keys [oid runtime-id edn-limit] :as current} query-part params]
   (cond
     edn-limit
     edn-limit
 
-    (or (not oid) (not rid))
+    (or (not oid) (not runtime-id))
     (throw (ex-info "can only request obj-preview on objects" {:current current}))
 
     ;; FIXME: should maybe track somewhere that we sent this
@@ -122,9 +136,9 @@
     ;; I'd prefer to handle async stuff on another level though
     ;; leaving this as a hack for now until I can think of something cleaner
     :hack
-    (do (tool-ws/call! env
+    (do (relay-ws/call! env
           {:op :obj-request
-           :rid rid
+           :to runtime-id
            :oid oid
            :request-op :edn-limit
            :limit 150}
@@ -133,53 +147,53 @@
 
         :db/loading)))
 
-(defmethod eql/attr :summary [env db {:keys [oid rid summary] :as current} query-part params]
+(defmethod eql/attr :summary [env db {:keys [oid runtime-id summary] :as current} query-part params]
   (cond
     summary
     summary
 
-    (or (not oid) (not rid))
+    (or (not oid) (not runtime-id))
     (throw (ex-info "can only request obj-preview on objects" {:current current}))
 
     :hack
-    (do (tool-ws/call! env
+    (do (relay-ws/call! env
           {:op :obj-describe
-           :rid rid
+           :to runtime-id
            :oid oid}
           {:obj-summary [:obj-summary]})
 
         :db/loading)))
 
-(defmethod eql/attr ::m/object-as-edn [env db {:keys [oid rid edn] :as current} query-part params]
+(defmethod eql/attr ::m/object-as-edn [env db {:keys [oid runtime-id edn] :as current} query-part params]
   (cond
     edn
     edn
 
-    (or (not oid) (not rid))
+    (or (not oid) (not runtime-id))
     (throw (ex-info "can only request edn on objects" {:current current}))
 
     :hack
-    (do (tool-ws/call! env
+    (do (relay-ws/call! env
           {:op :obj-request
-           :rid rid
+           :to runtime-id
            :oid oid
            :request-op :edn}
           {:obj-request-failed [:edn-failed (:db/ident current)]
            :obj-result [:edn-result (:db/ident current)]})
         :db/loading)))
 
-(defmethod eql/attr ::m/object-as-str [env db {:keys [oid rid str] :as current} query-part params]
+(defmethod eql/attr ::m/object-as-str [env db {:keys [oid runtime-id str] :as current} query-part params]
   (cond
     str
     str
 
-    (or (not oid) (not rid))
+    (or (not oid) (not runtime-id))
     (throw (ex-info "can only request edn on objects" {:current current}))
 
     :hack
-    (do (tool-ws/call! env
+    (do (relay-ws/call! env
           {:op :obj-request
-           :rid rid
+           :to runtime-id
            :oid oid
            :request-op :str}
           {:obj-request-failed [:edn-failed (:db/ident current)]
@@ -196,18 +210,18 @@
   (fn [{:keys [db]} ident {:keys [result]}]
     {:db (assoc-in db [ident :str] result)}))
 
-(defmethod eql/attr ::m/object-as-pprint [env db {:keys [oid rid pprint] :as current} query-part params]
+(defmethod eql/attr ::m/object-as-pprint [env db {:keys [oid runtime-id pprint] :as current} query-part params]
   (cond
     pprint
     pprint
 
-    (or (not oid) (not rid))
+    (or (not oid) (not runtime-id))
     (throw (ex-info "can only request pprint on objects" {:current current}))
 
     :hack
-    (do (tool-ws/call! env
+    (do (relay-ws/call! env
           {:op :obj-request
-           :rid rid
+           :to runtime-id
            :oid oid
            :request-op :pprint}
           {:obj-request-failed [:pprint-failed (:db/ident current)]
@@ -222,7 +236,7 @@
 (defmethod eql/attr :fragment-vlist
   [env
    db
-   {:keys [oid rid summary fragment] :as current}
+   {:keys [oid runtime-id summary fragment] :as current}
    _
    {:keys [offset num] :or {offset 0 num 0} :as params}]
 
@@ -254,9 +268,9 @@
         ;; missing elements
         ;; FIXME: should be smarter about which elements to fetch
         ;; might already have some
-        (do (tool-ws/call! env
+        (do (relay-ws/call! env
               {:op :obj-request
-               :rid rid
+               :to runtime-id
                :oid oid
                :start start-idx
                :num num
@@ -285,10 +299,10 @@
 (sw/reg-event-fx env/app-ref ::m/inspect-object!
   []
   (fn [{:keys [db] :as env} ident]
-    (let [{:keys [summary oid rid] :as object} (get db ident)]
+    (let [{:keys [summary oid runtime-id] :as object} (get db ident)]
       (-> {:db (assoc db ::m/inspect {:object ident
-                                      :rid rid
-                                      :runtime (db/make-ident ::m/runtime rid)
+                                      :runtime-id runtime-id
+                                      :runtime (db/make-ident ::m/runtime runtime-id)
                                       :display-type :browse
                                       :nav-stack []})
            :ws-send []}
@@ -296,8 +310,8 @@
             (not summary)
             (-> (assoc-in [:db ident :summary] :db/loading)
                 (update :ws-send conj {:op :obj-describe
-                                       :oid oid
-                                       :rid rid}))
+                                       :to runtime-id
+                                       :oid oid}))
             )))))
 
 (sw/reg-event-fx env/app-ref ::m/inspect-cancel!
@@ -313,13 +327,13 @@
   []
   (fn [{:keys [db] :as env} idx]
     (let [{current :object :keys [nav-stack]} (::m/inspect db)
-          {:keys [oid rid] :as object} (get db current)
+          {:keys [oid runtime-id] :as object} (get db current)
 
           key (get-in object [:fragment idx :key])]
 
-      (tool-ws/call! env
+      (relay-ws/call! env
         {:op :obj-request
-         :rid rid
+         :to runtime-id
          :oid oid
          :request-op :nav
          :idx idx}
@@ -352,8 +366,10 @@
 
 (sw/reg-event-fx env/app-ref :nav-result-ref
   []
-  (fn [{:keys [db] :as env} {:keys [ref-oid rid] :as msg}]
-    (let [obj {:oid ref-oid :rid rid :runtime (db/make-ident ::m/runtime rid)}
+  (fn [{:keys [db] :as env} {:keys [ref-oid from] :as msg}]
+    (let [obj {:oid ref-oid
+               :runtime-id from
+               :runtime (db/make-ident ::m/runtime from)}
           obj-ident (db/make-ident ::m/object ref-oid)]
 
       {:db (-> db
@@ -392,19 +408,20 @@
               [{:object
                 [:oid
                  {:runtime
-                  [:rid :supported-ops]}]}]}])
+                  [:runtime-id
+                   :supported-ops]}]}]}])
 
           {:keys [object]} inspect
           {:keys [oid runtime]} object
-          {:keys [rid supported-ops]} runtime
+          {:keys [runtime-id supported-ops]} runtime
 
           ;; FIXME: ns and eval mode should come from UI
           [eval-mode ns]
           (cond
-            (contains? supported-ops :eval-clj)
-            [:eval-clj 'user]
-            (contains? supported-ops :eval-cljs)
-            [:eval-cljs 'cljs.user])
+            (contains? supported-ops :clj-eval)
+            [:clj-eval 'user]
+            (contains? supported-ops :cljs-eval)
+            [:cljs-eval 'cljs.user])
 
           input
           (-> {:ns ns
@@ -420,9 +437,9 @@
                             "\n)"))))]
 
       ;; FIXME: fx-ify
-      (tool-ws/call! env
+      (relay-ws/call! env
         {:op eval-mode
-         :rid rid
+         :to runtime-id
          :input input}
         {:eval-result-ref [::inspect-eval-result! code]
          :eval-compile-error [::inspect-eval-compile-error! code]
@@ -431,7 +448,7 @@
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-result!
   []
-  (fn [{:keys [db] :as env} code {:keys [ref-oid rid warnings] :as msg}]
+  (fn [{:keys [db] :as env} code {:keys [ref-oid from warnings] :as msg}]
     (when (seq warnings)
       (doseq [w warnings]
         (js/console.warn "FIXME: warning not yet displayed in UI" w)))
@@ -441,8 +458,8 @@
            (assoc object-ident
                   {:db/ident object-ident
                    :oid ref-oid
-                   :rid rid
-                   :runtime (db/make-ident ::m/runtime rid)})
+                   :runtime-id from
+                   :runtime (db/make-ident ::m/runtime from)})
            (assoc-in [::m/inspect :object] object-ident)
            (update-in [::m/inspect :nav-stack] conj
              {:idx (count (get-in db [::m/inspect :nav-stack]))
@@ -451,15 +468,15 @@
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-compile-error!
   []
-  (fn [{:keys [db] :as env} code {:keys [rid ex-oid ex-rid] :as msg}]
+  (fn [{:keys [db] :as env} code {:keys [from ex-oid ex-client-id] :as msg}]
     (let [object-ident (db/make-ident ::m/object ex-oid)]
       {:db
        (-> db
            (assoc object-ident
                   {:db/ident object-ident
                    :oid ex-oid
-                   :rid (or ex-rid rid)
-                   :runtime (db/make-ident ::m/runtime (or ex-rid rid))
+                   :runtime-id (or ex-client-id from)
+                   :runtime (db/make-ident ::m/runtime (or ex-client-id from))
                    :is-error true})
            (assoc-in [::m/inspect :object] object-ident)
            (update-in [::m/inspect :nav-stack] conj
@@ -469,15 +486,15 @@
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-runtime-error!
   []
-  (fn [{:keys [db] :as env} code {:keys [rid ex-oid] :as msg}]
+  (fn [{:keys [db] :as env} code {:keys [from ex-oid] :as msg}]
     (let [object-ident (db/make-ident ::m/object ex-oid)]
       {:db
        (-> db
            (assoc object-ident
                   {:db/ident object-ident
                    :oid ex-oid
-                   :rid rid
-                   :runtime (db/make-ident ::m/runtime rid)
+                   :runtime-id from
+                   :runtime (db/make-ident ::m/runtime from)
                    :is-error true})
            (assoc-in [::m/inspect :object] object-ident)
            (update-in [::m/inspect :nav-stack] conj
@@ -485,81 +502,33 @@
               :code code
               :ident (get-in db [::m/inspect :object])}))})))
 
-#_(sw/reg-event-fx env/app-ref ::m/process-eval-input!
-    []
-    (fn [{:keys [db] :as env} runtime-ident code]
-      (let [eval-id (random-uuid)
-            eval-ident (db/make-ident ::m/eval eval-id)
-            {:keys [rid] :as runtime} (get db runtime-ident)
-
-            ns 'user
-
-            wrap ""
-            #_(str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
-                   "      $o (:obj $ref)\n"
-                   "      $d (-> $ref :desc :data)]\n"
-                   "?CODE?\n"
-                   "\n)")]
-
-        (tool-ws/call! env
-          {:op :eval-clj
-           :rid rid
-           :ns ns
-           :code code}
-          {:eval-result-ref [::process-eval-result-ref! eval-ident]})
-
-        {:db (assoc db eval-ident {:db/ident eval-ident
-                                   :runtime runtime-ident
-                                   :eval-id eval-id
-                                   :rid rid
-                                   :code code
-                                   :ns ns
-                                   :status :requested})
-         :stream-add
-         [[[::m/eval-stream runtime-ident] {:ident eval-ident}]]})))
-
-(sw/reg-event-fx env/app-ref ::process-eval-result-ref!
-  []
-  (fn [{:keys [db] :as env} eval-ident {:keys [ref-oid] :as msg}]
-    (let [object-ident (db/make-ident ::m/object ref-oid)
-          {:keys [rid]} (get db eval-ident)]
-      {:db
-       (-> db
-           (assoc object-ident
-                  {:db/ident object-ident
-                   :oid ref-oid
-                   :rid rid
-                   :runtime (db/make-ident ::m/runtime rid)})
-           (update eval-ident merge {:result object-ident
-                                     :status :done}))})))
-
-(defmethod eql/attr ::m/databases [env db {:keys [rid] ::m/keys [databases] :as current} query-part params]
+(defmethod eql/attr ::m/databases [env db {:keys [runtime-id] ::m/keys [databases] :as current} query-part params]
   (cond
     databases
     databases
 
-    (not rid)
+    (not runtime-id)
     (throw (ex-info "can only request ::m/databases for runtime" {:current current}))
 
     :hack
-    (do (tool-ws/call! env
+    (do (relay-ws/call! env
           {:op :db/get-databases
-           :rid rid}
+           :to runtime-id}
           {:db/list-databases [::list-databases (:db/ident current)]})
         :db/loading)))
 
 (sw/reg-event-fx env/app-ref ::list-databases
   []
   (fn [{:keys [db] :as env} runtime-ident {:keys [databases]}]
-    (let [{:keys [rid] :as runtime} (get db runtime-ident)]
+    (let [{:keys [runtime-id] :as runtime} (get db runtime-ident)]
       {:db (reduce
              (fn [db db-id]
-               (let [db-ident (db/make-ident ::m/database [rid db-id])]
+               (let [db-ident (db/make-ident ::m/database [runtime-id db-id])]
                  (-> db
                      (assoc db-ident {:db/ident db-ident
-                                      :rid rid
+                                      :runtime-id runtime-id
                                       :db-id db-id
-                                      ::runtime runtime-ident})
+                                      ::m/runtime runtime-ident})
                      (update-in [runtime-ident ::m/databases] conj db-ident)
                      (cond->
                        (= 1 (count databases))
@@ -568,7 +537,7 @@
              (assoc-in db [runtime-ident ::m/databases] [])
              databases)})))
 
-(defmethod eql/attr ::m/tables [env db {:keys [rid db-id] ::m/keys [tables] :as current} query-part params]
+(defmethod eql/attr ::m/tables [env db {:keys [runtime-id db-id] ::m/keys [tables] :as current} query-part params]
   (cond
     tables
     tables
@@ -577,10 +546,10 @@
     (throw (ex-info "can only request ::m/tables for database" {:current current}))
 
     :hack
-    (do (tool-ws/call! env
+    (do (relay-ws/call! env
           {:op :db/get-tables
-           :db db-id
-           :rid rid}
+           :to runtime-id
+           :db db-id}
           {:db/list-tables [::list-tables (:db/ident current)]})
         :db/loading)))
 
@@ -595,7 +564,7 @@
 (defmethod eql/attr ::m/table-rows-vlist
   [env
    db
-   {db-ident :db/ident :keys [db-id rid] ::m/keys [table-query table-rows] :as current}
+   {db-ident :db/ident :keys [db-id runtime-id] ::m/keys [table-query table-rows] :as current}
    _
    {:keys [offset num] :or {offset 0 num 0} :as params}]
 
@@ -607,9 +576,9 @@
           :db/loading)
 
       (not table-rows)
-      (do (tool-ws/call! env
+      (do (relay-ws/call! env
             {:op :db/get-rows
-             :rid rid
+             :to runtime-id
              :db db-id
              :table table}
             {:db/list-rows [::list-rows db-ident]})
@@ -644,21 +613,21 @@
 (sw/reg-event-fx env/app-ref ::m/table-query-update!
   []
   (fn [{:keys [db] :as env} {:keys [db-ident table row] :as msg}]
-    (let [{:keys [rid db-id] ::m/keys [table-query]} (get db db-ident)]
+    (let [{:keys [runtime-id db-id] ::m/keys [table-query]} (get db db-ident)]
 
       ;; FIXME: make this proper fx!
       (when (not= table (:table table-query))
-        (tool-ws/call! env
+        (relay-ws/call! env
           {:op :db/get-rows
-           :rid rid
+           :to runtime-id
            :db db-id
            :table table}
           {:db/list-rows [::list-rows db-ident]}))
 
       (when (not= row (:row table-query))
-        (tool-ws/call! env
+        (relay-ws/call! env
           {:op :db/get-entry
-           :rid rid
+           :to runtime-id
            :db db-id
            :table table
            :row row}

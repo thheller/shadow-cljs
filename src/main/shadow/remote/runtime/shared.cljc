@@ -3,12 +3,17 @@
     [clojure.datafy :as d]
     [clojure.pprint :refer (pprint)]
     [shadow.remote.runtime.api :as p]
-    [shadow.remote.runtime.writer :as lw])
+    [shadow.remote.runtime.writer :as lw]
+    #?@(:clj
+        [[shadow.jvm-log :as log]]
+        :cljs
+        []))
   #?(:clj (:import [java.util UUID])))
 
-(defn init-state []
+(defn init-state [client-info]
   {:extensions {}
    :ops {}
+   :client-info client-info
    :call-id-seq 0
    :call-handlers {}})
 
@@ -16,13 +21,16 @@
   #?(:cljs (js/Date.now)
      :clj (System/currentTimeMillis)))
 
-(defn reply [runtime {:keys [mid tid]} res]
+(defn relay-msg [runtime msg]
+  (p/relay-msg runtime msg))
+
+(defn reply [runtime {:keys [call-id from]} res]
   (let [res (-> res
                 (cond->
-                  mid
-                  (assoc :mid mid)
-                  tid
-                  (assoc :tid tid)))]
+                  call-id
+                  (assoc :call-id call-id)
+                  from
+                  (assoc :to from)))]
     (p/relay-msg runtime res)))
 
 (defn call
@@ -32,29 +40,36 @@
     msg
     handlers
     timeout-after-ms]
-   (let [mid (:call-id-seq @state-ref)]
+   (let [call-id (:call-id-seq @state-ref)]
      (swap! state-ref update :call-id-seq inc)
-     (swap! state-ref assoc-in [:call-handlers mid]
+     (swap! state-ref assoc-in [:call-handlers call-id]
        {:handlers handlers
         :called-at (now)
         :msg msg
         :timeout timeout-after-ms})
-     (p/relay-msg runtime (assoc msg :mid mid)))))
+     (p/relay-msg runtime (assoc msg :call-id call-id)))))
 
 (defn welcome
-  [{:keys [state-ref]} {:keys [rid] :as msg}]
+  [{:keys [state-ref] :as runtime} {:keys [client-id] :as msg}]
   ;; #?(:cljs (js/console.log "shadow.remote - runtime-id:" rid))
-  (swap! state-ref assoc :rid rid))
+  (swap! state-ref assoc :client-id client-id)
 
-(defn get-rid [{:keys [state-ref] :as runtime}]
-  (or (:rid @state-ref)
+  (let [{:keys [client-info extensions]} @state-ref]
+    (relay-msg runtime
+      {:op :hello
+       :client-info client-info})
+
+    (doseq [{:keys [on-connect] :as ext} (vals extensions)
+            :when on-connect]
+      (on-connect))))
+
+(defn ping
+  [runtime msg]
+  )
+
+(defn get-client-id [{:keys [state-ref] :as runtime}]
+  (or (:client-id @state-ref)
       (throw (ex-info "runtime has no assigned runtime-id" {:runtime runtime}))))
-
-(defn tool-disconnect
-  [{:keys [state-ref]} {:keys [tid] :as msg}]
-  (doseq [{:keys [on-tool-disconnect]} (-> @state-ref :extensions vals)
-          :when on-tool-disconnect]
-    (on-tool-disconnect tid)))
 
 (defn request-supported-ops
   [{:keys [state-ref] :as runtime} msg]
@@ -67,11 +82,11 @@
 
 (defn unknown-relay-op [msg]
   #?(:cljs (js/console.warn "unknown-relay-op" msg)
-     :clj  (prn [:unknown-relay-op msg])))
+     :clj  (log/warn ::unknown-relay-op msg)))
 
 (defn unknown-op [msg]
   #?(:cljs (js/console.warn "unknown-op" msg)
-     :clj  (prn [:unknown-relay-op msg])))
+     :clj  (log/warn ::unknown-op msg)))
 
 (defn add-extension*
   [{:keys [extensions] :as state} key {:keys [ops] :as spec}]
@@ -90,15 +105,16 @@
 (defn add-extension [{:keys [state-ref]} key spec]
   (swap! state-ref add-extension* key spec))
 
-(defn add-defaults [{:keys [state-ref] :as runtime}]
+(defn add-defaults [runtime]
   (add-extension runtime
     ::defaults
     {:ops
      {:welcome #(welcome runtime %)
       :unknown-relay-op #(unknown-relay-op %)
       :unknown-op #(unknown-op %)
+      :ping #(ping runtime %)
       :request-supported-ops #(request-supported-ops runtime %)
-      :tool-disconnect #(tool-disconnect runtime %)}}))
+      }}))
 
 (defn del-extension* [state key]
   (let [ext (get-in state [:extensions key])]
@@ -116,35 +132,52 @@
 
 (defn unhandled-call-result [call-config msg]
   #?(:cljs (js/console.warn "unhandled call result" msg call-config)
-     :clj  (prn [:unhandled-call-result msg])))
+     :clj  (log/warn ::unhandled-call-result msg)))
+
+(defn unhandled-client-not-found
+  [{:keys [state-ref] :as runtime} msg]
+  (doseq [{:keys [on-client-not-found] :as ext} (vals (:extensions @state-ref))
+          :when on-client-not-found]
+    (on-client-not-found msg)))
 
 (defn reply-unknown-op [runtime msg]
   (reply runtime msg {:op :unknown-op
                       :msg msg}))
 
-(defn process [{:keys [state-ref] :as runtime} {:keys [op mid] :as msg}]
+(defn process [{:keys [state-ref] :as runtime} {:keys [op call-id] :as msg}]
   ;; (js/console.log "received from relay" msg)
   (let [state @state-ref
         op-handler (get-in state [:ops op])]
-    ;; extension op handlers always come first
-    (if op-handler
-      (op-handler msg)
-      ;; expecting rpc reply when mid is set
-      (if mid
-        (let [cfg (get-in state [:call-handlers mid])]
-          (if-not cfg
-            (reply-unknown-op runtime msg)
-            ;; call may have not provided handler for op
-            ;; not something the relay should care about, so don't tell it
-            (if-some [op-handler (get-in cfg [:handlers op])]
-              ;; only expecting one result for calls
-              (do (swap! state-ref update :call-handlers dissoc mid)
-                  (op-handler msg))
-              ;; no handler set
-              (unhandled-call-result cfg msg))))
 
-        ;; FIXME: unknown-mid?
-        (reply-unknown-op runtime msg)))))
+    (cond
+      ;; expecting rpc reply when mid is set
+      call-id
+      (let [cfg (get-in state [:call-handlers call-id])
+            call-handler (get-in cfg [:handlers op])]
+
+        ;; replies may either go to registered call handler
+        ;; or if that is missing to a global op handler
+        (cond
+          call-handler
+          (do (swap! state-ref update :call-handlers dissoc call-id)
+              (call-handler msg))
+
+          op-handler
+          (op-handler msg)
+
+          ;; nothing here to handle it
+          :else
+          (unhandled-call-result cfg msg)))
+
+      op-handler
+      (op-handler msg)
+
+      ;; don't want to reply with unknown-op to client-not-found
+      (= :client-not-found op)
+      (unhandled-client-not-found runtime msg)
+
+      :else
+      (reply-unknown-op runtime msg))))
 
 (defn run-on-idle [state-ref]
   (doseq [{:keys [on-idle]} (-> @state-ref :extensions vals)

@@ -2,8 +2,7 @@
 
 ;; FIXME: api shouldn't be dependent on core.async
 
-(defprotocol IToolRelay
-  (tool-connect [relay tool-out tool-info]))
-
-(defprotocol IRuntimeRelay
-  (runtime-connect [relay runtime-out tool-info]))
+(defprotocol IRelayClient
+  ;; from-client is channel for messages the client wants to send
+  ;; returns from-relay channel for messages the relay wants to send to the client
+  (connect [relay from-client client-info]))

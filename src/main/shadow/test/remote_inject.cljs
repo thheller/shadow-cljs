@@ -1,9 +1,10 @@
 (ns shadow.test.remote-inject
   (:require
-    [shadow.remote.runtime.cljs.env :as renv]
+    [cljs.test :as ct]
     [shadow.remote.runtime.api :as p]
+    [shadow.cljs.devtools.client.shared :as cljs-shared]
     [shadow.test.env :as test-env]
-    [cljs.test :as ct]))
+    ))
 
 #_#_#_(defn find-tests [svc msg]
   {:tests
@@ -63,7 +64,7 @@
     state
     namespaces))
 
-(renv/init-extension! ::test-cljs #{:obj-support}
+(cljs-shared/init-extension! ::test-cljs #{:obj-support}
   (fn [{:keys [runtime obj-support] :as env}]
     (let [state-ref
           (atom {})

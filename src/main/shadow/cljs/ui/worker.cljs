@@ -4,7 +4,7 @@
     [shadow.experiments.grove.http-fx :as http-fx]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
-    [shadow.cljs.ui.worker.tool-ws :as tool-ws]
+    [shadow.cljs.ui.worker.relay-ws :as relay-ws]
     [shadow.cljs.ui.worker.api-ws :as api-ws]
     [shadow.cljs.ui.worker.generic]
     [shadow.cljs.ui.worker.builds]
@@ -24,7 +24,7 @@
        :request-format :transit}))
 
   (sw/stream-setup env/app-ref ::m/taps {:capacity 1000})
-  (tool-ws/init env/app-ref)
+  (relay-ws/init env/app-ref)
 
   ;; FIXME: this is the old stuff, should probably make something using shadow.remote instead
   ;; lots of overlap, uglier API

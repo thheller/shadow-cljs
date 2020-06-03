@@ -143,7 +143,7 @@
          (keyword? build-id)]}
 
   (let [proc-id
-        (UUID/randomUUID) ;; FIXME: not really unique but unique enough
+        (str (UUID/randomUUID))
 
         _ (log/debug ::start {:build-id build-id :proc-id proc-id})
 
@@ -195,19 +195,33 @@
          :asset-update asset-update
          :config-watch config-watch}
 
-        ;; FIXME: figure out better runtime-info
         from-relay
-        (relay-api/runtime-connect relay to-relay
-          {:type :build-worker
-           :desc (str "Worker for build " build-id)
-           ::m/worker-id proc-id
-           ::m/worker-for build-id})
+        (relay-api/connect relay to-relay {})
 
-        {:keys [op rid] :as welcome-msg}
+        {:keys [op client-id] :as welcome-msg}
         (<!! from-relay)
 
         _ (when (not= op :welcome)
             (throw (ex-info "received unexpected first message from relay" {:msg welcome-msg})))
+
+        _
+        (>!! to-relay
+          {:op :hello
+           :client-info
+           {:type :build-worker
+            :desc (str "Worker for build " build-id)
+            ::m/worker-id proc-id
+            ::m/worker-for build-id}})
+
+        _
+        (>!! to-relay
+          {:op :request-notify
+           :notify-op :cljs-runtime-notify
+           :query
+           [:and
+            [:eq :type :runtime]
+            [:eq :build-id build-id]
+            [:eq :proc-id proc-id]]})
 
         thread-state
         {::impl/worker-state true
@@ -217,7 +231,7 @@
          :classpath classpath
          :cache-root cache-root
          :cli-opts cli-opts
-         :rid rid
+         :relay-client-id client-id
          :npm npm
          :babel babel
          :proc-id proc-id
@@ -227,7 +241,6 @@
          :runtimes {}
          :clj-runtime clj-runtime
          :clj-obj-support clj-obj-support
-         :repl-sessions {}
          :pending-results {}
          :channels channels
          :system-bus system-bus

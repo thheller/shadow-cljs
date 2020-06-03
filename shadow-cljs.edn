@@ -11,7 +11,7 @@
  {}
 
  :dev-http
- {8600 "out/demo-browser/public"
+ {8605 "out/demo-browser/public"
   8606 "out/demo-test-browser"}
 
  :prepl {:browser 12345}

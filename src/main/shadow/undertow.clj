@@ -285,6 +285,7 @@
 
     (assoc state :handler handler)))
 
+(defonce WS-REJECT (AttachmentKey/create Object))
 (defonce WS-LOOP (AttachmentKey/create Object))
 (defonce WS-IN (AttachmentKey/create Object))
 (defonce WS-OUT (AttachmentKey/create Object))
@@ -299,53 +300,56 @@
         (reify
           WebSocketConnectionCallback
           (onConnect [_ exchange channel]
-            (let [ws-in (.getAttachment exchange WS-IN)
-                  ws-out (.getAttachment exchange WS-OUT)
-                  ws-loop (.getAttachment exchange WS-LOOP)
+            (if-some [[code reason] (.getAttachment exchange WS-REJECT)]
+              (do (WebSockets/sendCloseBlocking code reason channel)
+                  (.close exchange))
+              (let [ws-in (.getAttachment exchange WS-IN)
+                    ws-out (.getAttachment exchange WS-OUT)
+                    ws-loop (.getAttachment exchange WS-LOOP)
 
-                  handler-fn
-                  (fn [channel msg]
-                    (if-not (some? msg)
-                      (async/close! ws-in)
-                      (async/put! ws-in msg)))
+                    handler-fn
+                    (fn [channel msg]
+                      (if-not (some? msg)
+                        (async/close! ws-in)
+                        (async/put! ws-in msg)))
 
-                  close-task
-                  (reify ChannelListener
-                    (handleEvent [this ignored-event]
-                      (async/close! ws-in)
-                      (async/close! ws-out)))]
+                    close-task
+                    (reify ChannelListener
+                      (handleEvent [this ignored-event]
+                        (async/close! ws-in)
+                        (async/close! ws-out)))]
 
-              (.. channel (addCloseTask close-task))
-              (.. channel (getReceiveSetter) (set (WsTextReceiver. handler-fn)))
-              (.. channel (resumeReceives))
+                (.. channel (addCloseTask close-task))
+                (.. channel (getReceiveSetter) (set (WsTextReceiver. handler-fn)))
+                (.. channel (resumeReceives))
 
-              (go (loop []
-                    ;; try to send remaining messages before disconnect
-                    ;; if loop closes after putting something on ws-out
-                    (alt! :priority true
-                      ws-out
-                      ([msg]
-                       (if (nil? msg)
-                         ;; when out closes, also close in
-                         (async/close! ws-in)
-                         ;; try to send message, close everything if that fails
-                         (do (try
-                               (WebSockets/sendTextBlocking msg channel)
-                               ;; just ignore sending to a closed channel
-                               (catch ClosedChannelException e
-                                 (async/close! ws-in)
-                                 (async/close! ws-out)))
-                             (recur))))
+                (go (loop []
+                      ;; try to send remaining messages before disconnect
+                      ;; if loop closes after putting something on ws-out
+                      (alt! :priority true
+                        ws-out
+                        ([msg]
+                         (if (nil? msg)
+                           ;; when out closes, also close in
+                           (async/close! ws-in)
+                           ;; try to send message, close everything if that fails
+                           (do (try
+                                 (WebSockets/sendTextBlocking msg channel)
+                                 ;; just ignore sending to a closed channel
+                                 (catch ClosedChannelException e
+                                   (async/close! ws-in)
+                                   (async/close! ws-out)))
+                               (recur))))
 
-                      ws-loop
-                      ([_] :closed)))
+                        ws-loop
+                        ([_] :closed)))
 
-                  (.close exchange)
+                    (.close exchange)
 
-                  ;; probably already closed, just in case
-                  (async/close! ws-out)
-                  (async/close! ws-in)
-                  ))))
+                    ;; probably already closed, just in case
+                    (async/close! ws-out)
+                    (async/close! ws-in)
+                    )))))
 
         ws-handler
         (-> (Handlers/websocket ws-callback)
@@ -356,13 +360,18 @@
           (fn [{::impl/keys [exchange] :as ring-request}]
             (let [ws-req (assoc ring-request ::ws true)
 
-                  {:keys [ws-in ws-out ws-loop] :as res}
+                  {:keys [ws-in ws-out ws-loop ws-reject] :as res}
                   (handler-fn ws-req)]
 
               ;; expecting map with :ws-loop :ws-in :ws-out keys
-              (if (and (satisfies? async-prot/ReadPort ws-loop)
-                       (satisfies? async-prot/ReadPort ws-in)
-                       (satisfies? async-prot/ReadPort ws-out))
+              (cond
+                ws-reject
+                (do (.putAttachment exchange WS-REJECT ws-reject)
+                    (.handleRequest ws-handler exchange))
+
+                (and (satisfies? async-prot/ReadPort ws-loop)
+                     (satisfies? async-prot/ReadPort ws-in)
+                     (satisfies? async-prot/ReadPort ws-out))
                 (do (.putAttachment exchange WS-LOOP ws-loop)
                     (.putAttachment exchange WS-IN ws-in)
                     (.putAttachment exchange WS-OUT ws-out)
@@ -370,8 +379,10 @@
                     ::async)
 
                 ;; didn't return a loop. respond without upgrade.
-                res
-                ))))]
+                ;; error result not visible to JS on client
+                ;; just relying on browser to report it
+                :else
+                res))))]
 
     (assoc state :handler handler)))
 

@@ -56,14 +56,14 @@
   [{::m/keys [runtimes-sorted]}
    (sg/query-root
      [{::m/runtimes-sorted
-       [:rid
+       [:runtime-id
         :runtime-info
         :supported-ops]}])]
 
   (<< [:div.m-4.rounded.border.shadow.bg-white
        [:div.p-2.font-bold.border-b "Active Runtimes"]
        [:ol.pl-6.pt-1.list-disc
-        (sg/render-seq runtimes-sorted :rid
+        (sg/render-seq runtimes-sorted :runtime-id
           (fn [runtime]
             (<< [:li (pr-str runtime)])))]]))
 

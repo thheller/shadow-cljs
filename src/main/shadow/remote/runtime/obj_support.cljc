@@ -103,8 +103,8 @@
             (obj-ref nav))))
       (assoc-in [:handlers :fragment]
         (fn [{:keys [start num key-limit val-limit]
-              :or {key-limit 50
-                   val-limit 50}
+              :or {key-limit 100
+                   val-limit 100}
               :as msg}]
 
           (let [end (min (count view-order) (+ start num))
@@ -135,9 +135,8 @@
                 nav (d/nav data idx val)]
             (obj-ref nav))))
       (assoc-in [:handlers :fragment]
-        (fn [{:keys [start num key-limit val-limit]
-              :or {key-limit 50
-                   val-limit 50}
+        (fn [{:keys [start num val-limit]
+              :or {val-limit 100}
               :as msg}]
 
           (let [end (min (count data) (+ start num))
@@ -160,9 +159,8 @@
                 nav (d/nav data idx val)]
             (obj-ref nav))))
       (assoc-in [:handlers :fragment]
-        (fn [{:keys [start num key-limit val-limit]
-              :or {key-limit 50
-                   val-limit 50}
+        (fn [{:keys [start num val-limit]
+              :or {val-limit 100}
               :as msg}]
 
           (let [end (min (count view-order) (+ start num))
@@ -258,13 +256,14 @@
          {:added-at (:added-at opts)
           :datafied (not (identical? data o))}
 
-         ;; FIXME: only add those for clojure values
-         ;; often pointless when datafy returned original object
+         ;; FIXME: should these work on the datafy result or the original?
+         ;; maybe different ops? maybe msg option?
          :handlers
-         {:edn-limit #(as-edn-limit data %)
-          :edn #(as-edn data %)
-          :str #(as-str data %)
-          :pprint #(as-pprint data %)}}
+         {:str #(as-str o %)
+          ;; FIXME: only do those for actual clojure vals?
+          :edn #(as-edn o %)
+          :edn-limit #(as-edn-limit o %)
+          :pprint #(as-pprint o %)}}
 
         (inspect-basic o opts)
         (inspect-type-info o opts)
@@ -278,9 +277,7 @@
 
   nil
   (describe [o opts]
-    {:data nil
-     :summary {:data-type :nil :obj-type "nil"}
-     :handlers {}}))
+    (default-describe o opts)))
 
 (comment
   (p/describe
@@ -381,6 +378,16 @@
                                    :cljs (.-message e))})))))
         )))
 
+(defn obj-forget
+  [{:keys [state-ref] :as svc}
+   {:keys [oid] :as msg}]
+  (swap! state-ref update :objects dissoc oid))
+
+(defn obj-forget-all
+  [{:keys [state-ref] :as svc}
+   msg]
+  (swap! state-ref assoc :objects {}))
+
 (defn basic-gc! [state]
   (let [objs-to-drop
         (->> (:objects state)
@@ -407,7 +414,9 @@
     (p/add-extension runtime
       ::ext
       {:ops {:obj-describe #(obj-describe svc %)
-             :obj-request #(obj-request svc %)}
+             :obj-request #(obj-request svc %)
+             :obj-forget #(obj-forget svc %)
+             :obj-forget-all #(obj-forget-all svc %)}
        :on-idle #(swap! state-ref basic-gc!)})
 
     svc))

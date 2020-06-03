@@ -25,7 +25,7 @@
    [org.clojure/tools.reader "1.3.2"]
 
    [nrepl "0.7.0"]
-   [cider/piggieback "0.4.2"]
+   [cider/piggieback "0.5.0"]
 
    [com.cognitect/transit-clj "1.0.324"]
    [com.cognitect/transit-cljs "0.8.264"]

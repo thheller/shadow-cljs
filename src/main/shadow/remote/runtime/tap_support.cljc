@@ -5,8 +5,9 @@
     [shadow.remote.runtime.obj-support :as obj]))
 
 (defn tap-subscribe
-  [{:keys [subs-ref obj-support runtime] :as svc} {:keys [tid summary history num] :or {num 10} :as msg}]
-  (swap! subs-ref assoc tid msg)
+  [{:keys [subs-ref obj-support runtime] :as svc}
+   {:keys [from summary history num] :or {num 10} :as msg}]
+  (swap! subs-ref assoc from msg)
   ;; FIXME: should this always confirm?
   ;; tool may want to do stuff even if it didn't request a history?
   ;; but it can do so optimistically and just receive taps?
@@ -24,8 +25,8 @@
                      (into []))})))
 
 (defn tap-unsubscribe
-  [{:keys [subs-ref]} {:keys [tid]}]
-  (swap! subs-ref dissoc tid))
+  [{:keys [subs-ref]} {:keys [from]}]
+  (swap! subs-ref dissoc from))
 
 (defn request-tap-history
   [{:keys [obj-support runtime]}
@@ -47,7 +48,7 @@
           (when (some? obj)
             (let [oid (obj/register obj-support obj {:from :tap})]
               (doseq [[tid tap-config] @subs-ref]
-                (p/relay-msg runtime {:op :tap :tid tid :oid oid})))))
+                (p/relay-msg runtime {:op :tap :to tid :oid oid})))))
 
         svc
         {:runtime runtime

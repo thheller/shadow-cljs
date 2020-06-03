@@ -25,7 +25,7 @@
 (comment
   (apply-wrap 123 `(identity ~'?CODE?)))
 
-(defn eval-clj
+(defn clj-eval
   [{:keys [runtime obj-support]}
    {:keys [input] :as msg}]
 
@@ -35,13 +35,22 @@
     (binding [*ns* (find-ns ns)
               get-ref #(get-ref* obj-support %)]
       (try
-        (let [val
-              (cond-> (read-string code)
+        (let [form
+              (read-string code)
+
+              eval-form
+              (cond-> form
                 wrap
                 (apply-wrap (read-string wrap)))
 
+              eval-start
+              (System/currentTimeMillis)
+
               res
-              (eval val)
+              (eval eval-form)
+
+              eval-ms
+              (- (System/currentTimeMillis) eval-start)
 
               ref-oid
               (obj-support/register obj-support res {:code code
@@ -49,6 +58,8 @@
 
           (shared/reply runtime msg
             {:op :eval-result-ref
+             :eval-ms eval-ms
+             :eval-ns (symbol (str *ns*))
              :ref-oid ref-oid}))
 
         (catch Exception e
@@ -65,7 +76,7 @@
     (p/add-extension runtime
       ::ext
       {:ops
-       {:eval-clj #(eval-clj svc %)}})
+       {:clj-eval #(clj-eval svc %)}})
 
     svc))
 
