@@ -70,7 +70,10 @@
             (async/chan))
 
         from-relay
-        (relay/connect relay to-relay {})
+        (async/chan 256)
+
+        _
+        (relay/connect relay to-relay from-relay {})
 
         ex
         (Executors/newCachedThreadPool)

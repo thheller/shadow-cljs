@@ -34,7 +34,10 @@
         (async/chan 10)
 
         from-relay
-        (relay/connect relay to-relay {})
+        (async/chan 256)
+
+        connection-stop
+        (relay/connect relay to-relay from-relay {})
 
         {:keys [client-id] :as welcome-msg}
         (<!! from-relay)

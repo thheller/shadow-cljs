@@ -171,7 +171,10 @@
          :config-watch config-watch}
 
         from-relay
-        (relay-api/connect relay to-relay {})
+        (async/chan 256)
+
+        connection-stop
+        (relay-api/connect relay to-relay from-relay {})
 
         {:keys [op client-id] :as welcome-msg}
         (<!! from-relay)
@@ -206,6 +209,7 @@
          :cache-root cache-root
          :cli-opts cli-opts
          :relay-client-id client-id
+         :relay-connection-stop connection-stop
          :npm npm
          :babel babel
          :proc-id proc-id

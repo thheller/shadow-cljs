@@ -3,15 +3,12 @@
   (:require
     [clojure.core.async :as async :refer (go <! >! >!! <!! alt! alt!!)]
     [clojure.java.io :as io]
-    [clojure.pprint :refer (pprint)]
     [clojure.java.browse :refer (browse-url)]
     [clojure.string :as str]
-    [cljs.repl :as cljs-repl]
     [shadow.jvm-log :as log]
     [shadow.runtime.services :as rt]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
-    [shadow.build.node :as node]
     [shadow.build.npm :as npm]
     [shadow.build.classpath :as cp]
     [shadow.build.babel :as babel]
@@ -22,8 +19,7 @@
     [shadow.cljs.devtools.errors :as e]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-    [shadow.cljs.devtools.server.runtime :as runtime]
-    [cljs.repl :as repl])
+    [shadow.cljs.devtools.server.runtime :as runtime])
   (:import [java.net Inet4Address NetworkInterface]))
 
 ;; nREPL support

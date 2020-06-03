@@ -7,16 +7,16 @@
     [clojure.set :as set])
   (:import [java.util Date]))
 
-;; FIXME: figure out what to do about clients that don't keep up
-;; should use a blocking send since one slow client should hold up all other clients
-;; each send occurs in the client-receive thread
-;; if other clients can't keep up could close :stop to stop the other clients loop
-;; or should it just use a dropping/sliding buffer?
-;; maybe let clients provide the :to channel as well so they can decide?
+;; clients provide their own :to and :from channels
+;; if writing to :to fails the client is terminated
+;; clients can decide if they want this to happen and can provide
+;; a buffered channel.
+;; this must never block as sending to one
+;; client should not delay sending to others too much
 (defn relay-send [relay {:keys [to stop] :as client} msg]
   (when-not (async/offer! to msg)
-    ;; for now just warn to see how often this happens
-    (log/warn ::client-not-keeping-up {:client (dissoc client :from :to) :msg msg})))
+    (log/warn ::client-not-keeping-up {:client (dissoc client :from :to :stop) :msg msg})
+    (async/close! stop)))
 
 (defn relay-client-receive [relay client msg]
   ;; just for easier debugging, return value ignored
@@ -143,14 +143,11 @@
 
 (defrecord LocalRelay [id-seq-ref state-ref]
   rapi/IRelayClient
-  (connect [relay from-client connect-info]
+  (connect [relay from-client to-client connect-info]
     (let [client-id (swap! id-seq-ref inc)
 
-          to-client
-          (async/chan 256)
-
           stop
-          (async/chan)
+          (async/promise-chan)
 
           client-data
           {:client-info {:connection-info connect-info
@@ -159,8 +156,6 @@
            :stop stop
            :from from-client
            :to to-client}]
-
-      (log/debug ::client-connect {:client-id client-id :info connect-info})
 
       (swap! state-ref assoc-in [:clients client-id] client-data)
 
@@ -196,9 +191,11 @@
         (handle-client-disconnect relay client-data)
 
         (relay-client-stop relay client-data)
-        (async/close! to-client))
+        (async/close! from-client)
+        (async/close! to-client)
+        (async/close! stop))
 
-      to-client)))
+      stop)))
 
 (defn start []
   (LocalRelay.
@@ -287,8 +284,16 @@
 
   (stop svc)
 
-  (def tool-in (async/chan))
-  (def tool-out (rapi/connect svc tool-in {}))
+  (def tool-in (async/chan 10))
+  (def tool-out (async/chan 3))
+
+  (rapi/connect svc tool-in tool-out {})
+
+  (>!! tool-in {:op :hello :client-info {:type :tool}})
+
+  ;; send too many request but don't actually read any
+  (dotimes [x 4]
+    (>!! tool-in {:op :request-clients}))
 
   (def tid-ref (atom nil))
 
@@ -302,7 +307,9 @@
       (prn :tool-out-shutdown))
 
   (def runtime-in (async/chan))
-  (def runtime-out (rapi/connect svc runtime-in {}))
+  (def runtime-out (async/chan 10))
+
+  (rapi/connect svc runtime-in runtime-out {})
 
   (go (loop []
         (when-some [msg (<! runtime-out)]
@@ -311,7 +318,6 @@
           (recur)))
       (prn :runtime-out-shutdown))
 
-  (>!! tool-in {:op :hello :client-info {:type :tool}})
   (>!! runtime-in {:op :hello :client-info {:type :runtime}})
 
   (>!! tool-in {:op :request-clients})

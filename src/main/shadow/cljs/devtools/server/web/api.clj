@@ -269,14 +269,6 @@
        :body ""}
       )))
 
-(defn api-remote-relay-loop! [{:keys [relay ws-out ws-in] :as ws-state}]
-  (let [from-relay (relay/connect relay ws-in {:remote true :websocket true})]
-    (loop []
-      (when-some [msg (<!! from-relay)]
-        (>!! ws-out msg)
-        (recur))))
-  ::done)
-
 (defn api-remote-relay [{:keys [relay transit-read transit-str] :as req}]
   ;; FIXME: negotiate encoding somehow? could just as well use edn
   (let [remote-addr
@@ -324,12 +316,7 @@
            :access-denied)})
 
       (let [ws-in (async/chan 10 (map transit-read))
-            ws-out (async/chan 10 (map transit-str))]
+            ws-out (async/chan 256 (map transit-str))]
         {:ws-in ws-in
          :ws-out ws-out
-         :ws-loop
-         (async/thread
-           (api-remote-relay-loop!
-             {:relay relay
-              :ws-in ws-in
-              :ws-out ws-out}))}))))
+         :ws-loop (relay/connect relay ws-in ws-out {:remote true :websocket true})}))))

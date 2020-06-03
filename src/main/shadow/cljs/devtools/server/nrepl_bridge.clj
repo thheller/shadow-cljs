@@ -303,7 +303,10 @@
         (async/chan 10)
 
         from-relay
-        (relay/connect relay to-relay {})
+        (async/chan 256)
+
+        connection-stop
+        (relay/connect relay to-relay from-relay {})
 
         {:keys [op client-id] :as welcome-msg}
         (<!! from-relay)
@@ -321,6 +324,7 @@
         svc
         {:relay relay
          :supervisor supervisor
+         :connection-stop connection-stop
          :stop stop
          :state-ref (atom {:calls {}})
          :relay-id client-id
