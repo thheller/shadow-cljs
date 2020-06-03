@@ -319,7 +319,7 @@
     (env/set-print-fns!
       (fn [stream text]
         (let [subs @print-subs]
-          (js/console.log "print" stream text subs)
+          ;; (js/console.log "print" stream text subs)
           (when (seq subs)
             (shared/relay-msg runtime
               {:op :runtime-print

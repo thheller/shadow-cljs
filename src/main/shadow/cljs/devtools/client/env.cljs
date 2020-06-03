@@ -93,6 +93,7 @@
 ;; will actually call ours. only a problem if the websocket is
 ;; reconnected though
 (defonce reset-print-fn-ref (atom nil))
+(defonce was-print-newline *print-newline*)
 
 (defn set-print-fns! [msg-fn]
   ;; cannot capture these before as they may change in between loading this file
@@ -100,21 +101,27 @@
   (let [original-print-fn cljs.core/*print-fn*
         original-print-err-fn cljs.core/*print-err-fn*]
 
+    (set! *print-newline* true)
+
+    ;; just prevent user code calling it, shadow-cljs setup code already did
+    (set! js/cljs.core.enable-console-print! (fn []))
+
     (reset! reset-print-fn-ref
       (fn reset-print-fns! []
+        (set! *print-newline* was-print-newline)
         (set-print-fn! original-print-fn)
         (set-print-err-fn! original-print-err-fn)))
 
     (set-print-fn!
       (fn repl-print-fn [s]
         (msg-fn :stdout s)
-        (when original-print-fn
+        (when (and original-print-fn (not= s "\n"))
           (original-print-fn s))))
 
     (set-print-err-fn!
       (fn repl-print-err-fn [s]
         (msg-fn :stderr s)
-        (when original-print-err-fn
+        (when (and original-print-err-fn (not= s "\n"))
           (original-print-err-fn s))))))
 
 (defn reset-print-fns! []

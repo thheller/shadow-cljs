@@ -5,7 +5,10 @@
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.config :as config]
-    [shadow.cljs.devtools.server.nrepl-bridge :as nrepl-bridge]))
+    [shadow.cljs.devtools.server.repl-impl :as repl-impl]
+    [clojure.core.async :as async]
+    [nrepl.transport :as transport])
+  (:import [java.io StringReader]))
 
 (def ^:dynamic *repl-state* nil)
 
@@ -18,6 +21,9 @@
    {:keys [init-ns]
     :or {init-ns 'cljs.user}
     :as opts}]
+
+  (when-not (api/get-worker build-id)
+    (throw (ex-info "watch for build not running" {:build-id build-id})))
 
   ;; must keep the least amount of state here since it will be shared by clones
   (set! *repl-state*
@@ -49,7 +55,9 @@
     (swap! session assoc
       #'*ns* clj-ns
       #'*repl-state* nil
-      #'cider.piggieback/*cljs-compiler-env* nil)))
+      #'cider.piggieback/*cljs-compiler-env* nil)
+
+    clj-ns))
 
 (defn set-build-id [{:keys [op session] :as msg}]
   ;; re-create this for every eval so we know exactly which msg started a REPL
@@ -67,9 +75,7 @@
     (if-not build-id
       msg
       (assoc msg
-        ::nrepl-bridge/build-id build-id
-        ::nrepl-bridge/reset-session #(reset-session session)
-        ::nrepl-bridge/repl-state repl-state
+        ::repl-state repl-state
         ;; keeping these since cider uses it in some middleware
         ;; not keeping worker reference in repl-state since that would leak
         ;; since we can't cleanup sessions reliably
@@ -92,8 +98,88 @@
       (catch Exception e
         (log/warn-ex e ::init-ns-ex {:init-ns init-ns})))))
 
+(defn nrepl-out [{:keys [transport session id] :as req} {:keys [status] :as msg}]
+  (let [res
+        (-> msg
+            (cond->
+              id
+              (assoc :id id)
+              session
+              (assoc :session (-> session meta :id))
+              (and (some? status)
+                   (not (coll? status)))
+              (assoc :status #{status})))]
+
+    (log/debug ::send res)
+    (try
+      (transport/send transport res)
+      (catch Exception ex
+        ;; just unconditionally reset the session back to CLJ
+        ;; sends most likely fail because of closed sockets
+        ;; so this really doesn't matter, just want to avoid getting here too many times
+        (reset-session session)
+        (log/debug-ex ex ::nrepl-out-failed msg)))))
+
+(defn do-cljs-eval
+  [{::keys [worker] :keys [code] :as msg}]
+  ;; just give up on trying to maintain session over nrepl
+  ;; piggieback doesn't and its just too painful given that there
+  ;; are absolutely no lifecycle hooks or signals if a session
+  ;; actually still cares about receiving results or stdout/stderr
+  ;; instead just go off once and clean up after
+
+  (let [{:keys [relay]} (api/get-runtime!)
+        result
+        (repl-impl/do-repl
+          worker
+          relay
+          (StringReader. code)
+          (async/chan)
+          {:init-state
+           {}
+
+           :repl-prompt
+           (fn repl-prompt [repl-state])
+
+           :repl-read-ex
+           (fn repl-read-ex [repl-state ex]
+             (nrepl-out msg {:err (.getMessage ex)}))
+
+           :repl-result
+           (fn repl-result
+             [{:keys [ns eval-result read-result] :as repl-state}
+              result-as-printed-string]
+             (if-not result-as-printed-string
+               ;; repl-result is called even in cases there is no result
+               ;; eg. compile errors, warnings
+               (nrepl-out msg {:value "nil"
+                               :printed-value 1
+                               :ns (str ns)})
+               ;; regular return value
+               (nrepl-out msg {:value result-as-printed-string
+                               :printed-value 1
+                               :ns (str ns)})))
+
+           :repl-stderr
+           (fn repl-stderr [repl-state text]
+             (nrepl-out msg {:err text}))
+
+           :repl-stdout
+           (fn repl-stdout [repl-state text]
+             (nrepl-out msg {:out text}))})]
+
+    (when (or (= :cljs/quit result)
+              (= :repl/quit result))
+      (let [clj-ns (reset-session (:session msg))]
+        (nrepl-out msg {:err "Exited CLJS session. You are now in CLJ again.\n"})
+        (nrepl-out msg {:value (str result)
+                        :printed-value 1
+                        :ns (str clj-ns)})))
+
+    (nrepl-out msg {:status :done})))
+
 (defn handle [{:keys [session op] :as msg} next]
-  (let [{::nrepl-bridge/keys [build-id] :as msg} (set-build-id msg)]
+  (let [{::keys [build-id] :as msg} (set-build-id msg)]
     ;; (tap> [:nrepl-handle msg])
     (log/debug ::handle {:session-id (-> session meta :id)
                          :msg-op op
@@ -102,14 +188,10 @@
                                  (subs code 0 (min (count code) 100)))})
     (cond
       (and build-id (= op "eval"))
-      (nrepl-bridge/nrepl-in
-        (:nrepl-bridge (api/get-runtime!))
-        msg)
+      (do-cljs-eval msg)
 
       (and build-id (= op "load-file"))
-      (nrepl-bridge/nrepl-in
-        (:nrepl-bridge (api/get-runtime!))
-        msg)
+      (do-cljs-eval (assoc msg :code (format "(cljs.core/load-file %s)" (pr-str (:file-path msg)))))
 
       :else
       (next msg))))

@@ -27,7 +27,6 @@
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.build-history :as build-history]
     [shadow.cljs.devtools.server.system-bus :as system-bus]
-    [shadow.cljs.devtools.server.nrepl-bridge :as nrepl-bridge]
     [shadow.remote.relay.local :as relay]
     [shadow.remote.runtime.clj.local :as clj-runtime]
     [shadow.remote.runtime.obj-support :as obj-support]
@@ -466,11 +465,6 @@
                   {:depends-on [:clj-runtime :clj-runtime-obj-support]
                    :start eval-support/start
                    :stop eval-support/stop}
-
-                  :nrepl-bridge
-                  {:depends-on [:relay :supervisor]
-                   :start nrepl-bridge/start
-                   :stop nrepl-bridge/stop}
 
                   :out
                   {:depends-on [:config]

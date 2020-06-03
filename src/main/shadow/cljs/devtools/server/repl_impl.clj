@@ -13,7 +13,6 @@
   (:import (java.io File)))
 
 ;; (defn repl-prompt [repl-state])
-;; (defn repl-error [repl-state msg])
 ;; (defn repl-read-ex [repl-state ex])
 ;; (defn repl-result [repl-state result-as-printed-string])
 
@@ -24,11 +23,13 @@
    close-signal
    {:keys [init-state
            repl-prompt
-           repl-error
            repl-read-ex
            repl-result
            repl-stdout
            repl-stderr]}]
+  {:pre [(some? worker)
+         (some? proc-stop)
+         (some? close-signal)]}
 
   (let [to-relay
         (async/chan 10)
@@ -112,10 +113,10 @@
                          (recur repl-state))
 
                      (= ":repl/quit" source)
-                     :quit
+                     :repl/quit
 
                      (= ":cljs/quit" source)
-                     :quit
+                     :cljs/quit
 
                      :else
                      (let [runtime-id
@@ -130,7 +131,7 @@
                                  runtime-id))]
 
                        (if-not runtime-id
-                         (do (repl-error repl-state "No available JS runtime.")
+                         (do (repl-stderr repl-state "No available JS runtime.\n")
                              (repl-result repl-state nil)
                              (repl-prompt repl-state)
                              (>!! read-lock 1)
@@ -153,7 +154,7 @@
                (when (some? msg)
                  (case (:op msg)
                    (::runtime-disconnect :client-not-found)
-                   (do (repl-error repl-state "The previously used runtime disappeared. Will attempt to pick a new one when available but your state is gone.")
+                   (do (repl-stderr repl-state "The previously used runtime disappeared. Will attempt to pick a new one when available but your state might be gone.\n")
                        (repl-prompt repl-state)
                        ;; may be in blocking read so read-lock is full
                        ;; must not use >!! since that would deadlock
@@ -191,10 +192,11 @@
                    :eval-compile-warnings
                    (let [{:keys [warnings]} msg]
                      (doseq [warning warnings]
-                       (repl-error repl-state
+                       (repl-stderr repl-state
                          (binding [warnings/*color* false]
                            (with-out-str
-                             (warnings/print-short-warning (assoc warning :resource-name "<eval>"))))))
+                             (warnings/print-short-warning (assoc warning :resource-name "<eval>"))
+                             (println)))))
                      (repl-result repl-state nil)
                      (repl-prompt repl-state)
                      (>!! read-lock 1)
@@ -202,7 +204,7 @@
 
                    :eval-compile-error
                    (let [{:keys [report]} msg]
-                     (repl-error repl-state report)
+                     (repl-stderr repl-state (str report "\n"))
                      (repl-result repl-state nil)
                      (repl-prompt repl-state)
                      (>!! read-lock 1)
@@ -250,12 +252,6 @@
          (print (format "%s=> " ns))
          (flush)))
 
-     :repl-error
-     (fn repl-error [repl-state msg]
-       (locking build-log/stdout-lock
-         (println msg)
-         (flush)))
-
      :repl-read-ex
      (fn repl-read-ex [repl-state ex]
        (locking build-log/stdout-lock
@@ -272,12 +268,12 @@
      :repl-stderr
      (fn repl-stderr [repl-state text]
        (binding [*out* *err*]
-         (println text)
+         (print text)
          (flush)))
 
      :repl-stdout
      (fn repl-stdout [repl-state text]
-       (println text)
+       (print text)
        (flush))
      }))
 

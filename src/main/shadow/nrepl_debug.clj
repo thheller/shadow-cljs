@@ -19,7 +19,8 @@
         (println ";; ----------------------------------------")
         (println ";; -- FROM " from)
         (println ";; ----------------------------------------")
-        (println text))))
+        (println text)
+        (flush))))
   agent-state)
 
 (defn client-loop [id client to-port]

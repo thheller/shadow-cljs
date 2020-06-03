@@ -57,10 +57,6 @@
         {:repl-prompt
          (fn repl-prompt [repl-state])
 
-         :repl-error
-         (fn repl-error [repl-state msg]
-           (send! {:tag :err :val msg}))
-
          :repl-read-ex
          (fn repl-read-ex [repl-state ex]
            (send! {:tag :err :val (.getMessage ex)}))
