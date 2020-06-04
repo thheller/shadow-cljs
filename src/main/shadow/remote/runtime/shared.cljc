@@ -130,6 +130,12 @@
 (defn del-extension [{:keys [state-ref]} key]
   (swap! state-ref del-extension* key))
 
+(defn trigger-on-disconnect!
+  [{:keys [state-ref] :as runtime}]
+  (doseq [{:keys [on-disconnect] :as ext} (vals (:extensions @state-ref))
+          :when on-disconnect]
+    (on-disconnect)))
+
 (defn unhandled-call-result [call-config msg]
   #?(:cljs (js/console.warn "unhandled call result" msg call-config)
      :clj  (log/warn ::unhandled-call-result msg)))

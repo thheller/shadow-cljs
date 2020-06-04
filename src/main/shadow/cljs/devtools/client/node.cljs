@@ -19,14 +19,6 @@
   {:pre [(string? src)]}
   (js/SHADOW_IMPORT src))
 
-(defn repl-init
-  [runtime {:keys [id repl-state] :as msg}]
-  (let [{:keys [repl-sources]} repl-state]
-
-    (doseq [{:keys [output-name] :as src} repl-sources
-            :when (not (is-loaded? output-name))]
-      (closure-import output-name))))
-
 (defn handle-build-complete
   [runtime {:keys [info reload-info] :as msg}]
   (let [{:keys [sources compiled warnings]} info]
@@ -98,8 +90,7 @@
 
     (.on socket "error"
       (fn [e]
-        (js/console.warn "tap-socket error" e)
-        (cljs-shared/stop-runtime!)))))
+        (js/console.warn "ws-error" e)))))
 
 ;; want things to start when this ns is in :preloads
 (when (pos? env/worker-client-id)
@@ -112,6 +103,17 @@
     cljs-shared/IHostSpecific
     (do-invoke [this msg]
       (node-eval msg))
+
+    (do-repl-init [runtime {:keys [id repl-state] :as msg} done error]
+      (try
+        (let [{:keys [repl-sources]} repl-state]
+          (doseq [{:keys [output-name] :as src} repl-sources
+                  :when (not (is-loaded? output-name))]
+            (closure-import output-name))
+
+          (done))
+        (catch :default e
+          (error e))))
 
     (do-repl-require [this {:keys [sources reload-namespaces] :as msg} done error]
       (try
@@ -132,7 +134,12 @@
            (fn []
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
-             (env/patch-goog!))
+             (env/patch-goog!)
+             (js/console.log "shadow-cljs - ready!"))
+
+           :on-disconnect
+           (fn []
+             (js/console.warn "The shadow-cljs Websocket was disconnected."))
 
            :ops
            {:access-denied
@@ -140,10 +147,6 @@
               (js/console.error
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))
-
-            :cljs-runtime-init
-            (fn [msg]
-              (repl-init runtime msg))
 
             :cljs-repl-ping
             #(cljs-shared/cljs-repl-ping runtime %)

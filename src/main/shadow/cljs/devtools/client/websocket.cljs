@@ -65,5 +65,4 @@
 
       (.addEventListener socket "error"
         (fn [e]
-          ;; (js/console.log "ws-error" e)
-          (cljs-shared/stop-runtime!))))))
+          (js/console.log "shadow-cljs - ws-error" e))))))

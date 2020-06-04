@@ -164,6 +164,17 @@
     (do-invoke [this {:keys [js] :as _}]
       (global-eval js))
 
+    (do-repl-init [runtime {:keys [repl-state]} done error]
+      (ws/load-sources
+        runtime
+        ;; maybe need to load some missing files to init REPL
+        (->> (:repl-sources repl-state)
+             (remove env/src-is-loaded?)
+             (into []))
+        (fn [sources]
+          (do-js-load sources)
+          (done))))
+
     (do-repl-require [runtime {:keys [sources reload-namespaces js-requires] :as msg} done error]
       (let [sources-to-load
             (->> sources
@@ -198,7 +209,13 @@
            (fn []
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
-             (env/patch-goog!))
+             (env/patch-goog!)
+             (devtools-msg "ready!"))
+
+           :on-disconnect
+           (fn []
+             (hud/connection-error
+               (str "The Websocket connection was closed!")))
 
            :ops
            {:access-denied

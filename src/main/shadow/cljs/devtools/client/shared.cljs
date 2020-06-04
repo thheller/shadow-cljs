@@ -13,6 +13,7 @@
     [shadow.remote.runtime.api :as p]))
 
 (defprotocol IHostSpecific
+  (do-repl-init [this action done error])
   (do-repl-require [this require-msg done error])
   (do-invoke [this invoke-msg]))
 
@@ -107,6 +108,14 @@
   [{:keys [runtime] :as state}
    {:keys [type] :as action}]
   (case type
+    :repl/init
+    (do-repl-init runtime action
+      (fn []
+        (swap! (:state-ref runtime) assoc :init-complete true)
+        (continue! state))
+      (fn [ex]
+        (abort! state action ex)))
+
     :repl/set-ns
     (-> state
         (assoc :ns (:ns action))
@@ -201,7 +210,8 @@
     (shared/call this
       {:op :cljs-compile
        :to env/worker-client-id
-       :input input}
+       :input input
+       :include-init (not (:init-complete @state-ref))}
 
       {:cljs-compile-result
        (fn [msg]
@@ -341,6 +351,7 @@
 
 (defn stop-runtime! []
   (when-some [runtime @runtime-ref]
+    (shared/trigger-on-disconnect! (:runtime runtime))
     (reset! runtime-ref nil)
     (let [{:keys [stop]} runtime]
       (stop))))

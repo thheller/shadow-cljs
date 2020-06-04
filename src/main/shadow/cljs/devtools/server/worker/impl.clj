@@ -765,7 +765,7 @@
 
 (defmethod do-relay-msg :cljs-compile
   [{:keys [build-state] :as worker-state}
-   {:keys [input] :as msg}]
+   {:keys [input include-init] :as msg}]
   (try
     (let [start-idx
           (count (get-in build-state [:repl-state :repl-actions]))
@@ -781,7 +781,15 @@
 
       (relay-msg worker-state msg
         {:op :cljs-compile-result
-         :actions new-actions})
+         :actions
+         (if-not include-init
+           new-actions
+
+           (into
+             [{:type :repl/init
+               :repl-state (-> (:repl-state build-state)
+                               (update :repl-sources repl-sources-as-client-resources build-state))}]
+             new-actions))})
 
       (assoc worker-state :build-state build-state))
 
@@ -854,8 +862,7 @@
     worker-state))
 
 (defn add-runtime
-  [{:keys [build-state] :as worker-state}
-   {:keys [client-id client-info] :as msg}]
+  [worker-state {:keys [client-id client-info] :as msg}]
 
   (-> worker-state
       (cond->
@@ -869,13 +876,7 @@
             (= :latest (get-in worker-state [:system-config :repl :runtime-select]))
             (= :latest (get-in worker-state [:system-config :user-config :repl :runtime-select])))
         (assoc :default-runtime-id client-id))
-      (update :runtimes assoc client-id (assoc client-info :client-id client-id))
-      (relay-msg
-        {:op :cljs-runtime-init
-         :to client-id
-         :repl-state
-         (-> (:repl-state build-state)
-             (update :repl-sources repl-sources-as-client-resources build-state))})))
+      (update :runtimes assoc client-id (assoc client-info :client-id client-id))))
 
 (defmethod do-relay-msg ::cljs-runtime-notify
   [worker-state {:keys [event-op client-id] :as msg}]

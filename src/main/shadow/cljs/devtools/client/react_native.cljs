@@ -58,16 +58,7 @@
     ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
     (js* "(0,eval)(~{});" js)))
 
-(defn repl-init [runtime {:keys [repl-state]}]
-  (ws/load-sources
-    runtime
-    ;; maybe need to load some missing files to init REPL
-    (->> (:repl-sources repl-state)
-         (remove env/src-is-loaded?)
-         (into []))
-    (fn [sources]
-      (do-js-load sources)
-      (devtools-msg "ready!"))))
+
 
 (defn start []
   (let [ws-url (env/get-ws-relay-url)]
@@ -83,6 +74,17 @@
     cljs-shared/IHostSpecific
     (do-invoke [this {:keys [js] :as _}]
       (global-eval js))
+
+    (do-repl-init [runtime {:keys [repl-state]} done error]
+      (ws/load-sources
+        runtime
+        ;; maybe need to load some missing files to init REPL
+        (->> (:repl-sources repl-state)
+             (remove env/src-is-loaded?)
+             (into []))
+        (fn [sources]
+          (do-js-load sources)
+          (done))))
 
     (do-repl-require [runtime {:keys [sources reload-namespaces js-requires] :as msg} done error]
       (let [sources-to-load
@@ -115,7 +117,12 @@
            (fn []
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
-             (env/patch-goog!))
+             (env/patch-goog!)
+             (devtools-msg "ready!"))
+
+           :on-disconnect
+           (fn []
+             (js/console.warn "The shadow-cljs Websocket was disconnected."))
 
            :ops
            {:access-denied
@@ -123,10 +130,6 @@
               (js/console.error
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))
-
-            :cljs-runtime-init
-            (fn [msg]
-              (repl-init runtime msg))
 
             :cljs-repl-ping
             #(cljs-shared/cljs-repl-ping runtime %)
