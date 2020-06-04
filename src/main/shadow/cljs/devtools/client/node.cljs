@@ -104,14 +104,13 @@
     (do-invoke [this msg]
       (node-eval msg))
 
-    (do-repl-init [runtime {:keys [id repl-state] :as msg} done error]
+    (do-repl-init [runtime {:keys [repl-sources]} done error]
       (try
-        (let [{:keys [repl-sources]} repl-state]
-          (doseq [{:keys [output-name] :as src} repl-sources
-                  :when (not (is-loaded? output-name))]
-            (closure-import output-name))
+        (doseq [{:keys [output-name] :as src} repl-sources
+                :when (not (is-loaded? output-name))]
+          (closure-import output-name))
 
-          (done))
+        (done)
         (catch :default e
           (error e))))
 

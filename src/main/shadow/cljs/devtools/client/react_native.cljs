@@ -75,11 +75,11 @@
     (do-invoke [this {:keys [js] :as _}]
       (global-eval js))
 
-    (do-repl-init [runtime {:keys [repl-state]} done error]
+    (do-repl-init [runtime {:keys [repl-sources]} done error]
       (ws/load-sources
         runtime
         ;; maybe need to load some missing files to init REPL
-        (->> (:repl-sources repl-state)
+        (->> repl-sources
              (remove env/src-is-loaded?)
              (into []))
         (fn [sources]

@@ -787,8 +787,8 @@
 
            (into
              [{:type :repl/init
-               :repl-state (-> (:repl-state build-state)
-                               (update :repl-sources repl-sources-as-client-resources build-state))}]
+               :repl-sources
+               (repl-sources-as-client-resources (get-in build-state [:repl-state :repl-sources]) build-state)}]
              new-actions))})
 
       (assoc worker-state :build-state build-state))
