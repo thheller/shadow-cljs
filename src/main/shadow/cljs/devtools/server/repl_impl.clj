@@ -179,14 +179,41 @@
                                 :eval-result msg)
                          (recur)))
 
+                   :obj-request-failed
+                   (let [{:keys [from ex-oid]} msg]
+                     (if (:print-failed repl-state)
+                       (do (repl-stderr repl-state "The result failed to print and printing the exception also failed. No clue whats going on.")
+                           (repl-prompt repl-state)
+                           (>!! read-lock 1)
+                           (-> repl-state
+                               (dissoc :print-failed)
+                               (recur)))
+
+                       (do (>!! to-relay
+                             {:op :obj-request
+                              :to from
+                              :request-op :str
+                              :oid ex-oid})
+
+                           (-> repl-state
+                               (assoc :print-failed true)
+                               (recur)))))
+
                    :obj-result
                    (let [{:keys [result]} msg]
-                     (repl-result repl-state result)
+                     (if-not (:print-failed repl-state)
+                       (repl-result repl-state result)
+                       (do (repl-stderr repl-state "The result object failed to print. It is available via *1 if you want to interact with it.\n")
+                           (repl-stderr repl-state "The exception was: \n")
+                           (repl-stderr repl-state (str result "\n"))
+                           (repl-result repl-state ":shadow.cljs/print-error!")))
+
                      (repl-prompt repl-state)
 
                      (>!! read-lock 1)
                      (-> repl-state
                          (assoc :stage :read)
+                         (dissoc :print-failed)
                          (recur)))
 
                    :eval-compile-warnings
