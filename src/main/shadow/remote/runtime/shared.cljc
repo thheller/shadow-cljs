@@ -64,11 +64,8 @@
       (on-connect))))
 
 (defn ping
-  [runtime {:keys [time-ping] :as msg}]
-  (reply runtime msg
-    {:op :pong
-     :time-ping time-ping
-     :time-pong (now)}))
+  [runtime msg]
+  (reply runtime msg {:op :pong}))
 
 (defn get-client-id [{:keys [state-ref] :as runtime}]
   (or (:client-id @state-ref)

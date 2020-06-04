@@ -149,13 +149,18 @@
           stop
           (async/promise-chan)
 
+          now
+          (System/currentTimeMillis)
+
           client-data
           {:client-info {:connection-info connect-info
                          :since (Date.)}
            :client-id client-id
            :stop stop
            :from from-client
-           :to to-client}]
+           :to to-client
+           :last-ping now
+           :last-pong now}]
 
       (swap! state-ref assoc-in [:clients client-id] client-data)
 
@@ -188,15 +193,22 @@
 
                (recur)))
 
-            ;; ping remotes after 15sec idle
-            (async/timeout 15000)
+            ;; ping remotes after 5sec idle
+            (async/timeout 5000)
             ([_]
-             (when (:remote connect-info)
-               (let [now (System/currentTimeMillis)]
-                 (swap! state-ref assoc-in [:clients client-id :last-ping] now)
-                 (relay-send relay client-data {:op :ping :time-ping (System/currentTimeMillis)})))
-             (recur)
-             )))
+             (if-not (:remote connect-info)
+               (recur)
+               (let [now (System/currentTimeMillis)
+                     last-pong (get-in @state-ref [:clients client-id :last-pong])
+                     diff (- now last-pong)]
+
+                 ;; disconnect after 3 missed pings?
+                 (if (> diff 19999)
+                   (do (log/debug ::ping-timeout {:client-id client-id :diff diff})
+                       ::ping-timeout)
+                   (do (swap! state-ref assoc-in [:clients client-id :last-ping] now)
+                       (relay-send relay client-data {:op :ping})
+                       (recur))))))))
 
         (handle-client-disconnect relay client-data)
 

@@ -40,13 +40,18 @@
       (.addEventListener socket "message"
         (fn [e]
           (let [{:keys [call-id op] :as msg} (transit-read (.-data e))]
-            (if call-id
+            (cond
+              call-id
               (let [{:keys [callback-map] :as call-data} (get @rpc-ref call-id)
                     tx-data (get callback-map op)]
                 (if-not tx-data
                   (js/console.warn "received rpc reply without handler" op msg call-data)
                   (sw/tx* @env/app-ref (conj tx-data msg))))
 
+              (= :ping op)
+              (cast! @app-ref {:op :pong})
+
+              :else
               (sw/tx* @env/app-ref [::m/relay-ws msg]))))))
 
     (.addEventListener socket "open"
