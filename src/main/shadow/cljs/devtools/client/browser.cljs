@@ -228,9 +228,6 @@
             (fn [msg]
               (repl-init runtime msg))
 
-            :cljs-repl-ping
-            #(cljs-shared/cljs-repl-ping runtime %)
-
             :cljs-asset-update
             (fn [{:keys [updates] :as msg}]
               ;; (js/console.log "cljs-asset-update" msg)

@@ -131,9 +131,6 @@
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))
 
-            :cljs-repl-ping
-            #(cljs-shared/cljs-repl-ping runtime %)
-
             :cljs-build-start
             (fn [msg]
               ;; (js/console.log "cljs-build-start" msg)

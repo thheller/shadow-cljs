@@ -693,29 +693,8 @@
           (-> (update :namespaces-modified into modified-namespaces)
               (build-compile))))))
 
-(defn send-runtime-ping [worker-state runtime-id now]
-  (relay-msg worker-state
-    {:op :cljs-repl-ping
-     :to runtime-id
-     :time-server now})
-  (assoc-in worker-state [:runtimes runtime-id :last-ping] now))
-
-(defn maybe-send-runtime-pings [{:keys [runtimes] :as worker-state}]
-  ;; time doesn't need to accurate, so use the same time for all pings
-  (let [now (System/currentTimeMillis)]
-    (reduce-kv
-      (fn [worker-state runtime-id {:keys [last-ping]}]
-        (let [diff (- now (or last-ping 0))]
-          (if (< diff 30000)
-            worker-state
-            (send-runtime-ping worker-state runtime-id now)
-            )))
-      worker-state
-      runtimes)))
-
 (defn do-idle [{:keys [failure-data extra-config-files] :as worker-state}]
   (-> worker-state
-      (maybe-send-runtime-pings)
       (cond->
         (seq extra-config-files)
         (maybe-reload-config-files)
@@ -870,7 +849,7 @@
             ;; android doesn't disconnect the old websocket for some reason
             ;; when reloading the app, so instead of sending to a dead runtime
             ;; we always pick the new one
-            (:react-native client-info)
+            (= :react-native (:host client-info))
             ;; allow user to configure to auto switch to fresh connected runtimes
             ;; instead of staying with the first connected one
             (= :latest (get-in worker-state [:system-config :repl :runtime-select]))

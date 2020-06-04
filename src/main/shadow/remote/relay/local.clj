@@ -186,7 +186,17 @@
                    ;; FIXME: should it disconnect the client?
                    (log/warn-ex e ::relay-client-ex (get-in @state-ref [:clients client-id]))))
 
-               (recur)))))
+               (recur)))
+
+            ;; ping remotes after 15sec idle
+            (async/timeout 15000)
+            ([_]
+             (when (:remote connect-info)
+               (let [now (System/currentTimeMillis)]
+                 (swap! state-ref assoc-in [:clients client-id :last-ping] now)
+                 (relay-send relay client-data {:op :ping :time-ping (System/currentTimeMillis)})))
+             (recur)
+             )))
 
         (handle-client-disconnect relay client-data)
 
@@ -206,6 +216,10 @@
   (let [{:keys [clients]} @state-ref]
     (doseq [{:keys [to]} (vals clients)]
       (async/close! to))))
+
+(defmethod handle-sys-msg :pong
+  [{:keys [state-ref] :as relay} {:keys [client-id] :as origin} msg]
+  (swap! state-ref assoc-in [:clients client-id :last-pong] (System/currentTimeMillis)))
 
 (defmethod handle-sys-msg :hello
   [{:keys [state-ref] :as relay}

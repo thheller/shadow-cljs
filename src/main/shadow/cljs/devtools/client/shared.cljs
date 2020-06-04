@@ -356,11 +356,3 @@
     (let [{:keys [stop]} runtime]
       (stop))))
 
-(defn cljs-repl-ping
-  [runtime {:keys [from time-server] :as msg}]
-  ;; (js/console.log "cljs-repl-ping" msg)
-  (shared/relay-msg runtime
-    {:op :cljs-repl-pong
-     :to from
-     :time-server time-server
-     :time-runtime (js/Date.now)}))
