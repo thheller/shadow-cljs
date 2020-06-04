@@ -183,6 +183,11 @@
             from-client
             ([msg]
              (when (some? msg)
+               ;; each message is effectively a pong as well
+               ;; prevents the timeout logic from kicking us if it didn't actually send
+               ;; a ping for a while
+               (swap! state-ref assoc-in [:clients client-id :last-pong] (System/currentTimeMillis))
+
                (relay-client-receive relay client-data msg)
 
                (try
@@ -230,8 +235,9 @@
       (async/close! to))))
 
 (defmethod handle-sys-msg :pong
-  [{:keys [state-ref] :as relay} {:keys [client-id] :as origin} msg]
-  (swap! state-ref assoc-in [:clients client-id :last-pong] (System/currentTimeMillis)))
+  [relay origin msg]
+  ;; already handled when the message was received
+  )
 
 (defmethod handle-sys-msg :hello
   [{:keys [state-ref] :as relay}
