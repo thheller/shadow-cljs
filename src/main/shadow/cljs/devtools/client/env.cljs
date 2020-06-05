@@ -154,14 +154,15 @@
 
 (defn run-custom-notify! [msg]
   ;; look up every time it case it gets reloaded
-  (let [fn (js/goog.getObjectByName custom-notify-fn js/$CLJS)]
-    (if-not (fn? fn)
-      (js/console.warn "couldn't find custom :build-notify" custom-notify-fn)
-      (try
-        (fn msg)
-        (catch :default e
-          (js/console.error "Failed to run custom :build-notify" custom-notify-fn)
-          (js/console.error e))))))
+  (when (seq custom-notify-fn)
+    (let [fn (js/goog.getObjectByName custom-notify-fn js/$CLJS)]
+      (if-not (fn? fn)
+        (js/console.warn "couldn't find custom :build-notify" custom-notify-fn)
+        (try
+          (fn msg)
+          (catch :default e
+            (js/console.error "Failed to run custom :build-notify" custom-notify-fn)
+            (js/console.error e)))))))
 
 (defn make-task-fn [{:keys [log-missing-fn log-call-async log-call]} {:keys [fn-sym fn-str async]}]
   (fn [next]
