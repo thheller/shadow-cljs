@@ -17,7 +17,9 @@
     [shadow.build.async :as async]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.cljs-specs] ;; FIXME: move these
-    ))
+    [clojure.edn :as edn]
+    [shadow.build.macros :as macros]
+    [shadow.build.classpath :as classpath]))
 
 (defn enhance-warnings
   "adds source excerpts to warnings if line information is available"
@@ -394,11 +396,35 @@
     ;; :modules based build
     (modules/analyze state)))
 
+(defn maybe-load-data-readers
+  [state]
+  (let [cfg (get-in state [:compiler-options :data-readers] false)]
+    (if (or (false? cfg) (nil? cfg) (::data-readers-loaded state))
+      state
+      (let [data-readers (classpath/get-data-readers!)
+            data-readers
+            (if (true? cfg)
+              data-readers
+              (select-keys data-readers cfg))]
+
+        (doseq [[tag read-fn-sym] data-readers
+                :let [read-ns (symbol (namespace read-fn-sym))]]
+          (locking macros/require-lock
+            (try
+              (require read-ns)
+              (catch Exception e
+                (log/warn-ex e ::data-reader-load-ex {:tag tag :read-fn read-fn-sym :read-ns read-ns})))))
+
+        (-> state
+            (update-in [:compiler-env :cljs.analyzer/data-readers] merge data-readers)
+            (assoc ::data-readers-loaded true))))))
+
 (defn compile
   [{::keys [mode] :as state}]
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
   (-> state
+      (maybe-load-data-readers)
       (compile-start)
       (resolve)
       (extract-build-macros)

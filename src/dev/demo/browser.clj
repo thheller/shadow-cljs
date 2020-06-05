@@ -6,3 +6,6 @@
 
 (defmacro bad-macro [& args]
   (throw (ex-info "bad-macro is bad" {})))
+
+(defn read-foo [x]
+  [::foo x])

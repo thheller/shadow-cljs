@@ -678,6 +678,7 @@
    [:compiler-options :elide-asserts]
    [:compiler-options :reader-features]
    [:compiler-options :load-tests]
+   [:compiler-options :data-readers]
    [:compiler-options :shadow-tweaks]
    [:compiler-options :warnings]
    ;; some community macros seem to use this
