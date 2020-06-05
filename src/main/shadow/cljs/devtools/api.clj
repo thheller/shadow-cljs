@@ -636,10 +636,14 @@
         {:keys [relay]}
         (get-runtime!)
 
+        init-ns
+        (:ns opts 'cljs.user)
+
         results-ref
         (atom {:results []
                :out ""
-               :err ""})]
+               :err ""
+               :ns init-ns})]
 
     ;; FIXME: should this throw if worker isn't running?
     (when worker
@@ -649,7 +653,7 @@
         (StringReader. code)
         (async/chan)
         {:init-state
-         {:ns (:ns opts 'cljs.user)}
+         {:ns init-ns}
 
          :repl-prompt
          (fn repl-prompt [repl-state])
@@ -659,7 +663,8 @@
            (swap! results-ref assoc :read-ex ex))
 
          :repl-result
-         (fn repl-result [repl-state result-as-printed-string]
+         (fn repl-result [{:keys [ns] :as repl-state} result-as-printed-string]
+           (swap! results-ref assoc :ns ns)
            (when-not (nil? result-as-printed-string)
              (swap! results-ref update :results conj result-as-printed-string)))
 
