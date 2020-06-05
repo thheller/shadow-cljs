@@ -65,8 +65,7 @@
         (assoc init-state
           :ns init-ns
           :stage :read
-          :client-id client-id
-          :runtime-id nil)]
+          :client-id client-id)]
 
     ;; read loop, blocking IO
     ;; cannot block main loop or we'll never receive async events

@@ -20,7 +20,8 @@
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
     [shadow.cljs.devtools.server.runtime :as runtime])
-  (:import [java.net Inet4Address NetworkInterface]))
+  (:import [java.net Inet4Address NetworkInterface]
+           [java.io StringReader]))
 
 ;; nREPL support
 
@@ -620,3 +621,55 @@
         ;; but that returns my VirtualBox Adapter for some reason
         ;; which is incorrect and doesn't work
         (.getHostAddress addr)))))
+
+;; FIXME: figure out which other opts this should take and document properly
+;; {:ns some-sym} for setting the initial ns
+(defn cljs-eval
+  [build-id code opts]
+  {:pre [(keyword? build-id)
+         (string? code)
+         (map? opts)]}
+
+  (let [worker
+        (get-worker build-id)
+
+        {:keys [relay]}
+        (get-runtime!)
+
+        results-ref
+        (atom {:results []
+               :out ""
+               :err ""})]
+
+    ;; FIXME: should this throw if worker isn't running?
+    (when worker
+      (repl-impl/do-repl
+        worker
+        relay
+        (StringReader. code)
+        (async/chan)
+        {:init-state
+         {:ns (:ns opts 'cljs.user)}
+
+         :repl-prompt
+         (fn repl-prompt [repl-state])
+
+         :repl-read-ex
+         (fn repl-read-ex [repl-state ex]
+           (swap! results-ref assoc :read-ex ex))
+
+         :repl-result
+         (fn repl-result [repl-state result-as-printed-string]
+           (when-not (nil? result-as-printed-string)
+             (swap! results-ref update :results conj result-as-printed-string)))
+
+         :repl-stderr
+         (fn repl-stderr [repl-state text]
+           (swap! results-ref update :err str text))
+
+         :repl-stdout
+         (fn repl-stdout [repl-state text]
+           (swap! results-ref update :out str text))
+         })
+
+      @results-ref)))

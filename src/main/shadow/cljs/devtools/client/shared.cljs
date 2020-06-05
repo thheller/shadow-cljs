@@ -98,7 +98,9 @@
       (set! *2 *1)
       (set! *1 ret)
 
-      (update state :results conj ret))
+      (if (:internal action)
+        state
+        (update state :results conj ret)))
 
     (catch :default e
       (set! *e e)
@@ -117,9 +119,11 @@
         (abort! state action ex)))
 
     :repl/set-ns
-    (-> state
-        (assoc :ns (:ns action))
-        (continue!))
+    (let [{:keys [ns]} action]
+      (-> state
+          (assoc :ns ns)
+          (update :results conj nil)
+          (continue!)))
 
     :repl/require
     (let [{:keys [internal]} action]
@@ -128,6 +132,8 @@
           (-> state
               (update :loaded-sources into sources)
               (cond->
+                ;; (require '...) has a result
+                ;; (ns foo.bar (:require ...)) does not since ns has the result
                 (not internal)
                 (update :results conj nil))
               (continue!)))

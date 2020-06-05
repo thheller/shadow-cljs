@@ -358,22 +358,8 @@
         {:type :repl/invoke
          :name "<eval>"
          :internal true
-         :js (with-out-str
-               (comp/shadow-emit state (assoc ns-info :op :ns))
-
-               ;; => (ns test.app)
-
-               ;; ends up emitting
-
-               ;; goog.provide('test.app');
-               ;; goog.require('cljs.core');
-               ;; ... potentially other requires
-
-               ;; which is correct but in newer closure library versions goog.require actually
-               ;; has a return value and will return that ns object which is then attempted to
-               ;; be printed by the REPL. we don't want that and manually fake it to return
-               ;; the symbol of the ns instead
-               (println (str "\ncljs.core.symbol(\"" (str ns) "\");")))}
+         ;; just goog.provide/require calls, sources were loaded by require above
+         :js (with-out-str (comp/shadow-emit state (assoc ns-info :op :ns)))}
 
         ns-set
         {:type :repl/set-ns
@@ -395,13 +381,12 @@
     (if (nil? (get-in state [:sym->id ns]))
       ;; if (in-ns 'foo.bar) does not exist we just do (ns foo.bar) instead
       (repl-ns state read-result (list 'ns ns))
-      (let [{:keys [resource-name] :as rc}
+      (let [rc
             (data/get-source-by-provide state ns)
 
             set-ns-action
             {:type :repl/set-ns
-             :ns ns
-             :resource-name resource-name}]
+             :ns ns}]
         (-> state
             ;; FIXME: do we need to ensure that the ns is compiled?
             (assoc-in [:repl-state :current-ns] ns)
