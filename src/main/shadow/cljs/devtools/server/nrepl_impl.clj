@@ -128,7 +128,7 @@
         (log/debug-ex ex ::nrepl-out-failed msg)))))
 
 (defn do-cljs-eval
-  [{::keys [worker repl-state] :keys [code session] :as msg}]
+  [{::keys [worker repl-state] :keys [code session ns] :as msg}]
   ;; just give up on trying to maintain session over nrepl
   ;; piggieback doesn't and its just too painful given that there
   ;; are absolutely no lifecycle hooks or signals if a session
@@ -145,7 +145,8 @@
           (StringReader. code)
           (async/chan)
           {:init-state
-           {:ns (:cljs-ns repl-state)}
+           {:ns (or (and (seq ns) (symbol ns))
+                    (:cljs-ns repl-state))}
 
            :repl-prompt
            (fn repl-prompt [repl-state])
