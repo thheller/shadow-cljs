@@ -118,7 +118,7 @@
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
              (env/patch-goog!)
-             (devtools-msg "ready!"))
+             (devtools-msg (str "#"  (-> runtime :state-ref deref :client-id) " ready!")))
 
            :on-disconnect
            (fn []

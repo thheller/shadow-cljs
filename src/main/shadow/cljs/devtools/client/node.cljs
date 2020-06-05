@@ -134,7 +134,7 @@
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
              (env/patch-goog!)
-             (js/console.log "shadow-cljs - ready!"))
+             (js/console.log (str "shadow-cljs - #"  (-> runtime :state-ref deref :client-id) " ready!")))
 
            :on-disconnect
            (fn []

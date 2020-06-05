@@ -6,7 +6,8 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
     [shadow.cljs.ui.worker.relay-ws :as relay-ws]
-    [clojure.string :as str]))
+    [clojure.string :as str])
+  (:import [goog.i18n DateTimeFormat]))
 
 (defn without [v item]
   (into [] (remove #{item}) v))
@@ -15,6 +16,12 @@
   (if (nil? x)
     [y]
     (conj x y)))
+
+(def ts-format
+  (DateTimeFormat. "HH:mm:ss.SSS"))
+
+(defn with-added-at-ts [{:keys [added-at] :as summary}]
+  (assoc summary :added-at-ts (.format ts-format (js/Date. added-at))))
 
 (defmulti relay-ws (fn [env msg] (:op msg)) :default ::default)
 
@@ -94,7 +101,7 @@
                                               :oid oid
                                               :runtime-id from
                                               :runtime (db/make-ident ::m/runtime from)
-                                              :summary summary})))
+                                              :summary (with-added-at-ts summary)})))
            db
            history)
 
@@ -111,9 +118,11 @@
      :stream-add
      [[::m/taps {:type :tap :object-ident object-ident}]]}))
 
+
+
 (defmethod relay-ws :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
   (let [object-ident (db/make-ident ::m/object oid)]
-    {:db (assoc-in db [object-ident :summary] summary)}))
+    {:db (assoc-in db [object-ident :summary] (with-added-at-ts summary))}))
 
 (sw/reg-event-fx env/app-ref ::m/relay-ws
   []
@@ -156,11 +165,10 @@
     (throw (ex-info "can only request obj-preview on objects" {:current current}))
 
     :hack
-    (do (relay-ws/call! env
+    (do (relay-ws/cast! env
           {:op :obj-describe
            :to runtime-id
-           :oid oid}
-          {:obj-summary [:obj-summary]})
+           :oid oid})
 
         :db/loading)))
 
@@ -289,12 +297,6 @@
   []
   (fn [{:keys [db]} {:keys [oid result]}]
     {:db (assoc-in db [(db/make-ident ::m/object oid) :edn-limit] result)}))
-
-(sw/reg-event-fx env/app-ref :obj-summary
-  []
-  (fn [{:keys [db]} {:keys [oid summary]}]
-    (let [ident (db/make-ident ::m/object oid)]
-      {:db (update-in db [ident :summary] merge summary)})))
 
 (sw/reg-event-fx env/app-ref ::m/inspect-object!
   []
