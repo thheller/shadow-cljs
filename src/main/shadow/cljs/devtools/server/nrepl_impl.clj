@@ -2,12 +2,13 @@
   (:refer-clojure :exclude (send))
   (:require
     [cider.piggieback :as piggieback]
+    [clojure.core.async :as async]
+    [nrepl.transport :as transport]
     [shadow.jvm-log :as log]
+    [shadow.debug :as dbg :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.config :as config]
-    [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-    [clojure.core.async :as async]
-    [nrepl.transport :as transport])
+    [shadow.cljs.devtools.server.repl-impl :as repl-impl])
   (:import [java.io StringReader]))
 
 (def ^:dynamic *repl-state* nil)
@@ -18,21 +19,26 @@
 (defn repl-init
   [msg
    build-id
-   {:keys [init-ns]
-    :or {init-ns 'cljs.user}
+   {:keys [ns]
     :as opts}]
 
-  (when-not (api/get-worker build-id)
-    (throw (ex-info "watch for build not running" {:build-id build-id})))
+  (let [worker (api/get-worker build-id)]
+    (when-not worker
+      (throw (ex-info "watch for build not running" {:build-id build-id})))
 
-  ;; must keep the least amount of state here since it will be shared by clones
-  (set! *repl-state*
-    {:build-id build-id
-     :opts opts
-     :clj-ns *ns*})
+    (let [init-ns
+          (or ns
+              (some-> worker :state-ref deref :build-config :devtools :repl-init-ns)
+              'cljs.user)]
+      ;; must keep the least amount of state here since it will be shared by clones
+      (set! *repl-state*
+        {:build-id build-id
+         :opts opts
+         :cljs-ns init-ns
+         :clj-ns *ns*})
 
-  ;; doing this to make cider prompt not show "user" as prompt after calling this
-  (set! *ns* (create-ns init-ns))
+      ;; doing this to make cider prompt not show "user" as prompt after calling this
+      (set! *ns* (create-ns init-ns))))
 
   ;; make tools happy, we do not use it
   ;; its private for some reason so we can't set! it directly
@@ -110,7 +116,8 @@
                    (not (coll? status)))
               (assoc :status #{status})))]
 
-    (log/debug ::send res)
+    ;; (?> res :nrepl-out)
+
     (try
       (transport/send transport res)
       (catch Exception ex
@@ -121,14 +128,16 @@
         (log/debug-ex ex ::nrepl-out-failed msg)))))
 
 (defn do-cljs-eval
-  [{::keys [worker] :keys [code] :as msg}]
+  [{::keys [worker repl-state] :keys [code session] :as msg}]
   ;; just give up on trying to maintain session over nrepl
   ;; piggieback doesn't and its just too painful given that there
   ;; are absolutely no lifecycle hooks or signals if a session
   ;; actually still cares about receiving results or stdout/stderr
   ;; instead just go off once and clean up after
 
-  (let [{:keys [relay]} (api/get-runtime!)
+  (let [{:keys [relay]}
+        (api/get-runtime!)
+
         result
         (repl-impl/do-repl
           worker
@@ -136,7 +145,7 @@
           (StringReader. code)
           (async/chan)
           {:init-state
-           {}
+           {:ns (:cljs-ns repl-state)}
 
            :repl-prompt
            (fn repl-prompt [repl-state])
@@ -147,8 +156,11 @@
 
            :repl-result
            (fn repl-result
-             [{:keys [ns eval-result read-result] :as repl-state}
-              result-as-printed-string]
+             [{:keys [ns] :as repl-state} result-as-printed-string]
+
+             ;; need to remember for later evals
+             (swap! session assoc-in [#'*repl-state* :cljs-ns] ns)
+
              (if-not result-as-printed-string
                ;; repl-result is called even in cases there is no result
                ;; eg. compile errors, warnings
@@ -180,12 +192,8 @@
 
 (defn handle [{:keys [session op] :as msg} next]
   (let [{::keys [build-id] :as msg} (set-build-id msg)]
-    ;; (tap> [:nrepl-handle msg])
-    (log/debug ::handle {:session-id (-> session meta :id)
-                         :msg-op op
-                         :build-id build-id
-                         :code (when-some [code (:code msg)]
-                                 (subs code 0 (min (count code) 100)))})
+    ;; (?> msg :msg)
+
     (cond
       (and build-id (= op "eval"))
       (do-cljs-eval msg)
