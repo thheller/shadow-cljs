@@ -35,9 +35,9 @@
 
  :builds
  {:cli
-  {:target :npm-module
-   :entries [shadow.cljs.npm.cli]
-   :output-dir "packages/shadow-cljs/cli/dist"
+  {:target :node-library
+   :exports {:main shadow.cljs.npm.cli/main}
+   :output-to "packages/shadow-cljs/cli/dist.js"
 
    :devtools
    {:enabled false}}

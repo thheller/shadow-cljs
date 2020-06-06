@@ -2,6 +2,6 @@
 
 console.log("process-pid", process.pid);
 
-var lib = require("./packages/shadow-cljs/cli/dist/shadow.cljs.npm.cli.js");
+var lib = require("./packages/shadow-cljs/cli/dist.js");
 lib.main(process.argv.slice(2));
 

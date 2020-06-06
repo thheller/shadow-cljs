@@ -26,7 +26,7 @@
   (js/process.stderr.write (str (->> args (map str) (str/join " ")) "\n")))
 
 (def jar-version
-  (-> (js/require "../../package.json")
+  (-> (js/require "../package.json")
       (gobj/get "jar-version")))
 
 (defn file-older-than [a b]
@@ -114,11 +114,8 @@
           (js/process.exit 1)
           ))))
 
-(def default-config-str
-  (util/slurp (path/resolve js/__dirname ".." "default-config.edn")))
-
-(def default-config
-  (reader/read-string default-config-str))
+(defn default-config-str []
+  (util/slurp (path/resolve js/__dirname "default-config.edn")))
 
 (defn ensure-config []
   (loop [root (path/resolve)]
@@ -143,7 +140,7 @@
 
     (when (rl-sync/keyInYN "Create?")
       ;; FIXME: ask for default source path, don't just use one
-      (fs/writeFileSync config default-config-str)
+      (fs/writeFileSync config (default-config-str))
       (log "shadow-cljs - created default configuration")
       config
       )))
@@ -521,7 +518,7 @@
 (defn print-cli-info [project-root config-path {:keys [cache-root source-paths] :as config} opts]
   (println "=== Version")
   (println "jar:           " jar-version)
-  (println "cli:           " (-> (js/require "../../package.json")
+  (println "cli:           " (-> (js/require "../package.json")
                                  (gobj/get "version")))
   (println "deps:          " (-> (js/require "shadow-cljs-jar/package.json")
                                  (gobj/get "version")))
@@ -789,7 +786,7 @@
     (catch :default e
       (println "WARNING: package.json not found. See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install"))))
 
-(defn ^:export main [args]
+(defn main [args]
 
   (try
     (let [{:keys [action options] :as opts}
