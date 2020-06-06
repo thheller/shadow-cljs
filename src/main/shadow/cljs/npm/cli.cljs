@@ -16,6 +16,7 @@
     [goog.object :as gobj]
     [goog.string.format]
     [goog.string :refer (format)]
+    [shadow.cljs.config-env :as config-env]
     [shadow.cljs.npm.util :as util]
     [shadow.cljs.npm.client :as client]
     [shadow.cljs.devtools.cli-opts :as opts]
@@ -552,13 +553,12 @@
       (print-classpath-tree deps-hierarchy))
     (println)))
 
-(defn- getenv [envname]
-  (str (aget js/process.env envname)))
-
 (defn read-config* [config-path]
   (try
     (let [reader-opts
-          {:readers {'shadow/env getenv}}
+          {:readers
+           {'shadow/env config-env/read-env
+            'env config-env/read-env}}
 
           config-txt
           (util/slurp config-path)

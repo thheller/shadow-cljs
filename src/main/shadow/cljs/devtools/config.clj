@@ -1,10 +1,12 @@
 (ns shadow.cljs.devtools.config
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.spec.alpha :as s]
-            [shadow.build.config :as build-config]
-            [shadow.cljs.util :as cljs-util]
-            [shadow.jvm-log :as log]))
+  (:require
+    [clojure.edn :as edn]
+    [clojure.java.io :as io]
+    [clojure.spec.alpha :as s]
+    [shadow.build.config :as build-config]
+    [shadow.cljs.util :as cljs-util]
+    [shadow.cljs.config-env :as config-env]
+    [shadow.jvm-log :as log]))
 
 (s/def ::builds (s/map-of keyword? ::build-config/build))
 
@@ -97,11 +99,12 @@
     :target :npm-module
     :output-dir "node_modules/shadow-cljs"}})
 
-(defn- getenv [envname]
-  (System/getenv envname))
-
 (defn read-config-str [s]
-  (edn/read-string {:readers {'shadow/env getenv}} s))
+  (edn/read-string
+    {:readers
+     {'shadow/env config-env/read-env
+      'env config-env/read-env}}
+    s))
 
 (defn read-config [file]
   (-> file

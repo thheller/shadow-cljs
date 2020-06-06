@@ -31,6 +31,8 @@
  {:compiler-options
   {:infer-externs :auto}}
 
+ :FOO #shadow/env ["FOO" :as :int :default 12345]
+
  :builds
  {:cli
   {:target :npm-module
