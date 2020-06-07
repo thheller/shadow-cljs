@@ -56,7 +56,8 @@
 (defrecord ClojureRuntime [state-ref ex from-relay to-relay]
   p/IRuntime
   (relay-msg [_ msg]
-    (>!! to-relay msg))
+    (when-not (async/offer! to-relay msg)
+      (log/warn ::dropped-message msg)))
   (add-extension [this key spec]
     (shared/add-extension this key spec))
   (del-extension [this key]

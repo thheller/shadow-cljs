@@ -26,8 +26,9 @@
             (<< [:a {:href (str "/build/" (name build-id))} (name build-id)]))]
          [:td.pl-2.whitespace-no-wrap (when host (name host))]
          [:td.pl-2.whitespace-no-wrap (age-display since)]
-         [:td.pl-2 (or desc user-agent "")]]
+         [:td.pl-2.truncate (or desc user-agent "")]]
         [:tr
+         [:td.border-b.py-2]
          [:td.border-b.py-2 {:colSpan 5}
           #_(when (contains? supported-ops :cljs-eval)
               (<< [:a

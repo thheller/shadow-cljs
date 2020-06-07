@@ -70,36 +70,34 @@
       {::m/build-status
        [:status]}])]
   (let [{:keys [status]} build-status]
-    (<< [:div.px-4.py-2
-         [:div.border.rounded.bg-white.p-4
-          [:div.flex
-           [:div.self-center.pr-4
-            [:a.cursor-pointer {:href (str "/build/" (name build-id))}
-             (case status
-               :compiling
-               icon-build-busy
+    (<< [:div.border-b.bg-white.p-4.flex
+         [:div.self-center.pr-4
+          [:a.cursor-pointer {:href (str "/build/" (name build-id))}
+           (case status
+             :compiling
+             icon-build-busy
 
-               :completed
-               (if (zero? build-warnings-count)
-                 icon-build-success
-                 icon-build-warnings)
+             :completed
+             (if (zero? build-warnings-count)
+               icon-build-success
+               icon-build-warnings)
 
-               :failed
-               icon-build-error
+             :failed
+             icon-build-error
 
-               :inactive
-               icon-build-missing
+             :inactive
+             icon-build-missing
 
-               :pending
-               icon-build-busy
+             :pending
+             icon-build-busy
 
-               icon-build-missing)]]
-           [:div.flex-1
-            [:div.pb-2
-             [:a.font-bold.text-lg {:href (str "/build/" (name build-id))} (name build-id)]]
-            [:div
-             (build-buttons build-id build-worker-active)
-             ]]]]])))
+             icon-build-missing)]]
+         [:div.flex-1
+          [:div.pb-1
+           [:a.font-bold.text-lg {:href (str "/build/" (name build-id))} (name build-id)]]
+          [:div
+           (build-buttons build-id build-worker-active)
+           ]]])))
 
 (defc ui-builds-page []
   [{::m/keys [builds]}
@@ -112,7 +110,7 @@
    ::m/build-release! sg/tx
    ::m/build-release-debug! sg/tx]
 
-  (<< [:div.flex-1.overflow-auto.pt-2
+  (<< [:div.flex-1.overflow-auto.pt-2.bg-white
        ;; [:div.p-4.px-8 "start all / stop all"]
        (sg/render-seq builds identity ui-builds-entry)]))
 

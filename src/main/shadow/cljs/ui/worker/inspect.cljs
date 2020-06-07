@@ -23,23 +23,7 @@
 (defn with-added-at-ts [{:keys [added-at] :as summary}]
   (assoc summary :added-at-ts (.format ts-format (js/Date. added-at))))
 
-(defmulti relay-ws (fn [env msg] (:op msg)) :default ::default)
-
-(defmethod relay-ws ::default [env msg]
-  (js/console.warn "unhandled websocket msg" msg env)
-  {})
-
-(defmethod relay-ws :welcome
-  [{:keys [db] :as env} {:keys [client-id]}]
-  {:db
-   (assoc db ::m/tool-id client-id)
-
-   :ws-send
-   [{:op :request-clients
-     :notify true
-     :query [:eq :type :runtime]}]})
-
-(defmethod relay-ws :clients
+(defmethod relay-ws/handle-msg :clients
   [{:keys [db] :as env} {:keys [clients] :as msg}]
   {:db
    (let [runtimes
@@ -56,7 +40,7 @@
               (map :client-id)
               (into #{}))}]})
 
-(defmethod relay-ws :notify
+(defmethod relay-ws/handle-msg :notify
   [{:keys [db] :as env}
    {:keys [event-op client-id client-info]}]
   (case event-op
@@ -75,7 +59,7 @@
        (-> (db/remove db runtime-ident)
            (update ::m/runtimes without runtime-ident))})))
 
-(defmethod relay-ws :supported-ops
+(defmethod relay-ws/handle-msg :supported-ops
   [{:keys [db] :as env} {:keys [ops from]}]
   (-> {:db
        (db/update-entity db ::m/runtime from assoc :supported-ops ops)}
@@ -84,7 +68,7 @@
         (assoc :ws-send [{:op :tap-subscribe :to from :summary true :history true}])
         )))
 
-(defmethod relay-ws :tap-subscribed
+(defmethod relay-ws/handle-msg :tap-subscribed
   [{:keys [db] :as env} {:keys [history from]}]
   (let [stream-items
         (->> history
@@ -108,7 +92,7 @@
      :stream-merge
      {::m/taps stream-items}}))
 
-(defmethod relay-ws :tap [{:keys [db] :as env} {:keys [oid from]}]
+(defmethod relay-ws/handle-msg :tap [{:keys [db] :as env} {:keys [oid from]}]
   (let [object-ident (db/make-ident ::m/object oid)]
     {:db
      (db/add db ::m/object {:oid oid
@@ -120,15 +104,11 @@
 
 
 
-(defmethod relay-ws :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
+(defmethod relay-ws/handle-msg :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
   (let [object-ident (db/make-ident ::m/object oid)]
     {:db (assoc-in db [object-ident :summary] (with-added-at-ts summary))}))
 
-(sw/reg-event-fx env/app-ref ::m/relay-ws
-  []
-  (fn [env {:keys [op] :as msg}]
-    ;; (js/console.log ::m/relay-ws op msg)
-    (relay-ws env msg)))
+
 
 (defmethod eql/attr :obj-preview [env db {:keys [oid runtime-id edn-limit] :as current} query-part params]
   (cond

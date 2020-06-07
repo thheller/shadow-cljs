@@ -93,3 +93,6 @@
      (repl)))
   ([host port & dropped]
    (repl host (Long/parseLong port))))
+
+(defn eval-top-level [& args]
+  (prn args))

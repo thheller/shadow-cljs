@@ -304,7 +304,6 @@
       (http/route
         ;; temp fix for middleware problem
         (:ANY "/api/remote-relay" web-api/api-remote-relay)
-        (:ANY "/api/ws" web-api/api-ws)
         (:ANY "^/api" web-api/root)
         (:GET "^/cache" serve-cache-file)
         pages)))

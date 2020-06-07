@@ -27,6 +27,7 @@
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
     [shadow.cljs.devtools.server.build-history :as build-history]
     [shadow.cljs.devtools.server.system-bus :as system-bus]
+    [shadow.cljs.devtools.server.remote-ext :as remote-ext]
     [shadow.remote.relay.local :as relay]
     [shadow.remote.runtime.clj.local :as clj-runtime]
     [shadow.remote.runtime.obj-support :as obj-support]
@@ -465,6 +466,11 @@
                   {:depends-on [:clj-runtime :clj-runtime-obj-support]
                    :start eval-support/start
                    :stop eval-support/stop}
+
+                  :clj-runtime-shadow-ext
+                  {:depends-on [:clj-runtime :supervisor :system-bus]
+                   :start remote-ext/start
+                   :stop remote-ext/stop}
 
                   :out
                   {:depends-on [:config]
