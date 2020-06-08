@@ -313,18 +313,21 @@
                 ;; FIXME: this might be duplicated if the CLJS code also contains some polyfills
                 (fix-jscomp-scoping-issue))))
 
+        base-prepend
+        (when (and any-shadow-js?
+                   goog-base
+                   ;; special case for node targets that use
+                   ;; prepend to prepend hashbang which must be first
+                   ;; FIXME: ugly hack, make this cleaner
+                   (or (nil? prepend)
+                       (not (str/includes? prepend "shadow$provide"))))
+          ;; when using :output-wrapper the closure compiler will for some reason use $jscomp without declaring it
+          ;; this is the quickest way I can think of to work around that. should figure out why GCC is going that.
+          (str "var $jscomp = {};\n"
+               "var shadow$provide = {};\n"))
+
         final-output
-        (str (when (and any-shadow-js?
-                        goog-base
-                        ;; special case for node targets that use
-                        ;; prepend to prepend hashbang which must be first
-                        ;; FIXME: ugly hack, make this cleaner
-                        (or (nil? prepend)
-                            (not (str/includes? prepend "shadow$provide"))))
-               ;; when using :output-wrapper the closure compiler will for some reason use $jscomp without declaring it
-               ;; this is the quickest way I can think of to work around that. should figure out why GCC is going that.
-               (str "var $jscomp = {};\n"
-                    "var shadow$provide = {};\n"))
+        (str base-prepend
              ;; FIXME: shadow$provide must come before prepend
              ;; since output-wrapper uses prepend and we need this
              ;; to be available cross module, we should however try to avoid
@@ -340,10 +343,10 @@
      :prepend-offset
      (-> 0
          (cond->
+           (seq base-prepend)
+           (+ (line-count base-prepend)) ;; var shadow$provide ...
            (seq prepend)
            (+ (line-count prepend))
-           (and goog-base)
-           (inc) ;; var shadow$provide ...
            ))}))
 
 (defmethod flush-optimized-module ::default

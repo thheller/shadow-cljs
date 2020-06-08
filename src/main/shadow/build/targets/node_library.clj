@@ -127,7 +127,7 @@
         prepend
         (-> (when-let [prep (:prepend config)]
               (str (str/trim prep) "\n"))
-            (str prepend)
+            (str (str/trim prepend) "\n")
             (cond->
               umd-root-name
               (str/replace #"root.returnExports" (str "root." umd-root-name))))]
@@ -140,8 +140,8 @@
            {:entries '[shadow.umd-helper]
             :depends-on #{}
             :prepend prepend
-            :append-js "\nshadow$umd$export = shadow.umd_helper.get_exports();"
-            :append append}}))))
+            :append-js "\nshadow$umd$export = shadow.umd_helper.get_exports();\n"
+            :append (str/trim append)}}))))
 
 (defn check-exports!
   [{:keys [compiler-env] :as state}
