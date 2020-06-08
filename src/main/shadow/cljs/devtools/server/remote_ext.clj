@@ -33,9 +33,9 @@
             (p/relay-msg runtime (assoc msg :op ::m/sub-msg :to from))
             (recur)))
 
-        (p/relay-msg runtime
-          {:op ::m/sub-close
-           ::m/topic topic}))
+        ;; subs only end when server is shutting down
+        ;; no need to tell the client, it will notice
+        #_ (p/relay-msg runtime {:op ::m/sub-close ::m/topic topic}))
 
     (swap! state-ref update :subs conj {:client-id from
                                         :topic topic
