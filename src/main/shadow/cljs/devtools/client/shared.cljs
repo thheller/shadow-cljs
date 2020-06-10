@@ -345,7 +345,7 @@
 
     (p/add-extension runtime
       ::shared
-      {:on-connect
+      {:on-welcome
        (fn []
          (shared/relay-msg runtime
            {:op :request-notify
@@ -355,9 +355,9 @@
     (when (seq @extensions-ref)
       (start-all-extensions!))))
 
-(defn stop-runtime! []
+(defn stop-runtime! [e]
   (when-some [runtime @runtime-ref]
-    (shared/trigger-on-disconnect! (:runtime runtime))
+    (shared/trigger-on-disconnect! (:runtime runtime) e)
     (reset! runtime-ref nil)
     (let [{:keys [stop]} runtime]
       (stop))))

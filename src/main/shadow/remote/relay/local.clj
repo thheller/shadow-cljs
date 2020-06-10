@@ -253,6 +253,9 @@
                 (update :client-info merge client-info))))
 
         (let [client-info (get-in @state-ref [:clients client-id :client-info])]
+
+          (log/debug ::client-hello {:client-id client-id :client-info client-info})
+
           (notify-clients
             relay
             client-id

@@ -61,7 +61,7 @@
       (.addEventListener socket "close"
         (fn [e]
           ;; (js/console.log "ws-close" e)
-          (cljs-shared/stop-runtime!)))
+          (cljs-shared/stop-runtime! e)))
 
       (.addEventListener socket "error"
         (fn [e]

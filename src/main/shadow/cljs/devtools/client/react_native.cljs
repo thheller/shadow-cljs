@@ -113,7 +113,7 @@
     (fn [{:keys [runtime] :as env}]
       (let [svc {:runtime runtime}]
         (api/add-extension runtime ::client
-          {:on-connect
+          {:on-welcome
            (fn []
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?

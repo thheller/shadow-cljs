@@ -59,9 +59,9 @@
       {:op :hello
        :client-info client-info})
 
-    (doseq [{:keys [on-connect] :as ext} (vals extensions)
-            :when on-connect]
-      (on-connect))))
+    (doseq [{:keys [on-welcome] :as ext} (vals extensions)
+            :when on-welcome]
+      (on-welcome))))
 
 (defn ping
   [runtime msg]
@@ -131,10 +131,10 @@
   (swap! state-ref del-extension* key))
 
 (defn trigger-on-disconnect!
-  [{:keys [state-ref] :as runtime}]
+  [{:keys [state-ref] :as runtime} e]
   (doseq [{:keys [on-disconnect] :as ext} (vals (:extensions @state-ref))
           :when on-disconnect]
-    (on-disconnect)))
+    (on-disconnect e)))
 
 (defn unhandled-call-result [call-config msg]
   #?(:cljs (js/console.warn "unhandled call result" msg call-config)

@@ -175,6 +175,8 @@
 
                       :dom (some? js/goog.global.document)})))
 
+(defonce ws-was-welcome-ref (atom false))
+
 (when (and env/enabled (pos? env/worker-client-id))
 
   (extend-type cljs-shared/Runtime
@@ -227,21 +229,29 @@
       (let [svc {:runtime runtime}]
 
         (api/add-extension runtime ::client
-          {:on-connect
+          {:on-welcome
            (fn []
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
+             (reset! ws-was-welcome-ref true)
+             (hud/connection-error-clear!)
              (env/patch-goog!)
-             (devtools-msg (str "#"  (-> runtime :state-ref deref :client-id) " ready!")))
+             (devtools-msg (str "#" (-> runtime :state-ref deref :client-id) " ready!")))
 
            :on-disconnect
-           (fn []
-             (hud/connection-error
-               (str "The Websocket connection was closed!")))
+           (fn [e]
+             ;; don't show error if connection was denied
+             ;; that already shows an error
+             (when @ws-was-welcome-ref
+               (hud/connection-error "The Websocket connection was closed!")
+
+               (reset! ws-was-welcome-ref false)
+               ))
 
            :ops
            {:access-denied
             (fn [msg]
+              (reset! ws-was-welcome-ref false)
               (hud/connection-error
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))

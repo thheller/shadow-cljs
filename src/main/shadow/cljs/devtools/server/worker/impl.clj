@@ -859,7 +859,7 @@
 
 (defmethod do-relay-msg ::cljs-runtime-notify
   [worker-state {:keys [event-op client-id] :as msg}]
-  (log/debug ::notify msg)
+  ;; (log/debug ::notify msg)
   (case event-op
     :client-disconnect
     (remove-runtime worker-state client-id)
