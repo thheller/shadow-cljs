@@ -623,7 +623,10 @@
                     reader/*data-readers* {}
                     reader/*default-data-reader-fn* (fn [tag val] val)
                     reader/resolve-symbol identity
-                    reader/*alias-map* {}]
+                    ;; used by tools.reader to resolve ::foo/kw
+                    ;; we don't actually care, we just want the original source
+                    ;; just calls (*alias-map* sym) so a function is fine
+                    reader/*alias-map* (fn [sym] sym)]
             ;; read+string somehow not available, suspect bad AOT file from CLJS?
             (reader/read reader-opts in))
 
