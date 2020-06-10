@@ -65,10 +65,9 @@
 (defn get-server-host []
   (cond
     (and use-document-host
-         js/goog.global.document
-         js/goog.global.document.location
-         (seq js/goog.global.document.location.hostname))
-    js/document.location.hostname
+         js/goog.global.location
+         (seq js/goog.global.location.hostname))
+    js/goog.global.location.hostname
 
     (seq server-host)
     server-host
