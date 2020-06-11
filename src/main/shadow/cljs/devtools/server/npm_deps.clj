@@ -9,17 +9,11 @@
   (:import (javax.script ScriptEngineManager ScriptEngine Invocable)))
 
 (defn get-major-java-version []
-  (let [java-version
-        (or (System/getProperty "java.vm.specification.version") ;; not sure this was always available
-            (System/getProperty "java.version"))
-        dot
-        (str/index-of java-version ".")
-
-        java-version
-        (if-not dot java-version (subs java-version 0 dot))]
-
-    ;; return 1 for 1.8, 1.9 which is fine ...
-    (Long/parseLong java-version)))
+  (->> ["java.vm.specification.version"
+        "java.version"]
+       (some #(System/getProperty %))
+       (re-find #"^\d+")
+       Long/parseLong))
 
 (defn make-engine* []
   (let [java-version (get-major-java-version)]
