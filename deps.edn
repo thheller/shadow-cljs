@@ -45,6 +45,9 @@
   ring/ring-core {:mvn/version "1.8.0" :exclusions [clj-time]}
   hawk {:mvn/version "0.2.11"}
 
+  org.graalvm.js/js {:mvn/version "20.1.0"}
+  org.graalvm.js/js-scriptengine {:mvn/version "20.1.0"}
+
   io.undertow/undertow-core
   {:mvn/version "2.0.30.Final"
    :exclusions

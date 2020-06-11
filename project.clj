@@ -51,6 +51,9 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.3"]
 
+   [org.graalvm.js/js "20.1.0"]
+   [org.graalvm.js/js-scriptengine "20.1.0"]
+
    [io.undertow/undertow-core "2.1.1.Final"]
 
    [hiccup "1.0.5"]

@@ -1,37 +1,15 @@
 (ns shadow.cljs.devtools.server.npm-deps
   "utility namespaces for installing npm deps found in deps.cljs files"
   (:require [clojure.edn :as edn]
-            [clojure.pprint :refer (pprint)]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [shadow.cljs.devtools.server.util :as util])
-  (:import (javax.script ScriptEngineManager ScriptEngine Invocable)))
-
-(defn get-major-java-version []
-  (let [java-version
-        (or (System/getProperty "java.vm.specification.version") ;; not sure this was always available
-            (System/getProperty "java.version"))
-        dot
-        (str/index-of java-version ".")
-
-        java-version
-        (if-not dot java-version (subs java-version 0 dot))]
-
-    ;; return 1 for 1.8, 1.9 which is fine ...
-    (Long/parseLong java-version)))
-
-(defn make-engine* []
-  (let [java-version (get-major-java-version)]
-    (when (>= java-version 11)
-      (System/setProperty "nashorn.args" "--no-deprecation-warning")))
-
-  (-> (ScriptEngineManager.)
-      (.getEngineByName "nashorn")))
+  (:import (javax.script ScriptEngineManager)))
 
 (defn make-engine []
-  (let [engine
-        (make-engine*)
+  (let [engine (-> (ScriptEngineManager.)
+                   (.getEngineByName "JavaScript"))
 
         semver-js
         (slurp (io/resource "shadow/build/js/semver.js"))]
