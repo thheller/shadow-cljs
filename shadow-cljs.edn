@@ -79,8 +79,7 @@
    :module-loader true
    :modules
    {:shared
-    {:entries []
-     :preloads [shadow.remote.runtime.cljs.browser]}
+    {:entries []}
     :main
     {:init-fn shadow.cljs.ui.main/init
      :depends-on #{:shared}
@@ -156,8 +155,7 @@
 
     :demo
     {:init-fn demo.browser/init
-     :depends-on #{:base}
-     :preloads [shadow.remote.runtime.cljs.browser]}
+     :depends-on #{:base}}
 
     :extra
     {:entries [demo.browser-extra]
@@ -384,8 +382,7 @@
    :devtools
    {:before-load-async demo.script/stop
     :after-load demo.script/start
-    :preloads [demo.preload
-               shadow.remote.runtime.cljs.node]}}
+    :preloads [demo.preload]}}
 
   :bootstrap-script-host
   {:target :node-script
