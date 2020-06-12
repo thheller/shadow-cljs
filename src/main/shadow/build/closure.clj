@@ -994,8 +994,7 @@
 (defn get-injected-libs [compiler]
   (-> (.get injected-libraries-field compiler)
       (keys)
-      (into #{})))
-
+      (set)))
 
 (defn dump-closure-inputs [state externs js-mods compiler-options]
   (doseq [extern externs]
