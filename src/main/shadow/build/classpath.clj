@@ -21,7 +21,7 @@
     [shadow.build.data :as data])
   (:import (java.io File StringReader)
            (java.util.jar JarFile JarEntry Attributes$Name)
-           (java.net URL)
+           (java.net URL URLDecoder)
            (java.util.zip ZipException)
            (shadow.build.closure JsInspector)
            [java.nio.file Paths Path]
@@ -471,6 +471,7 @@
 
 (def get-jar-info (memoize get-jar-info*))
 
+;; jar:file:/C:/Users/thheller/.m2/repository/org/clojure/clojurescript/1.10.773/clojurescript-1.10.773.jar!/cljs/core.cljs
 (defn get-jar-info-for-url [^URL rc-url]
   (let [path (.getFile rc-url)]
     (when-not (str/starts-with? path "file:")
@@ -478,7 +479,7 @@
     (let [idx (str/index-of path "!/")]
       (when-not idx
         (throw (ex-info "expected to find !/ in jar url but didn't" {:rc-url rc-url})))
-      (let [jar-path (subs path 5 idx)]
+      (let [jar-path (URLDecoder/decode (subs path 5 idx) "utf-8")]
         (get-jar-info jar-path)))))
 
 (defn make-jar-resource [^URL rc-url name]
