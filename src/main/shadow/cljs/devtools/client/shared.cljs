@@ -326,20 +326,21 @@
 
   (schedule-connect! [this after]
     ;; (js/console.log "scheduling next connect" after @state-ref)
-    (let [{::keys [ws-connect-timeout]} @state-ref]
+    (let [{::keys [ws-connect-timeout stale shutdown]} @state-ref]
       (when ws-connect-timeout
-        (js/clearTimeout ws-connect-timeout)))
+        (js/clearTimeout ws-connect-timeout))
 
-    (shared/trigger! this :on-reconnect)
+      (when (and (not stale) (not shutdown))
+        (shared/trigger! this :on-reconnect)
 
-    (swap! state-ref assoc
-      ::ws-connect-timeout
-      (js/setTimeout
-        (fn []
-          ;; (js/console.log "attempt-connect after schedule timeout" @state-ref)
-          (swap! state-ref dissoc ::ws-connect-timeout)
-          (.attempt-connect! this))
-        after))))
+        (swap! state-ref assoc
+          ::ws-connect-timeout
+          (js/setTimeout
+            (fn []
+              ;; (js/console.log "attempt-connect after schedule timeout" @state-ref)
+              (swap! state-ref dissoc ::ws-connect-timeout)
+              (.attempt-connect! this))
+            after))))))
 
 (defonce print-subs (atom #{}))
 

@@ -28,6 +28,11 @@
      :notify true
      :query [:eq :type :runtime]}]})
 
+(sw/reg-event-fx env/app-ref ::m/relay-ws-close
+  []
+  (fn [{:keys [db] :as env} _]
+    {:db (assoc db ::m/relay-ws-connected false)}))
+
 (sw/reg-event-fx env/app-ref ::m/relay-ws
   []
   (fn [env {:keys [op] :as msg}]
@@ -94,6 +99,7 @@
 
     (.addEventListener socket "close"
       (fn [e]
+        (sw/tx* @env/app-ref [::m/relay-ws-close])
         (js/console.log "tool-close" e)))
 
     (.addEventListener socket "error"
