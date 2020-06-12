@@ -2,6 +2,7 @@
   (:require
     [goog.object :as gobj]
     [cognitect.transit :as transit]
+    [clojure.set :as set]
     [shadow.cljs.devtools.client.env :as env]
     [shadow.remote.runtime.api :as api]
     [shadow.remote.runtime.shared :as shared]
@@ -9,22 +10,37 @@
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.tap-support :as tap-support]
     [shadow.remote.runtime.eval-support :as eval-support]
-    [clojure.set :as set]
-    [shadow.remote.runtime.api :as p]))
+    [shadow.remote.runtime.api :as p]
+    ))
+
+(defprotocol IRemote
+  (remote-open [this e])
+  (remote-msg [this msg])
+  (remote-close [this e])
+  (remote-error [this e]))
 
 (defprotocol IHostSpecific
   (do-repl-init [this action done error])
   (do-repl-require [this require-msg done error])
   (do-invoke [this invoke-msg]))
 
-(defonce runtime-ref (atom nil))
-(defonce extensions-ref (atom {}))
+(defn load-sources [runtime sources callback]
+  (shared/call runtime
+    {:op :cljs-load-sources
+     :to env/worker-client-id
+     :sources (into [] (map :resource-id) sources)}
+    {:cljs-sources
+     (fn [{:keys [sources] :as msg}]
+       (callback sources))}))
 
-(defn start-all-extensions! []
-  (let [started-set (set (keys @runtime-ref))
-        exts @extensions-ref
-        ext-set (set (keys exts))
-        pending-set (set/difference ext-set started-set)]
+(defonce runtime-ref (atom nil))
+(defonce plugins-ref (atom {}))
+
+(defn start-all-plugins! [{:keys [state-ref] :as runtime}]
+  (let [started-set (set (keys (::plugins @state-ref)))
+        plugins @plugins-ref
+        plugins-set (set (keys plugins))
+        pending-set (set/difference plugins-set started-set)]
 
     ;; FIXME: this is dumb, should properly sort things in dependency order
     ;; instead of looping over
@@ -35,34 +51,43 @@
 
         :else
         (-> (reduce
-              (fn [pending-set ext-id]
-                (let [{:keys [depends-on init-fn] :as ext} (get exts ext-id)]
+              (fn [pending-set plugin-id]
+                (let [{:keys [depends-on init-fn] :as plugin} (get plugins plugin-id)]
                   (if (some pending-set depends-on)
                     pending-set
-                    (let [started (init-fn @runtime-ref)]
-                      (swap! runtime-ref assoc ext-id started)
-                      (disj pending-set ext-id)))))
+                    (let [start-arg (assoc (select-keys (::plugins @state-ref) depends-on) :runtime runtime)
+                          started (init-fn start-arg)]
+                      (swap! state-ref assoc-in [::plugins plugin-id] started)
+                      (disj pending-set plugin-id)))))
               pending-set
               pending-set)
             (recur))))))
 
-;; generic extension mechanism for things that don't have access to the runtime
-;; and don't want to worry about the lifecycle
-(defn init-extension! [ext-id depends-on init-fn stop-fn]
-  (when-some [started (get @runtime-ref ext-id)]
-    (let [{:keys [stop-fn] :as old} (get @extensions-ref ext-id)]
-      (stop-fn started)
-      (swap! runtime-ref dissoc ext-id)))
+;; generic plugin mechanism
+;; runtime already has extensions but requires access to runtime
+;; plugin decouple the lifecycle so they can be created wherever
+(defn add-plugin!
+  [plugin-id depends-on init-fn stop-fn]
+  {:pre [(keyword? plugin-id)
+         (set? depends-on)
+         (fn? init-fn)
+         (fn? stop-fn)]}
 
-  (swap! extensions-ref assoc ext-id {:ext-id ext-id
-                                      :depends-on depends-on
-                                      :init-fn init-fn
-                                      :stop-fn stop-fn})
+  (when-some [runtime @runtime-ref]
+    (when-some [started (get-in runtime [::plugins plugin-id])]
+      (let [{:keys [stop-fn] :as old} (get @plugins-ref plugin-id)]
+        (stop-fn started)
+        (swap! runtime-ref update ::plugins dissoc plugin-id))))
+
+  (swap! plugins-ref assoc plugin-id
+    {:ext-id plugin-id
+     :depends-on depends-on
+     :init-fn init-fn
+     :stop-fn stop-fn})
 
   ;; in case runtime is already started
-  (when @runtime-ref
-    (start-all-extensions!)))
-
+  (when-some [runtime @runtime-ref]
+    (start-all-plugins! runtime)))
 
 (defn transit-read [data]
   (let [t (transit/reader :json)]
@@ -195,14 +220,18 @@
         (vec))
    :loaded-sources []})
 
-(defrecord Runtime [state-ref send-fn close-fn]
+(defrecord Runtime [state-ref]
   api/IRuntime
   (relay-msg [this msg]
-    (let [s (try
-              (transit-str msg)
-              (catch :default e
-                (throw (ex-info "failed to encode relay msg" {:msg msg}))))]
-      (send-fn s)))
+    (let [{::keys [ws-state ws-connected ws-send-fn] :as state} @state-ref]
+      (if-not ws-connected
+        (js/console.warn "shadow-cljs - dropped ws message, not connected" msg state)
+        (let [s (try
+                  (transit-str msg)
+                  (catch :default e
+                    (throw (ex-info "failed to encode relay msg" {:msg msg}))))]
+          ;; (js/console.log "sending" msg state)
+          (ws-send-fn ws-state s)))))
 
   (add-extension [runtime key spec]
     (shared/add-extension runtime key spec))
@@ -237,32 +266,157 @@
        :client-not-found
        (fn [msg]
          (callback
-           {:result :worker-not-found}))})))
+           {:result :worker-not-found}))}))
+
+  IRemote
+  (remote-open [this e]
+    ;; (js/console.log "runtime remote-open" this e)
+    (swap! state-ref assoc
+      ::ws-errors 0
+      ::ws-connecting false
+      ::ws-connected true
+      ::ws-last-msg (shared/now)))
+
+  (remote-msg [this text]
+    (let [msg (transit-read text)]
+      ;; (js/console.log "runtime remote-msg" this msg)
+      (swap! state-ref assoc ::ws-last-msg (shared/now))
+      (when (= :access-denied (:op msg))
+        (swap! state-ref assoc ::stale true))
+      (shared/process this msg)))
+
+  (remote-close [this e]
+    ;; (js/console.log "runtime remote-close" @state-ref e)
+    (swap! state-ref dissoc ::ws-connected ::ws-connecting)
+
+    ;; after 3 failed attempts just stop
+    (if (>= 3 (::ws-errors @state-ref))
+      (.schedule-connect! this 5000)
+      (js/console.log "giving up trying to connect")))
+
+  (remote-error [this e]
+    (swap! state-ref update ::ws-errors inc)
+
+    (shared/trigger! this :on-disconnect)
+
+    (js/console.error "shadow-cljs - remote-error" e))
+
+  Object
+  (attempt-connect! [this]
+    (let [{::keys [ws-connecting ws-connect-timeout shutdown stale ws-state ws-stop-fn ws-start-fn]
+           :as state}
+          @state-ref]
+
+      ;; (js/console.log "attempt-connect!" state)
+      (when (and (not shutdown)
+                 (not stale)
+                 (not ws-connecting))
+
+        (when ws-connect-timeout
+          (js/clearTimeout ws-connect-timeout))
+
+        (when (some? ws-state)
+          (ws-stop-fn ws-state))
+
+        (let [ws-state (ws-start-fn this)]
+          (swap! state-ref assoc
+            ::ws-connecting true
+            ::ws-connected false
+            ::ws-state ws-state)))))
+
+  (schedule-connect! [this after]
+    ;; (js/console.log "scheduling next connect" after @state-ref)
+    (let [{::keys [ws-connect-timeout]} @state-ref]
+      (when ws-connect-timeout
+        (js/clearTimeout ws-connect-timeout)))
+
+    (shared/trigger! this :on-reconnect)
+
+    (swap! state-ref assoc
+      ::ws-connect-timeout
+      (js/setTimeout
+        (fn []
+          ;; (js/console.log "attempt-connect after schedule timeout" @state-ref)
+          (swap! state-ref dissoc ::ws-connect-timeout)
+          (.attempt-connect! this))
+        after))))
 
 (defonce print-subs (atom #{}))
 
-(defn init-runtime! [{:keys [state-ref close-fn] :as runtime}]
-  (shared/add-defaults runtime)
+(defn stop-runtime! [{:keys [state-ref] :as runtime}]
+  (let [{::keys [ws-state ws-stop-fn interval plugins]} @state-ref]
 
-  (let [obj-support
-        (obj-support/start runtime)
+    (js/clearInterval interval)
 
-        tap-support
-        (tap-support/start runtime obj-support)
+    (when (some? ws-state)
+      (js/console.log "stop-runtime!")
+      (ws-stop-fn ws-state))
 
-        eval-support
-        (eval-support/start runtime obj-support)
+    (reduce-kv
+      (fn [_ plugin-id started]
+        ;; FIXME: should stop in reverse started order
+        (let [{:keys [stop-fn]} (get @plugins-ref plugin-id)]
+          (stop-fn started)))
+      nil
+      plugins)
 
-        interval
-        (js/setInterval #(shared/run-on-idle state-ref) 1000)
+    (swap! state-ref assoc ::shutdown true)))
 
-        stop
+(defn init-runtime! [client-info ws-start-fn ws-send-fn ws-stop-fn]
+  ;; in case of hot-reload or reconnect, clean up previous runtime
+  (when-some [runtime @runtime-ref]
+    (stop-runtime! runtime)
+    (reset! runtime-ref nil))
+
+  (add-plugin! :obj-support #{}
+    #(obj-support/start (:runtime %))
+    obj-support/stop)
+
+  (add-plugin! :tap-support #{:obj-support}
+    (fn [{:keys [runtime obj-support]}]
+      (tap-support/start runtime obj-support))
+    tap-support/stop)
+
+  (add-plugin! :eval-support #{:obj-support}
+    (fn [{:keys [runtime obj-support]}]
+      (eval-support/start runtime obj-support))
+    eval-support/stop)
+
+  (let [state-ref
+        (-> (assoc client-info
+              :type :runtime
+              :lang :cljs
+              :build-id (keyword env/build-id)
+              :proc-id env/proc-id)
+            (shared/init-state)
+            (assoc ::shutdown false
+                   ::stale false
+                   ::plugins {}
+                   ::ws-errors 0
+                   ::ws-start-fn ws-start-fn
+                   ::ws-send-fn ws-send-fn
+                   ::ws-stop-fn ws-stop-fn)
+            (atom))
+
+        runtime
+        (doto (->Runtime state-ref)
+          (shared/add-defaults))
+
+        idle-fn
         (fn []
-          (js/clearTimeout interval)
-          (eval-support/stop eval-support)
-          (tap-support/stop tap-support)
-          (obj-support/stop obj-support)
-          (close-fn))]
+          (let [{::keys [shutdown ws-connected ws-last-msg ws-connect-timeout] :as state} @state-ref]
+            (when (and (not ws-connect-timeout) (not shutdown) ws-connected (> (shared/now) (+ ws-last-msg 20000)))
+              ;; should be receiving pings, if not assume dead ws
+              ;; (js/console.log "attempting reconnect because of idle" state)
+              ;; wait a little, otherwise might get ERR_INTERNET_DISCONNECTED after waking from sleep
+              (swap! state-ref dissoc ::ws-connected)
+              (.schedule-connect! runtime 2000))
+
+            (shared/run-on-idle state-ref)))]
+
+    (swap! state-ref assoc ::interval (js/setInterval idle-fn 1000))
+
+    (reset! runtime-ref runtime)
 
     ;; test exporting this into the global so potential consumers
     ;; don't have to worry about importing a namespace that shouldn't be in release builds
@@ -298,13 +452,6 @@
                     ;; user may do cljs_eval("1 2 3") and will only get 3 but we have [1 2 3]
                     (resolve (last results))
                     (reject info)))))))))
-
-    (reset! runtime-ref
-      {:runtime runtime
-       :obj-support obj-support
-       :tap-support tap-support
-       :eval-support eval-support
-       :stop stop})
 
     (p/add-extension runtime
       ::print-support
@@ -352,13 +499,8 @@
             :notify-op ::env/worker-notify
             :query [:eq :shadow.cljs.model/worker-for (keyword env/build-id)]}))})
 
-    (when (seq @extensions-ref)
-      (start-all-extensions!))))
+    (start-all-plugins! runtime)
 
-(defn stop-runtime! [e]
-  (when-some [runtime @runtime-ref]
-    (shared/trigger-on-disconnect! (:runtime runtime) e)
-    (reset! runtime-ref nil)
-    (let [{:keys [stop]} runtime]
-      (stop))))
+    ;; (js/console.log "first connect from init-runtime!")
+    (.attempt-connect! runtime)))
 

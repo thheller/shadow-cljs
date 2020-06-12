@@ -28,28 +28,6 @@
 
 (def ^:const some-const 1)
 
-(js/console.log "foo" Foo)
-
-(js/console.log "macro" (m/foo 1 2 3))
-
-(def lazy-x
-  (lazy/loadable demo.browser-extra/x))
-
-(def lazy-xy
-  (lazy/loadable
-    [demo.browser-extra/x
-     demo.browser-extra/y]))
-
-(def lazy-xym
-  (lazy/loadable
-    {:x demo.browser-extra/x
-     :y demo.browser/yo
-     :z cljs.core/assoc}))
-
-(js/console.log "x" lazy-x lazy-xy lazy-xym)
-
-::foo
-
 (defn custom-notify [{:keys [type] :as msg}]
   (js/console.warn "CUSTOM-NOTIFY" type msg))
 
@@ -67,10 +45,6 @@
   {:test #(ct/is (= "also kind of" 1))}
   [bar]
   (.fromSimpleExterns bar))
-
-(js/console.log "▶❤◀")
-
-(js/console.log "or" (or nil js/document.body))
 
 ;; (throw (ex-info "fail to load" {}))
 
@@ -129,12 +103,12 @@
 (defn init []
   (js/console.warn "browser-init")
 
-  (let [worker (js/Worker. "/js/worker.js")]
-    (reset! worker-ref worker)
+  #_(let [worker (js/Worker. "/js/worker.js")]
+      (reset! worker-ref worker)
 
-    (.addEventListener worker "message"
-      (fn [e]
-        (js/console.log "mesage from worker" e))))
+      (.addEventListener worker "message"
+        (fn [e]
+          (js/console.log "mesage from worker" e))))
 
   (start))
 

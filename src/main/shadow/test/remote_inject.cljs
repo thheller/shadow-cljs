@@ -64,7 +64,7 @@
     state
     namespaces))
 
-(cljs-shared/init-extension! ::test-cljs #{:obj-support}
+(cljs-shared/add-plugin! ::test-cljs #{:obj-support}
   (fn [{:keys [runtime obj-support] :as env}]
     (let [state-ref
           (atom {})

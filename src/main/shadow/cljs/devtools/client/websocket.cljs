@@ -1,68 +1,52 @@
 (ns shadow.cljs.devtools.client.websocket
   (:require
+    [shadow.cljs.devtools.client.env :as env]
     [shadow.cljs.devtools.client.shared :as cljs-shared]
-    [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.cljs.js-builtins]
-    [shadow.cljs.devtools.client.env :as env]))
+    ))
 
-(defn load-sources [runtime sources callback]
-  (shared/call runtime
-    {:op :cljs-load-sources
-     :to env/worker-client-id
-     :sources (into [] (map :resource-id) sources)}
-    {:cljs-sources
-     (fn [{:keys [sources] :as msg}]
-       (callback sources))}))
+;; FIXME: protocolize the 3 fns
 
-(defn start [ws-url client-info]
-  (if-some [{:keys [stop]} @cljs-shared/runtime-ref]
-    ;; if already connected. cleanup and call restart async
-    ;; need to give the websocket a chance to close
-    ;; only need this to support hot-reload this code
-    ;; can't use :dev/before-load-async hooks since they always run
-    (do (stop)
-        (js/setTimeout #(start ws-url client-info) 10))
+(defn start [runtime]
+  (let [ws-url (env/get-ws-relay-url)
+        socket (js/WebSocket. ws-url)]
 
-    (let [socket
-          (js/WebSocket. ws-url)
+    (set! socket -onmessage
+      (fn [e]
+        (cljs-shared/remote-msg runtime (.-data e))))
 
-          send-fn
-          (fn [msg]
-            (.send socket msg))
+    (set! socket -onopen
+      (fn [e]
+        (cljs-shared/remote-open runtime e)))
 
-          state-ref
-          (-> (assoc client-info
-                :type :runtime
-                :lang :cljs
-                :build-id (keyword env/build-id)
-                :proc-id env/proc-id)
-              (shared/init-state)
-              (atom))
+    (set! socket -onclose
+      (fn [e]
+        (cljs-shared/remote-close runtime e)))
 
-          runtime
-          (cljs-shared/Runtime.
-            state-ref
-            send-fn
-            #(.close socket))]
+    (set! socket -onerror
+      (fn [e]
+        ;; followed by close
+        (cljs-shared/remote-error runtime e)))
 
-      (cljs-shared/init-runtime! runtime)
+    socket))
 
-      (.addEventListener socket "message"
-        (fn [e]
-          ;; (js/console.log "ws-message" e)
-          (shared/process runtime (cljs-shared/transit-read (.-data e)))
-          ))
+(defn send [socket msg]
+  (.send socket msg))
 
-      (.addEventListener socket "open"
-        (fn [e]
-          ;; (js/console.log "ws-open" e)
-          ))
+(defn stop [socket]
+  ;; chrome sometimes gets stuck websockets when waking up from sleep
+  ;; at least on my macbook macos chrome, works fine in windows
+  ;; these sockets don't receive messages or send them
+  ;; and will eventually time out after a minute or so
+  ;; at which point we no longer care about close messages as a new one will
+  ;; be active and we don't want to a late onclose message to disconnect that one.
 
-      (.addEventListener socket "close"
-        (fn [e]
-          ;; (js/console.log "ws-close" e)
-          (cljs-shared/stop-runtime! e)))
+  ;; firefox also has the stuck socket but that is closed pretty much immediately on wake
+  ;; it still shows an error "was interrupted while loading page" after a bit
+  ;; can't seem to get rid of that one but it is from the socket we no longer care about anyways
+  (set! (.-onopen socket) nil)
+  (set! (.-onclose socket) nil)
+  (set! (.-onmessage socket) nil)
+  (set! (.-onerror socket) nil)
+  (.close socket))
 
-      (.addEventListener socket "error"
-        (fn [e]
-          (js/console.log "shadow-cljs - ws-error" e))))))

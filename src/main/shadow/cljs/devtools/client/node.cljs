@@ -6,7 +6,8 @@
     [shadow.remote.runtime.shared :as shared]
     [shadow.cljs.devtools.client.shared :as cljs-shared]
     [shadow.cljs.devtools.client.env :as env]
-    [shadow.remote.runtime.api :as api]))
+    [shadow.remote.runtime.api :as api]
+    [cljs.core.async :as async]))
 
 (defn node-eval [{:keys [js source-map-json] :as msg}]
   (let [result (js/SHADOW_NODE_EVAL js source-map-json)]
@@ -44,53 +45,49 @@
                (closure-import src))
             ))))))
 
-(defn start []
+(def client-info
+  {:host :node
+   :desc (str "Node " js/process.version)})
+
+(defn start [runtime]
   (let [ws-url
         (env/get-ws-relay-url)
 
         socket
         (ws. ws-url #js {:rejectUnauthorized false})
 
-        state-ref
-        (-> {:type :runtime
-             :lang :cljs
-             :build-id (keyword env/build-id)
-             :proc-id env/proc-id
-             :host :node
-             :node-version js/process.version}
-            (shared/init-state)
-            (atom))
-
-        send-fn
-        (fn [msg]
-          (.send socket msg))
-
-        runtime
-        (cljs-shared/Runtime.
-          state-ref
-          send-fn
-          #(.close socket))]
-
-    (cljs-shared/init-runtime! runtime)
+        ws-active-ref
+        (atom true)]
 
     (.on socket "message"
       (fn [data]
-        (let [msg (cljs-shared/transit-read data)]
-          (shared/process runtime msg))))
+        (when @ws-active-ref
+          (cljs-shared/remote-msg runtime data))))
 
     (.on socket "open"
       (fn [e]
-        ;; FIXME: should this do something on-connect?
-        ;; first message is either hello or some kind of rejection
-        ))
+        (when @ws-active-ref
+          (cljs-shared/remote-open runtime e))))
 
     (.on socket "close"
       (fn [e]
-        (cljs-shared/stop-runtime! e)))
+        (when @ws-active-ref
+          (cljs-shared/remote-close runtime e))))
 
     (.on socket "error"
       (fn [e]
-        (js/console.warn "ws-error" e)))))
+        (when @ws-active-ref
+          (cljs-shared/remote-error runtime e))))
+
+    {:socket socket
+     :ws-active-ref ws-active-ref}))
+
+(defn send [{:keys [socket]} msg]
+  (.send socket msg))
+
+(defn stop [{:keys [socket ws-active-ref]}]
+  (reset! ws-active-ref false)
+  (.close socket))
 
 ;; want things to start when this ns is in :preloads
 (when (pos? env/worker-client-id)
@@ -125,7 +122,7 @@
         (catch :default e
           (error e)))))
 
-  (cljs-shared/init-extension! ::client #{}
+  (cljs-shared/add-plugin! ::client #{}
     (fn [{:keys [runtime] :as env}]
       (let [svc {:runtime runtime}]
         (api/add-extension runtime ::client
@@ -134,7 +131,7 @@
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
              (env/patch-goog!)
-             (js/console.log (str "shadow-cljs - #"  (-> runtime :state-ref deref :client-id) " ready!")))
+             (js/console.log (str "shadow-cljs - #" (-> runtime :state-ref deref :client-id) " ready!")))
 
            :on-disconnect
            (fn []
@@ -146,6 +143,9 @@
               (js/console.error
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))
+
+            :cljs-build-configure
+            (fn [msg])
 
             :cljs-build-start
             (fn [msg]
@@ -182,4 +182,4 @@
     (fn [{:keys [runtime] :as svc}]
       (api/del-extension runtime ::client)))
 
-  (start))
+  (cljs-shared/init-runtime! client-info start send stop))

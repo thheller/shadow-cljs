@@ -47,7 +47,7 @@
       (let [sources-to-get (env/filter-reload-sources info reload-info)]
 
         (when (seq sources-to-get)
-          (ws/load-sources runtime sources-to-get #(do-js-reload msg % noop))
+          (cljs-shared/load-sources runtime sources-to-get #(do-js-reload msg % noop))
           )))))
 
 (defn global-eval [js]
@@ -57,12 +57,6 @@
     ;; hack to force eval in global scope
     ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
     (js* "(0,eval)(~{});" js)))
-
-
-
-(defn start []
-  (let [ws-url (env/get-ws-relay-url)]
-    (ws/start ws-url {:host :react-native})))
 
 (when (and env/enabled (pos? env/worker-client-id))
 
@@ -76,7 +70,7 @@
       (global-eval js))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]
-      (ws/load-sources
+      (cljs-shared/load-sources
         runtime
         ;; maybe need to load some missing files to init REPL
         (->> repl-sources
@@ -109,7 +103,7 @@
                  (catch :default ex
                    (error ex))))})))))
 
-  (cljs-shared/init-extension! ::client #{}
+  (cljs-shared/add-plugin! ::client #{}
     (fn [{:keys [runtime] :as env}]
       (let [svc {:runtime runtime}]
         (api/add-extension runtime ::client
@@ -130,6 +124,9 @@
               (js/console.error
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))
+
+            :cljs-build-configure
+            (fn [msg])
 
             :cljs-build-start
             (fn [msg]
@@ -166,5 +163,4 @@
     (fn [{:keys [runtime] :as svc}]
       (api/del-extension runtime ::client)))
 
-  ;; delay connecting other page stuff has a chance to finish first
-  (js/setTimeout start 100))
+  (cljs-shared/init-runtime! {:host :react-native} ws/start ws/send ws/stop))

@@ -15,7 +15,7 @@
 
 (defn devtools-msg [msg & args]
   (if (seq env/log-style)
-    (js/console.log.apply js/console (into-array (into [(str "%c\uD83E\uDC36 shadow-cljs: " msg) env/log-style] args)))
+    (js/console.log.apply js/console (into-array (into [(str "%c▶ shadow-cljs: " msg) env/log-style] args)))
     (js/console.log.apply js/console (into-array (into [(str "shadow-cljs: " msg)] args)))))
 
 (defn script-eval [code]
@@ -86,7 +86,7 @@
             (do (when-not (seq (get-in msg [:reload-info :after-load]))
                   (devtools-msg "reloading code but no :after-load hooks are configured!"
                     "https://shadow-cljs.github.io/docs/UsersGuide.html#_lifecycle_hooks"))
-                (ws/load-sources runtime sources-to-get #(do-js-reload msg % hud/load-end-success hud/load-failure)))
+                (cljs-shared/load-sources runtime sources-to-get #(do-js-reload msg % hud/load-end-success hud/load-failure)))
             ))))))
 
 ;; capture this once because the path may change via pushState
@@ -138,7 +138,7 @@
     (js* "(0,eval)(~{});" js)))
 
 (defn repl-init [runtime {:keys [repl-state]}]
-  (ws/load-sources
+  (cljs-shared/load-sources
     runtime
     ;; maybe need to load some missing files to init REPL
     (->> (:repl-sources repl-state)
@@ -148,32 +148,31 @@
       (do-js-load sources)
       (devtools-msg "ready!"))))
 
-(defn start []
-  (let [ws-url (env/get-ws-relay-url)]
-    (ws/start ws-url {:host (if js/goog.global.document
-                              :browser
-                              :browser-worker)
-                      :user-agent
-                      (str
-                        (cond
-                          ua/OPERA
-                          "Opera"
-                          uap/CHROME
-                          "Chrome"
-                          ua/IE
-                          "MSIE"
-                          ua/EDGE
-                          "Edge"
-                          ua/GECKO
-                          "Firefox"
-                          ua/SAFARI
-                          "Safari"
-                          ua/WEBKIT
-                          "Webkit")
-                        " " ua/VERSION
-                        " [" ua/PLATFORM "]")
+(def client-info
+  {:host (if js/goog.global.document
+           :browser
+           :browser-worker)
+   :user-agent
+   (str
+     (cond
+       ua/OPERA
+       "Opera"
+       uap/CHROME
+       "Chrome"
+       ua/IE
+       "MSIE"
+       ua/EDGE
+       "Edge"
+       ua/GECKO
+       "Firefox"
+       ua/SAFARI
+       "Safari"
+       ua/WEBKIT
+       "Webkit")
+     " " ua/VERSION
+     " [" ua/PLATFORM "]")
 
-                      :dom (some? js/goog.global.document)})))
+   :dom (some? js/goog.global.document)})
 
 (defonce ws-was-welcome-ref (atom false))
 
@@ -189,7 +188,7 @@
       (global-eval js))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]
-      (ws/load-sources
+      (cljs-shared/load-sources
         runtime
         ;; maybe need to load some missing files to init REPL
         (->> repl-sources
@@ -224,7 +223,7 @@
                  (catch :default ex
                    (error ex))))})))))
 
-  (cljs-shared/init-extension! ::client #{}
+  (cljs-shared/add-plugin! ::client #{}
     (fn [{:keys [runtime] :as env}]
       (let [svc {:runtime runtime}]
 
@@ -248,6 +247,10 @@
                (reset! ws-was-welcome-ref false)
                ))
 
+           :on-reconnect
+           (fn [e]
+             (hud/connection-error "Reconnecting ..."))
+
            :ops
            {:access-denied
             (fn [msg]
@@ -264,6 +267,9 @@
             (fn [{:keys [updates] :as msg}]
               ;; (js/console.log "cljs-asset-update" msg)
               (handle-asset-update msg))
+
+            :cljs-build-configure
+            (fn [msg])
 
             :cljs-build-start
             (fn [msg]
@@ -304,4 +310,4 @@
     (fn [{:keys [runtime] :as svc}]
       (api/del-extension runtime ::client)))
 
-  (start))
+  (cljs-shared/init-runtime! client-info ws/start ws/send ws/stop))

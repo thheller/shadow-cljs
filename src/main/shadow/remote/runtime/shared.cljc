@@ -49,6 +49,12 @@
         :timeout timeout-after-ms})
      (p/relay-msg runtime (assoc msg :call-id call-id)))))
 
+(defn trigger! [{:keys [state-ref] :as runtime} ev & args]
+  (doseq [ext (vals (:extensions @state-ref))
+          :let [ev-fn (get ext ev)]
+          :when ev-fn]
+    (apply ev-fn args)))
+
 (defn welcome
   [{:keys [state-ref] :as runtime} {:keys [client-id] :as msg}]
   ;; #?(:cljs (js/console.log "shadow.remote - runtime-id:" rid))
@@ -59,9 +65,7 @@
       {:op :hello
        :client-info client-info})
 
-    (doseq [{:keys [on-welcome] :as ext} (vals extensions)
-            :when on-welcome]
-      (on-welcome))))
+    (trigger! runtime :on-welcome)))
 
 (defn ping
   [runtime msg]
@@ -130,21 +134,13 @@
 (defn del-extension [{:keys [state-ref]} key]
   (swap! state-ref del-extension* key))
 
-(defn trigger-on-disconnect!
-  [{:keys [state-ref] :as runtime} e]
-  (doseq [{:keys [on-disconnect] :as ext} (vals (:extensions @state-ref))
-          :when on-disconnect]
-    (on-disconnect e)))
-
 (defn unhandled-call-result [call-config msg]
   #?(:cljs (js/console.warn "unhandled call result" msg call-config)
      :clj  (log/warn ::unhandled-call-result msg)))
 
 (defn unhandled-client-not-found
   [{:keys [state-ref] :as runtime} msg]
-  (doseq [{:keys [on-client-not-found] :as ext} (vals (:extensions @state-ref))
-          :when on-client-not-found]
-    (on-client-not-found msg)))
+  (trigger! runtime :on-client-not-found msg))
 
 (defn reply-unknown-op [runtime msg]
   (reply runtime msg {:op :unknown-op
