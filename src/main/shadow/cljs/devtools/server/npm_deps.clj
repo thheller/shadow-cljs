@@ -22,12 +22,16 @@
     (Long/parseLong java-version)))
 
 (defn make-engine* []
-  (let [java-version (get-major-java-version)]
-    (when (>= java-version 11)
-      (System/setProperty "nashorn.args" "--no-deprecation-warning")))
+  (let [script-mgr (ScriptEngineManager.)]
+    ;; if graaljs scriptengine is on the classpath use it
+    ;; getEngineByName returns nil if not found
+    (or (.getEngineByName script-mgr "JavaScript")
+        ;; otherwise try nashorn
+        (let [java-version (get-major-java-version)]
+          (when (>= java-version 11)
+            (System/setProperty "nashorn.args" "--no-deprecation-warning"))
 
-  (-> (ScriptEngineManager.)
-      (.getEngineByName "nashorn")))
+          (.getEngineByName script-mgr "nashorn")))))
 
 (defn make-engine []
   (let [engine
