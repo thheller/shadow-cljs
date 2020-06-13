@@ -6,8 +6,7 @@
     [shadow.remote.runtime.shared :as shared]
     [shadow.cljs.devtools.client.shared :as cljs-shared]
     [shadow.cljs.devtools.client.env :as env]
-    [shadow.remote.runtime.api :as api]
-    [cljs.core.async :as async]))
+    [shadow.remote.runtime.api :as api]))
 
 (defn node-eval [{:keys [js source-map-json] :as msg}]
   (let [result (js/SHADOW_NODE_EVAL js source-map-json)]
