@@ -6,7 +6,8 @@
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.common :as common]
-    [shadow.experiments.grove.keyboard :as keyboard]))
+    [shadow.experiments.grove.keyboard :as keyboard]
+    [cljs.pprint :refer (pprint)]))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
@@ -44,8 +45,7 @@
   (<< [:div.p-4
        [:div.py-1.text-xl.font-bold "Object does not support Browser view."]
        [:pre
-        ;; pprint is too large, figure out a better way to display this
-        (pr-str summary)]]))
+        (with-out-str (pprint summary))]]))
 
 (defn render-simple [value]
   (<< [:div.border.bg-gray-200
@@ -116,7 +116,22 @@
   [object]
   (map-vlist {:ident (:db/ident object)}))
 
+(def lazy-seq-vlist
+  (vlist/configure :lazy-seq-vlist
+    {:item-height 22
+     :show-more
+     (fn [entry]
+       (<< [:div "Show more ... " (pr-str entry)]))}
 
+    (fn [{:keys [val] :as entry} idx opts]
+      (<< [:div.border-b.flex
+           {:on-click [::inspect-nav! idx]}
+           [:div.pl-4.px-2.border-r.text-right {:style {:width "60px"}} idx]
+           [:div.px-2.flex-1.truncate (render-edn-limit val)]]))))
+
+(defmethod render-view :lazy-seq
+  [object]
+  (lazy-seq-vlist {:ident (:db/ident object)}))
 
 (def css-button-selected "mx-2 border bg-blue-400 px-4 rounded")
 (def css-button "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded")

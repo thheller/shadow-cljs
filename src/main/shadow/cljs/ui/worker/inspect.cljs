@@ -273,6 +273,62 @@
   (fn [{:keys [db]} ident {:keys [result]}]
     {:db (update-in db [ident :fragment] merge result)}))
 
+(defmethod eql/attr :lazy-seq-vlist
+  [env
+   db
+   {:keys [oid runtime-id summary realized more? fragment] :as current}
+   _
+   {:keys [offset num] :or {offset 0 num 0} :as params}]
+
+  (js/console.log "lazy-seq-vlist" current)
+  (if-not summary
+    (do (throw (ex-info "FIXME: summary not loaded yet for vlist" {:current current}))
+        :db/loading)
+
+    (let [start-idx offset
+          last-idx (js/Math.min
+                     (if-not (false? more?)
+                       (or realized num)
+                       realized)
+                     (+ start-idx num))
+
+          slice
+          (->> (range start-idx last-idx)
+               (reduce
+                 (fn [m idx]
+                   (let [val (get fragment idx)]
+                     (if-not val
+                       (reduced nil)
+                       (conj! m val))))
+                 (transient [])))]
+
+      ;; all requested elements are already present
+      (if slice
+        {:item-count realized
+         :offset offset
+         :more? more?
+         :slice (persistent! slice)}
+
+        (do (relay-ws/call! env
+              {:op :obj-request
+               :to runtime-id
+               :oid oid
+               :start start-idx
+               :num num
+               :request-op :chunk
+               :val-limit 100}
+              {:obj-result [:lazy-seq-slice-loaded (:db/ident current)]})
+            :db/loading)))))
+
+(sw/reg-event-fx env/app-ref :lazy-seq-slice-loaded
+  []
+  (fn [{:keys [db]} ident {:keys [result]}]
+    (let [{:keys [realized fragment more?]} result]
+      {:db (-> db
+               (assoc-in [ident :realized] realized)
+               (assoc-in [ident :more?] more?)
+               (update-in [ident :fragment] merge fragment))})))
+
 (sw/reg-event-fx env/app-ref :edn-limit-preview-loaded
   []
   (fn [{:keys [db]} {:keys [oid result]}]

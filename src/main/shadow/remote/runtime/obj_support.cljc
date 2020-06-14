@@ -177,6 +177,71 @@
 
             fragment)))))
 
+(defn pageable-seq [{:keys [data] :as desc}]
+  ;; data is always beginning of seq
+  (let [seq-state-ref
+        (atom {:tail data ;; track where we are at
+               :realized []})]
+    (-> desc
+        (assoc :seq-state-ref seq-state-ref)
+        (assoc-in [:handlers :nav]
+          (fn [{:keys [idx]}]
+            ;; FIXME: should validate that idx is actually realized
+            (let [val (nth (:realized @seq-state-ref) idx)
+                  ;; FIXME: not sure there are many cases where lazy seqs actually have nav?
+                  nav (d/nav data idx val)]
+              (obj-ref nav))))
+        (assoc-in [:handlers :chunk]
+          (fn [{:keys [start num val-limit]
+                :or {val-limit 100}
+                :as msg}]
+
+            ;; need locking otherwise threads may realize more than once
+            ;; shouldn't be much of an issue but better be safe
+            (locking seq-state-ref
+              (let [{:keys [tail realized] :as seq-state} @seq-state-ref
+
+                    end (+ start num)
+                    missing (- end (count realized))
+
+                    [tail realized]
+                    (loop [tail tail
+                           realized realized
+                           missing missing]
+                      (if-not (pos? missing)
+                        [tail realized]
+                        (let [next (first tail)]
+                          (if (nil? next)
+                            [nil realized]
+                            (recur (rest tail) (conj realized next) (dec missing))))))
+
+                    idxs (range start (min end (count realized)))
+                    fragment
+                    (reduce
+                      (fn [m idx]
+                        (let [val (nth realized idx)]
+                          (assoc m idx {:val (lw/pr-str-limit val val-limit)})))
+                      {}
+                      idxs)]
+
+                (swap! seq-state-ref assoc :tail tail :realized realized)
+
+                {:start start
+                 :realized (count realized)
+                 :fragment fragment
+                 :more? (or (> (count realized) end) (some? tail))})))))))
+
+(comment
+  (def x (pageable-seq {:data (map (fn [x] (prn [:realize x]) x) (range 10))}))
+
+  (let [chunk (get-in x [:handlers :chunk])]
+    (chunk {:start 0 :num 5})
+    )
+
+  (let [chunk (get-in x [:handlers :chunk])]
+    (chunk {:start 5 :num 10})
+    ))
+
 (defn inspect-basic [{:keys [data] :as desc} obj opts]
   (cond
     (nil? data)
@@ -236,8 +301,14 @@
         (assoc :view-order (vec data))
         (browseable-seq))
 
+    ;; lazy seqs
+    (seq? data)
+    (-> desc
+        (update :summary merge {:data-type :lazy-seq})
+        (pageable-seq))
 
-    ;; FIXME: lazy seqs / other seqs / records
+    ;; FIXME: records?
+
     :else
     (assoc-in desc [:summary :data-type] :unsupported)))
 
