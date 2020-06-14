@@ -273,7 +273,7 @@
     (.write w (format "Closure compilation failed with %d errors%n" c))
 
     (doseq [{:keys [source-name msg line column] :as err}
-            (take 5 errors)]
+            errors #_(take 5 errors)]
       (doto w
         (.write "--- ")
         (.write source-name)
@@ -287,9 +287,9 @@
     ;; ran into issues where closure produced 370 errors
     ;; which were all basically the same with different source positions
     ;; this just truncates them to remain readable
-    (when (> c 5)
-      (.write w "--- remaining errors ommitted ...\n")
-      )))
+    #_(when (> c 5)
+        (.write w "--- remaining errors ommitted ...\n")
+        )))
 
 (defmethod ex-data-format ::closure/load-externs-failed
   [w e {:keys [errors] :as data}]

@@ -102,7 +102,7 @@
     (when-let [level
                (case level-kw
                  :advanced CompilationLevel/ADVANCED_OPTIMIZATIONS
-                 :whitespace (throw (ex-info ":whitespace optimizations are not supported, use :simple or :advanced." {}))
+                 :whitespace CompilationLevel/WHITESPACE_ONLY
                  :simple CompilationLevel/SIMPLE_OPTIMIZATIONS
                  :none nil
                  (throw (ex-info "invalid :optimizations level" opts)))]
@@ -1461,13 +1461,6 @@
                 (.parseForCompilation cc)
 
                 (when-not (.hasErrors cc)
-
-                  ;; re-injected polyfills even if they are only
-                  ;; used by the cached sources as we take them out
-                  ;; in one chunk to ensure they are ordered correctly
-                  (doseq [lib (:closure-injected-libs state)]
-                    (ShadowAccess/ensureLibraryInjected cc lib))
-
                   (.stage1Passes cc)
                   (when-not (.hasErrors cc)
                     (.stage2Passes cc))
@@ -1493,19 +1486,24 @@
 
     (-> state
         (log-warnings cc result)
-        (update :closure-injected-libs set/union injected-libs)
-        (update ::js-injected-libs set/union injected-libs)
+        (update ::classpath-js-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
             (.reset source-map)
 
             (let [name (.getSourceFileName source-node)]
-              (if (contains? cache-file-names name)
+              (cond
+                (= polyfill-name name)
+                state
+
+                (contains? cache-file-names name)
                 ;; don't update output for cached file, otherwise will cause
                 ;; them all to be reloaded and written to disk although they shouldn't have changed
                 ;; and were only fed to GCC because incremental compiles are bad
                 state
+
                 ;; actually compiled files record :output
+                :else
                 (let [source-file
                       (get source-files-by-name name)
 
@@ -1513,10 +1511,6 @@
                       (get resource-by-name name)]
 
                   (cond
-                    (= polyfill-name name)
-                    (let [js (ShadowAccess/nodeToJs cc source-map source-node)]
-                      (assoc state :polyfill-js js))
-
                     (nil? rc)
                     state
 
@@ -1645,8 +1639,7 @@
           (util/with-logged-time [state {:type ::closure-cache-read
                                          :num-files (count sources)}]
             (-> state
-                (update :closure-injected-libs set/union (:injected-libs cache-index))
-                (assoc :polyfill-js (:polyfill-js cache-index))
+                (update ::classpath-js-injected-libs set/union (:injected-libs cache-index))
                 (util/reduce->
                   (fn [state {:keys [resource-id output-name] :as cached-rc}]
                     (if (get-in state [:output resource-id])
@@ -1674,8 +1667,7 @@
             (-> cache-index
                 (assoc :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
                        :CACHE-OPTIONS cache-options
-                       :polyfill-js (:polyfill-js state)
-                       :injected-libs (:closure-injected-libs state))
+                       :injected-libs (::classpath-js-injected-libs state))
                 (util/reduce->
                   (fn [idx {:keys [cache-key resource-id output-name] :as compiled-src}]
                     (let [output
@@ -1767,7 +1759,7 @@
 
                  source-file))
              #_(map #(do (println (.getCode %)) %))
-             (into []))
+             (into [(closure-source-file polyfill-name "")]))
 
         ;; this includes all files (sources + package.json files)
         source-files-by-name
@@ -1893,72 +1885,77 @@
           (fn [state source-node]
             (.reset source-map)
 
-            (let [name
-                  (.getSourceFileName source-node)
 
-                  source-file
-                  (get source-files-by-name name)
+            (let [name (.getSourceFileName source-node)]
+              (cond
+                ;; capture polyfills separately later via injected-libs tracking
+                (= name polyfill-name)
+                state
 
-                  {:keys [resource-id ns output-name deps] :as rc}
-                  (get resource-by-name name)
+                :else
+                (let [source-file
+                      (get source-files-by-name name)
 
-                  js
-                  (try
-                    (ShadowAccess/nodeToJs cc source-map source-node)
-                    (catch Exception e
-                      (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                      {:keys [resource-id ns output-name deps] :as rc}
+                      (get resource-by-name name)
 
-                  sm-json
-                  (when generate-source-map?
-                    (let [sw (StringWriter.)]
-                      ;; for sourcesContent
-                      (when (:source-map-include-sources-content co-opts)
-                        (.addSourceFile source-map (.getName source-file) (.getCode source-file)))
-                      (.appendTo source-map sw output-name)
-                      (.toString sw)))
+                      js
+                      (try
+                        (ShadowAccess/nodeToJs cc source-map source-node)
+                        (catch Exception e
+                          (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
 
-                  deps
-                  (data/deps->syms state rc)
+                      sm-json
+                      (when generate-source-map?
+                        (let [sw (StringWriter.)]
+                          ;; for sourcesContent
+                          (when (:source-map-include-sources-content co-opts)
+                            (.addSourceFile source-map (.getName source-file) (.getCode source-file)))
+                          (.appendTo source-map sw output-name)
+                          (.toString sw)))
 
-                  ;; the :simple optimization may remove conditional requires
-                  ;; so we need to walk the code again to find the remaining require calls
-                  alive-requires
-                  (FindSurvivingRequireCalls/find cc source-node)
+                      deps
+                      (data/deps->syms state rc)
 
-                  removed-requires
-                  (->> (get require-replacements name)
-                       (vals)
-                       (remove (fn [dep]
-                                 ;; may be symbol, number or string
-                                 (or (contains? alive-requires dep)
-                                     (contains? alive-requires (str dep)))))
-                       (map (fn [dep]
-                              (if (number? dep)
-                                (get-in state [:require-id->sym dep])
-                                dep)))
-                       (into #{}))
+                      ;; the :simple optimization may remove conditional requires
+                      ;; so we need to walk the code again to find the remaining require calls
+                      alive-requires
+                      (FindSurvivingRequireCalls/find cc source-node)
 
-                  actual-requires
-                  (into #{} (remove removed-requires) deps)
+                      removed-requires
+                      (->> (get require-replacements name)
+                           (vals)
+                           (remove (fn [dep]
+                                     ;; may be symbol, number or string
+                                     (or (contains? alive-requires dep)
+                                         (contains? alive-requires (str dep)))))
+                           (map (fn [dep]
+                                  (if (number? dep)
+                                    (get-in state [:require-id->sym dep])
+                                    dep)))
+                           (into #{}))
 
-                  properties
-                  (-> (into #{} (-> property-collector (.-properties) (.get name)))
-                      (clean-collected-properties))
+                      actual-requires
+                      (into #{} (remove removed-requires) deps)
 
-                  output
-                  (-> {:resource-id resource-id
-                       :js js
-                       :source (.getCode source-file)
-                       :removed-requires removed-requires
-                       :actual-requires actual-requires
-                       :properties properties
-                       :compiled-at (System/currentTimeMillis)}
-                      (cond->
-                        generate-source-map?
-                        (assoc :source-map-json sm-json)))]
+                      properties
+                      (-> (into #{} (-> property-collector (.-properties) (.get name)))
+                          (clean-collected-properties))
 
-              (assoc-in state [:output resource-id] output)
-              ))
+                      output
+                      (-> {:resource-id resource-id
+                           :js js
+                           :source (.getCode source-file)
+                           :removed-requires removed-requires
+                           :actual-requires actual-requires
+                           :properties properties
+                           :compiled-at (System/currentTimeMillis)}
+                          (cond->
+                            generate-source-map?
+                            (assoc :source-map-json sm-json)))]
+
+                  (assoc-in state [:output resource-id] output)
+                  ))))
 
           (->> (ShadowAccess/getJsRoot cc)
                (.children) ;; the inputs
@@ -2027,7 +2024,7 @@
 
         state
         (if-not need-compile?
-          state
+          (update state ::shadow-js-injected-libs set/union (:injected-libs cache-index))
           (convert-sources-simple* state recompile-sources))
 
         cache-index-updated
@@ -2047,6 +2044,7 @@
 
                   (assoc idx resource-id cache-key)))
               (assoc cache-index
+                :injected-libs (::shadow-js-injected-libs state)
                 :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
                 :CACHE-OPTIONS cache-options)
               recompile-sources)))]
@@ -2119,7 +2117,7 @@
                (let [source (data/get-source-code state src)]
                  (closure-source-file resource-name source)))
              #_(map #(do (println (.getCode %)) %))
-             (into []))
+             (into [(closure-source-file polyfill-name (output/closure-defines state))]))
 
         cached-file-names
         (into #{} (map :resource-name) cached-files)
@@ -2149,7 +2147,7 @@
           (set-options co-opts state)
           (.resetWarningsGuard)
           (.setSkipNonTranspilationPasses true)
-          (.setPreserveTypeAnnotations true)
+          (.setRewritePolyfills true)
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
 
         ;; _ (.setOptionsForCompilationLevel CompilationLevel/WHITESPACE_ONLY closure-opts)
@@ -2176,28 +2174,44 @@
 
     (-> state
         (log-warnings cc result)
+        ;; FIXME: this is always empty. GCC only tracks polyfills when it actually compiles
+        ;; since this used .setSkipNonTranspilationPasses it is always empty
+        ;; just hope there aren't any we actually need in the closure lib
         (update ::goog-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
             (.reset source-map)
 
             (let [name (.getSourceFileName source-node)]
-              (if (contains? cached-file-names name)
+              (cond
                 ;; don't touch output of files that are supposed to be cached
                 ;; we can't feed partial input to closure
+                (contains? cached-file-names name)
                 state
+
+                ;; capture polyfills separately later via injected-libs tracking
+                (= name polyfill-name)
+                state
+
                 ;; file not cached, store in :output
+                :else
                 (let [source-file
                       (get source-files-by-name name)
 
-                      {:keys [resource-id ns output-name deps] :as rc}
+                      {:keys [resource-id output-name] :as rc}
                       (get resource-by-name name)
 
                       js
-                      (try
-                        (ShadowAccess/nodeToJs cc source-map source-node)
-                        (catch Exception e
-                          (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                      (-> (try
+                            (ShadowAccess/nodeToJs cc source-map source-node)
+                            (catch Exception e
+                              (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                          (cond->
+                            (= "goog/base.js" name)
+                            ;; can't figure out how to make this stay false
+                            ;; setMarkAsCompiled is false and is ignored
+                            ;; setClosurePass(false) makes other things kaputt
+                            (str/replace #"COMPILED = !0" "COMPILED = !1")))
 
                       sm-json
                       (when generate-source-map?
@@ -2272,7 +2286,8 @@
         ;; compile is fast so we can just recompile everything
         state
         (if-not need-compile?
-          state
+          ;; always restore injected libs so they don't get lost later
+          (update state ::goog-injected-libs set/union (:injected-libs cache-index))
           (convert-goog* state (remove :virtual sources) cache-files))
 
         ;; virtual sources should never be compiled and just be used as is
@@ -2303,6 +2318,7 @@
 
                   (assoc idx resource-id cache-key)))
               (assoc cache-index
+                :injected-libs (::goog-injected-libs state)
                 :SHADOW-CACHE-KEY SHADOW-CACHE-KEY
                 :CACHE-OPTIONS cache-options)
               recompile-sources)))]
@@ -2388,6 +2404,7 @@
          (doto (make-options)
            (set-options co-opts {})
            (.setRewritePolyfills true)
+           (.setEmitUseStrict false)
            (.setForceLibraryInjection libs))
 
          result
@@ -2396,6 +2413,57 @@
      (assert (.success result) "didn't expect any errors from polyfill extraction?")
 
      (.toSource cc))))
+
+(defn make-polyfill-js
+  [{::keys
+    [goog-injected-libs
+     shadow-js-injected-libs
+     classpath-js-injected-libs]
+    :keys [mode]
+    :as state}]
+
+  (let [all
+        (if (= :release mode)
+          ;; goog and classpath-js will :advanced compiled
+          ;; and will compile the polyfills as well which makes
+          ;; them unusable for shadow-js which stays simple
+          shadow-js-injected-libs
+          (set/union
+            (when (contains? #{:es3 :es5} (get-in state [:compiler-options :output-feature-set]))
+              ;; cannot figure out how to make closure report these
+              ;; when running goog sources through simple it strips away too much stuff we want
+              ;; but other modes don't collect polyfill infos
+              ;; these are all used by the closure library itself
+              #{"es6/array/findindex"
+                "es6/util/arrayfromiterator"
+                "es6/util/makeiterator"
+                "es6/string/trimstart"
+                "util/checkstringargs"
+                "es6/string/startswith"
+                "es6/util/createtemplatetagfirstarg"
+                "util/defineproperty"
+                "base"
+                "es6/string/endswith"
+                "es6/string/repeat"
+                "util/polyfill"
+                "es6/util/arrayiterator"
+                "util/findinternal"
+                "util/defines"
+                "util/global"
+                "es6/array/find"})
+            goog-injected-libs
+            shadow-js-injected-libs
+            classpath-js-injected-libs))]
+
+    (if (or (not (seq all))
+            (= all (:polyfill-libs state)))
+      state
+      (util/with-logged-time [state {:type ::make-polyfill-js :polyfill-libs all}]
+        (assoc state :polyfill-libs all :polyfill-js (get-polyfills all))))))
+
+(defmethod build-log/event->str ::make-polyfill-js
+  [{:keys [polyfill-libs]}]
+  (format "Generating %d Polyfills" (count polyfill-libs)))
 
 (comment
   (let [p (get-polyfills)]

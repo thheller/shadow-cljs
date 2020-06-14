@@ -28,7 +28,8 @@
     [shadow.build.closure :as closure]
     [shadow.build.npm :as npm]
     [shadow.jvm-log :as log]
-    [shadow.build.async :as async])
+    [shadow.build.async :as async]
+    [shadow.debug :as dbg])
   (:import (java.util.concurrent ExecutorService)
            (java.io File StringReader PushbackReader StringWriter)
            [java.util.concurrent.atomic AtomicLong]))
@@ -1357,9 +1358,6 @@
               (into #{}))]
 
      (-> state
-         (assoc ::closure/shadow-js-injected-libs #{}
-                ::closure/js-injected-libs #{}
-                ::closure/goog-injected-libs #{})
          (assoc :compile-start (System/currentTimeMillis))
 
          ;; cljs.compiler/munge needs to know which variables become namespace roots
@@ -1415,5 +1413,9 @@
          ;; that just got invalidated elsewhere
          (update :previously-compiled into build-sources)
          (remove-dead-js-deps)
+
+         (closure/make-polyfill-js)
          (assoc :compile-finish (System/currentTimeMillis))
+
+         ;; (?-> ::compile-finish)
          ))))

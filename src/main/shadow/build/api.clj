@@ -178,9 +178,10 @@
        :previously-compiled
        #{}
 
-       ;; polyfills injected by closure during :js and :shadow-js transforms
-       :closure-injected-libs
-       #{}
+       ;; polyfills injected depending on source
+       ::closure/shadow-js-injected-libs #{}
+       ::closure/classpath-js-injected-libs #{}
+       ::closure/goog-injected-libs #{}
 
        :pending-tasks-ref
        (atom [])
