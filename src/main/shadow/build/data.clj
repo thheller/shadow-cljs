@@ -235,13 +235,14 @@
           ))))
 
 (defn remove-source-by-id [state resource-id]
-  (let [rc (get-in state [:sources resource-id])]
+  (let [{:keys [ns] :as rc} (get-in state [:sources resource-id])]
     (if-not rc
       state
       (-> state
           (remove-output-by-id resource-id)
           (update :immediate-deps dissoc resource-id)
           (remove-provides rc)
+          (update :str->sym dissoc ns)
           (update :sources dissoc resource-id)
           ))))
 
