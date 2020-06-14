@@ -7,6 +7,7 @@
     [nrepl.middleware :as middleware]
     [nrepl.server :as server]
     [nrepl.config :as nrepl-config]
+    [nrepl.middleware.print :as print]
     [shadow.jvm-log :as log]
     [shadow.build.api :refer (deep-merge)]
     [shadow.cljs.devtools.server.nrepl-impl :as nrepl-impl]
@@ -45,7 +46,7 @@
 ;; our middleware must run before piggieback
 ;; we intercept the work it would do, so we don't have to emulate it
 (middleware/set-descriptor! #'middleware
-  {:requires #{"clone"}
+  {:requires #{"clone" #'print/wrap-print}
    :expects #{"eval" "load-file" #'piggieback/wrap-cljs-repl}})
 
 (defn load-middleware-sym [sym]

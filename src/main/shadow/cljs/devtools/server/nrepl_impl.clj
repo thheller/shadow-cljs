@@ -8,7 +8,8 @@
     [shadow.debug :as dbg :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.config :as config]
-    [shadow.cljs.devtools.server.repl-impl :as repl-impl])
+    [shadow.cljs.devtools.server.repl-impl :as repl-impl]
+    [clojure.edn :as edn])
   (:import [java.io StringReader]))
 
 (def ^:dynamic *repl-state* nil)
@@ -169,9 +170,24 @@
                                :printed-value 1
                                :ns (str ns)})
                ;; regular return value
-               (nrepl-out msg {:value result-as-printed-string
-                               :printed-value 1
-                               :ns (str ns)})))
+               (try
+                 (nrepl-out msg
+                   {:value (edn/read-string
+                             {:default
+                              ;; FIXME: piggieback uses own UnknownTaggedLiteral
+                              ;; not sure why? seems like it might as well skip trying to use it
+                              ;; and use the result we had instead.
+                              (fn [sym val]
+                                (throw (ex-info "unknown edn tags" {:sym sym :val val})))}
+                             result-as-printed-string)
+                    :nrepl.middleware.print/keys #{:value}
+                    :ns (str ns)})
+                 (catch Exception e
+                   (log/debug-ex e ::repl-read)
+                   (nrepl-out msg
+                     {:value result-as-printed-string
+                      :printed-value 1
+                      :ns (str ns)})))))
 
            :repl-stderr
            (fn repl-stderr [repl-state text]
