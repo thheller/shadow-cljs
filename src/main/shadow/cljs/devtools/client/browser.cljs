@@ -15,7 +15,7 @@
 
 (defn devtools-msg [msg & args]
   (if (seq env/log-style)
-    (js/console.log.apply js/console (into-array (into [(str "%c▶ shadow-cljs: " msg) env/log-style] args)))
+    (js/console.log.apply js/console (into-array (into [(str "%cshadow-cljs: " msg) env/log-style] args)))
     (js/console.log.apply js/console (into-array (into [(str "shadow-cljs: " msg)] args)))))
 
 (defn script-eval [code]
