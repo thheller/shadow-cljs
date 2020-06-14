@@ -198,7 +198,7 @@
        (map (fn [{:keys [url] :as info}]
               (if (nil? url)
                 info
-                (assoc info :cache-key [(util/url-last-modified url)])
+                (assoc info :cache-key [(data/sha1-url url)])
                 )))
        ;; get file (if not in jar)
        (map (fn [{:keys [^URL url] :as info}]

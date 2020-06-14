@@ -16,20 +16,12 @@
 
 (set! *warn-on-reflection* true)
 
-(def NPM-TIMESTAMP
-  ;; timestamp to ensure that new shadow-cljs release always invalidate caches
-  ;; technically needs to check all files but given that they'll all be in the
-  ;; same jar one is enough
-  (util/resource-last-modified "shadow/build/npm.clj"))
+;; used in every resource :cache-key to make sure it invalidates when shadow-cljs updates
+(def NPM-CACHE-KEY
+  (data/sha1-url (io/resource "shadow/build/npm.clj")))
 
-(def CLOSURE-TIMESTAMP
-  ;; timestamp to ensure that new shadow-cljs release always invalidate caches
-  ;; technically needs to check all files but given that they'll all be in the
-  ;; same jar one is enough
-  ;; this is bit ugly but since files are re-compiled by the shadow.build.closure
-  ;; namespace (which depends on this one) we need it to properly invalidate
-  ;; the cache
-  (util/resource-last-modified "shadow/build/closure.clj"))
+(def CLOSURE-CACHE-KEY
+  (data/sha1-url (io/resource "shadow/build/closure.clj")))
 
 (defn service? [x]
   (and (map? x) (::service x)))
@@ -329,7 +321,7 @@
      :resource-name "shadow$empty.js"
      :output-name "shadow$empty.js"
      :type :js
-     :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
+     :cache-key [] ;; change this if this ever changes
      :last-modified 0
      :ns ns
      :provides #{ns}
@@ -521,7 +513,13 @@
         ;; require("./lib/React.js") which also belongs to the react package
         ;; so we must determine this from the file alone not by the way it was required
         {:keys [package-name] :as pkg-info}
-        (find-package-for-file npm file)]
+        (find-package-for-file npm file)
+
+        source
+        (slurp file)
+
+        cache-key
+        [NPM-CACHE-KEY CLOSURE-CACHE-KEY (data/sha1-string source)]]
 
     ;; require("../package.json").version is a thing
     ;; no need to parse it since it can't have any require/import/export
@@ -533,23 +531,20 @@
            :type :js
            :file file
            :last-modified last-modified
-           :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP last-modified]
+           :cache-key cache-key
            :ns ns
            :provides #{ns}
            :requires #{}
-           :source (slurp file)
+           :source source
            :js-deps []}
 
           ;; FIXME: check if a .babelrc applies and then run source through babel first
           ;; that should take care of .jsx and others if I actually want to support that?
-          (let [source
-                (slurp file)
-
-                ;; all requires are collected into
-                ;; :js-requires ["foo" "bar/thing" "./baz]
-                ;; all imports are collected into
-                ;; :js-imports ["react"]
-                {:keys [js-requires js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
+          ;; all requires are collected into
+          ;; :js-requires ["foo" "bar/thing" "./baz]
+          ;; all imports are collected into
+          ;; :js-imports ["react"]
+          (let [{:keys [js-requires js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
                 (try
                   (JsInspector/getFileInfoMap
                     compiler
@@ -596,7 +591,7 @@
                   :type :js
                   :file file
                   :last-modified last-modified
-                  :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP last-modified]
+                  :cache-key cache-key
                   :ns ns
                   :provides #{ns}
                   :requires #{}
@@ -636,7 +631,7 @@
      :output-name (str ns ".js")
      :global-ref true
      :type :js
-     :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
+     :cache-key [NPM-CACHE-KEY CLOSURE-CACHE-KEY]
      :last-modified 0
      :ns ns
      :provides #{ns}

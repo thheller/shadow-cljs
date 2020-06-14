@@ -40,10 +40,9 @@
   ;; timestamp to ensure that new shadow-cljs release always invalidate caches
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
-  [(util/resource-last-modified "shadow/build/closure.clj")
+  [(data/sha1-url (io/resource "shadow/build/closure.clj"))
    ;; in case someone sets a specific closure dependency
-   (util/resource-last-modified "com/google/javascript/jscomp/Compiler.class")])
-
+   (data/sha1-url (io/resource "com/google/javascript/jscomp/Compiler.class"))])
 
 (def injected-libraries-field
   (doto (-> (Class/forName "com.google.javascript.jscomp.Compiler")
