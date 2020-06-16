@@ -1,6 +1,9 @@
 import core from "goog:cljs.core";
 import { bar } from "./more-es6.js";
 
+// requires polyfills
+let [a, ...rest] = [1, 2, 3, 4, 5];
+
 var foo = (x = "any old string") => {
   console.log(`Printing ${x} from cljs!`);
   console.log(core.assoc(null, 1, 2));
@@ -18,5 +21,5 @@ export class Thing {
   }
 }
 
-export { foo, someAsyncFn };
+export { foo, someAsyncFn, a, rest };
 export default "defaultExport";

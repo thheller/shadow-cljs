@@ -697,9 +697,28 @@
                          (not (contains? mod-provides 'cljs.core)))
                 (.add js-mod (closure-source-file mod-constants-name "")))
 
-              (doseq [{:keys [resource-id resource-name output-name ns type output] :as rc}
+              ;; closure for some reason creates
+              ;;   module$demo$es6 = { ... };
+              ;; directly without ever declaring a var for it. not sure why.
+              ;; results in
+              ;;   Resource: demo/browser.cljs:2:18
+              ;;   variable module$demo$es6 is undeclared
+              ;; warnings for each used module
+              (let [module-vars
+                    (->> sources
+                         (filter #(= :js (:type %)))
+                         (map :ns)
+                         (map comp/munge)
+                         (str/join ","))]
+                (when (seq module-vars)
+                  (.add js-mod (closure-source-file
+                                 (str "shadow/cljs/module_vars/" (name module-id) ".js")
+                                 ;; var module$a,module$b,...; they will be renamed by advanced
+                                 (str "var " module-vars ";\n")))))
+
+              (doseq [{:keys [resource-name ns type] :as rc}
                       sources]
-                (let [{:keys [js source] :as output}
+                (let [{:keys [js]}
                       (data/get-output! state rc)
 
                       js
