@@ -2391,14 +2391,15 @@
 (def get-polyfill-infos (memoize get-polyfill-infos*))
 
 (defn get-polyfills
-  ([]
-   (get-polyfills (into ["base"] (map :lib) (get-polyfill-infos))))
-  ([libs]
+  ([state]
+   (get-polyfills state (into ["base"] (map :lib) (get-polyfill-infos))))
+  ([state libs]
    (let [cc
          (data/make-closure-compiler)
 
          co-opts
-         {:optimizations :simple}
+         (assoc (get-output-options state)
+           :optimizations :simple)
 
          closure-opts
          (doto (make-options)
@@ -2459,14 +2460,14 @@
             (= all (:polyfill-libs state)))
       state
       (util/with-logged-time [state {:type ::make-polyfill-js :polyfill-libs all}]
-        (assoc state :polyfill-libs all :polyfill-js (get-polyfills all))))))
+        (assoc state :polyfill-libs all :polyfill-js (get-polyfills state all))))))
 
 (defmethod build-log/event->str ::make-polyfill-js
   [{:keys [polyfill-libs]}]
   (format "Generating %d Polyfills" (count polyfill-libs)))
 
 (comment
-  (let [p (get-polyfills)]
+  (let [p (get-polyfills {})]
     (println p)
     (count p)
     ))
