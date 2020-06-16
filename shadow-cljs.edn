@@ -134,7 +134,7 @@
    {;; :strip-type-prefixes #{"cljs.pprint"}
     :shadow-keywords true
     ;; :output-feature-set :es6
-    :output-wrapper false
+    ;; :output-wrapper false
     ;; :closure-output-charset "US-ASCII"
     :closure-defines
     {demo.browser/FOO "bar"}}

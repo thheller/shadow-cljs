@@ -695,14 +695,6 @@
       state
       build-modules)))
 
-(defn fix-jscomp-scoping-issue [state]
-  (update state ::closure/modules
-    (fn [modules]
-      (->> modules
-           (mapv (fn [mod]
-                   (update mod :output output/fix-jscomp-scoping-issue)))
-           ))))
-
 (defn flush [state mode {:keys [module-loader module-hash-names] :as config}]
   (-> state
       (cond->
@@ -732,7 +724,6 @@
 
               (get-in state [:compiler-options :output-wrapper])
               (apply-output-wrapper))
-            (fix-jscomp-scoping-issue)
             (output/flush-optimized)
             (cond->
               module-loader

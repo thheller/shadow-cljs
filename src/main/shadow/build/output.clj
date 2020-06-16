@@ -2,21 +2,16 @@
   (:require
     [clojure.java.io :as io]
     [cljs.source-map :as sm]
-    [clojure.set :as set]
     [clojure.string :as str]
     [cljs.compiler :as comp]
     [cljs.analyzer :as ana]
     [clojure.data.json :as json]
-    [shadow.jvm-log :as log]
     [shadow.build.data :as data]
     [shadow.build.resource :as rc]
-    [shadow.build.log :as build-log]
     [shadow.build.async :as async]
     [shadow.cljs.util :as util])
-  (:import (java.io StringReader File ByteArrayOutputStream)
-           (java.util Base64)
-           (java.util.zip GZIPOutputStream)
-           (shadow.build.closure SourceMapReport)))
+  (:import (java.io StringReader File)
+           (java.util Base64)))
 
 (defn clean-dir [dir]
   (when (.exists dir)
@@ -267,27 +262,6 @@
   (fn [state mod]
     (get mod :output-type ::default)))
 
-
-;; closure compiler emits
-;;   var $jscomp=$jscomp||{};
-;; in the output of the compilation containing polyfills
-;; but we wrap the output via :output-wrapper so it is declared in the wrong scope
-;; and not using the one we already set up
-;; need to figure out how to make closure not emit that in the first place
-;; until then just fix is by replacing the code
-
-(defn fix-jscomp-scoping-issue [js]
-  (str/replace js
-    ;; replace with same length so source maps don't get messed up
-    ;; we the modules already make sure var $jscomp is declared properly
-    ;; outside the output-wrapper
-    ;; must not break code semantics, might be in
-    ;; var $jscomp=$jscomp||{};
-    ;; var $jscomp=$jscomp||{},
-    ;; var x=1,$jscomp=$jscomp||{},
-    "$jscomp=$jscomp||{}"
-    "$js_fixpolyscope={}"))
-
 (defn finalize-module-output
   [state {:keys [goog-base prepend output append sources] :as mod}]
   (let [any-shadow-js?
@@ -309,9 +283,7 @@
                      (str/join ";\n"))]
             (-> (str provides
                      (when (seq provides)
-                       ";\n"))
-                ;; FIXME: this might be duplicated if the CLJS code also contains some polyfills
-                (fix-jscomp-scoping-issue))))
+                       ";\n")))))
 
         base-prepend
         (when (and any-shadow-js?
@@ -323,8 +295,8 @@
                        (not (str/includes? prepend "shadow$provide"))))
           ;; when using :output-wrapper the closure compiler will for some reason use $jscomp without declaring it
           ;; this is the quickest way I can think of to work around that. should figure out why GCC is going that.
-          (str "var $jscomp = {};\n"
-               "var shadow$provide = {};\n"))
+          (str "var shadow$provide = {};\n"
+               (:polyfill-js state) "\n"))
 
         final-output
         (str base-prepend
