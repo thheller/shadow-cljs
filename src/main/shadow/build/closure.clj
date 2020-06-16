@@ -378,7 +378,7 @@
     (SourceFile/fromCode "externs.shadow.js" content)
     ))
 
-(defn load-externs [{:keys [deps-externs] :as state} generate?]
+(defn load-externs [{:keys [build-modules deps-externs] :as state} generate?]
   (let [externs
         (distinct
           (concat
@@ -418,6 +418,12 @@
         simplified-externs
         (load-simplified-externs state)
 
+        module-externs
+        (->> build-modules
+             (mapcat :module-externs)
+             (map #(str "var " % ";"))
+             (str/join "\n"))
+
         all-externs
         (-> []
             (into @default-externs)
@@ -430,6 +436,9 @@
                     "/** @constructor */\nfunction ShadowJS() {};\n"))
             (conj simplified-externs)
             (cond->
+              (seq module-externs)
+              (conj (SourceFile/fromCode "externs.modules.js" module-externs))
+
               generate?
               (conj (generate-externs state))))]
 

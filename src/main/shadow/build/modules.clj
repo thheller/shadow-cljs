@@ -232,7 +232,7 @@
             (get-in state [::modules module-id])]
 
         (cond-> state
-          (seq prepend-js)
+          (or (seq prepend-js) (:force-prepend module))
           (add-module-pseudo-rc ::prepend module-id prepend-js)
 
           ;; bootstrap needs to append some load info

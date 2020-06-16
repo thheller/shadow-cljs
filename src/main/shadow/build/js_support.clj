@@ -114,3 +114,43 @@
                 ;; plain suffix for sources going through :advanced
                 (str js-ns-alias " = " ns "." suffix ";\n"))
               )))}))
+
+(defn shim-import-resource
+  [{:shadow.build/keys [mode] :as state} js-name]
+  (let [js-ns-alias
+        (-> (ModuleNames/fileToModuleName js-name)
+            ;; https://cdn.pika.dev/preact@^10.0.0
+            ;; ^ not replaced by the above fn
+            ;; not that anyone should ever use version ranges in an import ...
+            (str/replace "^" "_CARET_")
+            (str/replace "module$" "import$")
+            (symbol))
+
+        shim-ns-alias
+        js-ns-alias
+        #_ (symbol (str "shadow.js.shim." js-ns-alias))
+
+        name
+        (str js-ns-alias ".js")
+
+        import
+        (if (str/starts-with? js-name "esm:")
+          (subs js-name 4)
+          js-name)]
+
+    {:resource-id [::require js-name]
+     :resource-name name
+     :output-name (util/flat-js-name name)
+     :type :goog
+     :cache-key [js-ns-alias name]
+     :last-modified 0
+     ::import-shim true
+     :js-import import
+     :js-alias js-ns-alias
+     :ns shim-ns-alias
+     :provides #{shim-ns-alias}
+     :requires #{}
+     :deps []
+     :source ""
+     #_(str "goog.provide(\"" shim-ns-alias "\");\n"
+            shim-ns-alias " = " js-ns-alias ";\n")}))

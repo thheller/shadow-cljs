@@ -176,6 +176,22 @@
     :after-load demo.browser/start-from-config
     :build-notify demo.browser/custom-notify}}
 
+  :test-esm
+  {:target :esm
+   :output-dir "out/demo-browser/public/esm-js"
+   :modules
+   {:shared {}
+    :a
+    {:exports
+     {default demo.esm.a/foo
+      foo demo.esm.a/foo}
+     :init-fn demo.esm.a/init
+     :depends-on #{:shared}}
+    :b
+    {:exports
+     {default demo.esm.b/bar}
+     :depends-on #{:shared}}}}
+
   :now-lambda
   {:target :node-library
    :exports-var demo.now/handler

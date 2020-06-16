@@ -222,11 +222,18 @@
 (defmethod find-resource-for-string* :shadow
   [{:keys [js-options classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
-  (if (and (:keep-native-requires js-options)
-           (or (contains? native-node-modules require)
-               (contains? (:keep-as-require js-options) require)))
+  (cond
+    (and (:keep-native-requires js-options)
+         (or (contains? native-node-modules require)
+             (contains? (:keep-as-require js-options) require)))
     (js-support/shim-require-resource state require)
 
+    (or (str/starts-with? require "esm:")
+        (str/starts-with? require "https://")
+        (str/starts-with? require "http://"))
+    (js-support/shim-import-resource state require)
+
+    :else
     (let [abs? (util/is-absolute? require)
           rel? (util/is-relative? require)
           cp-rc? (when require-from

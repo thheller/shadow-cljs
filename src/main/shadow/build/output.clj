@@ -286,16 +286,15 @@
                        ";\n")))))
 
         base-prepend
-        (when (and any-shadow-js?
-                   goog-base
-                   ;; special case for node targets that use
-                   ;; prepend to prepend hashbang which must be first
-                   ;; FIXME: ugly hack, make this cleaner
-                   (or (nil? prepend)
-                       (not (str/includes? prepend "shadow$provide"))))
+        (when goog-base
           ;; when using :output-wrapper the closure compiler will for some reason use $jscomp without declaring it
           ;; this is the quickest way I can think of to work around that. should figure out why GCC is going that.
-          (str "var shadow$provide = {};\n"
+          ;; special case for node targets that use
+          ;; prepend to prepend hashbang which must be first
+          ;; FIXME: ugly hack, make this cleaner
+          (str (when (or (nil? prepend)
+                         (not (str/includes? prepend "shadow$provide")))
+                 "var shadow$provide = {};\n")
                (:polyfill-js state) "\n"))
 
         final-output

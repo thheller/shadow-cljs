@@ -33,7 +33,8 @@
       [::ana/namespaces current-ns :shadow/js-access-properties] conj-to-set prop)))
 
 (defn is-shadow-shim? [ns]
-  (str/starts-with? (str ns) "shadow.js.shim"))
+  (or (str/starts-with? (str ns) "shadow.js.shim")
+      (str/starts-with? (str ns) "import$")))
 
 (defn resolve-js-var [ns sym current-ns]
   ;; quick hack to record all accesses to any JS mod
