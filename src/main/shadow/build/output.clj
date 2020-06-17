@@ -263,12 +263,9 @@
     (get mod :output-type ::default)))
 
 (defn finalize-module-output
-  [state {:keys [goog-base prepend output append sources] :as mod}]
-  (let [any-shadow-js?
-        (->> (data/get-build-sources state)
-             (some #(= :shadow-js (:type %))))
-
-        shadow-js-outputs
+  [{:keys [polyfill-js] :as state}
+   {:keys [goog-base prepend output append sources] :as mod}]
+  (let [shadow-js-outputs
         (->> sources
              (map #(data/get-source-by-id state %))
              (filter #(= :shadow-js (:type %)))
@@ -295,7 +292,8 @@
           (str (when (or (nil? prepend)
                          (not (str/includes? prepend "shadow$provide")))
                  "var shadow$provide = {};\n")
-               (:polyfill-js state) "\n"))
+               (when (seq polyfill-js)
+                 (str polyfill-js "\n"))))
 
         final-output
         (str base-prepend
