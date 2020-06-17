@@ -311,32 +311,29 @@
          :or {runtime :browser}}
         config]
 
-    (str ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
-      "globalThis.CLOSURE_DEFINES = " (output/closure-defines-json state) ";\n"
-      "globalThis.CLOSURE_NO_DEPS = true;\n"
-      ;; the global must be overriden in goog/base.js since it contains some
-      ;; goog.define(...) which would otherwise be exported to "this"
-      ;; but we need it on $CLJS
-      (-> (data/get-output! state {:resource-id output/goog-base-id})
-          (get :js)
-          ;; FIXME: this is using the compiled variant of goog/base.js
-          ;; don't use goog-global-snippet, that is used for uncompiled goog/base.js
-          ;; keeping both variants for now until I can make this cleaner
-          (str/replace "goog.global = this || self;" "goog.global = globalThis;"))
+    (->> ["globalThis.CLOSURE_DEFINES = " (output/closure-defines-json state) ";"
+          "globalThis.CLOSURE_NO_DEPS = true;"
+          ;; the global must be overriden in goog/base.js since it contains some
+          ;; goog.define(...) which would otherwise be exported to "this"
+          ;; but we need it on $CLJS
+          (-> (data/get-output! state {:resource-id output/goog-base-id})
+              (get :js)
+              ;; FIXME: this is using the compiled variant of goog/base.js
+              ;; don't use goog-global-snippet, that is used for uncompiled goog/base.js
+              ;; keeping both variants for now until I can make this cleaner
+              (str/replace "goog.global = this || self;" "goog.global = globalThis;"))
 
-      "globalThis.goog = goog;\n"
-      "globalThis.shadow$provide = {};"
+          "globalThis.goog = goog;"
+          "globalThis.shadow$provide = {};"
+          "globalThis.shadow_esm_import = function(x) { return import(x.startsWith(\"./\") ? \".\" + x : x); }"
+          "let $CLJS = globalThis.$CLJS = globalThis;"
+          (slurp (io/resource "shadow/boot/esm.js"))
 
-
-      "globalThis.shadow_esm_import = function(x) { return import(x.startsWith(\"./\") ? \".\" + x : x); }\n"
-
-      "let $CLJS = globalThis.$CLJS = globalThis;"
-      (slurp (io/resource "shadow/boot/esm.js"))
-
-      (when (seq polyfill-js)
-        (str polyfill-js "\n"
-             "globalThis.$jscomp = $jscomp;\n"))
-      )))
+          (when (seq polyfill-js)
+            (str polyfill-js "\n"
+                 "globalThis.$jscomp = $jscomp;\n"))]
+         (remove nil?)
+         (str/join "\n"))))
 
 (defn flush-dev [{::build/keys [config] :keys [build-modules] :as state}]
   (when-not (seq build-modules)
