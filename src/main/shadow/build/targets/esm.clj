@@ -145,6 +145,12 @@
                          :entries entries
                          :default default?)
                   (cond->
+                    ;; closure will try to rewrite dynamic import() calls
+                    ;; but its just a regular function so we alias and extern it
+                    ;; so closure doesn't rename it.
+                    default?
+                    (update :module-externs conj "shadow_esm_import")
+
                     ;; REPL client - only for watch (via worker-info), not compile
                     ;; this needs to be in base module
                     (and default? build-worker?)
@@ -321,6 +327,9 @@
       "globalThis.goog = goog;\n"
       "globalThis.shadow$provide = {};"
 
+
+      "globalThis.shadow_esm_import = function(x) { return import(x.startsWith(\"./\") ? \".\" + x : x); }\n"
+
       "let $CLJS = globalThis.$CLJS = globalThis;"
       (slurp (io/resource "shadow/boot/esm.js"))
 
@@ -352,7 +361,7 @@
       polyfill-js
       "const $jscomp = {};\n")))
 
-(defn setup-imports [{::build/keys [mode] :as state}]
+(defn setup-imports [state]
   (update state :build-modules
     (fn [modules]
       (->> modules
@@ -374,7 +383,13 @@
 
                  (-> mod
                      (update :module-externs set/union externs)
-                     (update :prepend str-prepend (str imports "\n"))))))
+                     (update :prepend str-prepend (str imports "\n"))
+                     (cond->
+                       ;; only create shadow_esm_import if shadow.esm was required anywhere
+                       ;; needs to be created in all modules since it must be module local
+                       (get-in state [:sym->id 'shadow.esm])
+                       (update :prepend str "const shadow_esm_import = function(x) { return import(x) };\n"))
+                     ))))
            (vec)))))
 
 ;; in dev all imports must happen in the prepend
