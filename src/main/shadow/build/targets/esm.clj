@@ -343,6 +343,7 @@
     [state {:type :flush-unoptimized}]
 
     (let [env-file (data/output-file state "cljs-runtime" "cljs_env.js")]
+      (io/make-parents env-file)
       (spit env-file (js-module-env state)))
 
     (reduce
