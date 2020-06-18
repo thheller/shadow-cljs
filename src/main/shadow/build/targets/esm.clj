@@ -209,9 +209,7 @@
           (assoc-in [:compiler-options :rename-prefix-namespace] "$APP")
 
           (and (= :dev mode) (:worker-info state))
-          (shared/merge-repl-defines
-            (update config :devtools merge {:autoload false ;; doesn't work yet, use built-in for now
-                                            :use-document-host false}))
+          (shared/merge-repl-defines config)
           ))))
 
 (defn flush-source
@@ -255,7 +253,7 @@
 
 (defn flush-unoptimized-module
   [{:keys [build-modules] :as state}
-   {:keys [output-name exports prepend append sources depends-on] :as mod}]
+   {:keys [module-id output-name exports prepend append sources depends-on] :as mod}]
 
   (let [target (data/output-file state output-name)]
 
@@ -296,7 +294,8 @@
                module-imports "\n"
                imports "\n"
                exports "\n"
-               append)]
+               append "\n"
+               "shadow.cljs.devtools.client.env.module_loaded(\"" (name module-id) "\");")]
       (io/make-parents target)
       (spit target out))
 
