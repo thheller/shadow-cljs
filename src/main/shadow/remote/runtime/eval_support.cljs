@@ -26,10 +26,10 @@
 
       (case result
         :compile-error
-        (let [{:keys [ex-rid ex-oid report]} info]
+        (let [{:keys [ex-client-id ex-oid report]} info]
           (shared/reply runtime msg
             {:op :eval-compile-error
-             :ex-rid ex-rid
+             :ex-client-id ex-client-id
              :ex-oid ex-oid
              :report report}))
 
