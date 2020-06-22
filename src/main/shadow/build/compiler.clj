@@ -1149,14 +1149,14 @@
     state
     sources))
 
-(defn maybe-closure-convert [{:keys [output] :as state} npm convert-fn]
+(defn maybe-closure-convert [{:keys [output] :as state} sources convert-fn]
   ;; incremental compiles might not need recompiling
   ;; if reset removed one output we must recompile everything again
   ;; this could probably do some more sophisticated caching
   ;; but for now closure is fast enough to do it all over again
-  (if (every? #(contains? output %) (map :resource-id npm))
+  (if (every? #(contains? output %) (map :resource-id sources))
     state
-    (convert-fn state npm)))
+    (convert-fn state sources)))
 
 (defn remove-dead-js-deps [{:keys [dead-js-deps] :as state}]
   (let [remove-fn

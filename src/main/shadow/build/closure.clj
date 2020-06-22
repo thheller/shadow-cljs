@@ -17,7 +17,8 @@
     [shadow.core-ext :as core-ext]
     [shadow.build.resource :as rc]
     [shadow.debug :refer (?> ?-> ?->>)]
-    [clojure.data.json :as json])
+    [clojure.data.json :as json]
+    [shadow.debug :as dbg])
   (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File StringReader)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
@@ -2354,19 +2355,19 @@
     (when need-compile?
       (cache/write-file cache-index-file cache-index-updated))
 
-    ;; full compile always so never need to restore cache when compiled
-    (if need-compile?
+    ;; restore cached files if there are any and they haven't been restored yet
+    (if-not (seq cache-files)
       state
       (util/with-logged-time [state {:type ::goog-cache-read
                                      :num-files (count cache-files)}]
         (reduce
-          (fn [state {:keys [resource-id output-name] :as cached-rc}]
+          (fn [state {:keys [resource-id output-name]}]
             (if (get-in state [:output resource-id])
               state
               (let [cache-file
                     (data/cache-file state "goog-js" output-name)
 
-                    {:keys [actual-requires] :as cached-output}
+                    cached-output
                     (-> (cache/read-cache cache-file)
                         (assoc :cached true))]
 
