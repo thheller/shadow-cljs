@@ -65,3 +65,11 @@
        (:order)
        (reverse)
        (into [])))
+
+(defn create-cljs-user! []
+  ;; must create this namespace since it always exists
+  ;; in the analyzer data and a blank (def x 1) will otherwise
+  ;; error you when trying to eval because it can't create cljs.user.x
+  ;; without cljs.user existing and it never does anything to ensure
+  ;; it exists first
+  (js/goog.constructNamespace_ "cljs.user"))
