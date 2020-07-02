@@ -3,6 +3,10 @@ var SHADOW_ENV = (function () {
 
   var env = {};
 
+  var scriptBase = self.location.href;
+  scriptBase = scriptBase.substring(0, scriptBase.lastIndexOf("/"));
+  env.scriptBase = scriptBase + "/cljs-runtime/";
+
   env.load = function (opts, paths) {
     paths.forEach(function (path) {
       if (!loadedFiles[path]) {
@@ -23,9 +27,9 @@ var SHADOW_ENV = (function () {
 
   env.evalLoad = function(path, sourceMap, code) {
     loadedFiles[path] = true;
-    code += ("\n//# sourceURL=" + CLOSURE_BASE_PATH + path);
+    code += ("\n//# sourceURL=" + scriptBase + path);
     if (sourceMap) {
-      code += ("\n//# sourceMappingURL=" + path + ".map");
+      code += ("\n//# sourceMappingURL=" + scriptBase + path + ".map");
     }
     try {
       goog.globalEval(code);

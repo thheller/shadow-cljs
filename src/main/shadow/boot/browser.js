@@ -17,6 +17,8 @@ var SHADOW_ENV = function() {
     scriptBase = CLOSURE_BASE_PATH;
   }
 
+  env.scriptBase = scriptBase;
+
   var wentAsync = false;
 
   var canDocumentWrite = function() {

@@ -31,7 +31,7 @@
     (devtools-msg "load JS" resource-name)
     (env/before-load-src src)
     (try
-      (script-eval (str js "\n//# sourceURL=" resource-name))
+      (script-eval (str js "\n//# sourceURL=" js/$CLJS.SHADOW_ENV.scriptBase output-name))
       (catch :default e
         (js/console.error (str "Failed to load " resource-name) e)
         (throw (js/Error. (str "Failed to load " resource-name ": " (.-message e))))))))

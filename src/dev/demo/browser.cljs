@@ -105,12 +105,12 @@
 (defn init []
   (js/console.warn "browser-init")
 
-  #_(let [worker (js/Worker. "/js/worker.js")]
-      (reset! worker-ref worker)
+  (let [worker (js/Worker. "/js/worker.js")]
+    (reset! worker-ref worker)
 
-      (.addEventListener worker "message"
-        (fn [e]
-          (js/console.log "mesage from worker" e))))
+    (.addEventListener worker "message"
+      (fn [e]
+        (js/console.log "mesage from worker" e))))
 
   (start))
 
