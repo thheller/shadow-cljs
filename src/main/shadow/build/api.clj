@@ -70,7 +70,7 @@
    ;; :fn-invoke-direct true
    :elide-asserts false
    :closure-configurators []
-   :infer-externs true
+   :infer-externs :auto
    :language-in :ecmascript-next
    ;; still need to set this since it otherwise ends up using strict mode default
    :language-out :ecmascript5
