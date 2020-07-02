@@ -766,7 +766,12 @@
                            resource-refs)))
 
               ;; restore analysis data
-              (swap! env/*compiler* update-in [::ana/namespaces (:ns cache-data)] merge ana-data)
+              (let [{:keys [ns]} cache-data]
+                ;; make sure the namespace exists on the CLJ side
+                ;; otherwise tools.reader will have issues reading #::alias{:foo "bar"}
+                (create-ns ns)
+                (swap! env/*compiler* update-in [::ana/namespaces ns] merge ana-data))
+
               (swap! env/*compiler* update :shadow/protocol-prefixes set/union (:shadow/protocol-prefixes ana-data))
               (macros/load-macros ana-data)
 
