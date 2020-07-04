@@ -353,7 +353,7 @@
           )))))
 
 (defn default-analyze-cljs
-  [{:keys [last-progress-ref] :as state} {:keys [ns macros-ns] :as compile-state} form]
+  [{:keys [last-progress-ref] :as state} {:keys [macros-ns] :as compile-state} form]
   ;; ignore (defmacro ...) in normal cljs compilation since they otherwise end
   ;; up as normal vars and can be called as fns. compile as usual when compiling as macro ns
   ;; FIXME: could use a better warning than "Use of undeclared Var demo.browser/dummy-macro"

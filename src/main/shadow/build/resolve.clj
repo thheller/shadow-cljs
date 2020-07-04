@@ -414,6 +414,19 @@
 
 (declare find-resource-for-symbol)
 
+;; check if the provided namespace matches the filename
+;; catches errors where demo.with_underscore is defined in demo/with_underscore.cljs
+;; when it should be demo.with-underscore
+(defn check-correct-ns! [{:keys [virtual macros-ns ns type resource-name]}]
+  (when (and (= type :cljs) (not macros-ns) (not virtual))
+    (let [expected-ns (util/filename->ns resource-name)]
+      (when (not (= expected-ns ns))
+        (throw (ex-info "Resource does not have expected namespace"
+                 {:tag ::unexpected-ns
+                  :resource resource-name
+                  :expected-ns expected-ns
+                  :actual-ns ns}))))))
+
 (defn find-resource-for-symbol*
   [{:keys [classpath] :as state} require-from require]
   ;; check if ns is an alias
@@ -425,6 +438,7 @@
 
       ;; otherwise check if the classpath provides a symbol
       (when-let [rc (cp/find-resource-for-provide classpath require)]
+        (check-correct-ns! rc)
         [rc state])
 
       ;; special cases where clojure.core.async gets aliased to cljs.core.async
@@ -436,6 +450,7 @@
 
           ;; auto alias clojure.core.async -> cljs.core.async if it exists
           (when-let [rc (cp/find-resource-for-provide classpath cljs-sym)]
+            (check-correct-ns! rc)
             [rc
              (-> state
                  (update :ns-aliases assoc require cljs-sym)
