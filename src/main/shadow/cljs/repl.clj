@@ -305,6 +305,7 @@
 
             [deps-sources state]
             (-> state
+                ;; FIXME: this is not additive, it may remove previous REPL state?
                 (data/overwrite-source rc)
                 (build-api/resolve-entries [ns]))
 
@@ -331,7 +332,7 @@
 
         [dep-sources state]
         (-> state
-            (data/overwrite-source ns-rc)
+            (data/add-source ns-rc) ;; additive, keep old state
             (res/resolve-repl ns deps))
 
         ns-info
