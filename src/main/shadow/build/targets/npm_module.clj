@@ -56,9 +56,7 @@
         (node/set-defaults)
 
         (and (= :dev mode) (:worker-info state))
-        (shared/merge-repl-defines
-          (update config :devtools merge {:autoload false ;; doesn't work yet, use built-in for now
-                                          :use-document-host false}))
+        (shared/merge-repl-defines config)
         )))
 
 (defn resolve* [module-config {:keys [classpath] :as state} mode {:keys [entries runtime] :as config}]
