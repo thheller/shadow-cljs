@@ -136,76 +136,83 @@
   ;; actually still cares about receiving results or stdout/stderr
   ;; instead just go off once and clean up after
 
-  (let [{:keys [relay]}
-        (api/get-runtime!)
-
-        result
-        (repl-impl/do-repl
-          worker
-          relay
-          (StringReader. code)
-          (async/chan)
-          {:init-state
-           {:ns (or (and (seq ns) (symbol ns))
-                    (:cljs-ns repl-state))}
-
-           :repl-prompt
-           (fn repl-prompt [repl-state])
-
-           :repl-read-ex
-           (fn repl-read-ex [repl-state ex]
-             (nrepl-out msg {:err (.getMessage ex)}))
-
-           :repl-result
-           (fn repl-result
-             [{:keys [ns] :as repl-state} result-as-printed-string]
-
-             ;; need to remember for later evals
-             (swap! session assoc-in [#'*repl-state* :cljs-ns] ns)
-
-             (if-not result-as-printed-string
-               ;; repl-result is called even in cases there is no result
-               ;; eg. compile errors, warnings
-               (nrepl-out msg {:value "nil"
-                               :printed-value 1
-                               :ns (str ns)})
-               ;; regular return value
-               (try
-                 (nrepl-out msg
-                   {:value (edn/read-string
-                             {:default
-                              ;; FIXME: piggieback uses own UnknownTaggedLiteral
-                              ;; not sure why? seems like it might as well skip trying to use it
-                              ;; and use the result we had instead.
-                              (fn [sym val]
-                                (throw (ex-info "unknown edn tags" {:sym sym :val val})))}
-                             result-as-printed-string)
-                    :nrepl.middleware.print/keys #{:value}
-                    :ns (str ns)})
-                 (catch Exception e
-                   (log/debug-ex e ::repl-read)
-                   (nrepl-out msg
-                     {:value result-as-printed-string
+  (if-not worker
+    (let [clj-ns (reset-session (:session msg))]
+      (nrepl-out msg {:err "The worker for this REPL has exited. You are now in CLJ again.\n"})
+      (nrepl-out msg {:value "nil"
                       :printed-value 1
-                      :ns (str ns)})))))
+                      :ns (str clj-ns)})
+      (nrepl-out msg {:status :done}))
+    (let [{:keys [relay]}
+          (api/get-runtime!)
 
-           :repl-stderr
-           (fn repl-stderr [repl-state text]
-             (nrepl-out msg {:err text}))
+          result
+          (repl-impl/do-repl
+            worker
+            relay
+            (StringReader. code)
+            (async/chan)
+            {:init-state
+             {:ns (or (and (seq ns) (symbol ns))
+                      (:cljs-ns repl-state))}
 
-           :repl-stdout
-           (fn repl-stdout [repl-state text]
-             (nrepl-out msg {:out text}))})]
+             :repl-prompt
+             (fn repl-prompt [repl-state])
 
-    (when (or (= :cljs/quit result)
-              (= :repl/quit result))
-      (let [clj-ns (reset-session (:session msg))]
-        (nrepl-out msg {:err "Exited CLJS session. You are now in CLJ again.\n"})
-        (nrepl-out msg {:value (str result)
+             :repl-read-ex
+             (fn repl-read-ex [repl-state ex]
+               (nrepl-out msg {:err (.getMessage ex)}))
+
+             :repl-result
+             (fn repl-result
+               [{:keys [ns] :as repl-state} result-as-printed-string]
+
+               ;; need to remember for later evals
+               (swap! session assoc-in [#'*repl-state* :cljs-ns] ns)
+
+               (if-not result-as-printed-string
+                 ;; repl-result is called even in cases there is no result
+                 ;; eg. compile errors, warnings
+                 (nrepl-out msg {:value "nil"
+                                 :printed-value 1
+                                 :ns (str ns)})
+                 ;; regular return value
+                 (try
+                   (nrepl-out msg
+                     {:value (edn/read-string
+                               {:default
+                                ;; FIXME: piggieback uses own UnknownTaggedLiteral
+                                ;; not sure why? seems like it might as well skip trying to use it
+                                ;; and use the result we had instead.
+                                (fn [sym val]
+                                  (throw (ex-info "unknown edn tags" {:sym sym :val val})))}
+                               result-as-printed-string)
+                      :nrepl.middleware.print/keys #{:value}
+                      :ns (str ns)})
+                   (catch Exception e
+                     (log/debug-ex e ::repl-read)
+                     (nrepl-out msg
+                       {:value result-as-printed-string
                         :printed-value 1
-                        :ns (str clj-ns)})))
+                        :ns (str ns)})))))
 
-    (nrepl-out msg {:status :done})))
+             :repl-stderr
+             (fn repl-stderr [repl-state text]
+               (nrepl-out msg {:err text}))
+
+             :repl-stdout
+             (fn repl-stdout [repl-state text]
+               (nrepl-out msg {:out text}))})]
+
+      (when (or (= :cljs/quit result)
+                (= :repl/quit result))
+        (let [clj-ns (reset-session (:session msg))]
+          (nrepl-out msg {:err "Exited CLJS session. You are now in CLJ again.\n"})
+          (nrepl-out msg {:value (str result)
+                          :printed-value 1
+                          :ns (str clj-ns)})))
+
+      (nrepl-out msg {:status :done}))))
 
 (defn handle [{:keys [session op] :as msg} next]
   (let [{::keys [build-id] :as msg} (set-build-id msg)]
