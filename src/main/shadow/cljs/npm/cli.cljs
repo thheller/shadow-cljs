@@ -780,8 +780,8 @@
 
         (println "------------------------------------------------------------------------------")
         (println "   WARNING: shadow-cljs not installed in project.")
-        (println "   See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install"))
-        (println "------------------------------------------------------------------------------"))
+        (println "   See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install")
+        (println "------------------------------------------------------------------------------")))
 
     (catch :default e
       (println "WARNING: package.json not found. See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install"))))
