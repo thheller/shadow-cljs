@@ -329,55 +329,63 @@
         (super/start-worker supervisor build-config opts)
 
         result
-        (worker/compile! worker)]
+        (worker/compile! worker)
+
+        node-script
+        (doto (io/file script-name)
+          ;; just to ensure it is removed, should this crash for some reason
+          (.deleteOnExit))]
 
     ;; FIXME: validate that compilation succeeded
 
-    (let [node-script
-          (doto (io/file script-name)
-            ;; just to ensure it is removed, should this crash for some reason
-            (.deleteOnExit))
-
-          node-proc
-          (-> (ProcessBuilder.
-                (into-array
-                  (into [node-command] node-args)))
-              (.directory
-                ;; nil defaults to JVM working dir
-                (when pwd
-                  (io/file pwd)))
-              (.start))]
-
-      ;; FIXME: validate that proc started properly
-
-      ;; FIXME: these should print to worker out instead
-      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
-
-      ;; piping the script into node-proc instead of using command line arg
-      ;; as node will otherwise adopt the path of the script as the require reference point
-      ;; we want to control that via pwd
-
-      (let [out (.getOutputStream node-proc)]
-        (io/copy (slurp node-script) out)
-        (.close out))
-
-      ;; worker stop should kill the node process
-      (go (<! proc-stop)
-          (try
-            (when (.isAlive node-proc)
-              (.destroyForcibly node-proc))
-            (catch Exception e)))
-
-      ;; node process might crash which should stop the worker
+    (assoc worker
+      :node-script node-script
+      :node-proc
       (async/thread
-        (try
-          (let [code (.waitFor node-proc)]
-            (log/info ::node-repl-exit {:code code}))
-          (finally
-            (super/stop-worker supervisor build-id)
-            )))
+        (loop []
+          (let [crash
+                (async/promise-chan)
 
-      (assoc worker
-        :node-script node-script
-        :node-proc node-proc))))
+                node-proc
+                (-> (ProcessBuilder.
+                      (into-array
+                        (into [node-command] node-args)))
+                    (.directory
+                      ;; nil defaults to JVM working dir
+                      (when pwd
+                        (io/file pwd)))
+                    (.start))]
+
+            ;; FIXME: validate that proc started properly
+
+            ;; FIXME: these should print to worker out instead
+            (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
+            (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
+
+            ;; piping the script into node-proc instead of using command line arg
+            ;; as node will otherwise adopt the path of the script as the require reference point
+            ;; we want to control that via pwd
+
+            (let [out (.getOutputStream node-proc)]
+              (io/copy (slurp node-script) out)
+              (.close out))
+
+            ;; node process might crash and we should restart if that happens
+            (async/thread
+              (let [code (.waitFor node-proc)]
+                (log/info ::node-repl-exit {:code code})
+                (when-not (zero? code)
+                  (async/close! crash))))
+
+            ;; worker stop should kill the node process
+            (alt!!
+              proc-stop
+              ([_]
+               (try
+                 (when (.isAlive node-proc)
+                   (.destroyForcibly node-proc))
+                 (catch Exception e)))
+              crash
+              ([_]
+               ;; just restart
+               (recur)))))))))
