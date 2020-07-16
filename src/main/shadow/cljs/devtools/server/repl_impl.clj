@@ -255,8 +255,19 @@
                      (recur repl-state))
 
                    (do (tap> [:unexpected-from-relay msg repl-state worker relay])
-                       (recur repl-state)))
-                 ))))]
+                       (recur repl-state)))))
+
+              (async/timeout 10000)
+              ([_]
+               ;; fine to wait long time while reading
+               (if (= :read (:stage repl-state))
+                 (recur repl-state)
+                 ;; should time out eventually while waiting for eval/print so you can retry
+                 (do (>!! read-lock 1)
+                     (repl-stderr repl-state (str "Timeout while waiting for result.\n"))
+                     (-> repl-state
+                         (assoc :stage :read)
+                         (recur)))))))]
 
       (async/close! to-relay)
       (async/close! read-lock)
