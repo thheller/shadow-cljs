@@ -7,7 +7,7 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.common :as common]
     [shadow.experiments.grove.keyboard :as keyboard]
-    [cljs.pprint :refer (pprint)]))
+    [fipp.edn :refer (pprint)]))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
