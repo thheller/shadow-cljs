@@ -1069,6 +1069,7 @@
            #"^com/google/javascript"
            #"^jdk/nashorn/*"
            ;; just in case the :output-dir of a dev build is on the classpath
+           #"^public/"
            #"cljs-runtime/"}
 
          :classpath-excludes

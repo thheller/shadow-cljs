@@ -61,6 +61,7 @@
         js-updates
         (->> updates
              (filter #(contains? js-file-exts (:ext %)))
+             (remove #(cp/should-ignore-resource? classpath (:name %)))
              (into []))
 
         ;; must check macros here since otherwise there are 2 separate watchers
