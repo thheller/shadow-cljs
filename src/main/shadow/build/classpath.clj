@@ -1052,25 +1052,28 @@
           (.disableThreads)
           (.initOptions co))
 
+        ignore-patterns
+        #{#"node_modules/"
+          ;; temp files created by emacs are in the same directory
+          ;; named demo/.#foo.cljs are hidden and ignored on osx/linux
+          ;; but not hidden on windows so need to filter them
+          #"\.#"
+          ;; cljs.core aot
+          #"\.aot\.js$"
+          ;; closure library test files
+          #"^goog/demos/"
+          #"^goog/(.+)_test\.js$"
+          #"goog/transpile\.js"
+          ;; closure compiler support and test files
+          #"^com/google/javascript"
+          #"^jdk/nashorn/*"
+          ;; just in case the :output-dir of a dev build is on the classpath
+          #"^public/"
+          #"cljs-runtime/"}
+
         index
         {:ignore-patterns
-         #{#"node_modules/"
-           ;; temp files created by emacs are in the same directory
-           ;; named demo/.#foo.cljs are hidden and ignored on osx/linux
-           ;; but not hidden on windows so need to filter them
-           #"\.#"
-           ;; cljs.core aot
-           #"\.aot\.js$"
-           ;; closure library test files
-           #"^goog/demos/"
-           #"^goog/(.+)_test\.js$"
-           #"goog/transpile\.js"
-           ;; closure compiler support and test files
-           #"^com/google/javascript"
-           #"^jdk/nashorn/*"
-           ;; just in case the :output-dir of a dev build is on the classpath
-           #"^public/"
-           #"cljs-runtime/"}
+         ignore-patterns
 
          :classpath-excludes
          [#"resources(/?)$"
@@ -1104,7 +1107,11 @@
      ;; wait before moving on
      :compiler-options co
      :compiler cc
-     :index-ref (atom index)}))
+     :index-ref (atom index)
+     ;; FIXME: ugly duplication because of should-ignore-resource? being used as an api method
+     ;; this is also kept in the index-ref but having outside namespaces deref the index-ref
+     ;; is uglier than duplicating this little bit
+     :ignore-patterns ignore-patterns}))
 
 (defn stop [cp])
 
