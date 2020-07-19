@@ -5,37 +5,16 @@
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [shadow.cljs.devtools.server.util :as util])
-  (:import (javax.script ScriptEngineManager ScriptEngine Invocable)))
-
-(defn get-major-java-version []
-  (let [java-version
-        (or (System/getProperty "java.vm.specification.version") ;; not sure this was always available
-            (System/getProperty "java.version"))
-        dot
-        (str/index-of java-version ".")
-
-        java-version
-        (if-not dot java-version (subs java-version 0 dot))]
-
-    ;; return 1 for 1.8, 1.9 which is fine ...
-    (Long/parseLong java-version)))
-
-(defn make-engine* []
-  (let [script-mgr (ScriptEngineManager.)]
-    ;; if graaljs scriptengine is on the classpath use it
-    ;; getEngineByName returns nil if not found
-    (or (.getEngineByName script-mgr "JavaScript")
-        ;; otherwise try nashorn
-        (let [java-version (get-major-java-version)]
-          (when (>= java-version 11)
-            (System/setProperty "nashorn.args" "--no-deprecation-warning"))
-
-          (.getEngineByName script-mgr "nashorn")))))
+            [shadow.cljs.devtools.server.util :as util]
+            [shadow.jvm-log :as log])
+  (:import (javax.script ScriptEngineManager)))
 
 (defn make-engine []
-  (let [engine
-        (make-engine*)
+  (let [script-mgr
+        (ScriptEngineManager.)
+
+        engine
+        (.getEngineByName script-mgr "JavaScript")
 
         semver-js
         (slurp (io/resource "shadow/build/js/semver.js"))]
@@ -55,7 +34,7 @@
         (try
           (.invokeFunction @engine "shadowIntersects" (into-array Object [a b]))
           (catch Exception e
-            (prn [:failed-to-compare a b e])
+            (log/debug-ex e ::failed-to-compare {:a a :b b})
             true))))))
 
 (comment

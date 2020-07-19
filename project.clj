@@ -59,6 +59,9 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
+   [org.graalvm.js/js "20.1.0"]
+   [org.graalvm.js/js-scriptengine "20.1.0"]
+
    [expound "0.8.4"]
    [fipp "0.6.23"]
 
@@ -140,8 +143,7 @@
      ;; no proper release yet, included via source-paths below
      #_[thheller/shadow-experiments "0.0.1"]
 
-     [org.graalvm.js/js "20.0.0"]
-     [org.graalvm.js/js-scriptengine "20.0.0"]
+
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
