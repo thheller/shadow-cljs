@@ -1865,11 +1865,10 @@
           ;; node_modules/@firebase/util/dist/cjs/src/constants.ts:26: ERROR - @define variable  assignment must be global
           (.setWarningLevel
             (DiagnosticGroup.
-              (into-array [ShadowAccess/NON_GLOBAL_DEFINE_INIT_ERROR
-                           ;; viz.js -- Object literal contains illegal duplicate key "stackAlloc", disallowed in strict mode
-                           ;; it never uses "use strict" but closure runs it through strict mode
-                           ;; although we already disabled it above
-                           ShadowAccess/DUPLICATE_OBJECT_KEY]))
+              ;; viz.js -- Object literal contains illegal duplicate key "stackAlloc", disallowed in strict mode
+              ;; it never uses "use strict" but closure runs it through strict mode
+              ;; although we already disabled it above
+              (into-array [ShadowAccess/DUPLICATE_OBJECT_KEY]))
             CheckLevel/OFF)
           ;; unreachable code in react
           (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)

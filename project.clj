@@ -14,7 +14,7 @@
 
   :managed-dependencies
   [[commons-codec "1.14"]
-   [com.google.errorprone/error_prone_annotations "2.1.3"]
+   [com.google.errorprone/error_prone_annotations "2.4.0"]
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
@@ -43,7 +43,7 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20200504"]
+   [com.google.javascript/closure-compiler-unshaded "v20200628"]
 
    [org.clojure/google-closure-library "0.0-20191016-6ae1f72f"]
    [org.clojure/google-closure-library-third-party "0.0-20191016-6ae1f72f"]
@@ -51,7 +51,7 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.3"]
 
-   [io.undertow/undertow-core "2.1.1.Final"]
+   [io.undertow/undertow-core "2.1.3.Final"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.8.1"
@@ -62,7 +62,7 @@
    [org.graalvm.js/js "20.1.0"]
    [org.graalvm.js/js-scriptengine "20.1.0"]
 
-   [expound "0.8.4"]
+   [expound "0.8.5"]
    [fipp "0.6.23"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
@@ -74,7 +74,7 @@
      ;; org.clojure/test.check
      camel-snake-kebab]]
    ;; for pathom
-   [org.clojure/test.check "1.0.0"]
+   [org.clojure/test.check "1.1.0"]
 
    ;; experimental
    [hawk "0.2.11"]
