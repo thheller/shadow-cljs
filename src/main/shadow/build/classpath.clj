@@ -1067,6 +1067,8 @@
           ;; closure compiler support and test files
           #"^com/google/javascript"
           #"^jdk/nashorn/*"
+          ;; ignore shipped builds (UI, babel-worker, etc)
+          #"^shadow/.+/dist"
           ;; just in case the :output-dir of a dev build is on the classpath
           #"^public/"
           #"cljs-runtime/"}
