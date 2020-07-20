@@ -89,7 +89,11 @@
       (cond->
         (and (io/resource "cider/nrepl.clj")
              (not (false? cider)))
-        (conj 'cider.nrepl/cider-middleware))
+        (conj 'cider.nrepl/cider-middleware)
+
+        (and (io/resource "refactor_nrepl/middleware.clj")
+             (not (false? cider)))
+        (conj 'refactor-nrepl.middleware/wrap-refactor))
 
       (into ['nrepl.middleware/wrap-describe
              'nrepl.middleware.interruptible-eval/interruptible-eval
