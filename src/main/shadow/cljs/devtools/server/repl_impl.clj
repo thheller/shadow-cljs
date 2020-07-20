@@ -10,7 +10,7 @@
             [shadow.build.warnings :as warnings]
             [shadow.cljs.devtools.errors :as errors]
             [shadow.remote.relay.api :as relay])
-  (:import (java.io File)))
+  (:import (java.io File InputStreamReader BufferedReader IOException)))
 
 ;; (defn repl-prompt [repl-state])
 ;; (defn repl-read-ex [repl-state ex])
@@ -53,6 +53,14 @@
                          :build-id (:build-id worker)
                          :proc-id (:proc-id worker)}})
 
+        proc-stdio-available?
+        (get-in worker [:cli-opts ::node-repl])
+
+        proc-stdio
+        (async/chan
+          (async/sliding-buffer 100)
+          (filter #(contains? #{:proc/stdout :proc/stderr} (:type %))))
+
         read-lock
         (async/chan)
 
@@ -66,6 +74,9 @@
           :ns init-ns
           :stage :read
           :client-id client-id)]
+
+    (when proc-stdio-available?
+      (worker/watch worker proc-stdio))
 
     ;; read loop, blocking IO
     ;; cannot block main loop or we'll never receive async events
@@ -122,8 +133,12 @@
                            (or (:runtime-id repl-state)
                                ;; no previously picked runtime, pick new one from worker when available
                                (when-some [runtime-id (-> worker :state-ref deref :default-runtime-id)]
-                                 (>!! to-relay {:op :runtime-print-sub
-                                                :to runtime-id})
+                                 ;; don't capture client side prints when
+                                 ;; already getting proc/stdout|err from worker
+                                 ;; only available when managing the actual process (eg. node-repl)
+                                 (when-not proc-stdio-available?
+                                   (>!! to-relay {:op :runtime-print-sub
+                                                  :to runtime-id}))
                                  (>!! to-relay {:op :request-notify
                                                 :notify-op ::runtime-disconnect
                                                 :query [:eq :client-id runtime-id]})
@@ -257,6 +272,18 @@
                    (do (tap> [:unexpected-from-relay msg repl-state worker relay])
                        (recur repl-state)))))
 
+              proc-stdio
+              ([msg]
+               (when (some? msg)
+                 (let [{:keys [type text]} msg]
+                   (case type
+                     :proc/stdout
+                     (repl-stdout repl-state text)
+                     :proc/stderr
+                     (repl-stderr repl-state text))
+
+                   (recur repl-state))))
+
               (async/timeout 10000)
               ([_]
                ;; fine to wait long time while reading
@@ -271,6 +298,7 @@
 
       (async/close! to-relay)
       (async/close! read-lock)
+      (async/close! proc-stdio)
       (async/close! stdin)
 
       result)))
@@ -314,6 +342,22 @@
        (flush))
      }))
 
+(defn pipe [^Process proc in {:keys [output] :as worker} type]
+  ;; we really do want system-default encoding here
+  (with-open [^java.io.Reader in (-> in InputStreamReader. BufferedReader.)]
+    (loop [buf (char-array 1024)]
+      (when (.isAlive proc)
+        (try
+          (let [len (.read in buf)]
+            (when-not (neg? len)
+              (async/offer! output {:type type
+                                    :text (String. buf 0 len)})))
+          (catch IOException e
+            (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
+              (log/warn-ex e ::node-repl-pipe)
+              )))
+        (recur buf)))))
+
 (defn node-repl*
   [{:keys [supervisor config] :as app}
    {:keys [via
@@ -337,7 +381,7 @@
          :output-to script-name}
 
         {:keys [proc-stop] :as worker}
-        (super/start-worker supervisor build-config opts)
+        (super/start-worker supervisor build-config (assoc opts ::node-repl true))
 
         result
         (worker/compile! worker)
@@ -369,9 +413,8 @@
 
             ;; FIXME: validate that proc started properly
 
-            ;; FIXME: these should print to worker out instead
-            (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-            (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
+            (.start (Thread. (bound-fn [] (pipe node-proc (.getInputStream node-proc) worker :proc/stdout))))
+            (.start (Thread. (bound-fn [] (pipe node-proc (.getErrorStream node-proc) worker :proc/stderr))))
 
             ;; piping the script into node-proc instead of using command line arg
             ;; as node will otherwise adopt the path of the script as the require reference point

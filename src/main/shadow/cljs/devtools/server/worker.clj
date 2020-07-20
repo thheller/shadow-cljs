@@ -276,6 +276,7 @@
              :proc-stop proc-stop
              :proc-id proc-id
              :proc-control proc-control
+             :cli-opts cli-opts
              :build-id build-id
              :system-bus system-bus
              :resource-update resource-update
