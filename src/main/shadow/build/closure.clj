@@ -1646,7 +1646,8 @@
           []
           ;; compare each cache key
           (->> (for [{:keys [resource-id cache-key] :as src} sources
-                     :when (= cache-key (get cache-index resource-id))]
+                     :when (and (= cache-key (get cache-index resource-id))
+                                (get-in state [:output resource-id]))]
                  src)
                ;; need to preserve order for later
                (into [])))
