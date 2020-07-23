@@ -621,7 +621,15 @@
                       *out* sw]
               (doseq [ast-entry ast]
                 (let [size-before (-> sw (.getBuffer) (.length))]
-                  (shadow-emit state ast-entry)
+                  (try
+                    (shadow-emit state ast-entry)
+                    (catch Exception e
+                      (throw (ex-info "Failed to emit form"
+                               {:tag ::emit-ex
+                                :resource-name resource-name
+                                :line (ana/gets ast-entry :env :line)
+                                :column (ana/gets ast-entry :env :column)}
+                               e))))
                   (.flush sw)
                   (let [size-after (-> sw (.getBuffer) (.length))
                         diff (- size-after size-before)]

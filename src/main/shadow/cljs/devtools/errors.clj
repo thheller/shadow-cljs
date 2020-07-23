@@ -260,11 +260,21 @@
           (format "Encountered error when macroexpanding%s.%n"
             (if symbol (str " " symbol) ""))
 
+          :compilation
+          (format "%s%n" (.getMessage e))
+
           (format "Error in phase %s%n" phase))]
 
     (.write w msg)
 
-    (error-format w (.getCause e))))
+    (when-some [cause (.getCause e)]
+      (error-format w cause))))
+
+(defmethod ex-data-format :shadow.build.compiler/emit-ex
+  [w e {:keys [errors] :as data}]
+  (.write w "An error occurred while generating code for the form.\n")
+  (let [cause (.getCause e)]
+    (ex-format w cause)))
 
 (defmethod ex-data-format ::closure/errors
   [w e {:keys [errors] :as data}]
