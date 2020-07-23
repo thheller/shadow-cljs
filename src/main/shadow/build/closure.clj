@@ -1756,6 +1756,15 @@
           obj)
         (json/write-str))))
 
+(defn hide-closure-defines [source]
+  ;; source sources like @firebase/util contain
+  ;;   @define {boolean}
+  ;; which Closure interprets as being closure-defines which they seem to be
+  ;; but somehow weren't actually replaced or set during their build
+  ;; Closure errors out when we process it so we just hide it in a way that
+  ;; Closure doesn't complain anymore
+  (str/replace source #"\* @define" "* .define"))
+
 (defn convert-sources-simple*
   "takes a list of :npm sources and rewrites in a browser compatible way, no full conversion"
   [{:keys [js-options mode] :as state} sources]
@@ -1781,7 +1790,7 @@
                               (str "module.exports=(" source ");")
 
                               :else
-                              source)
+                              (hide-closure-defines source))
                             "\n};"))]
 
                  (when file
