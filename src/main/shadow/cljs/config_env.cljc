@@ -4,7 +4,7 @@
 
 (defn getenv [envname]
   #?(:cljs
-     (str (gobj/get js/process.env envname))
+     (gobj/get js/process.env envname)
      :clj
      (System/getenv envname)))
 
