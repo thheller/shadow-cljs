@@ -252,7 +252,7 @@
             (spit js-file output)))))))
 
 (defn flush-unoptimized-module
-  [{:keys [build-modules] :as state}
+  [{:keys [worker-info build-modules] :as state}
    {:keys [module-id output-name exports prepend append sources depends-on] :as mod}]
 
   (let [target (data/output-file state output-name)]
@@ -295,7 +295,8 @@
                imports "\n"
                exports "\n"
                append "\n"
-               "shadow.cljs.devtools.client.env.module_loaded(\"" (name module-id) "\");")]
+               (when worker-info
+                 (str "shadow.cljs.devtools.client.env.module_loaded(\"" (name module-id) "\");")))]
       (io/make-parents target)
       (spit target out))
 
