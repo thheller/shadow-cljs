@@ -10,7 +10,7 @@
   (:import (io.undertow Undertow Handlers UndertowOptions)
            (io.undertow.websockets WebSocketConnectionCallback)
            (io.undertow.server.handlers BlockingHandler)
-           (io.undertow.server HttpHandler)
+           (io.undertow.server HttpHandler HttpServerExchange)
            (shadow.undertow WsTextReceiver ShadowResourceHandler)
            (io.undertow.websockets.core WebSockets)
            (javax.net.ssl SSLContext KeyManagerFactory)
@@ -58,7 +58,6 @@
   (-> (impl/exchange->ring (.get ws-exchange-field ex))
       (assoc ::channel channel)))
 
-
 (defn handler? [x]
   (and x (instance? HttpHandler x)))
 
@@ -90,8 +89,8 @@
       (reify HttpHandler
         (handleRequest [this x]
           (if (= "websocket" (-> (.getRequestHeaders x) (.getFirst "Upgrade")))
-            (.handleRequest upgrade-handler x)
-            (.handleRequest req-handler x)))))))
+            (.handleRequest ^HttpHandler upgrade-handler x)
+            (.handleRequest ^HttpHandler req-handler x)))))))
 
 (defmethod build* ::classpath
   [{:keys [mime-mappings] :as state} [id props next :as config]]
@@ -174,7 +173,7 @@
                 ;; minimal caching headers that force the browser the revalidate
                 ;; undertow will respond with 304 Not Modified checking If-Modified-Since
                 (.add Headers/CACHE_CONTROL "private, no-cache"))
-            (.handleRequest next ex)))]
+            (.handleRequest ^HttpHandler next ex)))]
     (assoc state :handler handler)))
 
 (defmethod build* ::disable-cache [state [id next]]
@@ -210,10 +209,34 @@
           (handleRequest [_ ex]
             (let [path (.getRequestURI ex)]
               (if (some #(re-find % path) patterns)
-                (.handleRequest next-match ex)
-                (.handleRequest next ex)))))]
+                (.handleRequest ^HttpHandler next-match ex)
+                (.handleRequest ^HttpHandler next ex)))))]
 
     (assoc state :handler handler)))
+
+(defmethod build* ::predicate-match [state [id config next-match next]]
+  (assert (vector? next-match))
+  (assert (vector? next))
+
+  (let [{:keys [predicate-fn]}
+        config
+
+        {next-match :handler :as state}
+        (build state next-match)
+
+        {next :handler :as state}
+        (build state next)
+
+        handler
+        (reify
+          HttpHandler
+          (handleRequest [_ ex]
+            (if (predicate-fn ex)
+              (.handleRequest ^HttpHandler next-match ex)
+              (.handleRequest ^HttpHandler next ex))))]
+
+    (assoc state :handler handler)))
+
 
 (def compressible-types
   ["text/html"
@@ -352,7 +375,7 @@
                       ;; if loop closes after putting something on ws-out
                       (alt! :priority true
                         ws-out
-                        ([msg]
+                        ([^String msg]
                          (if (nil? msg)
                            ;; when out closes, also close in
                            (async/close! ws-in)
@@ -381,7 +404,7 @@
 
         handler
         (ring*
-          (fn [{::impl/keys [exchange] :as ring-request}]
+          (fn [{::impl/keys [^HttpServerExchange exchange] :as ring-request}]
             (let [ws-req (assoc ring-request ::ws true)
 
                   {:keys [ws-in ws-out ws-loop ws-reject] :as res}

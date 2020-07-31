@@ -40,9 +40,16 @@
 
     (assoc state :handler record-handler)))
 
+(defn require-var [sym]
+  (try
+    (require (symbol (namespace sym)))
+    (find-var sym)
+    (catch Exception e
+      (throw (ex-info "failed to require-var by name" {:sym sym} e)))))
+
 (defn start-build-server
   [sys-bus config ssl-context out
-   {:keys [proxy-url port host roots handler]
+   {:keys [proxy-url proxy-predicate port host roots handler]
     :or {port 0}
     :as config}]
 
@@ -82,16 +89,25 @@
               [::undertow/ring {:handler-fn http-handler-fn}]]]
 
             req-handler
-            (if (seq proxy-url)
-              (if-not (:proxy-exclude config)
-                ;; proxy everything
-                [::undertow/proxy config]
-                ;; proxy-exclude some paths
-                ;; matching path will take req-handler, rest will proxy
-                [::undertow/path-match {:patterns (map re-pattern (:proxy-exclude config))}
-                 req-handler
-                 [::undertow/proxy config]])
-              req-handler)
+            (cond
+              (not (seq proxy-url))
+              req-handler
+
+              ;; proxy-url but no proxy-predicate, proxy everything
+              (not proxy-predicate)
+              [::undertow/proxy config]
+
+              ;; proxy-url + proxy-predicate, let predicate decide what to proxy
+              ;; should be symbol pointing to function accepting undertow exchange and returning boolean
+              ;; true if request should use proxy, false will use handler
+              (qualified-symbol? proxy-predicate)
+              (let [pred-var (require-var proxy-predicate)]
+                [::undertow/predicate-match {:predicate-fn pred-var}
+                 [::undertow/proxy config]
+                 req-handler])
+
+              :else
+              (throw (ex-info "invalid :proxy-predicate value" {:val proxy-predicate})))
 
             req-handler
             (reduce
