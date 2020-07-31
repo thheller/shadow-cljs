@@ -102,7 +102,9 @@
               ;; true if request should use proxy, false will use handler
               (qualified-symbol? proxy-predicate)
               (let [pred-var (require-var proxy-predicate)]
-                [::undertow/predicate-match {:predicate-fn pred-var}
+                [::undertow/predicate-match
+                 {:predicate-fn (fn [ex]
+                                  (pred-var ex config))}
                  [::undertow/proxy config]
                  req-handler])
 
