@@ -77,11 +77,21 @@
 
     (try
       (let [req-handler
+            [::undertow/classpath {:root "shadow/cljs/devtools/server/dev_http"}
+             [::undertow/blocking
+              [::undertow/ring {:handler-fn http-handler-fn}]]]
+
+            req-handler
             (if (seq proxy-url)
-              [::undertow/proxy config]
-              [::undertow/classpath {:root "shadow/cljs/devtools/server/dev_http"}
-               [::undertow/blocking
-                [::undertow/ring {:handler-fn http-handler-fn}]]])
+              (if-not (:proxy-exclude config)
+                ;; proxy everything
+                [::undertow/proxy config]
+                ;; proxy-exclude some paths
+                ;; matching path will take req-handler, rest will proxy
+                [::undertow/path-match {:patterns (map re-pattern (:proxy-exclude config))}
+                 req-handler
+                 [::undertow/proxy config]])
+              req-handler)
 
             req-handler
             (reduce
@@ -308,10 +318,10 @@
 
 (s/def ::handler qualified-symbol?)
 
-
 (defn roots-or-handler? [x]
   (or (seq (:roots x))
-      (:handler x)))
+      (:handler x)
+      (:proxy-url x)))
 
 (s/def ::server-config
   (s/and

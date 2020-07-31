@@ -191,6 +191,30 @@
         (build state next)]
     (assoc state :handler (BlockingHandler. next))))
 
+(defmethod build* ::path-match [state [id config next-match next]]
+  (assert (vector? next-match))
+  (assert (vector? next))
+
+  (let [{:keys [patterns]}
+        config
+
+        {next-match :handler :as state}
+        (build state next-match)
+
+        {next :handler :as state}
+        (build state next)
+
+        handler
+        (reify
+          HttpHandler
+          (handleRequest [_ ex]
+            (let [path (.getRequestURI ex)]
+              (if (some #(re-find % path) patterns)
+                (.handleRequest next-match ex)
+                (.handleRequest next ex)))))]
+
+    (assoc state :handler handler)))
+
 (def compressible-types
   ["text/html"
    "text/css"

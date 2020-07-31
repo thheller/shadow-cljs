@@ -12,7 +12,9 @@
 
  :dev-http
  {8605 "out/demo-browser/public"
-  8606 "out/demo-test-browser"}
+  8606 "out/demo-test-browser"
+  8607 {:proxy-url "https://www.google.com"
+        :proxy-exclude ["/foo"]}}
 
  :prepl {:browser 12345}
 
