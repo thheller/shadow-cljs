@@ -119,7 +119,7 @@
 
 (defn ensure-config []
   (loop [root (path/resolve)]
-    (let [config (path/resolve root "shadow-cljs.edn")]
+    (let [config (path/resolve root "tmp" "bad.edn" #_"shadow-cljs.edn")]
       (cond
         (fs/existsSync config)
         config
@@ -249,13 +249,9 @@
           ))))
 
 (defn print-error [ex]
-  (let [{:keys [tag] :as data}
-        (ex-data ex)]
-
-    (js/console.warn "===== ERROR =================")
-    (js/console.warn (.-message ex))
-    (js/console.warn "=============================")
-    ))
+  (js/console.warn "===== ERROR =================")
+  (js/console.warn (.-message ex))
+  (js/console.warn "============================="))
 
 (defn get-shared-home []
   (path/resolve (os/homedir) ".shadow-cljs" jar-version))
@@ -561,9 +557,17 @@
           (util/slurp config-path)
 
           rdr
-          (rt/source-logging-push-back-reader config-txt)]
+          (rt/source-logging-push-back-reader config-txt)
 
-      (edn/read reader-opts rdr))
+          res
+          (edn/read reader-opts rdr)]
+
+      (when-not (map? res)
+        (throw (ex-info
+                 (str "Malformed config file, expected a map but got: " (pr-str res))
+                 {:x res})))
+
+      res)
 
     (catch :default ex
       (throw (ex-info
