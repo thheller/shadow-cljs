@@ -145,7 +145,7 @@
                                  runtime-id))]
 
                        (if-not runtime-id
-                         (do (repl-stderr repl-state "No available JS runtime.\n")
+                         (do (repl-stderr repl-state "No available JS runtime.\nSee https://shadow-cljs.github.io/docs/UsersGuide.html#repl-troubleshooting")
                              (repl-result repl-state nil)
                              (repl-prompt repl-state)
                              (>!! read-lock 1)
