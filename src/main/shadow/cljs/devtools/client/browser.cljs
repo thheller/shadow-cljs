@@ -124,9 +124,9 @@
             (doto (.cloneNode node true)
               (.setAttribute "href" (str path-match "?r=" (rand))))]
 
+        (set! (.-onload new-link) #(gdom/removeNode node))
         (devtools-msg "load CSS" path-match)
         (gdom/insertSiblingAfter new-link node)
-        (gdom/removeNode node)
         ))))
 
 (defn global-eval [js]
