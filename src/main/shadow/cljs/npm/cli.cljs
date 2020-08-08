@@ -119,7 +119,7 @@
 
 (defn ensure-config []
   (loop [root (path/resolve)]
-    (let [config (path/resolve root "tmp" "bad.edn" #_"shadow-cljs.edn")]
+    (let [config (path/resolve root "shadow-cljs.edn")]
       (cond
         (fs/existsSync config)
         config
