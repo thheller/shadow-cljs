@@ -22,7 +22,7 @@
 
    [org.clojure/data.json "1.0.0"]
    [org.clojure/tools.cli "1.0.194"]
-   [org.clojure/tools.reader "1.3.2"]
+   [org.clojure/tools.reader "1.3.3"]
 
    [nrepl "0.7.0"]
    [cider/piggieback "0.5.0"
@@ -34,7 +34,7 @@
    [com.cognitect/transit-clj "1.0.324"]
    [com.cognitect/transit-cljs "0.8.264"]
 
-   [org.clojure/core.async "1.2.603"]
+   [org.clojure/core.async "1.3.610"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.10.773"
@@ -43,7 +43,7 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20200628"]
+   [com.google.javascript/closure-compiler-unshaded "v20200719"]
 
    [org.clojure/google-closure-library "0.0-20191016-6ae1f72f"]
    [org.clojure/google-closure-library-third-party "0.0-20191016-6ae1f72f"]
