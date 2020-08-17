@@ -39,11 +39,11 @@
   thheller/shadow-util {:mvn/version "0.7.0"}
   thheller/shadow-cljsjs {:mvn/version "0.0.21"}
 
-  expound {:mvn/version "0.8.4"}
-  hiccup {:mvn/version "1.0.5"}
+  expound/expound {:mvn/version "0.8.4"}
+  hiccup/hiccup {:mvn/version "1.0.5"}
 
-  ring/ring-core {:mvn/version "1.8.0" :exclusions [clj-time]}
-  hawk {:mvn/version "0.2.11"}
+  ring/ring-core {:mvn/version "1.8.0" :exclusions [clj-time/clj-time]}
+  hawk/hawk {:mvn/version "0.2.11"}
 
   io.undertow/undertow-core
   {:mvn/version "2.0.30.Final"
@@ -64,6 +64,6 @@
    [org.clojure/data.json
     fulcrologic/fulcro
     ;; org.clojure/test.check
-    camel-snake-kebab]}
+    camel-snake-kebab/camel-snake-kebab]}
 
   org.clojure/test.check {:mvn/version "1.0.0"}}}
