@@ -341,8 +341,8 @@
       (-> {:db (assoc db ::m/inspect {:object ident
                                       :runtime-id runtime-id
                                       :runtime (db/make-ident ::m/runtime runtime-id)
-                                      :display-type :browse
-                                      :nav-stack []})
+                                      :view-idx 0
+                                      :nav-stack [{:idx 0 :ident ident}]})
            :ws-send []}
           (cond->
             (not summary)
@@ -363,8 +363,8 @@
 
 (sw/reg-event-fx env/app-ref ::m/inspect-nav!
   []
-  (fn [{:keys [db] :as env} idx]
-    (let [{current :object :keys [nav-stack]} (::m/inspect db)
+  (fn [{:keys [db] :as env} current idx]
+    (let [{:keys [nav-stack]} (::m/inspect db)
           {:keys [oid runtime-id] :as object} (get db current)
 
           key (get-in object [:fragment idx :key])]
@@ -380,11 +380,11 @@
         {:obj-result [:nav-result]
          :obj-result-ref [:nav-result-ref]})
 
-      {:db (-> db
-               (update-in [::m/inspect :nav-stack] conj {:idx (count nav-stack)
-                                                         :key key
-                                                         :ident current})
-               (assoc-in [::m/inspect :object] :db/loading))})))
+      {:db db #_(-> db
+                    (update-in [::m/inspect :nav-stack] conj {:idx (count nav-stack)
+                                                              :key key
+                                                              :ident current})
+                    (assoc-in [::m/inspect :object] :db/loading))})))
 
 (sw/reg-event-fx env/app-ref ::m/inspect-nav-jump!
   []
@@ -399,8 +399,8 @@
 
 (sw/reg-event-fx env/app-ref ::m/inspect-switch-display!
   []
-  (fn [{:keys [db] :as env} display-type]
-    {:db (assoc-in db [::m/inspect :display-type] display-type)}))
+  (fn [{:keys [db] :as env} ident display-type]
+    {:db (assoc-in db [ident :display-type] display-type)}))
 
 (sw/reg-event-fx env/app-ref :nav-result-ref
   []
@@ -408,11 +408,14 @@
     (let [obj {:oid ref-oid
                :runtime-id from
                :runtime (db/make-ident ::m/runtime from)}
-          obj-ident (db/make-ident ::m/object ref-oid)]
+          obj-ident (db/make-ident ::m/object ref-oid)
+
+          {:keys [nav-stack]} (::m/inspect db)]
 
       {:db (-> db
                (db/add ::m/object obj)
-               (assoc-in [::m/inspect :object] obj-ident))})))
+               (update-in [::m/inspect :view-idx] inc)
+               (update-in [::m/inspect :nav-stack] conj {:idx (count nav-stack) :ident obj-ident}))})))
 
 (defmethod eql/attr ::m/runtimes-sorted
   [env db current query-part params]

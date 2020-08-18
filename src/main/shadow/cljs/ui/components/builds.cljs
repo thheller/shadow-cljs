@@ -62,140 +62,147 @@
        [:path {:d "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm0-9a1 1 0 0 1 1 1v4a1 1 0 0 1-2 0v-4a1 1 0 0 1 1-1zm0-4a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"}]]))
 
 (defc ui-builds-entry [build-ident]
-  [{::m/keys [build-id build-worker-active build-warnings-count build-status] :as data}
-   (sg/query-ident build-ident
-     [::m/build-id
-      ::m/build-worker-active
-      ::m/build-warnings-count
-      {::m/build-status
-       [:status]}])]
-  (let [{:keys [status]} build-status]
-    (<< [:div.border-b.bg-white.p-4.flex
-         [:div.self-center.pr-4
-          [:a.cursor-pointer {:href (str "/build/" (name build-id))}
-           (case status
-             :compiling
-             icon-build-busy
+  (bind {::m/keys [build-id build-worker-active build-warnings-count build-status] :as data}
+    (sg/query-ident build-ident
+      [::m/build-id
+       ::m/build-worker-active
+       ::m/build-warnings-count
+       {::m/build-status
+        [:status]}]))
 
-             :completed
-             (if (zero? build-warnings-count)
-               icon-build-success
-               icon-build-warnings)
+  (render
+    (let [{:keys [status]} build-status]
+      (<< [:div.border-b.bg-white.p-4.flex
+           [:div.self-center.pr-4
+            [:a.cursor-pointer {:href (str "/build/" (name build-id))}
+             (case status
+               :compiling
+               icon-build-busy
 
-             :failed
-             icon-build-error
+               :completed
+               (if (zero? build-warnings-count)
+                 icon-build-success
+                 icon-build-warnings)
 
-             :inactive
-             icon-build-missing
+               :failed
+               icon-build-error
 
-             :pending
-             icon-build-busy
+               :inactive
+               icon-build-missing
 
-             icon-build-missing)]]
-         [:div.flex-1
-          [:div.pb-1
-           [:a.font-bold.text-lg {:href (str "/build/" (name build-id))} (name build-id)]]
-          [:div
-           (build-buttons build-id build-worker-active)
-           ]]])))
+               :pending
+               icon-build-busy
+
+               icon-build-missing)]]
+           [:div.flex-1
+            [:div.pb-1
+             [:a.font-bold.text-lg {:href (str "/build/" (name build-id))} (name build-id)]]
+            [:div
+             (build-buttons build-id build-worker-active)
+             ]]]))))
 
 (defc ui-builds-page []
-  [{::m/keys [builds]}
-   (sg/query-root [::m/builds])
+  (bind {::m/keys [builds]}
+    (sg/query-root [::m/builds]))
 
-   ::m/build-watch-compile! sg/tx
-   ::m/build-watch-start! sg/tx
-   ::m/build-watch-stop! sg/tx
-   ::m/build-compile! sg/tx
-   ::m/build-release! sg/tx
-   ::m/build-release-debug! sg/tx]
+  (event ::m/build-watch-compile! sg/tx)
+  (event ::m/build-watch-start! sg/tx)
+  (event ::m/build-watch-stop! sg/tx)
+  (event ::m/build-compile! sg/tx)
+  (event ::m/build-release! sg/tx)
+  (event ::m/build-release-debug! sg/tx)
 
-  (<< [:div.flex-1.overflow-auto.pt-2.bg-white
-       ;; [:div.p-4.px-8 "start all / stop all"]
-       (sg/render-seq builds identity ui-builds-entry)]))
+  (render
+    (<< [:div.flex-1.overflow-auto.pt-2.bg-white
+         ;; [:div.p-4.px-8 "start all / stop all"]
+         (sg/render-seq builds identity ui-builds-entry)])))
 
 (defc ui-build-overview [build-ident]
-  [{::m/keys [build-sources-sorted] :as data}
-   (sg/query-ident build-ident
-     [::m/build-sources-sorted])
+  (bind {::m/keys [build-sources-sorted] :as data}
+    (sg/query-ident build-ident
+      [::m/build-sources-sorted]))
 
-   state-ref (atom {:selected nil})
+  (bind state-ref
+    (atom {:selected nil}))
 
-   selected (sg/watch state-ref [:selected])
+  (bind selected
+    (sg/watch state-ref [:selected]))
 
-   id->src
-   (into {} (map (juxt :resource-id identity)) build-sources-sorted)
+  (bind id->src
+    (into {} (map (juxt :resource-id identity)) build-sources-sorted))
 
-   id->idx
-   (reduce-kv
-     (fn [m idx {:keys [resource-id] :as v}]
-       (assoc m resource-id idx))
-     {}
-     build-sources-sorted)
+  (bind id->idx
+    (reduce-kv
+      (fn [m idx {:keys [resource-id] :as v}]
+        (assoc m resource-id idx))
+      {}
+      build-sources-sorted))
 
-   ::highlight
-   (fn [env e resource-id]
-     (swap! state-ref assoc :selected resource-id))
+  (event ::highlight [env e resource-id]
+    (swap! state-ref assoc :selected resource-id))
 
-   render-source-entry
-   (fn [{:keys [resource-id resource-name] :as item}]
-     (let [selected? (= resource-id selected)]
-       (<< [:div.text-xs
-            {:class (when selected? "font-bold")
-             :on-mouseenter [::highlight resource-id]}
-            resource-name])))]
+  (bind render-source-entry
+    (fn [{:keys [resource-id resource-name] :as item}]
+      (let [selected? (= resource-id selected)]
+        (<< [:div.text-xs
+             {:class (when selected? "font-bold")
+              :on-mouseenter [::highlight resource-id]}
+             resource-name]))))
 
-  (<< [:div.p-2
-       [:div.py-2.text-xl (count build-sources-sorted) " Namespaces used in build"]
-       [:div.flex
-        [:div.flex-1 "left"]
-        [:div
-         (sg/render-seq build-sources-sorted nil render-source-entry)]
-        [:div.flex-1 "right"]]]))
+  (render
+    (<< [:div.p-2
+         [:div.py-2.text-xl (count build-sources-sorted) " Namespaces used in build"]
+         [:div.flex
+          [:div.flex-1 "left"]
+          [:div
+           (sg/render-seq build-sources-sorted nil render-source-entry)]
+          [:div.flex-1 "right"]]])))
 
 (defc ui-build-runtimes [build-ident]
-  [{::m/keys [build-runtimes] :as data}
-   (sg/query-ident build-ident
-     [::m/build-runtimes])]
+  (bind {::m/keys [build-runtimes] :as data}
+    (sg/query-ident build-ident
+      [::m/build-runtimes]))
 
-  (let [runtime-count (count build-runtimes)]
-    (<< [:div.px-2
-         [:div.pt-2
-          (condp = runtime-count
-            0 "No connected runtimes."
-            1 "1 connected runtime:"
-            (str runtime-count " connected runtimes:"))]
+  (render
+    (let [runtime-count (count build-runtimes)]
+      (<< [:div.px-2
+           [:div.pt-2
+            (condp = runtime-count
+              0 "No connected runtimes."
+              1 "1 connected runtime:"
+              (str runtime-count " connected runtimes:"))]
 
-         (runtimes/ui-runtime-listing build-runtimes)])))
+           (runtimes/ui-runtime-listing build-runtimes)]))))
 
 (defc ui-build-page [build-ident]
-  [data
-   (sg/query-ident build-ident
-     [:db/ident
-      ::m/build-id
-      ::m/build-target
-      ::m/build-worker-active
-      ::m/build-status])
+  (bind data
+    (sg/query-ident build-ident
+      [:db/ident
+       ::m/build-id
+       ::m/build-target
+       ::m/build-worker-active
+       ::m/build-status]))
 
-   ::m/build-watch-compile! sg/tx
-   ::m/build-watch-start! sg/tx
-   ::m/build-watch-stop! sg/tx
-   ::m/build-compile! sg/tx
-   ::m/build-release! sg/tx
-   ::m/build-release-debug! sg/tx]
+  (event ::m/build-watch-compile! sg/tx)
+  (event ::m/build-watch-start! sg/tx)
+  (event ::m/build-watch-stop! sg/tx)
+  (event ::m/build-compile! sg/tx)
+  (event ::m/build-release! sg/tx)
+  (event ::m/build-release-debug! sg/tx)
 
-  (let [{::m/keys [build-id build-target build-status build-worker-active]} data]
-    (<< [:div
-         [:div.px-2
-          [:h1.text-xl.pt-4 (name build-id)]
-          [:div " target: " (name build-target)]]
-         [:div.p-2 (build-buttons build-id build-worker-active)]]
+  (render
+    (let [{::m/keys [build-id build-target build-status build-worker-active]} data]
+      (<< [:div
+           [:div.px-2
+            [:h1.text-xl.pt-4 (name build-id)]
+            [:div " target: " (name build-target)]]
+           [:div.p-2 (build-buttons build-id build-worker-active)]]
 
-        (when build-worker-active
-          (ui-build-runtimes build-ident))
+          (when build-worker-active
+            (ui-build-runtimes build-ident))
 
-        (build-status/render-build-status-full build-status)
+          (build-status/render-build-status-full build-status)
 
-        )))
+          ))))
 
 

@@ -18,23 +18,24 @@
     text))
 
 (defc ui-object-as-text [ident attr]
-  [{::sg/keys [loading-state] :as data}
-   (sg/query-ident ident
-     [attr]
-     {:suspend false})]
+  (bind {::sg/keys [loading-state] :as data}
+    (sg/query-ident ident
+      [attr]
+      {:suspend false}))
 
-  (let [val (get data attr)]
-    #_[:button.absolute.rounded-full.shadow-lg.p-4.bg-blue-200.bottom-0.right-0.m-4.mr-8
-       {:on-click [::copy-to-clipboard val]
-        :disabled (not= :ready loading-state)}
-       "COPY"]
-    (if (= :ready loading-state)
-      (codemirror {:value val
-                   :clojure (not= attr ::m/object-as-str)
-                   :cm-opts #js {:autofocus false}})
-      ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
-      (<< [:div.w-full.h-full.font-mono.border-t.p-4
-           "Loading ..."]))))
+  (render
+    (let [val (get data attr)]
+      #_[:button.absolute.rounded-full.shadow-lg.p-4.bg-blue-200.bottom-0.right-0.m-4.mr-8
+         {:on-click [::copy-to-clipboard val]
+          :disabled (not= :ready loading-state)}
+         "COPY"]
+      (if (= :ready loading-state)
+        (codemirror {:value val
+                     :clojure (not= attr ::m/object-as-str)
+                     :cm-opts #js {:autofocus false}})
+        ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
+        (<< [:div.w-full.h-full.font-mono.border-t.p-4
+             "Loading ..."])))))
 
 (defmulti render-view
   (fn [data]
@@ -144,115 +145,166 @@
         :on-click [::inspect-switch-display! val]}
        label]))
 
+(defc ui-inspect-item [ident]
+  (bind object
+    (sg/query-ident ident
+      [:db/ident
+       :oid
+       :summary
+       :is-error
+       :display-type]))
+
+  (bind code-submit!
+    (fn [env code]
+      (sg/run-tx env [::m/inspect-code-eval! code])))
+
+  (bind test-ref (atom 0))
+  (bind test (sg/watch test-ref))
+
+  (event ::test-click! [env e]
+    (js/console.log "test-click!")
+    (swap! test-ref inc))
+
+  (bind _
+    (sg/effect
+      :render
+      (fn [env]
+        (js/console.log "ui-inspect-item render effect" env test)
+
+        (fn []
+          (js/console.log "ui-inspect-item render cleanup" env)))))
+
+  #_(effect :render [env]
+      (js/console.log "ui-inspect-item render effect" env test)
+
+      (fn []
+        (js/console.log "ui-inspect-item render cleanup" env)))
+
+  (render
+
+    (let [{:keys [summary is-error display-type]} object
+          {:keys [obj-type entries]} summary
+
+          class-header
+          (if is-error
+            "flex bg-white py-1 px-2 font-mono border-b-2 text-l text-red-700"
+            "flex bg-white py-1 px-2 font-mono border-b-2 text-l")]
+
+      (<< [:div.h-full.overflow-hidden.flex.flex-col
+           [:div {:on-click [::test-click!]
+                  :class class-header}
+            [:div {:class "px-2 font-bold"} obj-type " " test]
+            (when entries
+              (<< [:div {:class "px-2 font-bold"} (str entries " Entries")]))]
+
+           (case display-type
+             :edn
+             (ui-object-as-text (:db/ident object) ::m/object-as-edn)
+
+             :pprint
+             (ui-object-as-text (:db/ident object) ::m/object-as-pprint)
+
+             ;; default
+             (<< [:div.flex-1.overflow-auto.font-mono (render-view object)]))
+
+           [:div.bg-white.font-mono.flex.flex-col
+            [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
+             [:div.flex-1 "cljs.user - Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
+            [:div {:style {:height "120px"}}
+             (codemirror {:on-submit code-submit!})]]
+
+           [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
+            [:div "View as: "]
+            (view-as-button display-type :browse "Browse")
+            (view-as-button display-type :pprint "Pretty-Print")
+            (view-as-button display-type :edn "EDN")]
+           ])))
+
+  (event ::inspect-nav! [env e idx]
+    (sg/run-tx env [::m/inspect-nav! ident idx]))
+
+  (event ::inspect-switch-display! [env e display-type]
+    (sg/run-tx env [::m/inspect-switch-display! ident display-type])))
+
 (defc ui-inspect []
-  [{::m/keys [inspect] :as data}
-   (sg/query-root
-     [{::m/inspect
-       [{:object
-         [:db/ident
-          :oid
-          :summary
-          :is-error]}
-        :nav-stack
-        :display-type]}])
+  (bind {::m/keys [inspect] :as data}
+    (sg/query-root
+      [{::m/inspect
+        [:nav-stack
+         :view-idx]}]))
 
-   ;; FIXME: is display-type something the db needs to handle?
-   ;; could just use a local setting with an atom?
-   ::inspect-switch-display!
-   (fn [env e display-type]
-     (sg/run-tx env [::m/inspect-switch-display! display-type]))
+  (bind _
+    (keyboard/listen
+      {"escape"
+       (fn [env e]
+         (sg/run-tx env [::m/inspect-cancel!]))}))
 
-   code-submit!
-   (fn [env code]
-     (sg/run-tx env [::m/inspect-code-eval! code]))
+  (bind _
+    (sg/track-change
+      (:view-idx inspect)
+      (fn [env old new]
+        (js/console.log "view-idx did change" old new))))
 
-   _
-   (keyboard/listen
-     {"escape"
-      (fn [env e]
-        (sg/run-tx env [::m/inspect-cancel!]))})]
+  (render
 
-  (let [{:keys [object nav-stack display-type]} inspect
-        {:keys [summary is-error]} object
-        {:keys [obj-type entries]} summary]
+    (let [{:keys [nav-stack view-idx]} inspect]
 
-    (<< (when (seq nav-stack)
-          (<< [:div.bg-white.py-4.font-mono
-               (sg/render-seq nav-stack :idx
-                 (fn [{:keys [idx key code]}]
-                   (<< [:div.px-4.cursor-pointer.hover:bg-gray-200
-                        {:on-click [::inspect-nav-jump! idx]}
-                        (str "<< " (or code (and key (second key)) idx))])))]))
+      (<< [:div.h-full.flex-1.overflow-hidden.flex.flex-col
+           [:div.flex
+            [:div view-idx]
+            [:div.flex-1
+             (sg/simple-seq nav-stack
+               (fn [{:keys [ident]} idx]
+                 (<< [:div.inline-block.border.px-2.ml-2 idx])))]
 
-        [:div {:class (if is-error
-                        "flex bg-white py-1 px-2 font-mono border-b-2 text-l text-red-700"
-                        "flex bg-white py-1 px-2 font-mono border-b-2 text-l")}
-         [:div {:class "px-2 font-bold"} obj-type]
-         (when entries
-           (<< [:div {:class "px-2 font-bold"} (str entries " Entries")]))
+            [:div.text-right.cursor-pointer.font-bold.px-2
+             {:on-click [::inspect-cancel!]}
+             common/svg-close]]
 
-         [:div.flex-1] ;; fill up space
-         [:div.text-right.cursor-pointer.font-bold.px-2
-          {:on-click [::inspect-cancel!]}
-          common/svg-close]]
+           [:div.flex-1.flex.overflow-y-auto.relative
+            (sg/render-seq nav-stack :ident
+              (fn [{:keys [ident]} idx]
+                (<< [:div.min-w-full.h-full
+                     (ui-inspect-item ident)])))]
 
-        (case display-type
-          :edn
-          (ui-object-as-text (:db/ident object) ::m/object-as-edn)
-
-          :pprint
-          (ui-object-as-text (:db/ident object) ::m/object-as-pprint)
-
-          :browse
-          (<< [:div.flex-1.overflow-auto.font-mono (render-view object)]))
-
-        (<< [:div.bg-white.font-mono.flex.flex-col
-             [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
-              [:div.flex-1 "cljs.user - Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-             [:div {:style {:height "120px"}}
-              (codemirror {:on-submit code-submit!})]])
-
-        [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
-         [:div "View as: "]
-         (view-as-button display-type :browse "Browse")
-         (view-as-button display-type :pprint "Pretty-Print")
-         (view-as-button display-type :edn "EDN")])))
+           ]))))
 
 (defc ui-tap-stream-item [{:keys [object-ident]}]
-  [{:keys [summary runtime obj-preview] :as data}
-   (sg/query-ident object-ident
-     [:oid
-      {:runtime
-       [:runtime-id
-        :runtime-info]}
-      :obj-preview
-      :summary])]
+  (bind {:keys [summary runtime obj-preview] :as data}
+    (sg/query-ident object-ident
+      [:oid
+       {:runtime
+        [:runtime-id
+         :runtime-info]}
+       :obj-preview
+       :summary]))
 
-  (let [{:keys [ns line column label]} summary
-        {:keys [runtime-info runtime-id]} runtime]
+  (render
+    (let [{:keys [ns line column label]} summary
+          {:keys [runtime-info runtime-id]} runtime]
 
-    (<< [:div.font-mono.border-b.px-2.py-1.cursor-pointer.hover:bg-gray-200
-         {:on-click [::inspect-object! object-ident]}
-         [:div.text-xs.text-gray-500
+      (<< [:div.font-mono.border-b.px-2.py-1.cursor-pointer.hover:bg-gray-200
+           {:on-click [::inspect-object! object-ident]}
+           [:div.text-xs.text-gray-500
 
-          (str (:added-at-ts summary)
-               " - #" runtime-id
-               " " (:lang runtime-info)
-               " "
-               (when (= :cljs (:lang runtime-info))
-                 (str "- " (:build-id runtime-info)
-                      " - " (:host runtime-info)
-                      " "))
+            (str (:added-at-ts summary)
+                 " - #" runtime-id
+                 " " (:lang runtime-info)
+                 " "
+                 (when (= :cljs (:lang runtime-info))
+                   (str "- " (:build-id runtime-info)
+                        " - " (:host runtime-info)
+                        " "))
 
-               (when ns
-                 (str " - " ns
-                      (when line
-                        (str "@" line
-                             (when column
-                               (str ":" column))))))
-               (when label
-                 (str " - " label)))]
-         [:div.truncate (render-edn-limit obj-preview)]])))
+                 (when ns
+                   (str " - " ns
+                        (when line
+                          (str "@" line
+                               (when column
+                                 (str ":" column))))))
+                 (when label
+                   (str " - " label)))]
+           [:div.truncate (render-edn-limit obj-preview)]]))))
 
 (def tap-stream
   (sg/stream ::m/taps {}
@@ -264,53 +316,47 @@
         (<< [:div (pr-str item)])))))
 
 (defc ui-page []
-  [{::m/keys [inspect-active?] :as data}
-   (sg/query-root [::m/inspect-active?])
+  (bind {::m/keys [inspect-active?] :as data}
+    (sg/query-root [::m/inspect-active?]))
 
-   ;; FIXME: this needs better handling
-   ;; maybe something like useTransition?
-   closing-ref
-   (atom false)
+  ;; FIXME: this needs better handling
+  ;; maybe something like useTransition?
+  (bind closing-ref
+    (atom false))
 
-   ::inspect-object!
-   (fn [env e ident]
-     (reset! closing-ref false)
-     (sg/run-tx env [::m/inspect-object! ident]))
+  (event ::inspect-object! [env e ident]
+    (reset! closing-ref false)
+    (sg/run-tx env [::m/inspect-object! ident]))
 
-   ::inspect-nav!
-   (fn [env e idx]
-     (sg/run-tx env [::m/inspect-nav! idx]))
+  (event ::inspect-nav-jump! [env e idx]
+    (sg/run-tx env [::m/inspect-nav-jump! idx]))
 
-   ::inspect-nav-jump!
-   (fn [env e idx]
-     (sg/run-tx env [::m/inspect-nav-jump! idx]))
+  (event ::inspect-cancel! [env e]
+    (when-not @closing-ref
+      (reset! closing-ref true)
+      (js/setTimeout #(sg/run-tx env [::m/inspect-cancel!]) 200)))
 
-   ::inspect-cancel!
-   (fn [env e]
-     (when-not @closing-ref
-       (reset! closing-ref true)
-       (js/setTimeout #(sg/run-tx env [::m/inspect-cancel!]) 200)))
+  (bind closing?
+    (sg/watch closing-ref))
 
-   closing?
-   (sg/watch closing-ref)]
-
-  (<< [:div.flex-1.bg-white.pt-4.relative
-       ;; [:div.bg-gray-200.p-1.text-l "Tap Stream"]
-       [:div.h-full.overflow-auto tap-stream]
-       [:div.border-t-2.absolute.bg-white.flex.flex-col
-        ;; fly-in from the bottom, translateY not height so the embedded vlist
-        ;; can get the correct height immediately and doesn't start with 0
-        ;; should also be better performance wise I think
-        {:style {:transition (str "transform .2s " (if closing? "ease-in" "ease-out"))
-                 :transform (str "translateY("
-                                 (if (or closing? (not inspect-active?))
-                                   "103%" 0)
-                                 ")")
-                 :will-change "transform"
-                 :box-shadow "0px 20px 20px 20px rgba(0,0,0,0.5)"
-                 :right 0
-                 :bottom 0
-                 :left 0
-                 :top "212px"}}
-        (when inspect-active?
-          (ui-inspect))]]))
+  (render
+    (<< [:div.flex-1.bg-white.pt-4.relative
+         ;; [:div.bg-gray-200.p-1.text-l "Tap Stream"]
+         [:div.h-full.overflow-auto tap-stream]
+         [:div.border-t-2.absolute.bg-white.flex.flex-col
+          ;; fly-in from the bottom, translateY not height so the embedded vlist
+          ;; can get the correct height immediately and doesn't start with 0
+          ;; should also be better performance wise I think
+          {:style {:transition (str "transform .2s " (if closing? "ease-in" "ease-out"))
+                   :transform (str "translateY("
+                                   (if (or closing? (not inspect-active?))
+                                     "103%" 0)
+                                   ")")
+                   :will-change "transform"
+                   :box-shadow "0px 20px 20px 20px rgba(0,0,0,0.5)"
+                   :right 0
+                   :bottom 0
+                   :left 0
+                   :top "212px"}}
+          (when inspect-active?
+            (ui-inspect))]])))
