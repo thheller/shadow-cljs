@@ -38,7 +38,11 @@
         (build-api/with-js-options {:js-provider :shadow})
         (cond->
           js-options
-          (build-api/with-js-options js-options))
+          (build-api/with-js-options js-options)
+
+          (not (get-in config [:compiler-options :output-feature-set]))
+          (build-api/with-compiler-options {:output-feature-set :es8}))
+        
         (build-api/configure-modules {:test {:entries []
                                              :output-name (.getName output-to)}})
 
@@ -78,7 +82,10 @@
 
   (let [prepend
         (str "var shadow$provide = {};\n"
+             "var $jscomp = {};\n"
              (output/closure-defines-and-base state)
+             (when (seq polyfill-js)
+               (str "\n" polyfill-js "\n"))
              "goog.global[\"$CLJS\"] = goog.global;\n")
 
         out
