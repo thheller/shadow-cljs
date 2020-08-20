@@ -68,7 +68,11 @@
   (throw (ex-info "invalid [:js-options :js-provider] config" {})))
 
 (defn find-resource-for-string [state require-from require was-symbol?]
-  (if (str/includes? require "$")
+  ;; only allow (:require ["foo$bar.baz" :as x]) requires from CLJS and the REPL
+  ;; but requires with $ in their name from JS should look up actual files
+  (if (and (str/includes? require "$")
+           (or (nil? require-from)
+               (= :cljs (:type require-from))))
     ;; syntax sugar
     ;; (:require ["some$nested.access" :as foo])
     ;; results in 2 separate resources, one doing the require "some" the other doing "nested.access"
