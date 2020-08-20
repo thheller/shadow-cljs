@@ -161,6 +161,7 @@
                 build-notify
                 autoload
                 use-document-host
+                use-document-protocol
                 reload-strategy
                 repl-pprint
                 log-style]
@@ -179,6 +180,9 @@
 
        'shadow.cljs.devtools.client.env/use-document-host
        (not (false? use-document-host))
+
+       'shadow.cljs.devtools.client.env/use-document-protocol
+       (true? use-document-protocol)
 
        'shadow.cljs.devtools.client.env/server-host
        (or (and (not= host "0.0.0.0") host) "localhost")

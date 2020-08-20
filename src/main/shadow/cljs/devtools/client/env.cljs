@@ -40,7 +40,7 @@
 
 (goog-define use-document-host true)
 
-(goog-define use-document-protocol true)
+(goog-define use-document-protocol false)
 
 (goog-define devtools-url "")
 
