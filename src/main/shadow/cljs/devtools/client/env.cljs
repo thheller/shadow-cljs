@@ -40,6 +40,8 @@
 
 (goog-define use-document-host true)
 
+(goog-define use-document-protocol true)
+
 (goog-define devtools-url "")
 
 (goog-define reload-strategy "optimized")
@@ -62,6 +64,13 @@
        :runtime_id runtime-id
        :ssl ssl})
 
+(defn get-server-protocol []
+  (if (and use-document-protocol
+           js/goog.global.location
+           (seq js/goog.global.location.protocol))
+    (str/replace js/goog.global.location.protocol ":" "")
+    (str "http" (when ssl "s"))))
+
 (defn get-server-host []
   (cond
     (and use-document-host
@@ -78,7 +87,7 @@
 (defn get-url-base []
   (if (seq devtools-url)
     devtools-url
-    (str "http" (when ssl "s") "://" (get-server-host) ":" server-port)))
+    (str (get-server-protocol) "://" (get-server-host) ":" server-port)))
 
 (defn get-ws-url-base []
   (-> (get-url-base)
