@@ -435,10 +435,16 @@
 
                     (swap! state-ref assoc-in [:objects new-oid] new-entry)
 
-                    (shared/reply runtime msg
-                      {:op :obj-result-ref
-                       :oid oid
-                       :ref-oid new-oid}))))
+                    (let [reply-msg
+                          (-> {:op :obj-result-ref
+                               :oid oid
+                               :ref-oid new-oid}
+                              (cond->
+                                ;; only send new-obj :summary when requested
+                                (:summary msg)
+                                (assoc :summary (obj-describe* this new-oid))))]
+
+                      (shared/reply runtime msg reply-msg)))))
 
               (catch #?(:clj Exception :cljs :default) e
                 #?(:cljs (js/console.warn "action-request-action failed" (:obj entry) e))

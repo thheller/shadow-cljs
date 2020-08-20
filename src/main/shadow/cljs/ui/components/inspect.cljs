@@ -6,8 +6,7 @@
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.common :as common]
-    [shadow.experiments.grove.keyboard :as keyboard]
-    [fipp.edn :refer (pprint)]))
+    [shadow.experiments.grove.keyboard :as keyboard]))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
@@ -44,9 +43,7 @@
 
 (defmethod render-view ::default [{:keys [summary]}]
   (<< [:div.p-4
-       [:div.py-1.text-xl.font-bold "Object does not support Browser view."]
-       [:pre
-        (with-out-str (pprint summary))]]))
+       [:div.py-1.text-xl.font-bold "Object does not support Browser view."]]))
 
 (defn render-simple [value]
   (<< [:div.border.bg-gray-200
@@ -145,40 +142,13 @@
         :on-click [::inspect-switch-display! val]}
        label]))
 
-(defc ui-inspect-item [ident]
+(defc ui-inspect-item [ident idx]
   (bind object
     (sg/query-ident ident
       [:db/ident
-       :oid
        :summary
        :is-error
        :display-type]))
-
-  (bind code-submit!
-    (fn [env code]
-      (sg/run-tx env [::m/inspect-code-eval! code])))
-
-  (bind test-ref (atom 0))
-  (bind test (sg/watch test-ref))
-
-  (event ::test-click! [env e]
-    (js/console.log "test-click!")
-    (swap! test-ref inc))
-
-  (bind _
-    (sg/effect
-      :render
-      (fn [env]
-        (js/console.log "ui-inspect-item render effect" env test)
-
-        (fn []
-          (js/console.log "ui-inspect-item render cleanup" env)))))
-
-  #_(effect :render [env]
-      (js/console.log "ui-inspect-item render effect" env test)
-
-      (fn []
-        (js/console.log "ui-inspect-item render cleanup" env)))
 
   (render
 
@@ -190,28 +160,21 @@
             "flex bg-white py-1 px-2 font-mono border-b-2 text-l text-red-700"
             "flex bg-white py-1 px-2 font-mono border-b-2 text-l")]
 
-      (<< [:div.h-full.overflow-hidden.flex.flex-col
-           [:div {:on-click [::test-click!]
-                  :class class-header}
-            [:div {:class "px-2 font-bold"} obj-type " " test]
+      (<< [:div.inset-0.h-full.overflow-hidden.flex.flex-col.shadow-2xl
+           [:div {:class class-header}
+            [:div {:class "px-2 font-bold"} obj-type]
             (when entries
               (<< [:div {:class "px-2 font-bold"} (str entries " Entries")]))]
 
            (case display-type
              :edn
-             (ui-object-as-text (:db/ident object) ::m/object-as-edn)
+             (ui-object-as-text ident ::m/object-as-edn)
 
              :pprint
-             (ui-object-as-text (:db/ident object) ::m/object-as-pprint)
+             (ui-object-as-text ident ::m/object-as-pprint)
 
              ;; default
              (<< [:div.flex-1.overflow-auto.font-mono (render-view object)]))
-
-           [:div.bg-white.font-mono.flex.flex-col
-            [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
-             [:div.flex-1 "cljs.user - Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-            [:div {:style {:height "120px"}}
-             (codemirror {:on-submit code-submit!})]]
 
            [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
             [:div "View as: "]
@@ -230,44 +193,81 @@
   (bind {::m/keys [inspect] :as data}
     (sg/query-root
       [{::m/inspect
-        [:nav-stack
-         :view-idx]}]))
+        [:nav-stack]}]))
 
-  (bind _
+  (bind {:keys [nav-stack]}
+    inspect)
+
+  (hook
     (keyboard/listen
       {"escape"
        (fn [env e]
-         (sg/run-tx env [::m/inspect-cancel!]))}))
+         (sg/run-tx env [::m/inspect-cancel!]))
 
-  (bind _
-    (sg/track-change
-      (:view-idx inspect)
-      (fn [env old new]
-        (js/console.log "view-idx did change" old new))))
+       ;; FIXME: problematic when in codemirror input, should have mechanism to ignore
+       "ctrl+arrowleft"
+       (fn [env e]
+         (let [new-idx (-> nav-stack count dec dec)]
+           (when (nat-int? new-idx)
+             (sg/run-tx env [::m/inspect-nav-jump! new-idx]))))
+       }))
+
+  (bind code-submit!
+    (fn [env code]
+      (sg/run-tx env [::m/inspect-code-eval! code])))
+
+  (bind peek-ref (atom nil))
+  (bind peek (sg/watch peek-ref))
+
+  (event ::peek-out! [env e]
+    (reset! peek-ref nil))
+
+  (event ::peek! [env e idx]
+    (reset! peek-ref idx))
+
+  (event ::inspect-nav-jump! [env e idx]
+    (sg/run-tx env [::m/inspect-nav-jump! idx]))
 
   (render
+    (<< [:div.h-full.flex-1.overflow-hidden.flex.flex-col
+         [:div.flex.py-1
+          [:div.pl-2 "Jump to: "]
+          [:div.flex-1 {:on-mouseleave [::peek-out!]}
+           (sg/simple-seq nav-stack
+             (fn [_ idx]
+               (<< [:div.inline-block.border.px-4.ml-2
+                    {:on-mouseenter [::peek! idx]
+                     :on-click [::inspect-nav-jump! idx]}
+                    idx])))]
 
-    (let [{:keys [nav-stack view-idx]} inspect]
+          [:div.text-right.cursor-pointer.font-bold.px-2
+           {:on-click [::inspect-cancel!]}
+           common/svg-close]]
 
-      (<< [:div.h-full.flex-1.overflow-hidden.flex.flex-col
-           [:div.flex
-            [:div view-idx]
-            [:div.flex-1
-             (sg/simple-seq nav-stack
-               (fn [{:keys [ident]} idx]
-                 (<< [:div.inline-block.border.px-2.ml-2 idx])))]
+         [:div.flex-1.flex.overflow-hidden.relative
+          (sg/render-seq nav-stack :ident
+            (fn [{:keys [ident]} idx]
+              (let [peek-offset
+                    (when peek
+                      (let [diff (- idx peek)]
+                        (when (pos? diff)
+                          (str "translateX(" (+ 220 (* diff 60)) "px)"))))]
 
-            [:div.text-right.cursor-pointer.font-bold.px-2
-             {:on-click [::inspect-cancel!]}
-             common/svg-close]]
+                (<< [:div.absolute.min-w-full.h-full.bg-white
+                     {:style (-> {:transition "transform 250ms ease-in"
+                                  :will-change "transform"
+                                  :transform "translateX(0)"}
+                                 (cond->
+                                   peek-offset
+                                   (assoc :transform peek-offset)))}
+                     (ui-inspect-item ident idx)]))))]
 
-           [:div.flex-1.flex.overflow-y-auto.relative
-            (sg/render-seq nav-stack :ident
-              (fn [{:keys [ident]} idx]
-                (<< [:div.min-w-full.h-full
-                     (ui-inspect-item ident)])))]
-
-           ]))))
+         [:div.bg-white.font-mono.flex.flex-col
+          [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
+           [:div.flex-1 "cljs.user - Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
+          [:div {:style {:height "120px"}}
+           (codemirror {:on-submit code-submit!})]]
+         ])))
 
 (defc ui-tap-stream-item [{:keys [object-ident]}]
   (bind {:keys [summary runtime obj-preview] :as data}
@@ -327,9 +327,6 @@
   (event ::inspect-object! [env e ident]
     (reset! closing-ref false)
     (sg/run-tx env [::m/inspect-object! ident]))
-
-  (event ::inspect-nav-jump! [env e idx]
-    (sg/run-tx env [::m/inspect-nav-jump! idx]))
 
   (event ::inspect-cancel! [env e]
     (when-not @closing-ref

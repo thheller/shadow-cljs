@@ -263,8 +263,8 @@
                :start start-idx
                :num num
                :request-op :fragment
-               :key-limit 100
-               :val-limit 100}
+               :key-limit 160
+               :val-limit 160}
               {:obj-result [:fragment-slice-loaded (:db/ident current)]})
             :db/loading)))))
 
@@ -341,7 +341,6 @@
       (-> {:db (assoc db ::m/inspect {:object ident
                                       :runtime-id runtime-id
                                       :runtime (db/make-ident ::m/runtime runtime-id)
-                                      :view-idx 0
                                       :nav-stack [{:idx 0 :ident ident}]})
            :ws-send []}
           (cond->
@@ -361,40 +360,37 @@
   [env db current _ params]
   (contains? db ::m/inspect))
 
+(defmethod eql/attr ::m/inspect-object
+  [env db current query-part params]
+  (let [{:keys [nav-stack]} (::m/inspect db)
+        {:keys [ident] :as last} (last nav-stack)]
+    ident))
+
 (sw/reg-event-fx env/app-ref ::m/inspect-nav!
   []
   (fn [{:keys [db] :as env} current idx]
-    (let [{:keys [nav-stack]} (::m/inspect db)
-          {:keys [oid runtime-id] :as object} (get db current)
-
-          key (get-in object [:fragment idx :key])]
+    (let [{:keys [oid runtime-id] :as object} (get db current)]
 
       (relay-ws/call! env
         {:op :obj-request
          :to runtime-id
          :oid oid
          :request-op :nav
-         :idx idx}
+         :idx idx
+         :summary true}
 
         ;; FIXME: maybe nav should return simple values, instead of ref to simple value
         {:obj-result [:nav-result]
          :obj-result-ref [:nav-result-ref]})
 
-      {:db db #_(-> db
-                    (update-in [::m/inspect :nav-stack] conj {:idx (count nav-stack)
-                                                              :key key
-                                                              :ident current})
-                    (assoc-in [::m/inspect :object] :db/loading))})))
+      {})))
 
 (sw/reg-event-fx env/app-ref ::m/inspect-nav-jump!
   []
   (fn [{:keys [db] :as env} idx]
-    (let [{:keys [nav-stack] :as inspect} (::m/inspect db)
-          ident (get-in nav-stack [idx :ident])]
+    (let [idx (inc idx)]
 
       {:db (-> db
-               (update ::m/inspect merge {:object ident
-                                          :display-type :browse})
                (update-in [::m/inspect :nav-stack] subvec 0 idx))})))
 
 (sw/reg-event-fx env/app-ref ::m/inspect-switch-display!
@@ -404,17 +400,17 @@
 
 (sw/reg-event-fx env/app-ref :nav-result-ref
   []
-  (fn [{:keys [db] :as env} {:keys [ref-oid from] :as msg}]
+  (fn [{:keys [db] :as env} {:keys [ref-oid from summary] :as msg}]
     (let [obj {:oid ref-oid
                :runtime-id from
-               :runtime (db/make-ident ::m/runtime from)}
+               :runtime (db/make-ident ::m/runtime from)
+               :summary summary}
           obj-ident (db/make-ident ::m/object ref-oid)
 
           {:keys [nav-stack]} (::m/inspect db)]
 
       {:db (-> db
                (db/add ::m/object obj)
-               (update-in [::m/inspect :view-idx] inc)
                (update-in [::m/inspect :nav-stack] conj {:idx (count nav-stack) :ident obj-ident}))})))
 
 (defmethod eql/attr ::m/runtimes-sorted
@@ -443,17 +439,15 @@
 (sw/reg-event-fx env/app-ref ::m/inspect-code-eval!
   []
   (fn [{:keys [db] :as env} code]
-    (let [{::m/keys [inspect] :as data}
+    (let [{::m/keys [inspect-object] :as data}
           (eql/query env db
-            [{::m/inspect
-              [{:object
-                [:oid
-                 {:runtime
-                  [:runtime-id
-                   :supported-ops]}]}]}])
+            [{::m/inspect-object
+              [:oid
+               {:runtime
+                [:runtime-id
+                 :supported-ops]}]}])
 
-          {:keys [object]} inspect
-          {:keys [oid runtime]} object
+          {:keys [oid runtime]} inspect-object
           {:keys [runtime-id supported-ops]} runtime
 
           ;; FIXME: ns and eval mode should come from UI
@@ -501,11 +495,10 @@
                    :oid ref-oid
                    :runtime-id from
                    :runtime (db/make-ident ::m/runtime from)})
-           (assoc-in [::m/inspect :object] object-ident)
            (update-in [::m/inspect :nav-stack] conj
              {:idx (count (get-in db [::m/inspect :nav-stack]))
               :code code
-              :ident (get-in db [::m/inspect :object])}))})))
+              :ident object-ident}))})))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-compile-error!
   []

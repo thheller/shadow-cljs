@@ -20,7 +20,7 @@
     (sg/query-ident err-ident
       [:text]))
 
-  (bind _
+  (hook
     (keyboard/listen
       {"escape"
        (fn [env e]

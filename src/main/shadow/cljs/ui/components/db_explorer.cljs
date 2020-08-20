@@ -1,6 +1,5 @@
 (ns shadow.cljs.ui.components.db-explorer
   (:require
-    [fipp.edn :refer (pprint)]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.inspect :as inspect]
@@ -68,8 +67,7 @@
                  ;; not using inspect because we have the full value and I eventually want to be able to
                  ;; edit and update it from here
                  [:textarea.w-full.h-full.font-mono.p-4.whitespace-no-wrap
-                  (with-out-str
-                    (pprint table-entry))]]]))]))
+                  (pr-str table-entry)]]]))]))
 
   )
 
