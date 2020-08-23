@@ -1287,7 +1287,7 @@
    doing this via string replacement since parsing the ast and emitting JS would
    require source maps twice, ie. way more work. JSInspector already recorded all the
    locations we need."
-  [state {:keys [resource-name ns js-requires js-imports js-str-offsets] :as rc} source]
+  [state {:keys [ns js-str-offsets] :as rc} source]
   (let [aliases
         (get-in state [:str->sym ns])]
 
@@ -1300,7 +1300,7 @@
                   (data/get-source-by-provide state alias)
 
                   replacement
-                  (if (and (:import require-loc) (= :goog type))
+                  (if (and (:import require-loc) (or (= :goog type) (= :shadow-js type)))
                     ;; goog supports import ... from "goog:cljs.core" in ES6 files
                     ;; but not for commonjs require
                     (str "goog:" (cljs-comp/munge ns))
@@ -1313,9 +1313,6 @@
       source
       ;; must start at the end since we are inserting longer strings
       (reverse js-str-offsets))))
-
-
-
 
 ;; closure folks really do not care about backwards compatibility
 ;; SourceMap$LocationMapping used to be a final class
@@ -1395,14 +1392,8 @@
              (map (fn [{:keys [resource-name ns type] :as rc}]
                     (closure-source-file resource-name
                       (case type
-                        ;; don't need sources for shadow-js
-                        ;; only need the file to exist so closure doesn't complain
-                        ;; using module.exports to make closure think this is commonjs
-                        ;; empty string will make it think SCRIPT and blow up
-                        :shadow-js
-                        "module.exports = {};"
                         ;; just in case we add the goog.provide for cljs/closure namespaces
-                        (:cljs :goog)
+                        (:cljs :goog :shadow-js)
                         (str "goog.provide(\"" (cljs-comp/munge ns) "\");")
                         (throw (ex-info (format "whats this? %s type: %s" resource-name type) {}))))))
              (into []))

@@ -24,7 +24,7 @@
     [demo.didnt-follow-the-rules :as rule-breaker]
     ))
 
-(js/console.log "es6" es6)
+(js/console.log "es6" es6 es6/default)
 
 (assert (= 1 rule-breaker/foo) "rule-breaker not handled correctly")
 
