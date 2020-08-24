@@ -76,7 +76,7 @@
     ;; syntax sugar
     ;; (:require ["some$nested.access" :as foo])
     ;; results in 2 separate resources, one doing the require "some" the other doing "nested.access"
-    (js-support/shim-require-sugar-resource require-from require)
+    (js-support/shim-require-sugar-resource require-from require was-symbol?)
     ;; regular require
     (find-resource-for-string* state require-from require was-symbol?)))
 

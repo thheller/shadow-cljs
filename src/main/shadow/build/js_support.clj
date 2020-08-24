@@ -65,7 +65,7 @@
 
 ;; (:require ["some$nested.access" :as sugar])
 (defn shim-require-sugar-resource
-  [require-from js-require]
+  [require-from js-require was-symbol?]
   (let [[prefix suffix]
         (str/split js-require #"\$" 2)
 
@@ -82,7 +82,12 @@
             (symbol))
 
         resource-name
-        (str js-ns-alias ".js")]
+        (str js-ns-alias ".js")
+
+        dep
+        (if was-symbol?
+          (symbol prefix)
+          prefix)]
 
     {:resource-id [::require js-ns-alias]
      :resource-name resource-name
@@ -93,12 +98,15 @@
      :ns js-ns-alias
      :provides #{js-ns-alias}
      :requires #{}
-     :deps ['goog prefix]
+     :deps ['goog dep]
      :export-self true
      :source-fn
      (fn [state]
-       (let [alias (data/get-string-alias state js-ns-alias prefix)
-             {:keys [ns type] :as rc} (data/get-source-by-provide state alias)]
+       (let [{:keys [ns type] :as rc}
+             (if was-symbol?
+               (data/get-source-by-provide state dep)
+               (let [alias (data/get-string-alias state js-ns-alias prefix)]
+                 (data/get-source-by-provide state alias)))]
 
          (str "goog.provide(\"" js-ns-alias "\");\n"
               (case type
@@ -112,7 +120,7 @@
                      ";\n")
 
                 ;; plain suffix for sources going through :advanced
-                (str js-ns-alias " = " ns "." suffix ";\n"))
+                (str js-ns-alias " = " (or ns dep) "." suffix ";\n"))
               )))}))
 
 (defn shim-import-resource
