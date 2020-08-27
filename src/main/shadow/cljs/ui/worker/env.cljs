@@ -12,7 +12,10 @@
        ::m/init-complete? :db/loading ;; used a marker for initial suspense
        ::m/relay-ws-connected false
        ::m/runtimes []
-       ::m/active-builds []}
+       ::m/active-builds []
+       ::m/inspect
+       {:stack
+        [{:type :tap-panel}]}}
       (db/configure schema)
       (atom)))
 

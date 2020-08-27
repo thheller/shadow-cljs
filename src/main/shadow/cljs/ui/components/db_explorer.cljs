@@ -47,7 +47,7 @@
   (bind form
     (ui-database-form (assoc table-query :db-ident db-ident)))
 
-  (event ::select-row! [env e val]
+  (event ::select-row! [env val]
     ;; protocolize/helper fn
     (.field-did-change! ^Form form :row val))
 

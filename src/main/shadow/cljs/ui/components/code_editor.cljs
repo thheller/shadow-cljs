@@ -38,7 +38,7 @@
   ;; codemirror doesn't render correctly if added to an element
   ;; that isn't actually in the dcoument, so we delay construction until actually entered
   (dom-entered! [this]
-    (let [{:keys [value cm-opts clojure]}
+    (let [{:keys [value cm-opts clojure autofocus]}
           opts
 
           ;; FIXME: this config stuff needs to be cleaned up, this is horrible
@@ -46,7 +46,7 @@
           (js/Object.assign
             #js {:lineNumbers true
                  :theme "github"
-                 :autofocus true}
+                 :autofocus (not (false? autofocus))}
             (or cm-opts #js {})
             (when-not (false? clojure)
               #js {:mode "clojure"

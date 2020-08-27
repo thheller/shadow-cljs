@@ -332,11 +332,13 @@
          ;; FIXME: should these work on the datafy result or the original?
          ;; maybe different ops? maybe msg option?
          :handlers
-         {:str #(as-str o %)
-          ;; FIXME: only do those for actual clojure vals?
-          :edn #(as-edn o %)
-          :edn-limit #(as-edn-limit o %)
-          :pprint #(as-pprint o %)}}
+         (-> {:str #(as-str o %)
+              ;; FIXME: only do those for actual clojure vals?
+              :edn #(as-edn o %)
+              :edn-limit #(as-edn-limit o %)}
+             (cond->
+               (or (coll? o) (seq? o))
+               (assoc :pprint #(as-pprint o %))))}
 
         (inspect-basic o opts)
         (inspect-type-info o opts)

@@ -138,7 +138,7 @@
       {}
       build-sources-sorted))
 
-  (event ::highlight [env e resource-id]
+  (event ::highlight [env resource-id]
     (swap! state-ref assoc :selected resource-id))
 
   (bind render-source-entry

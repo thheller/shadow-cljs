@@ -6,7 +6,10 @@
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.common :as common]
-    [shadow.experiments.grove.keyboard :as keyboard]))
+    [shadow.experiments.grove.keyboard :as keyboard]
+    [shadow.dom :as dom]
+    [goog.math :as math]
+    ))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
@@ -142,7 +145,7 @@
         :on-click [::inspect-switch-display! val]}
        label]))
 
-(defc ui-inspect-item [ident idx]
+(defc ui-object-panel [{:keys [ident]} panel-idx]
   (bind object
     (sg/query-ident ident
       [:db/ident
@@ -150,124 +153,56 @@
        :is-error
        :display-type]))
 
+  (bind code-submit!
+    (fn [env code]
+      (sg/run-tx env [::m/inspect-code-eval! code ident panel-idx])))
+
   (render
 
     (let [{:keys [summary is-error display-type]} object
-          {:keys [obj-type entries]} summary
+          {:keys [obj-type entries supports]} summary]
 
-          class-header
-          (if is-error
-            "flex bg-white py-1 px-2 font-mono border-b-2 text-l text-red-700"
-            "flex bg-white py-1 px-2 font-mono border-b-2 text-l")]
+      (<< [:div {:class "flex bg-gray-200 p-2 font-mono font-bold"}
+           [:div.cursor-pointer.pr-2.font-bold {:on-click [::go-back! panel-idx]} "<<"]
+           [:div {:class (if is-error "px-2 text-red-700" "px-2")} obj-type]
+           (when entries
+             (<< [:div.px-2 (str entries " Entries")]))]
 
-      (<< [:div.inset-0.h-full.overflow-hidden.flex.flex-col.shadow-2xl
-           [:div {:class class-header}
-            [:div {:class "px-2 font-bold"} obj-type]
-            (when entries
-              (<< [:div {:class "px-2 font-bold"} (str entries " Entries")]))]
+          (case display-type
+            :edn
+            (ui-object-as-text ident ::m/object-as-edn)
 
-           (case display-type
-             :edn
-             (ui-object-as-text ident ::m/object-as-edn)
+            :pprint
+            (ui-object-as-text ident ::m/object-as-pprint)
 
-             :pprint
-             (ui-object-as-text ident ::m/object-as-pprint)
+            ;; default
+            (<< [:div.flex-1.overflow-hidden.font-mono
+                 (render-view object)]))
 
-             ;; default
-             (<< [:div.flex-1.overflow-auto.font-mono (render-view object)]))
+          ;; FIXME: don't always show this
+          [:div.bg-white.font-mono.flex.flex-col
+           [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
+            [:div.flex-1 "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
+           [:div {:style {:height "120px"}}
+            (codemirror {:on-submit code-submit!
+                         ;; must remain false, otherwise the scroll-right breaks
+                         :autofocus false})]]
 
-           [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
-            [:div "View as: "]
-            (view-as-button display-type :browse "Browse")
-            (view-as-button display-type :pprint "Pretty-Print")
-            (view-as-button display-type :edn "EDN")]
-           ])))
+          [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
+           [:div "View as: "]
+           (when (contains? supports :fragment)
+             (view-as-button display-type :browse "Browse"))
+           (when (contains? supports :pprint)
+             (view-as-button display-type :pprint "Pretty-Print"))
+           (when (contains? supports :edn)
+             (view-as-button display-type :edn "EDN"))]
+          )))
 
-  (event ::inspect-nav! [env e idx]
-    (sg/run-tx env [::m/inspect-nav! ident idx]))
+  (event ::inspect-nav! [env key-idx]
+    (sg/run-tx env [::m/inspect-nav! ident key-idx panel-idx]))
 
-  (event ::inspect-switch-display! [env e display-type]
+  (event ::inspect-switch-display! [env display-type]
     (sg/run-tx env [::m/inspect-switch-display! ident display-type])))
-
-(defc ui-inspect []
-  (bind {::m/keys [inspect] :as data}
-    (sg/query-root
-      [{::m/inspect
-        [:nav-stack]}]))
-
-  (bind {:keys [nav-stack]}
-    inspect)
-
-  (hook
-    (keyboard/listen
-      {"escape"
-       (fn [env e]
-         (sg/run-tx env [::m/inspect-cancel!]))
-
-       ;; FIXME: problematic when in codemirror input, should have mechanism to ignore
-       "ctrl+arrowleft"
-       (fn [env e]
-         (let [new-idx (-> nav-stack count dec dec)]
-           (when (nat-int? new-idx)
-             (sg/run-tx env [::m/inspect-nav-jump! new-idx]))))
-       }))
-
-  (bind code-submit!
-    (fn [env code]
-      (sg/run-tx env [::m/inspect-code-eval! code])))
-
-  (bind peek-ref (atom nil))
-  (bind peek (sg/watch peek-ref))
-
-  (event ::peek-out! [env e]
-    (reset! peek-ref nil))
-
-  (event ::peek! [env e idx]
-    (reset! peek-ref idx))
-
-  (event ::inspect-nav-jump! [env e idx]
-    (sg/run-tx env [::m/inspect-nav-jump! idx]))
-
-  (render
-    (<< [:div.h-full.flex-1.overflow-hidden.flex.flex-col
-         [:div.flex.py-1
-          [:div.pl-2 "Jump to: "]
-          [:div.flex-1 {:on-mouseleave [::peek-out!]}
-           (sg/simple-seq nav-stack
-             (fn [_ idx]
-               (<< [:div.inline-block.border.px-4.ml-2
-                    {:on-mouseenter [::peek! idx]
-                     :on-click [::inspect-nav-jump! idx]}
-                    idx])))]
-
-          [:div.text-right.cursor-pointer.font-bold.px-2
-           {:on-click [::inspect-cancel!]}
-           common/svg-close]]
-
-         [:div.flex-1.flex.overflow-hidden.relative
-          (sg/render-seq nav-stack :ident
-            (fn [{:keys [ident]} idx]
-              (let [peek-offset
-                    (when peek
-                      (let [diff (- idx peek)]
-                        (when (pos? diff)
-                          (str "translateX(" (+ 220 (* diff 60)) "px)"))))]
-
-                (<< [:div.absolute.min-w-full.h-full.bg-white
-                     {:style (-> {:transition "transform 250ms ease-in"
-                                  :will-change "transform"
-                                  :transform "translateX(0)"}
-                                 (cond->
-                                   peek-offset
-                                   (assoc :transform peek-offset)))}
-                     (ui-inspect-item ident idx)]))))]
-
-         [:div.bg-white.font-mono.flex.flex-col
-          [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
-           [:div.flex-1 "cljs.user - Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-          [:div {:style {:height "120px"}}
-           (codemirror {:on-submit code-submit!})]]
-         ])))
 
 (defc ui-tap-stream-item [{:keys [object-ident]}]
   (bind {:keys [summary runtime obj-preview] :as data}
@@ -315,45 +250,136 @@
 
         (<< [:div (pr-str item)])))))
 
+(defc ui-tap-panel [item panel-idx]
+  (render
+    (<< #_[:div.inset-0.flex.flex-col.overflow-hidden.h-full]
+      [:div.p-2.bg-gray-200.font-bold "Tap History"]
+      [:div.flex-1 tap-stream])))
+
+;; really hacky way to scroll stuff
+;; need to come up with better abstraction for this
+(defn scrollable-anim [container-ref]
+  (let [state-ref
+        (atom {:width 0
+               :current 0
+               :target 0
+               :start 0})
+
+        animate-scroll
+        (fn animate-scroll []
+          (let [{:keys [start target time-start]} @state-ref
+                t (- (js/Date.now) time-start)
+                t-diff (/ t 200)]
+            (cond
+              (< t-diff 1)
+              (let [now (math/lerp start target t-diff)] ;; FIXME: bezier?
+                (set! @container-ref -scrollLeft now)
+                (swap! state-ref assoc :frame (js/requestAnimationFrame animate-scroll)))
+
+              :else
+              (do (set! @container-ref -scrollLeft target)
+                  (swap! state-ref assoc :done true)))))]
+
+    (fn [idx]
+      (let [c @container-ref
+            cw (.-clientWidth c)
+            sl (.-scrollLeft c)
+            t (* idx cw)]
+
+        (swap! state-ref assoc
+          :width cw
+          :start sl
+          :target t
+          :time-start (js/Date.now))
+
+        (when (not= t sl)
+          (js/requestAnimationFrame animate-scroll))))))
+
 (defc ui-page []
-  (bind {::m/keys [inspect-active?] :as data}
-    (sg/query-root [::m/inspect-active?]))
+  (bind {::m/keys [inspect] :as data}
+    (sg/query-root [::m/inspect]))
 
-  ;; FIXME: this needs better handling
-  ;; maybe something like useTransition?
-  (bind closing-ref
-    (atom false))
+  (bind {:keys [stack]}
+    inspect)
 
-  (event ::inspect-object! [env e ident]
-    (reset! closing-ref false)
+  (event ::inspect-object! [env ident]
     (sg/run-tx env [::m/inspect-object! ident]))
 
-  (event ::inspect-cancel! [env e]
-    (when-not @closing-ref
-      (reset! closing-ref true)
-      (js/setTimeout #(sg/run-tx env [::m/inspect-cancel!]) 200)))
+  (bind container-ref (sg/dom-ref))
 
-  (bind closing?
-    (sg/watch closing-ref))
+  (bind scroll-into-view
+    ;; hacky way to scroll since smooth is too slow IMHO
+    (scrollable-anim container-ref))
+
+  (bind stack-count
+    (count stack))
+
+  (bind stack-diff
+    (sg/track-change
+      stack-count
+      (fn [env old new]
+        (- new (or old 0)))))
+
+  (hook
+    (sg/effect :render
+      (fn []
+        (when-not (zero? stack-diff)
+          (scroll-into-view stack-count)))))
+
+  (event ::go-back! [env panel-idx]
+    (scroll-into-view (dec panel-idx)))
+
+  (hook
+    (keyboard/listen
+      {"arrowleft"
+       (fn [env e]
+         (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+           (let [container @container-ref
+                 c-width (.-clientWidth container)
+                 c-scroll (.-scrollLeft container)
+                 c-idx (int (/ c-scroll c-width))]
+
+             (when (pos? c-idx)
+               (scroll-into-view (dec c-idx))
+               ))))
+
+       "ctrl+arrowleft"
+       (fn [env e]
+         (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+           (scroll-into-view 0)))
+
+       "ctrl+arrowright"
+       (fn [env e]
+         (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+           (scroll-into-view stack-count)))
+
+       "arrowright"
+       (fn [env e]
+         (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+           (let [container @container-ref
+                 c-width (.-clientWidth container)
+                 c-scroll (.-scrollLeft container)
+                 c-idx (int (/ c-scroll c-width))
+                 n-idx (inc c-idx)]
+
+             (when (> stack-count n-idx)
+               (scroll-into-view n-idx)))))}))
 
   (render
-    (<< [:div.flex-1.bg-white.pt-4.relative
-         ;; [:div.bg-gray-200.p-1.text-l "Tap Stream"]
-         [:div.h-full.overflow-auto tap-stream]
-         [:div.border-t-2.absolute.bg-white.flex.flex-col
-          ;; fly-in from the bottom, translateY not height so the embedded vlist
-          ;; can get the correct height immediately and doesn't start with 0
-          ;; should also be better performance wise I think
-          {:style {:transition (str "transform .2s " (if closing? "ease-in" "ease-out"))
-                   :transform (str "translateY("
-                                   (if (or closing? (not inspect-active?))
-                                     "103%" 0)
-                                   ")")
-                   :will-change "transform"
-                   :box-shadow "0px 20px 20px 20px rgba(0,0,0,0.5)"
-                   :right 0
-                   :bottom 0
-                   :left 0
-                   :top "212px"}}
-          (when inspect-active?
-            (ui-inspect))]])))
+    (<< [:div.flex-1.bg-white.pt-4.flex.flex-col.overflow-hidden
+         #_[:div.px-6.font-bold "header"]
+         [:div.flex-1.flex.overflow-hidden {:dom/ref container-ref}
+          (sg/render-seq stack nil
+            (fn [{:keys [type] :as item} idx]
+              (<< [:div {:class "p-3 flex-none h-full"
+                         :style {:width "100%"}}
+                   [:div.border.shadow-lg.h-full.flex.flex-col
+                    (case type
+                      :tap-panel
+                      (ui-tap-panel item idx)
+
+                      :object-panel
+                      (ui-object-panel item idx)
+
+                      (<< [:div (pr-str item)]))]]
+                  )))]])))

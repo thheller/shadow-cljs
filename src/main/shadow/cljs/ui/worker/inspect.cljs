@@ -68,6 +68,12 @@
         (assoc :ws-send [{:op :tap-subscribe :to from :summary true :history true}])
         )))
 
+(defn guess-display-type [{:keys [supports] :as summary}]
+  (if (contains? supports :fragment)
+    :browse
+
+    :edn))
+
 (defmethod relay-ws/handle-msg :tap-subscribed
   [{:keys [db] :as env} {:keys [history from]}]
   (let [stream-items
@@ -85,7 +91,8 @@
                                               :oid oid
                                               :runtime-id from
                                               :runtime (db/make-ident ::m/runtime from)
-                                              :summary (with-added-at-ts summary)})))
+                                              :summary (with-added-at-ts summary)
+                                              :display-type (guess-display-type summary)})))
            db
            history)
 
@@ -105,8 +112,17 @@
 
 
 (defmethod relay-ws/handle-msg :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
-  (let [object-ident (db/make-ident ::m/object oid)]
-    {:db (assoc-in db [object-ident :summary] (with-added-at-ts summary))}))
+  (let [object-ident (db/make-ident ::m/object oid)
+
+        {:keys [display-type] :as obj}
+        (get db object-ident)]
+
+    {:db
+     (-> db
+         (assoc-in [object-ident :summary] (with-added-at-ts summary))
+         (cond->
+           (nil? display-type)
+           (assoc-in [object-ident :display-type] (guess-display-type summary))))}))
 
 
 
@@ -338,27 +354,21 @@
   []
   (fn [{:keys [db] :as env} ident]
     (let [{:keys [summary oid runtime-id] :as object} (get db ident)]
-      (-> {:db (assoc db ::m/inspect {:object ident
-                                      :runtime-id runtime-id
-                                      :runtime (db/make-ident ::m/runtime runtime-id)
-                                      :nav-stack [{:idx 0 :ident ident}]})
-           :ws-send []}
-          (cond->
-            (not summary)
-            (-> (assoc-in [:db ident :summary] :db/loading)
-                (update :ws-send conj {:op :obj-describe
-                                       :to runtime-id
-                                       :oid oid}))
-            )))))
+      (let [stack
+            (-> (get-in db [::m/inspect :stack])
+                (subvec 0 1)
+                (conj {:type :object-panel
+                       :ident ident}))]
 
-(sw/reg-event-fx env/app-ref ::m/inspect-cancel!
-  []
-  (fn [{:keys [db] :as env}]
-    {:db (dissoc db ::m/inspect)}))
-
-(defmethod eql/attr ::m/inspect-active?
-  [env db current _ params]
-  (contains? db ::m/inspect))
+        (-> {:db (assoc-in db [::m/inspect :stack] stack)
+             :ws-send []}
+            (cond->
+              (not summary)
+              (-> (assoc-in [:db ident :summary] :db/loading)
+                  (update :ws-send conj {:op :obj-describe
+                                         :to runtime-id
+                                         :oid oid}))
+              ))))))
 
 (defmethod eql/attr ::m/inspect-object
   [env db current query-part params]
@@ -368,7 +378,7 @@
 
 (sw/reg-event-fx env/app-ref ::m/inspect-nav!
   []
-  (fn [{:keys [db] :as env} current idx]
+  (fn [{:keys [db] :as env} current key-idx panel-idx]
     (let [{:keys [oid runtime-id] :as object} (get db current)]
 
       (relay-ws/call! env
@@ -376,12 +386,12 @@
          :to runtime-id
          :oid oid
          :request-op :nav
-         :idx idx
+         :idx key-idx
          :summary true}
 
         ;; FIXME: maybe nav should return simple values, instead of ref to simple value
-        {:obj-result [:nav-result]
-         :obj-result-ref [:nav-result-ref]})
+        {:obj-result [:nav-result panel-idx]
+         :obj-result-ref [:nav-result-ref panel-idx]})
 
       {})))
 
@@ -400,18 +410,28 @@
 
 (sw/reg-event-fx env/app-ref :nav-result-ref
   []
-  (fn [{:keys [db] :as env} {:keys [ref-oid from summary] :as msg}]
-    (let [obj {:oid ref-oid
-               :runtime-id from
-               :runtime (db/make-ident ::m/runtime from)
-               :summary summary}
-          obj-ident (db/make-ident ::m/object ref-oid)
+  (fn [{:keys [db] :as env} panel-idx {:keys [ref-oid from summary] :as msg}]
+    (let [obj
+          {:oid ref-oid
+           :runtime-id from
+           :runtime (db/make-ident ::m/runtime from)
+           :summary summary
+           :display-type (guess-display-type summary)}
 
-          {:keys [nav-stack]} (::m/inspect db)]
+          obj-ident
+          (db/make-ident ::m/object ref-oid)
+
+          {:keys [stack]}
+          (::m/inspect db)
+
+          stack
+          (-> (subvec stack 0 (inc panel-idx))
+              (conj {:type :object-panel
+                     :ident obj-ident}))]
 
       {:db (-> db
                (db/add ::m/object obj)
-               (update-in [::m/inspect :nav-stack] conj {:idx (count nav-stack) :ident obj-ident}))})))
+               (assoc-in [::m/inspect :stack] stack))})))
 
 (defmethod eql/attr ::m/runtimes-sorted
   [env db current query-part params]
@@ -438,16 +458,16 @@
 
 (sw/reg-event-fx env/app-ref ::m/inspect-code-eval!
   []
-  (fn [{:keys [db] :as env} code]
-    (let [{::m/keys [inspect-object] :as data}
+  (fn [{:keys [db] :as env} code ident panel-idx]
+    (let [data
           (eql/query env db
-            [{::m/inspect-object
+            [{ident
               [:oid
                {:runtime
                 [:runtime-id
                  :supported-ops]}]}])
 
-          {:keys [oid runtime]} inspect-object
+          {:keys [oid runtime]} (get data ident)
           {:keys [runtime-id supported-ops]} runtime
 
           ;; FIXME: ns and eval mode should come from UI
@@ -476,18 +496,26 @@
         {:op eval-mode
          :to runtime-id
          :input input}
-        {:eval-result-ref [::inspect-eval-result! code]
+        {:eval-result-ref [::inspect-eval-result! code panel-idx]
          :eval-compile-error [::inspect-eval-compile-error! code]
          :eval-runtime-error [::inspect-eval-runtime-error! code]})
       {})))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-result!
   []
-  (fn [{:keys [db] :as env} code {:keys [ref-oid from warnings] :as msg}]
+  (fn [{:keys [db] :as env} code panel-idx {:keys [ref-oid from warnings] :as msg}]
     (when (seq warnings)
       (doseq [w warnings]
         (js/console.warn "FIXME: warning not yet displayed in UI" w)))
-    (let [object-ident (db/make-ident ::m/object ref-oid)]
+
+    (let [object-ident
+          (db/make-ident ::m/object ref-oid)
+
+          stack
+          (-> (get-in db [::m/inspect :stack])
+              (subvec 0 (inc panel-idx))
+              (conj {:type :object-panel
+                     :ident object-ident}))]
       {:db
        (-> db
            (assoc object-ident
@@ -495,10 +523,7 @@
                    :oid ref-oid
                    :runtime-id from
                    :runtime (db/make-ident ::m/runtime from)})
-           (update-in [::m/inspect :nav-stack] conj
-             {:idx (count (get-in db [::m/inspect :nav-stack]))
-              :code code
-              :ident object-ident}))})))
+           (assoc-in [::m/inspect :stack] stack))})))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-compile-error!
   []
