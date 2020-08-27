@@ -1228,8 +1228,8 @@
 
 (defn find-cljs-namespaces-in-files
   "searches classpath for clj(s|c) files (not in jars), returns expected namespaces"
-  [cp]
-  (for [^File cp-entry (get-classpath-entries cp)
+  [cp dirs]
+  (for [^File cp-entry (or dirs (get-classpath-entries cp))
         :when (and (.isDirectory cp-entry)
                    (not (is-gitlib-file? cp-entry)))
         :let [root-path (.toPath cp-entry)]

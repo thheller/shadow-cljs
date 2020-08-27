@@ -1,10 +1,11 @@
 (ns shadow.build.test-util
   (:require [shadow.build.data :as data]
             [shadow.build.classpath :as cp]
-            [shadow.cljs.util :as util]))
+            [shadow.cljs.util :as util]
+            [clojure.java.io :as io]))
 
 (defn find-test-namespaces [{:keys [classpath] :as state} config]
-  (let [{:keys [namespaces ns-regexp exclude] :or {ns-regexp "-test$" exclude #{}}}
+  (let [{:keys [namespaces ns-regexp exclude test-paths] :or {ns-regexp "-test$" exclude #{}}}
         config
 
         ns-regexp
@@ -12,7 +13,10 @@
 
     (if (seq namespaces)
       namespaces
-      (->> (cp/find-cljs-namespaces-in-files classpath)
+      (->> (cp/find-cljs-namespaces-in-files
+             classpath
+             (when (seq test-paths)
+               (map io/file test-paths)))
            (filter (fn [ns]
                      (re-find ns-regexp (str ns))))
            (remove exclude)
