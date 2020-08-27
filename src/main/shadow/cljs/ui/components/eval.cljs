@@ -29,17 +29,17 @@
       (sg/run-tx env [::m/process-eval-input! runtime-ident code])))
 
   (render
-    (<< [:div.p-2 (str "#" runtime-id " - " (str (:lang runtime-info "unknown lang"))
-                       (when-some [ua (:user-agent runtime-info)]
-                         (str " - " ua)))]
-        [:div.p-2.text-xl "I have no idea how this should look?"]
-        [:div.border-t-2.bg-white.px-2.py-1
-         "Eval History - stream? - latest on top/bottom? results should be inspectable?"]
-        [:div.border-t-2.overflow-y-auto.px-2.py-1.flex-1
-         (sg/stream [::m/eval-stream runtime-ident] {} ui-repl-stream-item)]
-        [:div.border-t-2.bg-white.px-2.py-1
-         "Eval toolbar - current ns: user, ctrl+enter or shift+enter to eval"]
-        [:div.bg-white.border-t-2 {:style {:height "120px"}}
-         (codemirror
-           {:on-submit process-eval-input!})])))
+    #_(<< [:div.p-2 (str "#" runtime-id " - " (str (:lang runtime-info "unknown lang"))
+                         (when-some [ua (:user-agent runtime-info)]
+                           (str " - " ua)))]
+          [:div.p-2.text-xl "I have no idea how this should look?"]
+          [:div.border-t-2.bg-white.px-2.py-1
+           "Eval History - stream? - latest on top/bottom? results should be inspectable?"]
+          [:div.border-t-2.overflow-y-auto.px-2.py-1.flex-1
+           (sg/stream [::m/eval-stream runtime-ident] {} ui-repl-stream-item)]
+          [:div.border-t-2.bg-white.px-2.py-1
+           "Eval toolbar - current ns: user, ctrl+enter or shift+enter to eval"]
+          [:div.bg-white.border-t-2 {:style {:height "120px"}}
+           (codemirror
+             {:on-submit process-eval-input!})])))
 

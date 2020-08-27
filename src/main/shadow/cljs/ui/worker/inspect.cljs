@@ -65,7 +65,7 @@
        (db/update-entity db ::m/runtime from assoc :supported-ops ops)}
       (cond->
         (contains? ops :tap-subscribe)
-        (assoc :ws-send [{:op :tap-subscribe :to from :summary true :history true}])
+        (assoc :ws-send [{:op :tap-subscribe :to from}])
         )))
 
 (defn guess-display-type [{:keys [supports] :as summary}]
@@ -75,29 +75,8 @@
     :edn))
 
 (defmethod relay-ws/handle-msg :tap-subscribed
-  [{:keys [db] :as env} {:keys [history from]}]
-  (let [stream-items
-        (->> history
-             (map (fn [{:keys [oid summary]}]
-                    {:type :tap
-                     :object-ident (db/make-ident ::m/object oid)
-                     :added-at (:added-at summary)}))
-             (into []))]
-
-    {:db (reduce
-           (fn [db {:keys [oid summary] :as item}]
-             (let [object-ident (db/make-ident ::m/object oid)]
-               (update db object-ident merge {:db/ident object-ident
-                                              :oid oid
-                                              :runtime-id from
-                                              :runtime (db/make-ident ::m/runtime from)
-                                              :summary (with-added-at-ts summary)
-                                              :display-type (guess-display-type summary)})))
-           db
-           history)
-
-     :stream-merge
-     {::m/taps stream-items}}))
+  [{:keys [db] :as env} {:keys [from]}]
+  {})
 
 (defmethod relay-ws/handle-msg :tap [{:keys [db] :as env} {:keys [oid from]}]
   (let [object-ident (db/make-ident ::m/object oid)]
@@ -108,8 +87,6 @@
 
      :stream-add
      [[::m/taps {:type :tap :object-ident object-ident}]]}))
-
-
 
 (defmethod relay-ws/handle-msg :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
   (let [object-ident (db/make-ident ::m/object oid)
@@ -123,8 +100,6 @@
          (cond->
            (nil? display-type)
            (assoc-in [object-ident :display-type] (guess-display-type summary))))}))
-
-
 
 (defmethod eql/attr :obj-preview [env db {:keys [oid runtime-id edn-limit] :as current} query-part params]
   (cond

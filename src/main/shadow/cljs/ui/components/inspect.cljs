@@ -3,6 +3,7 @@
     [shadow.experiments.arborist :as sa]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.ui.vlist :as vlist]
+    [shadow.experiments.grove.ui.streams :as streams]
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.common :as common]
@@ -241,20 +242,38 @@
                    (str " - " label)))]
            [:div.truncate (render-edn-limit obj-preview)]]))))
 
-(def tap-stream
-  (sg/stream ::m/taps {}
-    (fn [{:keys [type] :as item}]
-      (case type
-        :tap
-        (ui-tap-stream-item item)
-
-        (<< [:div (pr-str item)])))))
-
 (defc ui-tap-panel [item panel-idx]
+  ;; FIXME: streams are kind of a bad idea
+  ;; only benefit is they are really fast but everything else sucks
+
+  ;; in a list with 500 items adding one render-seq will diff the
+  ;; other 500 items to figure out where the new one is supposed to go
+  ;; which is quick but completely unnecessary since we only ever add
+  ;; at the top ... until we don't. basically had to remove :tap-history
+  ;; support since merging it when a new runtime connects caused my head
+  ;; to hurt. should rewrite this in a somewhat sane manner
+  (bind tap-stream
+    (streams/init ::m/taps
+      {:item-height 48}
+      (fn [{:keys [type] :as item}]
+        (case type
+          :tap
+          (ui-tap-stream-item item)
+
+          (<< [:div (pr-str item)])))))
+
+  (event ::clear! [env e]
+    ;; scary direct dom manipulation
+    (streams/clear! tap-stream))
+
   (render
-    (<< #_[:div.inset-0.flex.flex-col.overflow-hidden.h-full]
-      [:div.p-2.bg-gray-200.font-bold "Tap History"]
-      [:div.flex-1 tap-stream])))
+    (<< [:div.p-2.bg-gray-200.font-bold "Tap History"]
+        [:div.flex-1 tap-stream]
+        [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
+         [:button
+          {:class css-button
+           :on-click [::clear!]}
+          "Clear"]])))
 
 ;; really hacky way to scroll stuff
 ;; need to come up with better abstraction for this
