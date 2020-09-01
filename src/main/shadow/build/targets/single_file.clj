@@ -12,7 +12,8 @@
     [shadow.build.data :as data]
     [clojure.data.json :as json]
     [clojure.string :as str]
-    [shadow.cljs.util :as util]))
+    [shadow.cljs.util :as util])
+  (:import [java.io StringReader]))
 
 (defn configure
   [{:keys [worker-info] :as state} mode {:keys [build-id output-to entry] :as config}]

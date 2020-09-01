@@ -38,13 +38,15 @@
          (take-while #(.isGuestFrame %))
          (map frame->data)
          (map (fn [{:keys [path line column] :as frame}]
-                (let [map (load-map path)]
+                (let [map (and path (load-map path))]
                   (if-not (and map line column)
                     frame
                     (let [mapping (.getMappingForLine map line column)]
-                      (assoc frame
-                        :mapped-src (.getOriginalFile mapping)
-                        :mapped-line (.getLineNumber mapping)
-                        :mapped-column (.getColumnPosition mapping)))
+                      (if-not mapping
+                        frame
+                        (assoc frame
+                          :mapped-src (.getOriginalFile mapping)
+                          :mapped-line (.getLineNumber mapping)
+                          :mapped-column (.getColumnPosition mapping))))
                     ))))
          (vec))))

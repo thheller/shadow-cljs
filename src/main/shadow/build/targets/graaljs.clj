@@ -60,9 +60,51 @@
         (modules/configure module-config)
         )))
 
-;; always produce just one file
-;; FIXME: could provide a helper utility for source maps
-;; AFAICT graal itself doesn't support source maps directly but stacktraces seem reasonable easy to parse
+;; create index source map readable by shadow.cljs.graaljs/source-map
+(defn create-index-map [state header sources output-to]
+  (let [prepend-offset
+        (output/line-count header)
+
+        sm-file
+        (io/file (.getParentFile output-to) (str (.getName output-to) ".map"))
+
+        sm-index
+        (-> {:version 3
+             :file (.getName output-to)
+             :offset prepend-offset
+             :prependOffset prepend-offset
+             :sections []}
+            (util/reduce->
+              (fn [{:keys [offset] :as sm-index} resource-id]
+
+                (let [{:keys [resource-name] :as rc}
+                      (data/get-source-by-id state resource-id)
+
+                      {:keys [js source-map-compact source] :as output}
+                      (data/get-output! state rc)
+
+                      lines
+                      (inc (count (.split js "\n")))
+
+                      sm
+                      (assoc source-map-compact
+                        "version" 3
+                        "sources" [resource-name]
+                        "sourcesContent" [source])]
+
+                  (-> sm-index
+                      (update :offset + lines)
+                      (cond->
+                        (seq source-map-compact)
+                        (update :sections conj {:offset {:line offset :column 0}
+                                                :map sm}
+                          )))))
+
+              sources)
+            (dissoc :offset))]
+
+    (spit sm-file (json/write-str sm-index))))
+
 
 (defn flush-dev
   [{::keys [output-file] :as state}]
@@ -106,7 +148,10 @@
                   (str/join "\n"))
              append)]
 
-    (spit output-file out))
+    (spit output-file out)
+
+    (when (get-in state [:compiler-options :source-map])
+      (create-index-map state header sources output-file)))
 
   state)
 

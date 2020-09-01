@@ -927,7 +927,7 @@
     ))
 
 (deftest test-graaljs
-  (api/release :graal)
+  ;; (api/release :graal)
 
   (with-open [engine
               (Engine/create)
