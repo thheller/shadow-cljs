@@ -202,7 +202,8 @@
   :graal
   {:target :graaljs
    :output-to "out/demo-graal/lib.js"
-   :entries [demo.graal]}
+   :entries [demo.graal]
+   :compiler-options {:source-map true}}
 
   :self-contained-script
   {:target :node-script
