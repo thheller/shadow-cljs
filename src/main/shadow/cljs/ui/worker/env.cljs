@@ -14,7 +14,8 @@
        ::m/runtimes []
        ::m/active-builds []
        ::m/inspect
-       {:stack
+       {:current 0
+        :stack
         [{:type :tap-panel}]}}
       (db/configure schema)
       (atom)))

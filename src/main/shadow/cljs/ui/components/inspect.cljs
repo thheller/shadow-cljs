@@ -318,7 +318,7 @@
   (bind {::m/keys [inspect] :as data}
     (sg/query-root [::m/inspect]))
 
-  (bind {:keys [stack]}
+  (bind {:keys [stack current]}
     inspect)
 
   (event ::inspect-object! [env ident]
@@ -330,63 +330,48 @@
     ;; hacky way to scroll since smooth is too slow IMHO
     (scrollable-anim container-ref))
 
-  (bind stack-count
-    (count stack))
-
-  (bind stack-diff
+  (bind current-changed?
     (sg/track-change
-      stack-count
+      current
       (fn [env old new]
-        (- new (or old 0)))))
+        (not= old new))))
 
   (hook
-    (sg/effect :render
+    (sg/effect current
       (fn []
-        (when-not (zero? stack-diff)
-          (scroll-into-view stack-count)))))
+        (when current-changed?
+          (scroll-into-view current)))))
 
   (event ::go-back! [env panel-idx]
-    (scroll-into-view (dec panel-idx)))
+    (sg/run-tx env [::m/inspect-set-current! (dec panel-idx)]))
 
   (hook
     (keyboard/listen
       {"arrowleft"
        (fn [env e]
          (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-           (let [container @container-ref
-                 c-width (.-clientWidth container)
-                 c-scroll (.-scrollLeft container)
-                 c-idx (int (/ c-scroll c-width))]
-
-             (when (pos? c-idx)
-               (scroll-into-view (dec c-idx))
-               ))))
+           (when (pos? current)
+             (sg/run-tx env [::m/inspect-set-current! (dec current)]))))
 
        "ctrl+arrowleft"
        (fn [env e]
          (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-           (scroll-into-view 0)))
+           (sg/run-tx env [::m/inspect-set-current! 0])))
 
        "ctrl+arrowright"
        (fn [env e]
          (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-           (scroll-into-view stack-count)))
+           (sg/run-tx env [::m/inspect-set-current! (count stack)])))
 
        "arrowright"
        (fn [env e]
          (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-           (let [container @container-ref
-                 c-width (.-clientWidth container)
-                 c-scroll (.-scrollLeft container)
-                 c-idx (int (/ c-scroll c-width))
-                 n-idx (inc c-idx)]
-
-             (when (> stack-count n-idx)
-               (scroll-into-view n-idx)))))}))
+           (when (> (count stack) (inc current))
+             (sg/run-tx env [::m/inspect-set-current! (inc current)]))))}))
 
   (render
     (<< [:div.flex-1.bg-white.pt-4.flex.flex-col.overflow-hidden
-         #_[:div.px-6.font-bold "header"]
+         ;; [:div.px-6.font-bold "current:" current]
          [:div.flex-1.flex.overflow-hidden {:dom/ref container-ref}
           (sg/render-seq stack nil
             (fn [{:keys [type] :as item} idx]

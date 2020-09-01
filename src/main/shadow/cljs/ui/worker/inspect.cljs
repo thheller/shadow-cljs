@@ -335,7 +335,9 @@
                 (conj {:type :object-panel
                        :ident ident}))]
 
-        (-> {:db (assoc-in db [::m/inspect :stack] stack)
+        (-> {:db (-> db
+                     (assoc-in [::m/inspect :stack] stack)
+                     (assoc-in [::m/inspect :current] 1))
              :ws-send []}
             (cond->
               (not summary)
@@ -369,6 +371,11 @@
          :obj-result-ref [:nav-result-ref panel-idx]})
 
       {})))
+
+(sw/reg-event-fx env/app-ref ::m/inspect-set-current!
+  []
+  (fn [{:keys [db] :as env} idx]
+    {:db (assoc-in db [::m/inspect :current] idx)}))
 
 (sw/reg-event-fx env/app-ref ::m/inspect-nav-jump!
   []
@@ -406,7 +413,8 @@
 
       {:db (-> db
                (db/add ::m/object obj)
-               (assoc-in [::m/inspect :stack] stack))})))
+               (assoc-in [::m/inspect :stack] stack)
+               (assoc-in [::m/inspect :current] (inc panel-idx)))})))
 
 (defmethod eql/attr ::m/runtimes-sorted
   [env db current query-part params]
