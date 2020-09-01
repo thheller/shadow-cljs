@@ -14,6 +14,14 @@
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
+(def svg-chevron-double-left
+  (<< [:svg {:width "24" :height "24" :viewBox "0 0 24 24" :fill "none" :xmlns "http://www.w3.org/2000/svg"}
+       [:path {:d "M11 19L4 12L11 5M19 19L12 12L19 5" :stroke "#374151" :stroke-width "2" :stroke-linecap "round" :stroke-linejoin "round"}]]))
+
+(def svg-chevron-left
+  (<< [:svg {:width "24" :height "24" :viewBox "0 0 24 24" :fill "none" :xmlns "http://www.w3.org/2000/svg"}
+       [:path {:d "M15 19L8 12L15 5" :stroke "#4A5568" :stroke-width "2" :stroke-linecap "round" :stroke-linejoin "round"}]]))
+
 (defn render-edn-limit [[limit-reached text]]
   (if limit-reached
     (str text " ...")
@@ -158,16 +166,28 @@
     (fn [env code]
       (sg/run-tx env [::m/inspect-code-eval! code ident panel-idx])))
 
+  (event ::go-first! [env e]
+    (sg/run-tx env [::m/inspect-set-current! 0]))
+
   (render
 
     (let [{:keys [summary is-error display-type]} object
           {:keys [obj-type entries supports]} summary]
 
-      (<< [:div {:class "flex bg-gray-200 p-2 font-mono font-bold"}
-           [:div.cursor-pointer.pr-2.font-bold {:on-click [::go-back! panel-idx]} "<<"]
-           [:div {:class (if is-error "px-2 text-red-700" "px-2")} obj-type]
+      (<< [:div {:class "flex bg-gray-200 font-mono font-bold"}
+           [:div.cursor-pointer.py-2.pl-2.font-bold
+            {:on-click [::go-first!]
+             :title "go back to tap history (key: alt+t)"}
+            svg-chevron-double-left]
+
+           [:div.cursor-pointer.py-2.px-2.font-bold
+            {:on-click [::go-back! panel-idx]
+             :title "go back one (key: left)"}
+            svg-chevron-left]
+
+           [:div {:class (if is-error "px-2 py-2 text-red-700" "py-2 px-2")} obj-type]
            (when entries
-             (<< [:div.px-2 (str entries " Entries")]))]
+             (<< [:div.py-2.px-2 (str entries " Entries")]))]
 
           (case display-type
             :edn
@@ -362,6 +382,10 @@
        (fn [env e]
          (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
            (sg/run-tx env [::m/inspect-set-current! (count stack)])))
+
+       "alt+t"
+       (fn [env e]
+         (sg/run-tx env [::m/inspect-set-current! 0]))
 
        "arrowright"
        (fn [env e]
