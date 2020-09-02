@@ -103,7 +103,9 @@
               sources)
             (dissoc :offset))]
 
-    (spit sm-file (json/write-str sm-index))))
+    (spit sm-file (json/write-str sm-index))
+    sm-file
+    ))
 
 
 (defn flush-dev
