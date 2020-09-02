@@ -30,7 +30,7 @@
            (java.nio.charset Charset)
            [java.util.logging Logger Level]
            [com.google.javascript.jscomp.parsing.parser FeatureSet]
-           [com.google.javascript.rhino Node]))
+           [java.util LinkedHashMap]))
 
 ;; get rid of some annoying/useless warning log messages
 ;; https://github.com/google/closure-compiler/pull/2998/files
@@ -1363,6 +1363,38 @@
    [:compiler-options :output-feature-set]
    [:js-options]])
 
+(defn get-field-value [o field-name]
+  (let [fld (-> o (.getClass) (.getDeclaredField field-name))]
+    (.setAccessible fld true)
+    (.get fld o)))
+
+(defn set-field-value [o field-name val]
+  (let [fld (-> o (.getClass) (.getDeclaredField field-name))]
+    (.setAccessible fld true)
+    (.set fld o val)))
+
+;; hack to get around source-map reset resetting too much
+;; hope this doesn't end badly
+
+;; when trying to get multiple separated source maps it will fail without reset
+;; but reset will remove all source code from files we need to generated proper maps
+;; so this just copies and restores via reflection since all of it is private
+;; FIXME: should open a proper closure-compiler issue about this
+(defn reset-but-keep-files [source-map]
+  (let [gen (get-field-value source-map "generator")
+        sfm (get-field-value gen "sourceFileMap")
+        sfm-copy (LinkedHashMap. sfm)
+        sfcm (get-field-value gen "sourceFileContentMap")
+        sfcm-copy (LinkedHashMap. sfcm)
+        om (get-field-value gen "originalNameMap")
+        om-copy (LinkedHashMap. om)]
+
+    (.reset source-map)
+
+    (set-field-value gen "sourceFileMap" sfm-copy)
+    (set-field-value gen "sourceFileContentMap" sfcm-copy)
+    (set-field-value gen "originalNameMap" om-copy)))
+
 (defn convert-sources*
   "takes a list of :js sources and rewrites them to using closure
    partial compiles must supply the cached sources so closure doesn't complain about things
@@ -1464,6 +1496,9 @@
           ;; just in case there are some type annotations
           (.setPreserveTypeAnnotations true)
 
+          (.setApplyInputSourceMaps true)
+          (.setSourceMapIncludeSourcesContent true)
+
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
           (.setModuleResolutionMode ModuleLoader$ResolutionMode/BROWSER))
 
@@ -1509,7 +1544,8 @@
         (update ::classpath-js-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
-            (.reset source-map)
+            (reset-but-keep-files source-map)
+
 
             (let [name (.getSourceFileName source-node)]
               (cond
@@ -1912,8 +1948,7 @@
         (update ::shadow-js-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
-            (.reset source-map)
-
+            (reset-but-keep-files source-map)
 
             (let [name (.getSourceFileName source-node)]
               (cond
@@ -2209,7 +2244,7 @@
         (update ::goog-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
-            (.reset source-map)
+            (reset-but-keep-files source-map)
 
             (let [name (.getSourceFileName source-node)]
               (cond

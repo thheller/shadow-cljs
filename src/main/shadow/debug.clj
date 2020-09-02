@@ -60,6 +60,17 @@
 
     `(tap> [:shadow.remote/wrap ~locals ~(dbg-info &env &form {})])))
 
+(defn java-obj [o]
+  (let [class (.getClass o)
+        fields (.getDeclaredFields class)]
+
+    (reduce
+      (fn [m field]
+        (.setAccessible field true)
+        (assoc m (.getName field) (.get field o)))
+      {}
+      fields)))
+
 (comment
   (?> (:clj-runtime (shadow.cljs.devtools.server.runtime/get-instance))
     :view-opts
