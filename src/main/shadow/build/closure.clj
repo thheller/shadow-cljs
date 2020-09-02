@@ -1382,18 +1382,12 @@
 ;; FIXME: should open a proper closure-compiler issue about this
 (defn reset-but-keep-files [source-map]
   (let [gen (get-field-value source-map "generator")
-        sfm (get-field-value gen "sourceFileMap")
-        sfm-copy (LinkedHashMap. sfm)
         sfcm (get-field-value gen "sourceFileContentMap")
-        sfcm-copy (LinkedHashMap. sfcm)
-        om (get-field-value gen "originalNameMap")
-        om-copy (LinkedHashMap. om)]
+        sfcm-copy (LinkedHashMap. sfcm)]
 
     (.reset source-map)
 
-    (set-field-value gen "sourceFileMap" sfm-copy)
-    (set-field-value gen "sourceFileContentMap" sfcm-copy)
-    (set-field-value gen "originalNameMap" om-copy)))
+    (set-field-value gen "sourceFileContentMap" sfcm-copy)))
 
 (defn convert-sources*
   "takes a list of :js sources and rewrites them to using closure
