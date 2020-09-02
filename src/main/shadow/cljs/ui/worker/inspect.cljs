@@ -506,6 +506,7 @@
                    :oid ref-oid
                    :runtime-id from
                    :runtime (db/make-ident ::m/runtime from)})
+           (assoc-in [::m/inspect :current] (inc panel-idx))
            (assoc-in [::m/inspect :stack] stack))})))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-compile-error!
