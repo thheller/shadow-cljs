@@ -952,7 +952,5 @@
         (prn context))
 
       (catch PolyglotException e
-        (let [trace (graaljs/source-map e)]
-
-          (tap> [:graal-ex trace e]))
+        (graaljs/ex-print e)
         ))))

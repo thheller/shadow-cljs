@@ -2,4 +2,4 @@
 
 (defn ^:export hello [foo]
   (str "Hello, " foo "!")
-  (throw (ex-info "foo" {:foo foo})))
+  (assoc [] 3 "foo"))
