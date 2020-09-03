@@ -174,7 +174,8 @@
     (let [{:keys [summary is-error display-type]} object
           {:keys [obj-type entries supports]} summary]
 
-      (<< [:div {:class "flex bg-gray-200 font-mono font-bold"}
+      (<< [:div {:class "flex bg-gray-200 font-mono font-bold items-center"
+                 :data-keyboard-focus true}
            [:div.cursor-pointer.py-2.pl-2.font-bold
             {:on-click [::go-first!]
              :title "go back to tap history (key: alt+t)"}
@@ -185,7 +186,7 @@
              :title "go back one (key: left)"}
             svg-chevron-left]
 
-           [:div {:class (if is-error "px-2 py-2 text-red-700" "py-2 px-2")} obj-type]
+           [:div {:class (str "px-2 py-2" (when is-error " text-red-700"))} obj-type]
            (when entries
              (<< [:div.py-2.px-2 (str entries " Entries")]))]
 
@@ -225,7 +226,7 @@
   (event ::inspect-switch-display! [env display-type]
     (sg/run-tx env [::m/inspect-switch-display! ident display-type])))
 
-(defc ui-tap-stream-item [{:keys [object-ident]}]
+(defc ui-tap-stream-item [{:keys [object-ident]} {:keys [focus]}]
   (bind {:keys [summary runtime obj-preview] :as data}
     (sg/query-ident object-ident
       [:oid
@@ -239,10 +240,11 @@
     (let [{:keys [ns line column label]} summary
           {:keys [runtime-info runtime-id]} runtime]
 
-      (<< [:div.font-mono.border-b.px-2.py-1.cursor-pointer.hover:bg-gray-200
-           {:on-click [::inspect-object! object-ident]}
-           [:div.text-xs.text-gray-500
+      (<< [:div
+           {:class (str "font-mono border-b px-2 py-1 cursor-pointer hover:bg-gray-200" (when focus " bg-gray-200"))
+            :on-click [::inspect-object! object-ident]}
 
+           [:div.text-xs.text-gray-500
             (str (:added-at-ts summary)
                  " - #" runtime-id
                  " " (:lang runtime-info)
@@ -275,10 +277,10 @@
   (bind tap-stream
     (streams/init ::m/taps
       {:item-height 48}
-      (fn [{:keys [type] :as item}]
+      (fn [{:keys [type] :as item} info]
         (case type
           :tap
-          (ui-tap-stream-item item)
+          (ui-tap-stream-item item info)
 
           (<< [:div (pr-str item)])))))
 
@@ -360,7 +362,25 @@
     (sg/effect current
       (fn []
         (when current-changed?
-          (scroll-into-view current)))))
+          (scroll-into-view current)
+
+          ;; FIXME: need to transfer focus to the active panel
+          ;; not sure if this is better solved by DOM interop or passing
+          ;; of props to panels and letting them figure out if they should focus or not?
+          (let [active-panel-el
+                (-> @container-ref
+                    (.-children)
+                    (aget current))
+
+                kb-focus
+                (dom/query-one "[data-keyboard-focus]" active-panel-el)]
+
+            (when kb-focus
+              ;; this probably violates all ARIA guidelines but don't know how else to
+              ;; shift focus from the otherwise not visible panels?
+              (js/console.log "focusing" kb-focus (dom/contains? kb-focus))
+              (.focus kb-focus))
+            )))))
 
   (event ::go-back! [env panel-idx]
     (sg/run-tx env [::m/inspect-set-current! (dec panel-idx)]))

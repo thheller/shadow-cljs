@@ -38,7 +38,4 @@
          :to 1
          ::m/topic ::m/build-status-update})))
 
-  (sw/run-tx @env/app-ref [::m/init!])
-
-  ;; timing problem with tap> maybe not being initialized yet
-  (js/setTimeout #(tap> env/app-ref) 100))
+  (sw/run-tx @env/app-ref [::m/init!]))

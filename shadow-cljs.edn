@@ -96,7 +96,8 @@
 
     :worker
     {:init-fn shadow.cljs.ui.worker/init
-     :preloads [shadow.experiments.grove.preload]
+     :preloads [shadow.experiments.grove.preload
+                shadow.cljs.ui.worker-preload]
      :web-worker true
      :depends-on #{:shared}}}
 
