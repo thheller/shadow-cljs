@@ -174,50 +174,50 @@
     (let [{:keys [summary is-error display-type]} object
           {:keys [obj-type entries supports]} summary]
 
-      (<< [:div {:class "flex bg-gray-200 font-mono font-bold items-center"
-                 :data-keyboard-focus true}
-           [:div.cursor-pointer.py-2.pl-2.font-bold
-            {:on-click [::go-first!]
-             :title "go back to tap history (key: alt+t)"}
-            svg-chevron-double-left]
+      (<< [:div.h-full.flex.flex-col.overflow-hidden {::keyboard/listen true}
+           [:div {:class "flex bg-gray-200 font-mono font-bold items-center"}
+            [:div.cursor-pointer.py-2.pl-2.font-bold
+             {:on-click [::go-first!]
+              :title "go back to tap history (key: alt+t)"}
+             svg-chevron-double-left]
 
-           [:div.cursor-pointer.py-2.px-2.font-bold
-            {:on-click [::go-back! panel-idx]
-             :title "go back one (key: left)"}
-            svg-chevron-left]
+            [:div.cursor-pointer.py-2.px-2.font-bold
+             {:on-click [::go-back! panel-idx]
+              :title "go back one (key: left)"}
+             svg-chevron-left]
 
-           [:div {:class (str "px-2 py-2" (when is-error " text-red-700"))} obj-type]
-           (when entries
-             (<< [:div.py-2.px-2 (str entries " Entries")]))]
+            [:div {:class (str "px-2 py-2" (when is-error " text-red-700"))} obj-type]
+            (when entries
+              (<< [:div.py-2.px-2 (str entries " Entries")]))]
 
-          (case display-type
-            :edn
-            (ui-object-as-text ident ::m/object-as-edn)
+           (case display-type
+             :edn
+             (ui-object-as-text ident ::m/object-as-edn)
 
-            :pprint
-            (ui-object-as-text ident ::m/object-as-pprint)
+             :pprint
+             (ui-object-as-text ident ::m/object-as-pprint)
 
-            ;; default
-            (<< [:div.flex-1.overflow-hidden.font-mono
-                 (render-view object)]))
+             ;; default
+             (<< [:div.flex-1.overflow-hidden.font-mono
+                  (render-view object)]))
 
-          ;; FIXME: don't always show this
-          [:div.bg-white.font-mono.flex.flex-col
-           [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
-            [:div.flex-1 "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-           [:div {:style {:height "120px"}}
-            (codemirror {:on-submit code-submit!
-                         ;; must remain false, otherwise the scroll-right breaks
-                         :autofocus false})]]
+           ;; FIXME: don't always show this
+           [:div.bg-white.font-mono.flex.flex-col
+            [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
+             [:div.flex-1 "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
+            [:div {:style {:height "120px"}}
+             (codemirror {:on-submit code-submit!
+                          ;; must remain false, otherwise the scroll-right breaks
+                          :autofocus false})]]
 
-          [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
-           [:div "View as: "]
-           (when (contains? supports :fragment)
-             (view-as-button display-type :browse "Browse"))
-           (when (contains? supports :pprint)
-             (view-as-button display-type :pprint "Pretty-Print"))
-           (when (contains? supports :edn)
-             (view-as-button display-type :edn "EDN"))]
+           [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
+            [:div "View as: "]
+            (when (contains? supports :fragment)
+              (view-as-button display-type :browse "Browse"))
+            (when (contains? supports :pprint)
+              (view-as-button display-type :pprint "Pretty-Print"))
+            (when (contains? supports :edn)
+              (view-as-button display-type :edn "EDN"))]]
           )))
 
   (event ::inspect-nav! [env key-idx]
@@ -276,13 +276,17 @@
   ;; to hurt. should rewrite this in a somewhat sane manner
   (bind tap-stream
     (streams/init ::m/taps
-      {:item-height 48}
+      {:item-height 48
+       :select-event [::kb-select!]}
       (fn [{:keys [type] :as item} info]
         (case type
           :tap
           (ui-tap-stream-item item info)
 
           (<< [:div (pr-str item)])))))
+
+  (event ::kb-select! [env {:keys [object-ident]}]
+    (sg/dispatch-up! env [::inspect-object! object-ident]))
 
   (event ::clear! [env e]
     ;; scary direct dom manipulation
@@ -367,54 +371,55 @@
           ;; FIXME: need to transfer focus to the active panel
           ;; not sure if this is better solved by DOM interop or passing
           ;; of props to panels and letting them figure out if they should focus or not?
+          ;; FIXME: this doesn't find things most of the time due to suspended queries not rendering the element
+          ;; need a better strategy for this
           (let [active-panel-el
                 (-> @container-ref
                     (.-children)
                     (aget current))
 
                 kb-focus
-                (dom/query-one "[data-keyboard-focus]" active-panel-el)]
+                (dom/query-one "[tabindex=\"0\"]" active-panel-el)]
+
+            (js/console.log "focusing" active-panel-el kb-focus)
 
             (when kb-focus
               ;; this probably violates all ARIA guidelines but don't know how else to
               ;; shift focus from the otherwise not visible panels?
-              (js/console.log "focusing" kb-focus (dom/contains? kb-focus))
               (.focus kb-focus))
             )))))
 
   (event ::go-back! [env panel-idx]
     (sg/run-tx env [::m/inspect-set-current! (dec panel-idx)]))
 
-  (hook
-    (keyboard/listen
-      {"arrowleft"
-       (fn [env e]
-         (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-           (when (pos? current)
-             (sg/run-tx env [::m/inspect-set-current! (dec current)]))))
+  (event ::keyboard/arrowleft [env e]
+    (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+      (when (pos? current)
+        (sg/run-tx env [::m/inspect-set-current! (dec current)])
+        (dom/ev-stop e))))
 
-       "ctrl+arrowleft"
-       (fn [env e]
-         (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-           (sg/run-tx env [::m/inspect-set-current! 0])))
+  (event ::keyboard/ctrl+arrowleft [env _ e]
+    (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+      (sg/run-tx env [::m/inspect-set-current! 0])
+      (dom/ev-stop e)))
 
-       "ctrl+arrowright"
-       (fn [env e]
-         (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-           (sg/run-tx env [::m/inspect-set-current! (count stack)])))
+  (event ::keyboard/alt+t [env e]
+    (sg/run-tx env [::m/inspect-set-current! 0])
+    (dom/ev-stop e))
 
-       "alt+t"
-       (fn [env e]
-         (sg/run-tx env [::m/inspect-set-current! 0]))
+  (event ::keyboard/arrowright [env e]
+    (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+      (when (> (count stack) (inc current))
+        (sg/run-tx env [::m/inspect-set-current! (inc current)])
+        (dom/ev-stop e))))
 
-       "arrowright"
-       (fn [env e]
-         (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-           (when (> (count stack) (inc current))
-             (sg/run-tx env [::m/inspect-set-current! (inc current)]))))}))
+  (event ::keyboard/ctrl+arrowright [env e]
+    (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+      (sg/run-tx env [::m/inspect-set-current! (-> stack count dec)])
+      (dom/ev-stop e)))
 
   (render
-    (<< [:div.flex-1.bg-white.pt-4.flex.flex-col.overflow-hidden
+    (<< [:div.flex-1.bg-white.pt-4.flex.flex-col.overflow-hidden {::keyboard/listen true}
          ;; [:div.px-6.font-bold "current:" current]
          [:div.flex-1.flex.overflow-hidden {:dom/ref container-ref}
           (sg/render-seq stack nil

@@ -1,5 +1,6 @@
 (ns shadow.cljs.ui.main
   (:require
+    [clojure.string :as str]
     [shadow.experiments.arborist :as sa]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.history :as history]
@@ -12,7 +13,6 @@
     [shadow.cljs.ui.components.builds :as builds]
     [shadow.cljs.ui.components.eval :as eval]
     [shadow.cljs.ui.components.db-explorer :as db-explorer]
-    [clojure.string :as str]
     [shadow.cljs.ui.components.common :as common]))
 
 (defc ui-error [err-ident]
@@ -20,16 +20,13 @@
     (sg/query-ident err-ident
       [:text]))
 
-  (hook
-    (keyboard/listen
-      {"escape"
-       (fn [env e]
-         (sg/run-tx env [::m/dismiss-error! err-ident]))}))
-
   (event ::m/dismiss-error! sg/tx)
 
+  (event ::keyboard/escape [env e]
+    (sg/run-tx env [::m/dismiss-error! err-ident]))
+
   (render
-    (<< [:div.w-full.h-full.bg-white.shadow.border.flex.flex-col
+    (<< [:div.w-full.h-full.bg-white.shadow.border.flex.flex-col {::keyboard/listen true}
          [:div.flex
           [:div.text-red-700.p-2.font-bold "An error occured:"]
           [:div.flex-1]
@@ -134,7 +131,6 @@
   (sg/init ::ui
     {}
     [(worker-eng/init js/SHADOW_WORKER)
-     (history/init)
-     (keyboard/init)])
+     (history/init)])
 
   (js/setTimeout start 0))
