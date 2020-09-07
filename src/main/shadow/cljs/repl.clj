@@ -666,13 +666,19 @@
 
      (loop [state state]
 
-       (let [{:keys [eof?] :as read-result}
+       (let [{:keys [eof? error?] :as read-result}
              (read-one state reader opts)]
 
-         (if eof?
+         (cond
+           eof?
            state
-           (recur (process-read-result state read-result))))
-       ))))
+
+           error?
+           (throw (:ex read-result))
+
+           :else
+           (recur (process-read-result state read-result))
+           ))))))
 
 (defn process-input-stream
   "reads one form of the input stream and calls process-form"
