@@ -29,7 +29,7 @@
 
     text))
 
-(defc ui-object-as-text [ident attr]
+(defc ui-object-as-text [ident attr active?]
   (bind {::sg/keys [loading-state] :as data}
     (sg/query-ident ident
       [attr]
@@ -44,13 +44,14 @@
       (if (= :ready loading-state)
         (codemirror {:value val
                      :clojure (not= attr ::m/object-as-str)
-                     :cm-opts #js {:autofocus false}})
+                     :cm-opts {:tabindex (if active? 0 -1)
+                               :autofocus false}})
         ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
         (<< [:div.w-full.h-full.font-mono.border-t.p-4
              "Loading ..."])))))
 
 (defmulti render-view
-  (fn [data]
+  (fn [data active?]
     (get-in data [:summary :data-type]))
   :default ::default)
 
@@ -63,25 +64,26 @@
        [:div.bg-white
         [:pre.border.p-4 (str value)]]]))
 
-(defmethod render-view :string [object]
-  (ui-object-as-text (:db/ident object) ::m/object-as-str))
+(defmethod render-view :string [object active?]
+  (ui-object-as-text (:db/ident object) ::m/object-as-str active?))
 
-(defmethod render-view :number [object]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn))
+(defmethod render-view :number [object active?]
+  (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
 
-(defmethod render-view :boolean [object]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn))
+(defmethod render-view :boolean [object active?]
+  (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
 
-(defmethod render-view :symbol [object]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn))
+(defmethod render-view :symbol [object active?]
+  (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
 
-(defmethod render-view :keyword [object]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn))
+(defmethod render-view :keyword [object active?]
+  (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
 
-(defmethod render-view :nil [object]
+(defmethod render-view :nil [object active?]
   (<< [:div.flex-1
        [:textarea.w-full.h-full.font-mono.border-t.p-4
-        {:readOnly true}
+        {:readOnly true
+         :tabindex -1}
         "nil"]]))
 
 (def seq-vlist
@@ -94,17 +96,18 @@
            [:div.px-2.flex-1.truncate (render-edn-limit val)]]))))
 
 (defn render-seq
-  [object]
-  (seq-vlist {:ident (:db/ident object)}))
+  [object active?]
+  (seq-vlist {:ident (:db/ident object)
+              :tabindex (if active? 0 -1)}))
 
-(defmethod render-view :vec [data]
-  (render-seq data))
+(defmethod render-view :vec [data active?]
+  (render-seq data active?))
 
-(defmethod render-view :set [data]
-  (render-seq data))
+(defmethod render-view :set [data active?]
+  (render-seq data active?))
 
-(defmethod render-view :list [data]
-  (render-seq data))
+(defmethod render-view :list [data active?]
+  (render-seq data active?))
 
 (def map-vlist
   (vlist/configure :fragment-vlist
@@ -124,8 +127,9 @@
       )))
 
 (defmethod render-view :map
-  [object]
-  (map-vlist {:ident (:db/ident object)}))
+  [object active?]
+  (map-vlist {:ident (:db/ident object)
+              :tabindex (if active? 0 -1)}))
 
 (def lazy-seq-vlist
   (vlist/configure :lazy-seq-vlist
@@ -141,8 +145,9 @@
            [:div.px-2.flex-1.truncate (render-edn-limit val)]]))))
 
 (defmethod render-view :lazy-seq
-  [object]
-  (lazy-seq-vlist {:ident (:db/ident object)}))
+  [object active?]
+  (lazy-seq-vlist {:ident (:db/ident object)
+                   :tabindex (if active? 0 -1)}))
 
 (def css-button-selected "mx-2 border bg-blue-400 px-4 rounded")
 (def css-button "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded")
@@ -193,14 +198,14 @@
 
            (case display-type
              :edn
-             (ui-object-as-text ident ::m/object-as-edn)
+             (ui-object-as-text ident ::m/object-as-edn active?)
 
              :pprint
-             (ui-object-as-text ident ::m/object-as-pprint)
+             (ui-object-as-text ident ::m/object-as-pprint active?)
 
              ;; default
              (<< [:div.flex-1.overflow-hidden.font-mono
-                  (render-view object)]))
+                  (render-view object active?)]))
 
            ;; FIXME: don't always show this
            [:div.bg-white.font-mono.flex.flex-col
@@ -208,9 +213,11 @@
              [:div.flex-1 "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
             [:div {:style {:height "120px"}}
              ;; must not autofocus, otherwise the scroll-anim breaks
-             (codemirror {:autofocus false
-                          :tabindex (if active? 0 -1)
-                          :submit-event [::code-eval!]})]]
+             (codemirror
+               {:submit-event [::code-eval!]
+                :cm-opts
+                {:autofocus false
+                 :tabindex (if active? 0 -1)}})]]
 
            [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
             [:div "View as: "]
@@ -282,7 +289,7 @@
         :tap
         (ui-tap-stream-item item info)
 
-        (<< [:div (pr-str item)])) ))
+        (<< [:div (pr-str item)]))))
 
   (bind stream-ref (sg/ref))
 

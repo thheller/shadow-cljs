@@ -25,14 +25,17 @@
     (instance? EditorInit next))
 
   (dom-sync! [this ^EditorInit next]
-    (let [{:keys [value tabindex] :as next-opts} (.-opts next)]
+    (let [{:keys [value cm-opts] :as next-opts} (.-opts next)]
 
 
       (when (and editor (seq value))
         (.setValue editor value))
 
-      (when (not= tabindex (:tabindex opts))
-        (.setOption editor "tabindex" tabindex))
+      (reduce-kv
+        (fn [_ key val]
+          (.setOption editor (name key) val))
+        nil
+        cm-opts)
 
       (set! opts next-opts)
       ))
@@ -46,16 +49,15 @@
   ;; codemirror doesn't render correctly if added to an element
   ;; that isn't actually in the dcoument, so we delay construction until actually entered
   (dom-entered! [this]
-    (let [{:keys [value cm-opts clojure autofocus]}
+    (let [{:keys [value cm-opts clojure]}
           opts
 
           ;; FIXME: this config stuff needs to be cleaned up, this is horrible
           cm-opts
           (js/Object.assign
             #js {:lineNumbers true
-                 :theme "github"
-                 :autofocus (not (false? autofocus))}
-            (or cm-opts #js {})
+                 :theme "github"}
+            (when cm-opts (clj->js cm-opts))
             (when-not (false? clojure)
               #js {:mode "clojure"
                    :matchBrackets true})
