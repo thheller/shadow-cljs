@@ -3,10 +3,13 @@
     ["codemirror" :as cm]
     ["codemirror/mode/clojure/clojure"]
     ["parinfer-codemirror" :as par-cm]
+    [clojure.string :as str]
     [shadow.experiments.arborist.protocols :as ap]
     [shadow.experiments.arborist.common :as common]
     [shadow.experiments.grove :as sg]
-    [clojure.string :as str]))
+
+    [shadow.experiments.grove.components :as comp]
+    [shadow.experiments.grove.protocols :as gp]))
 
 (declare EditorInit)
 
@@ -63,16 +66,15 @@
 
           submit-fn
           (fn [e]
-            (let [val (str/trim (.getValue ed))
-                  ;; opts is mutable, so this will use the latest even after update
-                  callback (:on-submit opts)]
+            (let [val (str/trim (.getValue ed))]
               (when (seq val)
-                (callback env val)
-                (.setValue ed ""))))]
+                (let [comp (comp/get-component env)]
+                  (gp/handle-event! comp (conj (:submit-event opts) val) e)
+                  (.setValue ed "")))))]
 
       (set! editor ed)
 
-      (when (:on-submit opts)
+      (when (:submit-event opts)
         (.setOption ed "extraKeys"
           #js {"Ctrl-Enter" submit-fn
                "Shift-Enter" submit-fn}))

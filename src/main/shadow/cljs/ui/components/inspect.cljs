@@ -1,6 +1,7 @@
 (ns shadow.cljs.ui.components.inspect
   (:require
     [shadow.experiments.arborist :as sa]
+    [shadow.experiments.arborist.dom-scheduler :as ds]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.ui.vlist :as vlist]
     [shadow.experiments.grove.ui.streams :as streams]
@@ -162,12 +163,11 @@
        :is-error
        :display-type]))
 
-  (bind code-submit!
-    (fn [env code]
-      (sg/run-tx env [::m/inspect-code-eval! code ident panel-idx])))
-
   (event ::go-first! [env e]
     (sg/run-tx env [::m/inspect-set-current! 0]))
+
+  (event ::code-eval! [env code]
+    (sg/run-tx env [::m/inspect-code-eval! code ident panel-idx]))
 
   (render
 
@@ -206,9 +206,9 @@
             [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
              [:div.flex-1 "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
             [:div {:style {:height "120px"}}
-             (codemirror {:on-submit code-submit!
-                          ;; must remain false, otherwise the scroll-right breaks
-                          :autofocus false})]]
+             ;; must not autofocus, otherwise the scroll-anim breaks
+             (codemirror {:autofocus false
+                          :submit-event [::code-eval!]})]]
 
            [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
             [:div "View as: "]
@@ -312,7 +312,7 @@
 
         animate-scroll
         (fn animate-scroll []
-          (let [{:keys [start target time-start]} @state-ref
+          (let [{:keys [start target time-start] :as state} @state-ref
                 t (- (js/Date.now) time-start)
                 t-diff (/ t 200)]
             (cond
@@ -322,10 +322,12 @@
                 (swap! state-ref assoc :frame (js/requestAnimationFrame animate-scroll)))
 
               :else
-              (do (set! @container-ref -scrollLeft target)
-                  (swap! state-ref assoc :done true)))))]
+              (let [{:keys [callback]} state]
+                (set! @container-ref -scrollLeft target)
+                (swap! state-ref assoc :done true)
+                (callback)))))]
 
-    (fn [idx]
+    (fn [idx callback]
       (let [c @container-ref
             cw (.-clientWidth c)
             sl (.-scrollLeft c)
@@ -335,6 +337,7 @@
           :width cw
           :start sl
           :target t
+          :callback callback
           :time-start (js/Date.now))
 
         (when (not= t sl)
@@ -366,28 +369,30 @@
     (sg/effect current
       (fn []
         (when current-changed?
-          (scroll-into-view current)
+          (ds/read!
+            (scroll-into-view current
+              (fn []
+                ;; FIXME: need to transfer focus to the active panel
+                ;; not sure if this is better solved by DOM interop or passing
+                ;; of props to panels and letting them figure out if they should focus or not?
+                ;; FIXME: this doesn't find things most of the time due to suspended queries not rendering the element
+                ;; need a better strategy for this, right now it relies on the scroll anim taking longer than the suspense
+                ;; so it may be missed and keyboard appears to stop working since the old element is focused but not visible
+                (let [active-panel-el
+                      (-> @container-ref
+                          (.-children)
+                          (aget current))
 
-          ;; FIXME: need to transfer focus to the active panel
-          ;; not sure if this is better solved by DOM interop or passing
-          ;; of props to panels and letting them figure out if they should focus or not?
-          ;; FIXME: this doesn't find things most of the time due to suspended queries not rendering the element
-          ;; need a better strategy for this
-          (let [active-panel-el
-                (-> @container-ref
-                    (.-children)
-                    (aget current))
+                      kb-focus
+                      (dom/query-one "[tabindex=\"0\"]" active-panel-el)]
 
-                kb-focus
-                (dom/query-one "[tabindex=\"0\"]" active-panel-el)]
+                  ;; (js/console.log "focusing" active-panel-el kb-focus)
 
-            (js/console.log "focusing" active-panel-el kb-focus)
-
-            (when kb-focus
-              ;; this probably violates all ARIA guidelines but don't know how else to
-              ;; shift focus from the otherwise not visible panels?
-              (.focus kb-focus))
-            )))))
+                  (when kb-focus
+                    ;; this probably violates all ARIA guidelines but don't know how else to
+                    ;; shift focus from the otherwise not visible panels?
+                    (.focus kb-focus))
+                  ))))))))
 
   (event ::go-back! [env panel-idx]
     (sg/run-tx env [::m/inspect-set-current! (dec panel-idx)]))
@@ -398,7 +403,7 @@
         (sg/run-tx env [::m/inspect-set-current! (dec current)])
         (dom/ev-stop e))))
 
-  (event ::keyboard/ctrl+arrowleft [env _ e]
+  (event ::keyboard/ctrl+arrowleft [env e]
     (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
       (sg/run-tx env [::m/inspect-set-current! 0])
       (dom/ev-stop e)))
