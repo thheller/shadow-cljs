@@ -848,15 +848,25 @@
 
       ;; cases where (thing foo bar) should be invoked directly as thing(foo, bar)
       ;; without going through further CLJS related checks for variadic/IFn support
-      (or (ana/js-tag? ftag)
-          (= 'function ftag)
+      (or (= 'function ftag)
           (:foreign info)
           (let [ns (:ns info)]
             ;; thing resolved to fully qualified ns, invoke as function if no analyzer data is found for ns
             ;; likely means JS namespaces (eg. goog.string, ...)
             (or (= 'js ns)
                 (= 'Math ns)
-                (and ns (not (contains? (::ana/namespaces @env/*compiler*) ns))))))
+                (and ns (not (contains? (::ana/namespaces @env/*compiler*) ns)))))
+          ;; opt-in option to optimize function invoke for known JS types assumed to be functions
+          ;; this breaks stuff when JS objects implement IFn but are ^js tagged
+          ;; (defn do-something [^js thing]
+          ;;   (thing "foo" "bar"))
+          ;; will try to call thing as a regular function only when enabled
+          ;; otherwise will use the usual thing.cljs$invoke$arity2 ? ... : thing.call(null, "foo", "bar")
+          ;; with arg rebinding. could probably be a little smarter about this.
+          ;; mostly want to optimize invokes for JS required code where most of the time it will be a function
+          ;; and very very rarely (never in my code) something that implements IFn
+          (and (:shadow.build/tweaks env)
+               (ana/js-tag? ftag)))
       (make-invoke :fn env form fexpr @args-exprs)
 
       ;; no further optimizations for development code, always go through .call
