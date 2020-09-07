@@ -785,6 +785,7 @@
            ;; FIXME: not really, need somehow enable that via protocol impl?
            :ex-oid ex-oid
            :ex-client-id ex-client-id
+           :ex-data (ex-data e)
            ;; just always include report for now
            :report (binding [warnings/*color* false]
                      (errors/error-format e))
