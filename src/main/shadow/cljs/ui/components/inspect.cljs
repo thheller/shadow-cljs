@@ -147,15 +147,16 @@
 (def css-button-selected "mx-2 border bg-blue-400 px-4 rounded")
 (def css-button "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded")
 
-(defn view-as-button [current val label]
+(defn view-as-button [current val label active?]
   (<< [:button
        {:class (if (= current val)
                  css-button-selected
                  css-button)
-        :on-click [::inspect-switch-display! val]}
+        :on-click [::inspect-switch-display! val]
+        :tabindex (if active? 0 -1)}
        label]))
 
-(defc ui-object-panel [{:keys [ident]} panel-idx]
+(defc ui-object-panel [{:keys [ident]} panel-idx active?]
   (bind object
     (sg/query-ident ident
       [:db/ident
@@ -208,16 +209,17 @@
             [:div {:style {:height "120px"}}
              ;; must not autofocus, otherwise the scroll-anim breaks
              (codemirror {:autofocus false
+                          :tabindex (if active? 0 -1)
                           :submit-event [::code-eval!]})]]
 
            [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
             [:div "View as: "]
             (when (contains? supports :fragment)
-              (view-as-button display-type :browse "Browse"))
+              (view-as-button display-type :browse "Browse" active?))
             (when (contains? supports :pprint)
-              (view-as-button display-type :pprint "Pretty-Print"))
+              (view-as-button display-type :pprint "Pretty-Print" active?))
             (when (contains? supports :edn)
-              (view-as-button display-type :edn "EDN"))]]
+              (view-as-button display-type :edn "EDN" active?))]]
           )))
 
   (event ::inspect-nav! [env key-idx]
@@ -264,7 +266,7 @@
                    (str " - " label)))]
            [:div.truncate (render-edn-limit obj-preview)]]))))
 
-(defc ui-tap-panel [item panel-idx]
+(defc ui-tap-panel [item panel-idx active?]
   ;; FIXME: streams are kind of a bad idea
   ;; only benefit is they are really fast but everything else sucks
 
@@ -274,30 +276,36 @@
   ;; at the top ... until we don't. basically had to remove :tap-history
   ;; support since merging it when a new runtime connects caused my head
   ;; to hurt. should rewrite this in a somewhat sane manner
-  (bind tap-stream
-    (streams/init ::m/taps
-      {:item-height 48
-       :select-event [::kb-select!]}
-      (fn [{:keys [type] :as item} info]
-        (case type
-          :tap
-          (ui-tap-stream-item item info)
+  (bind item-fn
+    (fn [{:keys [type] :as item} info]
+      (case type
+        :tap
+        (ui-tap-stream-item item info)
 
-          (<< [:div (pr-str item)])))))
+        (<< [:div (pr-str item)])) ))
+
+  (bind stream-ref (sg/ref))
 
   (event ::kb-select! [env {:keys [object-ident]}]
     (sg/dispatch-up! env [::inspect-object! object-ident]))
 
   (event ::clear! [env e]
-    ;; scary direct dom manipulation
-    (streams/clear! tap-stream))
+    (streams/clear! @stream-ref))
 
   (render
     (<< [:div.p-2.bg-gray-200.font-bold "Tap History"]
-        [:div.flex-1 tap-stream]
+        [:div.flex-1
+         (streams/embed
+           ::m/taps
+           {:ref stream-ref
+            :tabindex (if active? 0 -1)
+            :select-event [::kb-select!]}
+           item-fn)]
+
         [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
          [:button
           {:class css-button
+           :tabindex (if active? 0 -1)
            :on-click [::clear!]}
           "Clear"]])))
 
@@ -353,7 +361,7 @@
   (event ::inspect-object! [env ident]
     (sg/run-tx env [::m/inspect-object! ident]))
 
-  (bind container-ref (sg/dom-ref))
+  (bind container-ref (sg/ref))
 
   (bind scroll-into-view
     ;; hacky way to scroll since smooth is too slow IMHO
@@ -429,15 +437,16 @@
          [:div.flex-1.flex.overflow-hidden {:dom/ref container-ref}
           (sg/render-seq stack nil
             (fn [{:keys [type] :as item} idx]
-              (<< [:div {:class "p-3 flex-none h-full"
-                         :style {:width "100%"}}
-                   [:div.border.shadow-lg.h-full.flex.flex-col
-                    (case type
-                      :tap-panel
-                      (ui-tap-panel item idx)
+              (let [active? (= current idx)]
+                (<< [:div {:class "p-3 flex-none h-full"
+                           :style {:width "100%"}}
+                     [:div.border.shadow-lg.h-full.flex.flex-col
+                      (case type
+                        :tap-panel
+                        (ui-tap-panel item idx active?)
 
-                      :object-panel
-                      (ui-object-panel item idx)
+                        :object-panel
+                        (ui-object-panel item idx active?)
 
-                      (<< [:div (pr-str item)]))]]
-                  )))]])))
+                        (<< [:div (pr-str item)]))]]
+                    ))))]])))

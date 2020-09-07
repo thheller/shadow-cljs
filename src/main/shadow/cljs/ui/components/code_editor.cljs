@@ -25,12 +25,17 @@
     (instance? EditorInit next))
 
   (dom-sync! [this ^EditorInit next]
-    (let [{:keys [value] :as next-opts} (.-opts next)]
-      (set! opts next-opts)
+    (let [{:keys [value tabindex] :as next-opts} (.-opts next)]
+
 
       (when (and editor (seq value))
-        (.setValue editor value)
-        )))
+        (.setValue editor value))
+
+      (when (not= tabindex (:tabindex opts))
+        (.setOption editor "tabindex" tabindex))
+
+      (set! opts next-opts)
+      ))
 
   (dom-insert [this parent anchor]
     (.insertBefore parent marker anchor))
