@@ -1,16 +1,16 @@
 (ns shadow.cljs.ui.components.inspect
   (:require
+    [goog.math :as math]
+    [shadow.dom :as dom]
     [shadow.experiments.arborist :as sa]
     [shadow.experiments.arborist.dom-scheduler :as ds]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.ui.vlist :as vlist]
     [shadow.experiments.grove.ui.streams :as streams]
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
+    [shadow.experiments.grove.keyboard :as keyboard]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.common :as common]
-    [shadow.experiments.grove.keyboard :as keyboard]
-    [shadow.dom :as dom]
-    [goog.math :as math]
     ))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
@@ -175,6 +175,12 @@
   (event ::code-eval! [env code]
     (sg/run-tx env [::m/inspect-code-eval! code ident panel-idx]))
 
+  (event ::inspect-nav! [env key-idx]
+    (sg/run-tx env [::m/inspect-nav! ident key-idx panel-idx]))
+
+  (event ::inspect-switch-display! [env display-type]
+    (sg/run-tx env [::m/inspect-switch-display! ident display-type]))
+
   (render
 
     (let [{:keys [summary is-error display-type]} object
@@ -227,13 +233,7 @@
               (view-as-button display-type :pprint "Pretty-Print" active?))
             (when (contains? supports :edn)
               (view-as-button display-type :edn "EDN" active?))]]
-          )))
-
-  (event ::inspect-nav! [env key-idx]
-    (sg/run-tx env [::m/inspect-nav! ident key-idx panel-idx]))
-
-  (event ::inspect-switch-display! [env display-type]
-    (sg/run-tx env [::m/inspect-switch-display! ident display-type])))
+          ))))
 
 (defc ui-tap-stream-item [{:keys [object-ident]} {:keys [focus]}]
   (bind {:keys [summary runtime obj-preview] :as data}
