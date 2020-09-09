@@ -250,7 +250,7 @@
           {:keys [runtime-info runtime-id]} runtime]
 
       (<< [:div
-           {:class (str "font-mono border-b px-2 py-1 cursor-pointer hover:bg-gray-200" (when focus " bg-gray-200"))
+           {:class (str "font-mono border-b px-2 py-1 cursor-pointer hover:bg-gray-100" (when focus " bg-gray-200"))
             :on-click [::inspect-object! object-ident]}
 
            [:div.text-xs.text-gray-500
