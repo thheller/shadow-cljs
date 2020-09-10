@@ -14,9 +14,10 @@
     [shadow.remote.runtime.shared :as shared]))
 
 (defn devtools-msg [msg & args]
-  (if (seq env/log-style)
-    (js/console.log.apply js/console (into-array (into [(str "%cshadow-cljs: " msg) env/log-style] args)))
-    (js/console.log.apply js/console (into-array (into [(str "shadow-cljs: " msg)] args)))))
+  (when env/log
+    (if (seq env/log-style)
+      (js/console.log.apply js/console (into-array (into [(str "%cshadow-cljs: " msg) env/log-style] args)))
+      (js/console.log.apply js/console (into-array (into [(str "shadow-cljs: " msg)] args))))))
 
 (defn script-eval [code]
   (js/goog.globalEval code))
@@ -33,7 +34,8 @@
     (try
       (script-eval (str js "\n//# sourceURL=" js/$CLJS.SHADOW_ENV.scriptBase output-name))
       (catch :default e
-        (js/console.error (str "Failed to load " resource-name) e)
+        (when env/log
+          (js/console.error (str "Failed to load " resource-name) e))
         (throw (js/Error. (str "Failed to load " resource-name ": " (.-message e))))))))
 
 (defn do-js-reload [msg sources complete-fn failure-fn]
@@ -72,8 +74,9 @@
              (distinct)
              (into []))]
 
-    (doseq [{:keys [msg line column resource-name] :as w} warnings]
-      (js/console.warn (str "BUILD-WARNING in " resource-name " at [" line ":" column "]\n\t" msg)))
+    (when env/log
+      (doseq [{:keys [msg line column resource-name] :as w} warnings]
+        (js/console.warn (str "BUILD-WARNING in " resource-name " at [" line ":" column "]\n\t" msg))))
 
     (if-not env/autoload
       (hud/load-end-success)

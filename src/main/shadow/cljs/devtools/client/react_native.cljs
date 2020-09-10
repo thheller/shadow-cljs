@@ -8,9 +8,11 @@
 
 (defn devtools-msg
   ([x]
-   (js/console.log x))
+   (when env/log
+     (js/console.log x)))
   ([x y]
-   (js/console.log x y)))
+   (when env/log
+     (js/console.log x y))))
 
 (defn script-eval [code]
   (js/goog.global.eval code))

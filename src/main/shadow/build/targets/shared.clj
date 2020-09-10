@@ -34,6 +34,8 @@
 
 (s/def ::enabled boolean?)
 
+(s/def ::log boolean?)
+
 (s/def ::autoload boolean?)
 
 (s/def ::after-load unquoted-qualified-symbol?)
@@ -55,6 +57,7 @@
      ::http-port
      ::http-handler
      ::enabled
+     ::log
      ::autoload
      ::after-load
      ::before-load
@@ -164,13 +167,17 @@
                 use-document-protocol
                 reload-strategy
                 repl-pprint
-                log-style]
+                log-style
+                log]
          :as devtools}
         (:devtools build-config)]
 
     (merge
       {'shadow.cljs.devtools.client.env/enabled
        true
+
+       'shadow.cljs.devtools.client.env/log
+       (not (false? log))
 
        'shadow.cljs.devtools.client.env/autoload
        (not (false? autoload))

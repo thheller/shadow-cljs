@@ -20,6 +20,8 @@
 
 (goog-define enabled false)
 
+(goog-define log true)
+
 (goog-define autoload true)
 
 (goog-define module-format "goog")

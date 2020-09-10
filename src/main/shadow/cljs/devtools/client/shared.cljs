@@ -351,7 +351,6 @@
     (js/clearInterval interval)
 
     (when (some? ws-state)
-      (js/console.log "stop-runtime!")
       (ws-stop-fn ws-state))
 
     (reduce-kv
