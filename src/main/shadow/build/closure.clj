@@ -912,9 +912,8 @@
     ;; we do not need yet
     (.justSetOptions cc closure-opts)
 
-    (when (and source-map? (:source-map-include-sources-content compiler-options))
-      (.setApplyInputSourceMaps closure-opts true)
-      (add-input-source-maps state cc))
+    (.setApplyInputSourceMaps closure-opts true)
+    (add-input-source-maps state cc)
 
     (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
       (ReplaceCLJSConstants. cc (true? (get-in state [:compiler-options :shadow-keywords]))))
