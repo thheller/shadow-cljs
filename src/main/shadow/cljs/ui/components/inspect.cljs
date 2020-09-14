@@ -89,15 +89,23 @@
 (def seq-vlist
   (vlist/configure :fragment-vlist
     {:item-height 22}
-    (fn [{:keys [val] :as entry} idx opts]
-      (<< [:div.border-b.flex
-           {:on-click [::inspect-nav! idx]}
-           [:div.pl-4.px-2.border-r.text-right {:style {:width "60px"}} idx]
-           [:div.px-2.flex-1.truncate (render-edn-limit val)]]))))
+    (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
+      (<< [:div
+           {:class (if focus
+                     "border-b flex bg-gray-200"
+                     "border-b flex hover:bg-gray-100")
+            :on-click [::inspect-nav! idx]}
+           [:div
+            {:class "pl-4 px-2 border-r text-right"
+             :style {:width "60px"}}
+            idx]
+           [:div.px-2.flex-1.truncate
+            (render-edn-limit val)]]))))
 
 (defn render-seq
   [object active?]
   (seq-vlist {:ident (:db/ident object)
+              :select-event [::kb-select!]
               :tabindex (if active? 0 -1)}))
 
 (defmethod render-view :vec [data active?]
@@ -117,18 +125,25 @@
       :grid-template-columns "min-content minmax(25%, auto)"
       :grid-row-gap "1px"
       :grid-column-gap ".5rem"}}
-    (fn [{:keys [key val] :as entry} idx opts]
-      (<< [:div.whitespace-no-wrap.font-bold.px-2.border-r.truncate.bg-gray-100.hover:bg-gray-300
-           {:on-click [::inspect-nav! idx]}
+    (fn [{:keys [key val] :as entry} {:keys [idx focus] :as opts}]
+      (<< [:div
+           {:on-click [::inspect-nav! idx]
+            :class
+            (str "whitespace-no-wrap font-bold px-2 border-r truncate bg-gray-100"
+                 (if focus
+                   " bg-gray-200"
+                   " hover:bg-gray-100"))}
            (render-edn-limit key)]
-          [:div.whitespace-no-wrap.truncate
-           {:on-click [::inspect-nav! idx]}
+          [:div
+           {:on-click [::inspect-nav! idx]
+            :class "whitespace-no-wrap truncate"}
            (render-edn-limit val)])
       )))
 
 (defmethod render-view :map
   [object active?]
   (map-vlist {:ident (:db/ident object)
+              :select-event [::kb-select!]
               :tabindex (if active? 0 -1)}))
 
 (def lazy-seq-vlist
@@ -138,7 +153,7 @@
      (fn [entry]
        (<< [:div "Show more ... " (pr-str entry)]))}
 
-    (fn [{:keys [val] :as entry} idx opts]
+    (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
       (<< [:div.border-b.flex
            {:on-click [::inspect-nav! idx]}
            [:div.pl-4.px-2.border-r.text-right {:style {:width "60px"}} idx]
@@ -180,6 +195,9 @@
 
   (event ::inspect-switch-display! [env display-type]
     (sg/run-tx env [::m/inspect-switch-display! ident display-type]))
+
+  (event ::kb-select! [env key-idx data]
+    (sg/run-tx env [::m/inspect-nav! ident key-idx panel-idx]))
 
   (render
 
