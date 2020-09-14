@@ -45,6 +45,7 @@
         (codemirror {:value val
                      :clojure (not= attr ::m/object-as-str)
                      :cm-opts {:tabindex (if active? 0 -1)
+                               :readOnly true
                                :autofocus false}})
         ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
         (<< [:div.w-full.h-full.font-mono.border-t.p-4
@@ -421,7 +422,9 @@
 
                   ;; (js/console.log "focusing" active-panel-el kb-focus)
 
-                  (when kb-focus
+                  ;; never autofocus codemirror textarea since that will consume all future keyboard
+                  ;; events and isn't easy to nav out of yet?
+                  (when (and kb-focus (not= (.-tagName kb-focus) "TEXTAREA"))
                     ;; this probably violates all ARIA guidelines but don't know how else to
                     ;; shift focus from the otherwise not visible panels?
                     (.focus kb-focus))
