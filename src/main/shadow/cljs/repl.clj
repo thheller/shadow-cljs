@@ -186,6 +186,10 @@
 
 (defn repl-require
   [{:keys [repl-state] :as state} read-result require-form]
+  (when-not (and (map? repl-state)
+                 (symbol? (:current-ns repl-state)))
+    (jvm-log/warn ::repl-require-invalid-state {:repl-state repl-state :require-form require-form}))
+
   (let [{:keys [current-ns]}
         repl-state
 
@@ -518,8 +522,6 @@
       (repl-compile state read-result))
     (catch Exception e
       (throw (ex-info "Failed to process REPL command" (assoc read-result :tag ::process-ex) e)))))
-
-(defn apply-wrap [form wrap])
 
 (defn read-one
   [build-state reader {:keys [filename wrap] :or {filename "repl-input.cljs"} :as opts}]

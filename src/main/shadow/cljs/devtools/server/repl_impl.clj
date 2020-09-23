@@ -64,10 +64,14 @@
         read-lock
         (async/chan)
 
+
         init-ns
         (or (:ns init-state)
             (some-> worker :state-ref deref :build-config :devtools :repl-init-ns)
             'cljs.user)
+
+        repl-timeout
+        (or (some-> worker :state-ref deref :build-config :devtools :repl-timeout) 30000)
 
         init-state
         (assoc init-state
@@ -284,7 +288,7 @@
 
                    (recur repl-state))))
 
-              (async/timeout 10000)
+              (async/timeout repl-timeout)
               ([_]
                ;; fine to wait long time while reading
                (if (= :read (:stage repl-state))
