@@ -184,7 +184,7 @@
     (when (and (seq entries)
                (not entry-file))
       (throw (ex-info
-               (str "package in " package-dir "specified entries but they were all missing")
+               (str "package in " package-dir " specified entries but they were all missing")
                {:tag ::missing-entries
                 :entries entries
                 :package-dir package-dir})))
