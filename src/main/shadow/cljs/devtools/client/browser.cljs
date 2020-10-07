@@ -119,7 +119,8 @@
   (doseq [path updates
           ;; FIXME: could support images?
           :when (str/ends-with? path "css")]
-    (doseq [node (array-seq (js/document.querySelectorAll "link[rel=\"stylesheet\"]"))
+    (doseq [^js node (array-seq (js/document.querySelectorAll "link[rel=\"stylesheet\"]"))
+            :when (not (.-shadow$old node))
             :let [path-match (match-paths (.getAttribute node "href") path)]
             :when path-match]
 
@@ -127,7 +128,14 @@
             (doto (.cloneNode node true)
               (.setAttribute "href" (str path-match "?r=" (rand))))]
 
-        (set! (.-onload new-link) #(gdom/removeNode node))
+        ;; safeguard to prevent duplicating nodes in case a second css update happens
+        ;; before the first onload triggers.
+        (set! node -shadow$old true)
+
+        (set! (.-onload new-link)
+          (fn [e]
+            (gdom/removeNode node)))
+
         (devtools-msg "load CSS" path-match)
         (gdom/insertSiblingAfter new-link node)
         ))))
