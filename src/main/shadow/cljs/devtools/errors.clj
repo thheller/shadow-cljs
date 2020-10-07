@@ -8,6 +8,7 @@
             [shadow.build.ns-form :as ns-form]
             [shadow.build :as comp]
             [shadow.build.resolve :as resolve]
+            [shadow.build.npm :as npm]
             [shadow.cljs.devtools.config :as config]
             [shadow.build.warnings :as w]
             [shadow.jvm-log :as log]
@@ -166,7 +167,23 @@
                 (str/join "\n"))
            "\n")))
 
-  (when (util/is-package-require? require)
+  (cond
+    (contains? npm/node-libs-browser require)
+    (.write w (str "\n"
+                   "Searched for npm packages in:\n"
+                   (->> (for [module-dir js-package-dirs]
+                          (str "\t" (.getAbsolutePath module-dir)))
+                        (str/join "\n"))
+                   "\n"
+                   require " is part of the node-libs-browser polyfill package to provide node-native package support\n"
+                   "for none-node builds. You should install shadow-cljs in your project to provide that dependency.\n"
+                   "\n"
+                   "\tnpm install --save-dev shadow-cljs\n"
+                   "\n"
+                   "See: https://shadow-cljs.github.io/docs/UsersGuide.html#project-install\n"
+                   ))
+
+    (util/is-package-require? require)
     (.write w (str "\n"
                    "Searched for npm packages in:\n"
                    (->> (for [module-dir js-package-dirs]
