@@ -95,7 +95,7 @@
            {:class (if focus
                      "border-b flex bg-gray-200"
                      "border-b flex hover:bg-gray-100")
-            :on-click [::inspect-nav! idx]}
+            :on-click {:e ::inspect-nav! :idx idx}}
            [:div
             {:class "pl-4 px-2 border-r text-right"
              :style {:width "60px"}}
@@ -106,7 +106,7 @@
 (defn render-seq
   [object active?]
   (seq-vlist {:ident (:db/ident object)
-              :select-event [::kb-select!]
+              :select-event {:e ::kb-select!}
               :tabindex (if active? 0 -1)}))
 
 (defmethod render-view :vec [data active?]
@@ -128,7 +128,7 @@
       :grid-column-gap ".5rem"}}
     (fn [{:keys [key val] :as entry} {:keys [idx focus] :as opts}]
       (<< [:div
-           {:on-click [::inspect-nav! idx]
+           {:on-click {:e ::inspect-nav! :idx idx}
             :class
             (str "whitespace-no-wrap font-bold px-2 border-r truncate bg-gray-100"
                  (if focus
@@ -136,7 +136,7 @@
                    " hover:bg-gray-100"))}
            (render-edn-limit key)]
           [:div
-           {:on-click [::inspect-nav! idx]
+           {:on-click {:e ::inspect-nav! :idx idx}
             :class "whitespace-no-wrap truncate"}
            (render-edn-limit val)])
       )))
@@ -144,7 +144,7 @@
 (defmethod render-view :map
   [object active?]
   (map-vlist {:ident (:db/ident object)
-              :select-event [::kb-select!]
+              :select-event {:e ::kb-select!}
               :tabindex (if active? 0 -1)}))
 
 (def lazy-seq-vlist
@@ -156,7 +156,7 @@
 
     (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
       (<< [:div.border-b.flex
-           {:on-click [::inspect-nav! idx]}
+           {:on-click {:e ::inspect-nav! :idx idx}}
            [:div.pl-4.px-2.border-r.text-right {:style {:width "60px"}} idx]
            [:div.px-2.flex-1.truncate (render-edn-limit val)]]))))
 
@@ -173,7 +173,7 @@
        {:class (if (= current val)
                  css-button-selected
                  css-button)
-        :on-click [::inspect-switch-display! val]
+        :on-click {:e ::inspect-switch-display! :display-type val}
         :tabindex (if active? 0 -1)}
        label]))
 
@@ -185,20 +185,20 @@
        :is-error
        :display-type]))
 
-  (event ::go-first! [env e]
-    (sg/run-tx env [::m/inspect-set-current! 0]))
+  (event ::go-first! [env _ _]
+    (sg/run-tx env {:e ::m/inspect-set-current! :idx 0}))
 
-  (event ::code-eval! [env code]
-    (sg/run-tx env [::m/inspect-code-eval! code ident panel-idx]))
+  (event ::code-eval! [env {:keys [code]}]
+    (sg/run-tx env {:e ::m/inspect-code-eval! :ident ident :panel-idx panel-idx :code code}))
 
-  (event ::inspect-nav! [env key-idx]
-    (sg/run-tx env [::m/inspect-nav! ident key-idx panel-idx]))
+  (event ::inspect-nav! [env tx]
+    (sg/run-tx env (assoc tx :e ::m/inspect-nav! :ident ident :panel-idx panel-idx)))
 
-  (event ::inspect-switch-display! [env display-type]
-    (sg/run-tx env [::m/inspect-switch-display! ident display-type]))
+  (event ::inspect-switch-display! [env tx]
+    (sg/run-tx env (assoc tx :e ::m/inspect-switch-display! :ident ident)))
 
-  (event ::kb-select! [env key-idx data]
-    (sg/run-tx env [::m/inspect-nav! ident key-idx panel-idx]))
+  (event ::kb-select! [env {:keys [idx]}]
+    (sg/run-tx env {:e ::m/inspect-nav! :ident ident :idx idx :panel-idx panel-idx}))
 
   (render
 
@@ -208,12 +208,12 @@
       (<< [:div.h-full.flex.flex-col.overflow-hidden {::keyboard/listen true}
            [:div {:class "flex bg-gray-200 font-mono font-bold items-center"}
             [:div.cursor-pointer.py-2.pl-2.font-bold
-             {:on-click [::go-first!]
+             {:on-click {:e ::go-first!}
               :title "go back to tap history (key: alt+t)"}
              svg-chevron-double-left]
 
             [:div.cursor-pointer.py-2.px-2.font-bold
-             {:on-click [::go-back! panel-idx]
+             {:on-click {:e ::go-back! :panel-idx panel-idx}
               :title "go back one (key: left)"}
              svg-chevron-left]
 
@@ -239,7 +239,7 @@
             [:div {:style {:height "120px"}}
              ;; must not autofocus, otherwise the scroll-anim breaks
              (codemirror
-               {:submit-event [::code-eval!]
+               {:submit-event {:e ::code-eval!}
                 :cm-opts
                 {:autofocus false
                  :tabindex (if active? 0 -1)}})]]
@@ -270,7 +270,7 @@
 
       (<< [:div
            {:class (str "font-mono border-b px-2 py-1 cursor-pointer hover:bg-gray-100" (when focus " bg-gray-200"))
-            :on-click [::inspect-object! object-ident]}
+            :on-click {:e ::inspect-object! :ident object-ident}}
 
            [:div.text-xs.text-gray-500
             (str (:added-at-ts summary)
@@ -312,10 +312,10 @@
 
   (bind stream-ref (sg/ref))
 
-  (event ::kb-select! [env {:keys [object-ident]}]
-    (sg/dispatch-up! env [::inspect-object! object-ident]))
+  (event ::kb-select! [env {:keys [item]}]
+    (sg/dispatch-up! env {:e ::inspect-object! :ident (:object-ident item)}))
 
-  (event ::clear! [env e]
+  (event ::clear! [env _ e]
     (streams/clear! @stream-ref))
 
   (render
@@ -325,14 +325,14 @@
            ::m/taps
            {:ref stream-ref
             :tabindex (if active? 0 -1)
-            :select-event [::kb-select!]}
+            :select-event {:e ::kb-select!}}
            item-fn)]
 
         [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
          [:button
           {:class css-button
            :tabindex (if active? 0 -1)
-           :on-click [::clear!]}
+           :on-click {:e ::clear!}}
           "Clear"]])))
 
 ;; really hacky way to scroll stuff
@@ -384,8 +384,8 @@
   (bind {:keys [stack current]}
     inspect)
 
-  (event ::inspect-object! [env ident]
-    (sg/run-tx env [::m/inspect-object! ident]))
+  (event ::inspect-object! [env tx]
+    (sg/run-tx env (assoc tx :e ::m/inspect-object!)))
 
   (bind container-ref (sg/ref))
 
@@ -430,33 +430,33 @@
                     (.focus kb-focus))
                   ))))))))
 
-  (event ::go-back! [env panel-idx]
-    (sg/run-tx env [::m/inspect-set-current! (dec panel-idx)]))
+  (event ::go-back! [env {:keys [panel-idx]}]
+    (sg/run-tx env {:e ::m/inspect-set-current! :idx (dec panel-idx)}))
 
-  (event ::keyboard/arrowleft [env e]
+  (event ::keyboard/arrowleft [env _ e]
     (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
       (when (pos? current)
-        (sg/run-tx env [::m/inspect-set-current! (dec current)])
+        (sg/run-tx env {:e ::m/inspect-set-current! :idx (dec current)})
         (dom/ev-stop e))))
 
-  (event ::keyboard/ctrl+arrowleft [env e]
+  (event ::keyboard/ctrl+arrowleft [env _ e]
     (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-      (sg/run-tx env [::m/inspect-set-current! 0])
+      (sg/run-tx env {:e ::m/inspect-set-current! :idx 0})
       (dom/ev-stop e)))
 
-  (event ::keyboard/alt+t [env e]
-    (sg/run-tx env [::m/inspect-set-current! 0])
+  (event ::keyboard/alt+t [env _ e]
+    (sg/run-tx env {:e ::m/inspect-set-current! :idx 0})
     (dom/ev-stop e))
 
-  (event ::keyboard/arrowright [env e]
+  (event ::keyboard/arrowright [env _ e]
     (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
       (when (> (count stack) (inc current))
-        (sg/run-tx env [::m/inspect-set-current! (inc current)])
+        (sg/run-tx env {:e ::m/inspect-set-current! :idx (inc current)})
         (dom/ev-stop e))))
 
-  (event ::keyboard/ctrl+arrowright [env e]
+  (event ::keyboard/ctrl+arrowright [env _ e]
     (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
-      (sg/run-tx env [::m/inspect-set-current! (-> stack count dec)])
+      (sg/run-tx env {:e ::m/inspect-set-current! :idx (-> stack count dec)})
       (dom/ev-stop e)))
 
   (render

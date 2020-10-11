@@ -35,7 +35,7 @@
 
 (sw/reg-event-fx env/app-ref ::m/relay-ws
   []
-  (fn [env {:keys [op] :as msg}]
+  (fn [env {:keys [msg]}]
     ;; (js/console.log ::m/relay-ws op msg)
     (handle-msg env msg)))
 
@@ -43,12 +43,13 @@
   ;; (js/console.log "ws-send" msg)
   (.send @ws-ref (transit-str msg)))
 
-(defn call! [env msg callback-map]
+(defn call! [env msg result-data]
   {:pre [(map? msg)
-         (map? callback-map)]}
+         (map? result-data)
+         (keyword? (:e result-data))]}
   (let [mid (swap! rpc-id-seq inc)]
     (swap! rpc-ref assoc mid {:msg msg
-                              :callback-map callback-map})
+                              :result-data result-data})
     (cast! env (assoc msg :call-id mid))))
 
 (sw/reg-fx env/app-ref :ws-send
@@ -80,17 +81,14 @@
           (let [{:keys [call-id op] :as msg} (transit-read (.-data e))]
             (cond
               call-id
-              (let [{:keys [callback-map] :as call-data} (get @rpc-ref call-id)
-                    tx-data (get callback-map op)]
-                (if-not tx-data
-                  (js/console.warn "received rpc reply without handler" op msg call-data)
-                  (sw/tx* @env/app-ref (conj tx-data msg))))
+              (let [{:keys [result-data] :as call-data} (get @rpc-ref call-id)]
+                (sw/tx* @env/app-ref (assoc result-data :call-result msg)))
 
               (= :ping op)
               (cast! @app-ref {:op :pong})
 
               :else
-              (sw/tx* @env/app-ref [::m/relay-ws msg]))))))
+              (sw/tx* @env/app-ref {:e ::m/relay-ws :msg msg}))))))
 
     (.addEventListener socket "open"
       (fn [e]

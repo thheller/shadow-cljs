@@ -18,7 +18,7 @@
   (sw/init! env/app-ref)
   (sw/reg-fx env/app-ref :graph-api
     (http-fx/make-handler
-      {:on-error [::m/request-error!]
+      {:on-error {:e ::m/request-error!}
        :base-url "/api/graph"
        :request-format :transit}))
 
@@ -38,4 +38,4 @@
          :to 1
          ::m/topic ::m/build-status-update})))
 
-  (sw/run-tx @env/app-ref [::m/init!]))
+  (sw/run-tx @env/app-ref {:e ::m/init!}))

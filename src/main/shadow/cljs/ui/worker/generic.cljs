@@ -3,30 +3,37 @@
     [clojure.string :as str]
     [shadow.experiments.grove.worker :as sw]
     [shadow.experiments.grove.db :as db]
+    [shadow.experiments.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.worker.env :as env]
-    [shadow.experiments.grove.eql-query :as eql]))
+    [shadow.cljs.ui.worker.env :as env]))
 
 (sw/reg-event-fx env/app-ref ::m/init!
   []
-  (fn [{:keys [db] :as env} token]
+  (fn [{:keys [db] :as env} _]
     {:graph-api
-     {:request {:body [::m/http-servers
-                       ;; FIXME: what would be a good place for this definition so that
-                       ;; the main and worker can share it
-                       ;; either the full query or just the attributes the components want
-                       {::m/build-configs
-                        [::m/build-id
-                         ::m/build-target
-                         ::m/build-config-raw
-                         ::m/build-worker-active
-                         ]}]}
-      :on-success [::init-data]}}))
+     {:request
+      {:body
+       [::m/http-servers
+        ;; FIXME: what would be a good place for this definition so that
+        ;; the main and worker can share it
+        ;; either the full query or just the attributes the components want
+        {::m/build-configs
+         [::m/build-id
+          ::m/build-target
+          ::m/build-config-raw
+          ::m/build-worker-active
+          ]}]}
+
+      :on-success
+      {:e ::init-data}}}))
 
 (sw/reg-event-fx env/app-ref ::init-data
   []
-  (fn [{:keys [db] :as env} {::m/keys [http-servers build-configs] :as data}]
-    (let [merged
+  (fn [{:keys [db] :as env} {:keys [result]}]
+    (let [{::m/keys [http-servers build-configs]}
+          result
+
+          merged
           (-> db
               (assoc ::m/init-complete? true)
               (db/merge-seq ::m/http-server http-servers [::m/http-servers])
@@ -35,15 +42,15 @@
 
 (sw/reg-event-fx env/app-ref ::m/dismiss-error!
   []
-  (fn [{:keys [db] :as env} err-ident]
-    {:db (dissoc db err-ident)}))
+  (fn [{:keys [db] :as env} {:keys [ident]}]
+    {:db (dissoc db ident)}))
 
 (defmethod eql/attr ::m/errors [env db current query-part params]
   (db/all-idents-of db ::m/error))
 
 (sw/reg-event-fx env/app-ref :ui/route!
   []
-  (fn [{:keys [db] :as env} token]
+  (fn [{:keys [db] :as env} {:keys [token]}]
     ;; FIXME: reitit?
     (let [[main & more :as tokens] (str/split token #"/")
           db (assoc db ::current-route token)]

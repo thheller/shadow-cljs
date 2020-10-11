@@ -101,6 +101,13 @@
            (nil? display-type)
            (assoc-in [object-ident :display-type] (guess-display-type summary))))}))
 
+(sw/reg-event-fx env/app-ref ::obj-preview-result
+  []
+  (fn [{:keys [db]} {:keys [call-result]}]
+    (let [{:keys [op oid result]} call-result] ;; remote-result
+      (assert (= op :obj-result))
+      {:db (assoc-in db [(db/make-ident ::m/object oid) :edn-limit] result)})))
+
 (defmethod eql/attr :obj-preview [env db {:keys [oid runtime-id edn-limit] :as current} query-part params]
   (cond
     edn-limit
@@ -123,7 +130,7 @@
            :request-op :edn-limit
            :limit 150}
 
-          {:obj-result [:edn-limit-preview-loaded]})
+          {:e ::obj-preview-result})
 
         :db/loading)))
 
@@ -143,6 +150,13 @@
 
         :db/loading)))
 
+(sw/reg-event-fx env/app-ref ::obj-as-result
+  []
+  (fn [{:keys [db]} {:keys [ident call-result key]}]
+    (let [{:keys [op result]} call-result]
+      (assert (= :obj-result op)) ;; FIXME: handle obj-request-failed
+      {:db (assoc-in db [ident key] result)})))
+
 (defmethod eql/attr ::m/object-as-edn [env db {:keys [oid runtime-id edn] :as current} query-part params]
   (cond
     edn
@@ -157,8 +171,10 @@
            :to runtime-id
            :oid oid
            :request-op :edn}
-          {:obj-request-failed [:edn-failed (:db/ident current)]
-           :obj-result [:edn-result (:db/ident current)]})
+
+          {:e ::obj-as-result
+           :ident (:db/ident current)
+           :key :edn})
         :db/loading)))
 
 (defmethod eql/attr ::m/object-as-str [env db {:keys [oid runtime-id str] :as current} query-part params]
@@ -175,19 +191,10 @@
            :to runtime-id
            :oid oid
            :request-op :str}
-          {:obj-request-failed [:edn-failed (:db/ident current)]
-           :obj-result [:str-result (:db/ident current)]})
+          {:e ::obj-as-result
+           :ident (:db/ident current)
+           :key :str})
         :db/loading)))
-
-(sw/reg-event-fx env/app-ref :edn-result
-  []
-  (fn [{:keys [db]} ident {:keys [result]}]
-    {:db (assoc-in db [ident :edn] result)}))
-
-(sw/reg-event-fx env/app-ref :str-result
-  []
-  (fn [{:keys [db]} ident {:keys [result]}]
-    {:db (assoc-in db [ident :str] result)}))
 
 (defmethod eql/attr ::m/object-as-pprint [env db {:keys [oid runtime-id pprint] :as current} query-part params]
   (cond
@@ -203,14 +210,10 @@
            :to runtime-id
            :oid oid
            :request-op :pprint}
-          {:obj-request-failed [:pprint-failed (:db/ident current)]
-           :obj-result [:pprint-result (:db/ident current)]})
+          {:e ::obj-as-result
+           :ident (:db/ident current)
+           :key :pprint})
         :db/loading)))
-
-(sw/reg-event-fx env/app-ref :pprint-result
-  []
-  (fn [{:keys [db]} ident {:keys [result]}]
-    {:db (assoc-in db [ident :pprint] result)}))
 
 (defmethod eql/attr :fragment-vlist
   [env
@@ -256,13 +259,16 @@
                :request-op :fragment
                :key-limit 160
                :val-limit 160}
-              {:obj-result [:fragment-slice-loaded (:db/ident current)]})
+              {:e ::fragment-slice-loaded
+               :ident (:db/ident current)})
             :db/loading)))))
 
-(sw/reg-event-fx env/app-ref :fragment-slice-loaded
+(sw/reg-event-fx env/app-ref ::fragment-slice-loaded
   []
-  (fn [{:keys [db]} ident {:keys [result]}]
-    {:db (update-in db [ident :fragment] merge result)}))
+  (fn [{:keys [db]} {:keys [ident call-result]}]
+    (let [{:keys [op result]} call-result]
+      (assert (= :obj-result op)) ;; FIXME: handle failures
+      {:db (update-in db [ident :fragment] merge result)})))
 
 (defmethod eql/attr :lazy-seq-vlist
   [env
@@ -308,26 +314,27 @@
                :num num
                :request-op :chunk
                :val-limit 100}
-              {:obj-result [:lazy-seq-slice-loaded (:db/ident current)]})
+
+              {:e ::lazy-seq-slice-loaded
+               :ident (:db/ident current)})
+
             :db/loading)))))
 
-(sw/reg-event-fx env/app-ref :lazy-seq-slice-loaded
+(sw/reg-event-fx env/app-ref ::lazy-seq-slice-loaded
   []
-  (fn [{:keys [db]} ident {:keys [result]}]
-    (let [{:keys [realized fragment more?]} result]
+  (fn [{:keys [db]} {:keys [ident call-result]}]
+    (let [{:keys [op realized fragment more?]} call-result]
+      (assert (= :obj-result op)) ;; FIXME: handle failures
       {:db (-> db
                (assoc-in [ident :realized] realized)
                (assoc-in [ident :more?] more?)
                (update-in [ident :fragment] merge fragment))})))
 
-(sw/reg-event-fx env/app-ref :edn-limit-preview-loaded
-  []
-  (fn [{:keys [db]} {:keys [oid result]}]
-    {:db (assoc-in db [(db/make-ident ::m/object oid) :edn-limit] result)}))
+
 
 (sw/reg-event-fx env/app-ref ::m/inspect-object!
   []
-  (fn [{:keys [db] :as env} ident]
+  (fn [{:keys [db] :as env} {:keys [ident]}]
     (let [{:keys [summary oid runtime-id] :as object} (get db ident)]
       (let [stack
             (-> (get-in db [::m/inspect :stack])
@@ -355,45 +362,33 @@
 
 (sw/reg-event-fx env/app-ref ::m/inspect-nav!
   []
-  (fn [{:keys [db] :as env} current key-idx panel-idx]
-    (let [{:keys [oid runtime-id] :as object} (get db current)]
+  (fn [{:keys [db] :as env} {:keys [ident idx panel-idx]}]
+    (let [{:keys [oid runtime-id] :as object} (get db ident)]
 
       (relay-ws/call! env
         {:op :obj-request
          :to runtime-id
          :oid oid
          :request-op :nav
-         :idx key-idx
+         :idx idx
          :summary true}
 
-        ;; FIXME: maybe nav should return simple values, instead of ref to simple value
-        {:obj-result [:nav-result panel-idx]
-         :obj-result-ref [:nav-result-ref panel-idx]})
+        {:e ::inspect-nav-result
+         :ident ident
+         :panel-idx panel-idx})
 
       {})))
 
-(sw/reg-event-fx env/app-ref ::m/inspect-set-current!
+(sw/reg-event-fx env/app-ref ::inspect-nav-result
   []
-  (fn [{:keys [db] :as env} idx]
-    {:db (assoc-in db [::m/inspect :current] idx)}))
+  (fn [{:keys [db] :as env} {:keys [panel-idx call-result] :as tx}]
 
-(sw/reg-event-fx env/app-ref ::m/inspect-nav-jump!
-  []
-  (fn [{:keys [db] :as env} idx]
-    (let [idx (inc idx)]
+    (assert (= :obj-result-ref (:op call-result))) ;; FIXME: handle failures
 
-      {:db (-> db
-               (update-in [::m/inspect :nav-stack] subvec 0 idx))})))
+    (let [{:keys [ref-oid from summary]}
+          call-result
 
-(sw/reg-event-fx env/app-ref ::m/inspect-switch-display!
-  []
-  (fn [{:keys [db] :as env} ident display-type]
-    {:db (assoc-in db [ident :display-type] display-type)}))
-
-(sw/reg-event-fx env/app-ref :nav-result-ref
-  []
-  (fn [{:keys [db] :as env} panel-idx {:keys [ref-oid from summary] :as msg}]
-    (let [obj
+          obj
           {:oid ref-oid
            :runtime-id from
            :runtime (db/make-ident ::m/runtime from)
@@ -415,6 +410,26 @@
                (db/add ::m/object obj)
                (assoc-in [::m/inspect :stack] stack)
                (assoc-in [::m/inspect :current] (inc panel-idx)))})))
+
+(sw/reg-event-fx env/app-ref ::m/inspect-set-current!
+  []
+  (fn [{:keys [db] :as env} {:keys [idx]}]
+    {:db (assoc-in db [::m/inspect :current] idx)}))
+
+(sw/reg-event-fx env/app-ref ::m/inspect-nav-jump!
+  []
+  (fn [{:keys [db] :as env} {:keys [idx]}]
+    (let [idx (inc idx)]
+
+      {:db (-> db
+               (update-in [::m/inspect :nav-stack] subvec 0 idx))})))
+
+(sw/reg-event-fx env/app-ref ::m/inspect-switch-display!
+  []
+  (fn [{:keys [db] :as env} {:keys [ident display-type]}]
+    {:db (assoc-in db [ident :display-type] display-type)}))
+
+
 
 (defmethod eql/attr ::m/runtimes-sorted
   [env db current query-part params]
@@ -441,7 +456,7 @@
 
 (sw/reg-event-fx env/app-ref ::m/inspect-code-eval!
   []
-  (fn [{:keys [db] :as env} code ident panel-idx]
+  (fn [{:keys [db] :as env} {:keys [code ident panel-idx]}]
     (let [data
           (eql/query env db
             [{ident
@@ -479,207 +494,70 @@
         {:op eval-mode
          :to runtime-id
          :input input}
-        {:eval-result-ref [::inspect-eval-result! code panel-idx]
-         :eval-compile-error [::inspect-eval-compile-error! code]
-         :eval-runtime-error [::inspect-eval-runtime-error! code]})
+        {:e ::inspect-eval-result!
+         :code code
+         :panel-idx panel-idx})
       {})))
 
 (sw/reg-event-fx env/app-ref ::inspect-eval-result!
   []
-  (fn [{:keys [db] :as env} code panel-idx {:keys [ref-oid from warnings] :as msg}]
-    (when (seq warnings)
-      (doseq [w warnings]
-        (js/console.warn "FIXME: warning not yet displayed in UI" w)))
+  (fn [{:keys [db] :as env} {:keys [code panel-idx call-result]}]
+    (case (:op call-result)
+      :eval-result-ref
+      (let [{:keys [ref-oid from warnings]} call-result]
+        (when (seq warnings)
+          (doseq [w warnings]
+            (js/console.warn "FIXME: warning not yet displayed in UI" w)))
 
-    (let [object-ident
-          (db/make-ident ::m/object ref-oid)
+        (let [object-ident
+              (db/make-ident ::m/object ref-oid)
 
-          stack
-          (-> (get-in db [::m/inspect :stack])
-              (subvec 0 (inc panel-idx))
-              (conj {:type :object-panel
-                     :ident object-ident}))]
-      {:db
-       (-> db
-           (assoc object-ident
-                  {:db/ident object-ident
-                   :oid ref-oid
-                   :runtime-id from
-                   :runtime (db/make-ident ::m/runtime from)})
-           (assoc-in [::m/inspect :current] (inc panel-idx))
-           (assoc-in [::m/inspect :stack] stack))})))
+              stack
+              (-> (get-in db [::m/inspect :stack])
+                  (subvec 0 (inc panel-idx))
+                  (conj {:type :object-panel
+                         :ident object-ident}))]
+          {:db
+           (-> db
+               (assoc object-ident
+                      {:db/ident object-ident
+                       :oid ref-oid
+                       :runtime-id from
+                       :runtime (db/make-ident ::m/runtime from)})
+               (assoc-in [::m/inspect :current] (inc panel-idx))
+               (assoc-in [::m/inspect :stack] stack))}))
 
-(sw/reg-event-fx env/app-ref ::inspect-eval-compile-error!
-  []
-  (fn [{:keys [db] :as env} code {:keys [from ex-oid ex-client-id] :as msg}]
-    (let [object-ident (db/make-ident ::m/object ex-oid)]
-      {:db
-       (-> db
-           (assoc object-ident
-                  {:db/ident object-ident
-                   :oid ex-oid
-                   :runtime-id (or ex-client-id from)
-                   :runtime (db/make-ident ::m/runtime (or ex-client-id from))
-                   :is-error true})
-           (assoc-in [::m/inspect :object] object-ident)
-           (update-in [::m/inspect :nav-stack] conj
-             {:idx (count (get-in db [::m/inspect :nav-stack]))
-              :code code
-              :ident (get-in db [::m/inspect :object])}))})))
+      :eval-compile-error
+      (let [{:keys [from ex-oid ex-client-id]} call-result
+            object-ident (db/make-ident ::m/object ex-oid)]
+        {:db
+         (-> db
+             (assoc object-ident
+                    {:db/ident object-ident
+                     :oid ex-oid
+                     :runtime-id (or ex-client-id from)
+                     :runtime (db/make-ident ::m/runtime (or ex-client-id from))
+                     :is-error true})
+             (assoc-in [::m/inspect :object] object-ident)
+             (update-in [::m/inspect :nav-stack] conj
+               {:idx (count (get-in db [::m/inspect :nav-stack]))
+                :code code
+                :ident (get-in db [::m/inspect :object])}))})
 
-(sw/reg-event-fx env/app-ref ::inspect-eval-runtime-error!
-  []
-  (fn [{:keys [db] :as env} code {:keys [from ex-oid] :as msg}]
-    (let [object-ident (db/make-ident ::m/object ex-oid)]
-      {:db
-       (-> db
-           (assoc object-ident
-                  {:db/ident object-ident
-                   :oid ex-oid
-                   :runtime-id from
-                   :runtime (db/make-ident ::m/runtime from)
-                   :is-error true})
-           (assoc-in [::m/inspect :object] object-ident)
-           (update-in [::m/inspect :nav-stack] conj
-             {:idx (count (get-in db [::m/inspect :nav-stack]))
-              :code code
-              :ident (get-in db [::m/inspect :object])}))})))
-
-(defmethod eql/attr ::m/databases [env db {:keys [runtime-id] ::m/keys [databases] :as current} query-part params]
-  (cond
-    databases
-    databases
-
-    (not runtime-id)
-    (throw (ex-info "can only request ::m/databases for runtime" {:current current}))
-
-    :hack
-    (do (relay-ws/call! env
-          {:op :db/get-databases
-           :to runtime-id}
-          {:db/list-databases [::list-databases (:db/ident current)]})
-        :db/loading)))
-
-(sw/reg-event-fx env/app-ref ::list-databases
-  []
-  (fn [{:keys [db] :as env} runtime-ident {:keys [databases]}]
-    (let [{:keys [runtime-id] :as runtime} (get db runtime-ident)]
-      {:db (reduce
-             (fn [db db-id]
-               (let [db-ident (db/make-ident ::m/database [runtime-id db-id])]
-                 (-> db
-                     (assoc db-ident {:db/ident db-ident
-                                      :runtime-id runtime-id
-                                      :db-id db-id
-                                      ::m/runtime runtime-ident})
-                     (update-in [runtime-ident ::m/databases] conj db-ident)
-                     (cond->
-                       (= 1 (count databases))
-                       (assoc-in [runtime-ident ::m/selected-database] db-ident)
-                       ))))
-             (assoc-in db [runtime-ident ::m/databases] [])
-             databases)})))
-
-(defmethod eql/attr ::m/tables [env db {:keys [runtime-id db-id] ::m/keys [tables] :as current} query-part params]
-  (cond
-    tables
-    tables
-
-    (not db-id)
-    (throw (ex-info "can only request ::m/tables for database" {:current current}))
-
-    :hack
-    (do (relay-ws/call! env
-          {:op :db/get-tables
-           :to runtime-id
-           :db db-id}
-          {:db/list-tables [::list-tables (:db/ident current)]})
-        :db/loading)))
-
-(sw/reg-event-fx env/app-ref ::list-tables
-  []
-  (fn [{:keys [db] :as env} db-ident {:keys [tables]}]
-    {:db (update db db-ident merge {::m/tables tables
-                                    ::m/table-query
-                                    {:table :db/globals
-                                     :row nil}})}))
-
-(defmethod eql/attr ::m/table-rows-vlist
-  [env
-   db
-   {db-ident :db/ident :keys [db-id runtime-id] ::m/keys [table-query table-rows] :as current}
-   _
-   {:keys [offset num] :or {offset 0 num 0} :as params}]
-
-  (let [{:keys [table]} table-query]
-
-    (cond
-      (not table)
-      (do (throw (ex-info "FIXME: no table selected" {:current current}))
-          :db/loading)
-
-      (not table-rows)
-      (do (relay-ws/call! env
-            {:op :db/get-rows
-             :to runtime-id
-             :db db-id
-             :table table}
-            {:db/list-rows [::list-rows db-ident]})
-          :db/loading)
-
-      :else
-      (let [start-idx offset
-            last-idx (js/Math.min (count table-rows) (+ start-idx num))
-
-            slice
-            (->> (range start-idx last-idx)
-                 (reduce
-                   (fn [m idx]
-                     (let [val (get table-rows idx)]
-                       (if-not val
-                         (reduced nil)
-                         (conj! m val))))
-                   (transient [])))]
-
-        ;; all requested elements are already present
-        (if-not slice
-          (throw (ex-info "missing table rows?" {}))
-          {:item-count (count table-rows)
-           :offset offset
-           :slice (persistent! slice)})))))
-
-(sw/reg-event-fx env/app-ref ::list-rows
-  []
-  (fn [{:keys [db] :as env} db-ident {:keys [rows] :as msg}]
-    {:db (update db db-ident merge {::m/table-rows rows})}))
-
-(sw/reg-event-fx env/app-ref ::m/table-query-update!
-  []
-  (fn [{:keys [db] :as env} {:keys [db-ident table row] :as msg}]
-    (let [{:keys [runtime-id db-id] ::m/keys [table-query]} (get db db-ident)]
-
-      ;; FIXME: make this proper fx!
-      (when (not= table (:table table-query))
-        (relay-ws/call! env
-          {:op :db/get-rows
-           :to runtime-id
-           :db db-id
-           :table table}
-          {:db/list-rows [::list-rows db-ident]}))
-
-      (when (not= row (:row table-query))
-        (relay-ws/call! env
-          {:op :db/get-entry
-           :to runtime-id
-           :db db-id
-           :table table
-           :row row}
-          {:db/entry [::db-table-entry db-ident]}))
-
-      {:db (update-in db [db-ident ::m/table-query] merge msg)}
+      :eval-runtime-error
+      (let [{:keys [from ex-oid]} call-result
+            object-ident (db/make-ident ::m/object ex-oid)]
+        {:db
+         (-> db
+             (assoc object-ident
+                    {:db/ident object-ident
+                     :oid ex-oid
+                     :runtime-id from
+                     :runtime (db/make-ident ::m/runtime from)
+                     :is-error true})
+             (assoc-in [::m/inspect :object] object-ident)
+             (update-in [::m/inspect :nav-stack] conj
+               {:idx (count (get-in db [::m/inspect :nav-stack]))
+                :code code
+                :ident (get-in db [::m/inspect :object])}))})
       )))
-
-(sw/reg-event-fx env/app-ref ::db-table-entry
-  []
-  (fn [{:keys [db] :as env} db-ident {:keys [row] :as msg}]
-    {:db (assoc-in db [db-ident ::m/table-entry] row)}))

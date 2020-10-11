@@ -9,23 +9,23 @@
 (defn build-buttons [build-id build-worker-active]
   (if build-worker-active
     (<< [:button.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click [::m/build-watch-compile! build-id]}
+         {:on-click {:e ::m/build-watch-compile! :build-id build-id}}
          "force compile"]
         [:button.ml-2.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click [::m/build-watch-stop! build-id]}
+         {:on-click {:e ::m/build-watch-stop! :build-id build-id}}
          "stop watch"])
 
     (<< [:button.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click [::m/build-watch-start! build-id]}
+         {:on-click {:e ::m/build-watch-start! :build-id build-id}}
          "start watch"]
         [:button.ml-2.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click [::m/build-compile! build-id]}
+         {:on-click {:e ::m/build-compile! :build-id build-id}}
          "compile"]
         [:button.ml-2.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click [::m/build-release! build-id]}
+         {:on-click {:e ::m/build-release! :build-id build-id}}
          "release"]
         [:button.ml-2.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click [::m/build-release-debug! build-id]}
+         {:on-click {:e ::m/build-release-debug! :build-id build-id}}
          "release debug"])))
 
 ;; https://github.com/sschoger/heroicons-ui
@@ -138,7 +138,7 @@
       {}
       build-sources-sorted))
 
-  (event ::highlight [env resource-id]
+  (event ::highlight [env {:keys [resource-id]}]
     (swap! state-ref assoc :selected resource-id))
 
   (bind render-source-entry
@@ -146,7 +146,7 @@
       (let [selected? (= resource-id selected)]
         (<< [:div.text-xs
              {:class (when selected? "font-bold")
-              :on-mouseenter [::highlight resource-id]}
+              :on-mouseenter {:e ::highlight :resource-id resource-id}}
              resource-name]))))
 
   (render

@@ -12,10 +12,10 @@
 (def rows-vlist
   (vlist/configure ::m/table-rows-vlist
     {:item-height 31}
-    (fn [entry idx opts]
+    (fn [val idx opts]
       (<< [:div.truncate.bg-white.border-b-2.font-mono.p-1.cursor-pointer
-           {:on-click [::select-row! entry idx]}
-           (pr-str entry)]))))
+           {:on-click {:e ::select-row! :val val :idx idx}}
+           (pr-str val)]))))
 
 
 (def ui-database-form
@@ -26,7 +26,7 @@
      :eager-submit true
      :submit
      (fn [env data]
-       (sg/run-tx env [::m/table-query-update! data])
+       (sg/run-tx env {:e ::m/table-query-update! :data data})
        ;; (js/console.log "database form submit" env data)
        )}))
 
@@ -47,7 +47,7 @@
   (bind form
     (ui-database-form (assoc table-query :db-ident db-ident)))
 
-  (event ::select-row! [env val]
+  (event ::select-row! [env {:keys [val]}]
     ;; protocolize/helper fn
     (.field-did-change! ^Form form :row val))
 

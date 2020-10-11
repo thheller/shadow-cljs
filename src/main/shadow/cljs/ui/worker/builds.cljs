@@ -8,9 +8,9 @@
     [shadow.cljs.ui.worker.relay-ws :as relay-ws]))
 
 (defn fx-to-ws
-  [env build-id]
+  [env {:keys [e build-id]}]
   {:ws-send
-   [{:op (::sw/event-id env)
+   [{:op e
      :to 1 ;; FIXME: don't hardcode CLJ runtime id
      ::m/build-id build-id}]})
 

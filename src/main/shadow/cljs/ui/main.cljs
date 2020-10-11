@@ -22,8 +22,8 @@
 
   (event ::m/dismiss-error! sg/tx)
 
-  (event ::keyboard/escape [env e]
-    (sg/run-tx env [::m/dismiss-error! err-ident]))
+  (event ::keyboard/escape [env _ e]
+    (sg/run-tx env {:e ::m/dismiss-error! :ident err-ident}))
 
   (render
     (<< [:div.w-full.h-full.bg-white.shadow.border.flex.flex-col {::keyboard/listen true}
@@ -31,7 +31,7 @@
           [:div.text-red-700.p-2.font-bold "An error occured:"]
           [:div.flex-1]
           [:div.text-right.cursor-pointer.font-bold.p-2
-           {:on-click [::m/dismiss-error! err-ident]}
+           {:on-click {:e ::m/dismiss-error! :ident err-ident}}
            common/svg-close]]
          [:pre.overflow-auto.p-2.overflow-auto text]])))
 

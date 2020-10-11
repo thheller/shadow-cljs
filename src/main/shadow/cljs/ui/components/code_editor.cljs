@@ -76,7 +76,7 @@
               (let [val (str/trim (.getValue ed))]
                 (when (seq val)
                   (let [comp (comp/get-component env)]
-                    (gp/handle-event! comp (conj (:submit-event opts) val) e)
+                    (gp/handle-event! comp (assoc (:submit-event opts) :code val) e)
                     (.setValue ed "")))))]
 
         (set! editor ed)
