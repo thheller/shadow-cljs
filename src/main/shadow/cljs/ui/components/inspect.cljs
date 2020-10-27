@@ -177,7 +177,7 @@
         :tabindex (if active? 0 -1)}
        label]))
 
-(defc ui-object-panel [{:keys [ident]} panel-idx active?]
+(defc ui-object-panel [ident panel-idx active?]
   (bind object
     (sg/query-ident ident
       [:db/ident
@@ -207,15 +207,16 @@
 
       (<< [:div.h-full.flex.flex-col.overflow-hidden {::keyboard/listen true}
            [:div {:class "flex bg-gray-200 font-mono font-bold items-center"}
-            [:div.cursor-pointer.py-2.pl-2.font-bold
-             {:on-click {:e ::go-first!}
-              :title "go back to tap history (key: alt+t)"}
-             svg-chevron-double-left]
+            (when (pos? panel-idx)
+              (<< [:div.cursor-pointer.py-2.pl-2.font-bold
+                   {:on-click {:e ::go-first!}
+                    :title "go back to tap history (key: alt+t)"}
+                   svg-chevron-double-left]
 
-            [:div.cursor-pointer.py-2.px-2.font-bold
-             {:on-click {:e ::go-back! :panel-idx panel-idx}
-              :title "go back one (key: left)"}
-             svg-chevron-left]
+                  [:div.cursor-pointer.py-2.px-2.font-bold
+                   {:on-click {:e ::go-back! :panel-idx panel-idx}
+                    :title "go back one (key: left)"}
+                   svg-chevron-left]))
 
             [:div {:class (str "px-2 py-2" (when is-error " text-red-700"))} obj-type]
             (when entries
@@ -312,6 +313,9 @@
 
   (bind stream-ref (sg/ref))
 
+  (bind {::m/keys [tap-latest]}
+    (sg/query-root [::m/tap-latest]))
+
   (event ::kb-select! [env {:keys [item]}]
     (sg/dispatch-up! env {:e ::inspect-object! :ident (:object-ident item)}))
 
@@ -334,6 +338,15 @@
            :tabindex (if active? 0 -1)
            :on-click {:e ::clear!}}
           "Clear"]])))
+
+(defc ui-tap-latest-panel [item panel-idx active?]
+  (bind {::m/keys [tap-latest]}
+    (sg/query-root [::m/tap-latest]))
+
+  (render
+    (if-not tap-latest
+      (<< "No Taps yet. (tap> something) to see it here.")
+      (ui-object-panel tap-latest panel-idx active?))))
 
 ;; really hacky way to scroll stuff
 ;; need to come up with better abstraction for this
@@ -473,8 +486,11 @@
                         :tap-panel
                         (ui-tap-panel item idx active?)
 
+                        :tap-latest-panel
+                        (ui-tap-latest-panel item idx active?)
+
                         :object-panel
-                        (ui-object-panel item idx active?)
+                        (ui-object-panel (:ident item) idx active?)
 
                         (<< [:div (pr-str item)]))]]
                     ))))]])))

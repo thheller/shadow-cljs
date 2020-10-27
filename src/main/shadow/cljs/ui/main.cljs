@@ -59,7 +59,8 @@
     [{:pages #{:dashboard} :label "Dashboard" :path "/dashboard"}
      {:pages #{:builds :build} :label "Builds" :path "/builds"}
      {:pages #{:runtimes} :label "Runtimes" :path "/runtimes"}
-     {:pages #{:inspect} :label "Inspect" :path "/inspect"}])
+     {:pages #{:inspect} :label "Inspect Stream" :path "/inspect"}
+     {:pages #{:inspect-latest} :label "Inspect Latest" :path "/inspect-latest"}])
 
   (render
     (let [nav-selected
@@ -86,7 +87,7 @@
              {:fallback "Loading ..."
               :timeout 500}
              (case (:id current-page)
-               :inspect
+               (:inspect :inspect-latest)
                (inspect/ui-page)
 
                :builds

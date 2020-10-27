@@ -14,12 +14,12 @@
      :to 1 ;; FIXME: don't hardcode CLJ runtime id
      ::m/build-id build-id}]})
 
-(sw/reg-event-fx env/app-ref ::m/build-watch-compile! [] fx-to-ws)
-(sw/reg-event-fx env/app-ref ::m/build-watch-stop! [] fx-to-ws)
-(sw/reg-event-fx env/app-ref ::m/build-watch-start! [] fx-to-ws)
-(sw/reg-event-fx env/app-ref ::m/build-compile! [] fx-to-ws)
-(sw/reg-event-fx env/app-ref ::m/build-release! [] fx-to-ws)
-(sw/reg-event-fx env/app-ref ::m/build-release-debug! [] fx-to-ws)
+(sw/reg-event env/app-ref ::m/build-watch-compile! fx-to-ws)
+(sw/reg-event env/app-ref ::m/build-watch-stop! fx-to-ws)
+(sw/reg-event env/app-ref ::m/build-watch-start! fx-to-ws)
+(sw/reg-event env/app-ref ::m/build-compile! fx-to-ws)
+(sw/reg-event env/app-ref ::m/build-release! fx-to-ws)
+(sw/reg-event env/app-ref ::m/build-release-debug! fx-to-ws)
 
 (defmethod eql/attr ::m/active-builds
   [env db _ query-part params]

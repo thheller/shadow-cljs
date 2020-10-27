@@ -7,8 +7,7 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]))
 
-(sw/reg-event-fx env/app-ref ::m/init!
-  []
+(sw/reg-event env/app-ref ::m/init!
   (fn [{:keys [db] :as env} _]
     {:graph-api
      {:request
@@ -27,8 +26,7 @@
       :on-success
       {:e ::init-data}}}))
 
-(sw/reg-event-fx env/app-ref ::init-data
-  []
+(sw/reg-event env/app-ref ::init-data
   (fn [{:keys [db] :as env} {:keys [result]}]
     (let [{::m/keys [http-servers build-configs]}
           result
@@ -40,23 +38,33 @@
               (db/merge-seq ::m/build build-configs [::m/builds]))]
       {:db merged})))
 
-(sw/reg-event-fx env/app-ref ::m/dismiss-error!
-  []
+(sw/reg-event env/app-ref ::m/dismiss-error!
   (fn [{:keys [db] :as env} {:keys [ident]}]
     {:db (dissoc db ident)}))
 
 (defmethod eql/attr ::m/errors [env db current query-part params]
   (db/all-idents-of db ::m/error))
 
-(sw/reg-event-fx env/app-ref :ui/route!
-  []
+(sw/reg-event env/app-ref :ui/route!
   (fn [{:keys [db] :as env} {:keys [token]}]
     ;; FIXME: reitit?
     (let [[main & more :as tokens] (str/split token #"/")
           db (assoc db ::current-route token)]
       (case main
         "inspect"
-        {:db (assoc db ::m/current-page {:id :inspect})}
+        {:db (assoc db
+               ::m/current-page {:id :inspect}
+               ::m/inspect
+               {:current 0
+                :stack
+                [{:type :tap-panel}]})}
+
+        "inspect-latest"
+        {:db (assoc db
+               ::m/current-page {:id :inspect-latest}
+               ::m/inspect {:current 0
+                            :stack
+                            [{:type :tap-latest-panel}]})}
 
         "builds"
         {:db (assoc db ::m/current-page {:id :builds})}

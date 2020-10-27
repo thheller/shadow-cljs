@@ -15,7 +15,7 @@
           {:db/list-databases [::list-databases (:db/ident current)]})
         :db/loading)))
 
-(sw/reg-event-fx env/app-ref ::list-databases
+(sw/reg-event env/app-ref ::list-databases
   []
   (fn [{:keys [db] :as env} runtime-ident {:keys [databases]}]
     (let [{:keys [runtime-id] :as runtime} (get db runtime-ident)]
@@ -51,7 +51,7 @@
           {:db/list-tables [::list-tables (:db/ident current)]})
         :db/loading)))
 
-(sw/reg-event-fx env/app-ref ::list-tables
+(sw/reg-event env/app-ref ::list-tables
   []
   (fn [{:keys [db] :as env} db-ident {:keys [tables]}]
     {:db (update db db-ident merge {::m/tables tables
@@ -103,12 +103,12 @@
            :offset offset
            :slice (persistent! slice)})))))
 
-(sw/reg-event-fx env/app-ref ::list-rows
+(sw/reg-event env/app-ref ::list-rows
   []
   (fn [{:keys [db] :as env} db-ident {:keys [rows] :as msg}]
     {:db (update db db-ident merge {::m/table-rows rows})}))
 
-(sw/reg-event-fx env/app-ref ::m/table-query-update!
+(sw/reg-event env/app-ref ::m/table-query-update!
   []
   (fn [{:keys [db] :as env} {:keys [db-ident table row] :as msg}]
     (let [{:keys [runtime-id db-id] ::m/keys [table-query]} (get db db-ident)]
@@ -134,7 +134,7 @@
       {:db (update-in db [db-ident ::m/table-query] merge msg)}
       )))
 
-(sw/reg-event-fx env/app-ref ::db-table-entry
+(sw/reg-event env/app-ref ::db-table-entry
   []
   (fn [{:keys [db] :as env} db-ident {:keys [row] :as msg}]
     {:db (assoc-in db [db-ident ::m/table-entry] row)}))

@@ -28,13 +28,11 @@
      :notify true
      :query [:eq :type :runtime]}]})
 
-(sw/reg-event-fx env/app-ref ::m/relay-ws-close
-  []
+(sw/reg-event env/app-ref ::m/relay-ws-close
   (fn [{:keys [db] :as env} _]
     {:db (assoc db ::m/relay-ws-connected false)}))
 
-(sw/reg-event-fx env/app-ref ::m/relay-ws
-  []
+(sw/reg-event env/app-ref ::m/relay-ws
   (fn [env {:keys [msg]}]
     ;; (js/console.log ::m/relay-ws op msg)
     (handle-msg env msg)))
@@ -82,13 +80,13 @@
             (cond
               call-id
               (let [{:keys [result-data] :as call-data} (get @rpc-ref call-id)]
-                (sw/tx* @env/app-ref (assoc result-data :call-result msg)))
+                (sw/run-tx @env/app-ref (assoc result-data :call-result msg)))
 
               (= :ping op)
               (cast! @app-ref {:op :pong})
 
               :else
-              (sw/tx* @env/app-ref {:e ::m/relay-ws :msg msg}))))))
+              (sw/run-tx @env/app-ref {:e ::m/relay-ws :msg msg}))))))
 
     (.addEventListener socket "open"
       (fn [e]
@@ -97,7 +95,7 @@
 
     (.addEventListener socket "close"
       (fn [e]
-        (sw/tx* @env/app-ref [::m/relay-ws-close])
+        (sw/run-tx @env/app-ref {:e ::m/relay-ws-close})
         (js/console.log "tool-close" e)))
 
     (.addEventListener socket "error"

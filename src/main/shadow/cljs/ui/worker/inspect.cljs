@@ -81,9 +81,11 @@
 (defmethod relay-ws/handle-msg :tap [{:keys [db] :as env} {:keys [oid from]}]
   (let [object-ident (db/make-ident ::m/object oid)]
     {:db
-     (db/add db ::m/object {:oid oid
-                            :runtime-id from
-                            :runtime (db/make-ident ::m/runtime from)})
+     (-> db
+         (db/add ::m/object {:oid oid
+                             :runtime-id from
+                             :runtime (db/make-ident ::m/runtime from)})
+         (assoc ::m/tap-latest object-ident))
 
      :stream-add
      [[::m/taps {:type :tap :object-ident object-ident}]]}))
@@ -101,8 +103,7 @@
            (nil? display-type)
            (assoc-in [object-ident :display-type] (guess-display-type summary))))}))
 
-(sw/reg-event-fx env/app-ref ::obj-preview-result
-  []
+(sw/reg-event env/app-ref ::obj-preview-result
   (fn [{:keys [db]} {:keys [call-result]}]
     (let [{:keys [op oid result]} call-result] ;; remote-result
       (assert (= op :obj-result))
@@ -150,8 +151,7 @@
 
         :db/loading)))
 
-(sw/reg-event-fx env/app-ref ::obj-as-result
-  []
+(sw/reg-event env/app-ref ::obj-as-result
   (fn [{:keys [db]} {:keys [ident call-result key]}]
     (let [{:keys [op result]} call-result]
       (assert (= :obj-result op)) ;; FIXME: handle obj-request-failed
@@ -263,8 +263,7 @@
                :ident (:db/ident current)})
             :db/loading)))))
 
-(sw/reg-event-fx env/app-ref ::fragment-slice-loaded
-  []
+(sw/reg-event env/app-ref ::fragment-slice-loaded
   (fn [{:keys [db]} {:keys [ident call-result]}]
     (let [{:keys [op result]} call-result]
       (assert (= :obj-result op)) ;; FIXME: handle failures
@@ -320,8 +319,7 @@
 
             :db/loading)))))
 
-(sw/reg-event-fx env/app-ref ::lazy-seq-slice-loaded
-  []
+(sw/reg-event env/app-ref ::lazy-seq-slice-loaded
   (fn [{:keys [db]} {:keys [ident call-result]}]
     (let [{:keys [op realized fragment more?]} call-result]
       (assert (= :obj-result op)) ;; FIXME: handle failures
@@ -332,8 +330,7 @@
 
 
 
-(sw/reg-event-fx env/app-ref ::m/inspect-object!
-  []
+(sw/reg-event env/app-ref ::m/inspect-object!
   (fn [{:keys [db] :as env} {:keys [ident]}]
     (let [{:keys [summary oid runtime-id] :as object} (get db ident)]
       (let [stack
@@ -360,8 +357,7 @@
         {:keys [ident] :as last} (last nav-stack)]
     ident))
 
-(sw/reg-event-fx env/app-ref ::m/inspect-nav!
-  []
+(sw/reg-event env/app-ref ::m/inspect-nav!
   (fn [{:keys [db] :as env} {:keys [ident idx panel-idx]}]
     (let [{:keys [oid runtime-id] :as object} (get db ident)]
 
@@ -379,8 +375,7 @@
 
       {})))
 
-(sw/reg-event-fx env/app-ref ::inspect-nav-result
-  []
+(sw/reg-event env/app-ref ::inspect-nav-result
   (fn [{:keys [db] :as env} {:keys [panel-idx call-result] :as tx}]
 
     (assert (= :obj-result-ref (:op call-result))) ;; FIXME: handle failures
@@ -411,25 +406,20 @@
                (assoc-in [::m/inspect :stack] stack)
                (assoc-in [::m/inspect :current] (inc panel-idx)))})))
 
-(sw/reg-event-fx env/app-ref ::m/inspect-set-current!
-  []
+(sw/reg-event env/app-ref ::m/inspect-set-current!
   (fn [{:keys [db] :as env} {:keys [idx]}]
     {:db (assoc-in db [::m/inspect :current] idx)}))
 
-(sw/reg-event-fx env/app-ref ::m/inspect-nav-jump!
-  []
+(sw/reg-event env/app-ref ::m/inspect-nav-jump!
   (fn [{:keys [db] :as env} {:keys [idx]}]
     (let [idx (inc idx)]
 
       {:db (-> db
                (update-in [::m/inspect :nav-stack] subvec 0 idx))})))
 
-(sw/reg-event-fx env/app-ref ::m/inspect-switch-display!
-  []
+(sw/reg-event env/app-ref ::m/inspect-switch-display!
   (fn [{:keys [db] :as env} {:keys [ident display-type]}]
     {:db (assoc-in db [ident :display-type] display-type)}))
-
-
 
 (defmethod eql/attr ::m/runtimes-sorted
   [env db current query-part params]
@@ -454,8 +444,7 @@
        (map :db/ident)
        (vec)))
 
-(sw/reg-event-fx env/app-ref ::m/inspect-code-eval!
-  []
+(sw/reg-event env/app-ref ::m/inspect-code-eval!
   (fn [{:keys [db] :as env} {:keys [code ident panel-idx]}]
     (let [data
           (eql/query env db
@@ -499,8 +488,7 @@
          :panel-idx panel-idx})
       {})))
 
-(sw/reg-event-fx env/app-ref ::inspect-eval-result!
-  []
+(sw/reg-event env/app-ref ::inspect-eval-result!
   (fn [{:keys [db] :as env} {:keys [code panel-idx call-result]}]
     (case (:op call-result)
       :eval-result-ref
