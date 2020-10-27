@@ -313,9 +313,6 @@
 
   (bind stream-ref (sg/ref))
 
-  (bind {::m/keys [tap-latest]}
-    (sg/query-root [::m/tap-latest]))
-
   (event ::kb-select! [env {:keys [item]}]
     (sg/dispatch-up! env {:e ::inspect-object! :ident (:object-ident item)}))
 
