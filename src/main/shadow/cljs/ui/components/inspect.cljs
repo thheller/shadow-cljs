@@ -177,7 +177,12 @@
         :tabindex (if active? 0 -1)}
        label]))
 
-(defc ui-object-panel [ident panel-idx active?]
+(defc ui-object-panel
+  {:supports?
+   (fn [prev-args next-args]
+     (= (first prev-args) (first next-args)))}
+
+  [ident panel-idx active?]
   (bind object
     (sg/query-ident ident
       [:db/ident
@@ -342,7 +347,7 @@
 
   (render
     (if-not tap-latest
-      (<< "No Taps yet. (tap> something) to see it here.")
+      (<< [:div.p-8.text-2xl "No Taps yet. (tap> something) to see it here."])
       (ui-object-panel tap-latest panel-idx active?))))
 
 ;; really hacky way to scroll stuff

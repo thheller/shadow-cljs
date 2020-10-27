@@ -13,6 +13,7 @@
        ::m/relay-ws-connected false
        ::m/runtimes []
        ::m/active-builds []
+       ::m/tap-latest nil
        ::m/inspect
        {:current 0
         :stack
