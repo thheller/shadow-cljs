@@ -16,6 +16,8 @@
     [shadow.cljs.util :as util]
     [clojure.edn :as edn]))
 
+(defn merge-left [a b]
+  (merge b a))
 
 (defn extract-outputs
   [modules outputs]
@@ -79,7 +81,7 @@
             (extract-outputs outputs))
 
         config
-        (update config :devtools merge
+        (update config :devtools merge-left
           {:use-document-host false
            :autoload true})]
 
