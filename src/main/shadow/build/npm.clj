@@ -848,7 +848,7 @@
      :js-options {:extensions [#_".mjs" ".js" ".json"]
                   :target :browser
                   :use-browser-overrides true
-                  :entry-keys [#_#_"module" "jsnext:main" "browser" "main"]}
+                  :entry-keys ["browser" "main" "module"]}
      }))
 
 (defn stop [npm])
