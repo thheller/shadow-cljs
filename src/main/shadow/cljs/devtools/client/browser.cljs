@@ -5,6 +5,7 @@
     [goog.userAgent :as ua]
     [goog.userAgent.product :as uap]
     [goog.Uri]
+    [shadow.json :as j]
     [shadow.cljs.devtools.client.env :as env]
     [shadow.cljs.devtools.client.console]
     [shadow.cljs.devtools.client.hud :as hud]
@@ -159,31 +160,37 @@
       (do-js-load sources)
       (devtools-msg "ready!"))))
 
-(def client-info
-  {:host (if js/goog.global.document
-           :browser
-           :browser-worker)
-   :user-agent
-   (str
-     (cond
-       ua/OPERA
-       "Opera"
-       uap/CHROME
-       "Chrome"
-       ua/IE
-       "MSIE"
-       ua/EDGE
-       "Edge"
-       ua/GECKO
-       "Firefox"
-       ua/SAFARI
-       "Safari"
-       ua/WEBKIT
-       "Webkit")
-     " " ua/VERSION
-     " [" ua/PLATFORM "]")
+(def runtime-info
+  (when (exists? js/SHADOW_CONFIG)
+    (j/to-clj js/SHADOW_CONFIG)))
 
-   :dom (some? js/goog.global.document)})
+(def client-info
+  (merge
+    runtime-info
+    {:host (if js/goog.global.document
+             :browser
+             :browser-worker)
+     :user-agent
+     (str
+       (cond
+         ua/OPERA
+         "Opera"
+         uap/CHROME
+         "Chrome"
+         ua/IE
+         "MSIE"
+         ua/EDGE
+         "Edge"
+         ua/GECKO
+         "Firefox"
+         ua/SAFARI
+         "Safari"
+         ua/WEBKIT
+         "Webkit")
+       " " ua/VERSION
+       " [" ua/PLATFORM "]")
+
+     :dom (some? js/goog.global.document)}))
 
 (defonce ws-was-welcome-ref (atom false))
 
