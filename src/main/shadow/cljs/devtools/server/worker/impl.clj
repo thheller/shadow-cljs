@@ -844,21 +844,23 @@
 (defn add-runtime
   [worker-state {:keys [client-id client-info] :as msg}]
 
-  (if (false? (:repl client-info))
-    worker-state
-    (-> worker-state
-        (cond->
-          (or (zero? (count (:runtimes worker-state)))
-              ;; android doesn't disconnect the old websocket for some reason
-              ;; when reloading the app, so instead of sending to a dead runtime
-              ;; we always pick the new one
-              (= :react-native (:host client-info))
-              ;; allow user to configure to auto switch to fresh connected runtimes
-              ;; instead of staying with the first connected one
-              (= :latest (get-in worker-state [:system-config :repl :runtime-select]))
-              (= :latest (get-in worker-state [:system-config :user-config :repl :runtime-select])))
-          (assoc :default-runtime-id client-id))
-        (update :runtimes assoc client-id (assoc client-info :client-id client-id)))))
+  (-> worker-state
+      (cond->
+        ;; don't pick runtime as repl default if opted out
+        (and (not (false? (:repl client-info)))
+             (or (zero? (count (:runtimes worker-state)))
+                 ;; the first connected may have opted out of REPL
+                 (not (:default-runtime-id worker-state))
+                 ;; android doesn't disconnect the old websocket for some reason
+                 ;; when reloading the app, so instead of sending to a dead runtime
+                 ;; we always pick the new one
+                 (= :react-native (:host client-info))
+                 ;; allow user to configure to auto switch to fresh connected runtimes
+                 ;; instead of staying with the first connected one
+                 (= :latest (get-in worker-state [:system-config :repl :runtime-select]))
+                 (= :latest (get-in worker-state [:system-config :user-config :repl :runtime-select]))))
+        (assoc :default-runtime-id client-id))
+      (update :runtimes assoc client-id (assoc client-info :client-id client-id))))
 
 (defmethod do-relay-msg ::cljs-runtime-notify
   [worker-state {:keys [event-op client-id] :as msg}]
