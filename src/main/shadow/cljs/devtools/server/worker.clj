@@ -97,27 +97,29 @@
 
 ;; FIXME: too many damn args, use a map instead!
 (defn start
-  [config
-   system-bus
-   executor
-   relay
-   clj-runtime
-   clj-obj-support
-   cache-root
-   http
-   classpath
-   npm
-   babel
-   {:keys [build-id] :as build-config}
-   cli-opts]
+  [{:keys [config
+           system-bus
+           executor relay
+           clj-runtime
+           clj-obj-support
+           cache-root
+           http
+           classpath
+           npm
+           babel
+           build-config
+           cli-opts]}]
   {:pre [(map? http)
          (map? build-config)
          (cp/service? classpath)
          (npm/service? npm)
          (babel/service? babel)
-         (keyword? build-id)]}
+         (contains? build-config :build-id)]}
 
-  (let [proc-id
+  (let [build-id
+        (:build-id build-config)
+
+        proc-id
         (str (UUID/randomUUID))
 
         _ (log/debug ::start {:build-id build-id :proc-id proc-id})

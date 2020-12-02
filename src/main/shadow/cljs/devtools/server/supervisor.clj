@@ -40,19 +40,19 @@
 
     (let [{:keys [proc-stop] :as proc}
           (worker/start
-            config
-            system-bus
-            executor
-            relay
-            clj-runtime
-            clj-obj-support
-            cache-root
-            http
-            classpath
-            npm
-            babel
-            build-config
-            cli-opts)]
+            {:config config
+             :system-bus system-bus
+             :executor executor
+             :relay relay
+             :clj-runtime clj-runtime
+             :clj-obj-support clj-obj-support
+             :cache-root cache-root
+             :http http
+             :classpath classpath
+             :npm npm
+             :babel babel
+             :build-config build-config
+             :cli-opts cli-opts})]
 
       (sys-bus/publish! system-bus ::m/supervisor {::m/worker-op :worker-start
                                                    ::m/build-id build-id})
