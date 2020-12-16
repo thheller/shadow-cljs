@@ -17,19 +17,7 @@
 (defonce super-lock (Object.))
 
 (defn start-worker
-  [{:keys [system-bus
-           workers-ref
-           executor
-           relay
-           clj-runtime
-           clj-obj-support
-           cache-root
-           http
-           classpath
-           npm
-           babel
-           config]
-    :as svc}
+  [{:keys [system-bus workers-ref] :as svc}
    {:keys [build-id] :as build-config}
    cli-opts]
   {:pre [(keyword? build-id)]}
@@ -39,20 +27,7 @@
       (throw (ex-info "already started" {:build-id build-id})))
 
     (let [{:keys [proc-stop] :as proc}
-          (worker/start
-            {:config config
-             :system-bus system-bus
-             :executor executor
-             :relay relay
-             :clj-runtime clj-runtime
-             :clj-obj-support clj-obj-support
-             :cache-root cache-root
-             :http http
-             :classpath classpath
-             :npm npm
-             :babel babel
-             :build-config build-config
-             :cli-opts cli-opts})]
+          (worker/start svc build-config cli-opts)]
 
       (sys-bus/publish! system-bus ::m/supervisor {::m/worker-op :worker-start
                                                    ::m/build-id build-id})
