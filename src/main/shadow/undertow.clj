@@ -18,7 +18,8 @@
            (java.security KeyStore)
            [org.xnio ChannelListener Xnio OptionMap]
            [java.nio.channels ClosedChannelException]
-           [io.undertow.util AttachmentKey MimeMappings Headers]
+           [io.undertow.util AttachmentKey MimeMappings Headers HeaderMap HttpString]
+           [io.undertow.server ResponseCommitListener]
            [io.undertow.server.handlers.resource PathResourceManager ClassPathResourceManager]
            [io.undertow.predicate Predicates Predicate]
            [io.undertow.server.handlers.encoding EncodingHandler ContentEncodingRepository GzipEncodingProvider DeflateEncodingProvider]
@@ -60,6 +61,14 @@
 
 (defn handler? [x]
   (and x (instance? HttpHandler x)))
+
+(defn unset-secure-cookie [^HeaderMap headers]
+  (when-let [cookie (.get headers "set-cookie" 0)]
+    (as-> cookie $
+          (str/split $ #";")
+          (remove #(some? (re-matches #"\s*Secure\s*" %)) $)
+          (str/join ";" $)
+          (.put headers (HttpString. "set-cookie") $))))
 
 (declare build)
 
@@ -237,6 +246,26 @@
 
     (assoc state :handler handler)))
 
+(defmethod build* ::strip-secure-cookies [state [id next]]
+  (assert (vector? next))
+
+  (let [{next :handler :as state}
+        (build state next)
+
+        listener
+        (reify
+          ResponseCommitListener
+          (^void beforeCommit [_ ^HttpServerExchange ex]
+            (unset-secure-cookie (.getResponseHeaders ex))))
+
+        handler
+        (reify
+          HttpHandler
+          (handleRequest [_ ex]
+            (when (= (.getRequestScheme ex) "http")
+              (.addResponseCommitListener ex listener))
+            (.handleRequest ^HttpHandler next ex)))]
+    (assoc state :handler handler)))
 
 (def compressible-types
   ["text/html"
