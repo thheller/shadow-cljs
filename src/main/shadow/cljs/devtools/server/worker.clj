@@ -95,19 +95,17 @@
 
 ;; SERVICE API
 
-;; FIXME: too many damn args, use a map instead!
 (defn start
-  [config
-   system-bus
-   executor
-   relay
-   clj-runtime
-   clj-obj-support
-   cache-root
-   http
-   classpath
-   npm
-   babel
+  [{:keys [config
+           system-bus
+           executor relay
+           clj-runtime
+           clj-obj-support
+           cache-root
+           http
+           classpath
+           npm
+           babel]}
    {:keys [build-id] :as build-config}
    cli-opts]
   {:pre [(map? http)
@@ -115,7 +113,7 @@
          (cp/service? classpath)
          (npm/service? npm)
          (babel/service? babel)
-         (keyword? build-id)]}
+         (contains? build-config :build-id)]}
 
   (let [proc-id
         (str (UUID/randomUUID))
