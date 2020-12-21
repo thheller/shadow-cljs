@@ -135,6 +135,21 @@
        {:pseudo-names true
         :pretty-print true}}]}))
 
+(defn load-ui-options
+  [{:keys [runtime] :as svc} {:keys [from] :as msg}]
+  (let [config
+        (config/load-cljs-edn!)
+
+        ui-options
+        (merge
+          (:ui-options config)
+          (get-in config [:user-config :ui-options]))]
+
+    (p/relay-msg runtime
+      {:op ::m/ui-options
+       :to from
+       :ui-options ui-options})))
+
 (defn runtime-update
   [{:keys [state-ref] :as svc}
    {:keys [event-op client-id]}]
@@ -170,6 +185,7 @@
         ::m/build-compile! #(build-compile svc %)
         ::m/build-release! #(build-release svc %)
         ::m/build-release-debug! #(build-release-debug svc %)
+        ::m/load-ui-options #(load-ui-options svc %)
         ::runtime-update #(runtime-update svc %)}})
 
     svc))

@@ -26,6 +26,11 @@
 
   (relay-ws/init env/app-ref
     (fn []
+      (relay-ws/cast! @env/app-ref
+        {:op ::m/load-ui-options
+         :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
+         })
+
       ;; builds starting, stopping
       (relay-ws/cast! @env/app-ref
         {:op ::m/subscribe
@@ -35,7 +40,7 @@
       ;; build progress, errors, success
       (relay-ws/cast! @env/app-ref
         {:op ::m/subscribe
-         :to 1
+         :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
          ::m/topic ::m/build-status-update})))
 
   (sw/run-tx @env/app-ref {:e ::m/init!}))

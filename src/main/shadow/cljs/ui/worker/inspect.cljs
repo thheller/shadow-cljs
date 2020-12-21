@@ -68,11 +68,13 @@
         (assoc :ws-send [{:op :tap-subscribe :to from}])
         )))
 
-(defn guess-display-type [{:keys [supports] :as summary}]
-  (if (contains? supports :fragment)
-    :browse
-
-    :edn))
+(defn guess-display-type [{:keys [db] :as env} {:keys [supports] :as summary}]
+  (let [pref (get-in db [::m/ui-options :preferred-display-type])]
+    (if (contains? supports pref)
+      pref
+      (if (contains? supports :fragment)
+        :browse
+        :edn))))
 
 (defmethod relay-ws/handle-msg :tap-subscribed
   [{:keys [db] :as env} {:keys [from]}]
@@ -101,7 +103,7 @@
          (assoc-in [object-ident :summary] (with-added-at-ts summary))
          (cond->
            (nil? display-type)
-           (assoc-in [object-ident :display-type] (guess-display-type summary))))}))
+           (assoc-in [object-ident :display-type] (guess-display-type env summary))))}))
 
 (sw/reg-event env/app-ref ::obj-preview-result
   (fn [{:keys [db]} {:keys [call-result]}]
@@ -397,7 +399,7 @@
            :runtime-id from
            :runtime (db/make-ident ::m/runtime from)
            :summary summary
-           :display-type (guess-display-type summary)}
+           :display-type (guess-display-type env summary)}
 
           obj-ident
           (db/make-ident ::m/object ref-oid)

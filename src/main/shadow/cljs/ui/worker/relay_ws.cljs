@@ -28,6 +28,9 @@
      :notify true
      :query [:eq :type :runtime]}]})
 
+(defmethod handle-msg ::m/ui-options [{:keys [db] :as env} {:keys [ui-options]}]
+  {:db (assoc db ::m/ui-options ui-options)})
+
 (sw/reg-event env/app-ref ::m/relay-ws-close
   (fn [{:keys [db] :as env} _]
     {:db (assoc db ::m/relay-ws-connected false)}))

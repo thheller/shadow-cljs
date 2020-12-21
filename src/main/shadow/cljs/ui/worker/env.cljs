@@ -11,6 +11,7 @@
        ::m/http-servers :db/loading
        ::m/init-complete? :db/loading ;; used a marker for initial suspense
        ::m/relay-ws-connected false
+       ::m/ui-options {} ;; FIXME: should probably store this somewhere on the client side too
        ::m/runtimes []
        ::m/active-builds []
        ::m/tap-latest nil
