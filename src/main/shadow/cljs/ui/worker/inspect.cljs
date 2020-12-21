@@ -152,10 +152,19 @@
         :db/loading)))
 
 (sw/reg-event env/app-ref ::obj-as-result
-  (fn [{:keys [db]} {:keys [ident call-result key]}]
+  (fn [{:keys [db]} {:keys [ident call-result key] :as res}]
     (let [{:keys [op result]} call-result]
-      (assert (= :obj-result op)) ;; FIXME: handle obj-request-failed
-      {:db (assoc-in db [ident key] result)})))
+      (case op
+        :obj-result
+        {:db (assoc-in db [ident key] result)}
+
+        :obj-request-failed
+        {:db (update db ident merge {key ::m/display-error!
+                                     :ex-oid (:ex-oid call-result)
+                                     :ex-client-id (:from call-result)})}
+
+        (throw (ex-info "unexpected result for obj-request" res))
+        ))))
 
 (defmethod eql/attr ::m/object-as-edn [env db {:keys [oid runtime-id edn] :as current} query-part params]
   (cond

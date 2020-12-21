@@ -41,15 +41,24 @@
          {:on-click [::copy-to-clipboard val]
           :disabled (not= :ready loading-state)}
          "COPY"]
-      (if (= :ready loading-state)
+      (cond
+        ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
+        (not= :ready loading-state)
+        (<< [:div.w-full.h-full.font-mono.border-t.p-4
+             "Loading ..."])
+
+        (keyword-identical? ::m/display-error! val)
+        (<< [:div.w-full.h-full.font-mono.border-t.p-4
+             (str (name attr) " request failed ...")])
+
+        :else
         (codemirror {:value val
                      :clojure (not= attr ::m/object-as-str)
                      :cm-opts {:tabindex (if active? 0 -1)
                                :readOnly true
                                :autofocus false}})
-        ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
-        (<< [:div.w-full.h-full.font-mono.border-t.p-4
-             "Loading ..."])))))
+
+        ))))
 
 (defmulti render-view
   (fn [data active?]
