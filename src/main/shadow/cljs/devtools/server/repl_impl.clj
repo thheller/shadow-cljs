@@ -308,14 +308,17 @@
       result)))
 
 (defn stdin-takeover!
-  [worker {:keys [relay] :as app}]
+  [worker {:keys [relay] :as app} opts]
 
   (do-repl
     worker
     relay
     *in*
     (async/chan)
-    {:repl-prompt
+    {:init-state
+     {:runtime-id (:runtime-id opts)}
+
+     :repl-prompt
      (fn repl-prompt [{:keys [ns] :as repl-state}]
        (locking build-log/stdout-lock
          (print (format "%s=> " ns))

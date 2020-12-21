@@ -448,7 +448,7 @@
            (super/get-worker supervisor build-id)]
        (if-not worker
          :no-worker
-         (do (repl-impl/stdin-takeover! worker app)
+         (do (repl-impl/stdin-takeover! worker app opts)
              (when stop-on-eof
                (super/stop-worker supervisor build-id))))))))
 
@@ -557,7 +557,7 @@
 
       ;; for normal REPL loops we wait for the CLJS loop to end
       (when-not *nrepl-init*
-        (repl-impl/stdin-takeover! worker app)
+        (repl-impl/stdin-takeover! worker app opts)
         (super/stop-worker supervisor (:build-id build-config)))
 
       :done)))
@@ -653,7 +653,8 @@
         (StringReader. code)
         (async/chan)
         {:init-state
-         {:ns init-ns}
+         {:ns init-ns
+          :runtime-id (:runtime-id opts)}
 
          :repl-prompt
          (fn repl-prompt [repl-state])

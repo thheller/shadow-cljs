@@ -143,6 +143,7 @@
                       :printed-value 1
                       :ns (str clj-ns)})
       (nrepl-out msg {:status :done}))
+
     (let [{:keys [relay]}
           (api/get-runtime!)
 
@@ -154,7 +155,8 @@
             (async/chan)
             {:init-state
              {:ns (or (and (seq ns) (symbol ns))
-                      (:cljs-ns repl-state))}
+                      (:cljs-ns repl-state))
+              :runtime-id (get-in repl-state [:opts :runtime-id])}
 
              :repl-prompt
              (fn repl-prompt [repl-state])

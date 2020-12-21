@@ -875,3 +875,7 @@
   [worker-state {:keys [from time-runtime]}]
   (update-in worker-state [:runtimes from] merge {:last-pong (System/currentTimeMillis)
                                                   :last-pong-runtime time-runtime}))
+
+(defmethod do-proc-control :runtime-select
+  [worker-state {:keys [runtime-id] :as msg}]
+  (assoc worker-state :default-runtime-id runtime-id))
