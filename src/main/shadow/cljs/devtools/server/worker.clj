@@ -261,7 +261,10 @@
 
         {:keys [watch-dir watch-exts]
          :or {watch-exts #{"css"}}}
-        (:devtools build-config)
+        (merge
+          (get-in config [:build-defaults :devtools])
+          (get-in config [:target-defaults (:target build-config) :devtools])
+          (:devtools build-config))
 
         status-ref
         (atom {:status :pending
