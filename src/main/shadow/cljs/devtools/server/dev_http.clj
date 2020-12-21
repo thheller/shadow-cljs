@@ -95,7 +95,8 @@
 
               ;; proxy-url but no proxy-predicate, proxy everything
               (not proxy-predicate)
-              [::undertow/proxy config]
+              [::undertow/strip-secure-cookies
+               [::undertow/proxy config]]
 
               ;; proxy-url + proxy-predicate, let predicate decide what to proxy
               ;; should be symbol pointing to function accepting undertow exchange and returning boolean
@@ -105,7 +106,8 @@
                 [::undertow/predicate-match
                  {:predicate-fn (fn [ex]
                                   (pred-var ex config))}
-                 [::undertow/proxy config]
+                 [::undertow/strip-secure-cookies
+                  [::undertow/proxy config]]
                  req-handler])
 
               :else
