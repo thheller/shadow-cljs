@@ -351,10 +351,18 @@
 
       (reduce
         (fn [state resource-id]
-          (if (contains? modified resource-id)
+          (cond
             ;; fully remove specified resources (eg. modified sources found by watch)
+            (contains? modified resource-id)
             (data/remove-source-by-id state resource-id)
+
+            ;; do nothing with sources defined in the REPL since the steps that produced
+            ;; them may not be repeatable. just keep them as is.
+            (get-in state [:sources resource-id :defined-in-repl])
+            state
+
             ;; affected deps only have their output removed since their source didn't change
+            :else
             (data/remove-output-by-id state resource-id)))
         state
         all-deps-to-reset))))
