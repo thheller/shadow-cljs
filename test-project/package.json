@@ -12,6 +12,9 @@
   "license": "ISC",
   "dependencies": {
     "create-react-class": "^15.6.3",
+    "karma": "^5.2.3",
+    "karma-chrome-launcher": "^3.1.0",
+    "karma-cljs-test": "^0.1.0",
     "node-libs-browser": "^2.2.0",
     "react": "^16.4.2",
     "react-dom": "^16.4.2",
