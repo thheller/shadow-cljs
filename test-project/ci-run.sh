@@ -12,4 +12,7 @@ npx shadow-cljs release reagent test-node test-karma --verbose
 
 node out/test-node/script.js
 
-npx karma start --single-run
+apt-get update
+apt-get install chromium --no-install-recommends -y
+
+CHROME_BIN=/usr/bin/chromium npx karma start --single-run
