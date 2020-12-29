@@ -1,7 +1,6 @@
 (ns shadow.cljs.devtools.server.fs-watch-hawk
   (:require [clojure.core.async :as async :refer (thread alt!!)]
             [clojure.string :as str]
-            [clojure.java.io :as io]
             [shadow.jvm-log :as log]
             [cljs.util :refer (distinct-by)]
             [hawk.core :as hawk]

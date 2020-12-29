@@ -3,7 +3,6 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.set :as set]
             [clojure.string :as str]
-            [clojure.java.io :as io]
             [cljs.compiler :as cljs-comp]
             [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)]
             [shadow.build.data :as data])

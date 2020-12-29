@@ -1,8 +1,6 @@
 (ns shadow.cljs.devtools.server.socket-repl
   (:require
-    [clojure.pprint :refer (pprint)]
     [clojure.main :as m]
-    [clojure.string :as str]
     [clojure.core.server :as srv]
     [shadow.jvm-log :as log])
   (:import java.net.ServerSocket

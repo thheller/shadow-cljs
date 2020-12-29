@@ -14,8 +14,7 @@
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.errors :as errors]
-    [shadow.build.log :as build-log]
-    [clojure.core.async :as async :refer (>!!)]))
+    [shadow.build.log :as build-log]))
 
 (def config-attrs
   [::m/build-id

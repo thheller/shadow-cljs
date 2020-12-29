@@ -1,7 +1,6 @@
 (ns shadow.build.js-support
   (:require [shadow.build.resource :as rc]
             [shadow.cljs.util :as util]
-            [clojure.java.io :as io]
             [shadow.build.data :as data]
             [shadow.build.closure :as closure]
             [clojure.string :as str]

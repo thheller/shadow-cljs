@@ -5,7 +5,6 @@
             [clojure.core.async.impl.protocols :as async-prot]
             [shadow.jvm-log :as log]
             [shadow.undertow.impl :as impl]
-            [clojure.edn :as edn]
             [shadow.core-ext :as core-ext])
   (:import (io.undertow Undertow Handlers UndertowOptions)
            (io.undertow.websockets WebSocketConnectionCallback)

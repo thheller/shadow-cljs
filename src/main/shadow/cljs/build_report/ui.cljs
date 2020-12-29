@@ -1,6 +1,5 @@
 (ns shadow.cljs.build-report.ui
   (:require
-    [clojure.string :as str]
     [shadow.api :refer (ns-ready)]
     [shadow.dom :as dom]
     [goog.format :as gf]

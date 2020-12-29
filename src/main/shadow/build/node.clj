@@ -2,7 +2,6 @@
   (:refer-clojure :exclude [flush compile])
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.data.json :as json]
             [cljs.compiler :as comp]
             [shadow.build.log :as log]
             [shadow.build.api :as build-api]

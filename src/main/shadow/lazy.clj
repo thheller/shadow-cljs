@@ -1,10 +1,8 @@
 (ns shadow.lazy
   (:require
-    [clojure.spec.alpha :as s]
     [cljs.env :as env]
     [cljs.analyzer :as ana]
-    [cljs.compiler :as comp]
-    [clojure.string :as str]))
+    [cljs.compiler :as comp]))
 
 (defn module-for-ns [compiler-env ns]
   (get-in compiler-env [::ns->mod ns]))

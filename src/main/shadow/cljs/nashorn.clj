@@ -1,7 +1,6 @@
 (ns shadow.cljs.nashorn
   (:require [shadow.build.api :as cljs]
-            [shadow.cljs.repl :as repl]
-            [clojure.java.io :as io])
+            [shadow.cljs.repl :as repl])
   (:import [javax.script ScriptEngine ScriptEngineManager Invocable]))
 
 ;; just testing some nashorn related things

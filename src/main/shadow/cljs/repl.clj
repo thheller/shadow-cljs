@@ -1,7 +1,6 @@
 (ns shadow.cljs.repl
   (:require
     [clojure.string :as str]
-    [clojure.walk :as walk]
     [clojure.repl :as repl]
     [clojure.java.io :as io]
     [clojure.tools.reader.reader-types :as readers]

@@ -5,7 +5,6 @@
             [shadow.cljs.util :as util]
             [shadow.core-ext :as core-ext]
             [shadow.jvm-log :as log]
-            [clojure.data.json :as json]
             [clojure.string :as str])
   (:import (java.io PushbackReader Writer InputStreamReader BufferedReader IOException PrintWriter)))
 

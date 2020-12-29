@@ -1,7 +1,6 @@
 (ns shadow.build.targets.node-library
   (:refer-clojure :exclude (flush))
   (:require [clojure.java.io :as io]
-            [clojure.set :as set]
             [clojure.string :as str]
             [clojure.spec.alpha :as s]
             [shadow.build.api :as cljs]

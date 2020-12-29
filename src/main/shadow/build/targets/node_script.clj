@@ -1,8 +1,6 @@
 (ns shadow.build.targets.node-script
   (:refer-clojure :exclude (flush))
-  (:require [clojure.set :as set]
-            [clojure.string :as str]
-            [cljs.compiler :as cljs-comp]
+  (:require [cljs.compiler :as cljs-comp]
             [clojure.spec.alpha :as s]
             [shadow.cljs.repl :as repl]
             [shadow.build.node :as node]

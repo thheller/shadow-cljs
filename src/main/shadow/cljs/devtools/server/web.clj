@@ -2,7 +2,6 @@
   (:require
     [clojure.string :as str]
     [clojure.java.io :as io]
-    [clojure.edn :as edn]
     [hiccup.core :refer (html)]
     [hiccup.page :refer (html5)]
     [ring.middleware.file :as ring-file]
@@ -18,7 +17,6 @@
     [ring.middleware.params :as ring-params]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.graph.env :as genv]
-    [clojure.data.json :as json]
     [shadow.cljs.devtools.server.dev-http :as dev-http]
     [shadow.jvm-log :as jvm-log]))
 

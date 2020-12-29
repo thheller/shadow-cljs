@@ -2,7 +2,6 @@
   (:require
     [clojure.string :as str]
     [clojure.java.io :as io]
-    [clojure.tools.cli :as cli]
     [hiccup.page :refer (html5)]
     [shadow.build.output :as output]
     [shadow.server.assets :as assets]
