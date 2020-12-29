@@ -26,4 +26,11 @@
   {:target :node-test
    :output-to "out/test-node/script.js"
    :compiler-options {:infer-externs :auto}}
-  }}
+  }
+
+  :test-karma
+  {:target :karma
+   :output-to  "out/test-karma/script.js"
+   :compiler-options {:source-map true}
+  }
+}
