@@ -1,7 +1,6 @@
 (ns shadow.nrepl-debug
   (:require [nrepl.transport :as transport]
             [clojure.pprint :refer (pprint)]
-            [clojure.walk :as walk]
             [clojure.java.io :as io])
   (:import [java.net ServerSocket Socket]
            [java.io FileOutputStream OutputStreamWriter]))

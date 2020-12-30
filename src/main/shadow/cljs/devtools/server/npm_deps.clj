@@ -1,7 +1,6 @@
 (ns shadow.cljs.devtools.server.npm-deps
   "utility namespaces for installing npm deps found in deps.cljs files"
   (:require [clojure.edn :as edn]
-            [clojure.pprint :refer (pprint)]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.json :as json]

@@ -5,8 +5,6 @@
             [clojure.data.json :as json]
             [clojure.string :as str]
             [clojure.set :as set]
-            [clojure.java.shell :as sh]
-            [clojure.edn :as edn]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.util :as util]
             [shadow.build.api :as build-api]

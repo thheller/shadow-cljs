@@ -1,6 +1,5 @@
 (ns shadow.build.compiler
   (:require
-    [clojure.spec.alpha :as s]
     [clojure.string :as str]
     [clojure.set :as set]
     [clojure.java.io :as io]

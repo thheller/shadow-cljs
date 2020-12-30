@@ -2,7 +2,6 @@
   (:require [clojure.repl :as repl]
             [clojure.string :as str]
             [clojure.spec.alpha :as s]
-            [clojure.pprint :refer (pprint)]
             [shadow.build.closure :as closure]
             [shadow.build.api :as build]
             [shadow.build.ns-form :as ns-form]

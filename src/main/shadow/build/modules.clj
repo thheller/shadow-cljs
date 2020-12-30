@@ -6,7 +6,6 @@
             [shadow.build.compiler :as impl]
             [shadow.build.resource :as rc]
             [shadow.build.data :as data]
-            [clojure.java.io :as io]
             [shadow.build.classpath :as cp]
             [shadow.build.log :as cljs-log]))
 

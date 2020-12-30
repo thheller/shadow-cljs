@@ -1,7 +1,6 @@
 (ns shadow.build.targets.react-native
   (:refer-clojure :exclude (flush))
-  (:require [clojure.set :as set]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [cljs.compiler :as cljs-comp]
             [cljs.analyzer :as cljs-ana]
             [clojure.spec.alpha :as s]

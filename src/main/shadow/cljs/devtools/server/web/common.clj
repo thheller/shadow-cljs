@@ -4,8 +4,7 @@
             [hiccup.core :refer (html)]
             [clojure.java.io :as io]
             [shadow.core-ext :as core-ext]
-            [cljs.compiler :as cljs-comp]
-            [clojure.data.json :as json]))
+            [cljs.compiler :as cljs-comp]))
 
 (defn not-found
   ([req]

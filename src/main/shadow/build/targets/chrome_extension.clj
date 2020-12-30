@@ -3,7 +3,6 @@
     [clojure.java.io :as io]
     [clojure.data.json :as json]
     [clojure.string :as str]
-    [clojure.pprint :refer (pprint)]
     [shadow.build :as b]
     [shadow.build.targets.browser :as browser]
     [shadow.build.targets.shared :as shared]
