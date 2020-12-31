@@ -19,13 +19,13 @@
     [shadow.debug :refer (?> ?-> ?->>)]
     [clojure.data.json :as json]
     [shadow.debug :as dbg])
-  (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File StringReader)
+  (:import (java.io StringWriter ByteArrayInputStream FileOutputStream)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          Result ShadowAccess
-                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy PhaseOptimizer)
-           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass FindSurvivingRequireCalls ClearUnassignedJsRequires)
+                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup VariableRenamingPolicy PropertyRenamingPolicy PhaseOptimizer)
+           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass FindSurvivingRequireCalls)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (java.nio.charset Charset)
            [java.util.logging Logger Level]

@@ -17,8 +17,7 @@
             [clojure.set :as set]
             [shadow.build.resolve :as resolve]
             [shadow.build.babel :as babel])
-  (:import (java.io File)
-           (java.util.concurrent ExecutorService)))
+  (:import (java.util.concurrent ExecutorService)))
 
 (defn build-state? [build]
   (data/build-state? build))

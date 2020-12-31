@@ -19,7 +19,7 @@
     [shadow.build.cljs-bridge :as cljs-bridge]
     [shadow.build.npm :as npm]
     [shadow.build.data :as data])
-  (:import (java.io File StringReader)
+  (:import (java.io File)
            (java.util.jar JarFile JarEntry Attributes$Name)
            (java.net URL URLDecoder)
            (java.util.zip ZipException)
@@ -28,7 +28,7 @@
            [com.google.javascript.jscomp CompilerOptions$LanguageMode CompilerOptions SourceFile]
            [com.google.javascript.jscomp.deps ModuleNames]
            [javax.xml.parsers DocumentBuilderFactory]
-           [org.w3c.dom Node Element]))
+           [org.w3c.dom Element]))
 
 (set! *warn-on-reflection* true)
 

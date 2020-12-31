@@ -27,8 +27,8 @@
     [shadow.remote.runtime.eval-support :as es]
     [shadow.build.async :as async])
   (:import
-    [java.io StringReader BufferedReader File]
-    [java.nio.file Paths Path]
+    [java.io StringReader BufferedReader]
+    [java.nio.file Path]
     [java.util.concurrent.atomic AtomicLong]))
 
 (comment
