@@ -5,7 +5,6 @@
     [shadow.cljs.util :as util]
     [shadow.build.classpath :as cp]
     [shadow.build.npm :as npm]
-    [shadow.build.classpath :as classpath]
     [shadow.build.data :as data]
     [shadow.build.js-support :as js-support]
     [shadow.build.cljs-bridge :as cljs-bridge]
@@ -626,7 +625,7 @@
                               (map #(symbol (str ns %))))))
                (filter (fn [spec-ns]
                          (or (get-in state [:sym->id spec-ns])
-                             (classpath/has-resource? classpath spec-ns))))
+                             (cp/has-resource? classpath spec-ns))))
                (vec)))]
 
     (if-not (seq auto-require-namespaces)

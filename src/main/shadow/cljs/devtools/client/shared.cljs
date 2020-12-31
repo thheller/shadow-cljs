@@ -9,9 +9,7 @@
     [shadow.remote.runtime.cljs.js-builtins]
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.tap-support :as tap-support]
-    [shadow.remote.runtime.eval-support :as eval-support]
-    [shadow.remote.runtime.api :as p]
-    ))
+    [shadow.remote.runtime.eval-support :as eval-support]))
 
 (defprotocol IRemote
   (remote-open [this e])
@@ -454,7 +452,7 @@
                     (resolve (last results))
                     (reject info)))))))))
 
-    (p/add-extension runtime
+    (api/add-extension runtime
       ::print-support
       {:ops
        {:runtime-print-sub
@@ -491,7 +489,7 @@
                :stream stream
                :text text})))))
 
-    (p/add-extension runtime
+    (api/add-extension runtime
       ::shared
       {:on-welcome
        (fn []

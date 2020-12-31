@@ -17,8 +17,7 @@
     [ring.middleware.params :as ring-params]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.graph.env :as genv]
-    [shadow.cljs.devtools.server.dev-http :as dev-http]
-    [shadow.jvm-log :as jvm-log]))
+    [shadow.cljs.devtools.server.dev-http :as dev-http]))
 
 (defn create-index-handler [{:keys [db] :as env}]
   (fn index-handler [request]

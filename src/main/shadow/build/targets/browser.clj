@@ -16,7 +16,6 @@
             [shadow.build.closure :as closure]
             [shadow.build.modules :as modules]
             [shadow.build.data :as data]
-            [shadow.build.log :as log]
             [shadow.core-ext :as core-ext]
             [cljs.compiler :as cljs-comp]
             [shadow.build.npm :as npm]

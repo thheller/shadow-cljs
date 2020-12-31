@@ -15,7 +15,6 @@
             [shadow.build.resource :as rc]
             [shadow.jvm-log :as log]
             [clojure.set :as set]
-            [shadow.build.resolve :as resolve]
             [shadow.build.babel :as babel])
   (:import (java.util.concurrent ExecutorService)))
 

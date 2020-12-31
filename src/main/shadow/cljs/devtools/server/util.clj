@@ -5,7 +5,6 @@
     [clojure.java.io :as io]
     [shadow.jvm-log :as log]
     [shadow.build.log :as build-log]
-    [shadow.build.api :as cljs]
     [shadow.build.warnings :as warnings]
     [shadow.build.api :as build-api]
     [shadow.cljs.devtools.errors :as errors]
