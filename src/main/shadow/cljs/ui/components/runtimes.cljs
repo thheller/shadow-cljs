@@ -3,7 +3,6 @@
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.inspect :as inspect]
-    [clojure.string :as str]
     [goog.date.relative :as rel]))
 
 (defn age-display [since]

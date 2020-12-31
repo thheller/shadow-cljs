@@ -3,8 +3,7 @@
     [clojure.core.async :as async :refer (go >! <! >!! <!!)]
     [shadow.remote.relay.api :as rapi]
     [shadow.remote.relay.simple-query :as squery]
-    [shadow.jvm-log :as log]
-    [clojure.set :as set])
+    [shadow.jvm-log :as log])
   (:import [java.util Date]))
 
 ;; clients provide their own :to and :from channels

@@ -1,8 +1,6 @@
 (ns shadow.build.targets.bootstrap
   (:refer-clojure :exclude (compile flush resolve))
   (:require [clojure.java.io :as io]
-            [clojure.set :as set]
-            [clojure.pprint :refer (pprint)]
             [shadow.cljs.util :as util]
             [shadow.build :as build]
             [shadow.build.classpath :as cp]
@@ -11,7 +9,6 @@
             [shadow.build.data :as data]
             [shadow.build.cache :as cache]
             [shadow.build.modules :as modules]
-            [clojure.data.json :as json]
             [shadow.build.api :as build-api]
             [cljs.compiler :as comp]
             [clojure.string :as str]

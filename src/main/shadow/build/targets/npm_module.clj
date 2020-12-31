@@ -4,7 +4,6 @@
             [shadow.build.modules :as modules]
             [shadow.build.api :as build-api]
             [clojure.java.io :as io]
-            [clojure.set :as set]
             [shadow.build.output :as output]
             [shadow.build.targets.shared :as shared]
             [shadow.build.classpath :as cp]

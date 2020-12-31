@@ -1,7 +1,6 @@
 (ns shadow.build.targets.node-test
   (:refer-clojure :exclude (compile flush resolve))
   (:require
-    [clojure.string :as str]
     [shadow.build :as build]
     [shadow.build.modules :as modules]
     [shadow.build.classpath :as cp]

@@ -1,6 +1,5 @@
 (ns shadow.remote.relay.simple-query
-  (:require [clojure.set :as set]
-            [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s]))
 
 ;; extremely simplistic query engine
 ;; taking a hiccup-ish edn structure that is tested against a single obj

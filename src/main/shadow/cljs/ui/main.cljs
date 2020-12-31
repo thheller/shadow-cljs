@@ -1,6 +1,5 @@
 (ns shadow.cljs.ui.main
   (:require
-    [clojure.string :as str]
     [shadow.experiments.arborist :as sa]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.history :as history]

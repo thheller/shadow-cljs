@@ -1,7 +1,6 @@
 (ns shadow.build.data
   "generic helpers for the build data structure"
   (:require
-    [clojure.string :as str]
     [clojure.set :as set]
     [clojure.java.io :as io]
     [shadow.debug :refer (?> ?-> ?->>)]

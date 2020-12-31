@@ -3,7 +3,6 @@
   (:require
     [clojure.java.io :as io]
     [clojure.spec.alpha :as s]
-    [clojure.string :as str]
     [shadow.jvm-log :as log]
     [clojure.set :as set]
     [shadow.cljs.util :as util]
@@ -17,7 +16,6 @@
     [shadow.build.async :as async]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.cljs-specs] ;; FIXME: move these
-    [clojure.edn :as edn]
     [shadow.build.macros :as macros]
     [shadow.build.classpath :as classpath]))
 

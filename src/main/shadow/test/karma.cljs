@@ -48,15 +48,18 @@
       "FAIL in   " (ct/testing-vars-str result) "\n"
       (when-not (s/blank? testing-contexts-str)
         (str "\"" testing-contexts-str "\"\n"))
-      (if (and (seq? expected)
-               (seq? actual))
-        (str
-          "expected: " (format-fn indentation expected) "\n"
-          "  actual: " (format-fn indentation (second actual)) "\n"
-          (when-let [diff (format-diff indentation expected (second actual))]
-            (str "    diff: " diff "\n")))
-        (str
-          expected " failed with " actual "\n"))
+      (cond
+        (and (seq? expected)
+             (seq? actual))
+          (str
+                "expected: " (format-fn indentation expected) "\n"
+                "  actual: " (format-fn indentation (second actual)) "\n"
+                (when-let [diff (format-diff indentation expected (second actual))]
+                  (str "    diff: " diff "\n")))
+        (.hasOwnProperty actual "stack")
+          (str "Exception: " (.-stack actual))                  
+        :else
+          (str expected " failed with " actual "\n"))
       (when message
         (str " message: " (indent indentation message) "\n")))))
 

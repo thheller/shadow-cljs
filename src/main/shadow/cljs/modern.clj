@@ -1,6 +1,5 @@
 (ns shadow.cljs.modern
   (:require
-    [clojure.spec.alpha :as s]
     [cljs.analyzer :as ana]
     [cljs.compiler :as comp]
     [cljs.env :as env]

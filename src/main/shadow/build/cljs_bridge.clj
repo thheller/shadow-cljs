@@ -3,7 +3,6 @@
   (:require
     [clojure.string :as str]
     [clojure.set :as set]
-    [clojure.spec.alpha :as s]
     [clojure.tools.reader :as reader]
     [clojure.tools.reader.reader-types :as readers]
     [cljs.tagged-literals :as tags]
