@@ -4,7 +4,7 @@ module.exports = function(config) {
     customLaunchers: {
         CustomChrome: {
           base: 'ChromeHeadless',
-          flags: ['--no-sandbox']
+          flags: ['--no-sandbox', '--disable-features=VizDisplayCompositor']
         }
       },
     basePath: 'out/test-karma',
