@@ -814,6 +814,10 @@
                     ;; not all deps end up being used so we don't need to check the version
                     :when (get pkg-index dep)
                     :let [installed-version (get-in pkg-index [dep :package-json "version"])]
+                    :when (and (not (str/includes? wanted-version "http:"))
+                               (not (str/includes? wanted-version "https:"))
+                               (not (str/includes? wanted-version "file:"))
+                               (not (str/includes? wanted-version "github:")))
                     :when (not (npm-deps/semver-intersects wanted-version installed-version))]
 
               (util/warn state {:type ::npm-version-conflict
@@ -842,8 +846,11 @@
     :compile-finish
     (-> state
         (module-wrap)
-        (check-npm-versions)
+
         (cond->
+          (not (false? (get-in config [:js-options :check-versions])))
+          (check-npm-versions)
+
           (shared/bootstrap-host-build? state)
           (shared/bootstrap-host-info)))
 
