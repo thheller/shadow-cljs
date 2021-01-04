@@ -1,7 +1,7 @@
 (ns shadow.jvm-log
   "logging setup tailored for shadow-cljs needs, not a generic logging lib"
   (:require [clojure.repl :as repl])
-  (:import [java.util.logging Level Logger ConsoleHandler Formatter LogManager]
+  (:import [java.util.logging Level Logger ConsoleHandler Formatter]
            [java.time.format DateTimeFormatter]
            [java.time LocalDateTime Instant ZoneId]))
 

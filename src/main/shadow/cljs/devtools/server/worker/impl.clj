@@ -14,7 +14,6 @@
     [shadow.cljs.util :as util :refer (set-conj reduce->)]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
-    [shadow.build.api :as cljs]
     [shadow.build.async :as basync]
     [shadow.build.compiler :as build-comp]
     [shadow.cljs.devtools.server.util :as server-util]

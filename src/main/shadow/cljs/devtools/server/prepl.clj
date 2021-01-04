@@ -1,6 +1,6 @@
 (ns shadow.cljs.devtools.server.prepl
   (:require
-    [clojure.core.async :as async :refer (go <! <!! >! >!! alts! alt!!)]
+    [clojure.core.async :as async :refer (go <!! alts!)]
     [shadow.cljs.devtools.api :as shadow]
     [shadow.core-ext :as core-ext]
     [shadow.jvm-log :as log]
@@ -182,7 +182,6 @@
     (<!! thread)))
 
 (comment
-  (require '[shadow.cljs.devtools.api :as shadow])
   (def relay (:relay (shadow/get-runtime!)))
 
   (def svc (start relay))

@@ -16,8 +16,7 @@
     [shadow.build.ns-form :as ns-form]
     [shadow.build.cljs-hacks]
     [shadow.build.data :as data])
-  (:import (java.io PushbackReader StringReader)
-           (java.util.concurrent Executors ExecutorService)))
+  (:import (java.io PushbackReader StringReader)))
 
 
 (defn get-resource-info [resource-name content reader-features]

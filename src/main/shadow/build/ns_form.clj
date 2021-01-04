@@ -5,8 +5,7 @@
             [clojure.string :as str]
             [cljs.compiler :as cljs-comp]
             [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)]
-            [shadow.build.data :as data])
-  (:import (java.nio.file Paths FileSystems)))
+            [shadow.build.data :as data]))
 
 ;; [clojure.core.specs.alpha :as cs]
 ;; too many differences in CLJS ns to make use of those

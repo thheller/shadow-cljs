@@ -7,8 +7,7 @@
     #?@(:clj
         [[shadow.jvm-log :as log]]
         :cljs
-        []))
-  #?(:clj (:import [java.util UUID])))
+        [])))
 
 (defn init-state [client-info]
   {:extensions {}

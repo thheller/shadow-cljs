@@ -6,7 +6,6 @@
     [cljs.analyzer :as ana]
     [cljs.compiler :as comp]
     [cljs.env :as env]
-    [cljs.compiler :as cljs-comp]
     [shadow.cljs.util :as util]
     [shadow.build.output :as output]
     [shadow.build.warnings :as warnings]
@@ -17,15 +16,14 @@
     [shadow.core-ext :as core-ext]
     [shadow.build.resource :as rc]
     [shadow.debug :refer (?> ?-> ?->>)]
-    [clojure.data.json :as json]
-    [shadow.debug :as dbg])
-  (:import (java.io StringWriter ByteArrayInputStream FileOutputStream File StringReader)
+    [clojure.data.json :as json])
+  (:import (java.io StringWriter ByteArrayInputStream FileOutputStream)
            (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
                                          CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
                                          CheckLevel JSModule CompilerOptions$LanguageMode
                                          Result ShadowAccess
-                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup NodeTraversal StrictModeCheck VariableRenamingPolicy PropertyRenamingPolicy PhaseOptimizer)
-           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass FindSurvivingRequireCalls ClearUnassignedJsRequires)
+                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup VariableRenamingPolicy PropertyRenamingPolicy PhaseOptimizer)
+           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass FindSurvivingRequireCalls)
            (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
            (java.nio.charset Charset)
            [java.util.logging Logger Level]
@@ -329,14 +327,14 @@
 
         content
         (str (->> file-globals
-                  (map #(cljs-comp/munge % #{}))
+                  (map #(comp/munge % #{}))
                   (sort)
                   (map #(str "/** @const {ShadowJS} */ var " % ";"))
                   (str/join "\n"))
              "\n"
              (->> file-props
                   (sort)
-                  (map #(cljs-comp/munge % #{}))
+                  (map #(comp/munge % #{}))
                   (map #(str "ShadowJS.prototype." % ";"))
                   (str/join "\n")))]
 
@@ -360,14 +358,14 @@
         content
         (str (->> js-globals
                   (remove known-js-globals)
-                  (map #(cljs-comp/munge % #{}))
+                  (map #(comp/munge % #{}))
                   (sort)
                   (map #(str "/** @const {ShadowJS} */ var " % ";"))
                   (str/join "\n"))
              "\n"
              (->> js-props
                   (sort)
-                  (map #(cljs-comp/munge % #{}))
+                  (map #(comp/munge % #{}))
                   (map #(str "ShadowJS.prototype." % ";"))
                   (str/join "\n")))]
 
@@ -1302,7 +1300,7 @@
                   (if (and (:import require-loc) (or (= :goog type) (= :shadow-js type)))
                     ;; goog supports import ... from "goog:cljs.core" in ES6 files
                     ;; but not for commonjs require
-                    (str "goog:" (cljs-comp/munge ns))
+                    (str "goog:" (comp/munge ns))
                     (str "/" resource-name))]
 
               (str (subs source 0 (inc offset))
@@ -1419,7 +1417,7 @@
                       (case type
                         ;; just in case we add the goog.provide for cljs/closure namespaces
                         (:cljs :goog :shadow-js)
-                        (str "goog.provide(\"" (cljs-comp/munge ns) "\");")
+                        (str "goog.provide(\"" (comp/munge ns) "\");")
                         (throw (ex-info (format "whats this? %s type: %s" resource-name type) {}))))))
              (into []))
 

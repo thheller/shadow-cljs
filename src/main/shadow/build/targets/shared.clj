@@ -7,8 +7,7 @@
             [shadow.build.api :as cljs]
             [shadow.build.data :as data]
             [shadow.build.modules :as modules]
-            [clojure.data.json :as json])
-  (:import [java.net InetAddress]))
+            [clojure.data.json :as json]))
 
 (defn unquoted-qualified-symbol? [sym]
   (and (qualified-symbol? sym)

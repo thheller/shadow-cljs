@@ -7,7 +7,7 @@
             [cljs.core]
             [shadow.build.log :as log]
             [clojure.java.io :as io])
-  (:import (clojure.lang Namespace IDeref)
+  (:import (clojure.lang IDeref)
            (java.io File StringWriter ByteArrayOutputStream IOException)
            (java.security MessageDigest)
            (java.nio.charset Charset)

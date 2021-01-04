@@ -5,7 +5,6 @@
     [clojure.java.io :as io]
     [clojure.tools.reader.reader-types :as readers]
     [clojure.tools.reader :as reader]
-    [cljs.analyzer :as cljs-ana]
     [cljs.analyzer :as ana]
     [cljs.compiler :as comp]
     [cljs.spec.alpha :as cljs-spec]
@@ -27,8 +26,7 @@
     [shadow.build.closure :as closure]
     [shadow.build.npm :as npm]
     [shadow.jvm-log :as log]
-    [shadow.build.async :as async]
-    [shadow.debug :as dbg])
+    [shadow.build.async :as async])
   (:import (java.util.concurrent ExecutorService)
            (java.io File StringReader PushbackReader StringWriter)
            [java.util.concurrent.atomic AtomicLong]))
@@ -139,7 +137,7 @@
               pprefix (protocol-prefix protocol)]
 
           ;; assoc into ns so cache can restore it
-          (swap! env/*compiler* update-in [::cljs-ana/namespaces protocol-ns :shadow/protocol-prefixes] util/set-conj pprefix)
+          (swap! env/*compiler* update-in [::ana/namespaces protocol-ns :shadow/protocol-prefixes] util/set-conj pprefix)
           ;; used by externs inference since it otherwise can't identify protocol properties
           (swap! env/*compiler* update :shadow/protocol-prefixes util/set-conj pprefix)
           ))))
@@ -156,7 +154,7 @@
         (let [require (second form)
               ns (-> env :ns :name)]
           (when (string? require)
-            (swap! env/*compiler* update-in [::cljs-ana/namespaces ns :shadow/js-requires] util/set-conj require)
+            (swap! env/*compiler* update-in [::ana/namespaces ns :shadow/js-requires] util/set-conj require)
             )))))
   ast)
 
@@ -1027,7 +1025,7 @@
 (defn load-core []
   ;; cljs.core is already required and loaded when this is called
   ;; this just interns the macros into the analyzer env
-  (cljs-ana/intern-macros 'cljs.core))
+  (ana/intern-macros 'cljs.core))
 
 (defn par-compile-cljs-sources
   "compile files in parallel, files MUST be in dependency order and ALL dependencies must be present

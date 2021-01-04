@@ -10,8 +10,7 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.util :as util]
     [shadow.build.resource :as rc]
-    [shadow.build.macros :as bm])
-  (:import [com.google.javascript.jscomp.deps ModuleNames]))
+    [shadow.build.macros :as bm]))
 
 ;; FIXME: rewrite this similar to npm-update so that it only checks files that are actually used
 ;; checking all source paths all the time is overkill

@@ -4,7 +4,7 @@
     [clojure.core.server :as srv]
     [shadow.jvm-log :as log])
   (:import java.net.ServerSocket
-           (java.io StringReader PushbackReader PrintStream BufferedWriter OutputStreamWriter InputStreamReader)
+           (java.io BufferedWriter OutputStreamWriter InputStreamReader)
            (java.net InetAddress SocketException)
            (clojure.lang LineNumberingPushbackReader)))
 

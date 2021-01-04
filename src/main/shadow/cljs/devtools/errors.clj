@@ -14,7 +14,7 @@
             [shadow.cljs.util :as util]
             [clojure.java.io :as io])
   (:import (java.io StringWriter FileNotFoundException)
-           (clojure.lang ExceptionInfo ArityException)))
+           (clojure.lang ArityException)))
 
 (declare error-format)
 

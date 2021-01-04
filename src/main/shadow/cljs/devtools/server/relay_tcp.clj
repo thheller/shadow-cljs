@@ -110,7 +110,6 @@
   (.interrupt server-thread))
 
 (comment
-  (require '[shadow.cljs.devtools.api :as api])
   (def x (start (:relay (api/get-runtime!)) {:port 8201}))
 
   (stop x))
