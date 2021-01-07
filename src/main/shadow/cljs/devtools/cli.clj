@@ -1,4 +1,5 @@
 (ns shadow.cljs.devtools.cli
+  (:gen-class)
   (:require
     [clojure.java.io :as io]))
 
