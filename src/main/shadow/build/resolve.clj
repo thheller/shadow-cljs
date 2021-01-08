@@ -88,7 +88,7 @@
     "constants" "crypto" "_debugger" "dgram" "dns" "domain" "events" "freelist"
     "fs" "http" "http2" "https" "_linklist" "module" "net" "os" "path" "punycode"
     "querystring" "readline" "repl" "stream" "string_decoder" "sys" "timers"
-    "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
+    "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8" "worker_threads"})
 
 (defn find-npm-resource
   [npm ^File require-from ^String require]
