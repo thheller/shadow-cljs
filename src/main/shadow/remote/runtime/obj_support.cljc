@@ -2,9 +2,17 @@
   (:require
     [clojure.datafy :as d]
     [clojure.pprint :refer (pprint)]
+    [clojure.spec.alpha :as spec]
     [shadow.remote.runtime.api :as p]
     [shadow.remote.runtime.shared :as shared]
-    [shadow.remote.runtime.writer :as lw])
+    [shadow.remote.runtime.writer :as lw]
+    ;; FIXME: I do not like importing these here
+    ;; need to extract shadow-cljs functions if I ever move shadow.remote out
+    ;; cljs.repl has way too much other stuff on the CLJ side not error related we don't really need here
+    ;; should just have one namespace only concerned with formatting errors
+    ;; maybe even as separate plugin
+    #?@(:clj [[shadow.cljs.devtools.errors :refer (error-format)]]
+        :cljs [[cljs.repl :refer (error->str)]]))
   #?(:clj (:import [java.util UUID])))
 
 (defrecord Reference [obj])
@@ -84,6 +92,17 @@
 (defn as-str
   [data msg]
   (str data))
+
+(defn as-ex-str [ex msg]
+  #?(:cljs
+     (error->str ex)
+
+     :clj
+     (error-format ex)))
+
+(defn exception? [x]
+  #?(:clj  (instance? java.lang.Throwable x)
+     :cljs (instance? js/Error x)))
 
 (defn attempt-to-sort [desc coll]
   (try
@@ -338,7 +357,11 @@
               :edn-limit #(as-edn-limit o %)}
              (cond->
                (or (coll? o) (seq? o))
-               (assoc :pprint #(as-pprint o %))))}
+               (assoc :pprint #(as-pprint o %))
+
+               (exception? o)
+               (assoc :ex-str #(as-ex-str o %))
+               ))}
 
         (inspect-basic o opts)
         (inspect-type-info o opts)

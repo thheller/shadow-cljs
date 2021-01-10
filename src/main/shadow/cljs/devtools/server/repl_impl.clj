@@ -219,8 +219,15 @@
 
                    :obj-result
                    (let [{:keys [result]} msg]
-                     (if-not (:print-failed repl-state)
+                     (cond
+                       (= :error (:stage repl-state))
+                       (do (repl-stderr repl-state (str "\n" result))
+                           (repl-result repl-state "nil"))
+
+                       (not (:print-failed repl-state))
                        (repl-result repl-state result)
+
+                       :else
                        (do (repl-stderr repl-state "The result object failed to print. It is available via *1 if you want to interact with it.\n")
                            (repl-stderr repl-state "The exception was: \n")
                            (repl-stderr repl-state (str result "\n"))
@@ -260,7 +267,7 @@
                      (>!! to-relay
                        {:op :obj-request
                         :to from
-                        :request-op :edn
+                        :request-op :ex-str
                         :oid ex-oid})
                      (recur (assoc repl-state :stage :error)))
 
