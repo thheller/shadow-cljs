@@ -113,12 +113,12 @@
   (event ::m/build-release-debug! sg/tx)
 
   (render
-    (<<
-      [:div.flex-1.overflow-auto.py-2
-       [:div.max-w-7xl.mx-auto
-        [:div.flex.flex-col.mt-2
-         [:div.align-middle.min-w-full.overflow-x-auto.shadow.overflow-hidden.xl:rounded-lg
-          (sg/render-seq builds identity ui-builds-entry)]]]])))
+    (<< [:div.flex-1.overflow-auto.py-2
+         [:div.max-w-7xl.mx-auto
+          [:div.flex.flex-col
+           [:div.align-middle.min-w-full.overflow-x-auto.shadow.overflow-hidden.xl:rounded-lg
+            (sg/render-seq builds identity ui-builds-entry)]]]])))
+
 
 (defc ui-build-overview [build-ident]
   (bind {::m/keys [build-sources-sorted] :as data}
