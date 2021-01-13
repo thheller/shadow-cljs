@@ -219,7 +219,6 @@
           [:script "shadow.test.workspaces.init();"]
           ])})))
 
-
 (defonce active-cards-clients (atom 0))
 
 (defn grove-cards-page [{:keys [supervisor] :as req}]
@@ -265,7 +264,6 @@
                 "navigator.sendBeacon(\"/grove/cards-unload\", \"\");"
                 "});")]
           ])})))
-
 
 (defn grove-cards-unload [{:keys [supervisor] :as req}]
   (future

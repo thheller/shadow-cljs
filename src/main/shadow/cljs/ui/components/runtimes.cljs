@@ -48,7 +48,7 @@
                                                                             (str "/build/" (name build-id))
                                                                             "#")}
               [:div
-               (build-lang lang)]
+               (build-lang-icon lang)]
               [:div.inline-flex.space-x-2.pl-1
                [:p.text-gray-700.truncate.font-medium.group-hover:text-gray-900 runtime-id]
                [:p.text-gray-500.truncate.group-hover:text-gray-900 (when build-id (name build-id))]]]]]
@@ -98,7 +98,7 @@
                                                                   "#")}
             [:span.flex.items-center.space-x-4
              [:span.flex-1.flex.space-x-2.truncate
-              (build-lang lang)
+              (build-lang-icon lang)
               [:span.flex.flex-col.text-gray-500.text-sm.truncate
                [:span.truncate
                 [:div.inline-flex.space-x-2
