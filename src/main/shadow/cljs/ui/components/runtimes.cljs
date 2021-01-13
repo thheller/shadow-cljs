@@ -31,8 +31,6 @@
     (<< [:span.inline-flex.items-center.px-2.5.py-0.5.rounded-full.text-xs.font-medium.bg-gray-100.text-gray-800.uppercase.tracking-wider
          "-"])))
 
-[:span.flex-shrink-0.inline-block.px-2.py-0.5.text-green-800.text-xs.font-medium.bg-green-100.rounded-full "Admin"]
-
 (defc ui-runtime-overview [ident]
   (bind {:keys [runtime-id runtime-info supported-ops] :as data}
     (sg/query-ident ident
