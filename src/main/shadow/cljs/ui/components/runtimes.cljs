@@ -109,7 +109,7 @@
              [:svg.flex-shrink-0.h-5.w-5.text-gray-400 {:xmlns "http://www.w3.org/2000/svg" :viewBox "0 0 20 20" :fill "currentColor" :aria-hidden "true"}
               [:path {:fill-rule "evenodd" :d "M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" :clip-rule "evenodd"}]]]]]))))
 
-(defn ui-runtime-listing-mobile
+(defn ui-runtime-listing-narrow
   [runtimes]
   (<< [:ul.mt-2.divide-y.divide-gray-200.overflow-hidden.shadow.sm:hidden
        (sg/render-seq runtimes identity ui-runtime-overview-narrow)]))
@@ -122,7 +122,7 @@
   (render
     (<<
       [:div.shadow.sm:hidden.relative.h-auto.overflow-y-auto
-       (ui-runtime-listing-mobile runtimes-sorted)]
+       (ui-runtime-listing-narrow runtimes-sorted)]
       [:div.hidden.sm:block
        [:div.max-w-7xl.mx-auto
         [:div.flex.flex-col.mt-2
