@@ -119,7 +119,6 @@
            [:div.align-middle.min-w-full.overflow-x-auto.shadow.overflow-hidden.xl:rounded-lg
             (sg/render-seq builds identity ui-builds-entry)]]]])))
 
-
 (defc ui-build-overview [build-ident]
   (bind {::m/keys [build-sources-sorted] :as data}
     (sg/query-ident build-ident
@@ -205,7 +204,3 @@
             (ui-build-runtimes build-ident))
 
           (build-status/render-build-status-full build-status)))))
-
-
-
-
