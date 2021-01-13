@@ -8,7 +8,7 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.inspect :as inspect]
     [shadow.cljs.ui.components.dashboard :as dashboard]
-    [shadow.cljs.ui.views.runtimes :as runtimes]
+    [shadow.cljs.ui.components.runtimes :as runtimes]
     [shadow.cljs.ui.components.builds :as builds]
     [shadow.cljs.ui.components.eval :as eval]
     [shadow.cljs.ui.components.db-explorer :as db-explorer]
