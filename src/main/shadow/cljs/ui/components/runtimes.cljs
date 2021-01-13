@@ -8,7 +8,7 @@
 (defn age-display [since]
   (rel/format since))
 
-(defn build-lang
+(defn build-lang-icon
   [lang]
   (case lang
     :cljs
