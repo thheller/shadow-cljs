@@ -8,7 +8,7 @@
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.inspect :as inspect]
     [shadow.cljs.ui.components.dashboard :as dashboard]
-    [shadow.cljs.ui.components.runtimes :as runtimes]
+    [shadow.cljs.ui.views.runtimes :as runtimes]
     [shadow.cljs.ui.components.builds :as builds]
     [shadow.cljs.ui.components.eval :as eval]
     [shadow.cljs.ui.components.db-explorer :as db-explorer]
@@ -43,8 +43,8 @@
       (<< [:div.fixed.inset-0.z-50.w-full.h-full.flex.flex-col
            {:style "background-color: rgba(0,0,0,0.4)"}
            [:div.flex-1.p-8.overflow-hidden
-            (ui-error (first errors))
-            ]]))))
+            (ui-error (first errors))]]))))
+
 
 (defc ui-root* []
   (bind {::m/keys [current-page relay-ws-connected] :as data}

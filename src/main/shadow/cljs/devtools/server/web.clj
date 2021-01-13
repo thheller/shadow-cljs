@@ -42,8 +42,9 @@
       [:title (-> (io/file ".")
                   (.getCanonicalFile)
                   (.getName))]
-      [:link {:rel "stylesheet" :href "/css/main.css"}]
-      [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]
+      #_[:link {:rel "stylesheet" :href "/css/main.css"}]
+      #_[:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]
+      [:link {:rel "stylesheet" :href "https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body
       [:div#root.fixed.inset-0]
@@ -216,8 +217,8 @@
          [:body
           [:div#app]
           [:script {:src "/cache/workspaces/out/js/test.js"}]
-          [:script "shadow.test.workspaces.init();"]
-          ])})))
+          [:script "shadow.test.workspaces.init();"]])})))
+
 
 (defonce active-cards-clients (atom 0))
 
@@ -262,8 +263,8 @@
           [:script
            (str "window.addEventListener(\"beforeunload\", function() {"
                 "navigator.sendBeacon(\"/grove/cards-unload\", \"\");"
-                "});")]
-          ])})))
+                "});")]])})))
+
 
 (defn grove-cards-unload [{:keys [supervisor] :as req}]
   (future
