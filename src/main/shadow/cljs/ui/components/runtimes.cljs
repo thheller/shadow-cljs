@@ -124,6 +124,6 @@
          (ui-runtime-listing-narrow runtimes-sorted)]
         [:div.hidden.sm:block
          [:div.max-w-7xl.mx-auto
-          [:div.flex.flex-col.mt-2
-           [:div.align-middle.min-w-full.overflow-x-auto.shadow.overflow-hidden.xl:rounded-lg
+          [:div.flex.flex-col.mt-2.md:px-2
+           [:div.align-middle.min-w-full.overflow-x-auto.shadow.overflow-hidden.md:rounded-lg
             (ui-runtime-listing runtimes-sorted)]]]])))

@@ -152,9 +152,9 @@
                      [:span.h-3.w-3.bg-gray-400.rounded-full]]))]
              [:div.ml-5.w-0.flex-1
               [:dl
-               [:dt.text-sm.font-medium.text-gray-500.truncate (name build-target)]
+               [:dt.text-sm.font-medium.text-gray-500.truncate (name build-id)]
                [:dd
-                [:a.text-lg.font-medium.text-gray-900 {:href (str "/build/" (name build-id))} (name build-id)]]]]]]
+                [:a.text-lg.font-medium.text-gray-900 {:href (str "/build/" (name build-id))} (name build-target)]]]]]]
            (build-buttons build-id build-worker-active)]))))
 
 (defc ui-builds-page []
@@ -169,7 +169,7 @@
   (event ::m/build-release-debug! sg/tx)
 
   (render
-    (<< [:div.flex-1.overflow-auto.py-2
+    (<< [:div.flex-1.overflow-auto.py-2.sm:px-2
          [:div.max-w-7xl.mx-auto
           [:div.flex.flex-col
            [:div.grid.grid-cols-1.gap-5.sm:grid-cols-2.md:grid-cols-2.lg:grid-cols-3
