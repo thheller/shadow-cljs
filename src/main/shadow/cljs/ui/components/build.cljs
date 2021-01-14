@@ -42,6 +42,6 @@
 
                 :runtimes
                 (<< [:div.mt-2.align-middle.min-w-full.shadow.md:rounded-lg
-                     (runtimes/ui-runtime-listing build-runtimes)])
+                     (runtimes/ui-runtime-table build-runtimes)])
 
                 [:div "tab not found"])]]]]))))

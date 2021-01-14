@@ -31,7 +31,7 @@
     (<< [:span.inline-flex.items-center.px-2.5.py-0.5.rounded-full.text-xs.font-medium.bg-gray-100.text-gray-800.uppercase.tracking-wider
          "-"])))
 
-(defc ui-runtime-overview [ident]
+(defc ui-runtime-table-row [ident]
   (bind {:keys [runtime-id runtime-info supported-ops] :as data}
     (sg/query-ident ident
       [:runtime-id
@@ -72,7 +72,8 @@
                       :href  (str "/runtime/" runtime-id "/db-explorer")}
                      "db explorer"]))]]))))
 
-(defn ui-runtime-listing [runtimes]
+(defn ui-runtime-table [runtimes]
+  ; FIXME: include ui-runtime-overview, can we query in anonymous fn?
   (<< [:table.min-w-full.divide-y.divide-gray-200
        [:thead
         [:tr
@@ -81,15 +82,15 @@
          [:th.px-6.py-3.bg-gray-50.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider "since"]
          #_[:th.px-6.py-3.bg-gray-50.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider ""]]]
        [:tbody.bg-white.divide-y.divide-gray-200
-        (sg/render-seq runtimes identity ui-runtime-overview)]]))
+        (sg/render-seq runtimes identity ui-runtime-table-row)]]))
 
-(defc ui-runtime-overview-narrow
-  [ident]
+(defc ui-runtime-list-item [ident]
   (bind {:keys [runtime-id runtime-info supported-ops] :as data}
     (sg/query-ident ident
       [:runtime-id
        :runtime-info
        :supported-ops]))
+
   (render
     (let [{:keys [lang build-id host type since user-agent desc]} runtime-info]
       (<< [:li
@@ -108,10 +109,10 @@
              [:svg.flex-shrink-0.h-5.w-5.text-gray-400 {:xmlns "http://www.w3.org/2000/svg" :viewBox "0 0 20 20" :fill "currentColor" :aria-hidden "true"}
               [:path {:fill-rule "evenodd" :d "M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" :clip-rule "evenodd"}]]]]]))))
 
-(defn ui-runtime-listing-narrow
-  [runtimes]
+(defn ui-runtime-list [runtimes]
+  ; FIXME: probably this is not worth it. Would be better to pack everything here including (ui-runtime-list-item ...)
   (<< [:ul.mt-2.divide-y.divide-gray-200.overflow-hidden.shadow.sm:hidden
-       (sg/render-seq runtimes identity ui-runtime-overview-narrow)]))
+       (sg/render-seq runtimes identity ui-runtime-list-item)]))
 
 (defc ui-page []
   (bind {::m/keys [runtimes-sorted]}
@@ -120,9 +121,8 @@
 
   (render
     (<< [:div.shadow.sm:hidden.relative.h-auto.overflow-y-auto
-         (ui-runtime-listing-narrow runtimes-sorted)]
-      [:div.hidden.sm:block.sm:px-2
-       [:div.max-w-7xl
-        [:div.flex.flex-col.mt-2
-         [:div.align-middle.min-w-full.overflow-x-auto.shadow.overflow-hidden.sm:rounded-lg
-          (ui-runtime-listing runtimes-sorted)]]]])))
+         (ui-runtime-list runtimes-sorted)]
+        [:div.hidden.sm:block.sm:px-2
+         [:div.flex.flex-col.mt-2
+          [:div.align-middle.min-w-full.overflow-x-auto.shadow.sm:rounded-lg
+           (ui-runtime-table runtimes-sorted)]]])))
