@@ -10,7 +10,7 @@
     [shadow.cljs.ui.components.dashboard :as dashboard]
     [shadow.cljs.ui.components.runtimes :as runtimes]
     [shadow.cljs.ui.components.builds :as builds]
-    [shadow.cljs.ui.components.build-page :as build-page]
+    [shadow.cljs.ui.components.build :as build]
     [shadow.cljs.ui.components.eval :as eval]
     [shadow.cljs.ui.components.db-explorer :as db-explorer]
     [shadow.cljs.ui.components.common :as common]))
@@ -136,7 +136,7 @@
                (builds/ui-builds-page)
 
                :build
-               (build-page/ui-page (:ident current-page))
+               (<< (build/ui-page (:ident current-page)))
 
                :dashboard
                (dashboard/ui-page)

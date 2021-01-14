@@ -19,12 +19,12 @@
     (<< [:div.mt-8
          [:div.max-w-7xl
           [:h2.pl-1.text-lg.leading-6.font-medium.text-gray-900 "HTTP Servers"]
-          [:div.mt-2.grid.grid-cols-1.gap-5.md:grid-cols-2.lg:grid-cols-3
+          [:div.mt-2.grid.grid-cols-1.gap-5.md:grid-cols-1.lg:grid-cols-2.xl:grid-cols-3
            (sg/render-seq http-servers ::m/http-server-id
              (fn [{::m/keys [http-url https-url http-config]}]
                (let [url (or http-url https-url)
                      display-name (:display-name http-config)]
-                 (<< [:div.bg-white.overflow-hidden.shadow.sm:rounded-lg
+                 (<< [:div.bg-white.shadow.sm:rounded-lg
                       [:div.p-5
                        [:div.flex.items-center
                         [:div.flex-shrink-0
@@ -47,7 +47,7 @@
     (<< [:div
          [:div.max-w-7xl
           [:h2.pl-1.text-lg.leading-6.font-medium.text-gray-900 "Builds"]
-          [:div.mt-2.grid.grid-cols-1.gap-5.md:grid-cols-2.lg:grid-cols-3
+          [:div.mt-2.grid.grid-cols-1.gap-5.md:grid-cols-1.lg:grid-cols-2.xl:grid-cols-3
            (sg/render-seq active-builds identity builds/build-card)
            ;(build-status/render-build-status-short build-status)
            ]]])))

@@ -8,8 +8,8 @@
 (defn render-build-log [{:keys [log] :as build-status}]
   ;; FIXME: are these useful at all?
   (when (seq log)
-    (<< [:div.p-2
-         [:div (str (count log) " Log messages")]
+    (<< [:div.pl-2.pb-2
+         [:div.text-md.font-medium.mb-2 (str (count log) " Log messages")]
          (sg/render-seq log nil
            (fn [entry]
              (<< [:pre.text-sm entry])))])))
@@ -81,7 +81,7 @@
                 ])))]))
 
 (defn render-completed-status [{:keys [duration warnings] :as build-status}]
-  (<< [:div.p-2 (str (if (seq warnings) "!" "✔") " Compilation completed in " duration " seconds.")]
+  (<< [:div.text-md.font-medium.pt-2.pl-2 (str " Compiled in " duration " seconds.")]
       (when (seq warnings)
         (<< [:div.flex-1.overflow-auto
              [:div.text-xl.px-1.py-2 (str (count warnings) " Warnings")]
@@ -123,20 +123,17 @@
     (<< [:div "Unknown, waiting for recompile."])
 
     :compiling
-    (<< [:div.p-2
-         [:div.text-lg "Build Status"]
+    (<< [:div.pb-2
          (render-compiling-status build-status)])
 
     :completed
-    (<< [:div.p-2
-         [:div.text-lg "Build Status"]]
-        (render-completed-status build-status)
+    (<< [:div.pb-2
+         (render-completed-status build-status)]
         [:div.flex-1.overflow-auto
          (render-build-log build-status)])
 
     :failed
-    (<< [:div.p-2
-         [:div.text-lg "Build Status"]
+    (<< [:div.pb-2
          [:div "X Compilation failed."]]
         [:div.p-2.flex-1.overflow-auto
          [:pre (:report build-status)]])

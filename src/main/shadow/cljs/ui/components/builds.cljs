@@ -30,54 +30,9 @@
            :type "button"}
           "Release"]])))
 
-(defc ui-builds-entry [build-ident]
-  (bind {::m/keys [build-id build-worker-active build-warnings-count build-status] :as data}
-    (sg/query-ident build-ident
-      [::m/build-id
-       ::m/build-worker-active
-       ::m/build-warnings-count
-       {::m/build-status
-        [:status]}]))
-
-  (render
-    (let [{:keys [status]} build-status]
-      (<< [:div.border-b.bg-white.p-4.flex
-           [:div.self-center.pr-4
-            [:a.cursor-pointer {:href (str "/build/" (name build-id))}
-             (case status
-               :compiling
-               (<< [:span.h-6.w-6.bg-blue-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-                    [:span.h-3.w-3.bg-blue-400.rounded-full]])
-
-               :completed
-               (if (zero? build-warnings-count)
-                 (<< [:span.h-6.w-6.bg-green-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-                      [:span.h-3.w-3.bg-green-400.rounded-full]])
-                 (<< [:span.h-6.w-6.bg-yellow-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-                      [:span.h-3.w-3.bg-yellow-400.rounded-full]]))
-
-               :failed
-               (<< [:span.h-6.w-6.bg-red-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-                    [:span.h-3.w-3.bg-red-400.rounded-full]])
-
-               :inactive
-               (<< [:span.h-6.w-6.bg-gray-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-                    [:span.h-3.w-3.bg-gray-400.rounded-full]])
-
-               :pending
-               (<< [:span.h-6.w-6.bg-blue-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-                    [:span.h-3.w-3.bg-blue-400.rounded-full]])
-
-               (<< [:span.h-6.w-6.bg-gray-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-                    [:span.h-3.w-3.bg-gray-400.rounded-full]]))]]
-           [:div.flex-1
-            [:div.pb-1
-             [:a.font-bold.text-lg {:href (str "/build/" (name build-id))} (name build-id)]]
-            [:div
-             (build-buttons build-id build-worker-active)]]]))))
-
 (defc build-card [ident]
 
+  (event ::m/build-watch-start! sg/tx)
   (event ::m/build-compile! sg/tx)
   (event ::m/build-watch-stop! sg/tx)
   (event ::m/build-watch-compile! sg/tx)
@@ -149,7 +104,7 @@
     (<< [:div.flex-1.overflow-auto.py-2.sm:px-2
          [:div.max-w-7xl
           [:div.flex.flex-col
-           [:div.grid.grid-cols-1.gap-5.md:grid-cols-2.lg:grid-cols-3
+           [:div.grid.grid-cols-1.gap-5.md:grid-cols-1.lg:grid-cols-2.xl:grid-cols-3
             (sg/render-seq builds identity build-card)]]]])))
 
 (defc ui-build-overview [build-ident]
@@ -192,48 +147,3 @@
           [:div
            (sg/render-seq build-sources-sorted nil render-source-entry)]
           [:div.flex-1 "right"]]])))
-
-(defc ui-build-runtimes [build-ident]
-  (bind {::m/keys [build-runtimes] :as data}
-    (sg/query-ident build-ident
-      [::m/build-runtimes]))
-
-  (render
-    (let [runtime-count (count build-runtimes)]
-      (<< [:div.px-2
-           [:div.pt-2
-            (condp = runtime-count
-              0 "No connected runtimes."
-              1 "1 connected runtime:"
-              (str runtime-count " connected runtimes:"))]
-
-           (runtimes/ui-runtime-listing build-runtimes)]))))
-
-(defc ui-build-page [build-ident]
-  (bind data
-    (sg/query-ident build-ident
-      [:db/ident
-       ::m/build-id
-       ::m/build-target
-       ::m/build-worker-active
-       ::m/build-status]))
-
-  (event ::m/build-watch-compile! sg/tx)
-  (event ::m/build-watch-start! sg/tx)
-  (event ::m/build-watch-stop! sg/tx)
-  (event ::m/build-compile! sg/tx)
-  (event ::m/build-release! sg/tx)
-  (event ::m/build-release-debug! sg/tx)
-
-  (render
-    (let [{::m/keys [build-id build-target build-status build-worker-active]} data]
-      (<< [:div
-           [:div.px-2
-            [:h1.text-xl.pt-4 (name build-id)]
-            [:div " target: " (name build-target)]]
-           [:div.p-2 (build-buttons build-id build-worker-active)]]
-
-          (when build-worker-active
-            (ui-build-runtimes build-ident))
-
-          (build-status/render-build-status-full build-status)))))
