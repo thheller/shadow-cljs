@@ -18,7 +18,7 @@
     (let [tab :status
           tab-selected "bg-gray-200 text-gray-800 px-3 py-2 font-medium text-sm rounded-md"
           tab-normal "text-gray-600 hover:text-gray-800 px-3 py-2 font-medium text-sm rounded-md"]
-      (<< [:div.flex-1.py-2.sm:px-2
+      (<< [:div.flex-1.overflow-auto.py-2.sm:px-2
            [:div.max-w-7xl
             [:div.flex.flex-col
              [:div.align-middle.min-w-full
