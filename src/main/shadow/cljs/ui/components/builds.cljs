@@ -77,23 +77,30 @@
             [:a.cursor-pointer {:href (str "/build/" (name build-id))}
              (case status
                :compiling
-               icon-build-busy
+               (<< [:span.h-6.w-6.bg-blue-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+                    [:span.h-3.w-3.bg-blue-400.rounded-full]])
 
                :completed
                (if (zero? build-warnings-count)
-                 icon-build-success
-                 icon-build-warnings)
+                 (<< [:span.h-6.w-6.bg-green-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+                      [:span.h-3.w-3.bg-green-400.rounded-full]])
+                 (<< [:span.h-6.w-6.bg-yellow-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+                      [:span.h-3.w-3.bg-yellow-400.rounded-full]]))
 
                :failed
-               icon-build-error
+               (<< [:span.h-6.w-6.bg-red-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+                    [:span.h-3.w-3.bg-red-400.rounded-full]])
 
                :inactive
-               icon-build-missing
+               (<< [:span.h-6.w-6.bg-gray-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+                    [:span.h-3.w-3.bg-gray-400.rounded-full]])
 
                :pending
-               icon-build-busy
+               (<< [:span.h-6.w-6.bg-blue-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+                    [:span.h-3.w-3.bg-blue-400.rounded-full]])
 
-               icon-build-missing)]]
+               (<< [:span.h-6.w-6.bg-gray-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+                    [:span.h-3.w-3.bg-gray-400.rounded-full]]))]]
            [:div.flex-1
             [:div.pb-1
              [:a.font-bold.text-lg {:href (str "/build/" (name build-id))} (name build-id)]]
