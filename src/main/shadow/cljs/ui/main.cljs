@@ -25,6 +25,38 @@
     (sg/run-tx env {:e ::m/dismiss-error! :ident err-ident}))
 
   (render
+    (<< [:div.w-full.h-full.bg-white.shadow.border.flex.flex-col {::keyboard/listen true}
+         [:div.flex
+          [:div.text-red-700.p-2.font-bold "An error occured:"]
+          [:div.flex-1]
+          [:div.text-right.cursor-pointer.font-bold.p-2
+           {:on-click {:e ::m/dismiss-error! :ident err-ident}}
+           common/svg-close]]
+         [:pre.overflow-auto.p-2.overflow-auto text]])))
+
+(defc ui-errors []
+  (bind {::m/keys [errors]}
+    (sg/query-root [::m/errors]))
+
+  (render
+    (when (seq errors)
+      (<< [:div.fixed.inset-0.z-50.w-full.h-full.flex.flex-col
+           {:style "background-color: rgba(0,0,0,0.4)"}
+           [:div.flex-1.p-8.overflow-hidden
+            (ui-error (first errors))
+            ]]))))
+
+#_(defc ui-error [err-ident]
+  (bind {:keys [text]}
+    (sg/query-ident err-ident
+      [:text]))
+
+  (event ::m/dismiss-error! sg/tx)
+
+  (event ::keyboard/escape [env _ e]
+    (sg/run-tx env {:e ::m/dismiss-error! :ident err-ident}))
+
+  (render
     (<< [:div.flex.items-center.justify-between.flex-wrap
          [:div.w-0.flex-1.flex.items-center
           [:span.flex.p-2.rounded-lg.bg-yellow-400
@@ -45,7 +77,7 @@
            [:svg.h-6.w-6.text-yellow-500 {:xmlns "http://www.w3.org/2000/svg" :fill "none" :viewBox "0 0 24 24" :stroke "currentColor" :aria-hidden "true"}
             [:path {:stroke-linecap "round" :stroke-linejoin "round" :stroke-width "2" :d "M6 18L18 6M6 6l12 12"}]]]]])))
 
-(defc ui-errors []
+#_(defc ui-errors []
   (bind {::m/keys [errors]}
     (sg/query-root [::m/errors]))
 

@@ -56,20 +56,20 @@
             [:p.text-gray-700.font-medium (when host (name host))] (or desc user-agent "")]
            [:td.px-6.py-4.text-right.whitespace-nowrap.text-sm.text-gray-500 (age-display since)]
            #_[:td.px-6.py-4.text-right.whitespace-nowrap.text-sm.text-gray-500
-            (when (contains? supported-ops :cljs-eval)
+              (when (contains? supported-ops :cljs-eval)
                 (<< [:a
                      {:class inspect/css-button
-                      :href (str "/runtime/" runtime-id "/cljs-eval")}
+                      :href  (str "/runtime/" runtime-id "/cljs-eval")}
                      "cljs eval"]))
-            (when (contains? supported-ops :clj-eval)
+              (when (contains? supported-ops :clj-eval)
                 (<< [:a
                      {:class inspect/css-button
-                      :href (str "/runtime/" runtime-id "/repl")}
+                      :href  (str "/runtime/" runtime-id "/repl")}
                      "clj eval"]))
-            (when (contains? supported-ops :db/get-databases)
+              (when (contains? supported-ops :db/get-databases)
                 (<< [:a
                      {:class inspect/css-button
-                      :href (str "/runtime/" runtime-id "/db-explorer")}
+                      :href  (str "/runtime/" runtime-id "/db-explorer")}
                      "db explorer"]))]]))))
 
 (defn ui-runtime-listing [runtimes]
@@ -93,9 +93,8 @@
   (render
     (let [{:keys [lang build-id host type since user-agent desc]} runtime-info]
       (<< [:li
-           [:a.block.px-4.py-4.bg-white.hover:bg-gray-50 {:href (if build-id
-                                                                  (str "/build/" (name build-id))
-                                                                  "#")}
+           [:a.block.px-4.py-4.bg-white.hover:bg-gray-50
+            {:href (if build-id (str "/build/" (name build-id)) "#")}
             [:span.flex.items-center.space-x-4
              [:span.flex-1.flex.space-x-2.truncate
               (build-lang-icon lang)
@@ -122,8 +121,8 @@
   (render
     (<< [:div.shadow.sm:hidden.relative.h-auto.overflow-y-auto
          (ui-runtime-listing-narrow runtimes-sorted)]
-        [:div.hidden.sm:block
-         [:div.max-w-7xl.mx-auto
-          [:div.flex.flex-col.mt-2.md:px-2
-           [:div.align-middle.min-w-full.overflow-x-auto.shadow.overflow-hidden.md:rounded-lg
-            (ui-runtime-listing runtimes-sorted)]]]])))
+      [:div.hidden.sm:block.sm:px-2
+       [:div.max-w-7xl
+        [:div.flex.flex-col.mt-2
+         [:div.align-middle.min-w-full.overflow-x-auto.shadow.overflow-hidden.sm:rounded-lg
+          (ui-runtime-listing runtimes-sorted)]]]])))
