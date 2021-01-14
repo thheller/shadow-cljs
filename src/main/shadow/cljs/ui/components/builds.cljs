@@ -126,7 +126,7 @@
                  ;default
                  (<< [:span.h-6.w-6.bg-gray-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
                       [:span.h-3.w-3.bg-gray-400.rounded-full]]))]
-              [:a.ml-5.w-0.flex-1
+              [:div.ml-5.w-0.flex-1
                [:dl
                 [:dt.text-lg.font-medium.text-gray-900 (name build-id)]
                 [:dd
