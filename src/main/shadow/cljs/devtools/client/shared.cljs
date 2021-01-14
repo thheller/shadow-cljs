@@ -187,8 +187,7 @@
           (assoc :time-finish (js/Date.now))
           (callback)))
 
-    ;; FIXME: let client input decide if eval should happen regardless of warnings
-    (seq warnings)
+    (and (seq warnings) (false? env/ignore-warnings))
     (let [{:keys [callback]} state]
       (-> state
           (dissoc :runtime :callback :queue)
