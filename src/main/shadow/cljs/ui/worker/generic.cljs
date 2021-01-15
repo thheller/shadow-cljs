@@ -70,11 +70,18 @@
         {:db (assoc db ::m/current-page {:id :builds})}
 
         "build"
-        (let [[build-id-token] more
+        (let [[build-id-token sub-page] more
               build-id (keyword build-id-token)
-              build-ident (db/make-ident ::m/build build-id)]
+              build-ident (db/make-ident ::m/build build-id)
+              build-page-id
+              (case sub-page
+                "runtimes"
+                :build+runtimes
+                :build+status)]
           {:db (-> db
-                   (assoc ::m/current-page {:id :build :ident build-ident})
+                   (assoc ::m/current-page
+                          {:id build-page-id
+                           :ident build-ident})
                    (assoc ::m/current-build build-ident))})
 
         "dashboard"

@@ -1,105 +1,117 @@
 (ns shadow.cljs.ui.components.builds
   (:require
     [shadow.experiments.grove :as sg :refer (<< defc)]
-    [shadow.cljs.ui.components.build-status :as build-status]
-    [shadow.cljs.ui.components.runtimes :as runtimes]
-    [shadow.cljs.model :as m]
-    ))
+    [shadow.cljs.model :as m]))
 
 (defn build-buttons [build-id build-worker-active]
-  (if build-worker-active
-    (<< [:button.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click {:e ::m/build-watch-compile! :build-id build-id}}
-         "force compile"]
-        [:button.ml-2.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click {:e ::m/build-watch-stop! :build-id build-id}}
-         "stop watch"])
+  (let [class-button
+        "font-medium border-r py-3 px-5 bg-gray-50 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"]
+    (if build-worker-active
+      (<< [:div.font-bold.border-t.bg-gray-50
+           [:button
+            {:on-click {:e ::m/build-watch-stop! :build-id build-id}
+             :class class-button
+             :type "button"}
+            "Stop"]
+           [:button
+            {:on-click {:e ::m/build-watch-compile! :build-id build-id}
+             :class class-button
+             :type "button"}
+            "Force compile"]])
 
-    (<< [:button.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click {:e ::m/build-watch-start! :build-id build-id}}
-         "start watch"]
-        [:button.ml-2.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click {:e ::m/build-compile! :build-id build-id}}
-         "compile"]
-        [:button.ml-2.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click {:e ::m/build-release! :build-id build-id}}
-         "release"]
-        [:button.ml-2.py-1.px-4.bg-blue-200.hover:bg-blue-300.rounded.shadow
-         {:on-click {:e ::m/build-release-debug! :build-id build-id}}
-         "release debug"])))
+      (<< [:div.font-bold.border-t.bg-gray-50
+           [:button
+            {:on-click {:e ::m/build-watch-start! :build-id build-id}
+             :class class-button
+             :type "button"}
+            "Watch"]
+           [:button
+            {:on-click {:e ::m/build-compile! :build-id build-id}
+             :class class-button
+             :type "button"}
+            "Compile"]
+           [:button
+            {:on-click {:e ::m/build-release! :build-id build-id}
+             :class class-button
+             :type "button"}
+            "Release"]]))))
 
-;; https://github.com/sschoger/heroicons-ui
+(def icon-compiling
+  (<< [:span.h-6.w-6.bg-blue-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+       [:span.h-3.w-3.bg-blue-400.rounded-full]]))
 
-(def icon-build-busy
-  (<< [:svg
-       {:xmlns "http://www.w3.org/2000/svg" :viewBox "0 0 24 24" :width "24" :height "24"}
-       [:g
-        [:path
-         {:d "M9 4.58V4c0-1.1.9-2 2-2h2a2 2 0 0 1 2 2v.58a8 8 0 0 1 1.92 1.11l.5-.29a2 2 0 0 1 2.74.73l1 1.74a2 2 0 0 1-.73 2.73l-.5.29a8.06 8.06 0 0 1 0 2.22l.5.3a2 2 0 0 1 .73 2.72l-1 1.74a2 2 0 0 1-2.73.73l-.5-.3A8 8 0 0 1 15 19.43V20a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-.58a8 8 0 0 1-1.92-1.11l-.5.29a2 2 0 0 1-2.74-.73l-1-1.74a2 2 0 0 1 .73-2.73l.5-.29a8.06 8.06 0 0 1 0-2.22l-.5-.3a2 2 0 0 1-.73-2.72l1-1.74a2 2 0 0 1 2.73-.73l.5.3A8 8 0 0 1 9 4.57zM7.88 7.64l-.54.51-1.77-1.02-1 1.74 1.76 1.01-.17.73a6.02 6.02 0 0 0 0 2.78l.17.73-1.76 1.01 1 1.74 1.77-1.02.54.51a6 6 0 0 0 2.4 1.4l.72.2V20h2v-2.04l.71-.2a6 6 0 0 0 2.41-1.4l.54-.51 1.77 1.02 1-1.74-1.76-1.01.17-.73a6.02 6.02 0 0 0 0-2.78l-.17-.73 1.76-1.01-1-1.74-1.77 1.02-.54-.51a6 6 0 0 0-2.4-1.4l-.72-.2V4h-2v2.04l-.71.2a6 6 0 0 0-2.41 1.4zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"}]
-        [:animateTransform
-         {:attributeType "xml"
-          :attributeName "transform"
-          :type "rotate"
-          :from "0 12 12"
-          :to "360 12 12"
-          :dur "2s"
-          :repeatCount "indefinite"}]]]))
+(def icon-warnings
+  (<< [:span.h-6.w-6.bg-green-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+       [:span.h-3.w-3.bg-green-400.rounded-full]]))
 
-(def icon-build-success
-  (<< [:svg {:xmlns "http://www.w3.org/2000/svg" :viewBox "0 0 24 24" :width "24" :height "24" :style "fill: green;"}
-       [:path {:d "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm-3.54-4.46a1 1 0 0 1 1.42-1.42 3 3 0 0 0 4.24 0 1 1 0 0 1 1.42 1.42 5 5 0 0 1-7.08 0zM9 11a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"}]]))
+(def icon-completed
+  (<< [:span.h-6.w-6.bg-yellow-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+       [:span.h-3.w-3.bg-yellow-400.rounded-full]]))
 
-(def icon-build-error
-  (<< [:svg {:xmlns "http://www.w3.org/2000/svg" :viewBox "0 0 24 24" :width "24" :height "24" :style "fill: red;"}
-       [:path {:d "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm-3.54-4.54a5 5 0 0 1 7.08 0 1 1 0 0 1-1.42 1.42 3 3 0 0 0-4.24 0 1 1 0 0 1-1.42-1.42zM9 11a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"}]]))
+(def icon-failed
+  (<< [:span.h-6.w-6.bg-red-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+       [:span.h-3.w-3.bg-red-400.rounded-full]]))
 
-(def icon-build-warnings
-  (<< [:svg {:xmlns "http://www.w3.org/2000/svg" :viewBox "0 0 24 24" :width "24" :height "24" :style "fill: orange;"}
-       [:path {:d "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm0-9a1 1 0 0 1 1 1v4a1 1 0 0 1-2 0v-4a1 1 0 0 1 1-1zm0-4a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"}]]))
+(def icon-inactive
+  (<< [:span.h-6.w-6.bg-gray-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+       [:span.h-3.w-3.bg-gray-400.rounded-full]]))
 
-(def icon-build-missing
-  (<< [:svg {:xmlns "http://www.w3.org/2000/svg" :viewBox "0 0 24 24" :width "24" :height "24" :style "fill: rgba(0,0,0,0.1);"}
-       [:path {:d "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm0-9a1 1 0 0 1 1 1v4a1 1 0 0 1-2 0v-4a1 1 0 0 1 1-1zm0-4a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"}]]))
+(def icon-pending
+  (<< [:span.h-6.w-6.bg-blue-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
+       [:span.h-3.w-3.bg-blue-400.rounded-full]]))
 
-(defc ui-builds-entry [build-ident]
-  (bind {::m/keys [build-id build-worker-active build-warnings-count build-status] :as data}
-    (sg/query-ident build-ident
+(defc build-card [ident]
+
+  (event ::m/build-watch-start! sg/tx)
+  (event ::m/build-compile! sg/tx)
+  (event ::m/build-watch-stop! sg/tx)
+  (event ::m/build-watch-compile! sg/tx)
+  (event ::m/build-release-debug! sg/tx)
+
+  (bind {::m/keys [build-status build-id build-target build-warnings-count build-worker-active] :as data}
+    (sg/query-ident ident
       [::m/build-id
+       ::m/build-target
        ::m/build-worker-active
        ::m/build-warnings-count
-       {::m/build-status
-        [:status]}]))
+       ::m/build-status
+       ::m/build-config-raw]))
 
   (render
     (let [{:keys [status]} build-status]
-      (<< [:div.border-b.bg-white.p-4.flex
-           [:div.self-center.pr-4
-            [:a.cursor-pointer {:href (str "/build/" (name build-id))}
-             (case status
-               :compiling
-               icon-build-busy
+      (<< [:div.bg-white.overflow-hidden.shadow
+           [:a {:href (str "/build/" (name build-id))}
+            [:div.p-4
+             [:div.flex.items-center
+              [:div.flex-shrink-0
+               (case status
+                 :compiling
+                 icon-compiling
 
-               :completed
-               (if (zero? build-warnings-count)
-                 icon-build-success
-                 icon-build-warnings)
+                 :completed
+                 (if (zero? build-warnings-count)
+                   icon-warnings
+                   icon-completed)
 
-               :failed
-               icon-build-error
+                 :failed
+                 icon-failed
 
-               :inactive
-               icon-build-missing
+                 :inactive
+                 icon-inactive
 
-               :pending
-               icon-build-busy
+                 :pending
+                 icon-pending
 
-               icon-build-missing)]]
-           [:div.flex-1
-            [:div.pb-1
-             [:a.font-bold.text-lg {:href (str "/build/" (name build-id))} (name build-id)]]
-            [:div
-             (build-buttons build-id build-worker-active)
-             ]]]))))
+                 ;default
+                 icon-inactive)]
+
+              [:div.ml-5.w-0.flex-1
+               [:dl
+                [:dt.text-lg.font-medium.text-gray-900 (name build-id)]
+                [:dd
+                 [:span.text-sm.font-medium.text-gray-500.truncate (name build-target)]]] ]]]]
+
+           (build-buttons build-id build-worker-active)]))))
 
 (defc ui-builds-page []
   (bind {::m/keys [builds]}
@@ -113,9 +125,10 @@
   (event ::m/build-release-debug! sg/tx)
 
   (render
-    (<< [:div.flex-1.overflow-auto.pt-2.bg-white
-         ;; [:div.p-4.px-8 "start all / stop all"]
-         (sg/render-seq builds identity ui-builds-entry)])))
+    (<< [:div.flex-1.overflow-auto.py-2.sm:px-2
+         [:div.flex.flex-col
+          [:div.grid.grid-cols-1.gap-2
+           (sg/render-seq builds identity build-card)]]])))
 
 (defc ui-build-overview [build-ident]
   (bind {::m/keys [build-sources-sorted] :as data}
@@ -157,52 +170,3 @@
           [:div
            (sg/render-seq build-sources-sorted nil render-source-entry)]
           [:div.flex-1 "right"]]])))
-
-(defc ui-build-runtimes [build-ident]
-  (bind {::m/keys [build-runtimes] :as data}
-    (sg/query-ident build-ident
-      [::m/build-runtimes]))
-
-  (render
-    (let [runtime-count (count build-runtimes)]
-      (<< [:div.px-2
-           [:div.pt-2
-            (condp = runtime-count
-              0 "No connected runtimes."
-              1 "1 connected runtime:"
-              (str runtime-count " connected runtimes:"))]
-
-           (runtimes/ui-runtime-listing build-runtimes)]))))
-
-(defc ui-build-page [build-ident]
-  (bind data
-    (sg/query-ident build-ident
-      [:db/ident
-       ::m/build-id
-       ::m/build-target
-       ::m/build-worker-active
-       ::m/build-status]))
-
-  (event ::m/build-watch-compile! sg/tx)
-  (event ::m/build-watch-start! sg/tx)
-  (event ::m/build-watch-stop! sg/tx)
-  (event ::m/build-compile! sg/tx)
-  (event ::m/build-release! sg/tx)
-  (event ::m/build-release-debug! sg/tx)
-
-  (render
-    (let [{::m/keys [build-id build-target build-status build-worker-active]} data]
-      (<< [:div
-           [:div.px-2
-            [:h1.text-xl.pt-4 (name build-id)]
-            [:div " target: " (name build-target)]]
-           [:div.p-2 (build-buttons build-id build-worker-active)]]
-
-          (when build-worker-active
-            (ui-build-runtimes build-ident))
-
-          (build-status/render-build-status-full build-status)
-
-          ))))
-
-

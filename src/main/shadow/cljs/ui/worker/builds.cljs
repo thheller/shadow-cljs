@@ -54,6 +54,17 @@
                         (= build-id (:build-id runtime-info)))))
          (mapv :db/ident))))
 
+(defmethod eql/attr ::m/build-runtime-count
+  [env db current query-part params]
+  (let [build-ident (get current :db/ident)
+        {::m/keys [build-id] :as build} (get db build-ident)]
+
+    (->> (db/all-of db ::m/runtime)
+         (filter (fn [{:keys [runtime-info]}]
+                   (and (= :cljs (:lang runtime-info))
+                        (= build-id (:build-id runtime-info)))))
+         (count))))
+
 (defmethod relay-ws/handle-msg ::m/sub-msg
   [{:keys [db] :as env} {::m/keys [topic] :as msg}]
   (case topic
