@@ -66,6 +66,7 @@
   (event ::m/build-compile! sg/tx)
   (event ::m/build-watch-stop! sg/tx)
   (event ::m/build-watch-compile! sg/tx)
+  (event ::m/build-release! sg/tx)
   (event ::m/build-release-debug! sg/tx)
 
   (bind {::m/keys [build-status build-id build-target build-warnings-count build-worker-active] :as data}
