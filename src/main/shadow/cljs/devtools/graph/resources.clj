@@ -93,51 +93,52 @@
           (= :cljs type)
           (assoc ::m/cljs-ns ns)))))
 
-(defn resolve-classpath-query [{:keys [classpath] :as env} input]
-  (let [{:keys [type matching] :as params}
-        (get-in env [:ast :params])
+(comment
+  (defn resolve-classpath-query [{:keys [classpath] :as env} input]
+    (let [{:keys [type matching] :as params}
+          (get-in env [:ast :params])
 
-        filter-fn
-        (constantly true)
+          filter-fn
+          (constantly true)
 
-        type-filter
-        (cond
-          (nil? type)
-          #{:cljs} ;; FIXME: all or cljs-only by default?
+          type-filter
+          (cond
+            (nil? type)
+            #{:cljs} ;; FIXME: all or cljs-only by default?
 
-          (keyword? type)
-          #{type}
+            (keyword? type)
+            #{type}
 
-          (and (set? type)
-               (every? keyword type))
-          type
+            (and (set? type)
+                 (every? keyword type))
+            type
 
-          :else
-          (throw (ex-info "invalid params" params)))
+            :else
+            (throw (ex-info "invalid params" params)))
 
-        filter-fn
-        (fn [x]
-          (and (filter-fn x)
-               (contains? type-filter (::m/resource-type x))))
-
-        filter-fn
-        (if-not matching
           filter-fn
           (fn [x]
             (and (filter-fn x)
-                 (re-find (re-pattern matching) (::m/resource-name x)))))]
+                 (contains? type-filter (::m/resource-type x))))
 
-    {::m/classpath-query
-     (->> (cp/get-provided-names classpath)
-          (map #(rc-info-for-provide classpath %))
-          (filter filter-fn)
-          (into []))}))
+          filter-fn
+          (if-not matching
+            filter-fn
+            (fn [x]
+              (and (filter-fn x)
+                   (re-find (re-pattern matching) (::m/resource-name x)))))]
 
-(add-resolver `classpath-query
-  {::pc/output [{::m/classpath-query
-                 [::m/resource-id
-                  ::m/resource-type
-                  ::m/cljs-ns]}]}
-  resolve-classpath-query)
+      {::m/classpath-query
+       (->> (cp/get-provided-names classpath)
+            (map #(rc-info-for-provide classpath %))
+            (filter filter-fn)
+            (into []))}))
+
+  (add-resolver `classpath-query
+    {::pc/output [{::m/classpath-query
+                   [::m/resource-id
+                    ::m/resource-type
+                    ::m/cljs-ns]}]}
+    resolve-classpath-query))
 
 

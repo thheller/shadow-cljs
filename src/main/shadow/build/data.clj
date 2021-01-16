@@ -1,14 +1,16 @@
 (ns shadow.build.data
   "generic helpers for the build data structure"
   (:require
-    [clojure.string :as str]
     [clojure.set :as set]
     [clojure.java.io :as io]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.jvm-log :as log]
     [shadow.build.resource :as rc])
   (:import
-    [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]))
+    [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]
+    [org.apache.commons.codec.digest DigestUtils]
+    [java.io FileInputStream File]
+    [java.net URL]))
 
 ;; FIXME: there are still lots of places that work directly with the map
 ;; that is ok for most things but makes it really annoying to change the structure of the data
@@ -219,23 +221,29 @@
         (update :name->id assoc resource-name resource-id)
         )))
 
-(defn remove-source-by-id [state resource-id]
-  (let [{:keys [defined-in-repl virtual ns] :as rc} (get-in state [:sources resource-id])]
+(defn remove-output-by-id [state resource-id]
+  (let [{:keys [ns] :as rc} (get-in state [:sources resource-id])]
     (if-not rc
       state
       (-> state
           (update :output dissoc resource-id)
-          (update :immediate-deps dissoc resource-id)
           ;; remove analyzer data so removed vars don't stick around
-          (update-in [:compiler-env :cljs.analyzer/namespaces] dissoc ns)
-          ;; virtual resources are modified by code
-          ;; and can't be affected by filesystem changes
-          ;; so they never need to be removed, just their output
-          ;; since that may be affected by changes in other files
+          ;; also fixes issues with ^:const otherwise ending up in compile errors
           (cond->
-            (or defined-in-repl (not virtual))
-            (-> (remove-provides rc)
-                (update :sources dissoc resource-id)))
+            ns
+            (update-in [:compiler-env :cljs.analyzer/namespaces] dissoc ns))
+          ))))
+
+(defn remove-source-by-id [state resource-id]
+  (let [{:keys [ns] :as rc} (get-in state [:sources resource-id])]
+    (if-not rc
+      state
+      (-> state
+          (remove-output-by-id resource-id)
+          (update :immediate-deps dissoc resource-id)
+          (remove-provides rc)
+          (update :str->sym dissoc ns)
+          (update :sources dissoc resource-id)
           ))))
 
 (defn overwrite-source
@@ -328,3 +336,14 @@
         (slurp url))
 
       (throw (ex-info (format "failed to get code for %s" resource-id) rc))))
+
+(defn sha1-file [^File file]
+  (with-open [in (FileInputStream. file)]
+    (DigestUtils/sha1Hex in)))
+
+(defn sha1-string [^String string]
+  (DigestUtils/sha1Hex string))
+
+(defn sha1-url [^URL url]
+  (with-open [in (.openStream url)]
+    (DigestUtils/sha1Hex in)))

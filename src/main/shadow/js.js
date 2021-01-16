@@ -91,6 +91,19 @@ shadow.js.jsRequire = function(name, opts) {
   return module["exports"];
 };
 
+// work around issues where libraries try to manipulate require at runtime
+//   codemirror/addon/runmode/runmode.node.js
+// will attempt to replace all
+//   codemirror/lib/codemirror.js
+// requires with itself. in webpack this actually reconfigures require at runtime
+// but does not prevent webpack from including the original codemirror.js in the bundle
+// output. just nothing ever accesses assuming runmode.node.js is loaded first
+// in shadow-cljs this is handled via :package-overrides in the build config
+// which actually prevents including the unwanted file and properly redirects
+// making the runtime calls do nothing instead
+shadow.js.jsRequire.cache = {};
+shadow.js.jsRequire.resolve = function(name) { return name };
+
 /**
  * @dict
  */

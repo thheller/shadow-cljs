@@ -3,7 +3,6 @@
     [clojure.java.io :as io]
     [clojure.data.json :as json]
     [clojure.string :as str]
-    [clojure.pprint :refer (pprint)]
     [shadow.build :as b]
     [shadow.build.targets.browser :as browser]
     [shadow.build.targets.shared :as shared]
@@ -16,6 +15,8 @@
     [shadow.cljs.util :as util]
     [clojure.edn :as edn]))
 
+(defn merge-left [a b]
+  (merge b a))
 
 (defn extract-outputs
   [modules outputs]
@@ -79,7 +80,7 @@
             (extract-outputs outputs))
 
         config
-        (update config :devtools merge
+        (update config :devtools merge-left
           {:use-document-host false
            :autoload true})]
 
@@ -99,7 +100,10 @@
 
         (cond->
           (and (= :dev mode) (:worker-info state))
-          (shared/merge-repl-defines config))
+          (shared/merge-repl-defines config)
+
+          (nil? (get-in config [:compiler-options :output-feature-set]))
+          (assoc-in [:compiler-options :output-feature-set] :es8))
 
         (browser/configure-modules mode (assoc config :modules modules)))))
 
@@ -116,17 +120,29 @@
        "goog.global[\"$CLJS\"] = $CLJS;\n"))
 
 (defn eval-load-sources [state sources]
-  (->> sources
-       (remove #{output/goog-base-id})
-       (map #(data/get-source-by-id state %))
-       (map (fn [{:keys [output-name] :as rc}]
-              (let [{:keys [js] :as output} (data/get-output! state rc)
+  (let [source-map-inline?
+        (true? (get-in state [:compiler-options :source-map-inline]))]
 
-                    source-map?
-                    (output/has-source-map? output)]
-                (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape browser/js-escaper ^String js) "\");")
-                )))
-       (str/join "\n")))
+    (->> sources
+         (remove #{output/goog-base-id})
+         (map #(data/get-source-by-id state %))
+         (map (fn [{:keys [output-name] :as rc}]
+                (let [{:keys [js] :as output} (data/get-output! state rc)
+
+                      source-map?
+                      (output/has-source-map? output)]
+
+                  (if (and source-map? source-map-inline?)
+                    (str "SHADOW_ENV.evalLoad(\""
+                         output-name
+                         "\", false, \""
+                         (.escape browser/js-escaper
+                           (str js
+                                (output/generate-source-map-inline state rc output "")))
+                         "\");")
+                    (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape browser/js-escaper ^String js) "\");"))
+                  )))
+         (str/join "\n"))))
 
 (defn flush-dev-module [state {:keys [output-type output-name] :as mod}]
   (spit (data/output-file state output-name)

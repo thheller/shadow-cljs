@@ -4,8 +4,7 @@
             [hiccup.core :refer (html)]
             [clojure.java.io :as io]
             [shadow.core-ext :as core-ext]
-            [cljs.compiler :as cljs-comp]
-            [clojure.data.json :as json]))
+            [cljs.compiler :as cljs-comp]))
 
 (defn not-found
   ([req]
@@ -33,8 +32,10 @@
    (html5
      {:lang "en"}
      [:head
-      ;; lol preload for local dev
-      [:link {:as "script" :href "/js/app.js" :rel "preload"}]
+      ;; starting the worker ASAP
+      ;; if the script starts it we have to wait for the script to download and execute
+      ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
+      [:script "var SHADOW_WORKER = new Worker(\"/js/worker.js\");"]
       [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
       [:title (-> (io/file ".")
                   (.getCanonicalFile)

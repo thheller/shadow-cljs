@@ -14,7 +14,6 @@
     [shadow.cljs.util :as util :refer (set-conj reduce->)]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
-    [shadow.build.api :as cljs]
     [shadow.build.async :as basync]
     [shadow.build.compiler :as build-comp]
     [shadow.cljs.devtools.server.util :as server-util]
@@ -25,7 +24,10 @@
     [shadow.build.data :as data]
     [shadow.build.resource :as rc]
     [shadow.build.log :as build-log]
-    [shadow.cljs.devtools.server.reload-npm :as reload-npm])
+    [shadow.cljs.devtools.server.reload-npm :as reload-npm]
+    [shadow.build.output :as output]
+    [shadow.remote.runtime.obj-support :as obj-support]
+    [shadow.remote.runtime.shared :as shared])
   (:import [java.util UUID]
            [java.io File]))
 
@@ -38,13 +40,31 @@
 (defn gen-msg-id []
   (str (UUID/randomUUID)))
 
+(defn relay-msg
+  ([worker-state res]
+   (when-not (async/offer! (get-in worker-state [:channels :to-relay]) res)
+     (log/warn ::worker-relay-overload res))
+   worker-state)
+  ([worker-state {:keys [from call-id] :as req} res]
+   (relay-msg worker-state (cond-> res
+                             from
+                             (assoc :to from)
+                             call-id
+                             (assoc :call-id call-id)))))
+
+(defn send-to-runtimes [{:keys [runtimes] :as worker-state} msg]
+  ;; (log/debug ::send-to-runtimes {:runtimes runtimes :msg (:op msg)})
+  (when (seq runtimes)
+    (relay-msg worker-state (assoc msg :to (-> runtimes keys set))))
+  worker-state)
+
 (defn repl-sources-as-client-resources
   "transforms a seq of resource-ids to return more info about the resource
    a REPL client needs to know more since resource-ids are not available at runtime"
-  [source-ids state]
+  [source-ids build-state]
   (->> source-ids
        (map (fn [src-id]
-              (let [src (get-in state [:sources src-id])]
+              (let [src (get-in build-state [:sources src-id])]
                 (select-keys src [:resource-id
                                   :type
                                   :resource-name
@@ -55,15 +75,15 @@
        (into [])))
 
 (defmulti transform-repl-action
-  (fn [state action]
+  (fn [build-state action]
     (:type action))
   :default ::default)
 
-(defmethod transform-repl-action ::default [state action]
+(defmethod transform-repl-action ::default [build-state action]
   action)
 
-(defmethod transform-repl-action :repl/require [state action]
-  (update action :sources repl-sources-as-client-resources state))
+(defmethod transform-repl-action :repl/require [build-state action]
+  (update action :sources repl-sources-as-client-resources build-state))
 
 (defn >!!output [{:keys [system-bus build-id] :as worker-state} msg]
   {:pre [(map? msg)
@@ -72,8 +92,8 @@
   (let [msg (assoc msg :build-id build-id)
         output (get-in worker-state [:channels :output])]
 
-    (sys-bus/publish! system-bus ::m/worker-broadcast msg)
-    (sys-bus/publish! system-bus [::m/worker-output build-id] msg)
+    (sys-bus/publish system-bus ::m/worker-broadcast msg)
+    (sys-bus/publish system-bus [::m/worker-output build-id] msg)
 
     (>!! output msg)
     worker-state))
@@ -84,8 +104,8 @@
     {:type :build-message
      :msg msg}))
 
-(defn repl-error [e]
-  (log/debug-ex e ::repl-error)
+(defn repl-error [e data]
+  (log/warn-ex e ::repl-error data)
   {:type :repl/error
    :ex e})
 
@@ -106,28 +126,32 @@
            {}))))
 
 (defn build-failure
-  [{:keys [build-config] :as worker-state} e]
+  [worker-state e]
   (let [{:keys [resource-id resource-ids tag] :as data} (ex-data e)]
-    (-> worker-state
-        ;; if any resource was responsible for the build failing we remove it completely
-        ;; to ensure that all state is in proper order in the next compile and does not
-        ;; contain remnants of the failed compile
-        ;; FIXME: should probably check ex-data :tag
-        (assoc :failure-data data)
-        (cond->
-          (= tag :shadow.build.resolve/missing-js)
-          (init-package-json-watch data)
+    (let [error-report
+          (binding [warnings/*color* false]
+            (errors/error-format e))]
+      (-> worker-state
+          ;; if any resource was responsible for the build failing we remove it completely
+          ;; to ensure that all state is in proper order in the next compile and does not
+          ;; contain remnants of the failed compile
+          ;; FIXME: should probably check ex-data :tag
+          (assoc :failure-data data)
+          (cond->
+            (= tag :shadow.build.resolve/missing-js)
+            (init-package-json-watch data)
 
-          resource-id
-          (update :build-state data/remove-source-by-id resource-id)
-          resource-ids
-          (update :build-state build-api/reset-resources resource-ids))
-        (>!!output
-          {:type :build-failure
-           :report
-           (binding [warnings/*color* false]
-             (errors/error-format e))
-           }))))
+            resource-id
+            (update :build-state data/remove-source-by-id resource-id)
+            resource-ids
+            (update :build-state build-api/reset-resources resource-ids))
+
+          (>!!output
+            {:type :build-failure
+             :report error-report})
+
+          (send-to-runtimes {:op :cljs-build-failure
+                             :report error-report})))))
 
 (defn build-configure
   "configure the build according to build-config in state"
@@ -135,6 +159,10 @@
 
   (>!!output worker-state {:type :build-configure
                            :build-config build-config})
+
+  (send-to-runtimes worker-state
+    {:op :cljs-build-configure
+     :build-config build-config})
 
   (try
     ;; FIXME: allow the target-fn read-only access to worker-state? not just worker-info?
@@ -154,11 +182,14 @@
             build-log/BuildLog
             (log*
               [_ state event]
-              (sys-bus/publish! system-bus ::m/build-log {:type :build-log
-                                                          :build-id build-id
-                                                          :event event})
+              (sys-bus/publish system-bus ::m/build-log
+                {:type :build-log
+                 :build-id build-id
+                 :event event})
               (async/offer! log-chan {:type :build-log :event event})))
 
+          repl-init-ns
+          (get-in build-config [:devtools :repl-init-ns] 'cljs.user)
 
           {:keys [npm extra-config-files] :as build-state}
           (-> (server-util/new-build build-config :dev (:cli-opts worker-state {}))
@@ -169,11 +200,11 @@
                       ;; temp hack for repl/setup since it needs access to repl-init-ns but configure wasn't called yet
                       :shadow.build/config build-config
                       })
+              ;; FIXME: work around issues where this is used by clients before a runtime connects
+              (assoc :repl-state {:current-ns repl-init-ns})
               (build/configure :dev build-config (:cli-opts worker-state {}))
-              ;; FIXME: this should be done on session-start
-              ;; only keeping it until everything uses new repl-system
-              ;; must be done after config in case config has non-default resolve settings
-              (repl/setup))
+              (assoc-in [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/worker-client-id] (:relay-client-id worker-state))
+              (assoc-in [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-token] (get-in worker-state [:http :server-token])))
 
           extra-config-files
           (reduce
@@ -299,29 +330,51 @@
          {:used-by {}
           :used-ts {}})))
 
+;; always initializing the REPL state since tools may want to look at the analyzer state
+;; without actually evaling anything or a runtime being present, should at least
+;; have compiled the init namespaces for the REPL
+(defn ensure-repl-init [build-state]
+  ;; FIXME: repl-state should be coupled to the client "session" not the runtime
+  (if (seq (get-in build-state [:repl-state :repl-sources]))
+    build-state
+    ;; ensure that all REPL related things have been compiled
+    ;; so the runtime can properly load them
+    (repl/prepare build-state)))
+
 (defn build-compile
-  [{:keys [build-state namespaces-modified] :as worker-state}]
+  [{:keys [build-state macros-modified namespaces-modified] :as worker-state}]
   ;; this may be nil if configure failed, just silently do nothing for now
   (if (nil? build-state)
     worker-state
     (try
       (>!!output worker-state {:type :build-start})
+      (send-to-runtimes worker-state {:op :cljs-build-start})
 
       (let [{:keys [build-sources build-macros] :as build-state}
             (-> build-state
                 (cond->
                   (seq namespaces-modified)
-                  (build-api/reset-namespaces namespaces-modified))
+                  (build-api/reset-namespaces namespaces-modified)
+
+                  (seq macros-modified)
+                  (build-api/reset-resources-using-macros macros-modified))
+
                 (build-api/reset-always-compile-namespaces)
                 (build/compile)
                 (build/flush)
                 (build-find-hooks)
+                (ensure-repl-init)
                 (update ::compile-attempt inc))]
 
-        (>!!output worker-state
-          {:type :build-complete
-           :info (::build/build-info build-state)
-           :reload-info (extract-reload-info build-state)})
+        (let [info (::build/build-info build-state)
+              reload-info (extract-reload-info build-state)
+              msg {:type :build-complete
+                   :info info
+                   :reload-info reload-info}]
+          (>!!output worker-state msg)
+          (send-to-runtimes worker-state {:op :cljs-build-complete
+                                          :info info
+                                          :reload-info reload-info}))
 
         (let [none-code-resources (collect-resource-refs build-state)]
 
@@ -331,66 +384,13 @@
                      ;; tracking added/modified namespaces since we finished compiling
                      :namespaces-added #{}
                      :namespaces-modified #{}
+                     :macros-modified #{}
                      :last-build-resources none-code-resources
                      :last-build-provides (-> build-state :sym->id keys set)
                      :last-build-sources build-sources
                      :last-build-macros build-macros))))
       (catch Exception e
         (build-failure worker-state e)))))
-
-(defn repl-result-buffer-fn [actions send-fn]
-  ;; every input msg may produce many actual REPL actions
-  ;; want to buffer all results before replying to whoever sent the initial REPL msg
-  (let [buffer-ref (->> actions
-                        (map (juxt :id identity))
-                        (into {::pending (count actions)})
-                        (atom))]
-
-    (fn [worker-state {:keys [id] :as result}]
-      (let [buf (swap! buffer-ref
-                  (fn [buf]
-                    (-> buf
-                        (update ::pending dec)
-                        (assoc-in [id :result] result))))]
-
-        ;; once all replies have been received send response
-        (when (zero? (::pending buf))
-          ;; FIXME: should this just send one message back?
-          ;; REPL client impls don't really need to know about actions?
-          ;; just need to preserve some info from the input actions before they were sent to the runtimes (eg. warnings)
-          (let [results (->> (dissoc buf ::pending)
-                             (vals)
-                             (sort-by :id)
-                             (vec))]
-            (send-fn results))))
-
-      worker-state)))
-
-(defn process-repl-result
-  [worker-state {:keys [id] :as result}]
-
-  ;; forward everything to out as well
-  ;; FIXME: probably remove this?
-  (>!!output worker-state {:type :repl/result :result result})
-
-  (let [pending-action (get-in worker-state [:pending-results id])
-        worker-state (update worker-state :pending-results dissoc id)]
-
-    (cond
-      (nil? pending-action)
-      worker-state
-
-      (fn? pending-action)
-      (pending-action worker-state result)
-
-      (server-util/chan? pending-action)
-      (do (>!! pending-action result)
-          worker-state)
-
-      :else
-      (do (log/warn ::invalid-pending-result {:id id :pending pending-action})
-          worker-state
-          ))))
 
 (defmulti do-proc-control
   (fn [worker-state {:keys [type] :as msg}]
@@ -401,26 +401,6 @@
   (async/close! chan)
   worker-state)
 
-(defmethod do-proc-control :runtime-connect
-  [{:keys [build-state] :as worker-state} {:keys [runtime-id runtime-out runtime-info]}]
-  (log/debug ::runtime-connect {:runtime-id runtime-id})
-  (>!! runtime-out {:type :repl/init
-                    :repl-state
-                    (-> (:repl-state build-state)
-                        (update :repl-sources repl-sources-as-client-resources build-state))})
-
-  ;; (>!!output worker-state {:type :repl/runtime-connect :runtime-id runtime-id :runtime-info runtime-info})
-  (-> worker-state
-      (cond->
-        (zero? (count (:runtimes worker-state)))
-        (assoc :default-runtime-id runtime-id))
-      (update :runtimes assoc runtime-id
-        {:runtime-id runtime-id
-         :runtime-out runtime-out
-         :runtime-info runtime-info
-         :connected-since (System/currentTimeMillis)
-         :init-sent true})))
-
 (defn maybe-pick-different-default-runtime [{:keys [runtimes default-runtime-id] :as worker-state} runtime-id]
   (cond
     (not= default-runtime-id runtime-id)
@@ -430,311 +410,32 @@
     (dissoc worker-state :default-runtime-id)
 
     :else
-    (assoc worker-state :default-runtime-id
-                        (->> (vals runtimes)
-                             (sort-by :connected-since)
-                             (first)
-                             :runtime-id))))
+    (let [new-default
+          (->> (vals runtimes)
+               (sort-by :connected-since)
+               (first)
+               :client-id)]
 
-(comment
-  ;; when a runtime disconnects and it was the default
-  ;; pick a new one if there are any
-  (maybe-pick-different-default-runtime
-    {:default-runtime-id 1
-     :runtimes {2 {:runtime-id 2 :connected-since 2}
-                3 {:runtime-id 3 :connected-since 3}}}
-    1)
-
-  ;; if there aren't any remove the default
-  (maybe-pick-different-default-runtime
-    {:default-runtime-id 1
-     :runtimes {}}
-    1)
-
-  ;; if it wasn't the default do nothing
-  (maybe-pick-different-default-runtime
-    {:default-runtime-id 2
-     :runtimes {}}
-    1))
+      (if-not new-default
+        (dissoc worker-state :default-runtime-id)
+        (assoc worker-state :default-runtime-id new-default)))))
 
 (defn remove-runtime [worker-state runtime-id]
   (-> worker-state
       (update :runtimes dissoc runtime-id)
-      (maybe-pick-different-default-runtime runtime-id)
-      ;; clean all sessions for that runtime
-      (update :repl-sessions (fn [sessions]
-                               (reduce-kv
-                                 (fn [sessions session-id session-info]
-
-                                   (if (not= runtime-id (:runtime-id session-info))
-                                     sessions
-                                     (do (log/debug ::session-removal-runtime-disconnect
-                                           {:session-id session-id
-                                            :runtime-id runtime-id})
-                                         (dissoc sessions session-id))))
-                                 sessions
-                                 sessions
-                                 )))))
-
-(defmethod do-proc-control :runtime-disconnect
-  [worker-state {:keys [runtime-id]}]
-  (log/debug ::runtime-disconnect {:runtime-id runtime-id})
-  ;; (>!!output worker-state {:type :repl/runtime-disconnect :runtime-id runtime-id})
-  (remove-runtime worker-state runtime-id))
-
-(defmethod do-proc-control :runtime-kick
-  [worker-state {:keys [runtime-id]}]
-  (log/debug ::runtime-kick {:runtime-id runtime-id})
-  (when-let [out (get-in worker-state [:runtimes runtime-id :runtime-out])]
-    (async/close! out))
-  (remove-runtime worker-state runtime-id))
-
-(defmethod do-proc-control :runtime-select
-  [worker-state {:keys [runtime-id]}]
-  (log/debug ::runtime-select {:runtime-id runtime-id})
-  (if-not (get-in worker-state [:runtimes runtime-id])
-    worker-state
-    (assoc worker-state :default-runtime-id runtime-id)))
-
-;; messages received from the runtime
-(defmethod do-proc-control :runtime-msg
-  [worker-state {:keys [msg runtime-id] :as envelope}]
-  (log/debug ::runtime-msg {:runtime-id runtime-id
-                            :type (:type msg)})
-
-  (let [worker-state (assoc-in worker-state [:runtimes runtime-id :last-msg-received] (System/currentTimeMillis))]
-
-    (case (:type msg)
-      (:repl/result
-        :repl/invoke-error
-        :repl/init-complete
-        :repl/set-ns-complete
-        :repl/require-complete
-        :repl/require-error)
-      (process-repl-result worker-state msg)
-
-      :repl/out
-      (do (doseq [{:keys [tool-out runtime-id session-id]} (-> worker-state :repl-sessions vals)]
-            (>!! tool-out {::m/op ::m/session-out
-                           ::m/runtime-id runtime-id
-                           ::m/session-id session-id
-                           ::m/text (:text msg)}))
-          (>!!output worker-state {:type :repl/out :text (:text msg)}))
-
-      :repl/err
-      (do (doseq [{:keys [tool-out runtime-id session-id]} (-> worker-state :repl-sessions vals)]
-            (>!! tool-out {::m/op ::m/session-err
-                           ::m/runtime-id runtime-id
-                           ::m/session-id session-id
-                           ::m/text (:text msg)}))
-          (>!!output worker-state {:type :repl/err :text (:text msg)}))
-
-      ;; this isn't using the "standard" WebSocket PING frames because react-native
-      ;; keeps replying to those even though the app was reloaded and the websocket
-      ;; should have been closed but wasn't
-      :repl/pong
-      (update-in worker-state [:runtimes runtime-id] merge {:last-pong (System/currentTimeMillis)
-                                                            :last-pong-runtime (:time-runtime msg)})
-
-      ;; unknown message
-      (do (log/warn ::unknown-runtime-msg {:runtime-id runtime-id :msg msg})
-          worker-state))))
-
-(defn handle-session-start-result [worker-state {:keys [type] :as result} {:keys [tool-out msg] :as envelope}]
-  (case type
-    :repl/init-complete
-    (let [{::m/keys [session-id tool-id]} msg
-
-          session-ns
-          (get-in worker-state [:repl-sessions session-id :repl-state :current :ns])]
-
-      (>!! tool-out {::m/op ::m/session-started
-                     ::m/session-id session-id
-                     ::m/tool-id tool-id
-                     ::m/session-ns session-ns})
-      worker-state)
-
-    (do (log/warn ::unexpected-session-start-result {:result result :envelope envelope})
-        worker-state)))
-
-(defmethod do-proc-control ::m/session-start
-  [{:keys [build-state] :as worker-state} {:keys [msg runtime-id runtime-out tool-out] :as envelope}]
-  (log/debug ::tool-msg envelope)
-
-  (let [{::m/keys [session-id tool-id]} msg]
-    ;; if session already exists do nothing?
-    (if (get-in worker-state [:repl-sessions session-id])
-      (do (log/warn ::session-already-exists msg)
-          worker-state)
-
-      ;; otherwise create session and initialize client
-      (let [default-repl-state ;; FIXME: this shouldn't exist at all
-            (:repl-state worker-state)
-
-            msg-id
-            (gen-msg-id)
-
-            {:keys [repl-state] :as build-state}
-            (-> build-state
-                (dissoc :repl-state)
-                (repl/prepare)
-                (update :repl-state assoc :session-id session-id))]
-
-        ;; FIXME: the reply for this could arrive before the state is updated!
-        (>!! runtime-out {:type :repl/session-start
-                          :id msg-id
-                          :repl-state
-                          (update repl-state :repl-sources repl-sources-as-client-resources build-state)})
-
-        (-> worker-state
-            (assoc-in [:repl-sessions session-id]
-              {:tool-out tool-out
-               :tool-id tool-id
-               :session-id session-id
-               :runtime-id runtime-id
-               :repl-state repl-state})
-
-            (assoc :build-state (assoc build-state :repl-state default-repl-state))
-            (update :pending-results assoc msg-id #(handle-session-start-result %1 %2 envelope))
-            )))))
-
-(defmethod do-proc-control ::m/session-close
-  [worker-state {::m/keys [session-id] :as msg}]
-  ;; FIXME: properly cleanup? might have messages pending
-  (update-in worker-state [:repl-sessions] dissoc session-id))
-
-(defmethod do-proc-control ::m/tool-disconnect
-  [worker-state {::m/keys [tool-id] :as msg}]
-  worker-state
-  ;; FIXME: should this actually clean out the session or just wait for tool reconnect maybe?
-  #_(update worker-state :repl-sessions (fn [x]
-                                          (reduce-kv
-                                            (fn [x session-id session-info]
-                                              (if (not= tool-id (:tool-id session-info))
-                                                x
-                                                ;; FIXME: something to cleanup on session-end?
-                                                (do (log/debug ::tool-disconnect {:tool-id tool-id :session-id session-id})
-                                                    (dissoc x session-id))))
-                                            x
-                                            x))))
-
-(defn select-repl-state [worker-state session]
-  (-> worker-state
-      (assoc ::default-repl-state (get-in worker-state [:build-state :repl-state]))
-      (assoc-in [:build-state :repl-state] (:repl-state session))))
-
-(defn pop-repl-state [worker-state session-id]
-  (let [repl-state (get-in worker-state [:build-state :repl-state])
-        default-state (get-in worker-state [:build-state ::default-repl-state])]
-
-    (-> worker-state
-        (update :build-state assoc :repl-state default-state)
-        (update :build-state dissoc ::m/default-repl-state)
-        (assoc-in [:repl-sessions session-id :repl-state] repl-state)
-        )))
-
-
-(defmethod do-proc-control ::m/session-eval
-  [{:keys [build-state] :as worker-state}
-   {:keys [msg tool-out] :as envelope}]
-
-  (log/debug ::session-eval msg)
-  (let [{::m/keys [tool-id session-id input-text]} msg
-
-        {:keys [runtime-id] :as session}
-        (get-in worker-state [:repl-sessions session-id])
-
-        {:keys [runtime-out] :as runtime}
-        (get-in worker-state [:runtimes runtime-id])]
-
-    (cond
-      (nil? build-state)
-      (do (>!! tool-out {:type :repl/illegal-state})
-          worker-state)
-
-      (not session)
-      (do (log/debug ::session-missing msg)
-          worker-state)
-
-      (not runtime)
-      (do (log/debug ::runtime-missing msg)
-          worker-state)
-
-      :else
-      (try
-        (let [{:keys [build-state] :as worker-state}
-              (select-repl-state worker-state session)
-
-              start-idx
-              (count (get-in build-state [:repl-state :repl-actions]))
-
-              {:keys [repl-state] :as build-state}
-              (-> build-state
-                  (repl/process-input input-text)
-                  ;; ensure everything async is finished before sending stuff to clients
-                  (basync/wait-for-pending-tasks!))
-
-              new-actions
-              (->> (subvec (:repl-actions repl-state) start-idx)
-                   (map (fn [x] (assoc x :id (gen-msg-id)))))
-
-              result-fn
-              (repl-result-buffer-fn new-actions
-                (fn [actions]
-                  (doseq [{:keys [result] :as action} actions]
-                    (case (:type result)
-                      :repl/result ;; FIXME: handle errors, won't have :value
-                      (>!! tool-out {::m/op ::m/session-result
-                                     ::m/session-id session-id
-                                     ::m/tool-id tool-id
-                                     ::m/form (:source action)
-                                     ::m/eval-ms (:ms result)
-                                     ::m/printed-result (or (:value result) "nil")})
-
-                      :repl/set-ns-complete
-                      (>!! tool-out {::m/op ::m/session-result
-                                     ::m/session-id session-id
-                                     ::m/tool-id tool-id
-                                     ::m/session-ns (:ns result)
-                                     ::m/eval-ms 0
-                                     ::m/printed-result "nil"})
-
-                      :repl/require-complete
-                      (>!! tool-out {::m/op ::m/session-result
-                                     ::m/session-id session-id
-                                     ::m/tool-id tool-id
-                                     ::m/eval-ms 0 ;; FIXME: this actually takes time
-                                     ::m/printed-result "nil"})
-
-                      (log/debug ::session-eval-result-discarded action)))))]
-
-          (doseq [action new-actions]
-            (>!! runtime-out (-> (transform-repl-action build-state action)
-                                 (assoc :session-id session-id))))
-
-          (-> worker-state
-              (assoc :build-state build-state)
-              (util/reduce->
-                (fn [state {:keys [id]}]
-                  (assoc-in state [:pending-results id] result-fn))
-                new-actions)
-              (pop-repl-state session-id)))
-
-        (catch Exception e
-          (let [msg (repl-error e)]
-            (>!! tool-out msg)
-            (>!!output worker-state msg))
-          worker-state)))))
+      (maybe-pick-different-default-runtime runtime-id)))
 
 (defmethod do-proc-control :start-autobuild
-  [{:keys [build-config autobuild] :as worker-state} msg]
+  [{:keys [build-state autobuild] :as worker-state} msg]
   (if autobuild
     ;; do nothing if already in auto mode
     worker-state
     ;; compile immediately, autobuild is then checked later
     (-> worker-state
         (assoc :autobuild true)
-        (build-configure)
+        (cond->
+          (not build-state)
+          (build-configure))
         (build-compile)
         )))
 
@@ -760,40 +461,6 @@
 (defmethod do-proc-control :stop-autobuild
   [worker-state msg]
   (assoc worker-state :autobuild false))
-
-(defmethod do-proc-control :broadcast-msg
-  [{:keys [runtimes] :as worker-state} {:keys [payload] :as envelope}]
-  (doseq [{:keys [runtime-out] :as runtime} (vals runtimes)]
-    (>!! runtime-out {:type :custom-msg :payload payload}))
-  worker-state)
-
-(defmethod do-proc-control :repl-compile
-  [{:keys [build-state] :as worker-state}
-   {:keys [result-chan input] :as msg}]
-  (?> worker-state ::repl-compile-worker-state)
-  (?> msg ::repl-compile-msg)
-  (try
-    (let [start-idx
-          (count (get-in build-state [:repl-state :repl-actions]))
-
-          {:keys [code]} input
-
-          {:keys [repl-state] :as build-state}
-          (repl/process-input build-state code input)
-
-          new-actions
-          (subvec (:repl-actions repl-state) start-idx)]
-
-      (>!! result-chan {:type :repl/actions
-                        :actions new-actions})
-
-      (assoc worker-state :build-state build-state))
-
-    (catch Exception e
-      (log/warn-ex e ::repl-compile-ex {:input input})
-
-      (>!! result-chan {:type :repl/error :e e})
-      worker-state)))
 
 (defn do-repl-rpc
   [{:keys [build-state runtimes default-runtime-id] :as worker-state}
@@ -824,12 +491,7 @@
 
       :else
       (try
-        (let [{:keys [runtime-out] :as runtime}
-              (if runtime-id
-                (get runtimes runtime-id)
-                (first (vals runtimes)))
-
-              start-idx
+        (let [start-idx
               (count (get-in build-state [:repl-state :repl-actions]))
 
               {:keys [repl-state] :as build-state}
@@ -847,39 +509,27 @@
 
               new-actions
               (->> (subvec (:repl-actions repl-state) start-idx)
-                   (map-indexed (fn [idx action]
-                                  (assoc action :id (+ idx start-idx)))))
+                   (map #(transform-repl-action build-state %))
+                   (vec))
 
-              result-fn
-              (repl-result-buffer-fn new-actions
-                (fn [results]
-                  (>!! result-chan {:type :repl/results
-                                    :results results})
-                  (async/close! result-chan)))]
+              eval-id
+              (str (UUID/randomUUID))]
 
-          (doseq [action new-actions]
-            (>!!output worker-state {:type :repl/action
-                                     :action action})
-            (>!! runtime-out (transform-repl-action build-state action)))
+          (relay-msg worker-state
+            {:op :cljs-repl-actions
+             :to runtime-id
+             :call-id eval-id ;; fake call, just so runtime can use built-in reply
+             :actions new-actions})
 
           (-> worker-state
               (assoc :build-state build-state)
-              (util/reduce->
-                (fn [state {:keys [id]}]
-                  (assoc-in state [:pending-results id] result-fn))
-                new-actions)))
+              (assoc-in [:pending-results eval-id] msg)))
 
         (catch Exception e
-          (let [msg (repl-error e)]
+          (let [msg (repl-error e {:when ::do-repl-rpc :command command :msg msg})]
             (>!! result-chan msg)
             (>!!output worker-state msg))
           worker-state)))))
-
-(defmethod do-proc-control :repl-eval [worker-state msg]
-  (do-repl-rpc worker-state :repl-eval msg))
-
-(defmethod do-proc-control :load-file [worker-state msg]
-  (do-repl-rpc worker-state :load-file msg))
 
 (defn do-macro-update
   [{:keys [build-state last-build-macros autobuild] :as worker-state} {:keys [macro-namespaces] :as msg}]
@@ -890,7 +540,7 @@
 
     ;; the updated macro may not be used by this build
     ;; so we can skip the rebuild
-    (and (seq last-build-macros) (some last-build-macros macro-namespaces))
+    (and (seq last-build-macros))
     (-> worker-state
         (update :build-state build-api/reset-resources-using-macros macro-namespaces)
         (cond->
@@ -903,15 +553,21 @@
         worker-state)))
 
 (defn do-resource-update
-  [{:keys [autobuild last-build-provides build-state] :as worker-state}
-   {:keys [namespaces added] :as msg}]
+  [{:keys [autobuild last-build-macros last-build-provides build-state] :as worker-state}
+   {:keys [namespaces added macros] :as msg}]
 
   (if-not build-state
     worker-state
     (let [namespaces-used-by-build
           (->> namespaces
                (filter #(contains? last-build-provides %))
-               (into #{}))]
+               (into #{}))
+
+          macros-used-by-build
+          (when (seq last-build-macros)
+            (->> macros
+                 (filter last-build-macros)
+                 (set)))]
 
       (cond
         ;; always recompile if the first compile attempt failed
@@ -921,6 +577,7 @@
         ;; (eg. browser-test since it dynamically adds file to the build)
         (and (pos? (::compile-attempt build-state))
              (not (seq namespaces-used-by-build))
+             (not (seq macros-used-by-build))
              (if-not (get-in build-state [:build-options :greedy])
                ;; build is not greedy, not interested in new files
                true
@@ -937,20 +594,29 @@
             ;; which break if the state is already half cleaned
             (update :namespaces-added set/union added)
             (update :namespaces-modified set/union added namespaces)
+            (update :macros-modified set/union macros-used-by-build)
             (cond->
               autobuild
               (build-compile)))))))
 
 (defn do-asset-update
-  [{:keys [runtimes] :as worker-state} {:keys [updates] :as msg}]
+  [worker-state {:keys [updates] :as msg}]
 
-  (when (seq updates)
-    (doseq [{:keys [runtime-out]} (vals runtimes)]
-      (>!! runtime-out {:type :asset-watch
-                        :updates updates})))
+  (if-not (seq updates)
+    worker-state
+    (let [to (->> (:runtimes worker-state)
+                  (vals)
+                  (filter :dom)
+                  (map :client-id)
+                  (into #{}))]
 
-
-  worker-state)
+      (cond-> worker-state
+        (seq to)
+        (relay-msg
+          {:op :cljs-asset-update
+           :to to
+           :updates updates}
+          )))))
 
 (defn do-config-watch
   [{:keys [autobuild] :as worker-state} {:keys [config] :as msg}]
@@ -1026,32 +692,8 @@
           (-> (update :namespaces-modified into modified-namespaces)
               (build-compile))))))
 
-(defn send-runtime-ping
-  ([worker-state runtime-id]
-   (send-runtime-ping worker-state runtime-id (System/currentTimeMillis)))
-  ([worker-state runtime-id now]
-   (let [runtime-out (get-in worker-state [:runtimes runtime-id :runtime-out])]
-     (if-not runtime-out
-       worker-state
-       (do (>!! runtime-out {:type :repl/ping :time-server now})
-           (assoc-in worker-state [:runtimes runtime-id :last-ping] now))))))
-
-(defn maybe-send-runtime-pings [{:keys [runtimes] :as worker-state}]
-  ;; time doesn't need to accurate, so use the same time for all pings
-  (let [now (System/currentTimeMillis)]
-    (reduce-kv
-      (fn [worker-state runtime-id {:keys [last-ping]}]
-        (let [diff (- now (or last-ping 0))]
-          (if (< diff 15000)
-            worker-state
-            (send-runtime-ping worker-state runtime-id now)
-            )))
-      worker-state
-      runtimes)))
-
 (defn do-idle [{:keys [failure-data extra-config-files] :as worker-state}]
   (-> worker-state
-      (maybe-send-runtime-pings)
       (cond->
         (seq extra-config-files)
         (maybe-reload-config-files)
@@ -1064,21 +706,9 @@
 
 (defmulti do-relay-msg (fn [worker-state msg] (:op msg)) :default ::default)
 
-(defn relay-msg
-  ([worker-state res]
-   (when-not (async/offer! (get-in worker-state [:channels :to-relay]) res)
-     (log/warn ::worker-relay-overload res))
-   worker-state)
-  ([worker-state {:keys [tid mid] :as req} res]
-   (relay-msg worker-state (cond-> res
-                             tid
-                             (assoc :tid tid)
-                             mid
-                             (assoc :mid mid)))))
-
 (defmethod do-relay-msg ::default [worker-state msg]
-  (relay-msg worker-state msg {:op :unknown-op
-                               :msg msg}))
+  (log/warn ::unhandled-op msg)
+  worker-state)
 
 (defmethod do-relay-msg :unknown-op [worker-state msg]
   (log/warn ::unknown-op msg)
@@ -1088,15 +718,163 @@
   (log/warn ::unknown-relay-op msg)
   worker-state)
 
-(defmethod do-relay-msg :welcome [worker-state {:keys [rid] :as msg}]
-  (assoc worker-state :rid rid))
-
 (defmethod do-relay-msg :request-supported-ops [worker-state msg]
-  (relay-msg worker-state msg {:op :supported-ops
-                               :ops (-> (->> (methods do-relay-msg)
-                                             (keys)
-                                             (set))
-                                        (disj ::default :welcome :unknown-op :unknown-relay-op :tool-disconnect))}))
+  (relay-msg worker-state msg
+    {:op :supported-ops
+     :ops (-> (->> (methods do-relay-msg)
+                   (keys)
+                   (set))
+              (disj ::default
+                :welcome
+                :unknown-op
+                :unknown-relay-op
+                :tool-disconnect
+                :request-supported-ops))}))
 
-(defmethod do-relay-msg :tool-disconnect [worker-state msg]
+(defmethod do-relay-msg :tool-disconnect
+  [worker-state msg]
   worker-state)
+
+;; if relay doesn't know the runtime anymore
+(defmethod do-relay-msg :client-not-found
+  [worker-state {:keys [client-id]}]
+  (log/debug ::client-not-found {:runtime-id client-id})
+  (remove-runtime worker-state client-id))
+
+(defmethod do-relay-msg :cljs-compile
+  [{:keys [build-state] :as worker-state}
+   {:keys [input include-init] :as msg}]
+  (try
+    (let [start-idx
+          (count (get-in build-state [:repl-state :repl-actions]))
+
+          {:keys [code]} input
+
+          {:keys [repl-state] :as build-state}
+          (repl/process-input build-state code input)
+
+          new-actions
+          (->> (subvec (:repl-actions repl-state) start-idx)
+               (mapv #(transform-repl-action build-state %)))]
+
+      (relay-msg worker-state msg
+        {:op :cljs-compile-result
+         :actions
+         (if-not include-init
+           new-actions
+
+           (into
+             [{:type :repl/init
+               :repl-sources
+               (repl-sources-as-client-resources (get-in build-state [:repl-state :repl-sources]) build-state)}]
+             new-actions))})
+
+      (assoc worker-state :build-state build-state))
+
+    (catch Exception e
+      (log/warn-ex e ::cljs-compile-ex {:input input})
+
+      (let [{:keys [clj-obj-support clj-runtime]} worker-state
+            ex-oid (obj-support/register clj-obj-support e {:msg msg})
+            ex-client-id (shared/get-client-id clj-runtime)]
+
+        (relay-msg worker-state msg
+          {:op :cljs-compile-error
+           ;; just send oid reference, ui can request report
+           ;; FIXME: not really, need somehow enable that via protocol impl?
+           :ex-oid ex-oid
+           :ex-client-id ex-client-id
+           :ex-data (ex-data e)
+           ;; just always include report for now
+           :report (binding [warnings/*color* false]
+                     (errors/error-format e))
+           }))
+
+      worker-state)))
+
+(defmethod do-relay-msg :cljs-load-sources
+  [{:keys [build-state] :as worker-state}
+   {:keys [sources] :as msg}]
+
+  (let [module-format
+        (get-in build-state [:build-options :module-format])]
+
+    (relay-msg worker-state msg
+      {:op :cljs-sources
+       :sources
+       (->> sources
+            (map (fn [src-id]
+                   (assert (rc/valid-resource-id? src-id))
+                   (let [{:keys [resource-name type output-name ns provides] :as src}
+                         (data/get-source-by-id build-state src-id)
+
+                         {:keys [js] :as output}
+                         (data/get-output! build-state src)]
+
+                     {:resource-name resource-name
+                      :resource-id src-id
+                      :output-name output-name
+                      :type type
+                      :ns ns
+                      :provides provides
+
+                      ;; FIXME: make this pretty ...
+                      :js
+                      (case module-format
+                        :goog
+                        (let [sm-text (output/generate-source-map-inline build-state src output "")]
+                          (str js sm-text))
+                        :js
+                        (let [prepend
+                              (output/js-module-src-prepend build-state src false)
+
+                              append
+                              "" #_(output/js-module-src-append build-state src)
+
+                              sm-text
+                              (output/generate-source-map-inline build-state src output prepend)]
+
+                          (str prepend js append sm-text)))
+                      })))
+            (into []))})
+
+    worker-state))
+
+(defn add-runtime
+  [worker-state {:keys [client-id client-info] :as msg}]
+
+  (-> worker-state
+      (cond->
+        ;; don't pick runtime as repl default if opted out
+        (and (not (false? (:repl client-info)))
+             (or (zero? (count (:runtimes worker-state)))
+                 ;; the first connected may have opted out of REPL
+                 (not (:default-runtime-id worker-state))
+                 ;; android doesn't disconnect the old websocket for some reason
+                 ;; when reloading the app, so instead of sending to a dead runtime
+                 ;; we always pick the new one
+                 (= :react-native (:host client-info))
+                 ;; allow user to configure to auto switch to fresh connected runtimes
+                 ;; instead of staying with the first connected one
+                 (= :latest (get-in worker-state [:system-config :repl :runtime-select]))
+                 (= :latest (get-in worker-state [:system-config :user-config :repl :runtime-select]))))
+        (assoc :default-runtime-id client-id))
+      (update :runtimes assoc client-id (assoc client-info :client-id client-id))))
+
+(defmethod do-relay-msg ::cljs-runtime-notify
+  [worker-state {:keys [event-op client-id] :as msg}]
+  ;; (log/debug ::notify msg)
+  (case event-op
+    :client-disconnect
+    (remove-runtime worker-state client-id)
+    :client-connect
+    (add-runtime worker-state msg)))
+
+(defmethod do-relay-msg :cljs-repl-pong
+  [worker-state {:keys [from time-runtime]}]
+  (update-in worker-state [:runtimes from] merge {:last-pong (System/currentTimeMillis)
+                                                  :last-pong-runtime time-runtime}))
+
+(defmethod do-proc-control :runtime-select
+  [worker-state {:keys [runtime-id] :as msg}]
+  (assoc worker-state :default-runtime-id runtime-id))

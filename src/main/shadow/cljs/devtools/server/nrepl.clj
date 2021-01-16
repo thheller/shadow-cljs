@@ -7,6 +7,7 @@
     [nrepl.middleware :as middleware]
     [nrepl.server :as server]
     [nrepl.config :as nrepl-config]
+    [nrepl.middleware.print :as print]
     [shadow.jvm-log :as log]
     [shadow.build.api :refer (deep-merge)]
     [shadow.cljs.devtools.server.nrepl-impl :as nrepl-impl]
@@ -45,7 +46,7 @@
 ;; our middleware must run before piggieback
 ;; we intercept the work it would do, so we don't have to emulate it
 (middleware/set-descriptor! #'middleware
-  {:requires #{"clone"}
+  {:requires #{"clone" #'print/wrap-print}
    :expects #{"eval" "load-file" #'piggieback/wrap-cljs-repl}})
 
 (defn load-middleware-sym [sym]
@@ -88,7 +89,11 @@
       (cond->
         (and (io/resource "cider/nrepl.clj")
              (not (false? cider)))
-        (conj 'cider.nrepl/cider-middleware))
+        (conj 'cider.nrepl/cider-middleware)
+
+        (and (io/resource "refactor_nrepl/middleware.clj")
+             (not (false? cider)))
+        (conj 'refactor-nrepl.middleware/wrap-refactor))
 
       (into ['nrepl.middleware/wrap-describe
              'nrepl.middleware.interruptible-eval/interruptible-eval
@@ -114,7 +119,7 @@
         ((apply comp (reverse middleware-stack)) server/unknown-op)
 
         {:keys [host port transport-fn]
-         :or {host "0.0.0.0"
+         :or {host "127.0.0.1"
               port 0}}
         merged-config
 

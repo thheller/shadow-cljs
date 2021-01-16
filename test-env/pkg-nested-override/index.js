@@ -1,0 +1,1 @@
+require("./dir/bar.js")

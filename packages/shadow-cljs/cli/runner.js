@@ -16,7 +16,7 @@ var root = process.cwd();
 // replicate default node resolve which looks in parent directories as well
 // so you can run it from $PROJECT/src/foo and have it pick up $PROJECT/node_modules
 for (;;) {
-  var test = path.resolve(root, "node_modules", "shadow-cljs", "cli", "dist", "shadow.cljs.npm.cli.js")
+  var test = path.resolve(root, "node_modules", "shadow-cljs", "cli", "dist.js")
 
   if (fs.existsSync(test)) {
     localLib = test;
@@ -39,7 +39,7 @@ if (localLib != null) {
   // console.log("shadow-cljs - using global version")
 
   // this throws if not found right?
-  lib = require("./dist/shadow.cljs.npm.cli.js");
+  lib = require("./dist.js");
 }
 
 if (lib == null) {

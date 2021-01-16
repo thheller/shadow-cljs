@@ -1,15 +1,21 @@
 (ns test.infer-test
-  (:require [cljs.test :refer (use-fixtures deftest is)]))
+  (:require [cljs.test :as ct :refer (use-fixtures deftest is async testing)]))
 
-#_(use-fixtures :once
-    (fn [done]
-      (js/console.log :once)
-      (done)))
+(use-fixtures :once
+  {:before
+   (fn []
+     (js/console.log "fixture-once-before"))
+   :after
+   (fn []
+     (js/console.log "fixture-once-after"))})
 
-#_(use-fixtures :each
-    (fn [done]
-      (js/console.log :each)
-      (done)))
+(use-fixtures :each
+  {:before
+   (fn []
+     (js/console.log "fixture-each-before"))
+   :after
+   (fn []
+     (js/console.log "fixture-each-after"))})
 
 (defn obj-property [^js thing]
   (.inferMe thing))
@@ -18,4 +24,16 @@
   (is (true? (obj-property #js {"inferMe" (constantly true)}))))
 
 (deftest dummy-test
-  (is (= 1 1)))
+  (testing "dummy nested"
+    (is (= 1 1))))
+
+(deftest async-text
+  (async done
+    (is (= 1 1))
+    (println "going async")
+    (js/setTimeout
+      (fn []
+        (is (= 1 1))
+        (println "done async")
+        (done))
+      100)))

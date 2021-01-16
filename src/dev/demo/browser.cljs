@@ -10,7 +10,7 @@
     [clojure.spec.gen.alpha :as gen]
     [cljs.core.async :as async :refer (go alt!)]
     ["./es6.js" :as es6]
-    ["./foo" :as foo]
+    ["./foo.js" :as foo]
     #_["circular-test" :as circ]
     #_["/demo/myComponent" :refer (myComponent)]
     [demo.macro :as m]
@@ -19,30 +19,19 @@
     [cljs.loader :as cl]
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
-    [demo.googClass :refer (Foo)]
+    [demo.js-class :refer (Foo)]
+    [demo.dummy-cljc]
+    [demo.didnt-follow-the-rules :as rule-breaker]
     ))
 
-(js/console.log "foo" Foo)
+(js/console.log "es6" es6 es6/default)
 
-(js/console.log "macro" (m/foo 1 2 3))
+(assert (= 1 rule-breaker/foo) "rule-breaker not handled correctly")
 
-(def lazy-x
-  (lazy/loadable demo.browser-extra/x))
+(def ^:const some-const 1)
 
-(def lazy-xy
-  (lazy/loadable
-    [demo.browser-extra/x
-     demo.browser-extra/y]))
-
-(def lazy-xym
-  (lazy/loadable
-    {:x demo.browser-extra/x
-     :y demo.browser/yo
-     :z cljs.core/assoc}))
-
-(js/console.log "x" lazy-x lazy-xy lazy-xym)
-
-::foo
+(defn custom-notify [{:keys [type] :as msg}]
+  (js/console.warn "CUSTOM-NOTIFY" type msg))
 
 (when-not (identical? sl/load cl/load)
   (js/console.warn "cljs.loader NOT aliased to shadow.loader"))
@@ -58,10 +47,6 @@
   {:test #(ct/is (= "also kind of" 1))}
   [bar]
   (.fromSimpleExterns bar))
-
-(js/console.log "▶❤◀")
-
-(js/console.log "or" (or nil js/document.body))
 
 ;; (throw (ex-info "fail to load" {}))
 

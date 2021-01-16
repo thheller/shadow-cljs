@@ -48,10 +48,37 @@
   ([opts obj]
    `(tap-> ~obj ~(dbg-info &env &form opts))))
 
+(defmacro locals []
+  (let [locals
+        (reduce-kv
+          (fn [m local info]
+            (assoc m (keyword (name local)) local))
+          {}
+          (if (:ns &env)
+            (:locals &env)
+            &env))]
+
+    `(tap> [:shadow.remote/wrap ~locals ~(dbg-info &env &form {})])))
+
+(defn java-obj [o]
+  (let [class (.getClass o)
+        fields (.getDeclaredFields class)]
+
+    (reduce
+      (fn [m field]
+        (.setAccessible field true)
+        (assoc m (.getName field) (.get field o)))
+      {}
+      fields)))
+
 (comment
   (?> (:clj-runtime (shadow.cljs.devtools.server.runtime/get-instance))
     :view-opts
     )
+
+  (let [x 1
+        y 2]
+    (locals))
 
   (-> :thing
       (?-> :view-opts))

@@ -5,8 +5,6 @@
             [clojure.data.json :as json]
             [clojure.string :as str]
             [clojure.set :as set]
-            [clojure.java.shell :as sh]
-            [clojure.edn :as edn]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.util :as util]
             [shadow.build.api :as build-api]
@@ -18,7 +16,6 @@
             [shadow.build.closure :as closure]
             [shadow.build.modules :as modules]
             [shadow.build.data :as data]
-            [shadow.build.log :as log]
             [shadow.core-ext :as core-ext]
             [cljs.compiler :as cljs-comp]
             [shadow.build.npm :as npm]
@@ -132,7 +129,7 @@
         (-> []
             (cond->
               (not (false? enabled))
-              (into '[cljs.user shadow.cljs.devtools.client.browser]))
+              (into '[shadow.cljs.devtools.client.browser]))
 
             (into entries))]
 
@@ -214,7 +211,7 @@
   [{:keys [worker-info] :as state} mode {:keys [modules module-loader release-version devtools] :as config}]
 
   (let [default-module (pick-default-module-from-config modules)
-        {:keys [enabled browser-inject worker-inject]} devtools
+        {:keys [enabled]} devtools
         enabled? (not (false? enabled))
         build-worker? (and enabled? (= :dev mode) worker-info)]
     (reduce-kv
@@ -239,17 +236,10 @@
                     ;; REPL client - only for watch (via worker-info), not compile
                     ;; this needs to be in base module
                     (and default? build-worker?)
-                    (update :entries shared/prepend '[cljs.user shadow.cljs.devtools.client.env])
+                    (update :entries shared/prepend '[shadow.cljs.devtools.client.env])
 
-                    (and build-worker?
-                         (or (and default? (nil? browser-inject))
-                             (= browser-inject module-id)))
+                    (and build-worker? default?)
                     (update :entries shared/prepend '[shadow.cljs.devtools.client.browser])
-
-                    (and build-worker?
-                         (or (and web-worker (nil? worker-inject))
-                             (= worker-inject module-id)))
-                    (update :entries shared/prepend '[shadow.cljs.devtools.client.worker])
 
                     build-worker?
                     (update :append-js str "\nshadow.cljs.devtools.client.env.module_loaded('" (name module-id) "');\n")
@@ -509,7 +499,7 @@
          state)))
 
 (defn flush-unoptimized-module-eval
-  [{:keys [unoptimizable] :as state}
+  [state
    {:keys [goog-base prepend append sources web-worker] :as mod}
    target]
 
@@ -547,11 +537,10 @@
 
         out
         (if (or goog-base web-worker)
-          (str unoptimizable
+          (str "var shadow$provide = {};\n"
                ;; always include this in dev builds
                ;; a build may not include any shadow-js initially
                ;; but load some from the REPL later
-               "var shadow$provide = {};\n"
 
                (when (and web-worker (get-in state [::build/config :module-loader]))
                  "var shadow$modules = false;\n")
@@ -579,7 +568,7 @@
   state)
 
 (defn flush-unoptimized-module-fetch
-  [{:keys [unoptimizable build-options] :as state}
+  [{:keys [build-options] :as state}
    {:keys [goog-base output-name prepend append sources web-worker] :as mod}
    target]
 
@@ -641,11 +630,10 @@
 
         out
         (if (or goog-base web-worker)
-          (str unoptimizable
+          (str "var shadow$provide = {};\n"
                ;; always include this in dev builds
                ;; a build may not include any shadow-js initially
                ;; but load some from the REPL later
-               "var shadow$provide = {};\n"
 
                (when (and web-worker (get-in state [::build/config :module-loader]))
                  "var shadow$modules = false;\n")
@@ -764,7 +752,9 @@
            (map (fn [{:keys [goog-base web-worker] :as mod}]
                   (-> mod
                       (cond->
-                        goog-base
+                        ;; I doubt that any of the devices that had the Math.imul bug are still in use
+                        ;; so it's time to start removing it from build output
+                        (and goog-base (true? (get-in state [:compiler-options :imul-js-fix])))
                         (update :prepend str imul-js-fix "\n")
 
                         (and (= :release mode) web-worker)
@@ -823,6 +813,10 @@
                     ;; not all deps end up being used so we don't need to check the version
                     :when (get pkg-index dep)
                     :let [installed-version (get-in pkg-index [dep :package-json "version"])]
+                    :when (and (not (str/includes? wanted-version "http:"))
+                               (not (str/includes? wanted-version "https:"))
+                               (not (str/includes? wanted-version "file:"))
+                               (not (str/includes? wanted-version "github:")))
                     :when (not (npm-deps/semver-intersects wanted-version installed-version))]
 
               (util/warn state {:type ::npm-version-conflict
@@ -851,8 +845,11 @@
     :compile-finish
     (-> state
         (module-wrap)
-        (check-npm-versions)
+
         (cond->
+          (not (false? (get-in config [:js-options :check-versions])))
+          (check-npm-versions)
+
           (shared/bootstrap-host-build? state)
           (shared/bootstrap-host-info)))
 

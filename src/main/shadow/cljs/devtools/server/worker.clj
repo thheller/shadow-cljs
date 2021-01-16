@@ -93,44 +93,19 @@
       (catch InterruptedException e
         {:type :repl/interrupt}))))
 
-(defn send-to-runtimes! [{:keys [proc-control] :as proc} payload]
-  {:pre [(impl/proc? proc)]}
-  (>!! proc-control {:type :broadcast-msg
-                     :payload payload})
-  proc)
-
-(defn repl-compile [worker input]
-  (worker-request worker
-    {:type :repl-compile
-     :input input}))
-
-(defn repl-eval [worker session-id runtime-id input]
-  (worker-request worker
-    {:type :repl-eval
-     :session-id session-id
-     :runtime-id runtime-id
-     :input input}))
-
-(defn load-file [worker {:keys [source file-path] :as file-info}]
-  {:pre [(string? file-path)]}
-  (worker-request worker
-    {:type :load-file
-     :source source
-     :file-path file-path}))
-
 ;; SERVICE API
 
-;; FIXME: too many damn args, use a map instead!
 (defn start
-  [config
-   system-bus
-   executor
-   relay
-   cache-root
-   http
-   classpath
-   npm
-   babel
+  [{:keys [config
+           system-bus
+           executor relay
+           clj-runtime
+           clj-obj-support
+           cache-root
+           http
+           classpath
+           npm
+           babel]}
    {:keys [build-id] :as build-config}
    cli-opts]
   {:pre [(map? http)
@@ -138,10 +113,10 @@
          (cp/service? classpath)
          (npm/service? npm)
          (babel/service? babel)
-         (keyword? build-id)]}
+         (contains? build-config :build-id)]}
 
   (let [proc-id
-        (UUID/randomUUID) ;; FIXME: not really unique but unique enough
+        (str (UUID/randomUUID))
 
         _ (log/debug ::start {:build-id build-id :proc-id proc-id})
 
@@ -177,9 +152,6 @@
         asset-update
         (async/chan (async/sliding-buffer 10))
 
-        macro-update
-        (async/chan (async/sliding-buffer 10))
-
         ;; same deal here, 1 msg is sent per build so this may produce many messages
         config-watch
         (async/chan (async/sliding-buffer 100))
@@ -193,24 +165,49 @@
          :output output
          :to-relay to-relay
          :resource-update resource-update
-         :macro-update macro-update
          :asset-update asset-update
          :config-watch config-watch}
 
-        ;; FIXME: figure out better runtime-info
         from-relay
-        (relay-api/runtime-connect relay to-relay
-          {:lang :clj
-           :worker-id proc-id
-           :cljs-worker-for build-id})
+        (async/chan 256)
+
+        connection-stop
+        (relay-api/connect relay to-relay from-relay {})
+
+        {:keys [op client-id] :as welcome-msg}
+        (<!! from-relay)
+
+        _ (when (not= op :welcome)
+            (throw (ex-info "received unexpected first message from relay" {:msg welcome-msg})))
+
+        _
+        (>!! to-relay
+          {:op :hello
+           :client-info
+           {:type :build-worker
+            :desc (str "Worker for build " build-id)
+            ::m/worker-id proc-id
+            ::m/worker-for build-id}})
+
+        _
+        (>!! to-relay
+          {:op :request-notify
+           :notify-op ::impl/cljs-runtime-notify
+           :query
+           [:and
+            [:eq :type :runtime]
+            [:eq :proc-id proc-id]]})
 
         thread-state
         {::impl/worker-state true
          :resource-update-chan resource-update
          :http http
+         :system-config config
          :classpath classpath
          :cache-root cache-root
          :cli-opts cli-opts
+         :relay-client-id client-id
+         :relay-connection-stop connection-stop
          :npm npm
          :babel babel
          :proc-id proc-id
@@ -218,7 +215,8 @@
          :build-config build-config
          :autobuild false
          :runtimes {}
-         :repl-sessions {}
+         :clj-runtime clj-runtime
+         :clj-obj-support clj-obj-support
          :pending-results {}
          :channels channels
          :system-bus system-bus
@@ -237,7 +235,6 @@
            proc-control impl/do-proc-control
            resource-update impl/do-resource-update
            asset-update impl/do-asset-update
-           macro-update impl/do-macro-update
            config-watch impl/do-config-watch
            from-relay impl/do-relay-msg}
 
@@ -264,7 +261,10 @@
 
         {:keys [watch-dir watch-exts]
          :or {watch-exts #{"css"}}}
-        (:devtools build-config)
+        (merge
+          (get-in config [:build-defaults :devtools])
+          (get-in config [:target-defaults (:target build-config) :devtools])
+          (:devtools build-config))
 
         status-ref
         (atom {:status :pending
@@ -277,10 +277,10 @@
              :proc-stop proc-stop
              :proc-id proc-id
              :proc-control proc-control
+             :cli-opts cli-opts
              :build-id build-id
              :system-bus system-bus
              :resource-update resource-update
-             :macro-update macro-update
              :output output
              :output-mult output-mult
              :status-ref status-ref
@@ -315,7 +315,6 @@
 
     (sys-bus/sub system-bus ::m/resource-update resource-update)
     (sys-bus/sub system-bus ::m/asset-update asset-update)
-    (sys-bus/sub system-bus ::m/macro-update macro-update)
     (sys-bus/sub system-bus [::m/config-watch build-id] config-watch)
 
     ;; ensure all channels are cleaned up properly
@@ -324,7 +323,6 @@
         (async/close! proc-stop)
         (async/close! proc-control)
         (async/close! resource-update)
-        (async/close! macro-update)
         (async/close! asset-update)
         (async/close! to-relay)
         (log/debug ::stop {:build-id build-id :proc-id proc-id}))

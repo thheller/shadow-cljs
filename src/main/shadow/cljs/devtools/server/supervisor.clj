@@ -17,17 +17,7 @@
 (defonce super-lock (Object.))
 
 (defn start-worker
-  [{:keys [system-bus
-           workers-ref
-           executor
-           relay
-           cache-root
-           http
-           classpath
-           npm
-           babel
-           config]
-    :as svc}
+  [{:keys [system-bus workers-ref] :as svc}
    {:keys [build-id] :as build-config}
    cli-opts]
   {:pre [(keyword? build-id)]}
@@ -37,28 +27,17 @@
       (throw (ex-info "already started" {:build-id build-id})))
 
     (let [{:keys [proc-stop] :as proc}
-          (worker/start
-            config
-            system-bus
-            executor
-            relay
-            cache-root
-            http
-            classpath
-            npm
-            babel
-            build-config
-            cli-opts)]
+          (worker/start svc build-config cli-opts)]
 
-      (sys-bus/publish! system-bus ::m/supervisor {:op :worker-start
-                                                         :build-id build-id})
+      (sys-bus/publish! system-bus ::m/supervisor {::m/worker-op :worker-start
+                                                   ::m/build-id build-id})
 
-      (vswap! workers-ref assoc build-id proc)
+      (swap! workers-ref assoc build-id proc)
 
       (go (<! proc-stop)
-          (sys-bus/publish! system-bus ::m/supervisor {:op :worker-stop
-                                                             :build-id build-id})
-          (vswap! workers-ref dissoc build-id))
+          (sys-bus/publish! system-bus ::m/supervisor {::m/worker-op :worker-stop
+                                                       ::m/build-id build-id})
+          (swap! workers-ref dissoc build-id))
 
       proc
       )))
@@ -70,17 +49,19 @@
     (worker/stop proc)))
 
 ;; FIXME: too many args, use a map
-(defn start [config system-bus executor relay cache-root http classpath npm babel]
+(defn start [config system-bus executor relay clj-runtime clj-obj-support cache-root http classpath npm babel]
   {:system-bus system-bus
    :config config
    :executor executor
    :relay relay
+   :clj-runtime clj-runtime
+   :clj-obj-support clj-obj-support
    :cache-root cache-root
    :http http
    :classpath classpath
    :npm npm
    :babel babel
-   :workers-ref (volatile! {})})
+   :workers-ref (atom {})})
 
 (defn stop [{:keys [workers-ref] :as svc}]
   (doseq [[id proc] @workers-ref]

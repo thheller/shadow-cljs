@@ -45,7 +45,7 @@
 
   ;; FIXME: resolve conflicts?
   (let [repositories
-        (-> (merge aether/maven-central {"clojars" "https://clojars.org/repo"})
+        (-> (merge aether/maven-central {"clojars" "https://repo.clojars.org"})
             (merge (ensure-s3p-private-key-file (get-in config [:repositories])))
             (merge (ensure-s3p-private-key-file (get-in config [:maven :repositories])))
             (merge (ensure-s3p-private-key-file (get-in config [:user-config :maven :repositories]))))

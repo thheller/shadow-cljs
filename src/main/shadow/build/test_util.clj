@@ -1,15 +1,27 @@
 (ns shadow.build.test-util
   (:require [shadow.build.data :as data]
-            [shadow.build.classpath :as cp]))
+            [shadow.build.classpath :as cp]
+            [shadow.cljs.util :as util]
+            [clojure.java.io :as io]))
 
-(defn find-namespaces-by-regexp [{:keys [classpath] :as state} ns-regexp]
-  (->> (cp/get-all-resources classpath)
-       (filter :file) ;; only test with files, ie. not tests in jars.
-       (filter #(= :cljs (:type %)))
-       (map :ns)
-       (filter (fn [ns]
-                 (re-find (re-pattern ns-regexp) (str ns))))
-       (into [])))
+(defn find-test-namespaces [{:keys [classpath] :as state} config]
+  (let [{:keys [namespaces ns-regexp exclude test-paths] :or {ns-regexp "-test$" exclude #{}}}
+        config
+
+        ns-regexp
+        (re-pattern ns-regexp)]
+
+    (if (seq namespaces)
+      namespaces
+      (->> (cp/find-cljs-namespaces-in-files
+             classpath
+             (when (seq test-paths)
+               (map io/file test-paths)))
+           (filter (fn [ns]
+                     (re-find ns-regexp (str ns))))
+           (remove exclude)
+           (sort)
+           (into [])))))
 
 (defn inject-extra-requires
   [{::keys [runner-ns test-namespaces] :as state}]

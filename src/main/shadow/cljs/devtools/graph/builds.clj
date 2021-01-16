@@ -14,8 +14,7 @@
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.errors :as errors]
-    [shadow.build.log :as build-log]
-    [clojure.core.async :as async :refer (>!!)]))
+    [shadow.build.log :as build-log]))
 
 (def config-attrs
   [::m/build-id
@@ -67,14 +66,16 @@
 (add-resolver `http-servers
   {::pc/output [{::m/http-servers [::m/http-server-id
                                    ::m/http-url
+                                   ::m/http-config
                                    ::m/https-url]}]}
   (fn [{:keys [dev-http] :as env} _]
     (let [servers
           (->> (:servers @dev-http)
                (map-indexed
-                 (fn [idx {:keys [http-url https-url]}]
+                 (fn [idx {:keys [http-url https-url config]}]
                       {::m/http-server-id idx
                        ::m/http-url http-url
+                       ::m/http-config config
                        ::m/https-url https-url}))
                (into []))]
 
@@ -109,109 +110,6 @@
                   ::m/runtime-info runtime-info}))
           (into []))}))
 
-;; FIXME: move deftx to a shared namespace
-
-(add-mutation 'shadow.cljs.ui.transactions/build-watch-start
-  {::pc/input #{:build-id}
-   ::pc/output [::m/build-id
-                ::m/build-worker-active]}
-  (fn [{:keys [supervisor] :as env} {:keys [build-id] :as input}]
-    (let [config (config/get-build build-id)
-          ;; FIXME: needs access to cli opts used to start server?
-          worker (super/start-worker supervisor config {})]
-      (worker/start-autobuild worker))
-
-    {::m/build-id build-id
-     ::m/build-worker-active true}))
-
-(add-mutation 'shadow.cljs.ui.transactions/build-watch-stop
-  {::pc/input #{:build-id}
-   ::pc/output [::m/build-id
-                ::m/build-worker-active]}
-  (fn [{:keys [supervisor] :as env} {:keys [build-id] :as input}]
-    (super/stop-worker supervisor build-id)
-    {::m/build-id build-id
-     ::m/build-worker-active false}
-    ))
-
-(add-mutation 'shadow.cljs.ui.transactions/build-watch-compile
-  {::pc/input #{:build-id}
-   ::pc/output [::m/build-id]}
-  (fn [{:keys [supervisor] :as env} {:keys [build-id] :as input}]
-    (let [worker (super/get-worker supervisor build-id)]
-      (worker/compile worker))
-    ;; FIXME: can this return something useful?
-    {::m/build-id build-id}))
-
-(defn do-build [{:keys [system-bus] :as env} build-id mode]
-  (future
-    (let [build-config
-          (config/get-build build-id)
-
-          status-ref
-          (atom {:status :pending
-                 :mode mode
-                 :log []})
-
-          build-logger
-          (reify
-            build-log/BuildLog
-            (log*
-              [_ state event]
-              (sys-bus/publish! system-bus ::m/build-log {:type :build-log
-                                                          :build-id build-id
-                                                          :event event})))
-
-          pub-msg
-          (fn [msg]
-            ;; FIXME: this is not worker output but adding an extra channel seems like overkill
-            (sys-bus/publish! system-bus ::m/worker-broadcast msg)
-            (sys-bus/publish! system-bus [::m/worker-output build-id] msg))]
-      (try
-        ;; not at all useful to send this message but want to match worker message flow for now
-        (pub-msg {:type :build-configure
-                  :build-id build-id
-                  :build-config build-config})
-
-        (pub-msg {:type :build-start
-                  :build-id build-id})
-
-        (let [build-state
-              (-> (util/new-build build-config mode {})
-                  (build-api/with-logger build-logger)
-                  (build/configure mode build-config {})
-                  (build/compile)
-                  (cond->
-                    (= :release mode)
-                    (build/optimize))
-                  (build/flush))]
-
-          (pub-msg {:type :build-complete
-                    :build-id build-id
-                    :info (::build/build-info build-state)}))
-
-        (catch Exception e
-          (pub-msg {:type :build-failure
-                    :build-id build-id
-                    :report (binding [warnings/*color* false]
-                              (errors/error-format e))
-                    }))
-        ))))
-
-(add-mutation 'shadow.cljs.ui.transactions/build-compile
-  {::pc/input #{:build-id}
-   ::pc/output [::m/build-id]}
-  (fn [env {:keys [build-id] :as input}]
-    (do-build env build-id :dev)
-    {::m/build-id build-id}
-    ))
-
-(add-mutation 'shadow.cljs.ui.transactions/build-release
-  {::pc/input #{:build-id}
-   ::pc/output [::m/build-id]}
-  (fn [env {:keys [build-id] :as input}]
-    (do-build env build-id :release)
-    {::m/build-id build-id}))
 
 ;; resolves dependencies of a given entry namespace
 ;; based on the given build config

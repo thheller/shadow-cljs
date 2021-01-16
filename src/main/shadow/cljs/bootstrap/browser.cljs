@@ -181,6 +181,7 @@
   (if @env/index-ref
     (init-cb)
     (do (fix-provide-conflict!)
+        (env/create-cljs-user!)
         (transit-load (asset-path "/index.transit.json")
           (fn [data]
             ;; pretend that all excluded macro namespaces are loaded

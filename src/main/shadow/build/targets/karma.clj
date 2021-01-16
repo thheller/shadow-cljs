@@ -38,7 +38,11 @@
         (build-api/with-js-options {:js-provider :shadow})
         (cond->
           js-options
-          (build-api/with-js-options js-options))
+          (build-api/with-js-options js-options)
+
+          (not (get-in config [:compiler-options :output-feature-set]))
+          (build-api/with-compiler-options {:output-feature-set :es8}))
+        
         (build-api/configure-modules {:test {:entries []
                                              :output-name (.getName output-to)}})
 
@@ -49,12 +53,9 @@
 ;; we delay setting the :entries until compile-prepare which is called every cycle
 ;; need to come up with a cleaner API for this
 (defn test-resolve
-  [{:keys [classpath] ::tu/keys [runner-ns] :as state} mode config]
-  (let [{:keys [ns-regexp] :or {ns-regexp "-test$"}}
-        config
-
-        test-namespaces
-        (tu/find-namespaces-by-regexp state ns-regexp)
+  [{::tu/keys [runner-ns] :as state} mode config]
+  (let [test-namespaces
+        (tu/find-test-namespaces state config)
 
         entries
         (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
@@ -77,12 +78,14 @@
         )))
 
 (defn flush-karma-test-file
-  [{::keys [output-to] :keys [polyfill-js unoptimizable build-options build-sources] :as state} config]
+  [{::keys [output-to] :keys [polyfill-js build-options build-sources] :as state} config]
 
   (let [prepend
         (str "var shadow$provide = {};\n"
-             unoptimizable
+             "var $jscomp = {};\n"
              (output/closure-defines-and-base state)
+             (when (seq polyfill-js)
+               (str "\n" polyfill-js "\n"))
              "goog.global[\"$CLJS\"] = goog.global;\n")
 
         out

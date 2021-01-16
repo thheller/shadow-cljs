@@ -1,37 +1,19 @@
 (ns shadow.cljs.devtools.server.npm-deps
   "utility namespaces for installing npm deps found in deps.cljs files"
   (:require [clojure.edn :as edn]
-            [clojure.pprint :refer (pprint)]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [shadow.cljs.devtools.server.util :as util])
-  (:import (javax.script ScriptEngineManager ScriptEngine Invocable)))
-
-(defn get-major-java-version []
-  (let [java-version
-        (or (System/getProperty "java.vm.specification.version") ;; not sure this was always available
-            (System/getProperty "java.version"))
-        dot
-        (str/index-of java-version ".")
-
-        java-version
-        (if-not dot java-version (subs java-version 0 dot))]
-
-    ;; return 1 for 1.8, 1.9 which is fine ...
-    (Long/parseLong java-version)))
-
-(defn make-engine* []
-  (let [java-version (get-major-java-version)]
-    (when (>= java-version 11)
-      (System/setProperty "nashorn.args" "--no-deprecation-warning")))
-
-  (-> (ScriptEngineManager.)
-      (.getEngineByName "nashorn")))
+            [shadow.cljs.devtools.server.util :as util]
+            [shadow.jvm-log :as log])
+  (:import (javax.script ScriptEngineManager)))
 
 (defn make-engine []
-  (let [engine
-        (make-engine*)
+  (let [script-mgr
+        (ScriptEngineManager.)
+
+        engine
+        (.getEngineByName script-mgr "JavaScript")
 
         semver-js
         (slurp (io/resource "shadow/build/js/semver.js"))]
@@ -51,7 +33,7 @@
         (try
           (.invokeFunction @engine "shadowIntersects" (into-array Object [a b]))
           (catch Exception e
-            (prn [:failed-to-compare a b e])
+            (log/debug-ex e ::failed-to-compare {:a a :b b})
             true))))))
 
 (comment
@@ -106,6 +88,7 @@
 
 (defn guess-node-package-manager [config]
   (or (get-in config [:node-modules :managed-by])
+      (get-in config [:npm-deps :managed-by])
       (let [yarn-lock (io/file "yarn.lock")]
         (when (.exists yarn-lock)
           :yarn))
@@ -132,8 +115,15 @@
         (for [{:keys [id version]} deps]
           (str id "@" version))
 
+        install-dir
+        (get-in config [:npm-deps :install-dir] ".")
+
+        install-package-json
+        (io/file install-dir "package.json")
+
         install-cmd
         (or (get-in config [:node-modules :install-cmd])
+            (get-in config [:npm-deps :install-cmd])
             (case (guess-node-package-manager config)
               :yarn
               ["yarn" "add" "--exact"]
@@ -149,11 +139,15 @@
           (into ["cmd" "/C"] full-cmd)
           full-cmd)
 
+        _ (when-not (.exists install-package-json)
+            (io/make-parents install-package-json)
+            (spit install-package-json "{}"))
+
         _ (println (str "running: " (str/join " " full-cmd)))
 
         proc
         (-> (ProcessBuilder. (into-array full-cmd))
-            (.directory nil)
+            (.directory (io/file install-dir))
             (.start))]
 
     (-> (.getOutputStream proc)
@@ -191,8 +185,8 @@
             :url url}))
     ))
 
-(defn read-package-json []
-  (let [package-json-file (io/file "package.json")]
+(defn read-package-json [install-dir]
+  (let [package-json-file (io/file install-dir "package.json")]
     (if-not (.exists package-json-file)
       {}
       (-> (slurp package-json-file)
@@ -213,15 +207,19 @@
                 url)))
           true))))
 
-(defn main [config opts]
-  (let [package-json
-        (read-package-json)
+(defn main [{:keys [npm-deps] :as config} opts]
+  (when-not (false? (:install npm-deps))
+    (let [{:keys [install-dir] :or {install-dir "."}}
+          npm-deps
 
-        deps
-        (->> (get-deps-from-classpath)
-             (resolve-conflicts)
-             (remove #(is-installed? % package-json)))]
+          package-json
+          (read-package-json install-dir)
 
-    (when (seq deps)
-      (install-deps config deps)
-      )))
+          deps
+          (->> (get-deps-from-classpath)
+               (resolve-conflicts)
+               (remove #(is-installed? % package-json)))]
+
+      (when (seq deps)
+        (install-deps config deps)
+        ))))

@@ -1,3 +1,2 @@
-cli/lib.js
-cli/dist/
+cli/dist.js
 node_modules

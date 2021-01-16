@@ -1,7 +1,6 @@
 (ns shadow.build.targets.expo
   (:refer-clojure :exclude (flush))
-  (:require [clojure.set :as set]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [cljs.compiler :as cljs-comp]
             [clojure.spec.alpha :as s]
             [shadow.cljs.repl :as repl]
@@ -17,7 +16,6 @@
             [shadow.cljs.util :as util]
             [clojure.edn :as edn]
             [shadow.cljs.devtools.server.util :refer (pipe)]
-            [clojure.data.json :as json]
             [cljs.source-map :as sm]))
 
 (s/def ::init-fn shared/unquoted-qualified-symbol?)
@@ -85,8 +83,7 @@
           (:worker-info state)
           (-> (shared/merge-repl-defines (assoc-in config [:devtools :autoload] true))
               (update-in [::modules/config :index :entries] shared/prepend
-                '[cljs.user
-                  shadow.expo.keep-awake
+                '[shadow.expo.keep-awake
                   shadow.cljs.devtools.client.react-native]))))))
 
 (defn flush-expo-bundle

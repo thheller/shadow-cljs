@@ -1,14 +1,14 @@
-(defproject shadow-cljs-jar "1.3.1"
+(defproject shadow-cljs-jar "1.3.2"
 
   :javac-options
   ["-target" "1.8"
    "-source" "1.8"]
 
   :dependencies
-  [[org.clojure/clojure "1.9.0"]
+  [[org.clojure/clojure "1.10.1"]
    [com.cemerick/pomegranate "1.1.0"]
-   [org.slf4j/slf4j-nop "1.7.26"]
-   [s3-wagon-private "1.3.2"
+   [org.slf4j/slf4j-nop "1.7.30"]
+   [s3-wagon-private "1.3.3"
     :exclusions
     [ch.qos.logback/logback-classic]]]
 

@@ -16,20 +16,12 @@
 
 (set! *warn-on-reflection* true)
 
-(def NPM-TIMESTAMP
-  ;; timestamp to ensure that new shadow-cljs release always invalidate caches
-  ;; technically needs to check all files but given that they'll all be in the
-  ;; same jar one is enough
-  (util/resource-last-modified "shadow/build/npm.clj"))
+;; used in every resource :cache-key to make sure it invalidates when shadow-cljs updates
+(def NPM-CACHE-KEY
+  (data/sha1-url (io/resource "shadow/build/npm.clj")))
 
-(def CLOSURE-TIMESTAMP
-  ;; timestamp to ensure that new shadow-cljs release always invalidate caches
-  ;; technically needs to check all files but given that they'll all be in the
-  ;; same jar one is enough
-  ;; this is bit ugly but since files are re-compiled by the shadow.build.closure
-  ;; namespace (which depends on this one) we need it to properly invalidate
-  ;; the cache
-  (util/resource-last-modified "shadow/build/closure.clj"))
+(def CLOSURE-CACHE-KEY
+  (data/sha1-url (io/resource "shadow/build/closure.clj")))
 
 (defn service? [x]
   (and (map? x) (::service x)))
@@ -192,7 +184,7 @@
     (when (and (seq entries)
                (not entry-file))
       (throw (ex-info
-               (str "package in " package-dir "specified entries but they were all missing")
+               (str "package in " package-dir " specified entries but they were all missing")
                {:tag ::missing-entries
                 :entries entries
                 :package-dir package-dir})))
@@ -279,12 +271,8 @@
           :else
           file)]
 
-    (when-not (and file (.isFile file))
-      (throw (ex-info (format "failed to resolve: %s from %s" require relative-to require)
-               {:relative-to relative-to
-                :entry require})))
-
-    file))
+    (when (and file (.isFile file))
+      file)))
 
 ;; https://github.com/webpack/node-libs-browser/blob/master/index.js
 ;; using this package so have the same dependencies that webpack would use
@@ -333,7 +321,7 @@
      :resource-name "shadow$empty.js"
      :output-name "shadow$empty.js"
      :type :js
-     :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
+     :cache-key [] ;; change this if this ever changes
      :last-modified 0
      :ns ns
      :provides #{ns}
@@ -343,59 +331,89 @@
 
 (defn find-file
   [npm ^File require-from ^String require]
-  (let [use-browser-overrides (get-in npm [:js-options :use-browser-overrides])]
-    (cond
-      (util/is-absolute? require)
-      (throw (ex-info "absolute require not allowed for node_modules files"
-               {:tag ::absolute-path
-                :require-from require-from
-                :require require}
-               ))
+  ;; early exit if a npm file contains an absolute require, eg. require("/foo.js")
+  (if (util/is-absolute? require)
+    (throw (ex-info "absolute require not allowed for node_modules files"
+             {:tag ::absolute-path
+              :require-from require-from
+              :require require}))
 
-      (util/is-relative? require)
-      (find-relative npm require-from require)
+    ;; only require("foo") or require("./foo")
+    (let [use-browser-overrides
+          (get-in npm [:js-options :use-browser-overrides])
 
-      :else
-      (let [require-from-pkg
-            (when require-from ;; no overrides for entries
-              (find-package-for-file npm require-from))
+          require-from-pkg
+          (when require-from ;; no overrides for entries
+            (find-package-for-file npm require-from))
 
-            browser-override
-            (and use-browser-overrides
-                 require-from-pkg
-                 (get-in require-from-pkg [:browser-overrides require]))
+          browser-override
+          (when (and use-browser-overrides require-from-pkg)
+            (get-in require-from-pkg [:browser-overrides require]))]
 
-            override
-            (when use-browser-overrides
-              (if (some? browser-override)
-                browser-override
-                (get node-libs-browser require)))]
+      (cond
+        ;; browser override { "./foo" : false } to signal to ignore this dep
+        (false? browser-override)
+        false
 
-        (cond
-          (nil? override)
-          (find-package-require npm require)
+        (and browser-override
+             (not (string? browser-override)))
+        (throw (ex-info (format "invalid browser override in package: %s" require-from)
+                 {:require require
+                  :require-from require-from
+                  :override browser-override}))
 
-          ;; "canvas": false
-          (false? override)
-          false
+        ;; if package.json has browser: { "./foo" : "./foo.browser" } then all
+        ;; requires in that package using require("./foo") apparantely should be using
+        ;; ./foo.browser instead. regardless of which directory they are in.
+        ;; this seems to be in addition to overriding files with an package-relative path after
+        ;; they have been resolved.
+        ;; if we have a match then just continue resolving that directly in place of the original
+        (seq browser-override)
+        (if-not (util/is-relative? browser-override)
+          ;; don't know if this exists but probably does "./foo":"foo"
+          ;; replacing a local file with a different package
+          (find-package-require npm browser-override)
+          ;; target is a relative path, it may either be relative to the
+          ;; file it was required from or relative to the package
+          (or (find-relative npm require-from browser-override)
+              (find-relative npm (:package-dir require-from-pkg) browser-override)
+              (throw (ex-info
+                       (format "failed to resolve: %s from %s, it was overridden from %s to %s"
+                         require require-from require browser-override)
+                       {:require-from require-from
+                        :require require
+                        :package-dir (:package-dir require-from-pkg)
+                        :browser-override browser-override}))))
 
-          (not (string? override))
-          (throw (ex-info (format "invalid override in package: %s" require-from)
-                   {:require require
-                    :require-from require-from
-                    :override override}))
+        ;; no override, require("./foo.js")
+        (util/is-relative? require)
+        (or (find-relative npm require-from require)
+            (throw (ex-info (format "failed to resolve: %s from %s" require require-from)
+                     {:require-from require-from
+                      :require require})))
 
-          ;; jsdom
-          ;; "contextify": "./lib/jsdom/contextify-shim.js"
-          ;; overrides a package require from within the package to a local file
-          (util/is-relative? override)
-          (find-relative npm (:package-dir require-from-pkg) override)
+        ;; last check to see if a node built-in package was required
+        ;; and maybe replace it by a node-libs-browser polyfill or
+        ;; skip this require
+        :else
+        (let [override
+              (when use-browser-overrides
+                ;; node-libs-browser replacements
+                (get node-libs-browser require))]
 
-          ;; "foo":"bar"
-          ;; swap one package with the other
-          :else
-          (find-package-require npm override)
-          )))))
+          (cond
+            (nil? override)
+            (find-package-require npm require)
+
+            ;; "canvas": false
+            (false? override)
+            false
+
+            ;; "foo":"bar"
+            ;; swap one package with the other
+            :else
+            (find-package-require npm override)
+            ))))))
 
 (defn maybe-convert-goog [dep]
   (if-not (str/starts-with? dep "goog:")
@@ -495,7 +513,13 @@
         ;; require("./lib/React.js") which also belongs to the react package
         ;; so we must determine this from the file alone not by the way it was required
         {:keys [package-name] :as pkg-info}
-        (find-package-for-file npm file)]
+        (find-package-for-file npm file)
+
+        source
+        (slurp file)
+
+        cache-key
+        [NPM-CACHE-KEY CLOSURE-CACHE-KEY (data/sha1-string source)]]
 
     ;; require("../package.json").version is a thing
     ;; no need to parse it since it can't have any require/import/export
@@ -507,33 +531,34 @@
            :type :js
            :file file
            :last-modified last-modified
-           :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP last-modified]
+           :cache-key cache-key
            :ns ns
            :provides #{ns}
            :requires #{}
-           :source (slurp file)
+           :source source
            :js-deps []}
 
           ;; FIXME: check if a .babelrc applies and then run source through babel first
           ;; that should take care of .jsx and others if I actually want to support that?
-          (let [source
-                (slurp file)
-
-                ;; all requires are collected into
-                ;; :js-requires ["foo" "bar/thing" "./baz]
-                ;; all imports are collected into
-                ;; :js-imports ["react"]
-                {:keys [js-requires js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
-                (JsInspector/getFileInfoMap
-                  compiler
-                  ;; SourceFile/fromFile seems to leak file descriptors
-                  (SourceFile/fromCode (.getAbsolutePath file) source))
+          ;; all requires are collected into
+          ;; :js-requires ["foo" "bar/thing" "./baz]
+          ;; all imports are collected into
+          ;; :js-imports ["react"]
+          (let [{:keys [js-requires js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
+                (try
+                  (JsInspector/getFileInfoMap
+                    compiler
+                    ;; SourceFile/fromFile seems to leak file descriptors
+                    (SourceFile/fromCode (.getAbsolutePath file) source))
+                  (catch Exception e
+                    (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
+                             {:tag ::file-info-errors
+                              :info {:js-errors [{:line 1 :column 1 :message "The file could not be parsed as JavaScript."}]}
+                              :file file}
+                             e))))
 
                 js-deps
                 (->> (concat js-requires js-imports)
-                     ;; FIXME: not sure I want to go down this road or how
-                     ;; require("./some.css") should not break the build though
-                     (remove asset-require?)
                      (distinct)
                      (map maybe-convert-goog)
                      (into []))
@@ -547,9 +572,9 @@
 
             (when (seq js-errors)
               (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
-                       (assoc info
-                         :resource-name resource-name
-                         :tag ::errors))))
+                       {:tag ::file-info-errors
+                        :info info
+                        :file file})))
 
             ;; moment.js has require('./locale/' + name); inside a function
             ;; it shouldn't otherwise hurt though
@@ -566,7 +591,7 @@
                   :type :js
                   :file file
                   :last-modified last-modified
-                  :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP last-modified]
+                  :cache-key cache-key
                   :ns ns
                   :provides #{ns}
                   :requires #{}
@@ -592,8 +617,6 @@
   (when-let [file (find-package-require npm require)]
     (get-file-info npm file)))
 
-
-
 (defn js-resource-for-global
   "a dependency might come from something already included in the page by other means
 
@@ -608,7 +631,7 @@
      :output-name (str ns ".js")
      :global-ref true
      :type :js
-     :cache-key [NPM-TIMESTAMP CLOSURE-TIMESTAMP]
+     :cache-key [NPM-CACHE-KEY CLOSURE-CACHE-KEY]
      :last-modified 0
      :ns ns
      :provides #{ns}
@@ -654,9 +677,14 @@
       (let [{:keys [browser-overrides ^File package-dir] :as pkg}
             (find-package-for-file npm file)
 
+            {:keys [package-overrides]} js-options
+
             ;; the package may have "browser":{"./a":"./b"} overrides
             override
-            (when (and pkg (:use-browser-overrides js-options) (seq browser-overrides))
+            (when (and pkg
+                       (or (and (:use-browser-overrides js-options) (seq browser-overrides))
+                           (seq package-overrides)))
+
               (let [package-path
                     (.toPath package-dir)
 
@@ -667,14 +695,29 @@
                          (rc/normalize-name)
                          (str "./"))]
 
-                ;; FIXME: I'm almost certain that browser allows overriding without extension
-                ;; "./lib/some-file":"./lib/some-other-file"
-                (get browser-overrides rel-name)))]
+                ;; allow :js-options config to replace files in package by name
+                ;; :js-options {:package-overrides {"codemirror" {"./lib/codemirror.js" "./addon/runmode/runmode.node.js"}}
+                (or (get-in package-overrides [(:package-name pkg) rel-name])
+                    ;; FIXME: I'm almost certain that browser allows overriding without extension
+                    ;; "./lib/some-file":"./lib/some-other-file"
+                    (get browser-overrides rel-name))))]
 
         (cond
           ;; good to go, no browser overrides
           (nil? override)
-          (get-file-info npm file)
+          (try
+            (get-file-info npm file)
+            (catch Exception e
+              ;; user may opt to just ignore a require("./something.css")
+              (if (and (:ignore-asset-requires js-options)
+                       (asset-require? require))
+                empty-rc
+                (throw (ex-info "failed to inspect node_modules file"
+                         {:tag ::file-info-failed
+                          :file file
+                          :require-from require-from
+                          :require require}
+                         e)))))
 
           ;; disabled require
           (false? override)
@@ -696,7 +739,19 @@
                         :file file
                         :override override
                         :override-file override-file})))
-            (get-file-info npm override-file))
+            (try
+              (get-file-info npm override-file)
+              (catch Exception e
+                ;; not doing asset-require check here since I doubt anyone will
+                ;; override one asset to another
+                (throw (ex-info "failed to inspect node_modules file"
+                         {::tag ::file-info-failed
+                          :file file
+                          :require-from require-from
+                          :require require
+                          :override override
+                          :override-file override-file}
+                         e)))))
 
           :else
           (throw (ex-info "invalid override"
@@ -705,33 +760,37 @@
                     :require require
                     :override override})))))))
 
-(defn shadow-js-require [{:keys [ns require-id resource-config] :as rc}]
-  (let [{:keys [export-global export-globals]}
-        resource-config
+(defn shadow-js-require
+  ([rc]
+   (shadow-js-require rc true))
+  ([{:keys [ns require-id resource-config] :as rc} semi-colon?]
+   (let [{:keys [export-global export-globals]}
+         resource-config
 
-        ;; FIXME: not the greatest idea to introduce two keys for this
-        ;; but most of the time there will only be one exported global per resource
-        ;; only in jQuery case sometimes we need jQuery and sometimes $
-        ;; so it must export both
-        globals
-        (-> []
-            (cond->
-              (seq export-global)
-              (conj export-global)
-              (seq export-globals)
-              (into export-globals)))
+         ;; FIXME: not the greatest idea to introduce two keys for this
+         ;; but most of the time there will only be one exported global per resource
+         ;; only in jQuery case sometimes we need jQuery and sometimes $
+         ;; so it must export both
+         globals
+         (-> []
+             (cond->
+               (seq export-global)
+               (conj export-global)
+               (seq export-globals)
+               (into export-globals)))
 
-        opts
-        (-> {}
-            (cond->
-              (seq globals)
-              (assoc :globals globals)))]
+         opts
+         (-> {}
+             (cond->
+               (seq globals)
+               (assoc :globals globals)))]
 
-    (str "shadow.js.require("
-         (if require-id
-           (pr-str require-id)
-           (str "\"" ns "\""))
-         ", " (json/write-str opts) ");")))
+     (str "shadow.js.require("
+          (if require-id
+            (pr-str require-id)
+            (str "\"" ns "\""))
+          ", " (json/write-str opts) ")"
+          (when semi-colon? ";")))))
 
 ;; FIXME: allow configuration of :extensions :entry-keys
 ;; maybe some closure opts
@@ -789,7 +848,7 @@
      :js-options {:extensions [#_".mjs" ".js" ".json"]
                   :target :browser
                   :use-browser-overrides true
-                  :entry-keys [#_#_"module" "jsnext:main" "browser" "main"]}
+                  :entry-keys ["browser" "main" "module"]}
      }))
 
 (defn stop [npm])

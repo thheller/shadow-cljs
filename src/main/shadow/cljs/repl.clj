@@ -1,7 +1,6 @@
 (ns shadow.cljs.repl
   (:require
     [clojure.string :as str]
-    [clojure.walk :as walk]
     [clojure.repl :as repl]
     [clojure.java.io :as io]
     [clojure.tools.reader.reader-types :as readers]
@@ -26,10 +25,10 @@
     [shadow.build.resolve :as res]
     [shadow.build.classpath :as classpath]
     [shadow.remote.runtime.eval-support :as es]
-    )
+    [shadow.build.async :as async])
   (:import
-    [java.io StringReader BufferedReader File]
-    [java.nio.file Paths Path]
+    [java.io StringReader BufferedReader]
+    [java.nio.file Path]
     [java.util.concurrent.atomic AtomicLong]))
 
 (comment
@@ -124,9 +123,14 @@
         repl-init-ns
         (get-in state [:shadow.build/config :devtools :repl-init-ns] 'cljs.user)
 
+        entries
+        (if (= 'cljs.user repl-init-ns)
+          [repl-init-ns]
+          ['cljs.user repl-init-ns])
+
         [repl-sources state]
         (-> state
-            (build-api/resolve-entries [repl-init-ns]))
+            (build-api/resolve-entries entries))
 
         repl-rc
         (data/get-source-by-provide state repl-init-ns)
@@ -147,19 +151,20 @@
     ))
 
 (defn prepare
-  [state]
-  {:pre [(build-api/build-state? state)]}
-
-  ;; must compile an empty cljs.user to properly populate the ::ana/namespaces
-  ;; could just manually set the values needed but I don't want to keep track what gets set
-  ;; so just pretend there is actually an empty ns we never user
-  (let [{:keys [repl-state] :as state}
-        (setup state)
+  [{:keys [build-sources] :as build-state}]
+  {:pre [(build-api/build-state? build-state)]}
+  (let [{:keys [repl-state] :as build-state}
+        (setup build-state)
 
         {:keys [repl-sources]}
         repl-state]
 
-    (build-api/compile-sources state repl-sources)))
+    (-> build-state
+        (build-api/compile-sources repl-sources)
+        ;; make sure sources exist on disk so the REPL can actually load them
+        (output/flush-sources repl-sources)
+        (async/wait-for-pending-tasks!)
+        (assoc :build-sources build-sources))))
 
 (defn load-macros-and-set-ns-info
   "modifies the repl and analyzer state to reflect the updated ns changes done by require in the REPL"
@@ -180,6 +185,10 @@
 
 (defn repl-require
   [{:keys [repl-state] :as state} read-result require-form]
+  (when-not (and (map? repl-state)
+                 (symbol? (:current-ns repl-state)))
+    (jvm-log/warn ::repl-require-invalid-state {:repl-state repl-state :require-form require-form}))
+
   (let [{:keys [current-ns]}
         repl-state
 
@@ -229,7 +238,9 @@
                           (remove nil?)
                           (into [])))))]
 
-    (output/flush-sources state new-sources)
+    (doto state
+      (output/flush-sources new-sources)
+      (async/wait-for-pending-tasks!))
 
     (update-in state [:repl-state :repl-actions] conj action)
     ))
@@ -255,7 +266,6 @@
                  (filter #(.isDirectory %))
                  (map #(.toPath %))
                  (filter (fn [^Path path]
-                           (prn [:match abs-path path (.startsWith abs-path path)])
                            (.startsWith abs-path path))))]
 
         (when (seq matched-paths)
@@ -298,6 +308,7 @@
 
             [deps-sources state]
             (-> state
+                ;; FIXME: this is not additive, it may remove previous REPL state?
                 (data/overwrite-source rc)
                 (build-api/resolve-entries [ns]))
 
@@ -324,7 +335,7 @@
 
         [dep-sources state]
         (-> state
-            (data/overwrite-source ns-rc)
+            (data/add-source ns-rc) ;; additive, keep old state
             (res/resolve-repl ns deps))
 
         ns-info
@@ -343,34 +354,24 @@
         ns-requires
         {:type :repl/require
          :sources dep-sources
+         :internal true
          :warnings (warnings-for-sources state dep-sources)
          :reload-namespaces (into #{} (:reload-deps ns-info))}
 
         ns-provide
         {:type :repl/invoke
          :name "<eval>"
-         :js (with-out-str
-               (comp/shadow-emit state (assoc ns-info :op :ns))
-
-               ;; => (ns test.app)
-
-               ;; ends up emitting
-
-               ;; goog.provide('test.app');
-               ;; goog.require('cljs.core');
-               ;; ... potentially other requires
-
-               ;; which is correct but in newer closure library versions goog.require actually
-               ;; has a return value and will return that ns object which is then attempted to
-               ;; be printed by the REPL. we don't want that and manually fake it to return
-               ;; the symbol of the ns instead
-               (println (str "\ncljs.core.symbol(\"" (str ns) "\");")))}
+         :internal true
+         ;; just goog.provide/require calls, sources were loaded by require above
+         :js (with-out-str (comp/shadow-emit state (assoc ns-info :op :ns)))}
 
         ns-set
         {:type :repl/set-ns
          :ns ns}]
 
-    (output/flush-sources state dep-sources)
+    (doto state
+      (output/flush-sources dep-sources)
+      (async/wait-for-pending-tasks!))
 
     (-> state
         (assoc-in [:repl-state :current-ns] ns)
@@ -384,13 +385,12 @@
     (if (nil? (get-in state [:sym->id ns]))
       ;; if (in-ns 'foo.bar) does not exist we just do (ns foo.bar) instead
       (repl-ns state read-result (list 'ns ns))
-      (let [{:keys [resource-name] :as rc}
+      (let [rc
             (data/get-source-by-provide state ns)
 
             set-ns-action
             {:type :repl/set-ns
-             :ns ns
-             :resource-name resource-name}]
+             :ns ns}]
         (-> state
             ;; FIXME: do we need to ensure that the ns is compiled?
             (assoc-in [:repl-state :current-ns] ns)
@@ -404,10 +404,16 @@
    'cljs.core/require
    repl-require
 
+   'clojure.core/require
+   repl-require
+
    'load-file
    repl-load-file
 
    'cljs.core/load-file
+   repl-load-file
+
+   'clojure.core/load-file
    repl-load-file
 
    'in-ns
@@ -516,8 +522,6 @@
     (catch Exception e
       (throw (ex-info "Failed to process REPL command" (assoc read-result :tag ::process-ex) e)))))
 
-(defn apply-wrap [form wrap])
-
 (defn read-one
   [build-state reader {:keys [filename wrap] :or {filename "repl-input.cljs"} :as opts}]
   {:pre [(build-api/build-state? build-state)]}
@@ -621,7 +625,10 @@
                     reader/*data-readers* {}
                     reader/*default-data-reader-fn* (fn [tag val] val)
                     reader/resolve-symbol identity
-                    reader/*alias-map* {}]
+                    ;; used by tools.reader to resolve ::foo/kw
+                    ;; we don't actually care, we just want the original source
+                    ;; just calls (*alias-map* sym) so a function is fine
+                    reader/*alias-map* (fn [sym] sym)]
             ;; read+string somehow not available, suspect bad AOT file from CLJS?
             (reader/read reader-opts in))
 
@@ -660,13 +667,19 @@
 
      (loop [state state]
 
-       (let [{:keys [eof?] :as read-result}
+       (let [{:keys [eof? error?] :as read-result}
              (read-one state reader opts)]
 
-         (if eof?
+         (cond
+           eof?
            state
-           (recur (process-read-result state read-result))))
-       ))))
+
+           error?
+           (throw (:ex read-result))
+
+           :else
+           (recur (process-read-result state read-result))
+           ))))))
 
 (defn process-input-stream
   "reads one form of the input stream and calls process-form"

@@ -4,7 +4,7 @@
     [clojure.string :as str]
     [cljs.tools.reader :as reader]
     [cljs.pprint :refer (pprint)]
-    ))
+    [clojure.set :as set]))
 
 (defonce active-modules-ref
   (volatile! #{}))
@@ -20,6 +20,8 @@
 
 (goog-define enabled false)
 
+(goog-define log true)
+
 (goog-define autoload true)
 
 (goog-define module-format "goog")
@@ -30,6 +32,8 @@
 
 (goog-define proc-id "")
 
+(goog-define worker-client-id 0)
+
 (goog-define server-host "")
 
 (goog-define server-port 8200)
@@ -38,7 +42,13 @@
 
 (goog-define use-document-host true)
 
+(goog-define use-document-protocol false)
+
 (goog-define devtools-url "")
+
+(goog-define reload-strategy "optimized")
+
+(goog-define server-token "missing")
 
 (goog-define ssl false)
 
@@ -46,20 +56,29 @@
 
 (goog-define log-style "font-weight: bold;")
 
+(goog-define custom-notify-fn "")
+
 (defn devtools-info []
-  #js {:server-port server-port
-       :server-host server-host
-       :build-id build-id
-       :proc-id proc-id
-       :runtime-id runtime-id})
+  #js {:server_port server-port
+       :server_host server-host
+       :build_id build-id
+       :proc_id proc-id
+       :runtime_id runtime-id
+       :ssl ssl})
+
+(defn get-server-protocol []
+  (if (and use-document-protocol
+           js/goog.global.location
+           (seq js/goog.global.location.protocol))
+    (str/replace js/goog.global.location.protocol ":" "")
+    (str "http" (when ssl "s"))))
 
 (defn get-server-host []
   (cond
     (and use-document-host
-         js/goog.global.document
-         js/goog.global.document.location
-         (seq js/goog.global.document.location.hostname))
-    js/document.location.hostname
+         js/goog.global.location
+         (seq js/goog.global.location.hostname))
+    js/goog.global.location.hostname
 
     (seq server-host)
     server-host
@@ -70,77 +89,21 @@
 (defn get-url-base []
   (if (seq devtools-url)
     devtools-url
-    (str "http" (when ssl "s") "://" (get-server-host) ":" server-port)))
+    (str (get-server-protocol) "://" (get-server-host) ":" server-port)))
 
 (defn get-ws-url-base []
   (-> (get-url-base)
       (str/replace #"^http" "ws")))
 
-(defn ws-url [runtime-type]
-  {:pre [(keyword? runtime-type)]}
-  (str (get-ws-url-base) "/ws/worker/" build-id "/" proc-id "/" runtime-id "/" (name runtime-type)))
-
-(defn ws-listener-url [client-type]
-  (str (get-ws-url-base) "/ws/listener/" build-id "/" proc-id "/" runtime-id))
-
-(defn files-url []
-  (str (get-url-base) "/worker/files/" build-id "/" proc-id "/" runtime-id))
-
-(def repl-print-fn
-  (if-not repl-pprint
-    pr-str
-    (fn repl-pprint [obj]
-      (with-out-str
-        (pprint obj)
-        ))))
-
-(defn repl-error [e]
-  (-> {:type :repl/invoke-error
-       ;; FIXME: may contain non-printable things and would break the client read
-       ;; :ex-data (ex-data e)
-       :error (.-message e)}
-      (cond->
-        (.hasOwnProperty e "stack")
-        (assoc :stack (.-stack e)))))
-
-(defonce repl-results-ref (atom {}))
-
-(defn repl-call [repl-expr repl-error]
-  (try
-    (let [result-id (str (random-uuid))
-          result {:type :repl/result
-                  :result-id result-id}
-
-          start (js/Date.now)
-          ret (repl-expr)
-          runtime (- (js/Date.now) start)]
-
-      ;; FIXME: this needs some kind of GC, shouldn't keep every single result forever
-      (swap! repl-results-ref assoc result-id {:timestamp (js/Date.now)
-                                               :result ret})
-
-      ;; FIXME: these are nonsense with multiple sessions. refactor this properly
-      (set! *3 *2)
-      (set! *2 *1)
-      (set! *1 ret)
-
-      (try
-        (let [printed (repl-print-fn ret)]
-          (swap! repl-results-ref assoc-in [result-id :printed] printed)
-          (assoc result :value printed :ms runtime))
-        (catch :default e
-          (js/console.log "encoding of result failed" e ret)
-          (assoc result :error "ENCODING FAILED, check host console"))))
-    (catch :default e
-      (set! *e e)
-      (repl-error e)
-      )))
+(defn get-ws-relay-url []
+  (str (get-ws-url-base) "/api/remote-relay?server-token=" server-token))
 
 ;; FIXME: this need to become idempotent somehow
 ;; but is something sets a print-fn we can't tell if that
 ;; will actually call ours. only a problem if the websocket is
 ;; reconnected though
 (defonce reset-print-fn-ref (atom nil))
+(defonce was-print-newline *print-newline*)
 
 (defn set-print-fns! [msg-fn]
   ;; cannot capture these before as they may change in between loading this file
@@ -148,54 +111,68 @@
   (let [original-print-fn cljs.core/*print-fn*
         original-print-err-fn cljs.core/*print-err-fn*]
 
+    (set! *print-newline* true)
+
+    ;; just prevent user code calling it, shadow-cljs setup code already did
+    (set! js/cljs.core.enable-console-print! (fn []))
+
     (reset! reset-print-fn-ref
       (fn reset-print-fns! []
+        (set! *print-newline* was-print-newline)
         (set-print-fn! original-print-fn)
         (set-print-err-fn! original-print-err-fn)))
 
     (set-print-fn!
-      (fn repl-print-fn [& args]
-        (msg-fn {:type :repl/out :text (str/join "" args)})
-        (when original-print-fn
-          (apply original-print-fn args))))
+      (fn repl-print-fn [s]
+        (msg-fn :stdout s)
+        (when (and original-print-fn (not= s "\n"))
+          (original-print-fn s))))
 
     (set-print-err-fn!
-      (fn repl-print-err-fn [& args]
-        (msg-fn {:type :repl/err :text (str/join "" args)})
-        (when original-print-err-fn
-          (apply original-print-err-fn args))))))
+      (fn repl-print-err-fn [s]
+        (msg-fn :stderr s)
+        (when (and original-print-err-fn (not= s "\n"))
+          (original-print-err-fn s))))))
 
 (defn reset-print-fns! []
   (when-let [x @reset-print-fn-ref]
     (x)
     (reset! reset-print-fn-ref nil)))
 
-(def async-ops #{:repl/require :repl/init :repl/session-start})
+(defn patch-goog! []
+  (when (= "goog" module-format)
+    ;; patch away the already declared exception
+    (set! js/goog.provide js/goog.constructNamespace_)
+    ;; goog.module calls this directly
+    (set! js/goog.isProvided_ (constantly false))))
 
-(def repl-queue-ref (atom false))
-(defonce repl-queue-arr (array))
+(defn add-warnings-to-info [{:keys [info] :as msg}]
+  (let [warnings
+        (->> (for [{:keys [resource-name warnings] :as src} (:sources info)
+                   :when (not (:from-jar src))
+                   warning warnings]
+               (assoc warning :resource-name resource-name))
+             (distinct)
+             (into []))]
+    (assoc-in msg [:info :warnings] warnings)))
 
-(defn process-next! []
-  (when-not @repl-queue-ref
-    (when-some [task (.shift repl-queue-arr)]
-      (reset! repl-queue-ref true)
-      (task))))
+(def custom-notify-types
+  #{:build-complete
+    :build-failure
+    :build-init
+    :build-start})
 
-(defn done! []
-  (reset! repl-queue-ref false)
-  (process-next!))
-
-(defn process-ws-msg [text handler]
-  (binding [reader/*default-data-reader-fn*
-            (fn [tag value]
-              [:tagged-literal tag value])]
-    (try
-      (let [msg (reader/read-string text)]
-        (.push repl-queue-arr #(handler msg done!)))
-      (process-next!)
-      (catch :default e
-        (js/console.warn "failed to parse websocket message" text e)
-        (throw e)))))
+(defn run-custom-notify! [msg]
+  ;; look up every time it case it gets reloaded
+  (when (seq custom-notify-fn)
+    (let [fn (js/goog.getObjectByName custom-notify-fn js/$CLJS)]
+      (if-not (fn? fn)
+        (js/console.warn "couldn't find custom :build-notify" custom-notify-fn)
+        (try
+          (fn msg)
+          (catch :default e
+            (js/console.error "Failed to run custom :build-notify" custom-notify-fn)
+            (js/console.error e)))))))
 
 (defn make-task-fn [{:keys [log-missing-fn log-call-async log-call]} {:keys [fn-sym fn-str async]}]
   (fn [next]
@@ -267,14 +244,73 @@
     (doseq [x js/goog.global.SHADOW_NS_RESET]
       (x ns))))
 
-(defonce custom-msg-subscribers-ref (atom {}))
+(defn goog-is-loaded? [name]
+  (js/$CLJS.SHADOW_ENV.isLoaded name))
 
-(defn subscribe! [sub-id callback]
-  (swap! custom-msg-subscribers-ref assoc sub-id callback))
+(def goog-base-rc
+  [:shadow.build.classpath/resource "goog/base.js"])
 
-(defn publish! [msg]
-  (doseq [[id callback] @custom-msg-subscribers-ref]
-    (try
-      (callback msg)
-      (catch :default e
-        (js/console.warn "failed to handle custom msg" id msg)))))
+(defn src-is-loaded? [{:keys [resource-id output-name] :as src}]
+  ;; FIXME: don't like this special case handling, but goog/base.js will always be loaded
+  ;; but not as a separate file
+  (or (= goog-base-rc resource-id)
+      (goog-is-loaded? output-name)))
+
+(defn prefilter-sources [reload-info sources]
+  (->> sources
+       (filter
+         (fn [{:keys [module] :as rc}]
+           (or (= "js" module-format)
+               (module-is-active? module))))
+       ;; don't reload namespaces that have ^:dev/never-reload meta
+       (remove (fn [{:keys [ns]}]
+                 (contains? (:never-load reload-info) ns)))))
+
+(defn filter-sources-to-get-optimized [{:keys [sources compiled] :as info} reload-info]
+  (->> sources
+       (prefilter-sources reload-info)
+       (filter
+         (fn [{:keys [ns resource-id] :as src}]
+           (or (contains? (:always-load reload-info) ns)
+               (not (src-is-loaded? src))
+               (and (contains? compiled resource-id)
+                    ;; never reload files from jar
+                    ;; they can't be hot-swapped so the only way they get re-compiled
+                    ;; is if they have warnings, which we can't to anything about
+                    (not (:from-jar src))))))
+       (into [])))
+
+(defn filter-sources-to-get-full [{:keys [sources compiled] :as info} reload-info]
+  (loop [affected #{}
+         sources-to-get []
+         [src & more] (prefilter-sources reload-info sources)]
+
+    (if-not src
+      sources-to-get
+      (let [{:keys [ns resource-id deps provides]}
+            src
+
+            should-reload?
+            (or (contains? (:always-load reload-info) ns)
+                ;; always load sources that haven't been loaded yet
+                ;; this fixes issues where a namespace is added to a build that has
+                ;; dependencies that haven't been loaded yet but were compiled before
+                (not (src-is-loaded? src))
+                (and (or (contains? compiled resource-id)
+                         (some affected deps))
+                     ;; never reload files from jar
+                     ;; they can't be hot-swapped so the only way they get re-compiled
+                     ;; is if they have warnings, which we can't to anything about
+                     (not (:from-jar src))))]
+
+        (if-not should-reload?
+          (recur affected sources-to-get more)
+          (recur
+            (set/union affected provides)
+            (conj sources-to-get src)
+            more))))))
+
+(defn filter-reload-sources [info reload-info]
+  (if (= "full" reload-strategy)
+    (filter-sources-to-get-full info reload-info)
+    (filter-sources-to-get-optimized info reload-info)))

@@ -5,7 +5,8 @@
             [shadow.build.npm :as npm]
             [shadow.build.resolve :refer (find-npm-resource)]
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
-            [shadow.cljs.util :as util]))
+            [shadow.cljs.util :as util])
+  (:import [clojure.lang ExceptionInfo]))
 
 (defmacro with-npm [[sym config] & body]
   `(let [~sym (npm/start (merge {:js-package-dirs ["test-env"]} ~config))]
@@ -45,6 +46,52 @@
       (is (= "node_modules/pkg-a/index-browser.js" resource-name))
       )))
 
+(deftest test-nested-browser-override
+  (with-npm [x {}]
+    (let [{:keys [file] :as require-from-rc}
+          (find-npm-resource x nil "pkg-nested-override/dir/bar")
+
+          ;; emulate require("./foo") from bar.js
+          {:keys [resource-name ns file package-name] :as rc}
+          (find-npm-resource x file "./foo")]
+
+      (is rc)
+      (is (string? resource-name))
+      (is (= 'module$node_modules$pkg_nested_override$dir$foo_browser ns))
+      (is (= "node_modules/pkg-nested-override/dir/foo.browser.js" resource-name))
+      )))
+
+(deftest test-nested-pkg-override
+  (with-npm [x {}]
+    (let [{:keys [file] :as require-from-rc}
+          (find-npm-resource x nil "pkg-nested-override/dir/bar")
+
+          ;; emulate require("pkg") when browser { "pkg" : "./pkg-override.js" }
+          {:keys [resource-name ns file package-name] :as rc}
+          (find-npm-resource x file "pkg")]
+
+      (is rc)
+      (is (string? resource-name))
+      (is (= 'module$node_modules$pkg_nested_override$pkg_override ns))
+      (is (= "node_modules/pkg-nested-override/pkg-override.js" resource-name))
+      )))
+
+(deftest test-browser-override-npm-package
+  (with-npm [x {}]
+    (let [{:keys [file] :as require-from-rc}
+          (find-npm-resource x nil "pkg-nested-override/dir/bar")
+
+          ;; emulate require("fs") in file
+          ;; should end up serving the empty rc because fs can't be loaded in the browser
+          {:keys [resource-name ns] :as rc}
+          (find-npm-resource x file "fs")]
+
+      (is rc)
+      (is (string? resource-name))
+      (is (= 'shadow$empty ns))
+      (is (= "shadow$empty.js" resource-name))
+      )))
+
 (deftest test-no-browser-override
   (with-npm [x {}]
     (let [{:keys [resource-name ns file package-name] :as rc}
@@ -59,13 +106,6 @@
       (is (= 'module$node_modules$pkg_a$index ns))
       (is (= "node_modules/pkg-a/index.js" resource-name))
       )))
-
-(comment (deftest test-babel-transform
-           (with-npm [x {}]
-
-             (let [source "var foo = 1; export { foo };"]
-               (pprint (npm/babel-convert-source x nil source))
-               ))))
 
 (deftest test-resolve-to-global
   (with-npm [x {}]
@@ -276,6 +316,24 @@
       (is (string? resource-name))
       (is (= "node_modules/extra-package/index.js" resource-name))
       )))
+
+(deftest test-asset-require
+  (with-npm [x {}]
+    (let [{:keys [file] :as rc1}
+          (find-npm-resource x nil "with-assets/index.js")]
+
+      (is (thrown-with-msg? ExceptionInfo #"failed to inspect"
+            (find-npm-resource x file "./foo.css")))
+
+      ;; can be configured to return empty instead of failing
+      (let [{:keys [ns]}
+            (find-npm-resource
+              (assoc-in x [:js-options :ignore-asset-requires] true)
+              file
+              "./foo.css")]
+
+        (is (= 'shadow$empty ns))
+        ))))
 
 (comment
   ;; FIXME: write proper tests for these

@@ -2,10 +2,13 @@
   (:require
     ["http" :as http]
     ["request" :as req]
-    ["./cjs.js" :as cjs]
+    ;; ["./cjs.js" :as cjs]
+    [demo.js-class :refer (Foo)]
     ["which" :as which]))
 
-(js/console.log "cjs" cjs)
+;; (js/console.log "cjs" cjs)
+
+(js/console.log "Foo" Foo)
 
 (prn [:goog.global js/goog.global.setTimeout])
 
@@ -27,6 +30,8 @@
 (defn main [& args]
   (js/console.log "starting server")
   (let [server (http/createServer #(request-handler %1 %2))]
+
+    (tap> [:hello-world js/process.env])
 
     (.listen server 3000
       (fn [err]

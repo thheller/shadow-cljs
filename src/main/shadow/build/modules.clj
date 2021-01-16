@@ -6,7 +6,6 @@
             [shadow.build.compiler :as impl]
             [shadow.build.resource :as rc]
             [shadow.build.data :as data]
-            [clojure.java.io :as io]
             [shadow.build.classpath :as cp]
             [shadow.build.log :as cljs-log]))
 
@@ -140,6 +139,7 @@
               used-by (get src-refs src-id)]
 
           (when (not= assigned-mod module-id)
+            ;; (tap> [::move assigned-mod module-id mod state])
             (throw
               (ex-info
                 (str "Module Entry \"" entry "\" was moved out of module \"" module-id "\".\n"
@@ -231,7 +231,7 @@
             (get-in state [::modules module-id])]
 
         (cond-> state
-          (seq prepend-js)
+          (or (seq prepend-js) (:force-prepend module))
           (add-module-pseudo-rc ::prepend module-id prepend-js)
 
           ;; bootstrap needs to append some load info

@@ -1,9 +1,7 @@
 (ns shadow.cljs.devtools.cli-test
   (:require [clojure.test :refer :all]
             [clojure.pprint :refer (pprint)]
-            [shadow.cljs.devtools.cli :as cli]
             [shadow.cljs.devtools.cli-opts :as cli-opts]))
-
 
 (deftest test-no-args
   (let [args []

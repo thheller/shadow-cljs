@@ -2,6 +2,7 @@ package shadow.build.closure;
 // needs to be in this package because a bunch of stuff we need is package protected
 
 import com.google.javascript.jscomp.*;
+import com.google.javascript.jscomp.Compiler;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
@@ -13,11 +14,11 @@ import java.util.*;
  */
 public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callback {
 
-    private final AbstractCompiler compiler;
+    private final Compiler compiler;
     private final boolean shadowKeywords;
     private final Map<String, ConstantRef> constants = new HashMap<>();
 
-    public ReplaceCLJSConstants(AbstractCompiler compiler, boolean shadowKeywords) {
+    public ReplaceCLJSConstants(Compiler compiler, boolean shadowKeywords) {
         this.compiler = compiler;
         this.shadowKeywords = shadowKeywords;
     }
@@ -56,15 +57,13 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                 }
             }
 
+            // sometimes the closure-compiler selects a shared module that isn't cljs
+            // and doesn't have the constants input to place things in
+            // in that case just append to cljs.core things that is guaranteed to be shared among all
+            // mostly affects :npm-module since it creates quite a few modules
+            // not a big deal if things get placed in cljs.core, closure might move it on its own again
             if (target == null) {
-                throw new IllegalStateException(
-                        String.format(
-                                "Could not find where to put constant %s. Used by %s, selected common dep %s",
-                                ref.varName,
-                                ref.usedIn,
-                                targetModule.getName()
-                        )
-                );
+                target = compiler.getScriptNode("cljs/core.cljs");
             }
 
             Node constantNode;

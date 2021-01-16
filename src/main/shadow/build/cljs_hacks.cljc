@@ -6,7 +6,7 @@
     [cljs.env :as env]
     [cljs.core :as core]
     [cljs.test :as test]
-    [shadow.debug :refer (?> ?-> ?->>)]
+    [shadow.debug :as dbg :refer (?> ?-> ?->>)]
     [shadow.jvm-log :as log]))
 
 ;; replacing some internal cljs.analyzer/compiler fns
@@ -33,7 +33,8 @@
       [::ana/namespaces current-ns :shadow/js-access-properties] conj-to-set prop)))
 
 (defn is-shadow-shim? [ns]
-  (str/starts-with? (str ns) "shadow.js.shim"))
+  (or (str/starts-with? (str ns) "shadow.js.shim")
+      (str/starts-with? (str ns) "import$")))
 
 (defn resolve-js-var [ns sym current-ns]
   ;; quick hack to record all accesses to any JS mod
@@ -523,8 +524,7 @@
   [{:keys [info env form] :as ast}]
   (if-let [const-expr (:const-expr ast)]
     (comp/emit (assoc const-expr :env env))
-    (let [{:keys [options] :as cenv} @env/*compiler*
-          var-name (:name info)]
+    (let [var-name (:name info)]
 
       ;; We need a way to write bindings out to source maps and javascript
       ;; without getting wrapped in an emit-wrap calls, otherwise we get
@@ -534,6 +534,9 @@
         ;; (prevents duplicate fn-param-names)
         (:binding-form? ast)
         (comp/emits (comp/munge ast))
+
+        (= 'js/-Infinity form)
+        (comp/emits "-Infinity")
 
         ;; insufficient fix still rewriting unless es5+
         ;; https://dev.clojure.org/jira/browse/CLJS-1620
@@ -561,10 +564,7 @@
         :else
         (when-not (= :statement (:context env))
           (comp/emit-wrap env
-            (comp/emits
-              (cond-> info
-                (not= form 'js/-Infinity)
-                (comp/munge)))))))))
+            (comp/emits (comp/munge info))))))))
 
 (defmethod comp/emit* :var [expr] (shadow-emit-var expr))
 (defmethod comp/emit* :binding [expr] (shadow-emit-var expr))
@@ -684,10 +684,345 @@
                      (assoc :tag (symbol type))))))
        (js/goog.define ~defname ~default))))
 
+(defn shadow-defonce
+  "defs name to have the root value of init iff the named var has no root value,
+  else init is unevaluated"
+  [&from &env x init]
+  (if (= :release (:shadow.build/mode &env))
+    ;; release builds will never overwrite a defonce, skip DCE-unfriendly verbose code
+    `(def ~x ~init)
+    `(when-not (cljs.core/exists? ~x)
+       (def ~x ~init))))
+
+;; https://github.com/clojure/clojurescript/commit/1589e5848ebb56ab451cb73f955dbc0b01e7aba0
+;; oops, seem to have missed keyword?
+(defn shadow-all-values? [exprs]
+  (every? #(or (nil? %) (symbol? %) (string? %) (number? %) (keyword? %) (true? %) (false? %)) exprs))
+
+(defn has-required-arity? [mps argc]
+  (reduce
+    (fn [_ params]
+      (when (= (count params) argc)
+        (reduced true)))
+    false mps))
+
+;; I do not like private ...
+(defn record-tag?
+  [tag]
+  (boolean (and (symbol? tag)
+                (some? (namespace tag))
+                (get-in @env/*compiler* [::ana/namespaces (symbol (namespace tag)) :defs (symbol (name tag)) :record]))))
+
+(defn record-basis
+  [tag]
+  (let [positional-factory (symbol (str "->" (name tag)))
+        fields (first (get-in @env/*compiler* [::ana/namespaces (symbol (namespace tag)) :defs positional-factory :method-params]))]
+    (into #{} fields)))
+
+(defn record-with-field?
+  [tag field]
+  (and (record-tag? tag)
+       (contains? (record-basis tag) field)))
+
+(defn invalid-arity? [{variadic :variadic? :keys [max-fixed-arity method-params]} argc]
+  (and (not (has-required-arity? method-params argc))
+       (or (not variadic)
+           (and variadic (< argc max-fixed-arity)))))
+
+(defn make-invoke [invoke-type env form fexpr args-exprs]
+  {:op :invoke
+   :env env
+   :fn fexpr
+   :args args-exprs
+   :invoke-type invoke-type
+   :form form
+   :children [:fn :args]})
+
+(defn shadow-parse-invoke*
+  [env [f & args :as form]]
+  (let
+    [enve (assoc env :context :expr)
+     fexpr (ana/analyze enve f)
+
+     argc (count args)
+     ftag (ana/infer-tag env fexpr)
+
+     ;; delay parsing args
+     ;; :maybe-ifn case may decide to wrap in which case args shouldn't be analyzed twice
+     args-exprs (delay (mapv #(ana/analyze enve %) args))
+
+     info (:info fexpr)
+     ;; fully-qualified symbol name of protocol-fn (if protocol-fn)
+     protocol (:protocol info)]
+
+    (when (:fn-var info)
+      (when (invalid-arity? (:info fexpr) argc)
+        (ana/warning :fn-arity env {:name (:name info) :argc argc})))
+
+    (let [deprecated? (-> fexpr :info :deprecated)
+          no-warn? (-> form meta :deprecation-nowarn)]
+      (when (and (boolean deprecated?)
+                 (not (boolean no-warn?)))
+        (ana/warning :fn-deprecated env {:fexpr fexpr})))
+
+    (when (some? (-> fexpr :info :type))
+      (ana/warning :invoke-ctor env {:fexpr fexpr}))
+
+    (cond
+      ;; :opt-not, optimizes to !thing, skipping call to (not thing)
+      ;; FIXME: a cljs.core/not macro could do this? all the other stuff does? probably not done for legacy reasons?
+      (and (= (:name info) 'cljs.core/not) (= 1 argc))
+      (let [arg-tag (ana/infer-tag enve (first @args-exprs))]
+        (if (= 'boolean arg-tag)
+          (make-invoke :opt-not env form fexpr @args-exprs)
+          ;; regular cljs.core/not call
+          (make-invoke :fn env form fexpr @args-exprs)))
+
+      ;; :opt-count, optimized call to .length for strings/arrays, skipping actual (count ...)
+      (and (= (:name info) 'cljs.core/count)
+           (let [arg-tag (ana/infer-tag enve (first @args-exprs))]
+             (contains? '#{string array} arg-tag)))
+      (make-invoke :opt-count env form fexpr @args-exprs)
+
+      ;; (:foo bar), use optimized ifn invoke
+      (or (keyword? f) (= 'cljs.core/Keyword ftag))
+      (do (when-not (or (== 1 argc) (== 2 argc))
+            (ana/warning :fn-arity env {:name f :argc argc}))
+          ;; FIXME: check first arg for defrecord field access opt
+          (let [arg-expr (first @args-exprs)
+                arg-tag (ana/infer-tag enve arg-expr)]
+
+            (if (and (and (keyword? f) (nil? (namespace f)))
+                     (== 1 argc)
+                     (let [field-sym (symbol (name f))]
+                       (record-with-field? arg-tag field-sym)))
+              ;; emit optimized (. thing -foo) for (:foo thing) if thing is a known record with foo field
+              (ana/analyze env
+                (with-meta
+                  (list '. (first args) (symbol (str "-" (name f))))
+                  (meta form)))
+
+              ;; kw.ifn1(foo)
+              (make-invoke :ifn env form fexpr @args-exprs))))
+
+      ;; f is a protocol-fn, figure out if it can be invoke directly or through dispatch fn
+      protocol
+      ;; FIXME: throw proper error
+      (do (assert (pos? argc) "protocol functions require at least one argument")
+          (let [arg-expr (first @args-exprs)
+                arg-tag (ana/infer-tag enve arg-expr)
+
+                use-direct-invoke?
+                (and arg-tag
+                     ;; dunno why its in env but defprotocol sets it to make the helper fns it creates
+                     (or ana/*cljs-static-fns* (:protocol-inline env))
+                     (or (= arg-tag 'not-native)
+                         (= protocol arg-tag)
+                         ;; ignore new type hints for now - David
+                         (and (not (set? arg-tag))
+                              (not ('#{any clj clj-or-nil clj-nil number string boolean function object array js} arg-tag))
+                              (when-let [ps (:protocols (ana/resolve-existing-var env arg-tag))]
+                                (contains? ps protocol)))))]
+
+            ;; FIXME: validate argc to match protocol-fn
+
+            (if use-direct-invoke?
+              {:op :invoke
+               :env env
+               :form form
+               :fn fexpr
+               :invoke-type :protocol
+               :protocol-name protocol
+               :protocol-fn (:name info)
+               :args @args-exprs
+               :children [:fn :args]}
+
+              ;; invoke protocol dispatch directly, which is always a function
+              (make-invoke :fn env form fexpr @args-exprs))))
+
+      ;; optional/dangerous optimization!
+      ;; (thing foo bar) when thing is tagged not-native, invoke as IFn directly
+      ;; breaks code if tagged incorrectly but bypasses property check
+      (= 'not-native ftag)
+      (make-invoke :ifn env form fexpr @args-exprs)
+
+      ;; cases where (thing foo bar) should be invoked directly as thing(foo, bar)
+      ;; without going through further CLJS related checks for variadic/IFn support
+      (or (= 'function ftag)
+          (:foreign info)
+          (let [ns (:ns info)]
+            ;; thing resolved to fully qualified ns, invoke as function if no analyzer data is found for ns
+            ;; likely means JS namespaces (eg. goog.string, ...)
+            (or (= 'js ns)
+                (= 'Math ns)
+                (and ns (not (contains? (::ana/namespaces @env/*compiler*) ns)))))
+          ;; opt-in option to optimize function invoke for known JS types assumed to be functions
+          ;; this breaks stuff when JS objects implement IFn but are ^js tagged
+          ;; (defn do-something [^js thing]
+          ;;   (thing "foo" "bar"))
+          ;; will try to call thing as a regular function only when enabled
+          ;; otherwise will use the usual thing.cljs$invoke$arity2 ? ... : thing.call(null, "foo", "bar")
+          ;; with arg rebinding. could probably be a little smarter about this.
+          ;; mostly want to optimize invokes for JS required code where most of the time it will be a function
+          ;; and very very rarely (never in my code) something that implements IFn
+          (and (:shadow.build/tweaks env)
+               (ana/js-tag? ftag)))
+      (make-invoke :fn env form fexpr @args-exprs)
+
+      ;; no further optimizations for development code, always go through .call
+      ;; FIXME: should still check arity
+      ;; (def ^:dynamic *thing* ...) should go through .call always
+      (or (not ana/*cljs-static-fns*)
+          (:dynamic info))
+      (make-invoke :dot-call env form fexpr @args-exprs)
+
+      ;; (defn thing ...) might be variadic or have multiple arities
+      (:fn-var info)
+      (let [variadic? (:variadic? info)
+            mps (:method-params info)
+            mfa (:max-fixed-arity info)]
+        (cond
+          ;; if only one method, invoke directly, always a function
+          (and (not variadic?) (= (count mps) 1))
+          (make-invoke :fn env form fexpr @args-exprs)
+
+          ;; direct dispatch to variadic case
+          (and variadic? (> argc mfa))
+          {:op :invoke
+           :env env
+           :form form
+           :fn (update-in fexpr [:info]
+                 (fn [info]
+                   (-> info
+                       ;; FIXME: illegal for analyzer to call compiler fn
+                       ;; not sure why this is needed in the first place?
+                       (assoc :name (symbol (str (comp/munge info))))
+                       ;; bypass local fn-self-name munging, we're emitting direct
+                       ;; shadowing already applied
+                       (update-in [:info]
+                         #(-> % (dissoc :shadow) (dissoc :fn-self-name))))))
+           :invoke-type :variadic-invoke
+           :max-fixed-arity mfa
+           :args @args-exprs
+           :children [:fn :args]}
+
+          ;; direct dispatch to specific arity case
+          (has-required-arity? mps argc)
+          (make-invoke :ifn env form
+            (update-in fexpr [:info]
+              (fn [info]
+                (-> info
+                    (assoc :name (symbol (str (comp/munge info))))
+                    ;; bypass local fn-self-name munging, we're emitting direct
+                    ;; shadowing already applied
+                    (update-in [:info]
+                      #(-> % (dissoc :shadow) (dissoc :fn-self-name))))))
+            @args-exprs)
+
+          ;; dispatch to variadic helper fn
+          :else
+          (make-invoke :fn env form fexpr @args-exprs)))
+
+      ;; can always invoke multi-methods via ifn. don't need to check
+      (= 'cljs.core/MultiFn ftag)
+      (make-invoke :ifn env form fexpr @args-exprs)
+
+      ;; fallback where something might be a function or IFn impl but we can't tell at compile time
+      ;; need to wrap higher order calls to avoid repeating argument construction code
+      ;;   (x {:foo "bar"})
+      ;; would otherwise end up emitting code that repeats twice (map create)
+      ;;   x.ifn1 ? x.ifn1(make_map(:foo, "bar")) : x.call(make_map(:foo, "bar"))
+      ;; this can get rather large and impacts code size quite a bit
+
+      ;; thus we wrap in
+      ;;   (let [a1 {:foo "bar"}] (x a1))
+      ;; ending with (auto-wrapped in IIFE when required)
+      ;;   var a1 = make_map(:foo, "bar");
+      ;;   x.ifn1 ? x.ifn(a1) : x.call(a1)
+
+      ;; or function expressions
+      ;;   ((deref m) x)
+      ;;   (let [f (deref m)] (f x))
+
+      :maybe-ifn
+      (let [bind-f-expr? (not (symbol? f))
+            bind-args? (not (shadow-all-values? args))]
+
+        (if (or bind-f-expr? bind-args?)
+          (ana/analyze env
+            (-> (let [arg-syms (when bind-args? (take argc (repeatedly gensym)))
+                      f-sym (when bind-f-expr? (gensym "fexpr__"))
+                      bindings (cond-> []
+                                 bind-args? (into (interleave arg-syms args))
+                                 bind-f-expr? (conj f-sym f))]
+                  `(let [~@bindings]
+                     (~(if bind-f-expr? f-sym f)
+                       ~@(if bind-args? arg-syms args))))
+                (with-meta (meta form))))
+
+
+          ;; direct thing.ifn1 ? thing.ifn(some, arg) : thing.call(some, arg)
+          (make-invoke :maybe-ifn env form fexpr @args-exprs)
+          )))))
+
+;; gotta hate private vars sometimes
+(defn comma-sep [xs]
+  (interpose "," xs))
+
+(defn protocol-prefix [psym]
+  (str (-> (str psym)
+           (.replace \. \$)
+           (.replace \/ \$))
+       "$"))
+
+(defmethod comp/emit* :invoke
+  [{f :fn :keys [invoke-type args env] :as expr}]
+  (comp/emit-wrap env
+    (case invoke-type
+      :opt-not
+      (comp/emits "(!(" (first args) "))")
+
+      :opt-count
+      (comp/emits "((" (first args) ").length)")
+
+      :protocol
+      (let [protocol-name (:protocol-name expr)
+            protocol-fn (:protocol-fn expr)
+            pimpl (str (munge (protocol-prefix protocol-name))
+                       (munge (name protocol-fn))
+                       "$arity$" (count args))]
+        (comp/emits (first args) "." pimpl "(" (comma-sep (cons "null" (rest args))) ")"))
+
+      :variadic-invoke
+      (let [mfa (:max-fixed-arity expr)]
+        (comp/emits f ".cljs$core$IFn$_invoke$arity$variadic(" (comma-sep (take mfa args))
+          (when-not (zero? mfa) ",")
+          "cljs.core.prim_seq.cljs$core$IFn$_invoke$arity$2(["
+          (comma-sep (drop mfa args)) "], 0))"))
+
+      :ifn
+      (comp/emits f ".cljs$core$IFn$_invoke$arity$" (count args) "(" (comma-sep args) ")")
+
+      :fn
+      (comp/emits f "(" (comma-sep args) ")")
+
+      :maybe-ifn
+      (let [fprop (str ".cljs$core$IFn$_invoke$arity$" (count args))]
+        (if ana/*fn-invoke-direct*
+          (comp/emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
+            f "(" (comma-sep args) "))")
+          (comp/emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
+            f ".call(" (comma-sep (cons "null" args)) "))")))
+
+      :dot-call
+      (comp/emits f ".call(" (comma-sep (cons "null" args)) ")"))))
+
 (defn install-hacks! []
   ;; cljs.analyzer tweaks
   (replace-fn! #'ana/load-core shadow-load-core)
   (replace-fn! #'ana/resolve-var shadow-resolve-var)
+  ;; (replace-fn! #'ana/all-values? shadow-all-values?)
+  (replace-fn! #'ana/parse-invoke* shadow-parse-invoke*)
 
   ;; cljs.compiler tweaks
   (replace-fn! #'comp/emits shadow-emits)
@@ -696,6 +1031,7 @@
   (replace-fn! #'comp/find-ns-starts-with shadow-find-ns-starts-with)
 
   (replace-fn! #'cljs.core/goog-define goog-define)
+  (replace-fn! #'cljs.core/defonce shadow-defonce)
 
   ;; remove these for now, not worth the trouble
   ;; (replace-fn! #'test/deftest @#'shadow-deftest)
@@ -704,136 +1040,6 @@
 
 
 (in-ns 'cljs.compiler)
-
-;; THIS IS FAR TOO MUCH WORK TO BE DONE IN cljs.compiler
-;; it should be done in cljs.analyzer and probably create separate
-;; ast ops for each invoke style
-
-;; customizing it here so I can figure out how to best structure it
-;; one of the problem I need to solve is anonymous functions always getting
-;; invoked via .call and never being able to tell the compiler that it is a
-;; regular function and never IFn.
-
-(defmethod emit* :invoke
-  [{f :fn :keys [args env] :as expr}]
-  (let [info (:info f)
-        ftag (ana/infer-tag env f)
-        fn? (or (and (:shadow.build/tweaks env) (= 'function ftag))
-                (and ana/*cljs-static-fns*
-                     (not (:dynamic info))
-                     (:fn-var info)))
-
-        ;; can't short circuit since protocols will be :fn-var and thus fn? is true
-        ;; this means the variadic-invoke (if fn? ... stuff below will do all the work
-        ;; but proto? will supersede it. should probably look into skipping those parts
-        protocol (:protocol info)
-        tag (ana/infer-tag env (first (:args expr)))
-        proto? (and protocol tag
-                    (or (and ana/*cljs-static-fns* protocol (= tag 'not-native))
-                        (and
-                          (or ana/*cljs-static-fns*
-                              (:protocol-inline env))
-                          (or (= protocol tag)
-                              ;; ignore new type hints for now - David
-                              (and (not (set? tag))
-                                   (not ('#{any clj clj-or-nil clj-nil number string boolean function object array js} tag))
-                                   (when-let [ps (:protocols (ana/resolve-existing-var env tag))]
-                                     (ps protocol)))))))
-        opt-not? (and (= (:name info) 'cljs.core/not)
-                      (= tag 'boolean))
-        opt-count? (and (= (:name info) 'cljs.core/count)
-                        (boolean ('#{string array} tag)))
-        ns (:ns info)
-        js? (or (= ns 'js) (= ns 'Math) (:foreign info)) ;; foreign - i.e. global / Node.js library
-        goog? (when ns
-                (or (= ns 'goog)
-                    (not (contains? (::ana/namespaces @env/*compiler*) ns))))
-
-        ifn? (or (= 'cljs.core/Keyword ftag)
-                 ;; experiment with allowing not-native for ftag
-                 ;; (^not-native thing 1 2 3) as a way to tell the compiler to use IFn invoke
-                 ;; without checking. breaks if arity is not implemented, just like not-native for other protocols?
-                 ;; needs to back off on protocol fns tagged with not-native
-                 ;; (defprotocol Something (^not-native some-fn [x]))
-                 (and (:shadow.build/tweaks env) (not protocol) (= 'not-native ftag))
-                 (let [f (ana/unwrap-quote f)]
-                   (and (= (-> f :op) :const)
-                        (keyword? (-> f :form)))))
-
-        [f variadic-invoke]
-        (if fn?
-          (let [arity (count args)
-                variadic? (:variadic? info)
-                mps (:method-params info)
-                mfa (:max-fixed-arity info)]
-            (cond
-              ;; if only one method, no renaming needed
-              (and (not variadic?)
-                   (= (count mps) 1))
-              [f nil]
-
-              ;; direct dispatch to variadic case
-              (and variadic? (> arity mfa))
-              [(update-in f [:info]
-                 (fn [info]
-                   (-> info
-                       (assoc :name (symbol (str (munge info) ".cljs$core$IFn$_invoke$arity$variadic")))
-                       ;; bypass local fn-self-name munging, we're emitting direct
-                       ;; shadowing already applied
-                       (update-in [:info]
-                         #(-> % (dissoc :shadow) (dissoc :fn-self-name))))))
-               {:max-fixed-arity mfa}]
-
-              ;; direct dispatch to specific arity case
-              :else
-              (let [arities (map count mps)]
-                (if (some #{arity} arities)
-                  [(update-in f [:info]
-                     (fn [info]
-                       (-> info
-                           (assoc :name (symbol (str (munge info) ".cljs$core$IFn$_invoke$arity$" arity)))
-                           ;; bypass local fn-self-name munging, we're emitting direct
-                           ;; shadowing already applied
-                           (update-in [:info]
-                             #(-> % (dissoc :shadow) (dissoc :fn-self-name)))))) nil]
-                  [f nil]))))
-          [f nil])]
-    (emit-wrap env
-      (cond
-        opt-not?
-        (emits "(!(" (first args) "))")
-
-        opt-count?
-        (emits "((" (first args) ").length)")
-
-        proto?
-        (let [pimpl (str (munge (protocol-prefix protocol))
-                         (munge (name (:name info))) "$arity$" (count args))]
-          (emits (first args) "." pimpl "(" (comma-sep (cons "null" (rest args))) ")"))
-
-        ifn?
-        (emits f ".cljs$core$IFn$_invoke$arity$" (count args) "(" (comma-sep args) ")")
-
-        variadic-invoke
-        (let [mfa (:max-fixed-arity variadic-invoke)]
-          (emits f "(" (comma-sep (take mfa args))
-            (when-not (zero? mfa) ",")
-            "cljs.core.prim_seq.cljs$core$IFn$_invoke$arity$2(["
-            (comma-sep (drop mfa args)) "], 0))"))
-
-        (or fn? js? goog?)
-        (emits f "(" (comma-sep args) ")")
-
-        :else
-        (if (and ana/*cljs-static-fns* (#{:var :local :js-var} (:op f)))
-          ;; higher order case, static information missing
-          (let [fprop (str ".cljs$core$IFn$_invoke$arity$" (count args))]
-            (if ana/*fn-invoke-direct*
-              (emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
-                f "(" (comma-sep args) "))")
-              (emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
-                f ".call(" (comma-sep (cons "null" args)) "))")))
-          (emits f ".call(" (comma-sep (cons "null" args)) ")"))))))
 
 ;; FIXME: patch this in CLJS. its the only externs inference call I can't work around
 ;; cljs will blindly generate (set! (.. Thing -prototype -something) ...) for
@@ -928,3 +1134,174 @@
                js (string/join " && " (repeat n "(typeof ~{} !== 'undefined')"))]
       (bool-expr (concat (core/list 'js* js) syms)))
     `(some? ~x)))
+
+(comment
+
+  (core/defmacro defprotocol
+    "A protocol is a named set of named methods and their signatures:
+
+    (defprotocol AProtocolName
+      ;optional doc string
+      \"A doc string for AProtocol abstraction\"
+
+    ;method signatures
+      (bar [this a b] \"bar docs\")
+      (baz [this a] [this a b] [this a b c] \"baz docs\"))
+
+    No implementations are provided. Docs can be specified for the
+    protocol overall and for each method. The above yields a set of
+    polymorphic functions and a protocol object. All are
+    namespace-qualified by the ns enclosing the definition The resulting
+    functions dispatch on the type of their first argument, which is
+    required and corresponds to the implicit target object ('this' in
+    JavaScript parlance). defprotocol is dynamic, has no special compile-time
+    effect, and defines no new types.
+
+    (defprotocol P
+      (foo [this])
+      (bar-me [this] [this y]))
+
+    (deftype Foo [a b c]
+      P
+      (foo [this] a)
+      (bar-me [this] b)
+      (bar-me [this y] (+ c y)))
+
+    (bar-me (Foo. 1 2 3) 42)
+    => 45
+
+    (foo
+      (let [x 42]
+        (reify P
+          (foo [this] 17)
+          (bar-me [this] x)
+          (bar-me [this y] x))))
+    => 17"
+    [psym & doc+methods]
+    (core/let [p (:name (cljs.analyzer/resolve-var (dissoc &env :locals) psym))
+               [opts methods]
+               (core/loop [opts {:protocol-symbol true}
+                           methods []
+                           sigs doc+methods]
+                 (core/if-not (seq sigs)
+                   [opts methods]
+                   (core/let [[head & tail] sigs]
+                     (core/cond
+                       (core/string? head)
+                       (recur (assoc opts :doc head) methods tail)
+                       (core/keyword? head)
+                       (recur (assoc opts head (first tail)) methods (rest tail))
+                       (core/list? head)
+                       (recur opts (conj methods head) tail)
+                       :else
+                       (throw #?(:clj  (Exception.
+                                         (core/str "Invalid protocol, " psym " received unexpected argument"))
+                                 :cljs (js/Error.
+                                         (core/str "Invalid protocol, " psym " received unexpected argument"))))
+                       ))))
+               psym (vary-meta psym merge opts)
+               ns-name (core/-> &env :ns :name)
+               fqn (core/fn [n] (symbol (core/str ns-name) (core/str n)))
+               prefix (protocol-prefix p)
+               _ (core/doseq [[mname & arities] methods]
+                   (core/when (some #{0} (map count (filter vector? arities)))
+                     (throw
+                       #?(:clj  (Exception.
+                                  (core/str "Invalid protocol, " psym
+                                            " defines method " mname " with arity 0"))
+                          :cljs (js/Error.
+                                  (core/str "Invalid protocol, " psym
+                                            " defines method " mname " with arity 0"))))))
+               expand-sig (core/fn [fname slot sig]
+                            (core/let [sig (core/if-not (every? core/symbol? sig)
+                                             (mapv (core/fn [arg]
+                                                     (core/cond
+                                                       (core/symbol? arg) arg
+                                                       (core/and (map? arg) (core/some? (:as arg))) (:as arg)
+                                                       :else (gensym))) sig)
+                                             sig)
+
+                                       fqn-fname (fqn fname)
+                                       fsig (first sig)
+
+                                       impl-sym (with-meta (gensym "impl_fn") {:tag 'function})
+
+                                       ;; last check protocol on js null,string,function,array,object or default
+                                       ;; this is identical for all impls so handled in a helper fn
+                                       ;; default impls are registered via (goog.object/set protocol-fn "string" (fn [...] ...))
+                                       ;; invoke still happens here since the arity varies
+                                       check
+                                       `(let [~impl-sym (js/shadow.cljs_helpers.find_protocol_impl ~fqn-fname ~fsig)]
+                                          (if-not (nil? ~impl-sym)
+                                            (~impl-sym ~@sig)
+                                            (throw
+                                              (missing-protocol
+                                                ~(core/str psym "." fname) ~fsig))))
+
+                                       ;; FIXME: this should actually be the first check, but that requires rewriting direct protocol invoke too
+                                       ;; then check protocol fn in metadata (only when protocol is marked with :extend-via-metadata true)
+                                       check
+                                       (core/if-not (:extend-via-metadata opts)
+                                         check
+                                         `(if-let [meta-impl# (-> ~fsig (core/meta) (core/get '~fqn-fname))]
+                                            ;; FIXME: this will go through IFn property check, can this even be IFn? likely only function?
+                                            (meta-impl# ~@sig)
+                                            ~check))
+
+                                       ;; check protocol property on object (first check actually executed)
+                                       check
+                                       `(if (and (not (nil? ~fsig))
+                                                 (not (nil? (. ~fsig ~(symbol (core/str "-" slot)))))) ;; Property access needed here.
+                                          (. ~fsig ~slot ~@sig)
+                                          ~check)]
+                              `(~sig ~check)))
+               psym (core/-> psym
+                             (vary-meta update-in [:jsdoc] conj "@interface")
+                             (vary-meta assoc-in [:protocol-info :methods]
+                               (into {}
+                                 (map
+                                   (core/fn [[fname & sigs]]
+                                     (core/let [doc (core/as-> (last sigs) doc
+                                                      (core/when (core/string? doc) doc))
+                                                sigs (take-while vector? sigs)]
+                                       [(vary-meta fname assoc :doc doc)
+                                        (vec sigs)]))
+                                   methods)))
+                             ;; for compatibility with Clojure
+                             (vary-meta assoc-in [:sigs]
+                               (into {}
+                                 (map
+                                   (core/fn [[fname & sigs]]
+                                     (core/let [doc (core/as-> (last sigs) doc
+                                                      (core/when (core/string? doc) doc))
+                                                sigs (take-while vector? sigs)]
+                                       [(keyword fname) {:name fname :arglists (list* sigs) :doc doc}]))
+                                   methods))))
+               method (core/fn [[fname & sigs]]
+                        (core/let [doc (core/as-> (last sigs) doc
+                                         (core/when (core/string? doc) doc))
+                                   sigs (take-while vector? sigs)
+                                   amp (core/when (some #{'&} (apply concat sigs))
+                                         (cljs.analyzer/warning
+                                           :protocol-with-variadic-method
+                                           &env {:protocol psym :name fname}))
+                                   _ (core/when-some [existing (core/get (-> &env :ns :defs) fname)]
+                                       (core/when-not (= p (:protocol existing))
+                                         (cljs.analyzer/warning
+                                           :protocol-with-overwriting-method
+                                           {} {:protocol psym :name fname :existing existing})))
+                                   slot (symbol (core/str prefix (munge (name fname))))
+                                   fname (vary-meta fname assoc
+                                           :protocol p
+                                           :doc doc)]
+                          `(defn ~fname
+                             ~@(map (core/fn [sig]
+                                      (expand-sig fname
+                                        (symbol (core/str slot "$arity$" (count sig)))
+                                        sig))
+                                 sigs))))]
+      `(do
+         (set! ~'*unchecked-if* true)
+         (def ~psym (~'js* "function(){}"))
+         ~@(map method methods)
+         (set! ~'*unchecked-if* false)))))

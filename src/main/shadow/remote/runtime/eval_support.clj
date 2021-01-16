@@ -4,6 +4,7 @@
     [clojure.walk :as walk]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.remote.runtime.api :as p]
+    [shadow.remote.runtime.shared :as shared]
     [shadow.remote.runtime.obj-support :as obj-support]
     ))
 
@@ -24,35 +25,48 @@
 (comment
   (apply-wrap 123 `(identity ~'?CODE?)))
 
-(defn eval-clj
+(defn clj-eval
   [{:keys [runtime obj-support]}
-   {:keys [code ns wrap]
-    :or {ns 'user}
-    :as msg}]
+   {:keys [input] :as msg}]
 
-  (binding [*ns* (find-ns ns)
-            get-ref #(get-ref* obj-support %)]
-    (try
-      (let [val
-            (cond-> (read-string code)
-              wrap
-              (apply-wrap (read-string wrap)))
+  (let [{:keys [code ns wrap]
+         :or {ns 'user}}
+        input]
+    (binding [*ns* (find-ns ns)
+              get-ref #(get-ref* obj-support %)]
+      (try
+        (let [form
+              (read-string code)
 
-            res
-            (eval val)
+              eval-form
+              (cond-> form
+                wrap
+                (apply-wrap (read-string wrap)))
 
-            ref-oid
-            (obj-support/register obj-support res {:code code
-                                                   :ns ns})]
+              eval-start
+              (System/currentTimeMillis)
 
-        (p/reply runtime msg
-          {:op :eval-result-ref
-           :ref-oid ref-oid}))
+              res
+              (eval eval-form)
 
-      (catch Exception e
-        (p/reply runtime msg
-          {:op :eval-error
-           :e (d/datafy e)})))))
+              eval-ms
+              (- (System/currentTimeMillis) eval-start)
+
+              ref-oid
+              (obj-support/register obj-support res {:code code
+                                                     :ns ns})]
+
+          (shared/reply runtime msg
+            {:op :eval-result-ref
+             :eval-ms eval-ms
+             :eval-ns (symbol (str *ns*))
+             :ref-oid ref-oid}))
+
+        (catch Exception e
+          (let [ex-oid (obj-support/register obj-support e {:input input})]
+            (shared/reply runtime msg
+              {:op :eval-runtime-error
+               :ex-oid ex-oid})))))))
 
 (defn start [runtime obj-support]
   (let [svc
@@ -62,7 +76,7 @@
     (p/add-extension runtime
       ::ext
       {:ops
-       {:eval-clj #(eval-clj svc %)}})
+       {:clj-eval #(clj-eval svc %)}})
 
     svc))
 

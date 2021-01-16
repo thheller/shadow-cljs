@@ -1,25 +1,12 @@
 (ns shadow.cljs.devtools.client.node
-  (:require [shadow.cljs.devtools.client.env :as env]
-            ["ws" :as ws]
-            [cljs.reader :as reader]
-            [goog.object :as gobj]))
-
-(defonce client-id (random-uuid))
-
-(defonce ws-ref (volatile! nil))
-
-(defn ws-close []
-  (when-some [tcp @ws-ref]
-    (.close tcp)
-    (vreset! ws-ref nil)))
-
-(defn ws-msg [msg]
-  (when-some [ws @ws-ref]
-    (.send ws (pr-str msg)
-      (fn [err]
-        (when err
-          (js/console.error "REPL msg send failed" err))))
-    ))
+  (:require
+    ["ws" :as ws]
+    [cljs.reader :as reader]
+    [goog.object :as gobj]
+    [shadow.remote.runtime.shared :as shared]
+    [shadow.cljs.devtools.client.shared :as cljs-shared]
+    [shadow.cljs.devtools.client.env :as env]
+    [shadow.remote.runtime.api :as api]))
 
 (defn node-eval [{:keys [js source-map-json] :as msg}]
   (let [result (js/SHADOW_NODE_EVAL js source-map-json)]
@@ -32,64 +19,14 @@
   {:pre [(string? src)]}
   (js/SHADOW_IMPORT src))
 
-(defn repl-init
-  [{:keys [id repl-state] :as msg} done]
-  (let [{:keys [repl-sources]} repl-state]
-
-    (doseq [{:keys [output-name] :as src} repl-sources
-            :when (not (is-loaded? output-name))]
-      (closure-import output-name))
-
-    (ws-msg {:type :repl/init-complete :id id})
-    (done)
-    ))
-
-(defn repl-invoke [{:keys [id] :as msg}]
-  (let [result
-        (-> (env/repl-call #(node-eval msg) env/repl-error)
-            (assoc :id id))]
-
-    (ws-msg result)))
-
-(defn repl-set-ns [{:keys [id] :as msg}]
-  ;; nothing for the client to do really
-  (ws-msg {:type :repl/set-ns-complete :id id}))
-
-(defn repl-require
-  [{:keys [id sources reload-namespaces] :as msg} done]
-  (try
-    (doseq [{:keys [provides output-name] :as src} sources]
-      (when (or (not (is-loaded? output-name))
-                (some reload-namespaces provides))
-        (closure-import output-name)))
-    (ws-msg {:type :repl/require-complete :id id})
-
-
-    (catch :default e
-      (js/console.error "repl/require failed" e)
-      (ws-msg {:type :repl/require-error :id id :error (.-message e)})))
-  (done))
-
-(defn build-complete
-  [{:keys [info reload-info] :as msg}]
-  (let [{:keys [sources compiled]}
-        info
-
-        warnings
-        (->> (for [{:keys [resource-name warnings] :as src} sources
-                   :when (not (:from-jar src))
-                   warning warnings]
-               (assoc warning :resource-name resource-name))
-             (distinct)
-             (into []))]
+(defn handle-build-complete
+  [runtime {:keys [info reload-info] :as msg}]
+  (let [{:keys [sources compiled warnings]} info]
 
     (when (and env/autoload
                (or (empty? warnings) env/ignore-warnings))
-      
-      (let [{:keys [sources compiled]}
-            info
 
-            files-to-require
+      (let [files-to-require
             (->> sources
                  (remove (fn [{:keys [ns]}]
                            (contains? (:never-load reload-info) ns)))
@@ -107,83 +44,142 @@
                (closure-import src))
             ))))))
 
-(defn process-message
-  [{:keys [type] :as msg} done]
-  ;; (js/console.log "repl-msg" msg)
-  (case type
-    :repl/init
-    (repl-init msg done)
+(def client-info
+  {:host :node
+   :desc (str "Node " js/process.version)})
 
-    :repl/invoke
-    (repl-invoke msg)
+(defn start [runtime]
+  (let [ws-url
+        (env/get-ws-relay-url)
 
-    :repl/set-ns
-    (repl-set-ns msg)
+        socket
+        (ws. ws-url #js {:rejectUnauthorized false})
 
-    :repl/require
-    (repl-require msg done)
+        ws-active-ref
+        (atom true)]
 
-    :repl/ping
-    (ws-msg {:type :repl/pong :time-server (:time-server msg) :time-runtime (js/Date.now)})
+    (.on socket "message"
+      (fn [data]
+        (when @ws-active-ref
+          (cljs-shared/remote-msg runtime data))))
 
-    :build-configure
-    :ignored
+    (.on socket "open"
+      (fn [e]
+        (when @ws-active-ref
+          (cljs-shared/remote-open runtime e))))
 
-    :build-start
-    :ignored
+    (.on socket "close"
+      (fn [e]
+        (when @ws-active-ref
+          (cljs-shared/remote-close runtime e))))
 
-    :build-complete
-    (build-complete msg)
+    (.on socket "error"
+      (fn [e]
+        (when @ws-active-ref
+          (cljs-shared/remote-error runtime e))))
 
-    :build-failure
-    :ignored
+    {:socket socket
+     :ws-active-ref ws-active-ref}))
 
-    :worker-shutdown
-    (.terminate @ws-ref)
+(defn send [{:keys [socket]} msg]
+  (.send socket msg))
 
-    ;; default
-    (prn [:repl-unknown msg]))
+(defn stop [{:keys [socket ws-active-ref]}]
+  (reset! ws-active-ref false)
+  (.close socket))
 
-  (when-not (contains? env/async-ops type)
-    (done)))
+;; want things to start when this ns is in :preloads
+(when (pos? env/worker-client-id)
 
-(defn ws-connect []
-  (let [url
-        (env/ws-url :node)
+  (extend-type cljs-shared/Runtime
+    api/IEvalJS
+    (-js-eval [this code]
+      (js/SHADOW_NODE_EVAL code))
 
-        client
-        (ws. url [])]
+    cljs-shared/IHostSpecific
+    (do-invoke [this msg]
+      (node-eval msg))
 
-    (.on client "open"
-      (fn []
-        (vreset! ws-ref client)))
+    (do-repl-init [runtime {:keys [repl-sources]} done error]
+      (try
+        (doseq [{:keys [output-name] :as src} repl-sources
+                :when (not (is-loaded? output-name))]
+          (closure-import output-name))
 
-    (.on client "unexpected-response"
-      (fn [req ^js res]
-        (let [status (.-statusCode res)]
-          (if (= 406 status)
-            (js/console.log "REPL connection rejected, probably stale JS connecting to new server.")
-            (js/console.log "REPL unexpected error" (.-statusCode res))
-            ))))
+        (done)
+        (catch :default e
+          (error e))))
 
-    (.on client "message"
-      (fn [data flags]
-        (try
-          (env/process-ws-msg data process-message)
-          (catch :default e
-            (js/console.error "failed to process message" data e)))))
+    (do-repl-require [this {:keys [sources reload-namespaces] :as msg} done error]
+      (try
+        (doseq [{:keys [provides output-name] :as src} sources]
+          (when (or (not (is-loaded? output-name))
+                    (some reload-namespaces provides))
+            (closure-import output-name)))
 
-    (.on client "close"
-      (fn []
-        (js/console.log "REPL client disconnected")
-        ))
+        (done)
+        (catch :default e
+          (error e)))))
 
-    (.on client "error"
-      (fn [err]
-        (js/console.log "REPL client error" err)))
-    ))
+  (cljs-shared/add-plugin! ::client #{}
+    (fn [{:keys [runtime] :as env}]
+      (let [svc {:runtime runtime}]
+        (api/add-extension runtime ::client
+          {:on-welcome
+           (fn []
+             ;; FIXME: why does this break stuff when done when the namespace is loaded?
+             ;; why does it have to wait until the websocket is connected?
+             (env/patch-goog!)
+             (when env/log
+               (js/console.log (str "shadow-cljs - #" (-> runtime :state-ref deref :client-id) " ready!"))))
 
-(when env/enabled
-  (ws-close) ;; if this is reloaded, reconnect the socket
-  (ws-connect))
+           :on-disconnect
+           (fn []
+             (js/console.warn "The shadow-cljs Websocket was disconnected."))
 
+           :ops
+           {:access-denied
+            (fn [msg]
+              (js/console.error
+                (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
+                     " Is the watch for this build running?")))
+
+            :cljs-build-configure
+            (fn [msg])
+
+            :cljs-build-start
+            (fn [msg]
+              ;; (js/console.log "cljs-build-start" msg)
+              (env/run-custom-notify! (assoc msg :type :build-start)))
+
+            :cljs-build-complete
+            (fn [msg]
+              ;; (js/console.log "cljs-build-complete" msg)
+              (let [msg (env/add-warnings-to-info msg)]
+                (handle-build-complete runtime msg)
+                (env/run-custom-notify! (assoc msg :type :build-complete))))
+
+            :cljs-build-failure
+            (fn [msg]
+              ;; (js/console.log "cljs-build-failure" msg)
+              (env/run-custom-notify! (assoc msg :type :build-failure)))
+
+            ::env/worker-notify
+            (fn [{:keys [event-op client-id]}]
+              (cond
+                (and (= :client-disconnect event-op)
+                     (= client-id env/worker-client-id))
+                (js/console.warn "shadow-cljs - The watch for this build was stopped!")
+
+                (= :client-connect event-op)
+                (js/console.warn "shadow-cljs - A new watch for this build was started, restart of this process required!")
+
+                :else
+                nil))
+            }})
+        svc))
+
+    (fn [{:keys [runtime] :as svc}]
+      (api/del-extension runtime ::client)))
+
+  (cljs-shared/init-runtime! client-info start send stop))

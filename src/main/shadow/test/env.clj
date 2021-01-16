@@ -1,7 +1,8 @@
 (ns shadow.test.env
   (:require
     [cljs.env :as env]
-    [cljs.analyzer :as ana]))
+    [cljs.analyzer :as ana]
+    ))
 
 (defmacro get-test-data []
   (reduce

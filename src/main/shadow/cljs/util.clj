@@ -1,15 +1,13 @@
 (ns shadow.cljs.util
   (:require [clojure.string :as str]
-            [clojure.set :as set]
             [cljs.analyzer :as ana]
             [cljs.analyzer.api :as ana-api]
             [cljs.env :as env]
             [cljs.compiler :as comp]
             [cljs.core]
             [shadow.build.log :as log]
-            [clojure.java.io :as io]
-            [clojure.java.shell :as sh])
-  (:import (clojure.lang Namespace IDeref)
+            [clojure.java.io :as io])
+  (:import (clojure.lang IDeref)
            (java.io File StringWriter ByteArrayOutputStream IOException)
            (java.security MessageDigest)
            (java.nio.charset Charset)

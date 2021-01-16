@@ -1,31 +1,34 @@
 (ns shadow.build.classpath
-  (:require [clojure.tools.reader.reader-types :as readers]
-            [clojure.tools.reader :as reader]
-            [clojure.edn :as edn]
-            [clojure.spec.alpha :as s]
-            [clojure.string :as str]
-            [clojure.java.io :as io]
-            [clojure.set :as set]
-            [cljs.tagged-literals :as tags]
-            [shadow.jvm-log :as log]
-            [shadow.spec :as ss]
-            [shadow.build.resource :as rc]
-            [shadow.cljs.util :as util]
-            [shadow.build.cache :as cache]
-            [shadow.build.ns-form :as ns-form]
-            [shadow.build.config :as config]
-            [shadow.build.cljs-bridge :as cljs-bridge]
-            [shadow.build.npm :as npm])
+  (:require
+    [clojure.tools.reader.reader-types :as readers]
+    [clojure.tools.reader :as reader]
+    [clojure.edn :as edn]
+    [clojure.spec.alpha :as s]
+    [clojure.string :as str]
+    [clojure.java.io :as io]
+    [clojure.set :as set]
+    [cljs.tagged-literals :as tags]
+    [shadow.debug :as dbg :refer (?> ?-> ?->>)]
+    [shadow.jvm-log :as log]
+    [shadow.spec :as ss]
+    [shadow.build.resource :as rc]
+    [shadow.cljs.util :as util]
+    [shadow.build.cache :as cache]
+    [shadow.build.ns-form :as ns-form]
+    [shadow.build.config :as config]
+    [shadow.build.cljs-bridge :as cljs-bridge]
+    [shadow.build.npm :as npm]
+    [shadow.build.data :as data])
   (:import (java.io File)
-           (java.util.jar JarFile JarEntry)
-           (java.net URL)
+           (java.util.jar JarFile JarEntry Attributes$Name)
+           (java.net URL URLDecoder)
            (java.util.zip ZipException)
            (shadow.build.closure JsInspector)
            [java.nio.file Paths Path]
            [com.google.javascript.jscomp CompilerOptions$LanguageMode CompilerOptions SourceFile]
            [com.google.javascript.jscomp.deps ModuleNames]
            [javax.xml.parsers DocumentBuilderFactory]
-           [org.w3c.dom Node Element]))
+           [org.w3c.dom Element]))
 
 (set! *warn-on-reflection* true)
 
@@ -36,12 +39,38 @@
   ;; we can't use java.class.path so its used last
   ;; shadow-cljs-launcher sets shadow.class.path
   ;; boot-clj sets boot.class-path
-  (-> (or (System/getProperty "shadow.class.path")
-          (System/getProperty "boot.class.path")
-          (System/getProperty "java.class.path"))
-      (.split File/pathSeparator)
-      (->> (into [] (map io/file)))
-      ))
+  (let [classpath-entries
+        (-> (or (System/getProperty "shadow.class.path")
+                (System/getProperty "boot.class.path")
+                (System/getProperty "java.class.path"))
+            (.split File/pathSeparator)
+            (->> (into [] (map io/file))))]
+
+    ;; java -cp helper.jar foo.main
+    ;; java supports a single jar with a manifest Class-Path entry to further
+    ;; expand the classpath. sometimes used when the classpath is too long
+    ;; on Windows to be invoked as a command. the original jar will likely be empty
+    (if (not= 1 (count classpath-entries))
+      classpath-entries
+      (let [^File entry (nth classpath-entries 0)]
+        ;; don't think it is even possible to get here
+        ;; with one classpath entry that isn't a jar but who knows
+        (if-not (.endsWith (-> entry (.getName) (.toLowerCase)) ".jar")
+          classpath-entries
+          (let [jar-file (JarFile. entry)
+                manifest (.getManifest jar-file)
+                cp-from-jar
+                (-> (.getMainAttributes manifest)
+                    (.getValue Attributes$Name/CLASS_PATH))]
+            ;; no Class-Path:, might be uberjar?
+            (if-not cp-from-jar
+              classpath-entries
+              (->> (str/split cp-from-jar #"\s")
+                   ;; spec says they must he urls, so assuming file:/...
+                   ;; spec also allows remote urls but unlikely we have that?
+                   ;; FIXME: should likely check just in case
+                   (map (fn [s] (-> (URL. s) (.getPath) (io/file))))
+                   (vec)))))))))
 
 (defn service? [x]
   (and (map? x) (::service x)))
@@ -72,6 +101,8 @@
             compiler
             ;; SourceFile/fromFile seems to leak file descriptors
             (SourceFile/fromCode resource-name source))
+
+          rc (assoc rc :inspect-info info)
 
           ns (-> (ModuleNames/fileToModuleName resource-name)
                  (symbol))]
@@ -120,9 +151,6 @@
         :else
         (let [js-deps
               (->> (concat js-requires js-imports)
-                   ;; FIXME: not sure I want to go down this road or how
-                   ;; require("./some.css") should not break the build though
-                   (remove npm/asset-require?)
                    (distinct)
                    (map npm/maybe-convert-goog)
                    (into []))
@@ -431,7 +459,44 @@
   (doseq [x (get-classpath)]
     (prn (pom-info-for-jar x))))
 
-(defn find-jar-resources* [cp ^File file]
+(defn get-jar-info* [jar-path]
+  (let [file (io/file jar-path)]
+    (when-not (and (.exists file) (.isFile file))
+      (throw (ex-info "expected to find jar file but didn't" {:jar-path jar-path})))
+    (let [pom-info (pom-info-for-jar file)
+          checksum (data/sha1-file file)]
+      {:checksum checksum
+       :pom-info pom-info
+       :last-modified (.lastModified file)})))
+
+(def get-jar-info (memoize get-jar-info*))
+
+;; jar:file:/C:/Users/thheller/.m2/repository/org/clojure/clojurescript/1.10.773/clojurescript-1.10.773.jar!/cljs/core.cljs
+(defn get-jar-info-for-url [^URL rc-url]
+  (let [path (.getFile rc-url)]
+    (when-not (str/starts-with? path "file:")
+      (throw (ex-info "expected to file: in jar url but didn't" {:rc-url rc-url})))
+    (let [idx (str/index-of path "!/")]
+      (when-not idx
+        (throw (ex-info "expected to find !/ in jar url but didn't" {:rc-url rc-url})))
+      (let [jar-path (URLDecoder/decode (subs path 5 idx) "utf-8")]
+        (get-jar-info jar-path)))))
+
+(defn make-jar-resource [^URL rc-url name]
+  (let [{:keys [checksum last-modified pom-info]}
+        (get-jar-info-for-url rc-url)]
+
+    (-> {:resource-id [::resource name]
+         :resource-name name
+         :cache-key [checksum]
+         :last-modified last-modified
+         :url rc-url
+         :from-jar true}
+        (cond->
+          pom-info
+          (assoc :pom-info pom-info)))))
+
+(defn find-jar-resources* [cp ^File file checksum]
   (try
     (let [jar-path
           (.getCanonicalPath file)
@@ -455,14 +520,14 @@
           ;; next entry
           (let [^JarEntry jar-entry (.nextElement entries)
                 name (.getName jar-entry)]
-            (if (or (not (util/is-cljs-resource? name))
+            (if (or (not (util/is-js-file? name))
                     (should-ignore-resource? cp name))
               (recur result)
               (let [url (URL. (str "jar:file:" jar-path "!/" name))]
                 (-> result
                     (conj! (-> {:resource-id [::resource name]
                                 :resource-name (rc/normalize-name name)
-                                :cache-key [last-modified]
+                                :cache-key [checksum]
                                 :last-modified last-modified
                                 :url url
                                 :from-jar true}
@@ -532,10 +597,51 @@
   (->> (process-deps-cljs cp source-path root-contents)
        (inspect-resources cp)))
 
+;; if a jar contains a cljs.core file (compiled or source) filter out all other files
+;; from that directory as it is compiled output that shouldn't be in the jar in the first place
+
+;; cljs-bean contains an actual legit
+;;   cljs-bean.from.cljs.core
+;; ns that needs to be accounted for and not quarantined
+;; will be filtered at a later stage if the ns does not match the filename
+(defn quarantine-bad-jar-contents [^File jar-file banned-name resources]
+  (let [bad
+        (->> resources
+             (filter (fn [{:keys [resource-name] :as rc}]
+                       (str/ends-with? resource-name banned-name))))]
+
+    (if-not (seq bad)
+      resources
+      ;; .jar file contains a compiled version of cljs.core
+      ;; filter out all sources in that directory, likely contains many other compiled
+      ;; and uncompiled sources
+      (reduce
+        (fn [resources {:keys [resource-name] :as bad-rc}]
+          (let [bad-prefix
+                (subs resource-name 0 (str/index-of resource-name banned-name))
+
+                filtered
+                (->> resources
+                     (remove (fn [{:keys [resource-name] :as rc}]
+                               (str/starts-with? resource-name bad-prefix)))
+                     (vec))]
+
+            (log/warn ::bad-jar-contents
+              {:jar-file (.getAbsolutePath jar-file)
+               :bad-prefix bad-prefix
+               :bad-count (- (count resources) (count filtered))})
+
+            filtered))
+        resources
+        bad))))
+
 (defn find-jar-resources
   [{:keys [manifest-cache-dir] :as cp} ^File jar-file]
-  (let [manifest-name
-        (str (.lastModified jar-file) "-" (.getName jar-file) ".manifest")
+  (let [checksum
+        (data/sha1-file jar-file)
+
+        manifest-name
+        (str (.getName jar-file) "." checksum ".manifest")
 
         mfile
         (io/file manifest-cache-dir manifest-name)]
@@ -558,7 +664,9 @@
               nil)))
 
         (let [jar-contents
-              (->> (find-jar-resources* cp jar-file)
+              (->> (find-jar-resources* cp jar-file checksum)
+                   (quarantine-bad-jar-contents jar-file "/cljs/core.js")
+                   (quarantine-bad-jar-contents jar-file "/goog/base.js")
                    (process-root-contents cp jar-file))]
           (io/make-parents mfile)
           (try
@@ -567,18 +675,20 @@
               (log/info-ex e ::jar-cache-write-ex {:file mfile})))
           jar-contents))))
 
-(defn make-fs-resource [^File file name]
-  (let [last-mod
-        (if (.exists file)
-          (.lastModified file)
-          (System/currentTimeMillis))]
-
-    {:resource-id [::resource name]
-     :resource-name name
-     :cache-key [last-mod]
-     :last-modified last-mod
-     :file file
-     :url (.toURL file)}))
+(comment
+  (tap>
+    (let [svc (start (io/file "tmp" "jar-manifests"))]
+      (find-jar-resources
+        svc
+        (io/file
+          (System/getProperty "user.home")
+          ".m2"
+          "repository"
+          "viz-cljc"
+          "viz-cljc"
+          "0.1.3"
+          "viz-cljc-0.1.3.jar"
+          )))))
 
 (defn is-gitlib-file? [^File file]
   (loop [file (.getAbsoluteFile file)]
@@ -591,6 +701,25 @@
 
       :else
       (recur (.getParentFile file)))))
+
+(defn make-fs-resource [^File file name]
+  (let [last-mod
+        (if (.exists file)
+          (.lastModified file)
+          (System/currentTimeMillis))
+
+        checksum
+        (data/sha1-file file)]
+
+    (-> {:resource-id [::resource name]
+         :resource-name name
+         :cache-key [checksum]
+         :last-modified last-mod
+         :file file
+         :url (.toURL file)}
+        (cond->
+          (is-gitlib-file? file)
+          (assoc :from-jar true)))))
 
 (comment
   (is-gitlib-file? (io/file "src" "main" "shadow" "build.clj"))
@@ -605,7 +734,7 @@
       (for [^File file (file-seq root)
             :when (and (.isFile file)
                        (not (.isHidden file))
-                       (util/is-cljs-resource? (.getName file)))
+                       (util/is-js-file? (.getName file)))
             :let [file (.getAbsoluteFile file)
                   abs-path (.getAbsolutePath file)
                   _ (assert (str/starts-with? abs-path root-path))
@@ -697,7 +826,6 @@
 
 (defmethod log/log-msg ::provide-conflict [_ {:keys [provides resource-name conflicts]}]
   (format "provide conflict for %s provided by %s and %s" provides resource-name conflicts))
-
 
 (defn index-rc-merge-js
   [index {:keys [type ns resource-name provides url file] :as rc}]
@@ -902,6 +1030,13 @@
       (index-rc-remove index resource-name)
       )))
 
+(comment
+  (let [svc (start (io/file ".shadow-cljs" "jar-manifests"))]
+    (index-classpath svc)
+
+    (tap> svc)
+    (stop svc)))
+
 (defn start [cache-root]
   (let [co
         (doto (CompilerOptions.)
@@ -917,27 +1052,30 @@
           (.disableThreads)
           (.initOptions co))
 
+        ignore-patterns
+        #{#"node_modules/"
+          ;; temp files created by emacs are in the same directory
+          ;; named demo/.#foo.cljs are hidden and ignored on osx/linux
+          ;; but not hidden on windows so need to filter them
+          #"\.#"
+          ;; cljs.core aot
+          #"\.aot\.js$"
+          ;; closure library test files
+          #"^goog/demos/"
+          #"^goog/(.+)_test\.js$"
+          #"goog/transpile\.js"
+          ;; closure compiler support and test files
+          #"^com/google/javascript"
+          #"^jdk/nashorn/*"
+          ;; ignore shipped builds (UI, babel-worker, etc)
+          #"^shadow/.+/dist"
+          ;; just in case the :output-dir of a dev build is on the classpath
+          #"^public/"
+          #"cljs-runtime/"}
+
         index
         {:ignore-patterns
-         #{#"node_modules/"
-           ;; temp files created by emacs are in the same directory
-           ;; named demo/.#foo.cljs are hidden and ignored on osx/linux
-           ;; but not hidden on windows so need to filter them
-           #"\.#"
-           ;; cljs.core aot
-           #"\.aot\.js$"
-           ;; closure library test files
-           #"^goog/demos/"
-           #"^goog/(.+)_test\.js$"
-           ;; closure compiler support and test files
-           #"^com/google/javascript"
-           ;; way too many jars contain a public folder
-           #"^public/"
-           ;; these files fail to parse correctly but we don't need them anyways
-           #"^jdk/nashorn/*"
-           #"goog/transpile\.js"
-           ;; just in case the :output-dir of a dev build is on the classpath
-           #"cljs-runtime/"}
+         ignore-patterns
 
          :classpath-excludes
          [#"resources(/?)$"
@@ -971,7 +1109,11 @@
      ;; wait before moving on
      :compiler-options co
      :compiler cc
-     :index-ref (atom index)}))
+     :index-ref (atom index)
+     ;; FIXME: ugly duplication because of should-ignore-resource? being used as an api method
+     ;; this is also kept in the index-ref but having outside namespaces deref the index-ref
+     ;; is uglier than duplicating this little bit
+     :ignore-patterns ignore-patterns}))
 
 (defn stop [cp])
 
@@ -988,25 +1130,37 @@
      (swap! index-ref #(reduce index-path* % paths)))
    cp))
 
-(defn find-resource-for-provide
-  [{:keys [index-ref] :as cp} provide-sym]
-  {:pre [(service? cp)
-         (symbol? provide-sym)]}
-  (let [index @index-ref]
-    (when-let [src-name (get-in index [:provide->source provide-sym])]
-      (or (get-in index [:sources src-name])
-          (throw (ex-info "missing classpath source" {:src-name src-name :sym provide-sym}))
-          ))))
-
-(defn get-provided-names [{:keys [index-ref] :as cp}]
-  (-> @index-ref :provide->source keys set))
-
 (defn find-resource-by-name
   "returns nil if name is not on the classpath (or was filtered)"
   [{:keys [index-ref] :as cp} name]
   {:pre [(service? cp)
          (string? name)]}
-  (get-in @index-ref [:sources name]))
+  (when-let [rc-url (io/resource name)]
+    (case (.getProtocol rc-url)
+      "file"
+      (->> (make-fs-resource (-> rc-url (.toURI) (io/file)) name)
+           (inspect-resource cp)
+           (set-output-name))
+      "jar"
+      (->> (make-jar-resource rc-url name)
+           (inspect-resource cp)
+           (set-output-name))
+
+      (throw (ex-info "unexpected resource url protocol" {:name name :rc-url rc-url}))
+      )))
+
+(defn find-resource-for-provide
+  [{:keys [index-ref] :as cp} provide-sym]
+  {:pre [(service? cp)
+         (symbol? provide-sym)]}
+  (let [base-name (util/ns->path provide-sym)]
+    (or (find-resource-by-name cp (str base-name ".cljs"))
+        (find-resource-by-name cp (str base-name ".cljc"))
+        (let [index @index-ref]
+          (or (when-let [src-name (get-in index [:provide->source provide-sym])]
+                (or (get-in index [:sources src-name])
+                    (throw (ex-info "missing classpath source" {:src-name src-name :sym provide-sym}))))
+              )))))
 
 (defn find-resource-by-file
   "returns nil if file is not registered on the classpath"
@@ -1025,6 +1179,7 @@
 (defn get-source-provides
   "returns the set of provided symbols from sources not in jars"
   [{:keys [index-ref] :as cp}]
+  (throw (ex-info "TBD, classpath indexing is gone." {}))
   (->> (:sources @index-ref)
        (vals)
        (remove :from-jar)
@@ -1055,6 +1210,8 @@
 (defn find-resources-using-ns
   [{:keys [index-ref] :as cp} ns-sym]
   {:pre [(symbol? ns-sym)]}
+  (throw (ex-info "TBD, classpath indexing is gone." {:ns-sym ns-sym}))
+
   (->> (:sources @index-ref)
        (vals)
        (filter (fn [{:keys [ns requires]}]
@@ -1065,8 +1222,35 @@
 
 (defn get-all-resources
   [{:keys [index-ref] :as cp}]
+  (throw (ex-info "TBD, classpath indexing is gone." {}))
   (->> (:sources @index-ref)
        (vals)))
+
+(defn find-cljs-namespaces-in-files
+  "searches classpath for clj(s|c) files (not in jars), returns expected namespaces"
+  [cp dirs]
+  (for [^File cp-entry (or dirs (get-classpath-entries cp))
+        :when (and (.isDirectory cp-entry)
+                   (not (is-gitlib-file? cp-entry)))
+        :let [root-path (.toPath cp-entry)]
+        ^File file (file-seq cp-entry)
+        :when (and (not (.isHidden file))
+                   (util/is-cljs-file? (.getName file)))
+        :let [file-path (.toPath file)
+              resource-name (-> (.relativize root-path file-path)
+                                (.toString)
+                                (rc/normalize-name))]
+        :when (not (should-ignore-resource? cp resource-name))]
+    (util/filename->ns resource-name)))
+
+(defn has-resource? [classpath ns]
+  (let [resource-name (util/ns->path ns)]
+    (or (io/resource (str resource-name ".cljs"))
+        (io/resource (str resource-name ".cljc")))))
+
+(comment
+  (let [cp (start (io/file "tmp"))]
+    (find-cljs-namespaces-in-files cp)))
 
 (defn is-foreign-provide? [cp sym]
   {:pre [(service? cp)
@@ -1105,14 +1289,12 @@
 
 (defn find-js-resource
   ;; absolute require "/some/foo/bar.js" or "/some/foo/bar"
-  ([{:keys [index-ref] :as cp} ^String require]
-   (let [index @index-ref
-         require (cond-> require (str/starts-with? require "/") (subs 1))]
-     (or (get-in index [:sources require])
-         (get-in index [:sources (str require ".js")])
-         ;; FIXME: I'm not sure this is a good idea
-         (get-in index [:sources (str require "/index.js")])
-         )))
+  ([cp ^String require]
+   (let [require (cond-> require (str/starts-with? require "/") (subs 1))]
+     (or (find-resource-by-name cp require)
+         ;; FIXME: should really enforce using the full filename, don't repeat the mistakes node made ...
+         ;; should warn for a while first though, don't want to break too many builds
+         (find-resource-by-name cp (str require ".js")))))
 
   ;; relative require "./foo.js" from another rc
   ([cp {:keys [resource-name] :as require-from} ^String require]
@@ -1130,6 +1312,44 @@
 
      (find-js-resource cp path)
      )))
+
+;; taken from cljs.closure since its private there ...
+(defn load-data-reader-file [mappings ^java.net.URL url]
+  (let [rdr (readers/indexing-push-back-reader (readers/string-reader (slurp url)))
+        new-mappings (reader/read {:eof nil :read-cond :allow} rdr)]
+    (when (not (map? new-mappings))
+      (throw (ex-info (str "Not a valid data-reader map")
+               {:url url
+                :clojure.error/phase :compilation})))
+    (reduce
+      (fn [m [k v]]
+        (when (not (symbol? k))
+          (throw (ex-info (str "Invalid form in data-reader file")
+                   {:url url
+                    :form k
+                    :clojure.error/phase :compilation})))
+        (when (and (contains? mappings k)
+                   (not= (mappings k) v))
+          (throw (ex-info "Conflicting data-reader mapping"
+                   {:url url
+                    :conflict k
+                    :mappings m
+                    :clojure.error/phase :compilation})))
+        (assoc m k v))
+      mappings
+      new-mappings)))
+
+(defn get-data-readers! []
+  (-> (Thread/currentThread)
+      (.getContextClassLoader)
+      (.getResources "data_readers.cljc")
+      (enumeration-seq)
+      (as-> X
+        (reduce load-data-reader-file {} X))))
+
+(comment
+  (get-data-readers!))
+
 
 (comment
   ;; FIXME: implement correctly

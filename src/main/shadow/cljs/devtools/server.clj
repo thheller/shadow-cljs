@@ -16,7 +16,6 @@
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.common :as common]
     [shadow.cljs.devtools.config :as config]
-    [shadow.cljs.devtools.server.repl-system :as repl-system]
     [shadow.cljs.devtools.server.prepl :as prepl]
     [shadow.cljs.devtools.server.ns-explorer :as ns-explorer]
     [shadow.cljs.devtools.server.worker :as worker]
@@ -26,16 +25,15 @@
     [shadow.cljs.devtools.server.dev-http :as dev-http]
     [shadow.cljs.devtools.server.reload-classpath :as reload-classpath]
     [shadow.cljs.devtools.server.reload-npm :as reload-npm]
-    [shadow.cljs.devtools.server.reload-macros :as reload-macros]
     [shadow.cljs.devtools.server.build-history :as build-history]
+    [shadow.cljs.devtools.server.system-bus :as system-bus]
+    [shadow.cljs.devtools.server.remote-ext :as remote-ext]
     [shadow.remote.relay.local :as relay]
-    [shadow.remote.runtime.clojure :as clj-runtime]
+    [shadow.remote.runtime.clj.local :as clj-runtime]
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.tap-support :as tap-support]
-    [shadow.remote.runtime.eval-support :as eval-support]
-    [shadow.cljs.devtools.server.system-bus :as system-bus]
-    [shadow.cljs.devtools.server.system-bus :as sys-bus])
-  (:import (java.net BindException Socket SocketException InetSocketAddress)
+    [shadow.remote.runtime.eval-support :as eval-support])
+  (:import (java.net BindException)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
 
@@ -101,7 +99,7 @@
        (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
 (defn shutdown-system [{:keys [shutdown-hook http port-files-ref socket-repl cli-repl cli-checker nrepl] :as app}]
-  (discard-println "shutting down ...")
+  #_ (discard-println "shutting down ...")
   (try
     (. (Runtime/getRuntime) (removeShutdownHook shutdown-hook))
     (catch IllegalStateException e
@@ -299,9 +297,9 @@
         (if-not (:prepl config)
           app-config
           (let [prepl-svc
-                {:depends-on [:repl-system]
-                 :start (fn [repl-system]
-                          (let [svc (prepl/start repl-system)]
+                {:depends-on [:relay :supervisor]
+                 :start (fn [relay supervisor]
+                          (let [svc (prepl/start relay supervisor)]
                             (doseq [[build-id port] (:prepl config)]
                               (prepl/start-server svc build-id (if (map? port) port {:port port})))
                             svc))
@@ -314,13 +312,12 @@
         shutdown-hook
         (Thread.
           (fn []
-            (println "Running shutdown hook.")
+            #_ (println "Running shutdown hook.")
             (stop!)))
 
         app
         (-> {::started (System/currentTimeMillis)
              :server-pid pid
-             :server-secret (str (UUID/randomUUID))
              :config config
              :shutdown-hook shutdown-hook
              :ssl-context ssl-context
@@ -330,7 +327,8 @@
                     :https-port https-port
                     :host (:host http-config)
                     :ssl (boolean https-port)
-                    :server http}
+                    :server http
+                    :server-token (str (UUID/randomUUID))}
              :port-files-ref port-files-ref
              :cli-repl cli-repl}
             (cond->
@@ -345,7 +343,7 @@
         (doto (io/file cache-root "server.pid")
           (.deleteOnExit))]
 
-    (vreset! app-ref app)
+    (reset! app-ref app)
 
     ;; do this as the very last setup to maybe fix circleci timing issue?
     (reset! port-files-ref
@@ -359,6 +357,10 @@
               socket-repl
               (assoc :socket-repl (:port socket-repl)))
             )))
+
+    (let [token-file (io/file cache-root "server.token")]
+      (spit token-file (get-in app [:http :server-token]))
+      (.deleteOnExit token-file))
 
     ;; this will clash with lein writing its own .nrepl-port so it is disabled by default
     (when (and nrepl
@@ -410,8 +412,7 @@
                               (->> (build-classpath/get-classpath-entries classpath)
                                    (filter #(.isDirectory %))
                                    (into []))
-                              ;; no longer watches .clj files, reload-macros directly looks at used macros
-                              ["cljs" "cljc" "js"]
+                              ["cljs" "cljc" "clj" "js"]
                               #(system-bus/publish! system-bus ::m/cljs-watch {:updates %})
                               ))
                    :stop fs-watch/stop}
@@ -436,20 +437,10 @@
                    :start build-history/start
                    :stop build-history/stop}
 
-                  :reload-macros
-                  {:depends-on [:system-bus]
-                   :start reload-macros/start
-                   :stop reload-macros/stop}
-
                   :supervisor
-                  {:depends-on [:config :system-bus :build-executor :relay :cache-root :http :classpath :npm :babel]
+                  {:depends-on [:config :system-bus :build-executor :relay :clj-runtime :clj-runtime-obj-support :cache-root :http :classpath :npm :babel]
                    :start super/start
                    :stop super/stop}
-
-                  :repl-system
-                  {:depends-on []
-                   :start repl-system/start
-                   :stop repl-system/stop}
 
                   :relay
                   {:depends-on []
@@ -476,6 +467,10 @@
                    :start eval-support/start
                    :stop eval-support/stop}
 
+                  :clj-runtime-shadow-ext
+                  {:depends-on [:clj-runtime :supervisor :system-bus]
+                   :start remote-ext/start
+                   :stop remote-ext/stop}
 
                   :out
                   {:depends-on [:config]

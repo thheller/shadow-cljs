@@ -2,7 +2,6 @@
   (:refer-clojure :exclude [flush compile])
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.data.json :as json]
             [cljs.compiler :as comp]
             [shadow.build.log :as log]
             [shadow.build.api :as build-api]
@@ -27,11 +26,17 @@
 
 ;; set node specific build defaults applicable to all node targets
 (defn set-defaults [state]
-  (build-api/with-js-options
-    state
-    {:target :node
-     :use-browser-overrides false
-     :entry-keys ["main"]}))
+  (-> state
+      (build-api/with-js-options
+        {:target :node
+         :use-browser-overrides false
+         :entry-keys ["main"]})
+
+      ;; all semi-recent versions of node should be fine with es8
+      ;; don't overwrite user choice though
+      (cond->
+        (nil? (get-in state [:shadow.build/config :compiler-options :output-feature-set]))
+        (assoc-in [:compiler-options :output-feature-set] :es8))))
 
 (defn replace-goog-global [state]
   (update-in state [:sources output/goog-base-id :source]

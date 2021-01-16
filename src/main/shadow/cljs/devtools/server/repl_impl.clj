@@ -1,7 +1,6 @@
 (ns shadow.cljs.devtools.server.repl-impl
   (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
             [clojure.java.io :as io]
-            [shadow.build.api :as cljs]
             [shadow.cljs.repl :as repl]
             [shadow.cljs.devtools.server.worker :as worker]
             [shadow.cljs.devtools.server.util :as util]
@@ -9,178 +8,369 @@
             [shadow.build.log :as build-log]
             [shadow.jvm-log :as log]
             [shadow.build.warnings :as warnings]
-            [shadow.cljs.devtools.errors :as errors])
-  (:import (java.io StringReader PushbackReader File)
-           [java.util UUID]))
+            [shadow.cljs.devtools.errors :as errors]
+            [shadow.remote.relay.api :as relay])
+  (:import (java.io File InputStreamReader BufferedReader IOException)))
 
-(defn handle-repl-action-result [{:keys [warnings result] :as action}]
-  (doseq [warning warnings]
-    (warnings/print-short-warning warning))
+;; (defn repl-prompt [repl-state])
+;; (defn repl-read-ex [repl-state ex])
+;; (defn repl-result [repl-state result-as-printed-string])
 
-  (case (:type result)
-    (:repl/require-error :repl/invoke-error)
-    (println (or (:stack result)
-                 (:error result)
-                 (:message result)))
+(defn do-repl
+  [{:keys [proc-stop] :as worker}
+   relay
+   input-stream
+   close-signal
+   {:keys [init-state
+           repl-prompt
+           repl-read-ex
+           repl-result
+           repl-stdout
+           repl-stderr]}]
+  {:pre [(some? worker)
+         (some? proc-stop)
+         (some? close-signal)]}
 
-    :repl/set-ns-complete
-    (println "nil")
+  (let [to-relay
+        (async/chan 10)
 
-    :repl/require-complete
-    (println "nil")
+        from-relay
+        (async/chan 256)
 
-    :repl/result
-    (let [{:keys [error value]} result]
-      (if-not (some? error)
-        (println value)
-        ;; FIXME: let worker format the error and source map
-        ;; worker has full access to build info, this here doesn't
-        (let [{:keys [ex-data error stack]} result]
-          (println "== JS EXCEPTION ==============================")
-          (if (seq stack)
-            (println stack)
-            (println error))
-          (when (seq ex-data)
-            (println "Error Data:")
-            (prn ex-data))
-          (println "==============================================")
-          )))))
+        connection-stop
+        (relay/connect relay to-relay from-relay {})
 
-(defn handle-repl-result [worker result]
-  (locking build-log/stdout-lock
-    (case (:type result)
-      :repl/results
-      (doseq [action (:results result)]
-        (handle-repl-action-result action))
+        {:keys [client-id] :as welcome-msg}
+        (<!! from-relay)
 
-      :repl/interrupt
-      nil
+        stdin
+        (async/chan)
 
-      :repl/timeout
-      (println "Timeout while waiting for REPL result.")
+        _
+        (>!! to-relay
+          {:op :hello
+           :client-info {:type :repl-session
+                         :build-id (:build-id worker)
+                         :proc-id (:proc-id worker)}})
 
-      :repl/no-runtime-connected
-      (println "No application has connected to the REPL server. Make sure your JS environment has loaded your compiled ClojureScript code.")
+        proc-stdio-available?
+        (get-in worker [:cli-opts ::node-repl])
 
-      :repl/too-many-runtimes
-      (println "There are too many connected processes.")
+        proc-stdio
+        (async/chan
+          (async/sliding-buffer 100)
+          (filter #(contains? #{:proc/stdout :proc/stderr} (:type %))))
 
-      :repl/worker-stop
-      (println "The REPL worker has stopped.")
+        read-lock
+        (async/chan)
 
-      :repl/error
-      (errors/error-format *out* (:ex result))
 
-      (prn [:result result]))
-    (flush)))
+        init-ns
+        (or (:ns init-state)
+            (some-> worker :state-ref deref :build-config :devtools :repl-init-ns)
+            'cljs.user)
 
-(defn worker-build-state [worker]
-  (-> worker :state-ref deref :build-state))
+        repl-timeout
+        (or (some-> worker :state-ref deref :build-config :devtools :repl-timeout) 30000)
 
-(defn worker-read-string [worker s]
-  (let [rdr
-        (-> s
-            (StringReader.)
-            (PushbackReader.))
+        init-state
+        (assoc init-state
+          :ns init-ns
+          :stage :read
+          :client-id client-id)]
 
-        build-state
-        (worker-build-state worker)]
+    (when proc-stdio-available?
+      (worker/watch worker proc-stdio))
 
-    (repl/read-one build-state rdr {})))
+    ;; read loop, blocking IO
+    ;; cannot block main loop or we'll never receive async events
+    (async/thread
+      (try
+        (loop []
+          ;; wait until told to read
+          (when (some? (<!! read-lock))
+            (let [{:keys [eof?] :as next} (repl/dummy-read-one input-stream)]
+              (if eof?
+                (async/close! stdin)
+                ;; don't recur in case stdin was closed while in blocking read
+                (when (>!! stdin next)
+                  (recur))))))
+        (catch Exception e
+          (log/debug-ex e ::read-ex)))
+      (async/close! stdin))
 
-(def repl-api-fns
-  ;; return value of these is ignored, print to *out* should work?
-  {})
+    (>!! read-lock 1)
 
-(defn do-repl-api-fn [app worker repl-state {:keys [form] :as read-result}]
-  (let [[special-fn & args]
-        form
+    ;; initial prompt
+    (repl-prompt init-state)
 
-        handler
-        (get repl-api-fns special-fn)]
+    (let [result
+          (loop [repl-state init-state]
+            (async/alt!!
+              proc-stop
+              ([_] ::worker-stop)
 
-    (apply handler app worker repl-state read-result args)))
+              close-signal
+              ([_] ::close-signal)
 
-(defn repl-print-chan []
-  (let [print-chan
-        (async/chan)]
+              stdin
+              ([read-result]
+               ;; (tap> [:repl-from-stdin read-result repl-state])
+               (when (some? read-result)
+                 (let [{:keys [eof? error? ex source]} read-result]
+                   (cond
+                     eof?
+                     :eof
 
-    (go (loop []
-          (when-some [msg (<! print-chan)]
-            (case (:type msg)
-              :repl/out
-              (locking build-log/stdout-lock
-                (println (:text msg))
-                (flush))
+                     error?
+                     (do (repl-read-ex repl-state ex)
+                         (recur repl-state))
 
-              :repl/err
-              (locking build-log/stdout-lock
-                (binding [*out* *err*]
-                  (println (:text msg))
-                  (flush)))
+                     (= ":repl/quit" source)
+                     :repl/quit
 
-              :ignored)
-            (recur)
-            )))
+                     (= ":cljs/quit" source)
+                     :cljs/quit
 
-    print-chan
-    ))
+                     :else
+                     (let [runtime-id
+                           (or (:runtime-id repl-state)
+                               ;; no previously picked runtime, pick new one from worker when available
+                               (when-some [runtime-id (-> worker :state-ref deref :default-runtime-id)]
+                                 ;; don't capture client side prints when
+                                 ;; already getting proc/stdout|err from worker
+                                 ;; only available when managing the actual process (eg. node-repl)
+                                 (when-not proc-stdio-available?
+                                   (>!! to-relay {:op :runtime-print-sub
+                                                  :to runtime-id}))
+                                 (>!! to-relay {:op :request-notify
+                                                :notify-op ::runtime-disconnect
+                                                :query [:eq :client-id runtime-id]})
+                                 runtime-id))]
+
+                       (if-not runtime-id
+                         (do (repl-stderr repl-state "No available JS runtime.\nSee https://shadow-cljs.github.io/docs/UsersGuide.html#repl-troubleshooting")
+                             (repl-result repl-state nil)
+                             (repl-prompt repl-state)
+                             (>!! read-lock 1)
+                             (recur repl-state))
+
+                         (let [msg {:op :cljs-eval
+                                    :to runtime-id
+                                    :input {:code source
+                                            :ns (:ns repl-state)
+                                            :repl true}}]
+
+                           (>!! to-relay msg)
+                           (-> repl-state
+                               (assoc :stage :eval :runtime-id runtime-id :read-result read-result)
+                               (recur)))))))))
+
+              from-relay
+              ([msg]
+               ;; (tap> [:repl-from-relay msg repl-state])
+               (when (some? msg)
+                 (case (:op msg)
+                   (::runtime-disconnect :client-not-found)
+                   (do (repl-stderr repl-state "The previously used runtime disappeared. Will attempt to pick a new one when available but your state might be gone.\n")
+                       (repl-prompt repl-state)
+                       ;; may be in blocking read so read-lock is full
+                       ;; must not use >!! since that would deadlock
+                       ;; only offer! and discard when not in blocking read anyways
+                       (async/offer! read-lock 1)
+                       (-> repl-state
+                           (dissoc :runtime-id)
+                           (recur)))
+
+                   :eval-result-ref
+                   (let [{:keys [from ref-oid eval-ns]} msg]
+
+                     (>!! to-relay
+                       {:op :obj-request
+                        :to from
+                        :request-op :edn
+                        :oid ref-oid})
+
+                     (-> repl-state
+                         (assoc :ns eval-ns
+                                :stage :print
+                                :eval-result msg)
+                         (recur)))
+
+                   :obj-request-failed
+                   (let [{:keys [from ex-oid]} msg]
+                     (if (:print-failed repl-state)
+                       (do (repl-stderr repl-state "The result failed to print and printing the exception also failed. No clue whats going on.")
+                           (repl-prompt repl-state)
+                           (>!! read-lock 1)
+                           (-> repl-state
+                               (dissoc :print-failed)
+                               (recur)))
+
+                       (do (>!! to-relay
+                             {:op :obj-request
+                              :to from
+                              :request-op :str
+                              :oid ex-oid})
+
+                           (-> repl-state
+                               (assoc :print-failed true)
+                               (recur)))))
+
+                   :obj-result
+                   (let [{:keys [result]} msg]
+                     (cond
+                       (= :error (:stage repl-state))
+                       (do (repl-stderr repl-state (str "\n" result))
+                           (repl-result repl-state "nil"))
+
+                       (not (:print-failed repl-state))
+                       (repl-result repl-state result)
+
+                       :else
+                       (do (repl-stderr repl-state "The result object failed to print. It is available via *1 if you want to interact with it.\n")
+                           (repl-stderr repl-state "The exception was: \n")
+                           (repl-stderr repl-state (str result "\n"))
+                           (repl-result repl-state ":shadow.cljs/print-error!")))
+
+                     (repl-prompt repl-state)
+
+                     (>!! read-lock 1)
+                     (-> repl-state
+                         (assoc :stage :read)
+                         (dissoc :print-failed)
+                         (recur)))
+
+                   :eval-compile-warnings
+                   (let [{:keys [warnings]} msg]
+                     (doseq [warning warnings]
+                       (repl-stderr repl-state
+                         (binding [warnings/*color* false]
+                           (with-out-str
+                             (warnings/print-short-warning (assoc warning :resource-name "<eval>"))
+                             (println)))))
+                     (repl-result repl-state nil)
+                     (repl-prompt repl-state)
+                     (>!! read-lock 1)
+                     (recur (assoc repl-state :stage :read)))
+
+                   :eval-compile-error
+                   (let [{:keys [report]} msg]
+                     (repl-stderr repl-state (str report "\n"))
+                     (repl-result repl-state nil)
+                     (repl-prompt repl-state)
+                     (>!! read-lock 1)
+                     (recur (assoc repl-state :stage :read)))
+
+                   :eval-runtime-error
+                   (let [{:keys [from ex-oid]} msg]
+                     (>!! to-relay
+                       {:op :obj-request
+                        :to from
+                        :request-op :ex-str
+                        :oid ex-oid})
+                     (recur (assoc repl-state :stage :error)))
+
+                   :runtime-print
+                   (let [{:keys [stream text]} msg]
+                     (case stream
+                       :stdout
+                       (repl-stdout repl-state text)
+                       :stderr
+                       (repl-stderr repl-state text))
+                     (recur repl-state))
+
+                   (do (tap> [:unexpected-from-relay msg repl-state worker relay])
+                       (recur repl-state)))))
+
+              proc-stdio
+              ([msg]
+               (when (some? msg)
+                 (let [{:keys [type text]} msg]
+                   (case type
+                     :proc/stdout
+                     (repl-stdout repl-state text)
+                     :proc/stderr
+                     (repl-stderr repl-state text))
+
+                   (recur repl-state))))
+
+              (async/timeout repl-timeout)
+              ([_]
+               ;; fine to wait long time while reading
+               (if (= :read (:stage repl-state))
+                 (recur repl-state)
+                 ;; should time out eventually while waiting for eval/print so you can retry
+                 (do (>!! read-lock 1)
+                     (repl-stderr repl-state (str "Timeout while waiting for result.\n"))
+                     (-> repl-state
+                         (assoc :stage :read)
+                         (recur)))))))]
+
+      (async/close! to-relay)
+      (async/close! read-lock)
+      (async/close! proc-stdio)
+      (async/close! stdin)
+
+      result)))
 
 (defn stdin-takeover!
-  [worker {:keys [out] :as app} runtime-id]
-  (let [print-chan
-        (repl-print-chan)
+  [worker {:keys [relay] :as app} opts]
 
-        session-id
-        (str (UUID/randomUUID))]
+  (do-repl
+    worker
+    relay
+    *in*
+    (async/chan)
+    {:init-state
+     {:runtime-id (:runtime-id opts)}
 
-    (worker/watch worker print-chan true)
+     :repl-prompt
+     (fn repl-prompt [{:keys [ns] :as repl-state}]
+       (locking build-log/stdout-lock
+         (print (format "%s=> " ns))
+         (flush)))
 
-    (loop []
-      ;; unlock stdin when we can't get repl-state, just in case
-      (when-let [build-state (worker-build-state worker)]
+     :repl-read-ex
+     (fn repl-read-ex [repl-state ex]
+       (locking build-log/stdout-lock
+         (println (str "Failed to read: " ex))
+         (flush)))
 
-        ;; FIXME: inf-clojure fails when there is a space between \n and =>
-        (print (format "%s=> " (-> build-state :repl-state :current-ns)))
-        (flush)
+     :repl-result
+     (fn repl-result [repl-state result-as-printed-string]
+       (when result-as-printed-string
+         (locking build-log/stdout-lock
+           (println result-as-printed-string)
+           (flush))))
 
-        ;; need the repl state to properly support reading ::alias/foo
-        (let [{:keys [eof? error? ex form] :as read-result}
-              (repl/read-one build-state *in* {})]
+     :repl-stderr
+     (fn repl-stderr [repl-state text]
+       (binding [*out* *err*]
+         (print text)
+         (flush)))
 
-          (log/debug ::read-result read-result)
+     :repl-stdout
+     (fn repl-stdout [repl-state text]
+       (print text)
+       (flush))
+     }))
 
-          (cond
-            eof?
-            :eof
-
-            error?
-            (do (println (str "Failed to read: " ex))
-                (recur))
-
-            (nil? form)
-            (recur)
-
-            (= :repl/quit form)
-            :quit
-
-            (= :cljs/quit form)
-            :quit
-
-            (and (list? form)
-                 (contains? repl-api-fns (first form)))
-            (do (do-repl-api-fn app worker build-state read-result)
-                (recur))
-
-            :else
-            (when-some [result (worker/repl-eval worker session-id runtime-id read-result)]
-              (handle-repl-result worker result)
-              (when-not (contains? #{:repl/interrupt :repl/worker-stop} (:type result))
-                (recur)))))))
-    (async/close! print-chan)
-
-    nil
-    ))
+(defn pipe [^Process proc in {:keys [output] :as worker} type]
+  ;; we really do want system-default encoding here
+  (with-open [^java.io.Reader in (-> in InputStreamReader. BufferedReader.)]
+    (loop [buf (char-array 1024)]
+      (when (.isAlive proc)
+        (try
+          (let [len (.read in buf)]
+            (when-not (neg? len)
+              (async/offer! output {:type type
+                                    :text (String. buf 0 len)})))
+          (catch IOException e
+            (when (and (.isAlive proc) (not (.contains (.getMessage e) "Stream closed")))
+              (log/warn-ex e ::node-repl-pipe)
+              )))
+        (recur buf)))))
 
 (defn node-repl*
   [{:keys [supervisor config] :as app}
@@ -205,58 +395,65 @@
          :output-to script-name}
 
         {:keys [proc-stop] :as worker}
-        (super/start-worker supervisor build-config opts)
+        (super/start-worker supervisor build-config (assoc opts ::node-repl true))
 
         result
-        (worker/compile! worker)]
+        (worker/compile! worker)
+
+        node-script
+        (doto (io/file script-name)
+          ;; just to ensure it is removed, should this crash for some reason
+          (.deleteOnExit))]
 
     ;; FIXME: validate that compilation succeeded
 
-    (let [node-script
-          (doto (io/file script-name)
-            ;; just to ensure it is removed, should this crash for some reason
-            (.deleteOnExit))
-
-          node-proc
-          (-> (ProcessBuilder.
-                (into-array
-                  (into [node-command] node-args)))
-              (.directory
-                ;; nil defaults to JVM working dir
-                (when pwd
-                  (io/file pwd)))
-              (.start))]
-
-      ;; FIXME: validate that proc started properly
-
-      ;; FIXME: these should print to worker out instead
-      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getInputStream node-proc) *out*))))
-      (.start (Thread. (bound-fn [] (util/pipe node-proc (.getErrorStream node-proc) *err*))))
-
-      ;; piping the script into node-proc instead of using command line arg
-      ;; as node will otherwise adopt the path of the script as the require reference point
-      ;; we want to control that via pwd
-
-      (let [out (.getOutputStream node-proc)]
-        (io/copy (slurp node-script) out)
-        (.close out))
-
-      ;; worker stop should kill the node process
-      (go (<! proc-stop)
-          (try
-            (when (.isAlive node-proc)
-              (.destroyForcibly node-proc))
-            (catch Exception e)))
-
-      ;; node process might crash which should stop the worker
+    (assoc worker
+      :node-script node-script
+      :node-proc
       (async/thread
-        (try
-          (let [code (.waitFor node-proc)]
-            (log/info ::node-repl-exit {:code code}))
-          (finally
-            (super/stop-worker supervisor build-id)
-            )))
+        (loop []
+          (let [crash
+                (async/promise-chan)
 
-      (assoc worker
-        :node-script node-script
-        :node-proc node-proc))))
+                node-proc
+                (-> (ProcessBuilder.
+                      (into-array
+                        (into [node-command] node-args)))
+                    (.directory
+                      ;; nil defaults to JVM working dir
+                      (when pwd
+                        (io/file pwd)))
+                    (.start))]
+
+            ;; FIXME: validate that proc started properly
+
+            (.start (Thread. (bound-fn [] (pipe node-proc (.getInputStream node-proc) worker :proc/stdout))))
+            (.start (Thread. (bound-fn [] (pipe node-proc (.getErrorStream node-proc) worker :proc/stderr))))
+
+            ;; piping the script into node-proc instead of using command line arg
+            ;; as node will otherwise adopt the path of the script as the require reference point
+            ;; we want to control that via pwd
+
+            (let [out (.getOutputStream node-proc)]
+              (io/copy (slurp node-script) out)
+              (.close out))
+
+            ;; node process might crash and we should restart if that happens
+            (async/thread
+              (let [code (.waitFor node-proc)]
+                (log/info ::node-repl-exit {:code code})
+                (when-not (zero? code)
+                  (async/close! crash))))
+
+            ;; worker stop should kill the node process
+            (alt!!
+              proc-stop
+              ([_]
+               (try
+                 (when (.isAlive node-proc)
+                   (.destroyForcibly node-proc))
+                 (catch Exception e)))
+              crash
+              ([_]
+               ;; just restart
+               (recur)))))))))

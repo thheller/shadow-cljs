@@ -2,19 +2,19 @@
   (:require [clojure.repl :as repl]
             [clojure.string :as str]
             [clojure.spec.alpha :as s]
-            [clojure.pprint :refer (pprint)]
             [shadow.build.closure :as closure]
             [shadow.build.api :as build]
             [shadow.build.ns-form :as ns-form]
             [shadow.build :as comp]
             [shadow.build.resolve :as resolve]
+            [shadow.build.npm :as npm]
             [shadow.cljs.devtools.config :as config]
             [shadow.build.warnings :as w]
             [shadow.jvm-log :as log]
             [shadow.cljs.util :as util]
             [clojure.java.io :as io])
   (:import (java.io StringWriter FileNotFoundException)
-           (clojure.lang ExceptionInfo ArityException)))
+           (clojure.lang ArityException)))
 
 (declare error-format)
 
@@ -149,24 +149,55 @@
 
   (let [filename (str (util/ns->path require) ".clj")]
     (when-let [rc (io/resource filename)]
-      (.write w (str "\"" filename "\" was found on the classpath. Should this be a .cljs file?\n"))
+      (if (= "file" (.getProtocol rc))
+        (.write w (str "\"" filename "\" was found on the classpath. Should this be a .cljs file?\n"))
+        (.write w (str "\"" filename "\" was found on the classpath. Maybe this library only supports CLJ?")))
       )))
 
 (defmethod ex-data-format ::resolve/missing-js
-  [w e {:keys [require js-package-dirs] :as data}]
+  [w e {:keys [require resolved-stack js-package-dirs] :as data}]
   (write-msg w e)
-  (when (util/is-package-require? require)
+
+  (when (seq resolved-stack)
+    (.write w
+      (str "\nDependency Trace:\n"
+           (->> resolved-stack
+                (map #(str "\t" %))
+                (str/join "\n"))
+           "\n")))
+
+  (cond
+    (contains? npm/node-libs-browser require)
     (.write w (str "\n"
-                   "Search in:\n"
+                   "Searched for npm packages in:\n"
                    (->> (for [module-dir js-package-dirs]
                           (str "\t" (.getAbsolutePath module-dir)))
                         (str/join "\n"))
                    "\n"
-                   "You probably need to run:\n"
-                   "  npm install " require "\n"
+                   require " is part of the node-libs-browser polyfill package to provide node-native package support\n"
+                   "for none-node builds. You should install shadow-cljs in your project to provide that dependency.\n"
+                   "\n"
+                   "\tnpm install --save-dev shadow-cljs\n"
+                   "\n"
+                   "See: https://shadow-cljs.github.io/docs/UsersGuide.html#project-install\n"
+                   ))
+
+    (util/is-package-require? require)
+    (.write w (str "\n"
+                   "Searched for npm packages in:\n"
+                   (->> (for [module-dir js-package-dirs]
+                          (str "\t" (.getAbsolutePath module-dir)))
+                        (str/join "\n"))
+                   "\n"
                    "\n"
                    "See: https://shadow-cljs.github.io/docs/UsersGuide.html#npm-install\n"
                    ))))
+
+(defmethod ex-data-format :shadow.build.compiler/fail-many
+  [w e {:keys [errors] :as data}]
+  (.write w "Multiple files failed to compile.\n")
+  (doseq [e (vals errors)]
+    (error-format w e)))
 
 (defmethod ex-data-format ::resolve/circular-dependency
   [w e data]
@@ -175,6 +206,27 @@
 (defmethod ex-data-format :shadow.build.classpath/inspect-cljs
   [w e data]
   (write-msg w e)
+  (error-format w (.getCause e)))
+
+(defmethod ex-data-format :shadow.build.npm/file-info-errors
+  [w e {:keys [file info] :as data}]
+  (.write w "Errors encountered while trying to parse file\n  ")
+  (.write w (.getAbsolutePath file))
+  (doseq [js-error (:js-errors info)]
+    (.write w (str "\n  " (pr-str js-error))))
+
+  (when-some [cause (.getCause e)]
+    (.write w "\n\n")
+    (error-format w cause)))
+
+(defmethod ex-data-format :shadow.build.npm/file-info-failed
+  [w e {:keys [file require-from] :as data}]
+  (.write w "Failed to inspect file\n  ")
+  (.write w (.getAbsolutePath file))
+  (when require-from
+    (.write w "\n\nit was required from\n  ")
+    (.write w (.getAbsolutePath require-from)))
+  (.write w "\n\n")
   (error-format w (.getCause e)))
 
 (defmethod ex-data-format :shadow.build/hook-error
@@ -224,11 +276,21 @@
           (format "Encountered error when macroexpanding%s.%n"
             (if symbol (str " " symbol) ""))
 
+          :compilation
+          (format "%s%n" (.getMessage e))
+
           (format "Error in phase %s%n" phase))]
 
     (.write w msg)
 
-    (error-format w (.getCause e))))
+    (when-some [cause (.getCause e)]
+      (error-format w cause))))
+
+(defmethod ex-data-format :shadow.build.compiler/emit-ex
+  [w e {:keys [errors] :as data}]
+  (.write w "An error occurred while generating code for the form.\n")
+  (let [cause (.getCause e)]
+    (ex-format w cause)))
 
 (defmethod ex-data-format ::closure/errors
   [w e {:keys [errors] :as data}]
@@ -237,7 +299,7 @@
     (.write w (format "Closure compilation failed with %d errors%n" c))
 
     (doseq [{:keys [source-name msg line column] :as err}
-            (take 5 errors)]
+            errors #_(take 5 errors)]
       (doto w
         (.write "--- ")
         (.write source-name)
@@ -251,9 +313,13 @@
     ;; ran into issues where closure produced 370 errors
     ;; which were all basically the same with different source positions
     ;; this just truncates them to remain readable
-    (when (> c 5)
-      (.write w "--- remaining errors ommitted ...\n")
-      )))
+    #_(when (> c 5)
+        (.write w "--- remaining errors ommitted ...\n")
+        )))
+
+(defmethod ex-data-format ::closure/load-externs-failed
+  [w e {:keys [errors] :as data}]
+  (.write w (.getMessage e)))
 
 (defmethod ex-data-format ::config/no-build
   [w e {:keys [id] :as data}]

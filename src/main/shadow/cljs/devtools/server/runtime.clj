@@ -1,6 +1,6 @@
 (ns shadow.cljs.devtools.server.runtime)
 
-(defonce instance-ref (volatile! nil))
+(defonce instance-ref (atom nil))
 
 (defn get-instance []
   @instance-ref)
@@ -12,7 +12,7 @@
     inst))
 
 (defn set-instance! [app]
-  (vreset! instance-ref app))
+  (reset! instance-ref app))
 
 (defn reset-instance! []
-  (vreset! instance-ref nil))
+  (reset! instance-ref nil))

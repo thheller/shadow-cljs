@@ -67,7 +67,7 @@
 
     ;; FIXME: this is an ugly hack that will be removed soon
     ;; its just a quick way to interact with the server without a proper API protocol
-    (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) ")\n"))
+    (write (str "(do (require 'shadow.cljs.devtools.cli) (shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) "))\n"))
 
     (.on rl "line"
       (fn [line]
@@ -130,7 +130,7 @@
         (fn [buffer]
           (write (.toString buffer)))]
 
-    (write (str "(shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) ")\n"))
+    (write (str "(do (require 'shadow.cljs.devtools.cli) (shadow.cljs.devtools.cli/from-remote " (pr-str exit-token) " " (pr-str error-token) " " (pr-str (into [] args)) "))\n"))
 
     (js/process.stdin.on "data" stdin-read)
     (js/process.stdin.on "close" stop!)

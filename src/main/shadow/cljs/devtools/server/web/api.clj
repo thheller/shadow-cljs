@@ -1,31 +1,26 @@
 (ns shadow.cljs.devtools.server.web.api
   (:require
     [clojure.edn :as edn]
-    [clojure.java.shell :as sh]
-    [shadow.jvm-log :as log]
-    [shadow.cljs.devtools.server.web.common :as common]
-    [shadow.cljs.devtools.server.web.graph :as graph]
-    [shadow.build.closure :as closure]
-    [shadow.http.router :as http]
-    [shadow.cljs.devtools.server.util :as server-util]
-    [shadow.cljs.devtools.api :as api]
-    [shadow.cljs.util :as util]
-    [shadow.cljs.model :as m]
-    [hiccup.page :refer (html5)]
     [clojure.java.io :as io]
     [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
-    [shadow.core-ext :as core-ext]
-    [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.devtools.server.repl-system :as repl-system]
-    [shadow.remote.relay.api :as relay])
-  (:import [java.util UUID]))
+    [clojure.set :as set]
+    [hiccup.page :refer (html5)]
+    [shadow.jvm-log :as log]
+    [shadow.cljs.devtools.server.web.common :as common]
+    [shadow.cljs.devtools.graph :as graph]
+    [shadow.http.router :as http]
+    [shadow.cljs.devtools.server.util :as server-util]
+    [shadow.cljs.model :as m]
+    [shadow.debug :refer (?> ?-> ?->>)]
+    [shadow.core-ext]
+    [shadow.remote.relay.api :as relay]
+    ))
 
 (defn index-page [req]
   {:status 200
    :body "foo"})
 
-(defn open-file [{:keys [config ring-request] :as req}]
-
+(defn open-file [{:keys [config transit-str] :as req}]
   (let [data
         (-> req
             (get-in [:ring-request :body])
@@ -56,101 +51,7 @@
 
     {:status 200
      :headers {"content-type" "application/edn; charset=utf-8"}
-     :body (core-ext/safe-pr-str result)}))
-
-(defmulti process-api-msg (fn [state msg] (::m/op msg)) :default ::default)
-
-(defmethod process-api-msg ::default
-  [{:keys [ws-out] :as state} msg]
-  (log/warn ::unknown-msg {:msg msg})
-  (>!! ws-out {::m/op ::m/unknown-msg
-               ::m/input msg})
-  state)
-
-(defmethod process-api-msg ::m/subscribe
-  [{:keys [system-bus ws-out] :as state} {::m/keys [topic]}]
-  (let [sub-chan
-        (-> (async/sliding-buffer 100)
-            (async/chan))]
-
-    (log/debug ::ws-subscribe {:topic topic})
-
-    (sys-bus/sub system-bus topic sub-chan)
-
-    (go (loop []
-          (when-some [msg (<! sub-chan)]
-            ;; msg already contains ::m/topic due to sys-bus
-            (>! ws-out (assoc msg ::m/op ::m/sub-msg))
-            (recur)))
-
-        (>! ws-out {::m/op ::m/sub-close
-                    ::m/topic topic}))
-
-    (update state ::subs conj sub-chan)))
-
-(defn tool-forward*
-  [{:keys [tool-in] :as state} msg]
-  (>!! tool-in msg)
-  state)
-
-(defn tool-forward [id]
-  (.addMethod process-api-msg id tool-forward*))
-
-(tool-forward ::m/session-start)
-(tool-forward ::m/session-eval)
-
-(defn api-ws-loop! [{:keys [repl-system ws-out] :as ws-state}]
-  (let [tool-in
-        (async/chan 10)
-
-        tool-id
-        (str (UUID/randomUUID))
-
-        tool-out
-        (repl-system/tool-connect repl-system tool-id tool-in)
-
-        {:keys [subs] :as final-state}
-        (loop [{:keys [ws-in] :as ws-state}
-               (assoc ws-state
-                 :tool-id tool-id
-                 :tool-in tool-in)]
-          (alt!!
-            ws-in
-            ([msg]
-             (if-not (some? msg)
-               ws-state
-               (-> ws-state
-                   (process-api-msg msg)
-                   (recur))))
-
-            tool-out
-            ([msg]
-             (if-not (some? msg)
-               ws-state
-               (do (>!! ws-out {::m/op ::m/tool-msg
-                                ::m/tool-msg msg})
-
-                   (recur ws-state))))))]
-
-    (async/close! tool-in)
-
-    (doseq [sub subs]
-      (async/close! sub))
-
-    ::done))
-
-(defn api-ws [{:keys [transit-read transit-str] :as req}]
-  ;; FIXME: negotiate encoding somehow? could just as well use edn
-  (let [ws-in (async/chan 10 (map transit-read))
-        ws-out (async/chan 10 (map transit-str))]
-    {:ws-in ws-in
-     :ws-out ws-out
-     :ws-loop
-     (async/thread
-       (api-ws-loop! (assoc req
-                       ::subs []
-                       :ws-in ws-in
-                       :ws-out ws-out)))}))
+     :body (transit-str result)}))
 
 (defn project-info [{:keys [transit-read transit-str] :as req}]
   (let [project-config
@@ -168,11 +69,24 @@
                          :project-home project-home
                          :version (server-util/find-version)})}))
 
+(defn graph-serve [{:keys [transit-read transit-str] :as req}]
+  (let [query
+        (-> (get-in req [:ring-request :body])
+            (transit-read))
+
+        result
+        (graph/parser req query)]
+
+    {:status 200
+     :header {"content-type" "application/transit+json"}
+     :body (transit-str result)}
+    ))
+
 (defn root* [req]
   (http/route req
     (:GET "" index-page)
     (:GET "/project-info" project-info)
-    (:POST "/graph" graph/serve)
+    (:POST "/graph" graph-serve)
     (:POST "/open-file" open-file)
     common/not-found))
 
@@ -183,7 +97,7 @@
          "Access-Control-Allow-Headers"
          (or (get-in ring-request [:headers "access-control-request-headers"])
              "content-type")
-         "content-type" "application/edn; charset=utf-8"}]
+         "content-type" "application/transit+json; charset=utf-8"}]
 
     (if-not (= :options (:request-method ring-request))
       (-> req
@@ -195,49 +109,54 @@
        :body ""}
       )))
 
-(defn api-runtime-loop! [{:keys [relay ws-out ws-in runtime-info] :as ws-state}]
-  (let [from-relay (relay/runtime-connect relay ws-in runtime-info)]
-    (loop []
-      (when-some [msg (<!! from-relay)]
-        (>!! ws-out msg)
-        (recur))))
-  ::done)
-
-(defn api-runtime [{:keys [relay transit-read transit-str] :as req}]
+(defn api-remote-relay [{:keys [relay transit-read transit-str] :as req}]
   ;; FIXME: negotiate encoding somehow? could just as well use edn
-  (let [ws-in (async/chan 10 (map transit-read))
-        ws-out (async/chan 10 (map transit-str))]
-    {:ws-in ws-in
-     :ws-out ws-out
-     :ws-loop
-     (async/thread
-       (api-runtime-loop!
-         {:relay relay
-          :runtime-info
-          {:lang :cljs
-           :remote-addr (get-in req [:ring-request :remote-addr])
-           :user-agent (get-in req [:ring-request :headers "user-agent"])}
-          :ws-in ws-in
-          :ws-out ws-out}))}))
+  (let [remote-addr
+        (get-in req [:ring-request :remote-addr])
 
-(defn api-tool-loop! [{:keys [relay ws-out ws-in] :as ws-state}]
-  ;; FIXME: should take tool-info, just like runtime-connect and runtime-info
-  (let [from-relay (relay/tool-connect relay ws-in {})]
-    (loop []
-      (when-some [msg (<!! from-relay)]
-        (>!! ws-out msg)
-        (recur))))
-  ::done)
+        trusted-hosts
+        (set/union
+          #{"127.0.0.1"
+            "0:0:0:0:0:0:0:1"
+            "localhost"}
+          (set (get-in req [:config :trusted-hosts]))
+          (set (get-in req [:config :user-config :trusted-hosts])))
 
-(defn api-tool [{:keys [relay transit-read transit-str] :as req}]
-  ;; FIXME: negotiate encoding somehow? could just as well use edn
-  (let [ws-in (async/chan 10 (map transit-read))
-        ws-out (async/chan 10 (map transit-str))]
-    {:ws-in ws-in
-     :ws-out ws-out
-     :ws-loop
-     (async/thread
-       (api-tool-loop!
-         {:relay relay
-          :ws-in ws-in
-          :ws-out ws-out}))}))
+        server-token
+        (get-in req [:http :server-token])
+
+        trusted?
+        (or (= server-token
+               (get-in req [:ring-request :query-params "server-token"]))
+
+            ;; cannot trust websocket connections even from localhost
+            ;; a hostile page might include WebSocket("ws://localhost:9630/...")
+            ;; could check Origin but not sure how much that can be trusted either
+            ;; so all relay clients should send this token as part of their request
+
+            #_(contains? trusted-hosts remote-addr))]
+
+    ;; FIXME:
+    (if-not trusted?
+      ;; FIXME: need a better way to return errors
+      ;; this isn't possible to detect in JS since spec forbids exposing the status code
+      #_{:status 403
+         :headers {"content-type" "text/plain"}
+         :body (str remote-addr " not trusted. Add :trusted-hosts #{" (pr-str remote-addr) "} in shadow-cljs.edn to trust.")}
+      ;; this sucks too, client gets open first then followed by close
+      ;; {:ws-reject [4000 "Invalid server-token."]}
+      ;; so we just send an access denied message and disconnect
+      (let [ws-in (async/chan)
+            ws-out (async/chan 1 (map transit-str))]
+        {:ws-in ws-in
+         :ws-out ws-out
+         :ws-loop
+         (async/go
+           (async/>! ws-out {:op :access-denied})
+           :access-denied)})
+
+      (let [ws-in (async/chan 10 (map transit-read))
+            ws-out (async/chan 256 (map transit-str))]
+        {:ws-in ws-in
+         :ws-out ws-out
+         :ws-loop (relay/connect relay ws-in ws-out {:remote true :websocket true})}))))

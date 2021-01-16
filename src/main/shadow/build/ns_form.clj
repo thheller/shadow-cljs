@@ -3,11 +3,9 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.set :as set]
             [clojure.string :as str]
-            [clojure.java.io :as io]
             [cljs.compiler :as cljs-comp]
             [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)]
-            [shadow.build.data :as data])
-  (:import (java.nio.file Paths FileSystems)))
+            [shadow.build.data :as data]))
 
 ;; [clojure.core.specs.alpha :as cs]
 ;; too many differences in CLJS ns to make use of those
@@ -312,44 +310,54 @@
       ;; merge cause there can be (:require ["react"]) and (:import ["react" Component])
       (update-in [:js-deps lib] merge opts)))
 
+(defn remove-entry [syms sym-to-remove]
+  (->> syms
+       (remove sym-to-remove)
+       (vec)))
+
 (defn process-symbol-require
   [ns-info lib {:keys [js as default refer refer-macros include-macros import rename only] :as opts-m}]
 
   ;; FIXME: remove this, just a sanity check since the first impl was incorrect
   (assert (not (contains? opts-m :imports)))
 
-  (-> ns-info
-      (add-dep lib)
-      (merge-require :requires lib lib)
-      (cond->
-        as
-        (merge-require :requires as lib)
+  ;; :refer (f) :rename {f other-f} should clear out the :refer (f) since its no longer accessible
+  (let [rename-syms (set (keys rename))
+        refer (remove-entry refer rename-syms)
+        refer-macros (remove-entry refer-macros rename-syms)]
 
-        default
-        (update :renames assoc default (symbol (str lib) "default"))
+    (-> ns-info
+        (add-dep lib)
+        (merge-require :requires lib lib)
+        (cond->
+          as
+          (merge-require :requires as lib)
 
-        import
-        (-> (merge-require :imports import lib)
-            (merge-require :requires import lib))
+          default
+          (update :renames assoc default (symbol (str lib) "default"))
 
-        (or include-macros (seq refer-macros))
-        (-> (merge-require :require-macros lib lib)
-            (cond->
-              as
-              (merge-require :require-macros as lib))))
-      (reduce->
-        (merge-require-fn :uses lib)
-        refer)
-      (reduce->
-        (merge-require-fn :use-macros lib)
-        refer-macros)
-      (reduce-kv->
-        (fn [ns-info rename-to rename-from]
-          (update ns-info :renames assoc rename-from (symbol (str lib) (str rename-to))))
-        rename)
-      (reduce->
-        (merge-require-fn :uses lib)
-        only)))
+          import
+          (-> (merge-require :imports import lib)
+              (merge-require :requires import lib))
+
+          (or include-macros (seq refer-macros))
+          (-> (merge-require :require-macros lib lib)
+              (cond->
+                as
+                (merge-require :require-macros as lib))))
+        (reduce->
+          (merge-require-fn :uses lib)
+          refer)
+        (reduce->
+          (merge-require-fn :use-macros lib)
+          refer-macros)
+        (reduce-kv->
+          (fn [ns-info var-to-rename rename-sym]
+            (update ns-info :renames assoc rename-sym (symbol (str lib) (str var-to-rename))))
+          rename)
+        (reduce->
+          (merge-require-fn :uses lib)
+          only))))
 
 (defn process-require [ns-info lib opts]
   (if (string? lib)
@@ -528,14 +536,18 @@
            (reduce reduce-ns-clause ns-info clauses)]
 
        (if (= 'cljs.core name)
-         ns-info
+         (update ns-info :deps
+           (fn [deps]
+             (->> (concat '[goog #_ shadow.cljs_helpers] deps)
+                  (distinct)
+                  (into []))))
          (-> ns-info
              (update :requires assoc 'cljs.core 'cljs.core 'goog 'goog)
              ;; FIXME: this might blow up CLJS since it has all kinds of special cases for cljs.core
              (update :require-macros assoc 'cljs.core 'cljs.core)
              (update :deps
                (fn [deps]
-                 (->> (concat '[goog cljs.core] deps)
+                 (->> (concat '[goog #_ shadow.cljs_helpers cljs.core] deps)
                       ;; just in case someone manually required cljs.core
                       (distinct)
                       (into [])

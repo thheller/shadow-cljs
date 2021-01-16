@@ -1,7 +1,6 @@
 (ns shadow.cljs.devtools.server.ns-explorer.impl
   (:require [clojure.core.async :as async :refer (>!!)]
             [shadow.jvm-log :as log]
-            [clojure.set :as set]
             [shadow.build.api :as build-api]
             [clojure.java.io :as io]
             [cljs.analyzer :as cljs-ana]

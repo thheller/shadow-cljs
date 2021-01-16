@@ -5,12 +5,11 @@
             [clojure.core.async.impl.protocols :as async-prot]
             [shadow.jvm-log :as log]
             [shadow.undertow.impl :as impl]
-            [clojure.edn :as edn]
             [shadow.core-ext :as core-ext])
   (:import (io.undertow Undertow Handlers UndertowOptions)
            (io.undertow.websockets WebSocketConnectionCallback)
            (io.undertow.server.handlers BlockingHandler)
-           (io.undertow.server HttpHandler)
+           (io.undertow.server HttpHandler HttpServerExchange)
            (shadow.undertow WsTextReceiver ShadowResourceHandler)
            (io.undertow.websockets.core WebSockets)
            (javax.net.ssl SSLContext KeyManagerFactory)
@@ -18,14 +17,16 @@
            (java.security KeyStore)
            [org.xnio ChannelListener Xnio OptionMap]
            [java.nio.channels ClosedChannelException]
-           [io.undertow.util AttachmentKey MimeMappings Headers]
+           [io.undertow.util AttachmentKey MimeMappings Headers HeaderMap HttpString]
+           [io.undertow.server ResponseCommitListener]
            [io.undertow.server.handlers.resource PathResourceManager ClassPathResourceManager]
            [io.undertow.predicate Predicates Predicate]
            [io.undertow.server.handlers.encoding EncodingHandler ContentEncodingRepository GzipEncodingProvider DeflateEncodingProvider]
            [io.undertow.server.handlers.proxy LoadBalancingProxyClient ProxyHandler]
            [java.net URI]
            [io.undertow.protocols.ssl UndertowXnioSsl]
-           [org.xnio.ssl XnioSsl]))
+           [org.xnio.ssl XnioSsl]
+           [io.undertow.websockets.extensions PerMessageDeflateHandshake]))
 
 (defn ring* [handler-fn]
   (reify
@@ -57,9 +58,16 @@
   (-> (impl/exchange->ring (.get ws-exchange-field ex))
       (assoc ::channel channel)))
 
-
 (defn handler? [x]
   (and x (instance? HttpHandler x)))
+
+(defn unset-secure-cookie [^HeaderMap headers]
+  (when-let [cookie (.get headers "set-cookie" 0)]
+    (as-> cookie $
+          (str/split $ #";")
+          (remove #(some? (re-matches #"\s*Secure\s*" %)) $)
+          (str/join ";" $)
+          (.put headers (HttpString. "set-cookie") $))))
 
 (declare build)
 
@@ -89,8 +97,8 @@
       (reify HttpHandler
         (handleRequest [this x]
           (if (= "websocket" (-> (.getRequestHeaders x) (.getFirst "Upgrade")))
-            (.handleRequest upgrade-handler x)
-            (.handleRequest req-handler x)))))))
+            (.handleRequest ^HttpHandler upgrade-handler x)
+            (.handleRequest ^HttpHandler req-handler x)))))))
 
 (defmethod build* ::classpath
   [{:keys [mime-mappings] :as state} [id props next :as config]]
@@ -173,7 +181,7 @@
                 ;; minimal caching headers that force the browser the revalidate
                 ;; undertow will respond with 304 Not Modified checking If-Modified-Since
                 (.add Headers/CACHE_CONTROL "private, no-cache"))
-            (.handleRequest next ex)))]
+            (.handleRequest ^HttpHandler next ex)))]
     (assoc state :handler handler)))
 
 (defmethod build* ::disable-cache [state [id next]]
@@ -189,6 +197,74 @@
   (let [{next :handler :as state}
         (build state next)]
     (assoc state :handler (BlockingHandler. next))))
+
+(defmethod build* ::path-match [state [id config next-match next]]
+  (assert (vector? next-match))
+  (assert (vector? next))
+
+  (let [{:keys [patterns]}
+        config
+
+        {next-match :handler :as state}
+        (build state next-match)
+
+        {next :handler :as state}
+        (build state next)
+
+        handler
+        (reify
+          HttpHandler
+          (handleRequest [_ ex]
+            (let [path (.getRequestURI ex)]
+              (if (some #(re-find % path) patterns)
+                (.handleRequest ^HttpHandler next-match ex)
+                (.handleRequest ^HttpHandler next ex)))))]
+
+    (assoc state :handler handler)))
+
+(defmethod build* ::predicate-match [state [id config next-match next]]
+  (assert (vector? next-match))
+  (assert (vector? next))
+
+  (let [{:keys [predicate-fn]}
+        config
+
+        {next-match :handler :as state}
+        (build state next-match)
+
+        {next :handler :as state}
+        (build state next)
+
+        handler
+        (reify
+          HttpHandler
+          (handleRequest [_ ex]
+            (if (predicate-fn ex)
+              (.handleRequest ^HttpHandler next-match ex)
+              (.handleRequest ^HttpHandler next ex))))]
+
+    (assoc state :handler handler)))
+
+(defmethod build* ::strip-secure-cookies [state [id next]]
+  (assert (vector? next))
+
+  (let [{next :handler :as state}
+        (build state next)
+
+        listener
+        (reify
+          ResponseCommitListener
+          (^void beforeCommit [_ ^HttpServerExchange ex]
+            (unset-secure-cookie (.getResponseHeaders ex))))
+
+        handler
+        (reify
+          HttpHandler
+          (handleRequest [_ ex]
+            (when (= (.getRequestScheme ex) "http")
+              (.addResponseCommitListener ex listener))
+            (.handleRequest ^HttpHandler next ex)))]
+    (assoc state :handler handler)))
 
 (def compressible-types
   ["text/html"
@@ -284,6 +360,7 @@
 
     (assoc state :handler handler)))
 
+(defonce WS-REJECT (AttachmentKey/create Object))
 (defonce WS-LOOP (AttachmentKey/create Object))
 (defonce WS-IN (AttachmentKey/create Object))
 (defonce WS-OUT (AttachmentKey/create Object))
@@ -294,11 +371,13 @@
 
   (let [{:keys [handler-fn]} props
 
-        ws-handler
-        (Handlers/websocket
-          (reify
-            WebSocketConnectionCallback
-            (onConnect [_ exchange channel]
+        ws-callback
+        (reify
+          WebSocketConnectionCallback
+          (onConnect [_ exchange channel]
+            (if-some [[code reason] (.getAttachment exchange WS-REJECT)]
+              (do (WebSockets/sendCloseBlocking code reason channel)
+                  (.close exchange))
               (let [ws-in (.getAttachment exchange WS-IN)
                     ws-out (.getAttachment exchange WS-OUT)
                     ws-loop (.getAttachment exchange WS-LOOP)
@@ -324,18 +403,18 @@
                       ;; if loop closes after putting something on ws-out
                       (alt! :priority true
                         ws-out
-                        ([msg]
-                          (if (nil? msg)
-                            ;; when out closes, also close in
-                            (async/close! ws-in)
-                            ;; try to send message, close everything if that fails
-                            (do (try
-                                  (WebSockets/sendTextBlocking msg channel)
-                                  ;; just ignore sending to a closed channel
-                                  (catch ClosedChannelException e
-                                    (async/close! ws-in)
-                                    (async/close! ws-out)))
-                                (recur))))
+                        ([^String msg]
+                         (if (nil? msg)
+                           ;; when out closes, also close in
+                           (async/close! ws-in)
+                           ;; try to send message, close everything if that fails
+                           (do (try
+                                 (WebSockets/sendTextBlocking msg channel)
+                                 ;; just ignore sending to a closed channel
+                                 (catch ClosedChannelException e
+                                   (async/close! ws-in)
+                                   (async/close! ws-out)))
+                               (recur))))
 
                         ws-loop
                         ([_] :closed)))
@@ -347,18 +426,27 @@
                     (async/close! ws-in)
                     )))))
 
+        ws-handler
+        (-> (Handlers/websocket ws-callback)
+            (.addExtension (PerMessageDeflateHandshake. true 6)))
+
         handler
         (ring*
-          (fn [{::impl/keys [exchange] :as ring-request}]
+          (fn [{::impl/keys [^HttpServerExchange exchange] :as ring-request}]
             (let [ws-req (assoc ring-request ::ws true)
 
-                  {:keys [ws-in ws-out ws-loop] :as res}
+                  {:keys [ws-in ws-out ws-loop ws-reject] :as res}
                   (handler-fn ws-req)]
 
               ;; expecting map with :ws-loop :ws-in :ws-out keys
-              (if (and (satisfies? async-prot/ReadPort ws-loop)
-                       (satisfies? async-prot/ReadPort ws-in)
-                       (satisfies? async-prot/ReadPort ws-out))
+              (cond
+                ws-reject
+                (do (.putAttachment exchange WS-REJECT ws-reject)
+                    (.handleRequest ws-handler exchange))
+
+                (and (satisfies? async-prot/ReadPort ws-loop)
+                     (satisfies? async-prot/ReadPort ws-in)
+                     (satisfies? async-prot/ReadPort ws-out))
                 (do (.putAttachment exchange WS-LOOP ws-loop)
                     (.putAttachment exchange WS-IN ws-in)
                     (.putAttachment exchange WS-OUT ws-out)
@@ -366,8 +454,10 @@
                     ::async)
 
                 ;; didn't return a loop. respond without upgrade.
-                res
-                ))))]
+                ;; error result not visible to JS on client
+                ;; just relying on browser to report it
+                :else
+                res))))]
 
     (assoc state :handler handler)))
 

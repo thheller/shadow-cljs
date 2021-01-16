@@ -2,21 +2,16 @@
   (:require
     [clojure.java.io :as io]
     [cljs.source-map :as sm]
-    [clojure.set :as set]
     [clojure.string :as str]
     [cljs.compiler :as comp]
     [cljs.analyzer :as ana]
     [clojure.data.json :as json]
-    [shadow.jvm-log :as log]
     [shadow.build.data :as data]
     [shadow.build.resource :as rc]
-    [shadow.build.log :as build-log]
     [shadow.build.async :as async]
     [shadow.cljs.util :as util])
-  (:import (java.io StringReader File ByteArrayOutputStream)
-           (java.util Base64)
-           (java.util.zip GZIPOutputStream)
-           (shadow.build.closure SourceMapReport)))
+  (:import (java.io StringReader File)
+           (java.util Base64)))
 
 (defn clean-dir [dir]
   (when (.exists dir)
@@ -77,7 +72,7 @@
 
 (defn fn-call [sym]
   {:pre [(qualified-symbol? sym)]}
-  (str "\n" (comp/munge sym) "();"))
+  (str "\ntry { " (comp/munge sym) "(); } catch (e) { console.error(\"An error occurred when calling (" sym ")\"); throw(e); }"))
 
 (defn- ns-list-string [coll]
   (->> coll
@@ -165,7 +160,9 @@
   (when (has-source-map? output)
 
     (let [source-map-json
-          (encode-source-map-json state src output)
+          (encode-source-map-json state
+            (assoc src :prepend prepend)
+            output)
 
           b64
           (-> (Base64/getEncoder)
@@ -173,7 +170,7 @@
 
       (str "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," b64 "\n"))))
 
-(defn generate-source-map
+(defn generate-source-map-regular
   [state
    {:keys [resource-name output-name file] :as src}
    output
@@ -211,6 +208,18 @@
       (spit src-map-file source-map-json)
 
       sm-text)))
+
+(defn generate-source-map
+  [state
+   src
+   output
+   js-file
+   prepend]
+  {:pre [(rc/valid-resource? src)
+         (map? output)]}
+  (if (true? (get-in state [:compiler-options :source-map-inline]))
+    (generate-source-map-inline state src output prepend)
+    (generate-source-map-regular state src output js-file prepend)))
 
 (defn flush-source [state src-id]
   (let [{:keys [resource-name output-name last-modified] :as src}
@@ -254,12 +263,9 @@
     (get mod :output-type ::default)))
 
 (defn finalize-module-output
-  [state {:keys [goog-base prepend output append sources] :as mod}]
-  (let [any-shadow-js?
-        (->> (data/get-build-sources state)
-             (some #(= :shadow-js (:type %))))
-
-        shadow-js-outputs
+  [{:keys [polyfill-js] :as state}
+   {:keys [goog-base prepend output append sources] :as mod}]
+  (let [shadow-js-outputs
         (->> sources
              (map #(data/get-source-by-id state %))
              (filter #(= :shadow-js (:type %)))
@@ -272,22 +278,25 @@
                 (->> shadow-js-outputs
                      (map :js)
                      (str/join ";\n"))]
-            (str provides
-                 (when (seq provides)
-                   ";\n"))))
+            (-> (str provides
+                     (when (seq provides)
+                       ";\n")))))
+
+        base-prepend
+        (when goog-base
+          ;; when using :output-wrapper the closure compiler will for some reason use $jscomp without declaring it
+          ;; this is the quickest way I can think of to work around that. should figure out why GCC is going that.
+          ;; special case for node targets that use
+          ;; prepend to prepend hashbang which must be first
+          ;; FIXME: ugly hack, make this cleaner
+          (str (when (or (nil? prepend)
+                         (not (str/includes? prepend "shadow$provide")))
+                 "var shadow$provide = {};\n")
+               (when (seq polyfill-js)
+                 (str polyfill-js "\n"))))
 
         final-output
-        (str (when (and any-shadow-js?
-                        goog-base
-                        ;; special case for node targets that use
-                        ;; prepend to prepend hashbang which must be first
-                        ;; FIXME: ugly hack, make this cleaner
-                        (or (nil? prepend)
-                            (not (str/includes? prepend "shadow$provide"))))
-               ;; when using :output-wrapper the closure compiler will for some reason use $jscomp without declaring it
-               ;; this is the quickest way I can think of to work around that. should figure out why GCC is going that.
-               (str "var $jscomp = {};\n"
-                    "var shadow$provide = {};\n"))
+        (str base-prepend
              ;; FIXME: shadow$provide must come before prepend
              ;; since output-wrapper uses prepend and we need this
              ;; to be available cross module, we should however try to avoid
@@ -303,10 +312,10 @@
      :prepend-offset
      (-> 0
          (cond->
+           (seq base-prepend)
+           (+ (line-count base-prepend)) ;; var shadow$provide ...
            (seq prepend)
            (+ (line-count prepend))
-           (and goog-base)
-           (inc) ;; var shadow$provide ...
            ))}))
 
 (defmethod flush-optimized-module ::default
@@ -461,11 +470,12 @@
     (str (when-not ns ;; none-cljs
            (str "\nmodule.exports = " export ";\n"))
          (->> (get-in state [:compiler-env ::ana/namespaces ns :defs])
-              (keys)
+              (vals)
               (map (fn [def]
-                     (str "Object.defineProperty(module.exports, \""
-                          (if (= 'default def) "default" (comp/munge def)) ;; avoid munge to default$
-                          "\", { enumerable: true, get: function() { return " export "." (comp/munge def) "; } });")))
+                     (let [def-name (symbol (name (:name def)))]
+                       (str "Object.defineProperty(module.exports, \""
+                            (if (= 'default def-name) "default" (comp/munge def-name)) ;; avoid munge to default$
+                            "\", { enumerable: " (get-in def [:meta :export] false) ", get: function() { return " export "." (comp/munge def-name) "; } });"))))
               (str/join "\n")))))
 
 (def goog-global-snippet

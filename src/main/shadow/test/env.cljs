@@ -1,6 +1,8 @@
 (ns shadow.test.env
   (:require-macros [shadow.test.env]))
 
+(goog-define UI-DRIVEN false)
+
 ;; this should be how cljs.test works out of the box IMHO
 ;; all those macros don't compose and make writing testing utilities painful
 ;; (eg. you have to recompile the namespace containing the macro to pick up new tests)
@@ -12,6 +14,11 @@
 
 (defn get-tests []
   (get @tests-ref :namespaces))
+
+(defn get-test-vars []
+  (for [[ns ns-info] (get-tests)
+        var (:vars ns-info)]
+    var))
 
 (defn get-test-ns-info [ns]
   {:pre [(symbol? ns)]}

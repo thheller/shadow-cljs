@@ -10,7 +10,7 @@
   (-write [_ s]
     (.append sb s)
     (when (>= (.getLength sb) limit)
-      (throw (ex-info "limit reached" {:tag ::limit-reached}))))
+      (throw (ex-info (str "The limit of " limit " bytes was reached while printing.") {:tag ::limit-reached :limit limit}))))
   (-flush [_] nil))
 
 (defn pr-str-limit [obj limit]

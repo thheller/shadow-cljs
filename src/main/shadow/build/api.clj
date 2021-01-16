@@ -15,10 +15,8 @@
             [shadow.build.resource :as rc]
             [shadow.jvm-log :as log]
             [clojure.set :as set]
-            [shadow.build.resolve :as resolve]
             [shadow.build.babel :as babel])
-  (:import (java.io File)
-           (java.util.concurrent ExecutorService)))
+  (:import (java.util.concurrent ExecutorService)))
 
 (defn build-state? [build]
   (data/build-state? build))
@@ -54,6 +52,9 @@
     (keyword? b)
     b
 
+    (symbol? b)
+    b
+
     :else
     (throw (ex-info "failed to merge config value" {:a a :b b}))
     ))
@@ -67,7 +68,7 @@
    ;; :fn-invoke-direct true
    :elide-asserts false
    :closure-configurators []
-   :infer-externs true
+   :infer-externs :auto
    :language-in :ecmascript-next
    ;; still need to set this since it otherwise ends up using strict mode default
    :language-out :ecmascript5
@@ -175,9 +176,10 @@
        :previously-compiled
        #{}
 
-       ;; polyfills injected by closure during :js and :shadow-js transforms
-       :closure-injected-libs
-       #{}
+       ;; polyfills injected depending on source
+       ::closure/shadow-js-injected-libs #{}
+       ::closure/classpath-js-injected-libs #{}
+       ::closure/goog-injected-libs #{}
 
        :pending-tasks-ref
        (atom [])
@@ -321,32 +323,47 @@
    intended for cache invalidation if one or more resources are changed
    a resource may change a function signature and we need to invalidate all namespaces
    that may be using that function to immediately get warnings"
-  [state source-ids]
-  (let [modified
-        (set source-ids)]
+  [state modified]
+  {:pre [(set? modified)]}
 
-    (->> (:sources state)
-         (vals)
-         (map :resource-id)
-         (filter (fn [other-id]
-                   (let [deps-of
-                         (get-in state [:immediate-deps other-id])
+  (->> (:sources state)
+       (vals)
+       (map :resource-id)
+       (filter (fn [other-id]
+                 (let [deps-of
+                       (get-in state [:immediate-deps other-id])
 
-                         uses-modified-resources
-                         (set/intersection modified deps-of)]
-                     (seq uses-modified-resources)
-                     )))
-         (into modified))))
+                       uses-modified-resources
+                       (set/intersection modified deps-of)]
+                   (seq uses-modified-resources)
+                   )))
+       (into modified)))
 
 (defn reset-resources [state source-ids]
   {:pre [(coll? source-ids)]}
 
-  (let [modified
-        (set source-ids)
+  (if-not (seq source-ids)
+    state
+    (let [modified (set source-ids)
+          all-deps-to-reset (find-resources-affected-by state modified)]
 
-        all-deps-to-reset
-        (find-resources-affected-by state source-ids)]
-    (reduce data/remove-source-by-id state all-deps-to-reset)))
+      (reduce
+        (fn [state resource-id]
+          (cond
+            ;; fully remove specified resources (eg. modified sources found by watch)
+            (contains? modified resource-id)
+            (data/remove-source-by-id state resource-id)
+
+            ;; do nothing with sources defined in the REPL since the steps that produced
+            ;; them may not be repeatable. just keep them as is.
+            (get-in state [:sources resource-id :defined-in-repl])
+            state
+
+            ;; affected deps only have their output removed since their source didn't change
+            :else
+            (data/remove-output-by-id state resource-id)))
+        state
+        all-deps-to-reset))))
 
 (defn reset-namespaces [state provides]
   (let [source-ids
@@ -383,7 +400,7 @@
        (vals)
        (filter (macro-test-fn macros))
        (map :resource-id)
-       (into [])))
+       (into #{})))
 
 (defn reset-resources-using-macros [state macros]
   {:pre [(set? macros)]}

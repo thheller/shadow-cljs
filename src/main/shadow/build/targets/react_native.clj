@@ -1,7 +1,6 @@
 (ns shadow.build.targets.react-native
   (:refer-clojure :exclude (flush))
-  (:require [clojure.set :as set]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [cljs.compiler :as cljs-comp]
             [cljs.analyzer :as cljs-ana]
             [clojure.spec.alpha :as s]
@@ -76,7 +75,19 @@
     modules
     chunks))
 
-(defn configure [state mode {:keys [chunks init-fn output-dir] :as config}]
+(defn prepend-str [a b]
+  (str b a))
+
+(defn add-module-loaded-calls [modules]
+  (reduce-kv
+    (fn [m module-id module]
+      (update-in m [module-id :append-js]
+        prepend-str (str "\nshadow.cljs.devtools.client.env.module_loaded('" (name module-id) "');\n")))
+    modules
+    modules))
+
+(defn configure
+  [{:keys [worker-info] :as state} mode {:keys [chunks init-fn output-dir] :as config}]
   (let [output-dir
         (io/file output-dir)
 
@@ -86,13 +97,22 @@
         dev?
         (= :dev mode)
 
+        enabled?
+        (not (false? (get-in config [:devtools :enabled])))
+
+        build-worker?
+        (and enabled? (= :dev mode) worker-info)
+
         modules
         (-> {:index {:entries [(output/ns-only init-fn)]
                      :append-js (output/fn-call init-fn)}}
             (cond->
               (seq chunks)
               (-> (update :index assoc :prepend "var $APP = global.$APP = {};\n")
-                  (add-chunk-modules mode chunks))))]
+                  (add-chunk-modules mode chunks))
+
+              build-worker?
+              (add-module-loaded-calls)))]
 
     (io/make-parents output-file)
 
@@ -120,8 +140,10 @@
           (-> (shared/merge-repl-defines config)
               (set-server-host config)
               (update-in [::modules/config :index :entries] shared/prepend
-                '[cljs.user
-                  shadow.cljs.devtools.client.react-native]))
+                '[shadow.cljs.devtools.client.react-native]))
+
+          (nil? (get-in config [:compiler-options :output-feature-set]))
+          (assoc-in [:compiler-options :output-feature-set] :es6)
 
           dev?
           (shared/inject-preloads :index config)))))
@@ -130,36 +152,37 @@
   (SourceCodeEscapers/javascriptEscaper))
 
 (defn generate-eval-js [{:keys [build-sources] :as state}]
-  (reduce
-    (fn [state src-id]
-      (cond
-        (= src-id output/goog-base-id)
-        state
+  (let [gen-source-map? (not (false? (get-in state [:compiler-options :source-map])))]
+    (reduce
+      (fn [state src-id]
+        (cond
+          (= src-id output/goog-base-id)
+          state
 
-        ;; already generated
-        (get-in state [:output src-id :eval-js])
-        state
+          ;; already generated
+          (get-in state [:output src-id :eval-js])
+          state
 
-        :else
-        (let [{:keys [output-name] :as rc} (data/get-source-by-id state src-id)
-              {:keys [js] :as output} (data/get-output! state rc)
-              source-map? (output/has-source-map? output)
+          :else
+          (let [{:keys [output-name] :as rc} (data/get-source-by-id state src-id)
+                {:keys [js] :as output} (data/get-output! state rc)
+                source-map? (and gen-source-map? (output/has-source-map? output))
 
-              code
-              (cond-> js
-                source-map?
-                ;; FIXME: the url here isn't really used, wonder if there is a way to do something useful here
-                (str "\n//# sourceURL=http://localhost:8081/app/" output-name "\n"
-                     ;; "\n//# sourceMappingURL=http://localhost:8081/app/cljs-runtime/" output-name ".map\n"
-                     ;; FIXME: inline map saves having to know the actual URL
-                     (output/generate-source-map-inline state rc output nil)
-                     ))]
+                code
+                (cond-> js
+                  source-map?
+                  ;; FIXME: the url here isn't really used, wonder if there is a way to do something useful here
+                  (str "\n//# sourceURL=http://localhost:8081/app/" output-name "\n"
+                       ;; "\n//# sourceMappingURL=http://localhost:8081/app/cljs-runtime/" output-name ".map\n"
+                       ;; FIXME: inline map saves having to know the actual URL
+                       (output/generate-source-map-inline state rc output "")
+                       ))]
 
-          ;; pre-cache for later so it doesn't get regenerated on hot-compiles
-          (assoc-in state [:output src-id :eval-js]
-            (str "SHADOW_ENV.evalLoad(\"" output-name "\", \"" (.escape js-escaper ^String code) "\");")))))
-    state
-    build-sources))
+            ;; pre-cache for later so it doesn't get regenerated on hot-compiles
+            (assoc-in state [:output src-id :eval-js]
+              (str "SHADOW_ENV.evalLoad(\"" output-name "\", \"" (.escape js-escaper ^String code) "\");")))))
+      state
+      build-sources)))
 
 (defn eval-load-sources [state sources]
   (->> sources

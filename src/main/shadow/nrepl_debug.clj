@@ -1,7 +1,6 @@
 (ns shadow.nrepl-debug
   (:require [nrepl.transport :as transport]
             [clojure.pprint :refer (pprint)]
-            [clojure.walk :as walk]
             [clojure.java.io :as io])
   (:import [java.net ServerSocket Socket]
            [java.io FileOutputStream OutputStreamWriter]))
@@ -19,7 +18,8 @@
         (println ";; ----------------------------------------")
         (println ";; -- FROM " from)
         (println ";; ----------------------------------------")
-        (println text))))
+        (println text)
+        (flush))))
   agent-state)
 
 (defn client-loop [id client to-port]

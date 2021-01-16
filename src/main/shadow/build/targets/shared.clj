@@ -7,8 +7,7 @@
             [shadow.build.api :as cljs]
             [shadow.build.data :as data]
             [shadow.build.modules :as modules]
-            [clojure.data.json :as json])
-  (:import [java.net InetAddress]))
+            [clojure.data.json :as json]))
 
 (defn unquoted-qualified-symbol? [sym]
   (and (qualified-symbol? sym)
@@ -34,6 +33,8 @@
 
 (s/def ::enabled boolean?)
 
+(s/def ::log boolean?)
+
 (s/def ::autoload boolean?)
 
 (s/def ::after-load unquoted-qualified-symbol?)
@@ -46,6 +47,8 @@
 
 (s/def ::use-document-host boolean?)
 
+(s/def ::build-notify unquoted-qualified-symbol?)
+
 (s/def ::devtools
   (s/keys
     :opt-un
@@ -53,11 +56,13 @@
      ::http-port
      ::http-handler
      ::enabled
+     ::log
      ::autoload
      ::after-load
      ::before-load
      ::before-load-async
      ::use-document-host
+     ::build-notify
      ::devtools-url]))
 
 (s/def ::entry
@@ -90,16 +95,19 @@
   (s/coll-of keyword? :kind set?))
 
 (s/def ::module
-  (s/keys
-    :opt-un
-    [::entries
-     ::entry
-     ::init-fn
-     ::depends-on
-     ::prepend
-     ::prepend-js
-     ::append-js
-     ::append]))
+  (s/and
+    ;; {init-fn foo.bar/init} should fail
+    (s/map-of keyword? any?)
+    (s/keys
+      :opt-un
+      [::entries
+       ::entry
+       ::init-fn
+       ::depends-on
+       ::prepend
+       ::prepend-js
+       ::append-js
+       ::append])))
 
 (s/def ::modules
   (s/map-of
@@ -152,19 +160,23 @@
 
         {:keys [ignore-warnings
                 devtools-url
-                before-load
-                before-load-async
-                after-load
+                build-notify
                 autoload
                 use-document-host
+                use-document-protocol
+                reload-strategy
                 repl-pprint
-                log-style]
+                log-style
+                log]
          :as devtools}
         (:devtools build-config)]
 
     (merge
       {'shadow.cljs.devtools.client.env/enabled
        true
+
+       'shadow.cljs.devtools.client.env/log
+       (not (false? log))
 
        'shadow.cljs.devtools.client.env/autoload
        (not (false? autoload))
@@ -174,6 +186,9 @@
 
        'shadow.cljs.devtools.client.env/use-document-host
        (not (false? use-document-host))
+
+       'shadow.cljs.devtools.client.env/use-document-protocol
+       (true? use-document-protocol)
 
        'shadow.cljs.devtools.client.env/server-host
        (or (and (not= host "0.0.0.0") host) "localhost")
@@ -190,6 +205,11 @@
        'shadow.cljs.devtools.client.env/ssl
        (true? ssl)
 
+       'shadow.cljs.devtools.client.env/reload-strategy
+       (if (= :full reload-strategy)
+         "full"
+         "optimized")
+
        'shadow.cljs.devtools.client.env/build-id
        (name build-id)
 
@@ -198,8 +218,13 @@
 
        'shadow.cljs.devtools.client.env/devtools-url
        (or devtools-url "")}
+
+      (when build-notify
+        {'shadow.cljs.devtools.client.env/custom-notify-fn (cljs-comp/munge build-notify)})
+
       (when log-style
         {'shadow.cljs.devtools.client.env/log-style log-style})
+
       (when (contains? devtools :hud)
         (hud-defines (:hud devtools))))))
 
@@ -212,7 +237,7 @@
     state
     (-> state
         (update-in [:compiler-options :closure-defines] merge (repl-defines state config))
-        (update-in [::modules/config :main :entries] prepend '[cljs.user shadow.cljs.devtools.client.node])
+        (update-in [::modules/config :main :entries] prepend '[shadow.cljs.devtools.client.node])
         )))
 
 (defn set-output-dir [state mode {:keys [id output-dir] :as config}]

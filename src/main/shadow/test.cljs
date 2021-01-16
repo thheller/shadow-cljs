@@ -4,42 +4,132 @@
   (:require [cljs.test :as ct]
             [shadow.test.env :as env]))
 
-(declare test-ns-block)
+(defn test-vars-grouped-block
+  "like ct/test-vars-block but more generic
+   groups vars by namespace, executes fixtures"
+  [vars]
+  (->> vars
+       (group-by #(-> % meta :ns))
+       ;; more predictable test ordering
+       ;; FIXME: should maybe also allow randomizing to detect tests that rely on call order
+       (sort-by first)
+       (mapcat (fn [[ns vars]]
+                 [(fn []
+                    (ct/report {:type :begin-test-ns :ns ns}))
+                  ;; FIXME: this is too complex, should simplify
+                  (fn []
+                    (ct/block
+                      (let [env (ct/get-current-env)
+                            once-fixtures (get-in env [:once-fixtures ns])
+                            each-fixtures (get-in env [:each-fixtures ns])]
+                        (case (ct/execution-strategy once-fixtures each-fixtures)
+                          :async
+                          (->> vars
+                               (filter (comp :test meta))
+                               (mapcat (comp (partial ct/wrap-map-fixtures each-fixtures)
+                                         ct/test-var-block))
+                               (ct/wrap-map-fixtures once-fixtures))
+                          :sync
+                          (let [each-fixture-fn (ct/join-fixtures each-fixtures)]
+                            [(fn []
+                               ((ct/join-fixtures once-fixtures)
+                                (fn []
+                                  (doseq [v vars]
+                                    (when-let [t (:test (meta v))]
+                                      ;; (alter-meta! v update :test disable-async)
+                                      (each-fixture-fn
+                                        (fn []
+                                          ;; (test-var v)
+                                          (ct/run-block
+                                            (ct/test-var-block* v (ct/disable-async t))))))))))])))))
+                  (fn []
+                    (ct/report {:type :end-test-ns :ns ns}))])
+         )))
 
-(defn run-tests-block
-  "Like test-vars, but returns a block for further composition and
-  later execution."
-  [env namespaces]
+(defn test-ns-block
+  "Like test-ns, but returns a block for further composition and
+  later execution.  Does not clear the current env."
+  ([ns]
+   {:pre [(symbol? ns)]}
+   (let [{:keys [vars] :as test-ns} (env/get-test-ns-info ns)]
 
-  (let [summary
-        (volatile!
-          {:test 0 :pass 0 :fail 0 :error 0
-           :type :summary})
+     (if-not test-ns
+       [(fn []
+          (println (str "Namespace: " ns " not found, no tests to run.")))]
+       (test-vars-grouped-block vars)))))
 
-        merge-counters
-        (fn []
-          (vswap!
-            summary
-            (partial merge-with +)
-            (:report-counters (ct/get-current-env))))]
+(defn prepare-test-run [{:keys [report-fn] :as env} vars]
+  (let [orig-report ct/report]
+    [(fn []
+       (ct/set-env! (assoc env ::report-fn orig-report))
 
-    (-> [(fn [] (ct/set-env! env))]
-        (into (->> namespaces
-                   (mapcat (fn [ns]
-                             (-> (test-ns-block env ns)
-                                 (conj merge-counters))))))
-        (conj (fn []
-                (ct/report @summary)
-                (ct/report (assoc @summary :type :end-run-tests))
-                (ct/clear-env!))))))
+       (when report-fn
+         (set! ct/report report-fn))
+
+       ;; setup all known fixtures
+       (doseq [[test-ns ns-info] (env/get-tests)
+               :let [{:keys [fixtures]} ns-info]]
+         (when-let [fix (:once fixtures)]
+           (ct/update-current-env! [:once-fixtures] assoc test-ns fix))
+
+         (when-let [fix (:each fixtures)]
+           (ct/update-current-env! [:each-fixtures] assoc test-ns fix)))
+
+       ;; just in case report-fn wants to know when things starts
+       (ct/report {:type :begin-run-tests
+                   :var-count (count vars)
+                   :ns-count (->> vars
+                                  (map #(-> % meta :ns))
+                                  (set)
+                                  (count))}))]))
+
+(defn finish-test-run [block]
+  {:pre [(vector? block)]}
+  (conj block
+    (fn []
+      (let [{::keys [report-fn] :keys [report-counters] :as env} (ct/get-current-env)]
+        (ct/report (assoc report-counters :type :summary))
+        (ct/report (assoc report-counters :type :end-run-tests))
+        (set! ct/report report-fn)
+        ))))
+
+;; API Fns
+
+(defn run-test-vars
+  "tests all vars grouped by namespace, expects seq of test vars, can be obtained from env"
+  ([test-vars]
+   (run-test-vars (ct/empty-env) test-vars))
+  ([env vars]
+   (-> (prepare-test-run env vars)
+       (into (test-vars-grouped-block vars))
+       (finish-test-run)
+       (ct/run-block))))
+
+(defn test-ns
+  "test all vars for given namespace symbol"
+  ([ns]
+   (test-ns (ct/empty-env) ns))
+  ([env ns]
+   (let [{:keys [vars]} (env/get-test-ns-info ns)]
+     (-> (prepare-test-run env vars)
+         (into (test-vars-grouped-block vars))
+         (finish-test-run)
+         (ct/run-block)))))
 
 (defn run-tests
+  "test all vars in specified namespace symbol set"
   ([]
    (run-tests (ct/empty-env)))
   ([env]
    (run-tests env (env/get-test-namespaces)))
   ([env namespaces]
-   (ct/run-block (run-tests-block env namespaces))))
+   {:pre [(set? namespaces)]}
+   (let [vars (->> (env/get-test-vars)
+                   (filter #(contains? namespaces (-> % meta :ns))))]
+     (-> (prepare-test-run env vars)
+         (into (test-vars-grouped-block vars))
+         (finish-test-run)
+         (ct/run-block)))))
 
 (defn run-all-tests
   "Runs all tests in all namespaces; prints results.
@@ -53,59 +143,4 @@
      (->> (env/get-test-namespaces)
           (filter #(or (nil? re)
                        (re-matches re (str %))))
-          (into [])))))
-
-(defn test-all-vars-block [ns]
-  (let [env (ct/get-current-env)
-        {:keys [fixtures vars] :as test-ns}
-        (env/get-test-ns-info ns)]
-
-    (-> [(fn []
-           (when (nil? env)
-             (ct/set-env! (ct/empty-env)))
-           (when-let [fix (:once fixtures)]
-             (ct/update-current-env! [:once-fixtures] assoc ns fix))
-           (when-let [fix (:each fixtures)]
-             (ct/update-current-env! [:each-fixtures] assoc ns fix)))]
-
-        (into (ct/test-vars-block vars))
-        #_(conj (fn []
-                  (when (nil? env)
-                    (ct/clear-env!)))))))
-
-(defn test-all-vars
-  "Calls test-vars on every var with :test metadata interned in the
-  namespace, with fixtures."
-  [ns]
-  (ct/run-block
-    (-> (test-all-vars-block ns)
-        (conj (fn []
-                (ct/report {:type :end-test-all-vars :ns ns}))))))
-
-(defn test-ns-block
-  "Like test-ns, but returns a block for further composition and
-  later execution.  Does not clear the current env."
-  ([env ns]
-   {:pre [(symbol? ns)]}
-   [(fn []
-      (ct/set-env! env)
-      (ct/do-report {:type :begin-test-ns, :ns ns})
-      ;; If the namespace has a test-ns-hook function, call that:
-      ;; FIXME: must turn test-ns-hook into macro so it registers itself instead of just calling a defn
-      (ct/block (test-all-vars-block ns)))
-    (fn []
-      (ct/do-report {:type :end-test-ns, :ns ns}))]))
-
-(defn test-ns
-  "If the namespace defines a function named test-ns-hook, calls that.
-  Otherwise, calls test-all-vars on the namespace.  'ns' is a
-  namespace object or a symbol.
-
-  Internally binds *report-counters* to a ref initialized to
-  *initial-report-counters*.  "
-  ([ns] (test-ns (ct/empty-env) ns))
-  ([env ns]
-   (ct/run-block
-     (concat (test-ns-block env ns)
-       [(fn []
-          (ct/clear-env!))]))))
+          (into #{})))))

@@ -40,9 +40,16 @@
 
     (assoc state :handler record-handler)))
 
+(defn require-var [sym]
+  (try
+    (require (symbol (namespace sym)))
+    (find-var sym)
+    (catch Exception e
+      (throw (ex-info "failed to require-var by name" {:sym sym} e)))))
+
 (defn start-build-server
   [sys-bus config ssl-context out
-   {:keys [proxy-url port host roots handler]
+   {:keys [proxy-url proxy-predicate port host roots handler]
     :or {port 0}
     :as config}]
 
@@ -77,11 +84,34 @@
 
     (try
       (let [req-handler
-            (if (seq proxy-url)
-              [::undertow/proxy config]
-              [::undertow/classpath {:root "shadow/cljs/devtools/server/dev_http"}
-               [::undertow/blocking
-                [::undertow/ring {:handler-fn http-handler-fn}]]])
+            [::undertow/classpath {:root "shadow/cljs/devtools/server/dev_http"}
+             [::undertow/blocking
+              [::undertow/ring {:handler-fn http-handler-fn}]]]
+
+            req-handler
+            (cond
+              (not (seq proxy-url))
+              req-handler
+
+              ;; proxy-url but no proxy-predicate, proxy everything
+              (not proxy-predicate)
+              [::undertow/strip-secure-cookies
+               [::undertow/proxy config]]
+
+              ;; proxy-url + proxy-predicate, let predicate decide what to proxy
+              ;; should be symbol pointing to function accepting undertow exchange and returning boolean
+              ;; true if request should use proxy, false will use handler
+              (qualified-symbol? proxy-predicate)
+              (let [pred-var (require-var proxy-predicate)]
+                [::undertow/predicate-match
+                 {:predicate-fn (fn [ex]
+                                  (pred-var ex config))}
+                 [::undertow/strip-secure-cookies
+                  [::undertow/proxy config]]
+                 req-handler])
+
+              :else
+              (throw (ex-info "invalid :proxy-predicate value" {:val proxy-predicate})))
 
             req-handler
             (reduce
@@ -308,10 +338,10 @@
 
 (s/def ::handler qualified-symbol?)
 
-
 (defn roots-or-handler? [x]
   (or (seq (:roots x))
-      (:handler x)))
+      (:handler x)
+      (:proxy-url x)))
 
 (s/def ::server-config
   (s/and

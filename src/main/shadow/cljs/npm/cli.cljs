@@ -6,7 +6,6 @@
     ["os" :as os]
     ["child_process" :as cp]
     ["readline-sync" :as rl-sync] ;; FIXME: drop this?
-    ["mkdirp" :as mkdirp]
     ["net" :as node-net]
     ["which" :as which]
     [cljs.core.async :as async :refer (go go-loop alt!)]
@@ -17,6 +16,7 @@
     [goog.object :as gobj]
     [goog.string.format]
     [goog.string :refer (format)]
+    [shadow.cljs.config-env :as config-env]
     [shadow.cljs.npm.util :as util]
     [shadow.cljs.npm.client :as client]
     [shadow.cljs.devtools.cli-opts :as opts]
@@ -26,7 +26,7 @@
   (js/process.stderr.write (str (->> args (map str) (str/join " ")) "\n")))
 
 (def jar-version
-  (-> (js/require "../../package.json")
+  (-> (js/require "../package.json")
       (gobj/get "jar-version")))
 
 (defn file-older-than [a b]
@@ -36,6 +36,10 @@
 
 (defn ensure-dir [dir]
   (when-not (fs/existsSync dir)
+    (let [parent (path/resolve dir "..")]
+      (ensure-dir parent))
+    ;; node v10 supports #js {:recursive true} option
+    ;; don't want to bump the dependency just for that though
     (fs/mkdirSync dir)))
 
 (defn is-directory? [path]
@@ -110,11 +114,8 @@
           (js/process.exit 1)
           ))))
 
-(def default-config-str
-  (util/slurp (path/resolve js/__dirname ".." "default-config.edn")))
-
-(def default-config
-  (reader/read-string default-config-str))
+(defn default-config-str []
+  (util/slurp (path/resolve js/__dirname "default-config.edn")))
 
 (defn ensure-config []
   (loop [root (path/resolve)]
@@ -139,7 +140,7 @@
 
     (when (rl-sync/keyInYN "Create?")
       ;; FIXME: ask for default source path, don't just use one
-      (fs/writeFileSync config default-config-str)
+      (fs/writeFileSync config (default-config-str))
       (log "shadow-cljs - created default configuration")
       config
       )))
@@ -163,6 +164,7 @@
      ;; breaks cache when ending up with older version
      com.cognitect/transit-clj
      com.cognitect/transit-java
+     org.clojure/core.async
      })
 
 (defn drop-unwanted-deps [dependencies]
@@ -176,7 +178,8 @@
                    (when (or (contains? unwanted-deps dep-id)
                              (contains? unwanted-deps fq-dep-id))
                      (js/console.warn
-                       (str "WARNING: The " dep-id " dependency in shadow-cljs.edn was ignored. Default version is used and override is not allowed to ensure compatibility."))
+                       (str "WARNING: The " dep-id " dependency in shadow-cljs.edn was ignored. Default version is used and override is not allowed to ensure compatibility.\n"
+                            "The versions provided by shadow-cljs can be found here: https://clojars.org/thheller/shadow-cljs/versions/" jar-version))
                      true))))
        (into [])))
 
@@ -246,13 +249,9 @@
           ))))
 
 (defn print-error [ex]
-  (let [{:keys [tag] :as data}
-        (ex-data ex)]
-
-    (js/console.warn "===== ERROR =================")
-    (js/console.warn (.-message ex))
-    (js/console.warn "=============================")
-    ))
+  (js/console.warn "===== ERROR =================")
+  (js/console.warn (.-message ex))
+  (js/console.warn "============================="))
 
 (defn get-shared-home []
   (path/resolve (os/homedir) ".shadow-cljs" jar-version))
@@ -311,6 +310,19 @@
             (into args))]
 
     (log "shadow-cljs - running: lein" (str/join " " lein-args))
+
+    (when (seq (:dependencies config))
+      (log "==============================================================================")
+      (log "WARNING: The configured :dependencies in shadow-cljs.edn were ignored!")
+      (log "         When using :lein they must be configured in project.clj!")
+      (log "=============================================================================="))
+
+    (when (seq (:source-paths config))
+      (log "==============================================================================")
+      (log "WARNING: The configured :source-paths in shadow-cljs.edn were ignored!")
+      (log "         When using :lein they must be configured in project.clj!")
+      (log "=============================================================================="))
+
     (run! project-root "lein" lein-args {})))
 
 (defn get-clojure-args [project-root {:keys [jvm-opts user-config] :as config} opts]
@@ -377,6 +389,19 @@
             (into args))]
 
     (log "shadow-cljs - starting via \"clojure\"")
+
+    (when (seq (:dependencies config))
+      (log "=============================================================================")
+      (log "WARNING: The configured :dependencies in shadow-cljs.edn were ignored!")
+      (log "         When using :deps they must be configured in deps.edn")
+      (log "=============================================================================="))
+
+    (when (seq (:source-paths config))
+      (log "==============================================================================")
+      (log "WARNING: The configured :source-paths in shadow-cljs.edn were ignored!")
+      (log "         When using :deps they must be configured in deps.edn")
+      (log "=============================================================================="))
+
     (if-not (is-windows?)
       (run! project-root "clojure" clojure-args {})
       (let [ps-args (into ["-command" "clojure"] (map powershell-escape) clojure-args)]
@@ -489,7 +514,7 @@
 (defn print-cli-info [project-root config-path {:keys [cache-root source-paths] :as config} opts]
   (println "=== Version")
   (println "jar:           " jar-version)
-  (println "cli:           " (-> (js/require "../../package.json")
+  (println "cli:           " (-> (js/require "../package.json")
                                  (gobj/get "version")))
   (println "deps:          " (-> (js/require "shadow-cljs-jar/package.json")
                                  (gobj/get "version")))
@@ -521,21 +546,28 @@
       (print-classpath-tree deps-hierarchy))
     (println)))
 
-(defn- getenv [envname]
-  (str (aget js/process.env envname)))
-
 (defn read-config* [config-path]
   (try
     (let [reader-opts
-          {:readers {'shadow/env getenv}}
+          {:readers
+           {'shadow/env config-env/read-env
+            'env config-env/read-env}}
 
           config-txt
           (util/slurp config-path)
 
           rdr
-          (rt/source-logging-push-back-reader config-txt)]
+          (rt/source-logging-push-back-reader config-txt)
 
-      (edn/read reader-opts rdr))
+          res
+          (edn/read reader-opts rdr)]
+
+      (when-not (map? res)
+        (throw (ex-info
+                 (str "Malformed config file, expected a map but got: " (pr-str res))
+                 {:x res})))
+
+      res)
 
     (catch :default ex
       (throw (ex-info
@@ -671,6 +703,7 @@
                                [:plugin
                                 [:groupId "org.codehaus.mojo"]
                                 [:artifactId "build-helper-maven-plugin"]
+                                [:version "3.1.0"]
                                 [:executions
                                  [:execution
                                   [:phase "generate-sources"]
@@ -738,7 +771,28 @@
 
       (println classpath-str))))
 
-(defn ^:export main [args]
+(defn warn-about-missing-project-install! [project-root]
+  (try
+    (let [pjson-path (path/resolve project-root "package.json")]
+      (when-not (and (fs/existsSync pjson-path)
+                     (let [pjson (-> (fs/readFileSync pjson-path)
+                                     (str)
+                                     (js/JSON.parse)
+                                     (js->clj))]
+                       (or (get-in pjson ["devDependencies" "shadow-cljs"])
+                           (get-in pjson ["dependencies" "shadow-cljs"]))))
+
+        (println "------------------------------------------------------------------------------")
+        (println)
+        (println "   WARNING: shadow-cljs not installed in project.")
+        (println "   See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install")
+        (println)
+        (println "------------------------------------------------------------------------------")))
+
+    (catch :default e
+      (println "WARNING: package.json not found. See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install"))))
+
+(defn main [args]
 
   (try
     (let [{:keys [action options] :as opts}
@@ -787,13 +841,16 @@
                   (and (fs/existsSync server-port-file)
                        (fs/existsSync server-pid-file))]
 
-              (mkdirp/sync (path/resolve project-root cache-root))
+
+              (warn-about-missing-project-install! project-root)
+
+              (ensure-dir (path/resolve project-root cache-root))
 
               (when (and (not server-running?) (fs/existsSync server-pid-file))
                 (log "shadow-cljs - server pid exists but server appears to be dead, proceeding without server.")
                 (fs/unlinkSync server-pid-file))
 
-              (log "shadow-cljs - config:" config-path " cli version:" version " node:" js/process.version)
+              (log "shadow-cljs - config:" config-path)
 
               (cond
                 (or (:cli-info options)

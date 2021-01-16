@@ -53,8 +53,8 @@
               (stack-pop)
               (update :resolved-order conj resource-id))))))
 
-(defmulti find-resource-for-string
-  (fn [state rc require was-symbol?]
+(defmulti find-resource-for-string*
+  (fn [state require-from require was-symbol?]
     (get-in state [:js-options :js-provider]))
   :default ::default)
 
@@ -63,8 +63,21 @@
       ;; only :js and :shadow-js are allowed to go off classpath
       (not (contains? #{:js :shadow-js} type))))
 
-(defmethod find-resource-for-string ::default [_ _ _ _]
+(defmethod find-resource-for-string* ::default [_ _ _ _]
   (throw (ex-info "invalid [:js-options :js-provider] config" {})))
+
+(defn find-resource-for-string [state require-from require was-symbol?]
+  ;; only allow (:require ["foo$bar.baz" :as x]) requires from CLJS and the REPL
+  ;; but requires with $ in their name from JS should look up actual files
+  (if (and (str/includes? require "$")
+           (or (nil? require-from)
+               (= :cljs (:type require-from))))
+    ;; syntax sugar
+    ;; (:require ["some$nested.access" :as foo])
+    ;; results in 2 separate resources, one doing the require "some" the other doing "nested.access"
+    (js-support/shim-require-sugar-resource require-from require was-symbol?)
+    ;; regular require
+    (find-resource-for-string* state require-from require was-symbol?)))
 
 (def global-resolve-config
   {"jquery"
@@ -73,9 +86,9 @@
 (def native-node-modules
   #{"assert" "buffer_ieee754" "buffer" "child_process" "cluster" "console"
     "constants" "crypto" "_debugger" "dgram" "dns" "domain" "events" "freelist"
-    "fs" "http" "https" "_linklist" "module" "net" "os" "path" "punycode"
+    "fs" "http" "http2" "https" "_linklist" "module" "net" "os" "path" "punycode"
     "querystring" "readline" "repl" "stream" "string_decoder" "sys" "timers"
-    "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8"})
+    "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8" "worker_threads"})
 
 (defn find-npm-resource
   [npm ^File require-from ^String require]
@@ -146,7 +159,7 @@
                 (update :cache-key conj resolve-cfg))))))))
 
 ;; FIXME: this is now a near duplicate of :shadow, should refactor and remove dupes
-(defmethod find-resource-for-string :closure
+(defmethod find-resource-for-string* :closure
   [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
   (let [abs? (util/is-absolute? require)
@@ -185,6 +198,7 @@
       ))
 
 (defn maybe-babel-rewrite [{:keys [js-esm deps] :as rc}]
+  {:pre [(map? rc)]}
   (if (and (:classpath rc) js-esm)
     ;; es6 from the classpath is left as :js type so its gets processed by closure
     rc
@@ -208,14 +222,21 @@
             (make-babel-source-fn)
             )))))
 
-(defmethod find-resource-for-string :shadow
-  [{:keys [js-options babel classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
+(defmethod find-resource-for-string* :shadow
+  [{:keys [js-options classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
-  (if (and (:keep-native-requires js-options)
-           (or (contains? native-node-modules require)
-               (contains? (:keep-as-require js-options) require)))
+  (cond
+    (and (:keep-native-requires js-options)
+         (or (contains? native-node-modules require)
+             (contains? (:keep-as-require js-options) require)))
     (js-support/shim-require-resource state require)
 
+    (or (str/starts-with? require "esm:")
+        (str/starts-with? require "https://")
+        (str/starts-with? require "http://"))
+    (js-support/shim-import-resource state require)
+
+    :else
     (let [abs? (util/is-absolute? require)
           rel? (util/is-relative? require)
           cp-rc? (when require-from
@@ -246,7 +267,7 @@
         (maybe-babel-rewrite rc)
         ))))
 
-(defmethod find-resource-for-string :require
+(defmethod find-resource-for-string* :require
   [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
   (let [cp-rc? (when require-from
                  (classpath-resource? require-from))]
@@ -255,10 +276,14 @@
       (util/is-absolute? require)
       (if-not cp-rc?
         (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
-        (maybe-babel-rewrite (cp/find-js-resource classpath require)))
+        (some->
+          (cp/find-js-resource classpath require)
+          (maybe-babel-rewrite)))
 
       (util/is-relative? require)
-      (maybe-babel-rewrite (cp/find-js-resource classpath require-from require))
+      (some->
+        (cp/find-js-resource classpath require-from require)
+        (maybe-babel-rewrite))
 
       :else
       (when (or (contains? native-node-modules require)
@@ -302,7 +327,7 @@
             (throw (ex-info "override not supported for :js-provider :require" resolve-cfg))
             ))))))
 
-(defmethod find-resource-for-string :external
+(defmethod find-resource-for-string* :external
   [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
   (let [cp-rc? (when require-from
                  (classpath-resource? require-from))]
@@ -356,7 +381,12 @@
                    {:tag ::missing-js
                     :js-package-dirs (get-in state [:npm :js-package-dirs])
                     :require require
-                    :require-from (:resource-name require-from)})))
+                    :require-from (:resource-name require-from)
+                    :resolved-stack
+                    (->> (:resolved-stack state)
+                         (map :resource-id)
+                         (map #(get-in state [:sources % :resource-name]))
+                         (into []))})))
 
         (-> state
             (data/maybe-add-source rc)
@@ -387,6 +417,19 @@
 
 (declare find-resource-for-symbol)
 
+;; check if the provided namespace matches the filename
+;; catches errors where demo.with_underscore is defined in demo/with_underscore.cljs
+;; when it should be demo.with-underscore
+(defn check-correct-ns! [{:keys [virtual macros-ns ns type resource-name]}]
+  (when (and (= type :cljs) (not macros-ns) (not virtual))
+    (let [expected-ns (util/filename->ns resource-name)]
+      (when (not (= expected-ns ns))
+        (throw (ex-info "Resource does not have expected namespace"
+                 {:tag ::unexpected-ns
+                  :resource resource-name
+                  :expected-ns expected-ns
+                  :actual-ns ns}))))))
+
 (defn find-resource-for-symbol*
   [{:keys [classpath] :as state} require-from require]
   ;; check if ns is an alias
@@ -398,6 +441,7 @@
 
       ;; otherwise check if the classpath provides a symbol
       (when-let [rc (cp/find-resource-for-provide classpath require)]
+        (check-correct-ns! rc)
         [rc state])
 
       ;; special cases where clojure.core.async gets aliased to cljs.core.async
@@ -409,6 +453,7 @@
 
           ;; auto alias clojure.core.async -> cljs.core.async if it exists
           (when-let [rc (cp/find-resource-for-provide classpath cljs-sym)]
+            (check-correct-ns! rc)
             [rc
              (-> state
                  (update :ns-aliases assoc require cljs-sym)
@@ -551,19 +596,44 @@
 (defn resolve-entry [state entry]
   (resolve-require state nil entry))
 
+(defn resolve-cleanup [state]
+  (dissoc state :resolved-order :resolved-set :resolved-stack))
+
 (defn resolve-entries
   "returns [resolved-ids updated-state] where each resolved-id can be found in :sources of the updated state"
-  [state entries]
+  [{:keys [classpath] :as state} entries]
   (let [{:keys [resolved-order] :as state}
         (-> state
             (assoc
               :resolved-set #{}
               :resolved-order []
               :resolved-stack [])
-            (util/reduce-> resolve-entry entries))]
+            (util/reduce-> resolve-entry entries))
 
-    [resolved-order
-     (dissoc state :resolved-order :resolved-set :resolved-stack)]))
+        auto-require-suffixes
+        (get-in state [:build-options :auto-require-suffixes])
+
+        auto-require-namespaces
+        (when (seq auto-require-suffixes)
+          (->> resolved-order
+               (map #(get-in state [:sources %]))
+               (filter #(= :cljs (:type %)))
+               ;; FIXME: maybe let use configure to include files from jar?
+               (remove :from-jar)
+               (mapcat (fn [{:keys [ns]}]
+                         (->> auto-require-suffixes
+                              (map #(symbol (str ns %))))))
+               (filter (fn [spec-ns]
+                         (or (get-in state [:sym->id spec-ns])
+                             (cp/has-resource? classpath spec-ns))))
+               (vec)))]
+
+    (if-not (seq auto-require-namespaces)
+      [resolved-order (resolve-cleanup state)]
+      (let [[extra-sources state]
+            (resolve-entries state auto-require-namespaces)]
+        [(into resolved-order extra-sources)
+         (resolve-cleanup state)]))))
 
 (defn resolve-repl
   "special case for REPL which always resolves based on the current ns"

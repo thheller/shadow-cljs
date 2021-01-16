@@ -3,15 +3,12 @@
   (:require
     [clojure.core.async :as async :refer (go <! >! >!! <!! alt! alt!!)]
     [clojure.java.io :as io]
-    [clojure.pprint :refer (pprint)]
     [clojure.java.browse :refer (browse-url)]
     [clojure.string :as str]
-    [cljs.repl :as cljs-repl]
     [shadow.jvm-log :as log]
     [shadow.runtime.services :as rt]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
-    [shadow.build.node :as node]
     [shadow.build.npm :as npm]
     [shadow.build.classpath :as cp]
     [shadow.build.babel :as babel]
@@ -22,9 +19,9 @@
     [shadow.cljs.devtools.errors :as e]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-    [shadow.cljs.devtools.server.runtime :as runtime]
-    [cljs.repl :as repl])
-  (:import [java.net Inet4Address NetworkInterface]))
+    [shadow.cljs.devtools.server.runtime :as runtime])
+  (:import [java.net Inet4Address NetworkInterface]
+           [java.io StringReader]))
 
 ;; nREPL support
 
@@ -127,22 +124,6 @@
     (contains? (super/active-builds supervisor) build-id)
     ))
 
-(defn send-to-runtimes! [build-state-or-id payload]
-  (let [build-id (cond
-                   (build-api/build-state? build-state-or-id)
-                   (:build-id build-state-or-id)
-                   (keyword? build-state-or-id)
-                   build-state-or-id
-                   :else
-                   (throw (ex-info "invalid argument, requires build-id keyword or build state (from hooks)" {:got build-state-or-id
-                                                                                                              :payload payload})))
-        worker (get-worker build-id)]
-    (if-not worker
-      :watch-not-running
-
-      (do (worker/send-to-runtimes! worker payload)
-          :sent))))
-
 (defn watch-compile!
   "manually trigger a recompile for a watch when {:autobuild false} is used"
   [build-id]
@@ -190,18 +171,21 @@
     :ok))
 
 (defn watch*
-  [{:keys [build-id] :as build-config} {:keys [verbose sync] :as opts}]
+  [{:keys [build-id] :as build-config}
+   {:keys [verbose sync log-chan log-close?]
+    :or {log-close? true}
+    :as opts}]
   {:pre [(map? build-config)
          (keyword? build-id) ;; not required here but by start-worker
          (map? opts)]}
-  (let [out (util/stdout-dump verbose)
+  (let [out (or log-chan (util/stdout-dump verbose))
 
         autobuild?
         (and (not (false? (:autobuild opts)))
              (not (false? (get-in build-config [:devtools :autobuild]))))]
 
     (-> (start-worker build-config opts)
-        (worker/watch out true)
+        (worker/watch out log-close?)
         (cond->
           autobuild?
           (worker/start-autobuild)
@@ -255,7 +239,7 @@
   (when-let [{:keys [proc-control] :as worker} (get-worker build-id)]
     (>!! proc-control {:type :runtime-kick :runtime-id runtime-id})))
 
-(defn repl-runtime-clear []
+(defn repl-runtime-clear
   "kick all registered runtimes that haven't responded to ping within 5sec
 
    only needed in cases where the runtime doesn't properly disconnect which
@@ -348,12 +332,22 @@
 
         (or debug pseudo-names)
         (build-api/with-compiler-options
-          {:pretty-print true
+          {:dump-closure-inputs true
+           :pretty-print true
            :pseudo-names true}))
       (build/compile)
       (build/optimize)
       (build/flush)
       (build-finish build-config)))
+
+(defn release!
+  ([build]
+   (release! build {}))
+  ([build opts]
+   (with-runtime
+     (let [build-config (config/get-build! build)]
+       (release* build-config opts)))
+   :done))
 
 (defn release
   ([build]
@@ -404,19 +398,15 @@
   ([id]
    (nrepl-select id {}))
   ([id opts]
-   (let [worker (get-worker id)]
-     (cond
-       (nil? worker)
-       [:no-worker id]
+   (cond
+     (nil? *nrepl-init*)
+     :missing-nrepl-middleware
 
-       (nil? *nrepl-init*)
-       :missing-nrepl-middleware
-
-       :else
-       (do (*nrepl-init* worker opts)
-           ;; Cursive uses this to switch repl type to cljs
-           (println "To quit, type: :cljs/quit")
-           [:selected id])))))
+     :else
+     (do (*nrepl-init* id opts)
+         ;; Cursive uses this to switch repl type to cljs
+         (println "To quit, type: :cljs/quit")
+         [:selected id]))))
 
 (defn select-cljs-runtime [worker]
   (let [all (-> worker :state-ref deref :runtimes vals vec)]
@@ -445,36 +435,6 @@
         (recur worker)
         ))))
 
-(defn repl-next
-  ([build-id]
-   (repl-next build-id {}))
-  ([build-id {:keys [stop-on-eof] :as opts}]
-   (if *nrepl-init*
-     (nrepl-select build-id opts)
-     (let [{:keys [supervisor] :as app}
-           (runtime/get-instance!)
-
-           worker
-           (super/get-worker supervisor build-id)]
-       (if-not worker
-         :no-worker
-         (let [current-runtimes
-               (-> worker :state-ref deref :runtimes vals)
-
-               {:keys [quit runtime-id runtime-info] :as runtime}
-               (if (= 1 (count current-runtimes))
-                 (-> current-runtimes first)
-                 (select-cljs-runtime worker))]
-
-           (when-not quit
-             (when runtime-id
-               (println (str "Connecting to REPL runtime: " runtime-id)))
-             ;; " " (pr-str runtime-info)
-
-             (repl-impl/stdin-takeover! worker app runtime-id)
-             (when stop-on-eof
-               (super/stop-worker supervisor build-id)))))))))
-
 (defn repl
   ([build-id]
    (repl build-id {}))
@@ -488,7 +448,7 @@
            (super/get-worker supervisor build-id)]
        (if-not worker
          :no-worker
-         (do (repl-impl/stdin-takeover! worker app nil)
+         (do (repl-impl/stdin-takeover! worker app opts)
              (when stop-on-eof
                (super/stop-worker supervisor build-id))))))))
 
@@ -497,6 +457,7 @@
   ([]
    (node-repl {}))
   ([{:keys [build-id] :or {build-id :node-repl} :as opts}]
+   {:pre [(map? opts)]}
    (let [{:keys [supervisor] :as app}
          (runtime/get-instance!)
 
@@ -596,7 +557,7 @@
 
       ;; for normal REPL loops we wait for the CLJS loop to end
       (when-not *nrepl-init*
-        (repl-impl/stdin-takeover! worker app nil)
+        (repl-impl/stdin-takeover! worker app opts)
         (super/stop-worker supervisor (:build-id build-config)))
 
       :done)))
@@ -624,7 +585,7 @@
 (defn test []
   (println "TBD"))
 
-(defn- find-local-addrs []
+(defn find-local-addrs []
   (for [ni (enumeration-seq (NetworkInterface/getNetworkInterfaces))
         :when (not (.isLoopback ni))
         :when (.isUp ni)
@@ -660,3 +621,61 @@
         ;; but that returns my VirtualBox Adapter for some reason
         ;; which is incorrect and doesn't work
         (.getHostAddress addr)))))
+
+;; FIXME: figure out which other opts this should take and document properly
+;; {:ns some-sym} for setting the initial ns
+(defn cljs-eval
+  [build-id code opts]
+  {:pre [(keyword? build-id)
+         (string? code)
+         (map? opts)]}
+
+  (let [worker
+        (get-worker build-id)
+
+        {:keys [relay]}
+        (get-runtime!)
+
+        init-ns
+        (:ns opts 'cljs.user)
+
+        results-ref
+        (atom {:results []
+               :out ""
+               :err ""
+               :ns init-ns})]
+
+    ;; FIXME: should this throw if worker isn't running?
+    (when worker
+      (repl-impl/do-repl
+        worker
+        relay
+        (StringReader. code)
+        (async/chan)
+        {:init-state
+         {:ns init-ns
+          :runtime-id (:runtime-id opts)}
+
+         :repl-prompt
+         (fn repl-prompt [repl-state])
+
+         :repl-read-ex
+         (fn repl-read-ex [repl-state ex]
+           (swap! results-ref assoc :read-ex ex))
+
+         :repl-result
+         (fn repl-result [{:keys [ns] :as repl-state} result-as-printed-string]
+           (swap! results-ref assoc :ns ns)
+           (when-not (nil? result-as-printed-string)
+             (swap! results-ref update :results conj result-as-printed-string)))
+
+         :repl-stderr
+         (fn repl-stderr [repl-state text]
+           (swap! results-ref update :err str text))
+
+         :repl-stdout
+         (fn repl-stdout [repl-state text]
+           (swap! results-ref update :out str text))
+         })
+
+      @results-ref)))

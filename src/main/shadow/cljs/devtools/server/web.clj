@@ -2,7 +2,6 @@
   (:require
     [clojure.string :as str]
     [clojure.java.io :as io]
-    [clojure.edn :as edn]
     [hiccup.core :refer (html)]
     [hiccup.page :refer (html5)]
     [ring.middleware.file :as ring-file]
@@ -11,8 +10,6 @@
     [shadow.server.assets :as assets]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
-    [shadow.cljs.devtools.server.web.repl :as web-repl]
-    [shadow.cljs.devtools.server.worker.ws :as ws]
     [shadow.cljs.devtools.server.supervisor :as super]
     [shadow.cljs.devtools.server.worker :as worker]
     [shadow.cljs.devtools.api :as api]
@@ -20,7 +17,6 @@
     [ring.middleware.params :as ring-params]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.graph.env :as genv]
-    [clojure.data.json :as json]
     [shadow.cljs.devtools.server.dev-http :as dev-http]))
 
 (defn create-index-handler [{:keys [db] :as env}]
@@ -28,35 +24,31 @@
     {:status 200
      :body "hello world"}))
 
-(defn index-page [{:keys [dev-http] :as req}]
-  (common/page-boilerplate req
-    {:modules [:app]
-     :body-class "app-frame"}
-    (html
-      (comment
-        [:h1 "shadow-cljs"]
-        [:h2 (str "Project: " (.getCanonicalPath (io/file ".")))]
-
-        (let [{:keys [servers]} @dev-http]
-          (when (seq servers)
-            (html
-              [:h2 "HTTP Servers"]
-              [:ul
-               (for [{:keys [build-id instance] :as srv} servers
-                     :let [{:keys [http-port https-port]} instance]]
-                 (let [url (str "http" (when https-port "s") "://localhost:" (or https-port http-port))]
-                   [:li [:a {:href url} (str url " - " (pr-str build-id))]]))]))))
-
-      [:div#root
-       [:div "Loading ..."]]
-      )))
-
-(defn repl-page [{:keys [config] :as req}]
-  (common/page-boilerplate req
-    {:modules [:app]}
-    (html
-      [:div#root]
-      (assets/js-queue :none 'shadow.cljs.ui.repl/init))))
+(defn index-page [req]
+  {:status 200
+   :headers {"content-type" "text/html; charset=utf-8"}
+   :body
+   (html5
+     {:lang "en"}
+     [:head
+      ;; starting the worker ASAP
+      ;; if the script starts it we have to wait for the script to download and execute
+      ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
+      [:script
+       (str "var SHADOW_WORKER = new Worker(\"/js/worker.js?server-token="
+            (get-in req [:http :server-token])
+            "\");")]
+      [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
+      [:title (-> (io/file ".")
+                  (.getCanonicalFile)
+                  (.getName))]
+      [:link {:rel "stylesheet" :href "/css/main.css"}]
+      [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]
+      [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
+     [:body
+      [:div#root.fixed.inset-0]
+      [:script {:src "/js/shared.js" :defer true}]
+      [:script {:src "/js/main.js" :defer true}]])})
 
 (defn no-cache! [res]
   (update-in res [:headers] assoc
@@ -227,14 +219,63 @@
           [:script "shadow.test.workspaces.init();"]
           ])})))
 
-;; add SameSite cookie to protect UI websockets later
-(defn add-secret-header [{:keys [status] :as res} {:keys [server-secret] :as req}]
-  (let [cookie (get-in req [:ring-request :headers "cookie"])]
-    (if (or (>= status 400)
-            (and cookie (str/includes? cookie server-secret)))
-      res
-      ;; not using ring cookies middleware due to its dependency on clj-time, overkill anyways.
-      (assoc-in res [:headers "Set-Cookie"] (str "secret=" server-secret "; HttpOnly; SameSite=Strict;")))))
+(defonce active-cards-clients (atom 0))
+
+(defn grove-cards-page [{:keys [supervisor] :as req}]
+  (if-not (io/resource "shadow/experiments/grove/cards/env.cljs")
+    {:status 404
+     :headers {"content-type" "text/plain; charset=utf-8"}
+     :body "shadow.experiments.grove.cards.env namespace not found on classpath!"}
+
+    (let [worker
+          (or (super/get-worker supervisor :grove-cards)
+              (let [config
+                    {:build-id :grove-cards
+                     :target :browser-test
+                     :ns-regexp "-cards$"
+                     :runner-ns 'shadow.experiments.grove.cards.runner
+                     :asset-path "/cache/grove-cards/out/js"
+                     :test-dir ".shadow-cljs/builds/grove-cards/out"}]
+
+                (log/debug ::grove-cards-start config)
+
+                (-> (super/start-worker supervisor config {})
+                    (worker/start-autobuild))))]
+
+      (worker/sync! worker)
+
+      (swap! active-cards-clients inc)
+
+      {:status 200
+       :headers {"content-type" "text/html; charset=utf-8"}
+       :body
+       (html5
+         {:lang "en"}
+         [:head
+          [:title "grove cards"]
+          [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+          [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]]
+         [:body
+          [:div#app]
+          [:script {:src "/cache/grove-cards/out/js/test.js"}]
+          [:script "shadow.experiments.grove.cards.runner.init();"]
+          [:script
+           (str "window.addEventListener(\"beforeunload\", function() {"
+                "navigator.sendBeacon(\"/grove/cards-unload\", \"\");"
+                "});")]
+          ])})))
+
+(defn grove-cards-unload [{:keys [supervisor] :as req}]
+  (future
+    ;; FIXME: delay this a bit since it might just be a page reload
+    (Thread/sleep 1000)
+    (swap! active-cards-clients dec)
+    (when (zero? @active-cards-clients)
+      (super/stop-worker supervisor :grove-cards)))
+
+  {:status 201
+   :headers {}
+   :body ""})
 
 (defn maybe-index-page [req]
   (let [accept (get-in req [:ring-request :headers "accept"])]
@@ -250,20 +291,16 @@
         (:GET "/repl-js/{build-id:keyword}" browser-repl-js build-id)
         (:GET "/browser-test" browser-test-page)
         (:GET "/workspaces" workspaces-page)
-        maybe-index-page #_common/not-found)
-      (add-secret-header req)))
+        (:GET "/grove/cards" grove-cards-page)
+        (:ANY "/grove/cards-unload" grove-cards-unload)
+        maybe-index-page #_common/not-found)))
 
 (defn root [req]
   (-> req
       (update :ring-request ring-params/params-request {})
       (http/route
         ;; temp fix for middleware problem
-        (:ANY "/api/runtime" web-api/api-runtime)
-        (:ANY "/api/tool" web-api/api-tool)
-        (:ANY "/api/ws" web-api/api-ws)
+        (:ANY "/api/remote-relay" web-api/api-remote-relay)
         (:ANY "^/api" web-api/root)
-        (:ANY "^/ws" ws/process-ws)
-        (:ANY "^/worker" ws/process-req)
-        (:ANY "/repl-ws" web-repl/repl-ws)
         (:GET "^/cache" serve-cache-file)
         pages)))

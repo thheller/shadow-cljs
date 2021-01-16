@@ -4,7 +4,6 @@
             [shadow.build.modules :as modules]
             [shadow.build.api :as build-api]
             [clojure.java.io :as io]
-            [clojure.set :as set]
             [shadow.build.output :as output]
             [shadow.build.targets.shared :as shared]
             [shadow.build.classpath :as cp]
@@ -16,13 +15,16 @@
 
 (s/def ::runtime #{:node :browser :react-native})
 
+(s/def ::entries
+  (s/coll-of simple-symbol? :kind vector? :min-count 1 :distinct true))
+
 (s/def ::target
   (s/keys
     :req-un
-    [::shared/output-dir]
+    [::shared/output-dir
+     ::entries]
     :opt-un
     [::runtime
-     ::shared/entries
      ::shared/devtools]))
 
 (defmethod config/target-spec :npm-module [_]
@@ -49,23 +51,16 @@
         output-dir
         (build-api/with-build-options {:output-dir (io/file output-dir)})
 
+        (= :node runtime)
+        (node/set-defaults)
+
         (and (= :dev mode) (:worker-info state))
-        (shared/merge-repl-defines
-          (update config :devtools merge {:autoload false ;; doesn't work yet, use built-in for now
-                                          :use-document-host false}))
+        (shared/merge-repl-defines config)
         )))
 
 (defn resolve* [module-config {:keys [classpath] :as state} mode {:keys [entries runtime] :as config}]
   (let [repl?
-        (some? (:worker-info state))
-
-        entries
-        (-> (or entries
-                ;; if the user didn't specify any entries we default to compiling everything in the source-path (but not in jars)
-                (cp/get-source-provides classpath))
-
-            ;; just to ensure entries are never empty
-            (conj 'cljs.core))]
+        (some? (:worker-info state))]
 
     (-> module-config
         (assoc :entries (vec entries))
@@ -75,10 +70,10 @@
               (browser/inject-devtools-console state config))
 
           (and repl? (= :node runtime))
-          (update :entries shared/prepend '[cljs.user shadow.cljs.devtools.client.node])
+          (update :entries shared/prepend '[shadow.cljs.devtools.client.node])
 
           (and repl? (= :react-native runtime))
-          (-> (update :entries shared/prepend '[cljs.user shadow.cljs.devtools.client.react-native])
+          (-> (update :entries shared/prepend '[shadow.cljs.devtools.client.react-native])
               ;; rn itself doesn't support this but the remote debug chrome thing does
               (browser/inject-devtools-console state config)))
 

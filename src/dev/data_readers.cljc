@@ -1,0 +1,1 @@
+{foo demo.browser/read-foo}

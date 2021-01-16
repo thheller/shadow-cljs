@@ -1,12 +1,10 @@
 (ns shadow.build.compiler
   (:require
-    [clojure.spec.alpha :as s]
     [clojure.string :as str]
     [clojure.set :as set]
     [clojure.java.io :as io]
     [clojure.tools.reader.reader-types :as readers]
     [clojure.tools.reader :as reader]
-    [cljs.analyzer :as cljs-ana]
     [cljs.analyzer :as ana]
     [cljs.compiler :as comp]
     [cljs.spec.alpha :as cljs-spec]
@@ -38,6 +36,7 @@
   ;; technically needs to check all files but given that they'll all be in the
   ;; same jar one is enough
   [(util/resource-last-modified "shadow/build/compiler.clj")
+   (util/resource-last-modified "shadow/build/cljs_hacks.cljc")
    ;; check a cljs file as well in case the user uses a different cljs version directly
    (util/resource-last-modified "cljs/analyzer.cljc")])
 
@@ -138,7 +137,7 @@
               pprefix (protocol-prefix protocol)]
 
           ;; assoc into ns so cache can restore it
-          (swap! env/*compiler* update-in [::cljs-ana/namespaces protocol-ns :shadow/protocol-prefixes] util/set-conj pprefix)
+          (swap! env/*compiler* update-in [::ana/namespaces protocol-ns :shadow/protocol-prefixes] util/set-conj pprefix)
           ;; used by externs inference since it otherwise can't identify protocol properties
           (swap! env/*compiler* update :shadow/protocol-prefixes util/set-conj pprefix)
           ))))
@@ -155,7 +154,7 @@
         (let [require (second form)
               ns (-> env :ns :name)]
           (when (string? require)
-            (swap! env/*compiler* update-in [::cljs-ana/namespaces ns :shadow/js-requires] util/set-conj require)
+            (swap! env/*compiler* update-in [::ana/namespaces ns :shadow/js-requires] util/set-conj require)
             )))))
   ast)
 
@@ -225,7 +224,7 @@
 
            ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
            base-env
-           (-> (empty-env state  ns)
+           (-> (empty-env state ns)
                (cond->
                  repl-context?
                  (assoc ::repl-context true
@@ -338,9 +337,9 @@
 
       (let [{:keys [ns type] :as rc} (data/get-source-by-provide state dep)]
         ;; we never need goog.require, just skip emitting it completely
-        (when (or (= type :goog)
-                  (= type :cljs))
-          (comp/emitln "goog.require('" (comp/munge dep) "');"))
+        #_(when (or (= type :goog)
+                    (= type :cljs))
+            (comp/emitln "goog.require('" (comp/munge dep) "');"))
 
         ;; in dev mode each CLJS files shadow.js.require their own js dependencies
         ;; since they might be loaded by the REPL or code-reloading.
@@ -351,7 +350,7 @@
           )))))
 
 (defn default-analyze-cljs
-  [{:keys [last-progress-ref] :as state} {:keys [ns macros-ns] :as compile-state} form]
+  [{:keys [last-progress-ref] :as state} {:keys [macros-ns] :as compile-state} form]
   ;; ignore (defmacro ...) in normal cljs compilation since they otherwise end
   ;; up as normal vars and can be called as fns. compile as usual when compiling as macro ns
   ;; FIXME: could use a better warning than "Use of undeclared Var demo.browser/dummy-macro"
@@ -367,7 +366,7 @@
       (vreset! last-progress-ref (System/currentTimeMillis))
 
       (-> compile-state
-          (update-in [:ast] conj ast)
+          (update :ast conj ast)
           (cond->
             (= op :ns)
             (assoc
@@ -495,6 +494,27 @@
   (-> (sm/encode* {"unused" source-map} {})
       (select-keys ["mappings" "names"])))
 
+(defn walk-ast [{:keys [children] :as ast} init visit-fn]
+  (reduce
+    (fn [result child-key]
+      (let [child (get ast child-key)]
+        (cond
+          (map? child)
+          (walk-ast child result visit-fn)
+
+          (sequential? child)
+          (reduce
+            (fn [result child]
+              (walk-ast child result visit-fn))
+            result
+            child)
+
+          :else
+          (throw (ex-info "unexpected :children entry, should be map or sequential?" {:ast ast}))
+          )))
+    (visit-fn init ast)
+    children))
+
 (defn do-compile-cljs-resource
   [{:keys [compiler-options] :as state}
    {:keys [resource-id resource-name from-jar] :as rc}
@@ -575,14 +595,38 @@
                               :gen-line 0})
 
                 size-warnings-ref
-                (atom [])]
+                (atom [])
+
+                ;; track which vars a namespace references for later
+                ;; plan to use it for some UI stuff.
+                ;; could maybe implement some naive CLJS native DCE
+                ;; by delaying emit until everything is analyzed and then
+                ;; only emitting vars that were actually used
+                used-vars
+                (reduce
+                  (fn [result ast-entry]
+                    (walk-ast ast-entry result
+                      (fn [result {:keys [op] :as ast}]
+                        (if-not (contains? #{:var :js-var} op)
+                          result
+                          (conj result (:name ast))))))
+                  #{}
+                  ast)]
 
             (binding [comp/*source-map-data* sm-ref
                       comp/*source-map-data-gen-col* (AtomicLong.)
                       *out* sw]
               (doseq [ast-entry ast]
                 (let [size-before (-> sw (.getBuffer) (.length))]
-                  (shadow-emit state ast-entry)
+                  (try
+                    (shadow-emit state ast-entry)
+                    (catch Exception e
+                      (throw (ex-info "Failed to emit form"
+                               {:tag ::emit-ex
+                                :resource-name resource-name
+                                :line (ana/gets ast-entry :env :line)
+                                :column (ana/gets ast-entry :env :column)}
+                               e))))
                   (.flush sw)
                   (let [size-after (-> sw (.getBuffer) (.length))
                         diff (- size-after size-before)]
@@ -599,7 +643,8 @@
             (-> output
                 (assoc :js (.toString sw)
                        :source-map-compact (compact-source-map (:source-map @sm-ref))
-                       :compiled-at (System/currentTimeMillis))
+                       :compiled-at (System/currentTimeMillis)
+                       :used-vars used-vars)
                 (dissoc :ast)
                 (update :warnings into @size-warnings-ref)
                 (cond->
@@ -634,10 +679,12 @@
    [:js-options :js-provider]
    [:compiler-options :form-size-threshold] ;; for tracking big suspicious code chunks
    [:compiler-options :source-map]
+   [:compiler-options :source-map-inline]
    [:compiler-options :fn-invoke-direct]
    [:compiler-options :elide-asserts]
    [:compiler-options :reader-features]
    [:compiler-options :load-tests]
+   [:compiler-options :data-readers]
    [:compiler-options :shadow-tweaks]
    [:compiler-options :warnings]
    ;; some community macros seem to use this
@@ -724,7 +771,12 @@
                            resource-refs)))
 
               ;; restore analysis data
-              (swap! env/*compiler* update-in [::ana/namespaces (:ns cache-data)] merge ana-data)
+              (let [{:keys [ns]} cache-data]
+                ;; make sure the namespace exists on the CLJ side
+                ;; otherwise tools.reader will have issues reading #::alias{:foo "bar"}
+                (create-ns ns)
+                (swap! env/*compiler* update-in [::ana/namespaces ns] merge ana-data))
+
               (swap! env/*compiler* update :shadow/protocol-prefixes set/union (:shadow/protocol-prefixes ana-data))
               (macros/load-macros ana-data)
 
@@ -973,7 +1025,7 @@
 (defn load-core []
   ;; cljs.core is already required and loaded when this is called
   ;; this just interns the macros into the analyzer env
-  (cljs-ana/intern-macros 'cljs.core))
+  (ana/intern-macros 'cljs.core))
 
 (defn par-compile-cljs-sources
   "compile files in parallel, files MUST be in dependency order and ALL dependencies must be present
@@ -1107,14 +1159,14 @@
     state
     sources))
 
-(defn maybe-closure-convert [{:keys [output] :as state} npm convert-fn]
+(defn maybe-closure-convert [{:keys [output] :as state} sources convert-fn]
   ;; incremental compiles might not need recompiling
   ;; if reset removed one output we must recompile everything again
   ;; this could probably do some more sophisticated caching
   ;; but for now closure is fast enough to do it all over again
-  (if (every? #(contains? output %) (map :resource-id npm))
+  (if (every? #(contains? output %) (map :resource-id sources))
     state
-    (convert-fn state npm)))
+    (convert-fn state sources)))
 
 (defn remove-dead-js-deps [{:keys [dead-js-deps] :as state}]
   (let [remove-fn
@@ -1339,6 +1391,7 @@
          ;; order of this is important
          ;; CLJS first since all it needs are the provided names
          (cond->
+           ;; goog
            ;; release builds go through the closure compiler and we want to avoid processing goog sources twice
            (and (= :release mode) (seq goog))
            (copy-source-to-output goog)
@@ -1346,42 +1399,33 @@
            (and (= :dev mode) (seq goog))
            (maybe-closure-convert goog closure/convert-goog)
 
-           ;; FIXME: removed foreign support
-           ;; (seq foreign)
-           ;; (copy-source-to-output foreign)
-
-           ;; FIXME: tbd ... I'm not sure I want to do css
-           ;; (seq css)
-           ;; (compile-css-sources css)
-
-           ;; FIXME: figure out if its always safe to pass processed files
-           ;; into optimizations or whether that prefers the actual sources to do
-           ;; the conversions while optimizing. conversion may lose information
-           ;; the optimizer may need. it does preserve type annotations but not much else
-
-           ;; only convert for :none?
-           #_(and (not optimizing?) (seq npm))
-           (seq js)
+           ;; classpath-js, meaning ESM code on the classpath
+           ;; in dev process classpath-js now, including polyfills
+           (and (= :dev mode) (seq js))
            (maybe-closure-convert js closure/convert-sources)
 
+           ;; in release just copy classpath-js and run through regular optimizations
+           (and (= :release mode) (seq js))
+           (closure/classpath-js-copy js)
+
+           ;; shadow-js, node_modules or commonjs on the classpath
+           ;; shadow-js is always separate, optimized separately
            (seq shadow-js)
            (maybe-closure-convert shadow-js closure/convert-sources-simple)
 
+           ;; cljs
            ;; do this last as it uses data from above
            (seq cljs)
-           (compile-cljs-sources cljs non-cljs-provides)
-           ;; optimize the unprocessed sources
-           ;; since processing may have lose information
-           #_(and optimizing? (seq npm))
-           #_(copy-source-to-output npm))
+           (compile-cljs-sources cljs non-cljs-provides))
 
          ;; remember which sources were compiled for watch mode
          ;; otherwise it will attempt to load cache from disk although
          ;; that just got invalidated elsewhere
          (update :previously-compiled into build-sources)
          (remove-dead-js-deps)
+
+         (closure/make-polyfill-js)
          (assoc :compile-finish (System/currentTimeMillis))
+
+         ;; (?-> ::compile-finish)
          ))))
-
-
-

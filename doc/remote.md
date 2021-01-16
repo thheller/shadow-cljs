@@ -20,97 +20,100 @@ Tooling in Browser-targeted builds is also problematic since they can add really
 
 The goal is to build something generic that can be used in all possible runtimes. The tools should be providing the UI and run separately or embedded like REBL if wanted. They can talk to the relay remotely or in process.
 
+
+## Why not nREPL?
+
+`nREPL` was written for CLJ. Several design decisions limit it to CLJ and don't translate well to CLJS (eg. the nrepl session as an atom of Clojure Vars). Makes little sense to keep the nREPL protocol if all message semantics change.
+
 # Architecture
 
 ## Relay
 
-A relay just handles receiving messages from and to endpoints based on "routing" numbers. A relay is required since not all runtimes can allow direct connections. It is not possible to connect to a Browser remotely, it must first connect to something itself. Therefore by design all "runtimes" and "tools" have to connect to one "relay" and it will forward messages and notfiy of lifecycle events (eg. runtime or tool disconnecting).
+A relay just handles receiving messages from and sending to "clients" based on "routing" numbers. A relay is required since not all runtimes can allow direct connections. It is not possible to connect to a Browser remotely, it must first connect to something itself. Therefore by design all "clients" have to connect to one "relay" and it will forward messages and notify of lifecycle events (eg. client connecting or disconnecting).
 
-## Runtime
+A relay will `:welcome` each client as the first message if the connection is accepted. Any other first message must be treated as an error and the relay will disconnect if the connection is not accepted.
 
-Anything that is willing and capable to execute commands from "tools". This can be a generic CLJ or CLJS runtime but can also be something way more specific. Each runtime has different capabilities and the protocol should allow negotiating what these are.
+## Client
 
-## Tool
+The relay only has the notion of clients (previously it separated runtimes and tools). Each client starts out passive and will initiate all actions it wants to do.
 
-Anything that wants to talk to "runtimes". Most commonly this will be editors or some kind of other tool UI. Could be command line tools. For the most part it is assumed that these tools will connect remotely to a given Relay.
+The relay expects clients send a `:hello` message containing `:client-info` in response to `:welcome`. It will disconnect the client if `:hello` is not the first reply received over the connection.
+
+Each client can free-form specify a `:client-info` map and clients can query this `:client-info` to discover other clients they may want to talk to. The relay makes no assumptions about the keys/vals in the `:client-info` map, namespace-qualified keywords should be used for custom client interactions.
 
 # The Protocol
 
 The protocol exchanges messages which are simple EDN maps.
 
-The relay itself is implemented in CLJ. The only network protocol currently used is using websockets with transit encoding. Others could be added though. A tool may use EDN over TCP to talk to the relay which the runtimes still uses websockets/transit to commicate with the relay.
+The relay itself is implemented in CLJ. The only network protocol currently used is using websockets with transit encoding. Others could be added though. A client may use EDN over TCP to talk to the relay which while other clients still use websockets/transit to communicate with the relay. With access to the CLJ relay instance all communication happens over core.async channels.
 
 Each message MUST contain an `:op` keyword describing it's purpose. Some reserved keywords are used for protocol purposes but each `:op` is free to define any additional keywords.
 
 Reserved keywords include:
 
-- optional `:msg-id` unique identifier for each message sent. Each party is supposed to send this as part of all responses a given msg may trigger.
-- `:runtime-id id` set by a tool will tell the relay which runtime to forward the message to
-- `:runtime-broadcast true|false` set by a tool to send message to all connected runtimes
-- `:tool-id id` set by a runtime to send a message to a specific tool
-- `:tool-broadcast true|false` set by a runtime to send message to all connected tools
-- if none of these are set the message will be handled by the relay itself
+- `:op` required keyword for each message
+- `:to` either a single number or a set of numbers, set by the client that want to the relay to send messages to the specified runtimes. if `:to` is not set the message is interpreted by the relay.
+- `:from` for messages forwarded by the relay from one client to another. if nil the message originated from the relay.
+- `:client-id` must be a valid relay client id, meaning depends on `:op` context
 
 ## Relay Message Flow
 
-On Connect the relay will send `{:op :welcome :tool-id id}` or `{:op :welcome :runtime-id id}`. The client may store its assigned id for later use but does not need to send it since the relay will automatically add the `:tool-id` or `:runtime-id` to all received messages before forwarding.
+On Connect the relay will send `{:op :welcome :client-id id}`. The client may store its assigned id for later use but does not need to send it since the relay will automatically add the appropriate `:from` to all received messages before forwarding.
+
+On `:welcome` the client must send `:hello`.
+
+- `{:op :hello :client-info {:foo 1}}`
 
 After that the client may start sending messages and will start receiving other messages. This is not RPC, messages may arrive at any time in any order.
 
-These are triggered whenever a runtime connects or leaves and sent to all connected tools. Might make this optional later so that tools have to subscribe to this info first.
-- `{:op :runtime-connect :runtime-id 123 :runtime-info {...}}`
-- `{:op :runtime-disconnect :runtime-id 123}`
 
-These are triggered when a tool connects or leaves
-- `{:op :tool-connect :tool-id 123}`
-- `{:op :tool-disconnect :tool-id 123}`
+### Relay Query
+
+- `{:op :request-clients :query []}`
+- result: `{:op :clients :clients [{:client-id 1 :client-info {:foo 1}}]}`
+
+- `{:op :request-notify :notify-op :foo :query []}`
+- result: `{:op foo :event-op :client-connect|:client-disconnect :client-id id}`
+
+TBD: describe `:query`
 
 ## Tap Message Flow
 
-`tap>` support is first since it is much simpler than a REPL but still makes used of the "P" related features.
+`tap>` support lets clients listen to other clients that support `tap>`.
 
-A tool can subscribe to a give runtime if it has `tap>` support.
-
-- `{:op :tap-subscribe :runtime-id id}`
-- `{:op :tap-unsubscribe :runtime-id id}`
+- `{:op :tap-subscribe :to id}`
+- `{:op :tap-unsubscribe :id id}`
 
 Once subscribed a given runtime may send `:tap` notifications to the subscribed tools via the relay.
 
-- `{:op :tap :obj-id id}`
+- `{:op :tap :from id :oid oid}`
 
-`id` by default is a random UUID. It must be unique and should be globally unique since a given tool may be talking to different runtimes and having overlapping `:obj-id` may complicate things. The actual tap value is not included in any way.
+`oid` by default is a random UUID. It must be unique and should be globally unique since a given tool may be talking to different client and having overlapping `:oid` may complicate things. The actual tap value is not included but can be retrieved in different ways later.
 
 ## Object Flow
 
-A tool may use any `:obj-id` it received to query the runtime for additional info or "views" of that object. The intent is to allow the tool to incrementally "query" the object and maybe "navigate" from it.
+A client may use any `:oid` it received to query for additional info or "views" of that object. The intent is to allow the client to incrementally query the object and maybe navigate from it.
 
-- `{:op :obj-request-view :obj-id id :view-type view-type}`
-- `{:op :obj-view :obj-id id :view ...}`
+- `{:op :obj-describe :to id :oid oid}`
+- result: `{:op :opj-summary :oid oid :summary {...}}`
+- not-found: `{:op :opj-not-found :oid oid}`
 
-`:view-type` should be a keyword, with additional entries in the message for configure that view type if needed.
+the client may also perform additional request against a specific oid. Since this is extensible the possible `:request-op` values depends on the `:supports` set from the `:summary`. Additional values in the msg are passed as arguments and each op may require certain keys/values.
 
-The defaults should include
+- `{:op :obj-request :to id :oid oid :request-op :edn}`
+- `{:op :obj-request :to id :oid oid :request-op :str}`
+- `{:op :obj-request :to id :oid oid :request-op :pprint}`
 
-- `:edn` resulting in `{:obj :obj-view :view "string repr of the given object"}`
-- `:edn-limit` `{:op :request-view :obj-id id :view-type :edn-limit :limit 20}` returning `{... :view [true|false "string limited at :limit chars"]}`. The first boolean inditicates whether a limit was reached or not.
+- result: `{:op :obj-result :from id :result <request-op-return-value>}` (eg. edn string, pprint string)
+- not-found: `{:op :obj-not-found :from id :oid oid}` 
+- not supported: `{:op :obj-request-not-supported :oid oid :request-op kw}` client sent `:request-op` kw that isn't supported by the obj.
+- fail: `{:op :obj-request-failed :oid oid :ex-oid ex-oid :msg msg}` (use `:ex-oid` to request info about the occured exception)
 
-These are still a WIP. Mostly structured this way for UI purposes currently.
-- `:summary` `{:data-type :map|:set|:vec|... :obj-type "cljs.core/PersistentArrayMap" :count num}`
-
-Maps are sorted by key and idx refers to their index in the sorted result. Sorting may fail so the summary will include `:sorted true|false`. The tool may request fragments via `:start num` and `:num num`. It should not exceed the previous `:count`. Additionally a `:key-limit num` and `:val-limit num` can be configured to control how much of each value should be attempted to be printed.
- 
-- `:fragment` `{idx {:key edn-limit :val edn-limit} ...}`
-
-"nav" can only be done by index, typically received in a `:fragment` previously. It is structured this way to avoid actually having to be able to serialize the key. Most of the time that would be fine but sometimes it won't.
-
-- `{:op :obj-nav :obj-id id :idx num}` might at support for actual `:key` at some point
-- `{:op :obj-nav-success :obj-id id :nav-obj-id id}` the resulting `:nav-obj-id` can then be queried again like everything else.
-
-The tool can decide whether it wants the "complicated" `:summary|:fragment` logic. It could send a `:edn-limit` request with `1000` or so default and only use the more complicated logic for larger values.
-
-Tools may just request the full `:edn` at any time in which case this would match what regular REPLs do. Other `:view` formats can be added easily (by extending the multi-method in the runtime).
-
+TBD: define standard `:request-op` and their arguments 
 
 ## REPL
 
-TBD, P will just send out an `:obj-id` to be queried as above.
+TBD
+
+- `:cljs-eval`, `:js-eval`
+- `:clj-eval`

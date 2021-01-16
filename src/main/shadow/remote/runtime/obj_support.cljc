@@ -2,9 +2,17 @@
   (:require
     [clojure.datafy :as d]
     [clojure.pprint :refer (pprint)]
+    [clojure.spec.alpha :as spec]
     [shadow.remote.runtime.api :as p]
     [shadow.remote.runtime.shared :as shared]
-    [shadow.remote.runtime.writer :as lw])
+    [shadow.remote.runtime.writer :as lw]
+    ;; FIXME: I do not like importing these here
+    ;; need to extract shadow-cljs functions if I ever move shadow.remote out
+    ;; cljs.repl has way too much other stuff on the CLJ side not error related we don't really need here
+    ;; should just have one namespace only concerned with formatting errors
+    ;; maybe even as separate plugin
+    #?@(:clj [[shadow.cljs.devtools.errors :refer (error-format)]]
+        :cljs [[cljs.repl :refer (error->str)]]))
   #?(:clj (:import [java.util UUID])))
 
 (defrecord Reference [obj])
@@ -42,6 +50,8 @@
 
     (assoc-in state [:objects oid] obj-entry)))
 
+(declare register)
+
 (defn obj-type-string [obj]
   (if (nil? obj)
     "nil"
@@ -78,6 +88,22 @@
   [data {:keys [limit] :as msg}]
   (lw/pr-str-limit data limit))
 
+;; FIXME: should likely support limit options
+(defn as-str
+  [data msg]
+  (str data))
+
+(defn as-ex-str [ex msg]
+  #?(:cljs
+     (error->str ex)
+
+     :clj
+     (error-format ex)))
+
+(defn exception? [x]
+  #?(:clj  (instance? java.lang.Throwable x)
+     :cljs (instance? js/Error x)))
+
 (defn attempt-to-sort [desc coll]
   (try
     (-> desc
@@ -98,8 +124,8 @@
             (obj-ref nav))))
       (assoc-in [:handlers :fragment]
         (fn [{:keys [start num key-limit val-limit]
-              :or {key-limit 50
-                   val-limit 50}
+              :or {key-limit 100
+                   val-limit 100}
               :as msg}]
 
           (let [end (min (count view-order) (+ start num))
@@ -130,9 +156,8 @@
                 nav (d/nav data idx val)]
             (obj-ref nav))))
       (assoc-in [:handlers :fragment]
-        (fn [{:keys [start num key-limit val-limit]
-              :or {key-limit 50
-                   val-limit 50}
+        (fn [{:keys [start num val-limit]
+              :or {val-limit 100}
               :as msg}]
 
           (let [end (min (count data) (+ start num))
@@ -155,9 +180,8 @@
                 nav (d/nav data idx val)]
             (obj-ref nav))))
       (assoc-in [:handlers :fragment]
-        (fn [{:keys [start num key-limit val-limit]
-              :or {key-limit 50
-                   val-limit 50}
+        (fn [{:keys [start num val-limit]
+              :or {val-limit 100}
               :as msg}]
 
           (let [end (min (count view-order) (+ start num))
@@ -171,6 +195,71 @@
                   idxs)]
 
             fragment)))))
+
+(defn pageable-seq [{:keys [data] :as desc}]
+  ;; data is always beginning of seq
+  (let [seq-state-ref
+        (atom {:tail data ;; track where we are at
+               :realized []})]
+    (-> desc
+        (assoc :seq-state-ref seq-state-ref)
+        (assoc-in [:handlers :nav]
+          (fn [{:keys [idx]}]
+            ;; FIXME: should validate that idx is actually realized
+            (let [val (nth (:realized @seq-state-ref) idx)
+                  ;; FIXME: not sure there are many cases where lazy seqs actually have nav?
+                  nav (d/nav data idx val)]
+              (obj-ref nav))))
+        (assoc-in [:handlers :chunk]
+          (fn [{:keys [start num val-limit]
+                :or {val-limit 100}
+                :as msg}]
+
+            ;; need locking otherwise threads may realize more than once
+            ;; shouldn't be much of an issue but better be safe
+            (locking seq-state-ref
+              (let [{:keys [tail realized] :as seq-state} @seq-state-ref
+
+                    end (+ start num)
+                    missing (- end (count realized))
+
+                    [tail realized]
+                    (loop [tail tail
+                           realized realized
+                           missing missing]
+                      (if-not (pos? missing)
+                        [tail realized]
+                        (let [next (first tail)]
+                          (if (nil? next)
+                            [nil realized]
+                            (recur (rest tail) (conj realized next) (dec missing))))))
+
+                    idxs (range start (min end (count realized)))
+                    fragment
+                    (reduce
+                      (fn [m idx]
+                        (let [val (nth realized idx)]
+                          (assoc m idx {:val (lw/pr-str-limit val val-limit)})))
+                      {}
+                      idxs)]
+
+                (swap! seq-state-ref assoc :tail tail :realized realized)
+
+                {:start start
+                 :realized (count realized)
+                 :fragment fragment
+                 :more? (or (> (count realized) end) (some? tail))})))))))
+
+(comment
+  (def x (pageable-seq {:data (map (fn [x] (prn [:realize x]) x) (range 10))}))
+
+  (let [chunk (get-in x [:handlers :chunk])]
+    (chunk {:start 0 :num 5})
+    )
+
+  (let [chunk (get-in x [:handlers :chunk])]
+    (chunk {:start 5 :num 10})
+    ))
 
 (defn inspect-basic [{:keys [data] :as desc} obj opts]
   (cond
@@ -231,8 +320,14 @@
         (assoc :view-order (vec data))
         (browseable-seq))
 
+    ;; lazy seqs
+    (seq? data)
+    (-> desc
+        (update :summary merge {:data-type :lazy-seq})
+        (pageable-seq))
 
-    ;; FIXME: lazy seqs / other seqs / records
+    ;; FIXME: records?
+
     :else
     (assoc-in desc [:summary :data-type] :unsupported)))
 
@@ -253,12 +348,20 @@
          {:added-at (:added-at opts)
           :datafied (not (identical? data o))}
 
-         ;; FIXME: only add those for clojure values
-         ;; often pointless when datafy returned original object
+         ;; FIXME: should these work on the datafy result or the original?
+         ;; maybe different ops? maybe msg option?
          :handlers
-         {:edn-limit #(as-edn-limit data %)
-          :edn #(as-edn data %)
-          :pprint #(as-pprint data %)}}
+         (-> {:str #(as-str o %)
+              ;; FIXME: only do those for actual clojure vals?
+              :edn #(as-edn o %)
+              :edn-limit #(as-edn-limit o %)}
+             (cond->
+               (or (coll? o) (seq? o))
+               (assoc :pprint #(as-pprint o %))
+
+               (exception? o)
+               (assoc :ex-str #(as-ex-str o %))
+               ))}
 
         (inspect-basic o opts)
         (inspect-type-info o opts)
@@ -267,6 +370,10 @@
 
 (extend-protocol p/Inspectable
   #?(:clj Object :cljs default)
+  (describe [o opts]
+    (default-describe o opts))
+
+  nil
   (describe [o opts]
     (default-describe o opts)))
 
@@ -288,41 +395,57 @@
     (assoc entry :desc (-> (p/describe obj obj-info)
                            (add-supports)))))
 
+(defn get-tap-history [{:keys [state-ref] :as svc} num]
+  (->> (:objects @state-ref)
+       (vals)
+       (filter #(= :tap (get-in % [:obj-info :from])))
+       (sort-by #(get-in % [:obj-info :added-at]))
+       (reverse)
+       (take num)
+       (map :oid)
+       (into [])))
+
+(defn obj-describe*
+  [{:keys [state-ref]}
+   oid]
+  (when (contains? (:objects @state-ref) oid)
+    (swap! state-ref update-in [:objects oid] ensure-descriptor)
+    (swap! state-ref assoc-in [:objects oid :access-at] (now))
+    (let [summary (get-in @state-ref [:objects oid :desc :summary])]
+      summary)))
 
 (defn obj-describe
-  [{:keys [state-ref runtime]}
+  [{:keys [runtime] :as svc}
    {:keys [oid] :as msg}]
-  (if-not (contains? (:objects @state-ref) oid)
-    (p/reply runtime msg {:op :obj-not-found :oid oid})
-    (do (swap! state-ref update-in [:objects oid] ensure-descriptor)
-        (swap! state-ref assoc-in [:objects oid :access-at] (now))
-        (let [summary (get-in @state-ref [:objects oid :desc :summary])]
-          (p/reply runtime msg {:op :obj-summary
-                                :oid oid
-                                :summary summary})))))
+  (if-let [summary (obj-describe* svc oid)]
+    (shared/reply runtime msg {:op :obj-summary
+                               :oid oid
+                               :summary summary})
+    (shared/reply runtime msg {:op :obj-not-found :oid oid})))
 
 (defn obj-request
-  [{:keys [state-ref runtime]}
+  [{:keys [state-ref runtime] :as this}
    {:keys [oid request-op] :as msg}]
   (if-not (contains? (:objects @state-ref) oid)
-    (p/reply runtime msg {:op :obj-not-found :oid oid})
+    (shared/reply runtime msg {:op :obj-not-found :oid oid})
     (do (swap! state-ref update-in [:objects oid] ensure-descriptor)
         (swap! state-ref assoc-in [:objects oid :access-at] (now))
         (let [entry (get-in @state-ref [:objects oid])
               request-fn (get-in entry [:desc :handlers request-op])]
           (if-not request-fn
-            (p/reply runtime msg {:op :obj-request-not-supported
-                                  :oid oid
-                                  :request-op request-op})
+            (shared/reply runtime msg {:op :obj-request-not-supported
+                                       :oid oid
+                                       :request-op request-op})
             (try
               (let [result (request-fn msg)]
 
                 ;; FIXME: add support for generic async results
                 ;; all handlers should already be sync but allow async results
                 (if-not (obj-ref? result)
-                  (p/reply runtime msg {:op :obj-result
-                                        :oid oid
-                                        :result result})
+                  (shared/reply runtime msg
+                    {:op :obj-result
+                     :oid oid
+                     :result result})
 
                   (let [new-oid (next-oid)
                         ts (now)
@@ -337,19 +460,35 @@
 
                     (swap! state-ref assoc-in [:objects new-oid] new-entry)
 
-                    (p/reply runtime msg {:op :obj-result-ref
-                                          :oid oid
-                                          :ref-oid new-oid}))))
+                    (let [reply-msg
+                          (-> {:op :obj-result-ref
+                               :oid oid
+                               :ref-oid new-oid}
+                              (cond->
+                                ;; only send new-obj :summary when requested
+                                (:summary msg)
+                                (assoc :summary (obj-describe* this new-oid))))]
+
+                      (shared/reply runtime msg reply-msg)))))
 
               (catch #?(:clj Exception :cljs :default) e
                 #?(:cljs (js/console.warn "action-request-action failed" (:obj entry) e))
-                (p/reply runtime msg {:op :obj-request-failed
-                                      :oid oid
-                                      :msg msg
-                                      ;; FIXME: (d/datafy e) doesn't work for CLJS
-                                      :e (str e) #_#?(:clj  (.toString e)
-                                                      :cljs (.-message e))})))))
+                (shared/reply runtime msg
+                  {:op :obj-request-failed
+                   :oid oid
+                   :msg msg
+                   :ex-oid (register this e {:msg msg})})))))
         )))
+
+(defn obj-forget
+  [{:keys [state-ref] :as svc}
+   {:keys [oid] :as msg}]
+  (swap! state-ref update :objects dissoc oid))
+
+(defn obj-forget-all
+  [{:keys [state-ref] :as svc}
+   msg]
+  (swap! state-ref assoc :objects {}))
 
 (defn basic-gc! [state]
   (let [objs-to-drop
@@ -377,7 +516,9 @@
     (p/add-extension runtime
       ::ext
       {:ops {:obj-describe #(obj-describe svc %)
-             :obj-request #(obj-request svc %)}
+             :obj-request #(obj-request svc %)
+             :obj-forget #(obj-forget svc %)
+             :obj-forget-all #(obj-forget-all svc %)}
        :on-idle #(swap! state-ref basic-gc!)})
 
     svc))
