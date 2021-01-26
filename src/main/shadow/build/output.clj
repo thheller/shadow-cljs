@@ -490,6 +490,10 @@
        "CLJS_GLOBAL.CLOSURE_NO_DEPS = true;\n"
        ;; so devtools can access it
        "CLJS_GLOBAL.$CLJS = $CLJS;\n"
+
+       ;; in case of commonjs on the classpath
+       "global.shadow$provide = {};\n"
+
        "var goog = $CLJS.goog = {};\n"
        ;; the global must be overriden in goog/base.js since it contains some
        ;; goog.define(...) which would otherwise be exported to "this"
