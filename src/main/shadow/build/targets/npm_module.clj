@@ -11,20 +11,23 @@
             [shadow.build.targets.browser :as browser]
             [clojure.spec.alpha :as s]
             [shadow.build.config :as config]
-            [shadow.build.node :as node]))
+            [shadow.build.node :as node]
+            [shadow.build.classpath :as classpath]
+            [shadow.build.test-util :as tu]))
 
 (s/def ::runtime #{:node :browser :react-native})
 
 (s/def ::entries
-  (s/coll-of simple-symbol? :kind vector? :min-count 1 :distinct true))
+  (s/coll-of simple-symbol? :kind vector? :distinct true))
 
 (s/def ::target
   (s/keys
     :req-un
     [::shared/output-dir
-     ::entries]
+     ]
     :opt-un
-    [::runtime
+    [::entries
+     ::runtime
      ::shared/devtools]))
 
 (defmethod config/target-spec :npm-module [_]
@@ -60,10 +63,22 @@
 
 (defn resolve* [module-config {:keys [classpath] :as state} mode {:keys [entries runtime] :as config}]
   (let [repl?
-        (some? (:worker-info state))]
+        (some? (:worker-info state))
+
+        entries
+        (cond
+          (seq entries)
+          (vec entries)
+
+          ;; FIXME: this isn't really about testing but the options may fit
+          (contains? config :ns-regexp)
+          (tu/find-test-namespaces classpath config)
+
+          :all
+          (classpath/find-cljs-namespaces-in-files classpath nil))]
 
     (-> module-config
-        (assoc :entries (vec entries))
+        (assoc :entries entries)
         (cond->
           (and repl? (or (= :browser runtime) (nil? runtime)))
           (-> (browser/inject-repl-client state config)
