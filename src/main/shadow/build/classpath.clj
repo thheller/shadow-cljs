@@ -539,7 +539,7 @@
 
     (catch ZipException e
       (log/debug-ex e ::bad-jar {:file file})
-      {})
+      [])
 
     (catch Exception e
       (throw (ex-info (str "failed to generate jar manifest for file: " file) {:file file} e)))
