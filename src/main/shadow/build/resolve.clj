@@ -233,7 +233,8 @@
 
     (or (str/starts-with? require "esm:")
         (str/starts-with? require "https://")
-        (str/starts-with? require "http://"))
+        (str/starts-with? require "http://")
+        (contains? (:keep-as-import js-options) require))
     (js-support/shim-import-resource state require)
 
     :else
