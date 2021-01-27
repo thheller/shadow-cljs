@@ -12,4 +12,4 @@ npx shadow-cljs release reagent test-node test-karma --verbose
 
 node out/test-node/script.js
 
-CHROME_BIN=/usr/bin/chromium npx karma start --single-run
+npx karma start --single-run
