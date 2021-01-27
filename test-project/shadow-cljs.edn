@@ -30,7 +30,5 @@
   :test-karma
   {:target :karma
    :output-to  "out/test-karma/script.js"
-   :compiler-options {:source-map true}
-  }
-  }
-}
+   :compiler-options {:source-map true}}
+  }}
