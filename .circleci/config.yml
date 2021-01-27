@@ -5,7 +5,7 @@
 defaults: &defaults
   working_directory: ~/repo
   docker:
-    - image: thheller/cljs-dev:latest
+    - image: circleci/clojure:lein-2.9.5-node-browsers
   environment:
     LEIN_ROOT: "true"
     # Customize the JVM maximum heap limit
