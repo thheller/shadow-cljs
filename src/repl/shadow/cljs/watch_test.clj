@@ -2,8 +2,7 @@
   (:require
     [clojure.test :refer (is deftest)]
     [clojure.java.io :as io]
-    [shadow.cljs.devtools.server.fs-watch-jvm :as fs-jvm]
-    [shadow.cljs.devtools.server.fs-watch-hawk :as fs-hawk]))
+    [shadow.cljs.devtools.server.fs-watch :as fs]))
 
 
 (comment
