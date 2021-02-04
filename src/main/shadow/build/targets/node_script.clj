@@ -1,14 +1,16 @@
 (ns shadow.build.targets.node-script
   (:refer-clojure :exclude (flush))
-  (:require [cljs.compiler :as cljs-comp]
-            [clojure.spec.alpha :as s]
-            [shadow.cljs.repl :as repl]
-            [shadow.build.node :as node]
-            [shadow.build :as comp]
-            [shadow.build.targets.shared :as shared]
-            [shadow.build.config :as config]
-            [shadow.build.api :as cljs]
-            ))
+  (:require
+    [cljs.compiler :as cljs-comp]
+    [clojure.spec.alpha :as s]
+    [shadow.cljs.repl :as repl]
+    [shadow.build.node :as node]
+    [shadow.build :as comp]
+    [shadow.build.targets.shared :as shared]
+    [shadow.build.config :as config]
+    [shadow.build.api :as cljs]
+    [shadow.build.output :as output]
+    ))
 
 (s/def ::main shared/unquoted-qualified-symbol?)
 
@@ -41,7 +43,8 @@
         (shared/inject-node-repl config)
 
         (= :dev mode)
-        (shared/inject-preloads :main config)
+        (-> (shared/inject-preloads :main config)
+            (assoc ::output/eval-in-global-scope false))
         )))
 
 (defn check-main-exists! [{:keys [compiler-env node-config] :as state}]

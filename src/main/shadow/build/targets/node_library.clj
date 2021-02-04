@@ -1,17 +1,19 @@
 (ns shadow.build.targets.node-library
   (:refer-clojure :exclude (flush))
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
-            [clojure.spec.alpha :as s]
-            [shadow.build.api :as cljs]
-            [shadow.build :as comp]
-            [shadow.build.targets.shared :as shared]
-            [shadow.build.config :as config]
-            [shadow.cljs.repl :as repl]
-            [shadow.build.node :as node]
-            [shadow.cljs.util :as util]
-            [shadow.build.data :as data]
-            [cljs.compiler :as cljs-comp]))
+  (:require
+    [clojure.java.io :as io]
+    [clojure.string :as str]
+    [clojure.spec.alpha :as s]
+    [cljs.compiler :as cljs-comp]
+    [shadow.cljs.repl :as repl]
+    [shadow.cljs.util :as util]
+    [shadow.build.api :as cljs]
+    [shadow.build :as comp]
+    [shadow.build.targets.shared :as shared]
+    [shadow.build.config :as config]
+    [shadow.build.node :as node]
+    [shadow.build.data :as data]
+    [shadow.build.output :as output]))
 
 (s/def ::exports
   (s/map-of
@@ -77,7 +79,7 @@
                     `(js/Object.defineProperty ~(-> k (name) (cljs-comp/munge))
                        (cljs.core/js-obj
                          "enumerable" true
-                         "get" (fn [] ~v)) )))
+                         "get" (fn [] ~v)))))
              )])
 
         requires
@@ -120,7 +122,7 @@
         ;; based on https://github.com/umdjs/umd/blob/master/templates/returnExports.js
         [prepend append]
         (-> wrapper-rc
-            (slurp )
+            (slurp)
             (str/split #"//CLJS-HERE"))
 
         prepend
@@ -180,7 +182,8 @@
         (shared/inject-node-repl config)
 
         (= :dev mode)
-        (shared/inject-preloads :main config)
+        (-> (shared/inject-preloads :main config)
+            (assoc ::output/eval-in-global-scope false))
         )))
 
 (defn flush [state mode config]

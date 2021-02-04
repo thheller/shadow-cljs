@@ -57,6 +57,9 @@
         (= :node runtime)
         (node/set-defaults)
 
+        (and (= :node runtime) (= :dev mode))
+        (assoc ::output/eval-in-global-scope false)
+
         (and (= :dev mode) (:worker-info state))
         (shared/merge-repl-defines config)
         )))

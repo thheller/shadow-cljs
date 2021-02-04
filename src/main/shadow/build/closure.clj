@@ -48,6 +48,11 @@
             (.getDeclaredField "injectedLibraries"))
     (.setAccessible true)))
 
+(def own-symbols-field
+  (doto (-> (Class/forName "com.google.javascript.jscomp.SymbolTable$SymbolScope")
+            (.getDeclaredField "ownSymbols"))
+    (.setAccessible true)))
+
 ;;;
 ;;; partially taken from cljs/closure.clj
 ;;; removed the things we don't need
@@ -1021,6 +1026,11 @@
       (keys)
       (set)))
 
+(defn get-own-symbol-names [symbol-scope]
+  (-> (.get own-symbols-field symbol-scope)
+      (keys)
+      (set)))
+
 (defn dump-closure-inputs [state externs js-mods compiler-options]
   (doseq [extern externs]
     ;; externs have weird filenames and we don't need to keep folders intact
@@ -1526,7 +1536,15 @@
         (.getSourceMap cc)
 
         injected-libs
-        (get-injected-libs cc)]
+        (get-injected-libs cc)
+
+        global-symbol-names
+        (-> (.buildKnownSymbolTable cc)
+            (.getGlobalScope)
+            (get-own-symbol-names))
+
+        eval-in-global-scope
+        (get state ::output/eval-in-global-scope true)]
 
     (throw-errors! state cc result)
 
@@ -1539,6 +1557,7 @@
 
 
             (let [name (.getSourceFileName source-node)]
+
               (cond
                 (= polyfill-name name)
                 state
@@ -1597,6 +1616,18 @@
                           js
                           (str shadow-js-prefix js)
 
+                          ;; closure creates var bar$$module$some$file
+                          ;; for export let bar = 1 in /some/file.js
+                          ;; which is fine if everything is in the same global scope
+                          ;; but for node they are in their own local scope so we need to lift them into the global scope later
+                          sym-str
+                          (str ns)
+
+                          names-in-this-file
+                          (->> global-symbol-names
+                               (filter #(str/ends-with? % sym-str))
+                               (set))
+
                           sm-json
                           (.toString sw)
 
@@ -1618,7 +1649,18 @@
                                                ;; var module$demo$reducers$profile = ...
                                                ;; FIXME: not sure if it will always emit this exact pattern
                                                (str/includes? js (str "var " ns " =")))
-                                      (str "\n$CLJS." ns "=" ns ";")))
+                                      (str "\n$CLJS." ns "=" ns ";"))
+
+                                    ;; actually lift the names into the global scope if needed
+                                    ;; normally not required since everything is in the same scope
+                                    ;; mostly node will have its own scope per file though
+                                    (when (and (= :dev mode) (not eval-in-global-scope) (seq names-in-this-file))
+                                      (str "\n"
+                                           (->> names-in-this-file
+                                                (map #(str "global." % " = " % ";"))
+                                                (str/join "\n")))))
+
+                           :js-symbol-names names-in-this-file
                            :properties properties
                            :source (.getCode source-file)
                            :source-map-json sm-json}]

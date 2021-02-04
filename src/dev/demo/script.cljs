@@ -4,13 +4,8 @@
     ["request" :as req]
     ;; ["./cjs.js" :as cjs]
     [demo.js-class :refer (Foo)]
+    ["./es6.js" :as es6]
     ["which" :as which]))
-
-;; (js/console.log "cjs" cjs)
-
-(js/console.log "Foo" Foo)
-
-(prn [:goog.global js/goog.global.setTimeout])
 
 (req "https://www.google.com"
   (fn [error res body]
@@ -29,6 +24,7 @@
 
 (defn main [& args]
   (js/console.log "starting server")
+  (es6/foo "bar")
   (let [server (http/createServer #(request-handler %1 %2))]
 
     (tap> [:hello-world js/process.env])

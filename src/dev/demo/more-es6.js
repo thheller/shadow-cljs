@@ -3,4 +3,6 @@ function bar(x) {
   return x;
 };
 
-export { bar };
+let foo = 1;
+
+export { bar, foo };
