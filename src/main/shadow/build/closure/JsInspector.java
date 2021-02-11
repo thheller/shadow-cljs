@@ -118,7 +118,7 @@ public class JsInspector {
                 String from = importString.getString();
                 imports = imports.conj(from);
                 recordStrOffset(importString, true);
-            } else if (NodeUtil.isCallTo(node, "goog.require")) {
+            } else if (NodeUtil.isCallTo(node, "goog.require") || NodeUtil.isCallTo(node, "goog.requireType")) {
                 String x = node.getLastChild().getString();
                 googRequires = googRequires.conj(x);
             } else if (NodeUtil.isCallTo(node, "goog.provide")) {

@@ -17,18 +17,23 @@
     [shadow.build.resource :as rc]
     [shadow.debug :refer (?> ?-> ?->>)]
     [clojure.data.json :as json])
-  (:import (java.io StringWriter ByteArrayInputStream FileOutputStream)
-           (com.google.javascript.jscomp JSError SourceFile CompilerOptions CustomPassExecutionTime
-                                         CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
-                                         CheckLevel JSModule CompilerOptions$LanguageMode
-                                         Result ShadowAccess
-                                         SourceMap$DetailLevel SourceMap$Format ClosureCodingConvention CompilationLevel AnonymousFunctionNamingPolicy DiagnosticGroup VariableRenamingPolicy PropertyRenamingPolicy PhaseOptimizer)
-           (shadow.build.closure ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector NodeStuffInlinePass FindSurvivingRequireCalls)
-           (com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode)
-           (java.nio.charset Charset)
-           [java.util.logging Logger Level]
-           [com.google.javascript.jscomp.parsing.parser FeatureSet]
-           [java.util LinkedHashMap]))
+  (:import
+    [java.io StringWriter ByteArrayInputStream FileOutputStream]
+    [com.google.javascript.jscomp
+     JSError SourceFile CompilerOptions CustomPassExecutionTime
+     CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
+     CheckLevel JSModule CompilerOptions$LanguageMode
+     Result ShadowAccess SourceMap$DetailLevel SourceMap$Format
+     ClosureCodingConvention CompilationLevel VariableRenamingPolicy
+     PropertyRenamingPolicy PhaseOptimizer]
+    [shadow.build.closure
+     ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector
+     NodeStuffInlinePass FindSurvivingRequireCalls]
+    [com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode]
+    [java.nio.charset Charset]
+    [java.util.logging Logger Level]
+    [com.google.javascript.jscomp.parsing.parser FeatureSet]
+    [java.util LinkedHashMap]))
 
 ;; get rid of some annoying/useless warning log messages
 ;; https://github.com/google/closure-compiler/pull/2998/files
@@ -130,15 +135,6 @@
 
   (when (contains? opts :pseudo-names)
     (.setGeneratePseudoNames closure-opts (:pseudo-names opts)))
-
-  (when (contains? opts :anon-fn-naming-policy)
-    (let [policy (:anon-fn-naming-policy opts)]
-      (set! (.anonymousFunctionNaming closure-opts)
-        (case policy
-          :off AnonymousFunctionNamingPolicy/OFF
-          :unmapped AnonymousFunctionNamingPolicy/UNMAPPED
-          :mapped AnonymousFunctionNamingPolicy/MAPPED
-          (throw (IllegalArgumentException. (str "Invalid :anon-fn-naming-policy value " policy " - only :off, :unmapped, :mapped permitted")))))))
 
   (when-let [lang-key (:language-in opts)]
     (.setLanguageIn closure-opts (lang-key->lang-mode lang-key)))
@@ -1933,13 +1929,7 @@
           (.setWarningLevel DiagnosticGroups/NON_STANDARD_JSDOC CheckLevel/OFF)
           (.setWarningLevel DiagnosticGroups/MISPLACED_TYPE_ANNOTATION CheckLevel/OFF)
           ;; node_modules/@firebase/util/dist/cjs/src/constants.ts:26: ERROR - @define variable  assignment must be global
-          (.setWarningLevel
-            (DiagnosticGroup.
-              ;; viz.js -- Object literal contains illegal duplicate key "stackAlloc", disallowed in strict mode
-              ;; it never uses "use strict" but closure runs it through strict mode
-              ;; although we already disabled it above
-              (into-array [ShadowAccess/DUPLICATE_OBJECT_KEY]))
-            CheckLevel/OFF)
+
           ;; unreachable code in react
           (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))

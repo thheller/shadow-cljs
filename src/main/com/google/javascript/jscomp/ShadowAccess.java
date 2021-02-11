@@ -57,7 +57,4 @@ public class ShadowAccess {
         builder.setTagAsStrict(false);
         return builder.build();
     }
-
-    // package-protected by default and not accessible in shadow.build.closure otherwise
-    public static final DiagnosticType DUPLICATE_OBJECT_KEY = StrictModeCheck.DUPLICATE_OBJECT_KEY;
 }

@@ -566,8 +566,8 @@
             (reinspect-cljc-rc state rc reader-features))]
 
       ;; react symbol may have resolved to a JS dependency
-      ;; CLJS/goog do not allow circular dependencies, JS does
-      (when (contains? #{:cljs :goog} type)
+      ;; CLJS does not allow circular dependencies, JS does
+      (when (= :cljs type)
         (ensure-non-circular! state resource-id))
 
       (-> state
