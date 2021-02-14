@@ -50,8 +50,7 @@
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.3"]
-
-   [io.undertow/undertow-core "2.1.3.Final"]
+   [thheller/shadow-undertow "0.1.0"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.8.1"
