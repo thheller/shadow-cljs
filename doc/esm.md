@@ -1,6 +1,6 @@
 # ESM Braindump
 
-The idea of writing an alternate CLJS compiler that emits "modern" ESM JavaScript code instead of ClojureJS has been circling in my head for years now. Still not sure this would be worth doing but I need to get this out of my head so I can stop thinking about it.
+The idea of writing an alternate CLJS compiler that emits "modern" ESM JavaScript code instead of ClosureJS has been circling in my head for years now. Still not sure this would be worth doing but I need to get this out of my head so I can stop thinking about it.
 
 I assume that the reader is familiar with ESM and how JavaScript works otherwise this won't be very easy to follow.
 
