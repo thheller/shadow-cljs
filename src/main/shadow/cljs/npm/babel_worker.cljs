@@ -45,6 +45,8 @@
      }))
 
 (defn process-request [line]
+  ;; (.. js/process -stderr (write "got a line"))
+  ;; (.. js/process -stderr (write line))
   (let [req
         (read-string line)
 
