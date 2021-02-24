@@ -482,3 +482,8 @@
   (build-log/log* (:logger state) state log-event)
   state)
 
+(defn tap-hook
+  {::stage :flush}
+  [build-state]
+  (tap> build-state)
+  build-state)
