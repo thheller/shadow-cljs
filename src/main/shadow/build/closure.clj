@@ -101,6 +101,8 @@
     :es7 FeatureSet/ES7
     :es8 FeatureSet/ES8
     :es2018 FeatureSet/ES2018
+    :es2019 FeatureSet/ES2019
+    :es2020 FeatureSet/ES2020
     :es-next FeatureSet/ES_NEXT
     (throw (ex-info "invalid :output-feature-set" {:val kw}))))
 
