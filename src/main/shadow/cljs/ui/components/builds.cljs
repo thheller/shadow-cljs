@@ -129,7 +129,7 @@
     (<< [:div.flex-1.overflow-auto.py-2.sm:px-2
          [:div.flex.flex-col
           [:div.grid.grid-cols-1.gap-2
-           (sg/render-seq builds identity build-card)]]])))
+           (sg/keyed-seq builds identity build-card)]]])))
 
 (defc ui-build-overview [build-ident]
   (bind {::m/keys [build-sources-sorted] :as data}
@@ -169,5 +169,5 @@
          [:div.flex
           [:div.flex-1 "left"]
           [:div
-           (sg/render-seq build-sources-sorted nil render-source-entry)]
+           (sg/simple-seq build-sources-sorted render-source-entry)]
           [:div.flex-1 "right"]]])))

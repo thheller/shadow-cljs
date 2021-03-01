@@ -487,7 +487,7 @@
     (<< [:div.flex-1.bg-white.pt-4.flex.flex-col.overflow-hidden {::keyboard/listen true}
          ;; [:div.px-6.font-bold "current:" current]
          [:div.flex-1.flex.overflow-hidden {:dom/ref container-ref}
-          (sg/render-seq stack nil
+          (sg/simple-seq stack
             (fn [{:keys [type] :as item} idx]
               (let [active? (= current idx)]
                 (<< [:div {:class "p-3 flex-none h-full"
