@@ -28,8 +28,8 @@
 
 (defn render-source-line
   [start-idx lines]
-  (sg/simple-seq (map-indexed vector lines)
-    (fn [[idx body]]
+  (sg/simple-seq lines
+    (fn [body idx]
       (<< [:pre (format "%4d | " (+ 1 idx start-idx)) body]))))
 
 (defn render-build-warning [{:keys [source-excerpt file line column msg resource-name] :as warning}]
