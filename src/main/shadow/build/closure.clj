@@ -613,8 +613,13 @@
                 :source-excerpt source-excerpt}
                ))))))
 
-(defn closure-source-file [name code]
-  (SourceFile/fromCode name code))
+(defn closure-source-file
+  ([name code]
+   (SourceFile/fromCode name code))
+  ([name code original-name]
+   (-> (SourceFile/builder)
+       (.withOriginalPath original-name)
+       (.buildFromCode name code))))
 
 (defn add-input-source-maps [{:keys [build-sources] :as state} cc]
   (doseq [src-id build-sources
@@ -1830,7 +1835,8 @@
         (->> (for [{:keys [resource-id resource-name ns require-id file deps] :as src} sources]
                (let [source (data/get-source-code state src)
                      source-file
-                     (closure-source-file resource-name
+                     (closure-source-file
+                       resource-name
                        (str "shadow$provide["
                             (if (and require-id (:minimize-require js-options))
                               (pr-str require-id)
@@ -1849,10 +1855,9 @@
 
                               :else
                               (hide-closure-defines source))
-                            "\n};"))]
-
-                 (when file
-                   (.setOriginalPath source-file (.getAbsolutePath file)))
+                            "\n};")
+                       (when file
+                         (.getAbsolutePath file)))]
 
                  source-file))
              #_(map #(do (println (.getCode %)) %))
