@@ -468,7 +468,7 @@
          (or (super/get-worker supervisor build-id)
              (repl-impl/node-repl* app opts))]
 
-     (repl build-id {:skip-repl-out (not was-running?)})
+     (repl build-id (assoc opts :skip-repl-out (not was-running?)))
      )))
 
 ;; FIXME: should maybe allow multiple instances
@@ -532,7 +532,7 @@
                    (format "Failed to open Browser automatically.\nPlease open the URL below in your Browser:\n\t%s" url)))))
            worker))
 
-     (repl build-id)
+     (repl build-id opts)
      )))
 
 (defn dev*
