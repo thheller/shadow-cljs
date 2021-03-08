@@ -74,7 +74,8 @@
     :fn-invoke-direct true
     :output-feature-set :es7
     :shadow-tweaks true
-    :shadow-keywords true}
+    :shadow-keywords true
+    :source-map true}
 
    :js-options
    {:js-package-dirs ["packages/ui/node_modules"]}
