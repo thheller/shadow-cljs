@@ -1,6 +1,7 @@
 (ns shadow.cljs.ui.worker.env
   (:require
     [shadow.experiments.grove.runtime :as gr]
+    [shadow.experiments.grove.transit :as transit]
     [shadow.experiments.grove.db :as db]
     [shadow.cljs.ui.schema :refer (schema)]
     [shadow.cljs.model :as m]))
@@ -24,4 +25,5 @@
 
 (defonce app-ref
   (-> {}
+      (transit/init)
       (gr/prepare data-ref ::db)))

@@ -1,6 +1,7 @@
 (ns shadow.cljs.ui.worker.relay-ws
   (:require
     [shadow.experiments.grove.worker :as sw]
+    [shadow.experiments.grove.runtime :as rt]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
     [clojure.string :as str]))
@@ -40,7 +41,7 @@
     ;; (js/console.log ::m/relay-ws op msg)
     (handle-msg env msg)))
 
-(defn cast! [{::keys [ws-ref] ::sw/keys [transit-str] :as env} msg]
+(defn cast! [{::keys [ws-ref] ::rt/keys [transit-str] :as env} msg]
   ;; (js/console.log "ws-send" msg)
   (.send @ws-ref (transit-str msg)))
 
@@ -54,7 +55,7 @@
     (cast! env (assoc msg :call-id mid))))
 
 (sw/reg-fx env/app-ref :ws-send
-  (fn [{::keys [ws-ref] ::sw/keys [transit-str] :as env} messages]
+  (fn [{::keys [ws-ref] ::rt/keys [transit-str] :as env} messages]
     (let [socket @ws-ref]
       (doseq [msg messages]
         (.send socket (transit-str msg))))))
@@ -76,7 +77,7 @@
                          :client-info {:type :shadow-cljs-ui}})
         (on-welcome)))
 
-    (let [{::sw/keys [^function transit-read]} @app-ref]
+    (let [{::rt/keys [^function transit-read]} @app-ref]
       (.addEventListener socket "message"
         (fn [e]
           (let [{:keys [call-id op] :as msg} (transit-read (.-data e))]
