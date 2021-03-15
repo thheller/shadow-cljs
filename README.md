@@ -176,6 +176,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [shadow-cljs-kitchen-async-puppeteer](https://github.com/iku000888/shadow-cljs-kitchen-async-puppeteer) - Automated browser test with puppeteer and cljs.test, built with shadow-cljs
 - [baskeboler/cljs-karaoke-client](https://github.com/baskeboler/cljs-karaoke-client) - web karaoke player using shadow-cljs + reagent + re-frame + re-frame-10x + re-frame-async-flow-fx + build hooks for minifying css and generating seo pages ([Demo](https://karaoke-player.netlify.app/songs/Rolling%20Stones-all%20over%20now%20rolling%20stones.html))
 - [flexsurfer/ClojureRNProject](https://github.com/flexsurfer/ClojureRNProject) - simple React Native application with ClojureScript, re-frame and react navigation v5
+- [jacekschae/shadow-cljs-devcards](https://github.com/jacekschae/shadow-cljs-devcards) - how to configure devcards with shadow-cljs
 - ... please let me know if you created something to include here
 
 ## Libraries
