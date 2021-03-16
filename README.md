@@ -151,6 +151,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [EN] [Learn Reagent Free](https://www.jacekschae.com/learn-reagent-free/uk29i?coupon=SHADOW) - [reagent](https://github.com/reagent-project/reagent)+[firebase](https://firebase.google.com/) demo application built using shadow-cljs
 - [EN] [Learn Reagent Pro](https://www.jacekschae.com/learn-reagent-pro/uk29i?coupon=SHADOW) [Affiliate Link, 30$ discount] - [reagent](https://github.com/reagent-project/reagent)+[firebase](https://firebase.google.com/) demo application built using shadow-cljs
 - [EN] [Learn re-frame](https://www.learnreframe.com/?ref=uk29i) [Affiliate Link] - re-frame SPA tutorial
+- [EN] [ClojureScript for React Developer - Building Conduit](https://www.youtube.com/watch?v=EUdsLZUsiRQ&list=PLUGfdBfjve9VGzp7G1C9FYfH8Yk1Px-11)
 
 ## Guides
 
