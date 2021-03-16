@@ -177,6 +177,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [baskeboler/cljs-karaoke-client](https://github.com/baskeboler/cljs-karaoke-client) - web karaoke player using shadow-cljs + reagent + re-frame + re-frame-10x + re-frame-async-flow-fx + build hooks for minifying css and generating seo pages ([Demo](https://karaoke-player.netlify.app/songs/Rolling%20Stones-all%20over%20now%20rolling%20stones.html))
 - [flexsurfer/ClojureRNProject](https://github.com/flexsurfer/ClojureRNProject) - simple React Native application with ClojureScript, re-frame and react navigation v5
 - [jacekschae/shadow-cljs-devcards](https://github.com/jacekschae/shadow-cljs-devcards) - how to configure devcards with shadow-cljs
+- [jacekschae/shadow-cljs-tailwindcss](https://github.com/jacekschae/shadow-cljs-tailwindcss) - shadow-cljs + tailwindcss-jit setup
 - ... please let me know if you created something to include here
 
 ## Libraries
