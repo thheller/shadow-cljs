@@ -12,7 +12,8 @@
     [shadow.cljs.devtools.client.websocket :as ws]
     [shadow.cljs.devtools.client.shared :as cljs-shared]
     [shadow.remote.runtime.api :as api]
-    [shadow.remote.runtime.shared :as shared]))
+    [shadow.remote.runtime.shared :as shared])
+  (:import goog.structs.CircularBuffer))
 
 (defn devtools-msg [msg & args]
   (when env/log
@@ -327,5 +328,25 @@
 
     (fn [{:keys [runtime] :as svc}]
       (api/del-extension runtime ::client)))
+
+  (cljs-shared/add-plugin! ::tap-queue #{::client}
+                           (fn [{:keys [runtime] :as env}]
+                             (let [svc                  {:runtime runtime}
+                                   ;; Same size as the clojure tap queue:
+                                   ;; https://github.com/clojure/clojure/blob/38bafca9e76cd6625d8dce5fb6d16b87845c8b9d/src/clj/clojure/core.clj#L7851
+                                   q                    (CircularBuffer. 1024)
+                                   enqueue-tap-listener #(.add q %)
+                                   _                    (add-tap enqueue-tap-listener)
+                                   consume-tap-queue-fn (fn [run?]
+                                                          (remove-tap enqueue-tap-listener)
+                                                          (when run? (run! tap> (.getValues q)))
+                                                          (.clear q)
+                                                          (swap! (:state-ref runtime) dissoc :consume-tap-queue-fn))]
+                               (swap! (:state-ref runtime) assoc :consume-tap-queue-fn consume-tap-queue-fn)
+                               svc))
+
+                           (fn [{:keys [runtime] :as svc}]
+                             (when-let [consume-queue (:consume-tap-queue-fn @(:state-ref runtime))]
+                               (consume-queue false))))
 
   (cljs-shared/init-runtime! client-info ws/start ws/send ws/stop))

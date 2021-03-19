@@ -63,7 +63,10 @@
        ;; automatically pass extra args. but this makes everything REPL unfriendly
        ;; and will require a runtime restart for every op change
        ;; this way only adding ops requires a restart
-       {:tap-subscribe #(tap-subscribe svc %)
+       {:tap-subscribe (fn [x]
+                         (tap-subscribe svc x)
+                         (when-let [consume-queue (:consume-tap-queue-fn @(:state-ref runtime))]
+                           (consume-queue true)))
         :tap-unsubscribe #(tap-unsubscribe svc %)
         :request-tap-history #(request-tap-history svc %)}
        :on-tool-disconnect #(tool-disconnect svc %)})
