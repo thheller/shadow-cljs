@@ -69,7 +69,7 @@
    :elide-asserts false
    :closure-configurators []
    :infer-externs :auto
-   :language-in :ecmascript-next
+   :language-in :ecmascript-next-in
    ;; still need to set this since it otherwise ends up using strict mode default
    :language-out :ecmascript5
    :output-feature-set :es5

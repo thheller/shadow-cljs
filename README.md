@@ -151,6 +151,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [EN] [Learn Reagent Free](https://www.jacekschae.com/learn-reagent-free/uk29i?coupon=SHADOW) - [reagent](https://github.com/reagent-project/reagent)+[firebase](https://firebase.google.com/) demo application built using shadow-cljs
 - [EN] [Learn Reagent Pro](https://www.jacekschae.com/learn-reagent-pro/uk29i?coupon=SHADOW) [Affiliate Link, 30$ discount] - [reagent](https://github.com/reagent-project/reagent)+[firebase](https://firebase.google.com/) demo application built using shadow-cljs
 - [EN] [Learn re-frame](https://www.learnreframe.com/?ref=uk29i) [Affiliate Link] - re-frame SPA tutorial
+- [EN] [ClojureScript for React Developer - Building Conduit](https://www.youtube.com/watch?v=EUdsLZUsiRQ&list=PLUGfdBfjve9VGzp7G1C9FYfH8Yk1Px-11)
 
 ## Guides
 
@@ -176,6 +177,8 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [shadow-cljs-kitchen-async-puppeteer](https://github.com/iku000888/shadow-cljs-kitchen-async-puppeteer) - Automated browser test with puppeteer and cljs.test, built with shadow-cljs
 - [baskeboler/cljs-karaoke-client](https://github.com/baskeboler/cljs-karaoke-client) - web karaoke player using shadow-cljs + reagent + re-frame + re-frame-10x + re-frame-async-flow-fx + build hooks for minifying css and generating seo pages ([Demo](https://karaoke-player.netlify.app/songs/Rolling%20Stones-all%20over%20now%20rolling%20stones.html))
 - [flexsurfer/ClojureRNProject](https://github.com/flexsurfer/ClojureRNProject) - simple React Native application with ClojureScript, re-frame and react navigation v5
+- [jacekschae/shadow-cljs-devcards](https://github.com/jacekschae/shadow-cljs-devcards) - how to configure devcards with shadow-cljs
+- [jacekschae/shadow-cljs-tailwindcss](https://github.com/jacekschae/shadow-cljs-tailwindcss) - shadow-cljs + tailwindcss-jit setup
 - ... please let me know if you created something to include here
 
 ## Libraries

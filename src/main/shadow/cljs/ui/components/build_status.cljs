@@ -10,7 +10,7 @@
   (when (seq log)
     (<< [:div.pl-2.pb-2
          [:div.text-md.font-medium.mb-2 (str (count log) " Log messages")]
-         (sg/render-seq log nil
+         (sg/simple-seq log
            (fn [entry]
              (<< [:pre.text-sm entry])))])))
 
@@ -19,7 +19,7 @@
        [:div "Compiling ..."]
        (when (seq active)
          (<< [:div
-              (sg/render-seq
+              (sg/keyed-seq
                 (->> (vals active)
                      (sort-by :timing-id))
                 :timing-id
@@ -28,8 +28,8 @@
 
 (defn render-source-line
   [start-idx lines]
-  (sg/render-seq (map-indexed vector lines) first
-    (fn [[idx body]]
+  (sg/simple-seq lines
+    (fn [body idx]
       (<< [:pre (format "%4d | " (+ 1 idx start-idx)) body]))))
 
 (defn render-build-warning [{:keys [source-excerpt file line column msg resource-name] :as warning}]
@@ -85,9 +85,7 @@
       (when (seq warnings)
         (<< [:div.flex-1.overflow-auto
              [:div.text-xl.px-1.py-2 (str (count warnings) " Warnings")]
-             (sg/render-seq warnings nil
-               (fn [warning]
-                 (render-build-warning warning)))]))))
+             (sg/simple-seq warnings render-build-warning)]))))
 
 (defn render-failed-status [{:keys [report] :as build-status}]
   (<< [:div

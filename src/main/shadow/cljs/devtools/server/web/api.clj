@@ -20,12 +20,12 @@
   {:status 200
    :body "foo"})
 
-(defn open-file [{:keys [config transit-str] :as req}]
+(defn open-file [{:keys [config transit-read transit-str] :as req}]
   (let [data
         (-> req
             (get-in [:ring-request :body])
             (slurp)
-            (edn/read-string))
+            (transit-read))
 
         open-file-command
         (or (:open-file-command config)

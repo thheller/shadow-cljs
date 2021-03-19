@@ -68,12 +68,18 @@
         (assoc :ws-send [{:op :tap-subscribe :to from}])
         )))
 
-(defn guess-display-type [{:keys [db] :as env} {:keys [supports] :as summary}]
+(defn guess-display-type [{:keys [db] :as env} {:keys [data-type supports] :as summary}]
   (let [pref (get-in db [::m/ui-options :preferred-display-type])]
     (if (contains? supports pref)
       pref
-      (if (contains? supports :fragment)
+      (cond
+        (contains? supports :fragment)
         :browse
+
+        (contains? #{:string :number :boolean} data-type)
+        :str
+
+        :else
         :edn))))
 
 (defmethod relay-ws/handle-msg :tap-subscribed

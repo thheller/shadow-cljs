@@ -1,9 +1,9 @@
 (ns shadow.cljs.devtools.client.hud
   (:require
     [shadow.dom :as dom]
-    [shadow.xhr :as xhr]
     [shadow.animate :as anim]
     [shadow.cljs.devtools.client.env :as env]
+    [shadow.cljs.devtools.client.shared :as shared]
     [cljs.core.async :as async :refer (go)]
     [goog.string.format]
     [goog.string :refer (format)]
@@ -20,18 +20,22 @@
 (defn open-file [file line column]
   (js/console.log "opening file" file line column)
 
-  (let [req
-        (xhr/chan :POST
-          (str (env/get-url-base) "/api/open-file")
-          {:file file
-           :line line
-           :column column}
-          {:with-credentials false
-           :body-only true})]
-    (go (when-some [{:keys [exit] :as result} (<! req)]
-          (when-not (zero? exit)
-            (js/console.warn "file open failed" result))
-          ))))
+  (-> (str (env/get-url-base) "/api/open-file")
+      (js/fetch
+        #js {:method "POST"
+             :cache "no-cache"
+             :mode "cors"
+             :body (shared/transit-str
+                     {:file file
+                      :line line
+                      :column column})})
+      (.then #(.text %))
+      (.then (fn [result-text]
+               (let [data (shared/transit-read result-text)]
+                 (js/console.log "open file result" data))))))
+
+(comment
+  (open-file "README.md" 10 1))
 
 (defn dom-insert
   ([node]

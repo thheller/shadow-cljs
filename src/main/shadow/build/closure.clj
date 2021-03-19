@@ -89,7 +89,8 @@
     :ecmascript6-typed CompilerOptions$LanguageMode/ECMASCRIPT6_TYPED
     :ecmascript-2016 CompilerOptions$LanguageMode/ECMASCRIPT_2016
     :ecmascript-2017 CompilerOptions$LanguageMode/ECMASCRIPT_2017
-    :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT))
+    :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT
+    :ecmascript-next-in CompilerOptions$LanguageMode/ECMASCRIPT_NEXT_IN))
 
 (defn ^FeatureSet kw->feature-set [kw]
   (case kw
@@ -101,7 +102,10 @@
     :es7 FeatureSet/ES7
     :es8 FeatureSet/ES8
     :es2018 FeatureSet/ES2018
+    :es2019 FeatureSet/ES2019
+    :es2020 FeatureSet/ES2020
     :es-next FeatureSet/ES_NEXT
+    :es-next-in FeatureSet/ES_NEXT_IN
     (throw (ex-info "invalid :output-feature-set" {:val kw}))))
 
 (defn set-options
@@ -611,8 +615,13 @@
                 :source-excerpt source-excerpt}
                ))))))
 
-(defn closure-source-file [name code]
-  (SourceFile/fromCode name code))
+(defn closure-source-file
+  ([name code]
+   (SourceFile/fromCode name code))
+  ([name code original-name]
+   (-> (SourceFile/builder)
+       (.withOriginalPath original-name)
+       (.buildFromCode name code))))
 
 (defn add-input-source-maps [{:keys [build-sources] :as state} cc]
   (doseq [src-id build-sources
@@ -1462,7 +1471,7 @@
         (merge
           {:pretty-print true
            :source-map true
-           :language-in :ecmascript-next
+           :language-in :ecmascript-next-in
            :output-feature-set :es5}
           (get-output-options state))
 
@@ -1828,7 +1837,8 @@
         (->> (for [{:keys [resource-id resource-name ns require-id file deps] :as src} sources]
                (let [source (data/get-source-code state src)
                      source-file
-                     (closure-source-file resource-name
+                     (closure-source-file
+                       resource-name
                        (str "shadow$provide["
                             (if (and require-id (:minimize-require js-options))
                               (pr-str require-id)
@@ -1847,10 +1857,9 @@
 
                               :else
                               (hide-closure-defines source))
-                            "\n};"))]
-
-                 (when file
-                   (.setOriginalPath source-file (.getAbsolutePath file)))
+                            "\n};")
+                       (when file
+                         (.getAbsolutePath file)))]
 
                  source-file))
              #_(map #(do (println (.getCode %)) %))
@@ -1881,7 +1890,7 @@
            ;; es6+ is transformed by babel first
            ;; but closure got real picky and complains about some things being es6 that aren't
            ;; doesn't really impact much here anyways
-           :language-in :ecmascript-next
+           :language-in :ecmascript-next-in
            :output-feature-set :es5}
           (get-output-options state)
           ;; js-options should always override things pulled from :compiler-options
@@ -2191,7 +2200,7 @@
   (merge
     {:pretty-print true
      :pseudo-names false
-     :language-in :ecmascript-next
+     :language-in :ecmascript-next-in
      :output-feature-set :es5
      :source-map true}
     (get-output-options state)))

@@ -315,7 +315,9 @@
       result)))
 
 (defn stdin-takeover!
-  [worker {:keys [relay] :as app} opts]
+  [worker
+   {:keys [relay] :as app}
+   {:keys [prompt] :as opts}]
 
   (do-repl
     worker
@@ -327,9 +329,10 @@
 
      :repl-prompt
      (fn repl-prompt [{:keys [ns] :as repl-state}]
-       (locking build-log/stdout-lock
-         (print (format "%s=> " ns))
-         (flush)))
+       (when-not (false? prompt)
+         (locking build-log/stdout-lock
+           (print (format "%s=> " ns))
+           (flush))))
 
      :repl-read-ex
      (fn repl-read-ex [repl-state ex]

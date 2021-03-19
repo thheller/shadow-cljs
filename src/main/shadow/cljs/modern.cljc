@@ -15,7 +15,10 @@
 ;; FIXME: should likely generate sane equals/hash impl?
 ;; I'm fine with identity compare only for now, this isn't meant to replace deftype/defrecord after all
 
-(alter-var-root #'ana/specials conj `defclass* `super*)
+#?(:cljs
+   (set! ana/specials (conj ana/specials `defclass* `super*))
+   :clj
+   (alter-var-root #'ana/specials conj `defclass* `super*))
 
 (defn find-and-replace-super-call [form]
   (let [res

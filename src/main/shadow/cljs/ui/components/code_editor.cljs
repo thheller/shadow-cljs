@@ -89,11 +89,12 @@
         (when-not (false? clojure)
           (par-cm/init ed)))))
 
-  (destroy! [this]
-    (when editor-el
-      ;; FIXME: can't find a dispose method on codemirror?
-      (.remove editor-el))
-    (.remove marker)))
+  (destroy! [this dom-remove?]
+    (when dom-remove?
+      (when editor-el
+        ;; FIXME: can't find a dispose method on codemirror?
+        (.remove editor-el))
+      (.remove marker))))
 
 (defn make-editor [opts env]
   (EditorRoot. env (common/dom-marker env) opts nil nil))

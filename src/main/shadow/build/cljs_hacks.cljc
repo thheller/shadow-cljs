@@ -518,7 +518,7 @@
                 [lang (keyword (str/replace (name lang) #"^ecmascript" "es"))])))
     [:ecmascript5 :ecmascript5-strict :ecmascript6 :ecmascript6-strict
      :ecmascript-2015 :ecmascript6-typed :ecmascript-2016 :ecmascript-2017
-     :ecmascript-next]))
+     :ecmascript-next :ecmascript-next-in]))
 
 (defn shadow-emit-var
   [{:keys [info env form] :as ast}]

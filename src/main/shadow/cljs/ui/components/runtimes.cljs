@@ -97,7 +97,7 @@
 
 (defn ui-runtime-list [runtimes]
   (<< [:ul.divide-y.divide-gray-200.overflow-hidden.shadow
-       (sg/render-seq runtimes identity ui-runtime-list-item)]))
+       (sg/keyed-seq runtimes identity ui-runtime-list-item)]))
 
 (defc ui-page []
   (bind {::m/keys [runtimes-sorted]}

@@ -74,7 +74,8 @@
     :fn-invoke-direct true
     :output-feature-set :es7
     :shadow-tweaks true
-    :shadow-keywords true}
+    :shadow-keywords true
+    :source-map true}
 
    :js-options
    {:js-package-dirs ["packages/ui/node_modules"]}
@@ -144,9 +145,10 @@
     {demo.browser/FOO "bar"}}
 
    :build-hooks
-   [(shadow.html/copy-file
-          "out/demo-browser/index.src.html"
-          "out/demo-browser/public/index.html")]
+   [(shadow.build/tap-hook)
+    (shadow.html/copy-file
+      "out/demo-browser/index.src.html"
+      "out/demo-browser/public/index.html")]
 
    :dev {:build-options {:auto-require-suffixes ["-specs"]}}
 

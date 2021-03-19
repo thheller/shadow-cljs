@@ -19,7 +19,7 @@
     (<< [:div.mt-8
          [:h2.pl-1.text-lg.leading-6.font-medium.text-gray-900 "HTTP Servers"]
          [:div.mt-2.grid.grid-cols-1.gap-5
-          (sg/render-seq http-servers ::m/http-server-id
+          (sg/keyed-seq http-servers ::m/http-server-id
             (fn [{::m/keys [http-url https-url http-config]}]
               (let [url (or http-url https-url)
                     display-name (:display-name http-config)]
@@ -46,7 +46,7 @@
     (<< [:div
          [:h2.pl-1.text-lg.leading-6.font-medium.text-gray-900 "Builds"]
          [:div.mt-2.grid.grid-cols-1.gap-5
-          (sg/render-seq active-builds identity builds/build-card)
+          (sg/keyed-seq active-builds identity builds/build-card)
           ;(build-status/render-build-status-short build-status)
           ]])))
 
