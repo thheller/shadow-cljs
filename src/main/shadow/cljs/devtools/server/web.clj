@@ -34,16 +34,17 @@
       ;; starting the worker ASAP
       ;; if the script starts it we have to wait for the script to download and execute
       ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
-      [:script
-       (str "var SHADOW_WORKER = new Worker(\"/js/worker.js?server-token="
-            (get-in req [:http :server-token])
-            "\");")]
+      #_[:script
+         (str "var SHADOW_WORKER = new Worker(\"/js/worker.js?server-token="
+              (get-in req [:http :server-token])
+              "\");")]
       [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
       [:title (-> (io/file ".")
                   (.getCanonicalFile)
                   (.getName))]
       [:link {:rel "stylesheet" :href "/css/main.css"}]
       [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]
+      [:meta {:name "shadow-remote-token" :content (get-in req [:http :server-token])}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body
       [:div#root.fixed.inset-0]

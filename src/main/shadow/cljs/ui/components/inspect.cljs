@@ -6,7 +6,6 @@
     [shadow.experiments.arborist.dom-scheduler :as ds]
     [shadow.experiments.grove :as sg :refer (<< defc)]
     [shadow.experiments.grove.ui.vlist :as vlist]
-    [shadow.experiments.grove.ui.streams :as streams]
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.experiments.grove.keyboard :as keyboard]
     [shadow.cljs.model :as m]
@@ -269,7 +268,7 @@
               (view-as-button display-type :edn "EDN" active?))]]
           ))))
 
-(defc ui-tap-stream-item [{:keys [object-ident]} {:keys [focus]}]
+(defc ui-tap-stream-item [object-ident {:keys [focus]}]
   (bind {:keys [summary runtime obj-preview] :as data}
     (sg/query-ident object-ident
       [:oid
@@ -307,47 +306,30 @@
                    (str " - " label)))]
            [:div.truncate (render-edn-limit obj-preview)]]))))
 
+(def tap-vlist
+  (vlist/configure :tap-vlist
+    {:item-height 46
+     :key-fn identity}
+    ;; FIXME: for reasons I can't remember this currently only accepts functions
+    (fn [ident info]
+      (ui-tap-stream-item ident info))))
+
 (defc ui-tap-panel [item panel-idx active?]
-  ;; FIXME: streams are kind of a bad idea
-  ;; only benefit is they are really fast but everything else sucks
-
-  ;; in a list with 500 items adding one render-seq will diff the
-  ;; other 500 items to figure out where the new one is supposed to go
-  ;; which is quick but completely unnecessary since we only ever add
-  ;; at the top ... until we don't. basically had to remove :tap-history
-  ;; support since merging it when a new runtime connects caused my head
-  ;; to hurt. should rewrite this in a somewhat sane manner
-  (bind item-fn
-    (fn [{:keys [type] :as item} info]
-      (case type
-        :tap
-        (ui-tap-stream-item item info)
-
-        (<< [:div (pr-str item)]))))
-
-  (bind stream-ref (sg/ref))
-
   (event ::kb-select! [env {:keys [item]}]
     (sg/dispatch-up! env {:e ::inspect-object! :ident (:object-ident item)}))
 
-  (event ::clear! [env _ e]
-    (streams/clear! @stream-ref))
+  (event ::m/tap-clear! sg/tx)
 
   (render
     (<< [:div.p-2.bg-gray-200.font-bold "Tap History"]
-        [:div.flex-1
-         (streams/embed
-           ::m/taps
-           {:ref stream-ref
-            :tabindex (if active? 0 -1)
-            :select-event {:e ::kb-select!}}
-           item-fn)]
+        [:div.flex-1.overflow-hidden
+         (tap-vlist {:tabindex (if active? 0 -1)})]
 
         [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
          [:button
           {:class css-button
            :tabindex (if active? 0 -1)
-           :on-click {:e ::clear!}}
+           :on-click ::m/tap-clear!}
           "Clear"]])))
 
 (defc ui-tap-latest-panel [item panel-idx active?]

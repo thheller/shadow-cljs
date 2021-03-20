@@ -1,8 +1,8 @@
 (ns shadow.cljs.ui.worker.builds
   (:require
     [shadow.experiments.grove.db :as db]
+    [shadow.experiments.grove.events :as ev]
     [shadow.experiments.grove.eql-query :as eql]
-    [shadow.experiments.grove.worker :as sw]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
     [shadow.cljs.ui.worker.relay-ws :as relay-ws]))
@@ -14,12 +14,12 @@
      :to 1 ;; FIXME: don't hardcode CLJ runtime id
      ::m/build-id build-id}]})
 
-(sw/reg-event env/app-ref ::m/build-watch-compile! fx-to-ws)
-(sw/reg-event env/app-ref ::m/build-watch-stop! fx-to-ws)
-(sw/reg-event env/app-ref ::m/build-watch-start! fx-to-ws)
-(sw/reg-event env/app-ref ::m/build-compile! fx-to-ws)
-(sw/reg-event env/app-ref ::m/build-release! fx-to-ws)
-(sw/reg-event env/app-ref ::m/build-release-debug! fx-to-ws)
+(ev/reg-event env/rt-ref ::m/build-watch-compile! fx-to-ws)
+(ev/reg-event env/rt-ref ::m/build-watch-stop! fx-to-ws)
+(ev/reg-event env/rt-ref ::m/build-watch-start! fx-to-ws)
+(ev/reg-event env/rt-ref ::m/build-compile! fx-to-ws)
+(ev/reg-event env/rt-ref ::m/build-release! fx-to-ws)
+(ev/reg-event env/rt-ref ::m/build-release-debug! fx-to-ws)
 
 (defmethod eql/attr ::m/active-builds
   [env db _ query-part params]

@@ -35,7 +35,7 @@
       ;; starting the worker ASAP
       ;; if the script starts it we have to wait for the script to download and execute
       ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
-      [:script "var SHADOW_WORKER = new Worker(\"/js/worker.js\");"]
+      ;; [:script "var SHADOW_WORKER = new Worker(\"/js/worker.js\");"]
       [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
       [:title (-> (io/file ".")
                   (.getCanonicalFile)

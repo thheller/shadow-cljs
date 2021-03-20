@@ -1,13 +1,13 @@
 (ns shadow.cljs.ui.worker.generic
   (:require
     [clojure.string :as str]
-    [shadow.experiments.grove.worker :as sw]
+    [shadow.experiments.grove.events :as ev]
     [shadow.experiments.grove.db :as db]
     [shadow.experiments.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]))
 
-(sw/reg-event env/app-ref ::m/init!
+(ev/reg-event env/rt-ref ::m/init!
   (fn [{:keys [db] :as env} _]
     {:graph-api
      {:request
@@ -26,7 +26,7 @@
       :on-success
       {:e ::init-data}}}))
 
-(sw/reg-event env/app-ref ::init-data
+(ev/reg-event env/rt-ref ::init-data
   (fn [{:keys [db] :as env} {:keys [result]}]
     (let [{::m/keys [http-servers build-configs]}
           result
@@ -38,18 +38,19 @@
               (db/merge-seq ::m/build build-configs [::m/builds]))]
       {:db merged})))
 
-(sw/reg-event env/app-ref ::m/dismiss-error!
+(ev/reg-event env/rt-ref ::m/dismiss-error!
   (fn [{:keys [db] :as env} {:keys [ident]}]
     {:db (dissoc db ident)}))
 
 (defmethod eql/attr ::m/errors [env db current query-part params]
   (db/all-idents-of db ::m/error))
 
-(sw/reg-event env/app-ref :ui/route!
+(ev/reg-event env/rt-ref :ui/route!
   (fn [{:keys [db] :as env} {:keys [token]}]
-    ;; FIXME: reitit?
+
     (let [[main & more :as tokens] (str/split token #"/")
           db (assoc db ::current-route token)]
+
       (case main
         "inspect"
         {:db (assoc db
@@ -101,11 +102,11 @@
 
             (case sub-page
               "repl" ;; FIXME: should these be separate page types?
-              (let [stream-key [::m/eval-stream runtime-ident]]
-                {:db (-> db (assoc ::m/current-page {:id :repl :ident runtime-ident}))
-                 :stream-init {stream-key {}}})
+              {:db (-> db (assoc ::m/current-page {:id :repl :ident runtime-ident}))}
+
               "db-explorer"
               {:db (-> db (assoc ::m/current-page {:id :db-explorer :ident runtime-ident}))}
+
               (js/console.warn "unknown-runtime-route" token))))
 
         (js/console.warn "unknown-route" token)

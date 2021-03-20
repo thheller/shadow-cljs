@@ -1,12 +1,13 @@
 (ns shadow.cljs.ui.worker.inspect
   (:require
-    [shadow.experiments.grove.worker :as sw]
+    [clojure.string :as str]
+    [shadow.experiments.grove.events :as ev]
     [shadow.experiments.grove.db :as db]
     [shadow.experiments.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
     [shadow.cljs.ui.worker.relay-ws :as relay-ws]
-    [clojure.string :as str])
+    )
   (:import [goog.i18n DateTimeFormat]))
 
 (defn without [v item]
@@ -65,7 +66,7 @@
        (db/update-entity db ::m/runtime from assoc :supported-ops ops)}
       (cond->
         (contains? ops :tap-subscribe)
-        (assoc :ws-send [{:op :tap-subscribe :to from}])
+        (assoc :ws-send [{:op :tap-subscribe :to from :history true :num 50}])
         )))
 
 (defn guess-display-type [{:keys [db] :as env} {:keys [data-type supports] :as summary}]
@@ -83,20 +84,45 @@
         :edn))))
 
 (defmethod relay-ws/handle-msg :tap-subscribed
-  [{:keys [db] :as env} {:keys [from]}]
-  {})
+  [{:keys [db] :as env} {:keys [from history] :as msg}]
+  {:db (reduce
+         (fn [db {:keys [oid summary]}]
+           (let [object-ident (db/make-ident ::m/object oid)]
 
-(defmethod relay-ws/handle-msg :tap [{:keys [db] :as env} {:keys [oid from]}]
+             (-> db
+                 (db/add ::m/object {:oid oid
+                                     :runtime-id from
+                                     :summary (with-added-at-ts summary)
+                                     :display-type (guess-display-type env summary)
+                                     :runtime (db/make-ident ::m/runtime from)})
+
+                 ;; FIXME: should do some kind of sorting here
+                 ;; when loading the UI the runtimes may already had a bunch of taps
+                 ;; but the tap-subscribed event may arrive in random order
+                 ;; and tap stream display ends up more or less random
+                 ;; not a big deal for now but should be fixed eventually
+                 (update ::m/tap-stream conj object-ident))))
+         db
+         (reverse history))})
+
+(defmethod relay-ws/handle-msg :tap [{:keys [db] :as env} {:keys [oid from] :as msg}]
   (let [object-ident (db/make-ident ::m/object oid)]
     {:db
      (-> db
          (db/add ::m/object {:oid oid
                              :runtime-id from
                              :runtime (db/make-ident ::m/runtime from)})
-         (assoc ::m/tap-latest object-ident))
+         (update ::m/tap-stream conj object-ident)
+         (assoc ::m/tap-latest object-ident))}))
 
-     :stream-add
-     [[::m/taps {:type :tap :object-ident object-ident}]]}))
+(ev/reg-event env/rt-ref ::m/tap-clear!
+  (fn [{:keys [db] :as env} msg]
+    ;; FIXME: this only clears locally, runtimes still have all
+    ;; reloading the UI will thus restore them
+    (let [{::m/keys [tap-stream]} db]
+      {:db (-> db
+               (db/remove-idents tap-stream)
+               (assoc ::m/tap-stream (list)))})))
 
 (defmethod relay-ws/handle-msg :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
   (let [object-ident (db/make-ident ::m/object oid)
@@ -111,7 +137,7 @@
            (nil? display-type)
            (assoc-in [object-ident :display-type] (guess-display-type env summary))))}))
 
-(sw/reg-event env/app-ref ::obj-preview-result
+(ev/reg-event env/rt-ref ::obj-preview-result
   (fn [{:keys [db]} {:keys [call-result]}]
     (let [{:keys [op oid result]} call-result] ;; remote-result
       (assert (= op :obj-result))
@@ -159,7 +185,7 @@
 
         :db/loading)))
 
-(sw/reg-event env/app-ref ::obj-as-result
+(ev/reg-event env/rt-ref ::obj-as-result
   (fn [{:keys [db]} {:keys [ident call-result key] :as res}]
     (let [{:keys [op result]} call-result]
       (case op
@@ -280,7 +306,28 @@
                :ident (:db/ident current)})
             :db/loading)))))
 
-(sw/reg-event env/app-ref ::fragment-slice-loaded
+(defmethod eql/attr :tap-vlist
+  [env
+   {::m/keys [tap-stream] :as db}
+   current
+   _
+   {:keys [offset num] :or {offset 0 num 0} :as params}]
+
+
+  (let [entries (count tap-stream)
+
+        slice
+        (->> tap-stream
+             (drop offset)
+             (take num)
+             (vec))]
+
+    {:item-count entries
+     :offset offset
+     :slice slice}
+    ))
+
+(ev/reg-event env/rt-ref ::fragment-slice-loaded
   (fn [{:keys [db]} {:keys [ident call-result]}]
     (let [{:keys [op result]} call-result]
       (assert (= :obj-result op)) ;; FIXME: handle failures
@@ -336,7 +383,7 @@
 
             :db/loading)))))
 
-(sw/reg-event env/app-ref ::lazy-seq-slice-loaded
+(ev/reg-event env/rt-ref ::lazy-seq-slice-loaded
   (fn [{:keys [db]} {:keys [ident call-result]}]
     (let [{:keys [op realized fragment more?]} call-result]
       (assert (= :obj-result op)) ;; FIXME: handle failures
@@ -347,7 +394,7 @@
 
 
 
-(sw/reg-event env/app-ref ::m/inspect-object!
+(ev/reg-event env/rt-ref ::m/inspect-object!
   (fn [{:keys [db] :as env} {:keys [ident]}]
     (let [{:keys [summary oid runtime-id] :as object} (get db ident)]
       (let [stack
@@ -374,7 +421,7 @@
         {:keys [ident] :as last} (last nav-stack)]
     ident))
 
-(sw/reg-event env/app-ref ::m/inspect-nav!
+(ev/reg-event env/rt-ref ::m/inspect-nav!
   (fn [{:keys [db] :as env} {:keys [ident idx panel-idx]}]
     (let [{:keys [oid runtime-id] :as object} (get db ident)]
 
@@ -392,7 +439,7 @@
 
       {})))
 
-(sw/reg-event env/app-ref ::inspect-nav-result
+(ev/reg-event env/rt-ref ::inspect-nav-result
   (fn [{:keys [db] :as env} {:keys [panel-idx call-result] :as tx}]
 
     (assert (= :obj-result-ref (:op call-result))) ;; FIXME: handle failures
@@ -423,18 +470,18 @@
                (assoc-in [::m/inspect :stack] stack)
                (assoc-in [::m/inspect :current] (inc panel-idx)))})))
 
-(sw/reg-event env/app-ref ::m/inspect-set-current!
+(ev/reg-event env/rt-ref ::m/inspect-set-current!
   (fn [{:keys [db] :as env} {:keys [idx]}]
     {:db (assoc-in db [::m/inspect :current] idx)}))
 
-(sw/reg-event env/app-ref ::m/inspect-nav-jump!
+(ev/reg-event env/rt-ref ::m/inspect-nav-jump!
   (fn [{:keys [db] :as env} {:keys [idx]}]
     (let [idx (inc idx)]
 
       {:db (-> db
                (update-in [::m/inspect :nav-stack] subvec 0 idx))})))
 
-(sw/reg-event env/app-ref ::m/inspect-switch-display!
+(ev/reg-event env/rt-ref ::m/inspect-switch-display!
   (fn [{:keys [db] :as env} {:keys [ident display-type]}]
     {:db (assoc-in db [ident :display-type] display-type)}))
 
@@ -461,7 +508,7 @@
        (map :db/ident)
        (vec)))
 
-(sw/reg-event env/app-ref ::m/inspect-code-eval!
+(ev/reg-event env/rt-ref ::m/inspect-code-eval!
   (fn [{:keys [db] :as env} {:keys [code ident panel-idx]}]
     (let [data
           (eql/query env db
@@ -505,7 +552,7 @@
          :panel-idx panel-idx})
       {})))
 
-(sw/reg-event env/app-ref ::inspect-eval-result!
+(ev/reg-event env/rt-ref ::inspect-eval-result!
   (fn [{:keys [db] :as env} {:keys [code panel-idx call-result]}]
     (case (:op call-result)
       :eval-result-ref

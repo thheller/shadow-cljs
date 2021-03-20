@@ -1,7 +1,8 @@
 (ns shadow.cljs.ui.worker.relay-ws
   (:require
-    [shadow.experiments.grove.worker :as sw]
+    [shadow.experiments.grove :as sg]
     [shadow.experiments.grove.runtime :as rt]
+    [shadow.experiments.grove.events :as ev]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
     [clojure.string :as str]))
@@ -32,11 +33,11 @@
 (defmethod handle-msg ::m/ui-options [{:keys [db] :as env} {:keys [ui-options]}]
   {:db (assoc db ::m/ui-options ui-options)})
 
-(sw/reg-event env/app-ref ::m/relay-ws-close
+(ev/reg-event env/rt-ref ::m/relay-ws-close
   (fn [{:keys [db] :as env} _]
     {:db (assoc db ::m/relay-ws-connected false)}))
 
-(sw/reg-event env/app-ref ::m/relay-ws
+(ev/reg-event env/rt-ref ::m/relay-ws
   (fn [env {:keys [msg]}]
     ;; (js/console.log ::m/relay-ws op msg)
     (handle-msg env msg)))
@@ -54,43 +55,44 @@
                               :result-data result-data})
     (cast! env (assoc msg :call-id mid))))
 
-(sw/reg-fx env/app-ref :ws-send
+(ev/reg-fx env/rt-ref :ws-send
   (fn [{::keys [ws-ref] ::rt/keys [transit-str] :as env} messages]
     (let [socket @ws-ref]
       (doseq [msg messages]
         (.send socket (transit-str msg))))))
 
-(defn init [app-ref on-welcome]
+(defn init [rt-ref server-token on-welcome]
   (let [socket (js/WebSocket.
                  (str (str/replace js/self.location.protocol "http" "ws")
                       "//" js/self.location.host
                       "/api/remote-relay"
-                      js/self.location.search))
+                      "?server-token=" server-token))
         ws-ref (atom socket)]
 
-    (swap! app-ref assoc
+    (swap! rt-ref assoc
       ::ws-ref ws-ref
       ::socket socket
+      ::server-token server-token
       ::on-welcome
       (fn []
-        (cast! @app-ref {:op :hello
+        (cast! @rt-ref {:op :hello
                          :client-info {:type :shadow-cljs-ui}})
         (on-welcome)))
 
-    (let [{::rt/keys [^function transit-read]} @app-ref]
+    (let [{::rt/keys [^function transit-read]} @rt-ref]
       (.addEventListener socket "message"
         (fn [e]
           (let [{:keys [call-id op] :as msg} (transit-read (.-data e))]
             (cond
               call-id
               (let [{:keys [result-data] :as call-data} (get @rpc-ref call-id)]
-                (sw/run-tx @env/app-ref (assoc result-data :call-result msg)))
+                (sg/run-tx! env/rt-ref (assoc result-data :call-result msg)))
 
               (= :ping op)
-              (cast! @app-ref {:op :pong})
+              (cast! @rt-ref {:op :pong})
 
               :else
-              (sw/run-tx @env/app-ref {:e ::m/relay-ws :msg msg}))))))
+              (sg/run-tx! env/rt-ref {:e ::m/relay-ws :msg msg}))))))
 
     (.addEventListener socket "open"
       (fn [e]
@@ -99,7 +101,7 @@
 
     (.addEventListener socket "close"
       (fn [e]
-        (sw/run-tx @env/app-ref {:e ::m/relay-ws-close})
+        (sg/run-tx! env/rt-ref {:e ::m/relay-ws-close})
         (js/console.log "tool-close" e)))
 
     (.addEventListener socket "error"

@@ -11,7 +11,8 @@
     ;; cljs.repl has way too much other stuff on the CLJ side not error related we don't really need here
     ;; should just have one namespace only concerned with formatting errors
     ;; maybe even as separate plugin
-    #?@(:clj [[shadow.cljs.devtools.errors :refer (error-format)]]
+    #?@(:clj [[shadow.cljs.devtools.errors :refer (error-format)]
+              [shadow.jvm-log]]
         :cljs [[cljs.repl :refer (error->str)]]))
   #?(:clj (:import [java.util UUID])))
 
@@ -472,7 +473,8 @@
                       (shared/reply runtime msg reply-msg)))))
 
               (catch #?(:clj Exception :cljs :default) e
-                #?(:cljs (js/console.warn "action-request-action failed" (:obj entry) e))
+                #?(:cljs (js/console.warn "action-request-action failed" (:obj entry) e)
+                   :clj (shadow.jvm-log/warn-ex e ::obj-request-failed msg))
                 (shared/reply runtime msg
                   {:op :obj-request-failed
                    :oid oid
