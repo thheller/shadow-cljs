@@ -110,7 +110,7 @@
                [:dl
                 [:dt.text-lg.font-medium.text-gray-900 (name build-id)]
                 [:dd
-                 [:span.text-sm.font-medium.text-gray-500.truncate (name build-target)]]] ]]]]
+                 [:span.text-sm.font-medium.text-gray-500.truncate (name build-target)]]]]]]]
 
            (build-buttons build-id build-worker-active)]))))
 

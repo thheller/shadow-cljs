@@ -59,17 +59,17 @@
               (when (contains? supported-ops :cljs-eval)
                 (<< [:a
                      {:class inspect/css-button
-                      :href  (str "/runtime/" runtime-id "/cljs-eval")}
+                      :href (str "/runtime/" runtime-id "/cljs-eval")}
                      "cljs eval"]))
               (when (contains? supported-ops :clj-eval)
                 (<< [:a
                      {:class inspect/css-button
-                      :href  (str "/runtime/" runtime-id "/repl")}
+                      :href (str "/runtime/" runtime-id "/repl")}
                      "clj eval"]))
               (when (contains? supported-ops :db/get-databases)
                 (<< [:a
                      {:class inspect/css-button
-                      :href  (str "/runtime/" runtime-id "/db-explorer")}
+                      :href (str "/runtime/" runtime-id "/db-explorer")}
                      "db explorer"]))]]))))
 
 (defc ui-runtime-list-item [ident]
@@ -86,7 +86,7 @@
             {:href (if build-id (str "/build/" (name build-id)) "#")}
 
             [:div.flex.space-x-4
-             [:div.font-medium.text-lg.text-right {:style "width: 30px;"}  runtime-id
+             [:div.font-medium.text-lg.text-right {:style "width: 30px;"} runtime-id
               [:div (build-lang-icon lang)]]
              [:div.flex-1.flex.flex-col.truncate
               [:div.text-lg.font-medium (if build-id (name build-id) " -")]

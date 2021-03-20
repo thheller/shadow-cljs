@@ -37,7 +37,7 @@
     (sg/query-ident build-ident
       [::m/build-runtime-count
        ::m/build-worker-active]))
-  
+
   (render
     (let [link-root (str "/build/" (-> build-ident second name))]
 

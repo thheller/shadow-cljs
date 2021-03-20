@@ -76,7 +76,7 @@
       ::on-welcome
       (fn []
         (cast! @rt-ref {:op :hello
-                         :client-info {:type :shadow-cljs-ui}})
+                        :client-info {:type :shadow-cljs-ui}})
         (on-welcome)))
 
     (let [{::rt/keys [^function transit-read]} @rt-ref]
