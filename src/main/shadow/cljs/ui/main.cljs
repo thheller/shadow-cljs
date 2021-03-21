@@ -76,7 +76,7 @@
           nav-normal
           "inline-block px-4 py-2"]
 
-      (<< [:div.flex.flex-col.h-full.bg-gray-100
+      (<< [:div.h-full.w-full.flex.flex-col.bg-gray-100.items-stretch
            (when-not relay-ws-connected
              (<< [:div.p-4.bg-red-700.text-white.text-lg.font-bold "UI WebSocket not connected! Reload page to reconnect."]))
 

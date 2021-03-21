@@ -47,9 +47,12 @@
       [:meta {:name "shadow-remote-token" :content (get-in req [:http :server-token])}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body
-      [:div#root.fixed.inset-0]
-      [:script {:src "/js/shared.js" :defer true}]
-      [:script {:src "/js/main.js" :defer true}]])})
+      [:div#root.h-screen.w-screen]
+      ;; defer'ing these causes the scripts to potentially run before the stylesheets finish loading
+      ;; leading to incorrect measurements of elements and messing up vlists
+      ;; I don't know how to fix that apart from just removing the defer?
+      [:script {:src "/js/shared.js"}]
+      [:script {:src "/js/main.js"}]])})
 
 (defn no-cache! [res]
   (update-in res [:headers] assoc

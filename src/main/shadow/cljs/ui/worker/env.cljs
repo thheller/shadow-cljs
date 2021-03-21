@@ -42,7 +42,9 @@
        ::m/builds :db/loading
        ::m/http-servers :db/loading
        ::m/init-complete? :db/loading ;; used a marker for initial suspense
-       ::m/relay-ws-connected false
+       ;; assume that the first connect will succeed
+       ;; otherwise shows disconnect banner for a few ms on startup
+       ::m/relay-ws-connected true
        ::m/ui-options {} ;; FIXME: should probably store this somewhere on the client side too
        ::m/runtimes []
        ::m/active-builds []
