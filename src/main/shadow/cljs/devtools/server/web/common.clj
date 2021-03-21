@@ -24,33 +24,6 @@
    :header {"content-type" "application/edn"}
    :body (core-ext/safe-pr-str data)})
 
-(defn page-boilerplate
-  [req {:keys [modules body-class headers init-call]} ^String content]
-  {:status 200
-   :headers (merge {"content-type" "text/html; charset=utf-8"} headers)
-   :body
-   (html5
-     {:lang "en"}
-     [:head
-      ;; starting the worker ASAP
-      ;; if the script starts it we have to wait for the script to download and execute
-      ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
-      ;; [:script "var SHADOW_WORKER = new Worker(\"/js/worker.js\");"]
-      [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
-      [:title (-> (io/file ".")
-                  (.getCanonicalFile)
-                  (.getName))]
-      [:link {:rel "stylesheet" :href "/css/main.css"}]
-      [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]
-      [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
-     [:body {:class body-class}
-      content
-      (for [x modules]
-        [:script {:src (str "/js/" (name x) ".js")}])
-      (when-let [[fn-sym fn-arg] init-call]
-        [:script (str (cljs-comp/munge fn-sym) "(" (pr-str (pr-str fn-arg)) ");")])
-      ])})
-
 (defn nav []
   (html
     [:div

@@ -80,6 +80,9 @@
    :js-options
    {:js-package-dirs ["packages/ui/node_modules"]}
 
+   :devtools
+   {:watch-dir "src/ui-release/shadow/cljs/ui/dist"}
+
    :module-loader true
    :modules
    {:shared

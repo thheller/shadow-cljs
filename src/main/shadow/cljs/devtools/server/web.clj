@@ -31,6 +31,8 @@
    (html5
      {:lang "en"}
      [:head
+      [:link {:rel "preload" :as "script" :href "/js/shared.js"}]
+      [:link {:rel "preload" :as "script" :href "/js/main.js"}]
       ;; starting the worker ASAP
       ;; if the script starts it we have to wait for the script to download and execute
       ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
@@ -42,15 +44,16 @@
       [:title (-> (io/file ".")
                   (.getCanonicalFile)
                   (.getName))]
-      [:link {:rel "stylesheet" :href "/css/main.css"}]
-      [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]
+      [:link {:rel "stylesheet" :href "/css/ui.css"}]
       [:meta {:name "shadow-remote-token" :content (get-in req [:http :server-token])}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body
-      [:div#root.h-screen.w-screen]
+      ;; FIXME: tailwind/jit doesn't hit these sources
+      [:div#root {:style "width: 100vw; height: 100vh;"}]
       ;; defer'ing these causes the scripts to potentially run before the stylesheets finish loading
       ;; leading to incorrect measurements of elements and messing up vlists
       ;; I don't know how to fix that apart from just removing the defer?
+      ;; not so much of an issue anymore with jit'd tailwind but we don't gain much from defer anyways
       [:script {:src "/js/shared.js"}]
       [:script {:src "/js/main.js"}]])})
 
@@ -182,105 +185,6 @@
         [:script {:src "/cache/browser-test/out/js/test.js"}]
         [:script "shadow.test.browser.init();"]])}))
 
-(defn workspaces-page [{:keys [supervisor] :as req}]
-  (if-not (io/resource "nubank/workspaces/core.cljs")
-    {:status 404
-     :headers {"content-type" "text/plain; charset=utf-8"}
-     :body "nubank.workspaces.core namespace not found on classpath!"}
-
-    (let [worker
-          (or (super/get-worker supervisor :workspaces)
-              (let [config
-                    {:build-id :workspaces
-                     :target :browser-test
-                     :ns-regexp "-cards$"
-                     :runner-ns 'shadow.test.workspaces
-                     :devtools {:loader-mode :eval}
-                     :asset-path "/cache/workspaces/out/js"
-                     :test-dir ".shadow-cljs/builds/workspaces/out"}]
-
-                (log/debug ::workspaces-start config)
-
-                (-> (super/start-worker supervisor config {})
-                    (worker/start-autobuild))))]
-
-      (worker/sync! worker)
-
-      {:status 200
-       :headers {"content-type" "text/html; charset=utf-8"}
-       :body
-       (html5
-         {:lang "en"}
-         [:head
-          [:title "workspaces"]
-          [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
-          ;; FIXME: local copy?
-          [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css?family=Open+Sans"}]
-          [:link {:rel "stylesheet" :href "//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css"}]]
-         [:body
-          [:div#app]
-          [:script {:src "/cache/workspaces/out/js/test.js"}]
-          [:script "shadow.test.workspaces.init();"]
-          ])})))
-
-(defonce active-cards-clients (atom 0))
-
-(defn grove-cards-page [{:keys [supervisor] :as req}]
-  (if-not (io/resource "shadow/experiments/grove/cards/env.cljs")
-    {:status 404
-     :headers {"content-type" "text/plain; charset=utf-8"}
-     :body "shadow.experiments.grove.cards.env namespace not found on classpath!"}
-
-    (let [worker
-          (or (super/get-worker supervisor :grove-cards)
-              (let [config
-                    {:build-id :grove-cards
-                     :target :browser-test
-                     :ns-regexp "-cards$"
-                     :runner-ns 'shadow.experiments.grove.cards.runner
-                     :asset-path "/cache/grove-cards/out/js"
-                     :test-dir ".shadow-cljs/builds/grove-cards/out"}]
-
-                (log/debug ::grove-cards-start config)
-
-                (-> (super/start-worker supervisor config {})
-                    (worker/start-autobuild))))]
-
-      (worker/sync! worker)
-
-      (swap! active-cards-clients inc)
-
-      {:status 200
-       :headers {"content-type" "text/html; charset=utf-8"}
-       :body
-       (html5
-         {:lang "en"}
-         [:head
-          [:title "grove cards"]
-          [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
-          [:link {:rel "stylesheet" :href "/css/tailwind.min.css"}]]
-         [:body
-          [:div#app]
-          [:script {:src "/cache/grove-cards/out/js/test.js"}]
-          [:script "shadow.experiments.grove.cards.runner.init();"]
-          [:script
-           (str "window.addEventListener(\"beforeunload\", function() {"
-                "navigator.sendBeacon(\"/grove/cards-unload\", \"\");"
-                "});")]
-          ])})))
-
-(defn grove-cards-unload [{:keys [supervisor] :as req}]
-  (future
-    ;; FIXME: delay this a bit since it might just be a page reload
-    (Thread/sleep 1000)
-    (swap! active-cards-clients dec)
-    (when (zero? @active-cards-clients)
-      (super/stop-worker supervisor :grove-cards)))
-
-  {:status 201
-   :headers {}
-   :body ""})
-
 (defn maybe-index-page [req]
   (let [accept (get-in req [:ring-request :headers "accept"])]
     (if (and accept (not (str/includes? accept "text/html")))
@@ -294,9 +198,6 @@
         (:GET "^/cache" serve-cache-file)
         (:GET "/repl-js/{build-id:keyword}" browser-repl-js build-id)
         (:GET "/browser-test" browser-test-page)
-        (:GET "/workspaces" workspaces-page)
-        (:GET "/grove/cards" grove-cards-page)
-        (:ANY "/grove/cards-unload" grove-cards-unload)
         maybe-index-page #_common/not-found)))
 
 (defn root [req]
