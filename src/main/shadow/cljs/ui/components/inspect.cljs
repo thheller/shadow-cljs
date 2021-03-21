@@ -219,7 +219,7 @@
           {:keys [obj-type entries supports]} summary]
 
       (<< [:div.h-full.flex.flex-col.overflow-hidden {::keyboard/listen true}
-           [:div {:class "flex bg-gray-200 font-mono font-bold items-center"}
+           [:div {:class "flex font-mono font-bold items-center border-b border-b-200"}
             (when (pos? panel-idx)
               (<< [:div.cursor-pointer.py-2.pl-2.font-bold
                    {:on-click {:e ::go-first!}
@@ -319,7 +319,7 @@
     (sg/dispatch-up! env {:e ::inspect-object! :ident (:object-ident item)}))
 
   (render
-    (<< [:div.p-2.bg-gray-200.font-bold "Tap History"]
+    (<< [:div.p-2.font-bold.border-b.border-bg-gray-200 "Tap History"]
         [:div.flex-1.overflow-hidden
          (tap-vlist {:tabindex (if active? 0 -1)})]
 
@@ -464,15 +464,15 @@
       (dom/ev-stop e)))
 
   (render
-    (<< [:div.flex-1.bg-white.pt-4.flex.flex-col.overflow-hidden {::keyboard/listen true}
+    (<< [:div.flex-1.mt-4.flex.flex-col.overflow-hidden {::keyboard/listen true}
          ;; [:div.px-6.font-bold "current:" current]
          [:div.flex-1.flex.overflow-hidden {:dom/ref container-ref}
           (sg/simple-seq stack
             (fn [{:keys [type] :as item} idx]
               (let [active? (= current idx)]
-                (<< [:div {:class "p-3 flex-none h-full"
+                (<< [:div {:class "px-3 pb-3 flex-none h-full"
                            :style {:width "100%"}}
-                     [:div.border.shadow-lg.h-full.flex.flex-col
+                     [:div.border.shadow.bg-white.h-full.flex.flex-col
                       (case type
                         :tap-panel
                         (ui-tap-panel item idx active?)

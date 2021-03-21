@@ -81,7 +81,7 @@
 
   (render
     (let [{:keys [lang build-id host type since user-agent desc]} runtime-info]
-      (<< [:li
+      (<< [:div {:class "border-t border-gray-200"}
            [:a.block.px-4.py-4.bg-white.hover:bg-gray-50
             {:href (if build-id (str "/build/" (name build-id)) "#")}
 
@@ -96,8 +96,7 @@
                 ]]]]]]))))
 
 (defn ui-runtime-list [runtimes]
-  (<< [:ul.divide-y.divide-gray-200.overflow-hidden.shadow
-       (sg/keyed-seq runtimes identity ui-runtime-list-item)]))
+  (sg/keyed-seq runtimes identity ui-runtime-list-item))
 
 (defc ui-page []
   (bind {::m/keys [runtimes-sorted]}
