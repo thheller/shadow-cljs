@@ -29,8 +29,6 @@
     (sg/query-ident err-ident
       [:text]))
 
-  (event ::m/dismiss-error! sg/tx)
-
   (event ::keyboard/escape [env _ e]
     (sg/run-tx env {:e ::m/dismiss-error! :ident err-ident}))
 
@@ -177,7 +175,5 @@
   (sg/run-tx! env/rt-ref {:e ::m/init!})
 
   (sg/init-root env/rt-ref ::ui root-el {})
-
-  (tap> env/rt-ref)
 
   (start))

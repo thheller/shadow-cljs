@@ -61,14 +61,6 @@
        [:span.h-3.w-3.bg-blue-400.rounded-full]]))
 
 (defc build-card [ident]
-
-  (event ::m/build-watch-start! sg/tx)
-  (event ::m/build-compile! sg/tx)
-  (event ::m/build-watch-stop! sg/tx)
-  (event ::m/build-watch-compile! sg/tx)
-  (event ::m/build-release! sg/tx)
-  (event ::m/build-release-debug! sg/tx)
-
   (bind {::m/keys [build-status build-id build-target build-warnings-count build-worker-active] :as data}
     (sg/query-ident ident
       [::m/build-id
@@ -117,13 +109,6 @@
 (defc ui-builds-page []
   (bind {::m/keys [builds]}
     (sg/query-root [::m/builds]))
-
-  (event ::m/build-watch-compile! sg/tx)
-  (event ::m/build-watch-start! sg/tx)
-  (event ::m/build-watch-stop! sg/tx)
-  (event ::m/build-compile! sg/tx)
-  (event ::m/build-release! sg/tx)
-  (event ::m/build-release-debug! sg/tx)
 
   (render
     (<< [:div.flex-1.overflow-auto.py-2.sm:px-2

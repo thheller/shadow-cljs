@@ -318,8 +318,6 @@
   (event ::kb-select! [env {:keys [item]}]
     (sg/dispatch-up! env {:e ::inspect-object! :ident (:object-ident item)}))
 
-  (event ::m/tap-clear! sg/tx)
-
   (render
     (<< [:div.p-2.bg-gray-200.font-bold "Tap History"]
         [:div.flex-1.overflow-hidden
