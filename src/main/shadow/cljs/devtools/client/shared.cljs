@@ -14,7 +14,7 @@
 (defprotocol IRemote
   (remote-open [this e])
   (remote-msg [this msg])
-  (remote-close [this e])
+  (remote-close [this e info])
   (remote-error [this e]))
 
 (defprotocol IHostSpecific
@@ -283,14 +283,14 @@
         (swap! state-ref assoc ::stale true))
       (shared/process this msg)))
 
-  (remote-close [this e]
+  (remote-close [this e info]
     ;; (js/console.log "runtime remote-close" @state-ref e)
     (swap! state-ref dissoc ::ws-connected ::ws-connecting)
 
     ;; after 3 failed attempts just stop
     (if (>= 3 (::ws-errors @state-ref))
       (.schedule-connect! this 5000)
-      (js/console.log "giving up trying to connect")))
+      (js/console.warn "shadow-cljs: giving up trying to connect to " info)))
 
   (remote-error [this e]
     (swap! state-ref update ::ws-errors inc)

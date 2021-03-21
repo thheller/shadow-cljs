@@ -38,12 +38,12 @@
 
 (defmethod build-log/event->str ::server-addr
   [{:keys [addr]}]
-  (format "Using IP: %s" addr))
+  (format "RN app will be using IP: %s" addr))
 
 (defn set-server-host [state {:keys [local-ip] :as config}]
   (let [server-addr (or local-ip (api/get-server-addr))]
 
-    (util/log state {:type ::server-addr :addr server-addr})
+    (util/warn state {:type ::server-addr :addr server-addr})
 
     (assoc-in state
       [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]

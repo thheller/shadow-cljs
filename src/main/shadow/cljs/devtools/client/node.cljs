@@ -71,7 +71,7 @@
     (.on socket "close"
       (fn [e]
         (when @ws-active-ref
-          (cljs-shared/remote-close runtime e))))
+          (cljs-shared/remote-close runtime e ws-url))))
 
     (.on socket "error"
       (fn [e]

@@ -21,7 +21,7 @@
 
     (set! socket -onclose
       (fn [e]
-        (cljs-shared/remote-close runtime e)))
+        (cljs-shared/remote-close runtime e ws-url)))
 
     (set! socket -onerror
       (fn [e]

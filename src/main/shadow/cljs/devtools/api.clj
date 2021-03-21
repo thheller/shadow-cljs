@@ -608,20 +608,23 @@
             (str/join "\n"))))
 
 (defn get-server-addr []
-  (let [addrs (find-local-addrs)]
-    (when (seq addrs)
-      (let [[ni addr] (first addrs)]
+  (let [config (get-config)]
+    (or (:local-ip config)
+        (get-in config [:user-config :local-ip])
+        (let [addrs (find-local-addrs)]
+          (when (seq addrs)
+            (let [[ni addr] (first addrs)]
 
-        (comment
-          (println (format "shadow-cljs - Using IP \"%s\" from Interface \"%s\"" (.getHostAddress addr) (.getDisplayName ni)))
+              (comment
+                (println (format "shadow-cljs - Using IP \"%s\" from Interface \"%s\"" (.getHostAddress addr) (.getDisplayName ni)))
 
-          (when (not= 1 (count addrs))
-            (log/info ::multiple-ips {:addrs addrs})))
+                (when (not= 1 (count addrs))
+                  (log/info ::multiple-ips {:addrs addrs})))
 
-        ;; would be neat if we could just use InetAddress/getLocalHost
-        ;; but that returns my VirtualBox Adapter for some reason
-        ;; which is incorrect and doesn't work
-        (.getHostAddress addr)))))
+              ;; would be neat if we could just use InetAddress/getLocalHost
+              ;; but that returns my VirtualBox Adapter for some reason
+              ;; which is incorrect and doesn't work
+              (.getHostAddress addr)))))))
 
 ;; FIXME: figure out which other opts this should take and document properly
 ;; {:ns some-sym} for setting the initial ns
