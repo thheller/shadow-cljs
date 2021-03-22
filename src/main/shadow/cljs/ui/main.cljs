@@ -7,6 +7,7 @@
     [shadow.experiments.grove.keyboard :as keyboard]
     [shadow.experiments.grove.local :as local-eng]
     [shadow.experiments.grove.events :as ev]
+    [shadow.experiments.grove.transit :as transit]
     [shadow.experiments.grove.http-fx :as http-fx]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.worker.env :as env]
@@ -143,6 +144,8 @@
       (.-content)))
 
 (defn init []
+  (transit/init! env/rt-ref)
+
   (local-eng/init! env/rt-ref)
 
   (history/init! env/rt-ref {})
@@ -176,4 +179,4 @@
 
   (sg/init-root env/rt-ref ::ui root-el {})
 
-  (start))
+  (js/setTimeout start 0))
