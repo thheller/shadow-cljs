@@ -167,8 +167,7 @@
      :web-worker true}}
 
    :js-options
-   {;; :js-provider :external
-    :external-index "target/external.js"}
+   {:js-package-dirs ["packages/testing/node_modules"]}
 
    :devtools
    {:before-load-async demo.browser/stop-from-config
