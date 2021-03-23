@@ -92,7 +92,7 @@
   (<< [:div.flex-1
        [:textarea.w-full.h-full.font-mono.border-t.p-4
         {:readOnly true
-         :tabindex -1}
+         :tab-index -1}
         "nil"]]))
 
 (def seq-vlist
@@ -115,7 +115,7 @@
   [object active?]
   (seq-vlist {:ident (:db/ident object)
               :select-event {:e ::kb-select!}
-              :tabindex (if active? 0 -1)}))
+              :tab-index (if active? 0 -1)}))
 
 (defmethod render-view :vec [data active?]
   (render-seq data active?))
@@ -153,7 +153,7 @@
   [object active?]
   (map-vlist {:ident (:db/ident object)
               :select-event {:e ::kb-select!}
-              :tabindex (if active? 0 -1)}))
+              :tab-index (if active? 0 -1)}))
 
 (def lazy-seq-vlist
   (vlist/configure :lazy-seq-vlist
@@ -171,7 +171,7 @@
 (defmethod render-view :lazy-seq
   [object active?]
   (lazy-seq-vlist {:ident (:db/ident object)
-                   :tabindex (if active? 0 -1)}))
+                   :tab-index (if active? 0 -1)}))
 
 (def css-button-selected "mx-2 border bg-blue-400 px-4 rounded")
 (def css-button "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded")
@@ -182,7 +182,7 @@
                  css-button-selected
                  css-button)
         :on-click {:e ::inspect-switch-display! :display-type val}
-        :tabindex (if active? 0 -1)}
+        :tab-index (if active? 0 -1)}
        label]))
 
 (defc ui-object-panel
@@ -321,13 +321,13 @@
   (render
     (<< [:div.p-2.font-bold.border-b.border-bg-gray-200 "Tap History"]
         [:div.flex-1.overflow-hidden
-         (tap-vlist {:tabindex (if active? 0 -1)
+         (tap-vlist {:tab-index (if active? 0 -1)
                      :select-event {:e ::kb-select!}})]
 
         [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
          [:button
           {:class css-button
-           :tabindex (if active? 0 -1)
+           :tab-index (if active? 0 -1)
            :on-click ::m/tap-clear!}
           "Clear"]])))
 
