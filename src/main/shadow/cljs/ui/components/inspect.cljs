@@ -315,13 +315,14 @@
       (ui-tap-stream-item ident info))))
 
 (defc ui-tap-panel [item panel-idx active?]
-  (event ::kb-select! [env {:keys [item]}]
-    (sg/dispatch-up! env {:e ::inspect-object! :ident (:object-ident item)}))
+  (event ::kb-select! [env {:keys [item] :as e}]
+    (sg/dispatch-up! env {:e ::inspect-object! :ident item}))
 
   (render
     (<< [:div.p-2.font-bold.border-b.border-bg-gray-200 "Tap History"]
         [:div.flex-1.overflow-hidden
-         (tap-vlist {:tabindex (if active? 0 -1)})]
+         (tap-vlist {:tabindex (if active? 0 -1)
+                     :select-event {:e ::kb-select!}})]
 
         [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
          [:button
