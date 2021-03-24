@@ -102,7 +102,7 @@
      (error-format ex)))
 
 (defn exception? [x]
-  #?(:clj  (instance? java.lang.Throwable x)
+  #?(:clj (instance? java.lang.Throwable x)
      :cljs (instance? js/Error x)))
 
 (defn attempt-to-sort [desc coll]
@@ -263,74 +263,78 @@
     ))
 
 (defn inspect-basic [{:keys [data] :as desc} obj opts]
-  (cond
-    (nil? data)
-    (assoc-in desc [:summary :data-type] :nil)
+  (try
+    (cond
+      (nil? data)
+      (assoc-in desc [:summary :data-type] :nil)
 
-    (string? data)
-    (-> desc
-        (update :summary merge {:data-type :string
-                                :length (count data)})
-        ;; FIXME: substring support?
-        (assoc-in [:handlers :get-value] (fn [msg] data)))
+      (string? data)
+      (-> desc
+          (update :summary merge {:data-type :string
+                                  :length (count data)})
+          ;; FIXME: substring support?
+          (assoc-in [:handlers :get-value] (fn [msg] data)))
 
-    (boolean? data)
-    (-> desc
-        (assoc-in [:summary :data-type] :boolean)
-        (assoc-in [:handlers :get-value] (fn [msg] data)))
+      (boolean? data)
+      (-> desc
+          (assoc-in [:summary :data-type] :boolean)
+          (assoc-in [:handlers :get-value] (fn [msg] data)))
 
-    (number? data)
-    (-> desc
-        (assoc-in [:summary :data-type] :number)
-        (assoc-in [:handlers :get-value] (fn [msg] data)))
+      (number? data)
+      (-> desc
+          (assoc-in [:summary :data-type] :number)
+          (assoc-in [:handlers :get-value] (fn [msg] data)))
 
-    (keyword? data)
-    (-> desc
-        (assoc-in [:summary :data-type] :keyword)
-        (assoc-in [:handlers :get-value] (fn [msg] data)))
+      (keyword? data)
+      (-> desc
+          (assoc-in [:summary :data-type] :keyword)
+          (assoc-in [:handlers :get-value] (fn [msg] data)))
 
-    (symbol? data)
-    (-> desc
-        (assoc-in [:summary :data-type] :symbol)
-        (assoc-in [:handlers :get-value] (fn [msg] data)))
+      (symbol? data)
+      (-> desc
+          (assoc-in [:summary :data-type] :symbol)
+          (assoc-in [:handlers :get-value] (fn [msg] data)))
 
-    (map? data)
-    (-> desc
-        (update :summary merge {:data-type :map
-                                :entries (count data)})
-        (attempt-to-sort (keys data))
-        (browseable-kv))
+      (map? data)
+      (-> desc
+          (update :summary merge {:data-type :map
+                                  :entries (count data)})
+          (attempt-to-sort (keys data))
+          (browseable-kv))
 
-    (vector? data)
-    (-> desc
-        (update :summary merge {:data-type :vec
-                                :entries (count data)})
-        (browseable-vec))
+      (vector? data)
+      (-> desc
+          (update :summary merge {:data-type :vec
+                                  :entries (count data)})
+          (browseable-vec))
 
-    (set? data)
-    (-> desc
-        (update :summary merge {:data-type :set
-                                :entries (count data)})
-        (attempt-to-sort data)
-        (browseable-seq))
+      (set? data)
+      (-> desc
+          (update :summary merge {:data-type :set
+                                  :entries (count data)})
+          (attempt-to-sort data)
+          (browseable-seq))
 
-    (list? data)
-    (-> desc
-        (update :summary merge {:data-type :list
-                                :entries (count data)})
-        (assoc :view-order (vec data))
-        (browseable-seq))
+      (list? data)
+      (-> desc
+          (update :summary merge {:data-type :list
+                                  :entries (count data)})
+          (assoc :view-order (vec data))
+          (browseable-seq))
 
-    ;; lazy seqs
-    (seq? data)
-    (-> desc
-        (update :summary merge {:data-type :lazy-seq})
-        (pageable-seq))
+      ;; lazy seqs
+      (seq? data)
+      (-> desc
+          (update :summary merge {:data-type :lazy-seq})
+          (pageable-seq))
 
-    ;; FIXME: records?
+      ;; FIXME: records?
 
-    :else
-    (assoc-in desc [:summary :data-type] :unsupported)))
+      :else
+      (assoc-in desc [:summary :data-type] :unsupported))
+
+    (catch #?(:cljs :default :clj Exception) e
+      (assoc-in desc [:summary :data-type] :unsupported))))
 
 (defn inspect-type-info [desc obj opts]
   (assoc-in desc [:summary :obj-type] (obj-type-string obj)))
