@@ -151,7 +151,7 @@
             (-> {:port port
                  :host http-host}
                 (cond->
-                  ssl-context
+                  (and ssl-context (not (false? (:ssl config))))
                   (assoc :ssl-context ssl-context)))
 
             {:keys [http-port https-port] :as server}
