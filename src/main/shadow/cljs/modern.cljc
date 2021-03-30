@@ -18,7 +18,7 @@
 #?(:cljs
    (set! ana/specials (conj ana/specials `defclass* `super*))
    :clj
-   (alter-var-root #'ana/specials conj `defclass* `super*))
+   (alter-var-root #'ana/specials conj `defclass* `super* `js-template*))
 
 (defn find-and-replace-super-call [form]
   (let [res
@@ -272,3 +272,33 @@
 (defmacro defclass [& body]
   `(defclass* ~@body))
 
+(defmethod comp/emit* ::js-template
+  [{:keys [parts]}]
+  (comp/emits "`")
+  (doseq [{:keys [op val] :as part} parts]
+    (if (and (= :const op) (string? val))
+      (let [quoted
+            (-> val
+                ;; FIXME: anything else that needs replacing?
+                ;; newlines and stuff are allowed
+                (str/replace #"`" (constantly "\\`"))
+                (str/replace #"\$\{" (constantly "\\${")))]
+        (comp/emits quoted))
+      (do (comp/emits "${")
+          (comp/emit part)
+          (comp/emits "}"))))
+  (comp/emits "`"))
+
+(defmethod ana/parse `js-template*
+  [op env form name opts]
+  (let [part-env (assoc env :context :expr)
+        parts (mapv #(ana/analyze part-env %) (rest form))]
+
+    {:op ::js-template
+     :env env
+     :form form
+     :parts parts
+     :children [:parts]}))
+
+(defmacro js-template [& body]
+  `(js-template* ~@body))
