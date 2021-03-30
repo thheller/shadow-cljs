@@ -37,7 +37,7 @@
 
        [:div.px-2.py-1.border-b ;; build-warning-title
         (str "Warning " (:warning warning) " in ")
-        [:a {:href file} resource-name]
+        [:a {:ui/href file} resource-name]
         " at " line ":" column]
 
        [:div.font-bold.text-lg.p-2.border-b ;; build-warning-message

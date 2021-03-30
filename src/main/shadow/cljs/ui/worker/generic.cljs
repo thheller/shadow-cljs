@@ -46,10 +46,9 @@
   (db/all-idents-of db ::m/error))
 
 (ev/reg-event env/rt-ref :ui/route!
-  (fn [{:keys [db] :as env} {:keys [token]}]
+  (fn [{:keys [db] :as env} {:keys [tokens]}]
 
-    (let [[main & more :as tokens] (str/split token #"/")
-          db (assoc db ::current-route token)]
+    (let [[main & more] tokens]
 
       (case main
         "inspect"
@@ -98,7 +97,7 @@
 
           (if-not (contains? db runtime-ident)
             ;; FIXME: could try to load it?
-            {:ui/redirect! "/runtimes"}
+            {:ui/redirect! {:token "/runtimes"}}
 
             (case sub-page
               "repl" ;; FIXME: should these be separate page types?
@@ -107,8 +106,8 @@
               "db-explorer"
               {:db (-> db (assoc ::m/current-page {:id :db-explorer :ident runtime-ident}))}
 
-              (js/console.warn "unknown-runtime-route" token))))
+              (js/console.warn "unknown-runtime-route" tokens))))
 
-        (js/console.warn "unknown-route" token)
+        (js/console.warn "unknown-route" tokens)
         ))))
 

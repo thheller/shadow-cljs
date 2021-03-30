@@ -73,7 +73,7 @@
   (render
     (let [{:keys [status]} build-status]
       (<< [:div.bg-white.overflow-hidden.shadow
-           [:a {:href (str "/build/" (name build-id))}
+           [:a {:ui/href (str "/build/" (name build-id))}
             [:div.p-4
              [:div.flex.items-center
               [:div.flex-shrink-0

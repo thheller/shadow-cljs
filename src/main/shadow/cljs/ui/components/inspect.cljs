@@ -268,7 +268,7 @@
               (view-as-button display-type :edn "EDN" active?))]]
           ))))
 
-(defc ui-tap-stream-item [object-ident {:keys [focus]}]
+(defc ui-tap-stream-item [object-ident {:keys [idx focus]}]
   (bind {:keys [summary runtime obj-preview] :as data}
     (sg/query-ident object-ident
       [:oid
@@ -287,7 +287,7 @@
             :on-click {:e ::inspect-object! :ident object-ident}}
 
            [:div.text-xs.text-gray-500
-            (str (:added-at-ts summary)
+            (str idx " ## " (:added-at-ts summary)
                  " - #" runtime-id
                  " " (:lang runtime-info)
                  " "

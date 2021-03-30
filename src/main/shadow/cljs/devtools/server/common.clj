@@ -44,7 +44,10 @@
                     (ByteArrayInputStream. (.getBytes in))
                     in)
                   :json)]
-          (transit/read r)
+          (try
+            (transit/read r)
+            (catch Exception e
+              (throw (ex-info "failed to transit-read" {:in in} e))))
           )))
     :stop
     (fn [x])}

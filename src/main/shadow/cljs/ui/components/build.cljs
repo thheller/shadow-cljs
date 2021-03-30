@@ -50,12 +50,12 @@
              [:nav.-mb-px.flex {:aria-label "Tabs"}
               [:a
                {:class (if (= tab :status) class-tab-selected class-tab-normal)
-                :href link-root}
+                :ui/href link-root}
                "Status"]
               (when build-worker-active
                 (<< [:a
                      {:class (if (= tab :runtimes) class-tab-selected class-tab-normal)
-                      :href (str link-root "/runtimes")}
+                      :ui/href (str link-root "/runtimes")}
                      (str "Runtimes (" build-runtime-count ")")]))]]]]))))
 
 (defn ui-page-runtimes [build-ident]

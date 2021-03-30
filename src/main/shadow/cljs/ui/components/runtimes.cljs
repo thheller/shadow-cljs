@@ -44,9 +44,10 @@
       (<< [:tr.bg-white
            [:td.max-w-0.w-full.px-6.py-4.whitespace-nowrap.text-sm.text-gray-900
             [:div.flex
-             [:a.inline-flex.space-x-2.pl-1.group.truncate.text-sm {:href (if build-id
-                                                                            (str "/build/" (name build-id))
-                                                                            "#")}
+             [:a.inline-flex.space-x-2.pl-1.group.truncate.text-sm
+              {:ui/href
+               (when build-id
+                 (str "/build/" (name build-id)))}
               [:div
                (build-lang-icon lang)]
               [:div.inline-flex.space-x-2.pl-1
@@ -59,17 +60,17 @@
               (when (contains? supported-ops :cljs-eval)
                 (<< [:a
                      {:class inspect/css-button
-                      :href (str "/runtime/" runtime-id "/cljs-eval")}
+                      :ui/href (str "/runtime/" runtime-id "/cljs-eval")}
                      "cljs eval"]))
               (when (contains? supported-ops :clj-eval)
                 (<< [:a
                      {:class inspect/css-button
-                      :href (str "/runtime/" runtime-id "/repl")}
+                      :ui/href (str "/runtime/" runtime-id "/repl")}
                      "clj eval"]))
               (when (contains? supported-ops :db/get-databases)
                 (<< [:a
                      {:class inspect/css-button
-                      :href (str "/runtime/" runtime-id "/db-explorer")}
+                      :ui/href (str "/runtime/" runtime-id "/db-explorer")}
                      "db explorer"]))]]))))
 
 (defc ui-runtime-list-item [ident]
@@ -83,7 +84,7 @@
     (let [{:keys [lang build-id host type since user-agent desc]} runtime-info]
       (<< [:div {:class "border-t border-gray-200"}
            [:a.block.px-4.py-4.bg-white.hover:bg-gray-50
-            {:href (if build-id (str "/build/" (name build-id)) "#")}
+            {:ui/href (when build-id (str "/build/" (name build-id)))}
 
             [:div.flex.space-x-4
              [:div.font-medium.text-lg.text-right {:style "width: 30px;"} runtime-id

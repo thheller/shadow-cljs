@@ -88,7 +88,7 @@
                (fn [{:keys [pages label path]}]
                  (<< [:a
                       {:class (if (contains? pages (:id current-page)) nav-selected nav-normal)
-                       :href path}
+                       :ui/href path}
                       label])))]]
 
            (sg/suspense
