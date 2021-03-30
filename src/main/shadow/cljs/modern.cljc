@@ -273,9 +273,11 @@
   `(defclass* ~@body))
 
 (defmethod comp/emit* ::js-template
-  [{:keys [parts]}]
+  [{:keys [tagged parts]}]
+  (when tagged
+    (comp/emit (first parts)))
   (comp/emits "`")
-  (doseq [{:keys [op val] :as part} parts]
+  (doseq [{:keys [op val] :as part} (if tagged (rest parts) parts)]
     (if (and (= :const op) (string? val))
       (let [quoted
             (-> val
@@ -298,6 +300,7 @@
      :env env
      :form form
      :parts parts
+     :tagged (not (string? (second form)))
      :children [:parts]}))
 
 (defmacro js-template [& body]
