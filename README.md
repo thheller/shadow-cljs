@@ -165,6 +165,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 ## Examples
 
 - [Official Browser Example](https://github.com/shadow-cljs/quickstart-browser)
+- [re-frame-template](https://github.com/day8/re-frame-template) -  Leiningen template that creates a [re-frame](https://github.com/Day8/re-frame) project using the [shadow-cljs](https://github.com/thheller/shadow-cljs/) build tool with many optional extras.
 - [mhuebert/shadow-re-frame](https://github.com/mhuebert/shadow-re-frame) - Usage of [re-frame](https://github.com/Day8/re-frame), [re-frame-trace](https://github.com/Day8/re-frame-trace), and the [shadow-cljs](https://github.com/thheller/shadow-cljs/) build tool. **[Live Demo](https://mhuebert.github.io/shadow-re-frame/)**
 - [jacekschae/shadow-reagent](https://github.com/jacekschae/shadow-reagent) - shadow-cljs + proto-repl + reagent
 - [jacekschae/shadow-firebase](https://github.com/jacekschae/shadow-firebase) - shadow-cljs + firebase
