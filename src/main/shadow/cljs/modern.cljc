@@ -273,23 +273,24 @@
   `(defclass* ~@body))
 
 (defmethod comp/emit* ::js-template
-  [{:keys [tagged parts]}]
-  (when tagged
-    (comp/emit (first parts)))
-  (comp/emits "`")
-  (doseq [{:keys [op val] :as part} (if tagged (rest parts) parts)]
-    (if (and (= :const op) (string? val))
-      (let [quoted
-            (-> val
-                ;; FIXME: anything else that needs replacing?
-                ;; newlines and stuff are allowed
-                (str/replace #"`" (constantly "\\`"))
-                (str/replace #"\$\{" (constantly "\\${")))]
-        (comp/emits quoted))
-      (do (comp/emits "${")
-          (comp/emit part)
-          (comp/emits "}"))))
-  (comp/emits "`"))
+  [{:keys [env tagged parts]}]
+  (comp/emit-wrap env
+    (when tagged
+      (comp/emit (first parts)))
+    (comp/emits "`")
+    (doseq [{:keys [op val] :as part} (if tagged (rest parts) parts)]
+      (if (and (= :const op) (string? val))
+        (let [quoted
+              (-> val
+                  ;; FIXME: anything else that needs replacing?
+                  ;; newlines and stuff are allowed
+                  (str/replace #"`" (constantly "\\`"))
+                  (str/replace #"\$\{" (constantly "\\${")))]
+          (comp/emits quoted))
+        (do (comp/emits "${")
+            (comp/emit part)
+            (comp/emits "}"))))
+    (comp/emits "`")))
 
 (defmethod ana/parse `js-template*
   [op env form name opts]
