@@ -1916,6 +1916,9 @@
           (add-sm-location-mappings state sources)
 
           (.resetWarningsGuard)
+          ;; we are processing wild npm code here that doesn't use closure-compiler annotations
+          ;; @export shouldn't try to call goog specific code
+          (.setGenerateExports false)
 
           (.setStrictModeInput false)
 
