@@ -467,11 +467,15 @@
       ;; special case for symbols that should be strings
       ;; (:require [react]) should be (:require ["react"]) as it is a magical symbol
       ;; that becomes available if node_modules/react exists but not otherwise
-      (when-let [{:keys [ns] :as rc}
+      (when-let [{:keys [ns type] :as rc}
                  (find-resource-for-string state require-from (str require) true)]
         [rc
          (-> state
-             (update :magic-syms conj require)
+             (cond->
+               ;; only need to turn ns into magic-symbol if it actually resolved to npm dependency
+               ;; (:require [goog$global.Foo :as Foo]) is not a magic symbol, just sugar
+               (= :shadow-js type)
+               (update :magic-syms conj require))
              (update :ns-aliases assoc require ns))])
 
       ;; the ns was not found, handled elsewhere

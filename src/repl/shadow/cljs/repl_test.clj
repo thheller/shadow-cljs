@@ -86,7 +86,7 @@
   (let [{:keys [repl-state] :as state}
         (-> (basic-repl-setup)
             (api/with-js-options {:js-provider :shadow})
-            (repl/process-input "(require '[\"auth0-js\" :as x])")
+            (repl/process-input "(require '[\"lodash\" :as x])")
             (repl/process-input "x"))]
 
     (pprint repl-state)))
@@ -161,5 +161,14 @@
         (-> (basic-repl-setup)
             (api/with-js-options {:js-provider :require})
             (repl/process-input "(require 'cljs.user)"))]
+
+    (pprint repl-state)))
+
+(deftest test-repl-with-dollar-sugar
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(require '[goog$global.Math :as m])")
+            (repl/process-input "m/max"))]
 
     (pprint repl-state)))

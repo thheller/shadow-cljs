@@ -287,7 +287,7 @@
             :on-click {:e ::inspect-object! :ident object-ident}}
 
            [:div.text-xs.text-gray-500
-            (str idx " ## " (:added-at-ts summary)
+            (str (:added-at-ts summary)
                  " - #" runtime-id
                  " " (:lang runtime-info)
                  " "
