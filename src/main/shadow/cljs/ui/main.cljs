@@ -148,7 +148,7 @@
 
   (local-eng/init! env/rt-ref)
 
-  (history/init! env/rt-ref {})
+  (history/init! env/rt-ref {:start-token "/dashboard"})
 
   (ev/reg-fx env/rt-ref :graph-api
     (http-fx/make-handler
