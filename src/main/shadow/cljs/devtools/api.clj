@@ -346,8 +346,7 @@
   ([build opts]
    (with-runtime
      (let [build-config (config/get-build! build)]
-       (release* build-config opts)))
-   :done))
+       (release* build-config opts)))))
 
 (defn release
   ([build]
