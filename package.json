@@ -18,6 +18,7 @@
     "postcss": "^8.2.8",
     "postcss-cli": "^8.3.1",
     "readline-sync": "^1.4.10",
-    "tailwindcss": "^2.0.4"
+    "tailwindcss": "^2.0.4",
+    "ws": "^7.4.4"
   }
 }

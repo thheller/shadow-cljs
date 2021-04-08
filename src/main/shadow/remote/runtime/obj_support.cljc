@@ -96,14 +96,24 @@
 
 (defn as-ex-str [ex msg]
   #?(:cljs
-     (error->str ex)
+     (if (instance? js/Error ex)
+       (error->str ex)
+       (str "Execution error:\n"
+            ;; can be any object, really no hope in making this any kind of readable
+            ;; capping it so throwing something large doesn't blow up the REPL
+            "  " (second (lw/pr-str-limit ex 200)) "\n"
+            "\n"))
 
      :clj
      (error-format ex)))
 
 (defn exception? [x]
   #?(:clj (instance? java.lang.Throwable x)
-     :cljs (instance? js/Error x)))
+     ;; everything can be thrown in JS
+     ;; (throw "x")
+     ;; (throw (js/Promise.resolved "x"))
+     :cljs true ;; (instance? js/Error x)
+     ))
 
 (defn attempt-to-sort [desc coll]
   (try

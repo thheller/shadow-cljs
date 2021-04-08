@@ -222,7 +222,9 @@
                      (cond
                        (= :error (:stage repl-state))
                        (do (repl-stderr repl-state (str "\n" result))
-                           (repl-result repl-state "nil"))
+                           ;; FIXME: should there be an actual result? looks annoying on the streaming REPLs
+                           ;; this was only here for nREPL right?
+                           (repl-result repl-state ":repl/exception!"))
 
                        (not (:print-failed repl-state))
                        (repl-result repl-state result)
@@ -231,7 +233,7 @@
                        (do (repl-stderr repl-state "The result object failed to print. It is available via *1 if you want to interact with it.\n")
                            (repl-stderr repl-state "The exception was: \n")
                            (repl-stderr repl-state (str result "\n"))
-                           (repl-result repl-state ":shadow.cljs/print-error!")))
+                           (repl-result repl-state ":repl/print-error!")))
 
                      (repl-prompt repl-state)
 
@@ -281,6 +283,7 @@
                      (recur repl-state))
 
                    (do (tap> [:unexpected-from-relay msg repl-state worker relay])
+                       (repl-stderr "INTERNAL REPL ERROR: Got an unexpected reply from relay, check Inspect")
                        (recur repl-state)))))
 
               proc-stdio
