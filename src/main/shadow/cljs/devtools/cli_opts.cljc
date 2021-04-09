@@ -1,10 +1,11 @@
 (ns shadow.cljs.devtools.cli-opts
   #?(:clj
      (:require
+       [clojure.string :as str]
+       [clojure.java.io :as io]
        [clojure.tools.cli :as cli]
        [shadow.cli-util :as cli-util]
-       [shadow.cljs.devtools.config :as config]
-       [clojure.string :as str])
+       [shadow.cljs.devtools.config :as config])
      :cljs
      (:require
        [goog.string.format]
@@ -26,7 +27,27 @@
 
    :clj
    (defn parse-merge-data [edn-str]
-     (config/read-config-str edn-str)))
+     (cond
+       (str/starts-with? edn-str "{")
+       (config/read-config-str edn-str)
+
+       (str/starts-with? edn-str "classpath:")
+       (let [rc (io/resource (subs edn-str 10))]
+         (if-not rc
+           (throw (ex-info "--config-merge classpath resource not found" {:val edn-str}))
+           (config/read-config-str (slurp rc))))
+
+       :else
+       (let [file (io/file edn-str)]
+         (if-not (.exists file)
+           (throw (ex-info "--config-merge file not found" {:val edn-str}))
+           (config/read-config-str (slurp file))))
+       )))
+
+(comment
+  (parse-merge-data "{:foo 1}")
+  (parse-merge-data "classpath:demo/browser.cljs")
+  (parse-merge-data "shadow-cljs.edn"))
 
 (defn conj-vec [x y]
   (if (nil? x)
@@ -48,7 +69,7 @@
     :assoc-fn
     (fn [opts k v]
       (when-not (map? v)
-        (throw (ex-info "--config-merge expects an EDN map argument" {:v v})))
+        (throw (ex-info "--config-merge must yield a map value but didn't" {:v v})))
       (update opts :config-merge conj-vec v))]
    ;; generic
    ["-A" "--aliases ALIASES" "adds aliases for use with clj, only effective when using deps.edn"]
