@@ -313,6 +313,16 @@
 (defmethod shadow-emit ::default [_ ast]
   (comp/emit ast))
 
+(defmethod shadow-emit :def [build-state ast]
+  (-> ast
+      (cond->
+        ;; when using :npm-module we don't actually want to output
+        ;; the goog.exportSymbol call since that will create a global variable
+        ;; we instead generated module.exports from the export metadata
+        (= :js (get-in build-state [:build-options :module-format]))
+        (dissoc :export))
+      (comp/emit)))
+
 ;; replacing cljs.compiler/emit* :ns cause I honestly have no clue what it is doing
 ;; most of it seems self-host related which we do not need
 ;; it also has a hard coded emit for cljs.core which would cause a double emit
