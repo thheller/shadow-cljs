@@ -91,6 +91,7 @@
     {:resource-id [::require js-ns-alias]
      :resource-name resource-name
      :output-name (util/flat-js-name resource-name)
+     ::split-require true
      :type :goog
      :cache-key [js-ns-alias resource-name]
      :last-modified 0
