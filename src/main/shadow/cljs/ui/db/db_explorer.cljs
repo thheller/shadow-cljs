@@ -1,4 +1,4 @@
-(ns shadow.cljs.ui.worker.db-explorer)
+(ns shadow.cljs.ui.db.db-explorer)
 
 (defmethod eql/attr ::m/databases [env db {:keys [runtime-id] ::m/keys [databases] :as current} query-part params]
   (cond

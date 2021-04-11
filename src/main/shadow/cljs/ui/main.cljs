@@ -1,4 +1,5 @@
 (ns shadow.cljs.ui.main
+  {:dev/always true}
   (:require
     [shadow.experiments.arborist :as sa]
     [shadow.experiments.grove :as sg :refer (<< defc)]
@@ -10,11 +11,11 @@
     [shadow.experiments.grove.transit :as transit]
     [shadow.experiments.grove.http-fx :as http-fx]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.worker.env :as env]
-    [shadow.cljs.ui.worker.relay-ws :as relay-ws]
-    [shadow.cljs.ui.worker.generic]
-    [shadow.cljs.ui.worker.builds]
-    [shadow.cljs.ui.worker.inspect]
+    [shadow.cljs.ui.db.env :as env]
+    [shadow.cljs.ui.db.relay-ws :as relay-ws]
+    [shadow.cljs.ui.db.generic]
+    [shadow.cljs.ui.db.builds]
+    [shadow.cljs.ui.db.inspect]
     [shadow.cljs.ui.components.inspect :as inspect]
     [shadow.cljs.ui.components.dashboard :as dashboard]
     [shadow.cljs.ui.components.runtimes :as runtimes]
@@ -136,14 +137,28 @@
 
 (defonce root-el (js/document.getElementById "root"))
 
-(defn ^:dev/after-load start []
+(defn start []
   (sg/start ::ui (ui-root)))
+
+;; macro magic requires this ns always being recompiled
+;; not yet possible to hide this, maybe a build-hook would be better than a macro?
+;; experimenting with use metadata to configure app, might also be more useful
+;; for documentation purposes or tooling.
+(defn register-events! []
+  (ev/register-events! env/rt-ref))
+
+(defn ^:dev/after-load reload []
+  (register-events!)
+  (start))
 
 (defonce server-token
   (-> (js/document.querySelector "meta[name=\"shadow-remote-token\"]")
       (.-content)))
 
 (defn init []
+  ;; needs to be called before start since otherwise we can't process events triggered by any of these
+  (register-events!)
+
   (transit/init! env/rt-ref)
 
   (local-eng/init! env/rt-ref)

@@ -1,4 +1,4 @@
-(ns shadow.cljs.ui.worker.env
+(ns shadow.cljs.ui.db.env
   (:require
     [shadow.experiments.grove.runtime :as gr]
     [shadow.experiments.grove.db :as db]
@@ -34,6 +34,7 @@
     :attrs {:db-id [:primary-key some?]
             ::m/runtime [:one ::m/runtime]}}
    })
+
 
 
 (defonce data-ref

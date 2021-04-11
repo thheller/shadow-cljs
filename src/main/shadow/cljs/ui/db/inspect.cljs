@@ -1,12 +1,12 @@
-(ns shadow.cljs.ui.worker.inspect
+(ns shadow.cljs.ui.db.inspect
   (:require
     [clojure.string :as str]
     [shadow.experiments.grove.events :as ev]
     [shadow.experiments.grove.db :as db]
     [shadow.experiments.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.worker.env :as env]
-    [shadow.cljs.ui.worker.relay-ws :as relay-ws]
+    [shadow.cljs.ui.db.env :as env]
+    [shadow.cljs.ui.db.relay-ws :as relay-ws]
     )
   (:import [goog.i18n DateTimeFormat]))
 
@@ -115,14 +115,15 @@
          (update ::m/tap-stream conj object-ident)
          (assoc ::m/tap-latest object-ident))}))
 
-(ev/reg-event env/rt-ref ::m/tap-clear!
-  (fn [{:keys [db] :as env} msg]
-    ;; FIXME: this only clears locally, runtimes still have all
-    ;; reloading the UI will thus restore them
-    (let [{::m/keys [tap-stream]} db]
-      {:db (-> db
-               (db/remove-idents tap-stream)
-               (assoc ::m/tap-stream (list)))})))
+(defn tap-clear!
+  {::ev/handle ::m/tap-clear!}
+  [{:keys [db] :as env} msg]
+  ;; FIXME: this only clears locally, runtimes still have all
+  ;; reloading the UI will thus restore them
+  (let [{::m/keys [tap-stream]} db]
+    {:db (-> db
+             (db/remove-idents tap-stream)
+             (assoc ::m/tap-stream (list)))}))
 
 (defmethod relay-ws/handle-msg :obj-summary [{:keys [db] :as env} {:keys [oid summary]}]
   (let [object-ident (db/make-ident ::m/object oid)
@@ -137,11 +138,13 @@
            (nil? display-type)
            (assoc-in [object-ident :display-type] (guess-display-type env summary))))}))
 
-(ev/reg-event env/rt-ref ::obj-preview-result
-  (fn [{:keys [db]} {:keys [call-result]}]
-    (let [{:keys [op oid result]} call-result] ;; remote-result
-      (assert (= op :obj-result))
-      {:db (assoc-in db [(db/make-ident ::m/object oid) :edn-limit] result)})))
+(defn obj-preview-result
+  {::ev/handle ::obj-preview-result}
+  [{:keys [db]} {:keys [call-result]}]
+
+  (let [{:keys [op oid result]} call-result] ;; remote-result
+    (assert (= op :obj-result))
+    {:db (assoc-in db [(db/make-ident ::m/object oid) :edn-limit] result)}))
 
 (defmethod eql/attr :obj-preview [env db {:keys [oid runtime-id edn-limit] :as current} query-part params]
   (cond
@@ -185,20 +188,21 @@
 
         :db/loading)))
 
-(ev/reg-event env/rt-ref ::obj-as-result
-  (fn [{:keys [db]} {:keys [ident call-result key] :as res}]
-    (let [{:keys [op result]} call-result]
-      (case op
-        :obj-result
-        {:db (assoc-in db [ident key] result)}
+(defn obj-as-result
+  {::ev/handle ::obj-as-result}
+  [{:keys [db]} {:keys [ident call-result key] :as res}]
+  (let [{:keys [op result]} call-result]
+    (case op
+      :obj-result
+      {:db (assoc-in db [ident key] result)}
 
-        :obj-request-failed
-        {:db (update db ident merge {key ::m/display-error!
-                                     :ex-oid (:ex-oid call-result)
-                                     :ex-client-id (:from call-result)})}
+      :obj-request-failed
+      {:db (update db ident merge {key ::m/display-error!
+                                   :ex-oid (:ex-oid call-result)
+                                   :ex-client-id (:from call-result)})}
 
-        (throw (ex-info "unexpected result for obj-request" res))
-        ))))
+      (throw (ex-info "unexpected result for obj-request" res))
+      )))
 
 (defmethod eql/attr ::m/object-as-edn [env db {:keys [oid runtime-id edn] :as current} query-part params]
   (cond
@@ -327,11 +331,12 @@
      :slice slice}
     ))
 
-(ev/reg-event env/rt-ref ::fragment-slice-loaded
-  (fn [{:keys [db]} {:keys [ident call-result]}]
-    (let [{:keys [op result]} call-result]
-      (assert (= :obj-result op)) ;; FIXME: handle failures
-      {:db (update-in db [ident :fragment] merge result)})))
+(defn fragment-slice-loaded
+  {::ev/handle ::fragment-slice-loaded}
+  [{:keys [db]} {:keys [ident call-result]}]
+  (let [{:keys [op result]} call-result]
+    (assert (= :obj-result op)) ;; FIXME: handle failures
+    {:db (update-in db [ident :fragment] merge result)}))
 
 (defmethod eql/attr :lazy-seq-vlist
   [env
@@ -383,37 +388,37 @@
 
             :db/loading)))))
 
-(ev/reg-event env/rt-ref ::lazy-seq-slice-loaded
-  (fn [{:keys [db]} {:keys [ident call-result]}]
-    (let [{:keys [op realized fragment more?]} call-result]
-      (assert (= :obj-result op)) ;; FIXME: handle failures
-      {:db (-> db
-               (assoc-in [ident :realized] realized)
-               (assoc-in [ident :more?] more?)
-               (update-in [ident :fragment] merge fragment))})))
+(defn lazy-seq-slice-loaded
+  {::ev/handle ::lazy-seq-slice-loaded}
+  [{:keys [db]} {:keys [ident call-result]}]
+  (let [{:keys [op realized fragment more?]} call-result]
+    (assert (= :obj-result op)) ;; FIXME: handle failures
+    {:db (-> db
+             (assoc-in [ident :realized] realized)
+             (assoc-in [ident :more?] more?)
+             (update-in [ident :fragment] merge fragment))}))
 
+(defn inspect-object!
+  {::ev/handle ::m/inspect-object!}
+  [{:keys [db] :as env} {:keys [ident]}]
+  (let [{:keys [summary oid runtime-id] :as object} (get db ident)]
+    (let [stack
+          (-> (get-in db [::m/inspect :stack])
+              (subvec 0 1)
+              (conj {:type :object-panel
+                     :ident ident}))]
 
-
-(ev/reg-event env/rt-ref ::m/inspect-object!
-  (fn [{:keys [db] :as env} {:keys [ident]}]
-    (let [{:keys [summary oid runtime-id] :as object} (get db ident)]
-      (let [stack
-            (-> (get-in db [::m/inspect :stack])
-                (subvec 0 1)
-                (conj {:type :object-panel
-                       :ident ident}))]
-
-        (-> {:db (-> db
-                     (assoc-in [::m/inspect :stack] stack)
-                     (assoc-in [::m/inspect :current] 1))
-             :ws-send []}
-            (cond->
-              (not summary)
-              (-> (assoc-in [:db ident :summary] :db/loading)
-                  (update :ws-send conj {:op :obj-describe
-                                         :to runtime-id
-                                         :oid oid}))
-              ))))))
+      (-> {:db (-> db
+                   (assoc-in [::m/inspect :stack] stack)
+                   (assoc-in [::m/inspect :current] 1))
+           :ws-send []}
+          (cond->
+            (not summary)
+            (-> (assoc-in [:db ident :summary] :db/loading)
+                (update :ws-send conj {:op :obj-describe
+                                       :to runtime-id
+                                       :oid oid}))
+            )))))
 
 (defmethod eql/attr ::m/inspect-object
   [env db current query-part params]
@@ -421,69 +426,74 @@
         {:keys [ident] :as last} (last nav-stack)]
     ident))
 
-(ev/reg-event env/rt-ref ::m/inspect-nav!
-  (fn [{:keys [db] :as env} {:keys [ident idx panel-idx]}]
-    (let [{:keys [oid runtime-id] :as object} (get db ident)]
+(defn inspect-nav!
+  {::ev/handle ::m/inspect-nav!}
+  [{:keys [db] :as env} {:keys [ident idx panel-idx]}]
+  (let [{:keys [oid runtime-id] :as object} (get db ident)]
 
-      (relay-ws/call! env
-        {:op :obj-request
-         :to runtime-id
-         :oid oid
-         :request-op :nav
-         :idx idx
-         :summary true}
+    (relay-ws/call! env
+      {:op :obj-request
+       :to runtime-id
+       :oid oid
+       :request-op :nav
+       :idx idx
+       :summary true}
 
-        {:e ::inspect-nav-result
-         :ident ident
-         :panel-idx panel-idx})
+      {:e ::inspect-nav-result
+       :ident ident
+       :panel-idx panel-idx})
 
-      {})))
+    {}))
 
-(ev/reg-event env/rt-ref ::inspect-nav-result
-  (fn [{:keys [db] :as env} {:keys [panel-idx call-result] :as tx}]
+(defn inspect-nav-result
+  {::ev/handle ::inspect-nav-result}
+  [{:keys [db] :as env} {:keys [panel-idx call-result] :as tx}]
 
-    (assert (= :obj-result-ref (:op call-result))) ;; FIXME: handle failures
+  (assert (= :obj-result-ref (:op call-result))) ;; FIXME: handle failures
 
-    (let [{:keys [ref-oid from summary]}
-          call-result
+  (let [{:keys [ref-oid from summary]}
+        call-result
 
-          obj
-          {:oid ref-oid
-           :runtime-id from
-           :runtime (db/make-ident ::m/runtime from)
-           :summary summary
-           :display-type (guess-display-type env summary)}
+        obj
+        {:oid ref-oid
+         :runtime-id from
+         :runtime (db/make-ident ::m/runtime from)
+         :summary summary
+         :display-type (guess-display-type env summary)}
 
-          obj-ident
-          (db/make-ident ::m/object ref-oid)
+        obj-ident
+        (db/make-ident ::m/object ref-oid)
 
-          {:keys [stack]}
-          (::m/inspect db)
+        {:keys [stack]}
+        (::m/inspect db)
 
-          stack
-          (-> (subvec stack 0 (inc panel-idx))
-              (conj {:type :object-panel
-                     :ident obj-ident}))]
+        stack
+        (-> (subvec stack 0 (inc panel-idx))
+            (conj {:type :object-panel
+                   :ident obj-ident}))]
 
-      {:db (-> db
-               (db/add ::m/object obj)
-               (assoc-in [::m/inspect :stack] stack)
-               (assoc-in [::m/inspect :current] (inc panel-idx)))})))
+    {:db (-> db
+             (db/add ::m/object obj)
+             (assoc-in [::m/inspect :stack] stack)
+             (assoc-in [::m/inspect :current] (inc panel-idx)))}))
 
-(ev/reg-event env/rt-ref ::m/inspect-set-current!
-  (fn [{:keys [db] :as env} {:keys [idx]}]
-    {:db (assoc-in db [::m/inspect :current] idx)}))
+(defn inspect-set-current!
+  {::ev/handle ::m/inspect-set-current!}
+  [{:keys [db] :as env} {:keys [idx]}]
+  {:db (assoc-in db [::m/inspect :current] idx)})
 
-(ev/reg-event env/rt-ref ::m/inspect-nav-jump!
-  (fn [{:keys [db] :as env} {:keys [idx]}]
-    (let [idx (inc idx)]
+(defn inspect-nav-jump!
+  {::ev/handle ::m/inspect-nav-jump!}
+  [{:keys [db] :as env} {:keys [idx]}]
+  (let [idx (inc idx)]
 
-      {:db (-> db
-               (update-in [::m/inspect :nav-stack] subvec 0 idx))})))
+    {:db (-> db
+             (update-in [::m/inspect :nav-stack] subvec 0 idx))}))
 
-(ev/reg-event env/rt-ref ::m/inspect-switch-display!
-  (fn [{:keys [db] :as env} {:keys [ident display-type]}]
-    {:db (assoc-in db [ident :display-type] display-type)}))
+(defn inspect-switch-display!
+  {::ev/handle ::m/inspect-switch-display!}
+  [{:keys [db] :as env} {:keys [ident display-type]}]
+  {:db (assoc-in db [ident :display-type] display-type)})
 
 (defmethod eql/attr ::m/runtimes-sorted
   [env db current query-part params]
@@ -508,108 +518,110 @@
        (map :db/ident)
        (vec)))
 
-(ev/reg-event env/rt-ref ::m/inspect-code-eval!
-  (fn [{:keys [db] :as env} {:keys [code ident panel-idx]}]
-    (let [data
-          (eql/query env db
-            [{ident
-              [:oid
-               {:runtime
-                [:runtime-id
-                 :supported-ops]}]}])
+(defn inspect-code-eval!
+  {::ev/handle ::m/inspect-code-eval!}
+  [{:keys [db] :as env} {:keys [code ident panel-idx]}]
+  (let [data
+        (eql/query env db
+          [{ident
+            [:oid
+             {:runtime
+              [:runtime-id
+               :supported-ops]}]}])
 
-          {:keys [oid runtime]} (get data ident)
-          {:keys [runtime-id supported-ops]} runtime
+        {:keys [oid runtime]} (get data ident)
+        {:keys [runtime-id supported-ops]} runtime
 
-          ;; FIXME: ns and eval mode should come from UI
-          [eval-mode ns]
-          (cond
-            (contains? supported-ops :clj-eval)
-            [:clj-eval 'user]
-            (contains? supported-ops :cljs-eval)
-            [:cljs-eval 'cljs.user])
+        ;; FIXME: ns and eval mode should come from UI
+        [eval-mode ns]
+        (cond
+          (contains? supported-ops :clj-eval)
+          [:clj-eval 'user]
+          (contains? supported-ops :cljs-eval)
+          [:cljs-eval 'cljs.user])
 
-          input
-          (-> {:ns ns
-               :code code}
-              (cond->
-                (or (str/includes? code "$o")
-                    (str/includes? code "$d"))
-                (assoc :wrap
-                       (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
-                            "      $o (:obj $ref)\n"
-                            "      $d (-> $ref :desc :data)]\n"
-                            "?CODE?\n"
-                            "\n)"))))]
+        input
+        (-> {:ns ns
+             :code code}
+            (cond->
+              (or (str/includes? code "$o")
+                  (str/includes? code "$d"))
+              (assoc :wrap
+                     (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
+                          "      $o (:obj $ref)\n"
+                          "      $d (-> $ref :desc :data)]\n"
+                          "?CODE?\n"
+                          "\n)"))))]
 
-      ;; FIXME: fx-ify
-      (relay-ws/call! env
-        {:op eval-mode
-         :to runtime-id
-         :input input}
-        {:e ::inspect-eval-result!
-         :code code
-         :panel-idx panel-idx})
-      {})))
+    ;; FIXME: fx-ify
+    (relay-ws/call! env
+      {:op eval-mode
+       :to runtime-id
+       :input input}
+      {:e ::inspect-eval-result!
+       :code code
+       :panel-idx panel-idx})
+    {}))
 
-(ev/reg-event env/rt-ref ::inspect-eval-result!
-  (fn [{:keys [db] :as env} {:keys [code panel-idx call-result]}]
-    (case (:op call-result)
-      :eval-result-ref
-      (let [{:keys [ref-oid from warnings]} call-result]
-        (when (seq warnings)
-          (doseq [w warnings]
-            (js/console.warn "FIXME: warning not yet displayed in UI" w)))
+(defn inspect-eval-result!
+  {::ev/handle ::inspect-eval-result!}
+  [{:keys [db] :as env} {:keys [code panel-idx call-result]}]
+  (case (:op call-result)
+    :eval-result-ref
+    (let [{:keys [ref-oid from warnings]} call-result]
+      (when (seq warnings)
+        (doseq [w warnings]
+          (js/console.warn "FIXME: warning not yet displayed in UI" w)))
 
-        (let [object-ident
-              (db/make-ident ::m/object ref-oid)
+      (let [object-ident
+            (db/make-ident ::m/object ref-oid)
 
-              stack
-              (-> (get-in db [::m/inspect :stack])
-                  (subvec 0 (inc panel-idx))
-                  (conj {:type :object-panel
-                         :ident object-ident}))]
-          {:db
-           (-> db
-               (assoc object-ident
-                      {:db/ident object-ident
-                       :oid ref-oid
-                       :runtime-id from
-                       :runtime (db/make-ident ::m/runtime from)})
-               (assoc-in [::m/inspect :current] (inc panel-idx))
-               (assoc-in [::m/inspect :stack] stack))}))
-
-      :eval-compile-error
-      (let [{:keys [from ex-oid ex-client-id]} call-result
-            object-ident (db/make-ident ::m/object ex-oid)]
+            stack
+            (-> (get-in db [::m/inspect :stack])
+                (subvec 0 (inc panel-idx))
+                (conj {:type :object-panel
+                       :ident object-ident}))]
         {:db
          (-> db
              (assoc object-ident
                     {:db/ident object-ident
-                     :oid ex-oid
-                     :runtime-id (or ex-client-id from)
-                     :runtime (db/make-ident ::m/runtime (or ex-client-id from))
-                     :is-error true})
-             (assoc-in [::m/inspect :object] object-ident)
-             (update-in [::m/inspect :nav-stack] conj
-               {:idx (count (get-in db [::m/inspect :nav-stack]))
-                :code code
-                :ident (get-in db [::m/inspect :object])}))})
-
-      :eval-runtime-error
-      (let [{:keys [from ex-oid]} call-result
-            object-ident (db/make-ident ::m/object ex-oid)]
-        {:db
-         (-> db
-             (assoc object-ident
-                    {:db/ident object-ident
-                     :oid ex-oid
+                     :oid ref-oid
                      :runtime-id from
-                     :runtime (db/make-ident ::m/runtime from)
-                     :is-error true})
-             (assoc-in [::m/inspect :object] object-ident)
-             (update-in [::m/inspect :nav-stack] conj
-               {:idx (count (get-in db [::m/inspect :nav-stack]))
-                :code code
-                :ident (get-in db [::m/inspect :object])}))})
-      )))
+                     :runtime (db/make-ident ::m/runtime from)})
+             (assoc-in [::m/inspect :current] (inc panel-idx))
+             (assoc-in [::m/inspect :stack] stack))}))
+
+    :eval-compile-error
+    (let [{:keys [from ex-oid ex-client-id]} call-result
+          object-ident (db/make-ident ::m/object ex-oid)]
+      {:db
+       (-> db
+           (assoc object-ident
+                  {:db/ident object-ident
+                   :oid ex-oid
+                   :runtime-id (or ex-client-id from)
+                   :runtime (db/make-ident ::m/runtime (or ex-client-id from))
+                   :is-error true})
+           (assoc-in [::m/inspect :object] object-ident)
+           (update-in [::m/inspect :nav-stack] conj
+             {:idx (count (get-in db [::m/inspect :nav-stack]))
+              :code code
+              :ident (get-in db [::m/inspect :object])}))})
+
+    :eval-runtime-error
+    (let [{:keys [from ex-oid]} call-result
+          object-ident (db/make-ident ::m/object ex-oid)]
+      {:db
+       (-> db
+           (assoc object-ident
+                  {:db/ident object-ident
+                   :oid ex-oid
+                   :runtime-id from
+                   :runtime (db/make-ident ::m/runtime from)
+                   :is-error true})
+           (assoc-in [::m/inspect :object] object-ident)
+           (update-in [::m/inspect :nav-stack] conj
+             {:idx (count (get-in db [::m/inspect :nav-stack]))
+              :code code
+              :ident (get-in db [::m/inspect :object])}))})
+    ))

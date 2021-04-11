@@ -1,25 +1,25 @@
-(ns shadow.cljs.ui.worker.builds
+(ns shadow.cljs.ui.db.builds
   (:require
     [shadow.experiments.grove.db :as db]
     [shadow.experiments.grove.events :as ev]
     [shadow.experiments.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.worker.env :as env]
-    [shadow.cljs.ui.worker.relay-ws :as relay-ws]))
+    [shadow.cljs.ui.db.env :as env]
+    [shadow.cljs.ui.db.relay-ws :as relay-ws]))
 
-(defn fx-to-ws
+(defn forward-to-ws!
+  {::ev/handle
+   [::m/build-watch-compile!
+    ::m/build-watch-stop!
+    ::m/build-watch-start!
+    ::m/build-compile!
+    ::m/build-release!
+    ::m/build-release-debug!]}
   [env {:keys [e build-id]}]
   {:ws-send
    [{:op e
      :to 1 ;; FIXME: don't hardcode CLJ runtime id
      ::m/build-id build-id}]})
-
-(ev/reg-event env/rt-ref ::m/build-watch-compile! fx-to-ws)
-(ev/reg-event env/rt-ref ::m/build-watch-stop! fx-to-ws)
-(ev/reg-event env/rt-ref ::m/build-watch-start! fx-to-ws)
-(ev/reg-event env/rt-ref ::m/build-compile! fx-to-ws)
-(ev/reg-event env/rt-ref ::m/build-release! fx-to-ws)
-(ev/reg-event env/rt-ref ::m/build-release-debug! fx-to-ws)
 
 (defmethod eql/attr ::m/active-builds
   [env db _ query-part params]

@@ -1,10 +1,10 @@
-(ns shadow.cljs.ui.worker.relay-ws
+(ns shadow.cljs.ui.db.relay-ws
   (:require
     [shadow.experiments.grove :as sg]
     [shadow.experiments.grove.runtime :as rt]
     [shadow.experiments.grove.events :as ev]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.worker.env :as env]
+    [shadow.cljs.ui.db.env :as env]
     [clojure.string :as str]))
 
 (defonce rpc-id-seq (atom 0))
@@ -33,14 +33,16 @@
 (defmethod handle-msg ::m/ui-options [{:keys [db] :as env} {:keys [ui-options]}]
   {:db (assoc db ::m/ui-options ui-options)})
 
-(ev/reg-event env/rt-ref ::m/relay-ws-close
-  (fn [{:keys [db] :as env} _]
-    {:db (assoc db ::m/relay-ws-connected false)}))
+(defn relay-ws-close
+  {::ev/handle ::m/relay-ws-close}
+  [{:keys [db] :as env} _]
+  {:db (assoc db ::m/relay-ws-connected false)})
 
-(ev/reg-event env/rt-ref ::m/relay-ws
-  (fn [env {:keys [msg]}]
-    ;; (js/console.log ::m/relay-ws op msg)
-    (handle-msg env msg)))
+(defn relay-ws
+  {::ev/handle ::m/relay-ws}
+  [env {:keys [msg]}]
+  ;; (js/console.log ::m/relay-ws op msg)
+  (handle-msg env msg))
 
 (defn cast! [{::keys [ws-ref] ::rt/keys [transit-str] :as env} msg]
   ;; (js/console.log "ws-send" msg)
