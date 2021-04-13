@@ -2521,6 +2521,7 @@
               ;; these are all used by the closure library itself
               #{"es6/array/findindex"
                 "es6/util/arrayfromiterator"
+                "es6/util/arrayfromiterable"
                 "es6/util/makeiterator"
                 "es6/string/trimstart"
                 "util/checkstringargs"
@@ -2538,7 +2539,8 @@
                 "es6/array/find"})
             goog-injected-libs
             shadow-js-injected-libs
-            classpath-js-injected-libs))]
+            classpath-js-injected-libs
+            (set (get-in state [:compiler-options :force-library-injection]))))]
 
     (if (or (not (seq all))
             (= all (:polyfill-libs state)))
