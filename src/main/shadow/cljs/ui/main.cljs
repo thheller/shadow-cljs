@@ -138,7 +138,7 @@
 (defonce root-el (js/document.getElementById "root"))
 
 (defn start []
-  (sg/start ::ui (ui-root)))
+  (sg/render env/rt-ref root-el (ui-root)))
 
 ;; macro magic requires this ns always being recompiled
 ;; not yet possible to hide this, maybe a build-hook would be better than a macro?
@@ -163,7 +163,9 @@
 
   (local-eng/init! env/rt-ref)
 
-  (history/init! env/rt-ref {:start-token "/dashboard"})
+  (history/init! env/rt-ref
+    {:start-token "/dashboard"
+     :root-el root-el})
 
   (ev/reg-fx env/rt-ref :graph-api
     (http-fx/make-handler
@@ -191,7 +193,5 @@
          ::m/topic ::m/build-status-update})))
 
   (sg/run-tx! env/rt-ref {:e ::m/init!})
-
-  (sg/init-root env/rt-ref ::ui root-el {})
 
   (js/setTimeout start 0))
