@@ -12,6 +12,7 @@
     [cljs.tagged-literals :as tags]
     [cljs.core] ;; do not remove, need to ensure this is loaded before compiling anything
     [cljs.source-map :as sm]
+    [cljs.util :as cljs-util]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.lazy :as lazy]
     [shadow.cljs.util :as util]
@@ -97,6 +98,20 @@
   [warning-type {:keys [resource-name expected-name] :as info}]
   (format "Invalid Filename, got %s but expected %s (or .cljc)" resource-name expected-name))
 
+(defn ns-clash-check [{ns :name :keys [env] :as ast}]
+  ;; (ns a.b) (def c "boom")
+  ;; (ns a.b.c) (def d "lost")
+
+  (let [segments (str/split (str ns) #"\.")]
+    (ana/find-def-clash env ns segments)
+
+    (when (some (complement cljs-util/valid-js-id-start?) segments)
+      (throw
+        (ana/error env
+          (str "Namespace " ns " has a segment starting with an invalid JavaScript identifier")))))
+
+  ast)
+
 (defn hijacked-parse-ns [env form rc opts]
   (let [build-state (cljs-bridge/get-build-state)]
     (when (:unexpected-name rc)
@@ -113,7 +128,8 @@
         (cond->
           (:macros-ns opts)
           (update :name #(symbol (str % "$macros"))))
-        (assoc :env env :form form :op :ns))))
+        (assoc :env env :form form :op :ns)
+        (ns-clash-check))))
 
 ;; private in cljs.core
 (defn protocol-prefix [psym]
