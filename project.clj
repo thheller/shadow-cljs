@@ -18,14 +18,14 @@
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
-  [[org.clojure/clojure "1.10.1"]
+  [[org.clojure/clojure "1.10.3"]
 
-   [org.clojure/data.json "1.0.0"]
+   [org.clojure/data.json "2.2.1"]
    [org.clojure/tools.cli "1.0.194"]
-   [org.clojure/tools.reader "1.3.3"]
+   [org.clojure/tools.reader "1.3.5"]
 
-   [nrepl "0.7.0"]
-   [cider/piggieback "0.5.0"
+   [nrepl "0.8.3"]
+   [cider/piggieback "0.5.2"
     :exclusions
     [org.clojure/clojure
      org.clojure/clojurescript
@@ -53,13 +53,13 @@
    [thheller/shadow-undertow "0.1.0"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.8.1"
+   [ring/ring-core "1.9.2"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [org.graalvm.js/js "20.1.0"]
-   [org.graalvm.js/js-scriptengine "20.1.0"]
+   [org.graalvm.js/js "21.0.0.2"]
+   [org.graalvm.js/js-scriptengine "21.0.0.2"]
 
    [expound "0.8.5"]
    [fipp "0.6.23"]
