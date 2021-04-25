@@ -1207,18 +1207,7 @@
           (index-file-remove source-path file)
           (index-file-add source-path file)))))
 
-(defn find-resources-using-ns
-  [{:keys [index-ref] :as cp} ns-sym]
-  {:pre [(symbol? ns-sym)]}
-  (throw (ex-info "TBD, classpath indexing is gone." {:ns-sym ns-sym}))
 
-  (->> (:sources @index-ref)
-       (vals)
-       (filter (fn [{:keys [ns requires]}]
-                 (and (contains? requires ns-sym)
-                      ;; FIXME: this namespace should never be used anywhere
-                      (not= ns 'shadow.build.cljs-hacks))))
-       (into #{})))
 
 (defn get-all-resources
   [{:keys [index-ref] :as cp}]
@@ -1242,6 +1231,21 @@
                                 (rc/normalize-name))]
         :when (not (should-ignore-resource? cp resource-name))]
     (util/filename->ns resource-name)))
+
+(defn find-resources-using-ns
+  [cp ns-sym]
+  {:pre [(symbol? ns-sym)]}
+  (->> (find-cljs-namespaces-in-files cp (get-classpath-entries cp))
+       (map #(find-resource-for-provide cp %))
+       (filter (fn [{:keys [ns requires] :as rc}]
+                 (contains? requires ns-sym)))
+       (map :ns)
+       (into #{})))
+
+(comment
+  (find-resources-using-ns
+    (:classpath @shadow.cljs.devtools.server.runtime/instance-ref)
+    'cljs.pprint))
 
 (defn has-resource? [classpath ns]
   (let [resource-name (util/ns->path ns)]

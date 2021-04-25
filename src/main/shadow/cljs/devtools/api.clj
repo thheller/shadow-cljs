@@ -578,9 +578,7 @@
 
 (defn find-resources-using-ns [ns]
   (let [{:keys [classpath]} (get-runtime!)]
-    (->> (cp/find-resources-using-ns classpath ns)
-         (map :ns)
-         (into #{}))))
+    (cp/find-resources-using-ns classpath ns)))
 
 (defn test []
   (println "TBD"))
