@@ -114,7 +114,7 @@
   (util/with-logged-time [state {:type ::generate-bundle-info}]
     (let [modules-info
           (->> modules
-               (map (fn [{:keys [module-id sources depends-on output-name goog-base prepend output append] :as mod}]
+               (map (fn [{:keys [module-id sources depends-on output-name entries] :as mod}]
                       (let [out-file
                             (data/output-file state output-name)
 
@@ -138,6 +138,7 @@
                          :sources sources
                          :depends-on depends-on
                          :source-bytes byte-map
+                         :entries (set entries)
                          :js-size (.length out-file)
                          :gzip-size (.size bytes-out)}
                         )
@@ -149,6 +150,11 @@
                      src sources]
                  [src module-id])
                (into {}))
+
+          entry-set
+          (->> modules
+               (mapcat :entries)
+               (set))
 
           sources-info
           (->> build-sources
@@ -179,15 +185,45 @@
 
                               (string? source)
                               (assoc :source-size (count source))
+
+                              (and (= :cljs (:type src))
+                                   (contains? entry-set (:ns src)))
+                              (assoc :module-entry true)
                               )))))
                (into []))]
 
       {:build-modules modules-info
        :build-sources sources-info})))
 
+(defn generate-html [build-state bundle-info report-file {:keys [inline] :or {inline true} :as opts}]
+  (io/make-parents report-file)
+  (spit
+    report-file
+    (html5
+      {}
+      [:head
+       [:title (format "[%s] Build Report - shadow-cljs" (name (:shadow.build/build-id build-state)))]
+       [:meta {:charset "utf-8"}]]
+      [:body
+       [:div#root]
+       (if inline
+         [:style (slurp (io/resource "shadow/cljs/build_report/dist/css/main.css"))]
+         [:link {:rel "stylesheet" :href "css/main.css"}])
+
+       [:script {:type "shadow/build-report"}
+        (core-ext/safe-pr-str bundle-info)]
+
+       (if inline
+         [:script {:type "text/javascript"} (slurp (io/resource "shadow/cljs/build_report/dist/js/main.js"))]
+         [:script {:type "text/javascript" :src "js/main.js"}])
+       ])))
+
+(defn generate-edn [build-state bundle-info data-file opts]
+  (io/make-parents data-file)
+  (spit data-file (core-ext/safe-pr-str bundle-info)))
 
 (defn generate
-  [build-id {:keys [tag print-table report-file] :or {tag "latest"} :as opts}]
+  [build-id {:keys [tag print-table report-file data-file] :or {tag "latest"} :as opts}]
   {:pre [(keyword? build-id)
          (string? tag)
          (seq tag)]}
@@ -222,30 +258,16 @@
           (extract-report-data state)
 
           report-file
-          (or (and (seq report-file) (io/file report-file))
-              (io/file output-dir "report.html"))]
+          (and (seq report-file) (io/file report-file))
 
-      (spit
-        (io/file output-dir "bundle-info.edn")
-        (core-ext/safe-pr-str bundle-info))
+          data-file
+          (and (seq data-file) (io/file data-file))]
 
-      (spit
-        report-file
-        (html5
-          {}
-          [:head
-           [:title (format "[%s] Build Report - shadow-cljs" (name build-id))]
-           [:meta {:charset "utf-8"}]]
-          [:body
-           [:div#root]
-           (binding [*print-length* nil
-                     *print-namespace-maps* nil]
-             (assets/js-queue :none 'shadow.cljs.build-report.ui/init bundle-info))
-           [:style
-            (slurp (io/resource "shadow/cljs/build_report/dist/css/main.css"))]
-           [:script {:type "text/javascript"}
-            (slurp (io/resource "shadow/cljs/build_report/dist/js/main.js"))]
-           ]))
+      (when report-file
+        (generate-html state bundle-info report-file opts))
+
+      (when data-file
+        (generate-edn state bundle-info data-file opts))
 
       (when print-table
         (print-bundle-info-table bundle-info {:group-npm true}))
@@ -254,6 +276,22 @@
       (println (format "HTML Report generated in: %s" (.getAbsolutePath report-file)))
 
       :done)))
+
+(comment
+  (require '[shadow.cljs.devtools.api :as api])
+
+  (-> (api/get-build-config :browser)
+      (assoc-in [:compiler-options :source-map] true)
+      (api/release* {})
+      (extract-report-data)
+      (tap>)
+      )
+
+  (generate
+    :ui
+    {:report-file ".shadow-cljs/build-report/index.html"
+     :inline false})
+  )
 
 ;; FIXME: parse args properly, need support for tag and output-dir
 (defn -main [build-id report-file]

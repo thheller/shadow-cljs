@@ -13,8 +13,8 @@
  :dev-http
  {8605 "out/demo-browser/public"
   8606 "out/demo-test-browser"
-  8607 {:proxy-url "https://www.google.com"
-        :proxy-predicate demo.http/proxy-predicate}}
+  8607 [".shadow-cljs/build-report"
+        "src/ui-release/shadow/cljs/build_report/dist"]}
 
  :prepl {:browser 12345}
 
@@ -100,16 +100,22 @@
 
   :build-report
   {:target :browser
-   :output-dir "src/ui-release/shadow/cljs/build_report/dist/js"
+
+   :asset-path "js"
+
+   ;; in development access via
+   ;; http://localhost:9630/cache/build-report/public/index.html
+   :output-dir ".shadow-cljs/build-report/js"
+
+   :release {:output-dir "src/ui-release/shadow/cljs/build_report/dist/js"}
 
    :modules
-   {:main {:entries [shadow.cljs.build-report.ui]}}
+   {:main {:init-fn shadow.cljs.build-report.ui/init}}
 
    :js-options
    {:js-package-dirs ["packages/ui/node_modules"]}
 
-   :devtools
-   {:enabled false}}
+   }
 
   :devtools-ext
   {:target :chrome-extension
@@ -141,8 +147,8 @@
    :build-hooks
    [(shadow.build/tap-hook)
     (shadow.html/copy-file
-          "out/demo-browser/index.src.html"
-          "out/demo-browser/public/index.html")]
+      "out/demo-browser/index.src.html"
+      "out/demo-browser/public/index.html")]
 
    :dev {:build-options {:auto-require-suffixes ["-specs"]}}
 
@@ -150,7 +156,7 @@
    ;; :module-hash-names true
    :modules
    {:base
-    {:entries [cljs.core demo.sm-before]
+    {:entries [demo.sm-before]
      :depends-on #{}}
 
     :demo

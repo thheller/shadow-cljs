@@ -1,172 +1,326 @@
 (ns shadow.cljs.build-report.ui
+  {:dev/always true}
   (:require
-    [shadow.api :refer (ns-ready)]
-    [shadow.dom :as dom]
+    [cljs.reader :as reader]
     [goog.format :as gf]
-    [shadow.markup.react :as html :refer ($ defstyled)]
-    ["react-dom" :as rdom]
-    ["react-table" :as rt :default ReactTable]
-    [goog.string.format] ;; FIXME: implement :as format and make it callable just like JS
+    [goog.string.format]
     [goog.string :refer (format)]
-    ))
-
-(defonce state-ref (atom {}))
-
-(defonce root (dom/by-id "root"))
+    [goog.math :as gm]
+    [goog.style :as gs]
+    [goog.positioning :as gpos]
+    [shadow.experiments.grove :as sg :refer (defc <<)]
+    [shadow.experiments.grove.runtime :as gr]
+    [shadow.experiments.grove.events :as ev]
+    [shadow.experiments.grove.local :as local-eng]
+    [shadow.experiments.grove.db :as db]
+    [loom.graph :as lg]
+    [loom.alg :as la]
+    [loom.graph :as g]))
 
 (defn filesize [size]
   (gf/numBytesToString size 2 true true))
 
-(defstyled main-table-container :div [_]
-  {:max-width 800})
+(defc ui-group-item [item-ident]
+  (bind {:keys [resource-name optimized-size] :as item}
+    (sg/query-ident item-ident))
 
-(defstyled sub-table-container :div [_]
-  {:padding [5 70 20 40]})
+  (event ::group-item-enter! [env ev e]
+    (let [el (.. e -target)
+          rect (gs/getBounds el)]
+      (sg/dispatch-up! env (assoc ev :rect rect))))
 
-(defstyled sub-table-header :div [_]
-  {:font-size "1.3em"
-   :font-weight "bold"
-   :margin-bottom 10})
+  (render
+    (<< [:tr.group-item {:on-mouseenter {:e ::group-item-enter! :item-ident item-ident}
+                         :on-mouseleave {:e ::group-item-leave!}
+                         }
+         [:td resource-name]
+         [:td.numeric (filesize optimized-size)]])))
 
-(def rt-columns
-  (-> [{:id "group-name"
-        :Header "Name"
-        :Cell (fn [^js row-obj]
-                (let [{:keys [group-id group-name] :as row}
-                      (.-original row-obj)]
-                  (if (= :prj group-id)
-                    (html/b group-name)
-                    group-name)))}
-       {:id "optimized-size"
-        :Header "Optimized"
-        :headerClassName "numeric"
-        :className "numeric"
-        :maxWidth 120
-        :Cell (fn [^js row-obj]
-                (filesize (.-value row-obj)))
-        :accessor #(:optimized-size %)}
-       {:id "group-ptc"
-        :Header "%"
-        :headerClassName "numeric"
-        :className "numeric"
-        :maxWidth 70
-        :Cell (fn [^js row-obj]
-                (format "%.1f %%" (.-value row-obj)))
-        :accessor #(:group-pct %)}]
-      (clj->js)))
+(defc ui-group [group-ident]
 
-(def rt-sub-columns
-  (-> [{:id "resource-name"
-        :Header "Name"
-        :accessor #(:resource-name %)}
-       {:id "optimized-size"
-        :Header "Optimized"
-        :headerClassName "numeric"
-        :className "numeric"
-        :maxWidth 120
-        :Cell (fn [^js row-obj]
-                (filesize (.-value row-obj)))
-        :accessor #(:optimized-size %)}]
-      (clj->js)))
+  (bind {:keys [npm-info pom-info group-name group-pct items optimized-size expanded] :as row}
+    (sg/query-ident group-ident))
 
-(defn overview []
-  (let [sources-by-name
-        (->> (:build-sources @state-ref)
+  (render
+    (<< [:tr.group__row
+         {:on-click {:e ::toggle-group! :group-ident group-ident}}
+         [:td.group__expand-toggle (if expanded "-" "+")]
+         [:td
+          (cond
+            pom-info
+            (let [{[id version] :coordinate} pom-info]
+              (<< [:div.group__header (str id " @ mvn: " version)]))
+
+            npm-info
+            (<< [:div.group__header (str (:package-name npm-info) " @ npm: " (:version npm-info))])
+
+            :else
+            (<< [:div.group__header [:b group-name]]))]
+
+         [:td.numeric (filesize optimized-size)]
+         [:td.numeric (format "%.1f %%" group-pct)]]
+
+        (when expanded
+          (<< [:tr
+               [:td.group__expand-toggle]
+               [:td.group__expand {:colSpan 2}
+                [:div]
+                [:table
+                 [:thead
+                  [:tr
+                   [:th "Source"]
+                   [:th.numeric "Optimized"]]]
+                 [:tbody
+                  (sg/simple-seq items ui-group-item)]]]
+               [:td]])))))
+
+(defc ui-module [mod-ident]
+  (bind {:keys [module-id js-size gzip-size groups]}
+    (sg/query-ident mod-ident
+      [:module-id
+       :js-size
+       :gzip-size
+       :groups]))
+
+  (render
+    (<< [:div.module
+         [:div.module__title (str "Module: " (pr-str module-id) " [JS: " (filesize js-size) "] [GZIP: " (filesize gzip-size) "]")]
+         [:table
+          [:thead
+           [:th]
+           [:th "Group"]
+           [:th.numeric "Optimized"]
+           [:th.numeric "%"]]
+
+          [:tbody
+           (sg/simple-seq groups ui-group)]
+          ]])))
+
+(defc ui-hover-item []
+
+  (bind {:keys [hover-item]}
+    (sg/query-root
+      [{:hover-item
+        [:db/all
+         {:resource [:resource-name]}
+         {:paths
+          [:db/all
+           {:entry [:resource-name]}
+           {:path [:resource-name]}]}
+         ]}]))
+
+  (bind container-ref
+    (sg/ref))
+
+  (hook
+    (sg/mount-effect
+      (fn [env]
+        (let [rect (:rect hover-item)
+              pos (gm/Coordinate.
+                    (+ 20 (.-left rect))
+                    (+ 20 (.-top rect) (.-height rect)))]
+          (gpos/positionAtCoordinate
+            pos
+            @container-ref
+            gpos/Corner.TOP_LEFT
+            ))
+
+        )))
+
+  (render
+    (let [{:keys [resource paths]} hover-item]
+
+      (<< [:div.hover__container {:dom/ref container-ref}
+           [:div.hover__title (:resource-name resource)]
+           [:div.hover__explainer
+            "was included in the build via the following entries. Traced from the resource (first) to the relevant configured :modules :entries resource (last). Only showing shortest path for each entry."]
+           (sg/simple-seq paths
+             (fn [{:keys [entry path] :as path}]
+
+               (<< [:div.hover__require-trace
+                    [:div "Dependency Trace:"]
+
+                    [:div.hover__require-trace-items
+                     (sg/simple-seq (reverse path)
+                       (fn [{:keys [resource-name]}]
+                         (<< [:div.hover__require-trace-item (str " - " resource-name)])))]])
+               ))]))))
+
+(defc ui-root []
+  (bind {:keys [display-modules hover-item]}
+    (sg/query-root
+      [:display-modules
+       :hover-item]))
+
+  (render
+    (<< (sg/simple-seq display-modules ui-module)
+
+        (when hover-item
+          (ui-hover-item)
+          ))))
+
+(def schema
+  {:module
+   {:type :entity
+    :attrs {:module-id [:primary-key any?]
+            :groups [:many :group]}}
+
+   :group
+   {:type :entity
+    :attrs {:group-id [:primary-key any?]
+            :items [:many :group-item]}}
+
+   :group-item
+   {:type :entity
+    :attrs {:group-item-id [:primary-key any?]}}
+
+   :resource
+   {:type :entity
+    :attrs {:resource-id [:primary-key any?]}}
+
+   })
+
+
+(defonce data-ref
+  (-> {}
+      (db/configure schema)
+      (atom)))
+
+(defonce rt-ref
+  (-> {}
+      (gr/prepare data-ref ::db)))
+
+(ev/reg-event rt-ref ::toggle-group!
+  (fn [env {:keys [group-ident]}]
+    (update-in env [:db group-ident :expanded] not)))
+
+(ev/reg-event rt-ref ::group-item-enter!
+  (fn [{:keys [db] :as env} {:keys [item-ident rect]}]
+    (let [{:keys [require-graph module-entries]} db
+
+          rc-id (get-in db [item-ident :resource-id])
+
+          hover-item
+          (reduce
+            (fn [item entry-id]
+              (let [path (la/shortest-path require-graph entry-id rc-id)]
+                (if-not path
+                  item
+                  (update item :paths conj {:path (mapv #(db/make-ident :resource %) path)
+                                            :entry (db/make-ident :resource entry-id)}))))
+
+            {:item item-ident
+             :rect rect
+             :resource (db/make-ident :resource rc-id)
+             :paths []}
+
+            module-entries)]
+
+      (if-not (seq (:paths hover-item))
+        env
+        (assoc-in env [:db :hover-item] hover-item)))))
+
+(ev/reg-event rt-ref ::group-item-leave!
+  (fn [env {:keys [item-ident]}]
+    (assoc-in env [:db :hover-item] nil)))
+
+(defonce root-el
+  (js/document.getElementById "root"))
+
+(defn ^:dev/after-load start []
+  (sg/render rt-ref root-el (ui-root)))
+
+(defn init []
+  (let [{:keys [build-modules build-sources] :as data}
+        (-> (js/document.querySelector "script[type=\"shadow/build-report\"]")
+            (.-innerText)
+            (reader/read-string))
+
+        sources-by-name
+        (->> build-sources
              (map (juxt :resource-name identity))
              (into {}))
 
-        {:keys [build-sources build-modules]}
-        @state-ref
+        provide->rc
+        (into {}
+          (for [{:keys [provides resource-id]} build-sources
+                provide provides]
+            [provide resource-id]))
+
+        require-graph
+        (reduce
+          (fn [g {:keys [requires resource-id]}]
+            (reduce
+              (fn [g ns]
+                (if-let [other (get provide->rc ns)]
+                  (g/add-edges g [resource-id other])
+                  g))
+              g
+              requires))
+          (lg/digraph)
+          build-sources)
+
+        entries
+        (->> build-sources
+             (filter :module-entry)
+             (map :resource-id)
+             (set))
 
         display-modules
         (->> build-modules
-             (map (fn [{:keys [source-bytes] :as mod}]
+             (map (fn [{:keys [source-bytes module-id] :as mod}]
                     (let [total
                           (->> source-bytes vals (reduce + 0))
 
-                          rows
+                          groups
                           (->> source-bytes
                                (map (fn [[resource-name optimized-size]]
-                                      (let [{:keys [npm-info pom-info] :as src-info}
-                                            (get sources-by-name resource-name)]
+                                      (let [{:keys [npm-info pom-info resource-id] :as src-info}
+                                            (get sources-by-name resource-name)
+
+                                            group-id
+                                            (or (and npm-info [module-id :npm (:package-name npm-info)])
+                                                (and pom-info [module-id :jar (str (:id pom-info))])
+                                                [module-id :prj "Project Files"])]
+
                                         (merge src-info
                                           {:resource-name resource-name
-                                           :group
-                                           (or (and npm-info [:npm (:package-name npm-info)])
-                                               (and pom-info [:jar (str (:id pom-info))])
-                                               [:prj "Project Files"])
+                                           :group-item-id [group-id resource-id]
+                                           :group-id group-id
                                            :optimized-size optimized-size}))))
                                ;; sort all items so the sub-table is sorted
                                (sort-by :optimized-size >)
-                               (group-by :group)
-                               (map (fn [[group [item :as items]]]
-                                      (let [[group-id group-name] group
-                                            group-size (->> items (map :optimized-size) (reduce + 0))]
+                               (group-by :group-id)
+                               (map (fn [[group-id [item :as items]]]
+                                      (let [group-size (->> items (map :optimized-size) (reduce + 0))]
                                         (assoc item
                                           :group-id group-id
-                                          :group-name group-name
-                                          :optimized-size group-size
+                                          :group-type (nth group-id 1)
+                                          :group-name (nth group-id 2)
                                           :group-pct (* 100 (double (/ group-size total)))
+                                          :optimized-size group-size
                                           :item-count (count items)
                                           :items items))))
                                ;; then sort again by aggregate
                                (sort-by :optimized-size >)
-                               (into-array))]
-                      (assoc mod :rows rows))
-                    )))
+                               (vec))]
+                      (assoc mod :groups groups))))
+             (vec))]
+
+    (swap! data-ref
+      (fn [db]
+        (-> db
+            (assoc :build-modules build-modules
+                   :build-sources build-sources
+                   :module-entries entries
+                   :require-graph require-graph)
+            (db/merge-seq :resource build-sources)
+            (db/merge-seq :module display-modules [:display-modules]))))
 
 
-        sub-row
-        (fn sub-row [^js row]
-          (let [{:keys [npm-info pom-info resource-name item-count items] :as row}
-                (.-original row)]
 
-            (sub-table-container {}
+    (tap> data-ref)
 
-              (when pom-info
-                (sub-table-header (pr-str (:coordinate pom-info))))
+    (local-eng/init! rt-ref)
 
-              (when npm-info
-                (sub-table-header (str "npm: " (:package-name npm-info) "@" (:version npm-info))))
-
-              ($ ReactTable
-                #js {:data (into-array items)
-                     :columns rt-sub-columns
-                     :showPagination false
-                     :defaultPageSize 250
-                     :minRows item-count
-                     :className "-sriped -highlight"}))))]
-
-    (html/div
-      (for [{:keys [module-id js-size gzip-size rows] :as mod}
-            display-modules]
-        (main-table-container {:key (name module-id)}
-          (html/h3 (str "Module: " (pr-str module-id) " [JS: " (filesize js-size) "] [GZIP: " (filesize gzip-size) "]"))
-
-          ($ ReactTable
-            #js {:data rows
-                 :columns rt-columns
-                 :showPagination false
-                 :defaultPageSize 250
-                 :minRows (count rows)
-                 :expanderDefaults #js {:width 40}
-                 :className "-sriped -highlight"
-                 :SubComponent sub-row
-                 }))))))
-
-(defn ^:dev/after-load start []
-  (js/console.log "start")
-  (rdom/render (overview) root))
-
-(defn ^:dev/before-load stop []
-  (rdom/unmountComponentAtNode root)
-  (js/console.log "stop"))
-
-;; https://chrisbateman.github.io/webpack-visualizer/
-;; https://bl.ocks.org/kerryrodden/766f8f6d31f645c39f488a0befa1e3c8
-
-(defn ^:export init [bundle-data]
-  (swap! state-ref merge bundle-data)
-  (start))
-
-(ns-ready)
+    (start)))
