@@ -303,40 +303,42 @@
 
 (defn hook
   {::build/stages #{:configure :flush}}
-  [{::build/keys [stage mode]
-    :as build-state}
-   & {:keys [output-to]
-      :as opts}]
+  ([build-state]
+   (hook build-state {}))
+  ([{::build/keys [stage mode]
+     :as build-state}
+    {:keys [output-to]
+     :as opts}]
 
-  (if-not (= :release mode)
-    build-state
+   (if-not (= :release mode)
+     build-state
 
-    (cond
-      (= :configure stage)
-      (if (get-in build-state [:compiler-options :source-map])
-        build-state
-        ;; force generating source maps if not enabled already, but don't link them
-        (update build-state :compiler-options merge {:source-map true :source-map-comment false}))
+     (cond
+       (= :configure stage)
+       (if (get-in build-state [:compiler-options :source-map])
+         build-state
+         ;; force generating source maps if not enabled already, but don't link them
+         (update build-state :compiler-options merge {:source-map true :source-map-comment false}))
 
-      (get-in build-state [:compiler-options :pseudo-names])
-      (do (build/log build-state {:type ::pseudo-names})
-          build-state)
+       (get-in build-state [:compiler-options :pseudo-names])
+       (do (build/log build-state {:type ::pseudo-names})
+           build-state)
 
-      :else
-      (let [bundle-info
-            (extract-report-data build-state)
+       :else
+       (let [bundle-info
+             (extract-report-data build-state)
 
-            output-file
-            (if (seq output-to)
-              (io/file output-to)
-              (data/output-file build-state "report.html"))]
+             output-file
+             (if (seq output-to)
+               (io/file output-to)
+               (data/output-file build-state "report.html"))]
 
-        (generate-html build-state bundle-info output-file opts)
+         (generate-html build-state bundle-info output-file opts)
 
-        (build/log build-state {:type ::report-to :path (.getAbsolutePath output-file)})
+         (build/log build-state {:type ::report-to :path (.getAbsolutePath output-file)})
 
-        build-state
-        ))))
+         build-state
+         )))))
 
 ;; FIXME: parse args properly, need support for tag and output-dir
 (defn -main [build-id report-file]
