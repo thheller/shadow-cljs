@@ -95,6 +95,8 @@
 (defn ^FeatureSet kw->feature-set [kw]
   (case kw
     :bare-minimum FeatureSet/BARE_MINIMUM
+    :browser-2020 FeatureSet/BROWSER_2020
+    :browser-2021 FeatureSet/BROWSER_2021
     :es3 FeatureSet/ES3
     :es5 FeatureSet/ES5
     ;; FIXME: probably can't allow es6-modules variants since we can never load those
