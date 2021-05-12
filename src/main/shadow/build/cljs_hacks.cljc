@@ -571,41 +571,6 @@
 (defmethod comp/emit* :js-var [expr] (shadow-emit-var expr))
 (defmethod comp/emit* :local [expr] (shadow-emit-var expr))
 
-;; no perf impact, just easier to read
-(defn source-map-inc-col [{:keys [gen-col] :as m} n]
-  (assoc m :gen-col (+ gen-col n)))
-
-(defn source-map-inc-line [{:keys [gen-line] :as m}]
-  (assoc m
-    :gen-line (inc gen-line)
-    :gen-col 0))
-
-;; string? provides pretty decent boost
-(defn emit1 [x]
-  (cond
-    (nil? x) nil
-    (string? x)
-    (do (when-not (nil? comp/*source-map-data*)
-          (swap! comp/*source-map-data* source-map-inc-col (count x)))
-        (print x))
-    (map? x) (comp/emit x)
-    (seq? x) (run! emit1 x)
-    (fn? x) (x)
-    :else (let [s (print-str x)]
-            (when-not (nil? comp/*source-map-data*)
-              (swap! comp/*source-map-data* source-map-inc-col (count s)))
-            (print s))))
-
-(defn shadow-emits [& xs]
-  (run! emit1 xs))
-
-(defn shadow-emitln [& xs]
-  (run! emit1 xs)
-  (newline)
-  (when comp/*source-map-data*
-    (swap! comp/*source-map-data* source-map-inc-line))
-  nil)
-
 ;; noop
 (defn shadow-load-core [])
 
@@ -1051,9 +1016,6 @@
   (replace-fn! #'ana/parse-invoke* shadow-parse-invoke*)
 
   ;; cljs.compiler tweaks
-  (replace-fn! #'comp/emits shadow-emits)
-  (replace-fn! #'comp/emitln shadow-emitln)
-
   (replace-fn! #'comp/find-ns-starts-with shadow-find-ns-starts-with)
 
   (replace-fn! #'cljs.core/goog-define goog-define)
