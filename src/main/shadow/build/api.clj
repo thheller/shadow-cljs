@@ -71,8 +71,8 @@
    :infer-externs :auto
    :language-in :ecmascript-next-in
    ;; still need to set this since it otherwise ends up using strict mode default
-   :language-out :ecmascript5
-   :output-feature-set :es5
+   :language-out :ecmascript6
+   :output-feature-set :es6
 
    :closure-warnings
    {:check-types :off}

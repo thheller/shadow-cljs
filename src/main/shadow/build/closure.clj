@@ -1459,7 +1459,7 @@
           {:pretty-print true
            :source-map true
            :language-in :ecmascript-next-in
-           :output-feature-set :es5}
+           :output-feature-set :es6}
           (get-output-options state))
 
         co
@@ -1878,7 +1878,7 @@
            ;; but closure got real picky and complains about some things being es6 that aren't
            ;; doesn't really impact much here anyways
            :language-in :ecmascript-next-in
-           :output-feature-set :es5}
+           :output-feature-set :es6}
           (get-output-options state)
           ;; js-options should always override things pulled from :compiler-options
           (dissoc js-options :resolve)
@@ -2191,7 +2191,7 @@
     {:pretty-print true
      :pseudo-names false
      :language-in :ecmascript-next-in
-     :output-feature-set :es5
+     :output-feature-set :es6
      :source-map true}
     (get-output-options state)))
 
