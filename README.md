@@ -184,6 +184,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 
 ## Libraries
 - [flexsurfer/rn-shadow-steroid](https://github.com/flexsurfer/rn-shadow-steroid) - React Native with shadow-cljs on steroids
+- [re-frame-flow](https://github.com/ertugrulcetin/re-frame-flow) - A graph based visualization tool for re-frame event chains using shadow-cljs
 - ... please let me know if you created something to include here
 
 ## License
