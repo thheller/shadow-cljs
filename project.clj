@@ -13,15 +13,15 @@
    "-source" "1.8"]
 
   :managed-dependencies
-  [[commons-codec "1.14"]
+  [[commons-codec "1.15"]
    [com.google.errorprone/error_prone_annotations "2.4.0"]
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
   [[org.clojure/clojure "1.10.3"]
 
-   [org.clojure/data.json "2.2.1"]
-   [org.clojure/tools.cli "1.0.194"]
+   [org.clojure/data.json "2.3.1"]
+   [org.clojure/tools.cli "1.0.206"]
    [org.clojure/tools.reader "1.3.5"]
 
    [nrepl "0.8.3"]
@@ -32,9 +32,9 @@
      nrepl/nrepl]]
 
    [com.cognitect/transit-clj "1.0.324"]
-   [com.cognitect/transit-cljs "0.8.264"]
+   [com.cognitect/transit-cljs "0.8.269"]
 
-   [org.clojure/core.async "1.3.610"]
+   [org.clojure/core.async "1.3.618"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.10.844"
@@ -53,15 +53,15 @@
    [thheller/shadow-undertow "0.1.0"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.9.2"
+   [ring/ring-core "1.9.3"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [org.graalvm.js/js "21.0.0.2"]
-   [org.graalvm.js/js-scriptengine "21.0.0.2"]
+   [org.graalvm.js/js "21.1.0"]
+   [org.graalvm.js/js-scriptengine "21.1.0"]
 
-   [expound "0.8.5"]
+   [expound "0.8.9"]
    [fipp "0.6.23"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
@@ -75,7 +75,7 @@
    ;; for pathom
    [org.clojure/test.check "1.1.0"]
 
-   [thheller/shadow-cljsjs "0.0.21"]]
+   [thheller/shadow-cljsjs "0.0.22"]]
 
   :source-paths
   ["src/main"]
