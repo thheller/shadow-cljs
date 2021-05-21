@@ -86,7 +86,6 @@
     :ecmascript6 CompilerOptions$LanguageMode/ECMASCRIPT_2015 ;; (deprecated and remapped)
     :ecmascript6-strict CompilerOptions$LanguageMode/ECMASCRIPT_2015 ;; (deprecated and remapped)
     :ecmascript-2015 CompilerOptions$LanguageMode/ECMASCRIPT_2015
-    :ecmascript6-typed CompilerOptions$LanguageMode/ECMASCRIPT6_TYPED
     :ecmascript-2016 CompilerOptions$LanguageMode/ECMASCRIPT_2016
     :ecmascript-2017 CompilerOptions$LanguageMode/ECMASCRIPT_2017
     :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT
@@ -100,9 +99,9 @@
     :es3 FeatureSet/ES3
     :es5 FeatureSet/ES5
     ;; FIXME: probably can't allow es6-modules variants since we can never load those
-    :es6 FeatureSet/ES6
-    :es7 FeatureSet/ES7
-    :es8 FeatureSet/ES8
+    :es6 FeatureSet/ES2015
+    :es7 FeatureSet/ES2017
+    :es8 FeatureSet/ES2018
     :es2018 FeatureSet/ES2018
     :es2019 FeatureSet/ES2019
     :es2020 FeatureSet/ES2020
@@ -147,6 +146,9 @@
 
   (when-let [lang-key (:language-out opts)]
     (.setLanguageOut closure-opts (lang-key->lang-mode lang-key)))
+
+  (when (:closure-alias-strings opts)
+    (.setAliasAllStrings closure-opts true))
 
   ;; FIXME: maybe make this more customizable. may want es5 but allow class or so
   (when-let [output-feature-set (:output-feature-set opts)]
@@ -609,9 +611,15 @@
   ([name code]
    (SourceFile/fromCode name code))
   ([name code original-name]
-   (-> (SourceFile/builder)
-       (.withOriginalPath original-name)
-       (.buildFromCode name code))))
+   ;; closure removed the ability to provide originalPath
+   ;; IIRC this was only used to make npm source maps slightly more accurate
+   ;; by pointing to the actual file rather than the resource name we
+   ;; assigned it. can't remember if this had any other effect.
+   #_(-> (SourceFile/builder)
+         (.withOriginalPath original-name)
+         (.buildFromCode name code))
+   (SourceFile/fromCode name code)
+   ))
 
 (defn add-input-source-maps [{:keys [build-sources] :as state} cc]
   (doseq [src-id build-sources
@@ -875,12 +883,15 @@
           ;; allowing closure to alias them can cut the overall size a bit
           ;; gzip actually takes quite good care of this already but this squeezes
           ;; another few bytes out for no additional work
-          (.setAliasableStrings
-            (->> (:compiler-env state)
-                 (::ana/namespaces)
-                 (keys)
-                 (map str)
-                 (set)))
+
+          ;; this was removed in closure without much clarification for why
+          ;; https://github.com/google/closure-compiler/commit/752b975a8eb7d4c71ac5550039451a23a000175d
+          #_(.setAliasableStrings
+              (->> (:compiler-env state)
+                   (::ana/namespaces)
+                   (keys)
+                   (map str)
+                   (set)))
 
           (.setWarningLevel DiagnosticGroups/CHECK_TYPES CheckLevel/OFF)
           ;; really only want the undefined variables warnings

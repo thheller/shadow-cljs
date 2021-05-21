@@ -1,21 +1,23 @@
 (ns shadow.build.api
-  (:require [cljs.analyzer :as cljs-ana]
-            [clojure.java.io :as io]
-            [shadow.build.resolve :as res]
-            [shadow.build.classpath :as cp]
-            [shadow.build.npm :as npm]
-            [shadow.build.modules :as modules]
-            [shadow.build.compiler :as impl]
-            [shadow.cljs.util :as util]
-            [shadow.build.cljs-bridge :as cljs-bridge]
-            [shadow.build.closure :as closure]
-            [shadow.build.data :as data]
-            [shadow.build.output :as output]
-            [shadow.build.log :as build-log]
-            [shadow.build.resource :as rc]
-            [shadow.jvm-log :as log]
-            [clojure.set :as set]
-            [shadow.build.babel :as babel])
+  (:require
+    [clojure.java.io :as io]
+    [clojure.set :as set]
+    [cljs.analyzer :as cljs-ana]
+    [cljs.analyzer.passes.and-or :as and-or]
+    [shadow.build.resolve :as res]
+    [shadow.build.classpath :as cp]
+    [shadow.build.npm :as npm]
+    [shadow.build.modules :as modules]
+    [shadow.build.compiler :as impl]
+    [shadow.cljs.util :as util]
+    [shadow.build.cljs-bridge :as cljs-bridge]
+    [shadow.build.closure :as closure]
+    [shadow.build.data :as data]
+    [shadow.build.output :as output]
+    [shadow.build.log :as build-log]
+    [shadow.build.resource :as rc]
+    [shadow.jvm-log :as log]
+    [shadow.build.babel :as babel])
   (:import (java.util.concurrent ExecutorService)))
 
 (defn build-state? [build]
@@ -189,7 +191,9 @@
 
        ;; FIXME: should these ever be configurable?
        :analyzer-passes
-       [cljs-ana/infer-type impl/find-protocols-pass impl/find-js-require-pass]}
+       [cljs-ana/infer-type
+        and-or/optimize
+        impl/find-protocols-pass impl/find-js-require-pass]}
       (data/init)))
 
 ;; helper methods that validate their args, sort of

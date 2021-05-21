@@ -147,7 +147,7 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                         // new versions use a bitset
                         ref.usedInBits.set(t.getModule().getIndex());
 
-                        parent.replaceChild(n, IR.name(constantName));
+                        n.replaceWith(IR.name(constantName));
                         ShadowAccess.reportChangeToEnclosingScope(compiler, parent);
                     }
                 }

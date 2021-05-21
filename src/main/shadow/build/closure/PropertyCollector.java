@@ -69,11 +69,7 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
             // var x; x = 1;
             if (getProp.isGetProp()) {
                 Node name = getProp.getLastChild();
-                if (!name.isString()) {
-                    System.out.println("==== assign without string");
-                    System.out.println(node.toStringTree());
-                    System.out.println("====");
-                } else {
+                if (name.isString()) {
                     String property = name.getString();
                     addProperty(t, property);
                 }
