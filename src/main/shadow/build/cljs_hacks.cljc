@@ -151,6 +151,8 @@
   ([env sym]
    (shadow-resolve-var env sym nil))
   ([env sym confirm]
+   (shadow-resolve-var env sym confirm true))
+  ([env sym confirm default?]
    (let [locals (:locals env)
          current-ns (-> env :ns :name)
          sym-ns-str (namespace sym)]
@@ -236,7 +238,7 @@
              (resolve-ns-var full-ns sym current-ns))
 
            (some? (ana/gets current-ns-info :imports sym))
-           (recur env (ana/gets current-ns-info :imports sym) confirm)
+           (recur env (ana/gets current-ns-info :imports sym) confirm default?)
 
            (some? (ana/gets current-ns-info :defs sym))
            (do (when (some? confirm)
@@ -366,10 +368,11 @@
                                    )))))))))))
 
            :else
-           (do (when (some? confirm)
-                 (confirm env current-ns sym))
-               (resolve-cljs-var current-ns sym)
-               )))))))
+           (when default?
+             (when (some? confirm)
+               (confirm env current-ns sym))
+             (resolve-cljs-var current-ns sym)
+             )))))))
 
 (defn shadow-resolve-var-checked
   ([env sym]
