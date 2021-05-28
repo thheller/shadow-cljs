@@ -85,11 +85,8 @@
 
    :module-loader true
    :modules
-   {:shared
-    {:entries []}
-    :main
+   {:main
     {:init-fn shadow.cljs.ui.main/init
-     :depends-on #{:shared}
      :preloads [shadow.experiments.grove.dev-support]}
 
     ;; trying something to split out features not pages

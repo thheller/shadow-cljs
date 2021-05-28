@@ -31,7 +31,6 @@
    (html5
      {:lang "en"}
      [:head
-      [:link {:rel "preload" :as "script" :href "/js/shared.js"}]
       [:link {:rel "preload" :as "script" :href "/js/main.js"}]
       ;; starting the worker ASAP
       ;; if the script starts it we have to wait for the script to download and execute
@@ -54,7 +53,6 @@
       ;; leading to incorrect measurements of elements and messing up vlists
       ;; I don't know how to fix that apart from just removing the defer?
       ;; not so much of an issue anymore with jit'd tailwind but we don't gain much from defer anyways
-      [:script {:src "/js/shared.js"}]
       [:script {:src "/js/main.js"}]])})
 
 (defn no-cache! [res]
