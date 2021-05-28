@@ -146,7 +146,7 @@ shadow.loader.load = function (id, cb) {
 shadow.loader.load_multiple = function (ids, opt_userInitiated) {
   if (shadow.loader.TEST) {
     var result = {};
-    for (id of ids) {
+    for (const id of ids) {
       result[id] = goog.async.Deferred.succeed();
     }
     return result;
