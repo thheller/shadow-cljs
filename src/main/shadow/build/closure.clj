@@ -1383,22 +1383,6 @@
     (.setAccessible fld true)
     (.set fld o val)))
 
-;; hack to get around source-map reset resetting too much
-;; hope this doesn't end badly
-
-;; when trying to get multiple separated source maps it will fail without reset
-;; but reset will remove all source code from files we need to generated proper maps
-;; so this just copies and restores via reflection since all of it is private
-;; FIXME: should open a proper closure-compiler issue about this
-(defn reset-but-keep-files [source-map]
-  (let [gen (get-field-value source-map "generator")
-        sfcm (get-field-value gen "sourceFileContentMap")
-        sfcm-copy (LinkedHashMap. sfcm)]
-
-    (.reset source-map)
-
-    (set-field-value gen "sourceFileContentMap" sfcm-copy)))
-
 (defn convert-sources*
   "takes a list of :js sources and rewrites them to using closure
    partial compiles must supply the cached sources so closure doesn't complain about things
@@ -1556,8 +1540,7 @@
         (update ::classpath-js-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
-            (reset-but-keep-files source-map)
-
+            (.reset source-map)
 
             (let [name (.getSourceFileName source-node)]
 
@@ -1981,7 +1964,7 @@
         (update ::shadow-js-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
-            (reset-but-keep-files source-map)
+            (.reset source-map)
 
             (let [name (.getSourceFileName source-node)]
               (cond
@@ -2277,7 +2260,7 @@
         (update ::goog-injected-libs set/union injected-libs)
         (util/reduce->
           (fn [state source-node]
-            (reset-but-keep-files source-map)
+            (.reset source-map)
 
             (let [name (.getSourceFileName source-node)]
               (cond
