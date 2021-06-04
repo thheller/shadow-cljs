@@ -110,7 +110,9 @@
 
 (defn handle-invoke [state runtime action]
   (let [res (do-invoke runtime action)]
-    (update state :results conj res)))
+    (if (:internal action)
+      state
+      (update state :results conj res))))
 
 (defn handle-repl-invoke [state runtime action]
   (try
@@ -142,10 +144,12 @@
         (abort! state action ex)))
 
     :repl/set-ns
-    (let [{:keys [ns]} action]
+    (let [{:keys [ns internal]} action]
       (-> state
           (assoc :ns ns)
-          (update :results conj nil)
+          (cond->
+            (not internal)
+            (update :results conj nil))
           (continue!)))
 
     :repl/require
@@ -165,13 +169,14 @@
 
     :repl/invoke
     (try
-      (let [repl (get-in state [:input :repl])]
+      (let [repl (get-in state [:input :repl])
+
+            invoke-fn
+            (if (and repl (not (:internal action)))
+              handle-repl-invoke
+              handle-invoke)]
         (-> state
-            (cond->
-              repl
-              (handle-repl-invoke runtime action)
-              (not repl)
-              (handle-invoke runtime action))
+            (invoke-fn runtime action)
             (continue!)))
       (catch :default ex
         (abort! state action ex)))

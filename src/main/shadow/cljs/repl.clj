@@ -245,85 +245,63 @@
     (update-in state [:repl-state :repl-actions] conj action)
     ))
 
-(comment
-  (def classpath (:classpath (shadow.cljs.devtools.server.runtime/get-instance)))
-  (find-on-classpath classpath "src/dev/demo/browser.cljs")
-  )
-
-(defn find-on-classpath [classpath file-path]
-  (let [abs-file
-        (-> (io/file file-path)
-            (.getAbsoluteFile))]
-
-    (when (and (.exists abs-file)
-               (.isFile abs-file))
-
-      (let [abs-path
-            (.toPath abs-file)
-
-            matched-paths
-            (->> (classpath/get-classpath-entries classpath)
-                 (filter #(.isDirectory %))
-                 (map #(.toPath %))
-                 (filter (fn [^Path path]
-                           (.startsWith abs-path path))))]
-
-        (when (seq matched-paths)
-          (let [root (first matched-paths)
-                resource-name
-                (loop [names (list)
-                       path abs-path]
-                  (if (= path root)
-                    (str/join "/" names)
-                    (recur (conj names (.toString (.getName path (dec (.getNameCount path))))) (.getParent path))
-                    ))]
-            [abs-file resource-name]))))))
+(declare process-input)
 
 (defn repl-load-file*
-  [{:keys [classpath] :as state} {:keys [file-path source]}]
+  [state {:keys [file-path source]}]
   ;; FIXME: could clojure.core/load-file .clj files?
 
-  (let [[file rc-name] (find-on-classpath classpath file-path)]
+  (if (not (util/is-cljs-file? file-path))
+    (throw (ex-info "can only load .cljs and .cljc files"
+             {:file-path file-path}))
 
-    (cond
-      (not (util/is-cljs-file? file-path))
-      (throw (ex-info "can only load .cljs and .cljc files"
-               {:file-path file-path}))
+    ;; don't bother creating resources or anything, just eval one form at a time
+    ;; this allows loading files that aren't on the classpath and doesn't end up
+    ;; creating virtual resources that might cause issues in hot-reload later
+    (let [source
+          (or source
+              (slurp (io/file file-path)))
 
-      (not file)
-      (throw (ex-info "file not on classpath" {:file-path file-path}))
+          prev-ns
+          (get-in state [:repl-state :current-ns])
 
-      ;; FIXME: could make the requirement for the file to be on the classpath optional
-      :else
-      (let [{:keys [ns] :as rc}
-            (-> (classpath/make-fs-resource file rc-name)
-                (assoc :type :cljs)
-                (cond->
-                  (seq source)
-                  (-> (assoc :source source)
-                      ;; make sure we are not using cache when loading file for REPL with source
-                      (update :cache-key conj :repl (System/currentTimeMillis))))
-                (classpath/inspect-cljs)
-                (classpath/set-output-name))
+          prev-count
+          (count (get-in state [:repl-state :repl-actions]))
 
-            [deps-sources state]
-            (-> state
-                ;; FIXME: this is not additive, it may remove previous REPL state?
-                (data/overwrite-source rc)
-                (build-api/resolve-entries [ns]))
+          state
+          (process-input state source {:filename file-path})
 
-            state
-            (build-api/compile-sources state deps-sources)
+          next-ns
+          (get-in state [:repl-state :next-ns])
 
-            action
-            {:type :repl/require
-             :sources deps-sources
-             :warnings (warnings-for-sources state deps-sources)
-             :reload-namespaces #{ns}}]
+          repl-actions
+          (get-in state [:repl-state :repl-actions])
 
-        (output/flush-sources state deps-sources)
-        (update-in state [:repl-state :repl-actions] conj action)
-        ))))
+          next-count
+          (count repl-actions)
+
+          ;; mark all resulting repl-actions as internal
+          ;; so each form doesn't yield its own result later
+          ;; load-file should only have one result
+          repl-actions
+          (reduce
+            (fn [actions idx]
+              (assoc-in actions [idx :internal] true))
+            repl-actions
+            (range prev-count next-count))
+
+          state
+          (assoc-in state [:repl-state :repl-actions] repl-actions)]
+
+      (if (= prev-ns next-ns)
+        state
+        (-> state
+            ;; if the file has an ns form we don't want to switch to it
+            ;; as clj load-file doesn't do that either
+            (assoc-in [:repl-state :current-ns] prev-ns)
+            ;; so everything is properly reset on the runtime too
+            (update-in [:repl-state :repl-actions] conj {:type :repl/set-ns :ns prev-ns :internal true})
+            )))))
 
 (defn repl-load-file
   [state read-result [_ file-path :as form]]
