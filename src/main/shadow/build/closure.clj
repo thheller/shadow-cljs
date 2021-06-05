@@ -28,7 +28,7 @@
      PropertyRenamingPolicy PhaseOptimizer]
     [shadow.build.closure
      ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector
-     NodeStuffInlinePass FindSurvivingRequireCalls]
+     NodeStuffInlinePass FindSurvivingRequireCalls GlobalsAsVar]
     [com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode]
     [java.nio.charset Charset]
     [java.util.logging Logger Level]
@@ -1489,6 +1489,13 @@
 
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1))
           (.setModuleResolutionMode ModuleLoader$ResolutionMode/BROWSER))
+
+        ;; workaround for https://github.com/thheller/shadow-cljs/issues/894
+        ;; can't have const foo$$module$some$es6 in eval-loaded code since we need
+        ;; to be able to redefine it and have it available globally
+        _
+        (when (= :dev (:shadow.build/mode state))
+          (.addCustomPass co CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP (GlobalsAsVar. cc)))
 
         result
         (try

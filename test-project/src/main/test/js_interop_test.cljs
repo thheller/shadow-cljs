@@ -37,7 +37,7 @@
 
 ;; this fails, unsure what to do about this
 ;; https://github.com/thheller/shadow-cljs/issues/894
-#_(deftest es6-indirect
+(deftest es6-indirect
     ;; accessing a const from other import
     ;; fails because const in eval has its own scope and other evals can't see it
     (is (= "foo" (es6/other-foo))))
