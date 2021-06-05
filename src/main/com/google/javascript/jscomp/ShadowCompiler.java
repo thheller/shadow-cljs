@@ -1,12 +1,10 @@
 package com.google.javascript.jscomp;
 
 import com.google.debugging.sourcemap.SourceMapConsumerV3;
-import com.google.debugging.sourcemap.proto.Mapping;
 import com.google.debugging.sourcemap.proto.Mapping.OriginalMapping;
 
 import javax.annotation.Nullable;
 import java.io.PrintStream;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 

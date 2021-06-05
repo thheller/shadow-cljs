@@ -1495,24 +1495,7 @@
           (util/with-logged-time [state {:type ::closure-convert
                                          :num-sources (count sources)}]
 
-            ;; replicating the .compile method since we need to
-            ;; ensure the proper polyfills are re-injected from cache
-            ;; so they don't get lost
-            (try
-              (.init cc @default-externs source-files co)
-              (when-not (.hasErrors cc)
-                (.parseForCompilation cc)
-
-                (when-not (.hasErrors cc)
-                  (.stage1Passes cc)
-                  (when-not (.hasErrors cc)
-                    (.stage2Passes cc))
-                  (.performPostCompilationTasks cc)))
-              (finally
-                (.generateReport cc)))
-
-            (.getResult cc))
-          ;; catch internal closure errors
+            (.compile cc @default-externs source-files co))
           (catch Exception e
             (throw (ex-info "failed to convert sources"
                      {:tag ::convert-error
