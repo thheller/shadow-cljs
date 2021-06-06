@@ -702,24 +702,52 @@
       :else
       (recur (.getParentFile file)))))
 
-(defn make-fs-resource [^File file name]
-  (let [last-mod
-        (if (.exists file)
-          (.lastModified file)
-          (System/currentTimeMillis))
+(def ^Path project-root-path
+  (-> (io/file ".")
+      (.getCanonicalFile)
+      (.toPath)))
 
-        checksum
-        (data/sha1-file file)]
+(defn project-rel-path [^File dir]
+  (-> (.relativize project-root-path
+        (-> dir (.getAbsoluteFile) (.toPath)))
+      (str)
+      (rc/normalize-name)))
 
-    (-> {:resource-id [::resource name]
-         :resource-name name
-         :cache-key [checksum]
-         :last-modified last-mod
-         :file file
-         :url (.toURL file)}
-        (cond->
-          (is-gitlib-file? file)
-          (assoc :from-jar true)))))
+(defn make-fs-resource
+  ([^File file name]
+   (let [fs-root
+         (loop [root file
+                i (count (str/split name #"/"))]
+           (if (zero? i)
+             (project-rel-path root)
+             (recur (.getParentFile root) (dec i))))]
+
+     (make-fs-resource file name fs-root)))
+
+  ([^File file name fs-root]
+   (let [last-mod
+         (if (.exists file)
+           (.lastModified file)
+           (System/currentTimeMillis))
+
+         checksum
+         (data/sha1-file file)]
+
+     (-> {:resource-id [::resource name]
+          :resource-name name
+          :cache-key [checksum]
+          :last-modified last-mod
+          :file file
+          :fs-root fs-root
+          :url (.toURL file)}
+         (cond->
+           (is-gitlib-file? file)
+           (assoc :from-jar true))))))
+
+(comment
+  (make-fs-resource
+    (io/file "src" "main" "shadow" "build.clj")
+    "shadow/build.cljs"))
 
 (comment
   (is-gitlib-file? (io/file "src" "main" "shadow" "build.clj"))
@@ -728,6 +756,7 @@
 (defn find-fs-resources*
   [cp ^File root]
   (let [root-path (.getCanonicalPath root)
+        rel-path (project-rel-path root)
         root-len (inc (count root-path))
         is-gitlib-root? (is-gitlib-file? root)]
     (into []
@@ -743,7 +772,7 @@
                            (rc/normalize-name))]
             :when (not (should-ignore-resource? cp name))]
 
-        (-> (make-fs-resource file name)
+        (-> (make-fs-resource file name rel-path)
             ;; treat gitlibs as if they were from a .jar
             ;; affects hot-reload and warnings logic
             (cond->

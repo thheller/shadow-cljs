@@ -38,7 +38,7 @@
 
 (defc ui-group [group-ident]
 
-  (bind {:keys [npm-info pom-info group-name group-pct items optimized-size expanded] :as row}
+  (bind {:keys [npm-info pom-info group-name group-type group-pct items optimized-size expanded] :as row}
     (sg/query-ident group-ident))
 
   (render
@@ -54,8 +54,11 @@
             npm-info
             (<< [:div.group__header (str (:package-name npm-info) " @ npm: " (:version npm-info))])
 
+            (= group-type :fs)
+            (<< [:div.group__header [:b group-name]])
+
             :else
-            (<< [:div.group__header [:b group-name]]))]
+            (<< [:div.group__header group-name]))]
 
          [:td.numeric (filesize optimized-size)]
          [:td.numeric (format "%.1f %%" group-pct)]]
@@ -275,13 +278,14 @@
                           groups
                           (->> source-bytes
                                (map (fn [[resource-name optimized-size]]
-                                      (let [{:keys [npm-info pom-info resource-id] :as src-info}
+                                      (let [{:keys [npm-info pom-info fs-root resource-id] :as src-info}
                                             (get sources-by-name resource-name)
 
                                             group-id
                                             (or (and npm-info [module-id :npm (:package-name npm-info)])
                                                 (and pom-info [module-id :jar (str (:id pom-info))])
-                                                [module-id :prj "Project Files"])]
+                                                (and fs-root [module-id :fs fs-root])
+                                                [module-id :gen "Generated Files"])]
 
                                         (merge src-info
                                           {:resource-name resource-name
