@@ -32,14 +32,16 @@ public class GlobalsAsVar implements NodeTraversal.Callback, CompilerPass {
         if (n.isLet() || n.isConst()) {
             if (!parent.isExport()) {
                 Node lhs = n.getFirstChild();
-                Node rhs = lhs.getFirstChild();
-                Node replacement;
-                if (rhs != null) {
-                    replacement = IR.var(lhs.detach(), rhs.detach());
-                } else {
-                    replacement = IR.var(lhs.detach());
+                if (lhs.isName()) {
+                    Node rhs = lhs.getFirstChild();
+                    Node replacement;
+                    if (rhs != null) {
+                        replacement = IR.var(lhs.detach(), rhs.detach());
+                    } else {
+                        replacement = IR.var(lhs.detach());
+                    }
+                    n.replaceWith(replacement);
                 }
-                n.replaceWith(replacement);
             }
         }
     }
@@ -51,7 +53,7 @@ public class GlobalsAsVar implements NodeTraversal.Callback, CompilerPass {
 
         cc.initOptions(co);
 
-        SourceFile srcFile = SourceFile.fromCode("test.js", "let noInit; const foo = 1; function foo() { const bar = 2; }");
+        SourceFile srcFile = SourceFile.fromCode("test.js", "let noInit; let [a, ...rest] = [1,2,3,4]; const foo = 1; function foo() { const bar = 2; }");
 
         JsAst ast = new JsAst(srcFile);
         Node node = ast.getAstRoot(cc);
