@@ -354,7 +354,10 @@
                 ;; if `(:require [react ...])` was used we need to check if the package
                 ;; is actually installed. otherwise we will blindy return a shim for
                 ;; every symbol, no matter it was a typo or actually intended JS package.
-                (npm/find-package (:npm state) require))
+                (npm/find-package (:npm state) require)
+
+                ;; treat every symbol as valid when :npm-deps in deps.cljs on the classpath contain it
+                (npm/is-npm-dep? (:npm state) require))
 
         (js-support/shim-require-resource state require)))))
 
