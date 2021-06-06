@@ -7,7 +7,8 @@
             [shadow.build.resource :as rc]
             [shadow.build.log :as cljs-log]
             [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)]
-            [shadow.build.data :as data])
+            [shadow.build.data :as data]
+            [clojure.edn :as edn])
   (:import (java.io File)
            (com.google.javascript.jscomp SourceFile CompilerOptions CompilerOptions$LanguageMode)
            (com.google.javascript.jscomp.deps ModuleNames)
@@ -25,6 +26,36 @@
 
 (defn service? [x]
   (and (map? x) (::service x)))
+
+(defn maybe-kw-as-string [x]
+  (cond
+    (string? x)
+    x
+
+    (keyword? x)
+    (name x)
+
+    (symbol? x)
+    (name x)
+
+    :else
+    nil))
+
+(defn collect-npm-deps-from-classpath []
+  (->> (-> (Thread/currentThread)
+           (.getContextClassLoader)
+           (.getResources "deps.cljs")
+           (enumeration-seq))
+       (map slurp)
+       (map edn/read-string)
+       (mapcat #(-> % (get :npm-deps) (keys)))
+       (map maybe-kw-as-string)
+       (remove nil?)
+       (set)
+       ))
+
+(comment
+  (collect-npm-deps-from-classpath))
 
 (defn absolute-file
   ".getCanonicalFile resolves links but we just want to replace . and .."
@@ -132,6 +163,9 @@
       (let [pkg-info (find-package* npm package-name)]
         (swap! index-ref assoc-in [:packages package-name] pkg-info)
         pkg-info)))
+
+(defn is-npm-dep? [{:keys [npm-deps]} ^String require]
+  (contains? npm-deps require))
 
 (defn split-package-require
   "@scoped/thing -> [@scoped/thing nil]
@@ -843,6 +877,7 @@
      ;; JVM working dir always
      :project-dir project-dir
      :js-package-dirs js-package-dirs
+     :npm-deps (collect-npm-deps-from-classpath)
 
      ;; browser defaults
      :js-options {:extensions [#_".mjs" ".js" ".json"]
