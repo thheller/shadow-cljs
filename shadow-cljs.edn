@@ -145,8 +145,8 @@
    [(shadow.build/tap-hook)
     (shadow.cljs.build-report/hook)
     (shadow.html/copy-file
-      "out/demo-browser/index.src.html"
-      "out/demo-browser/public/index.html")]
+          "out/demo-browser/index.src.html"
+          "out/demo-browser/public/index.html")]
 
    :dev {:build-options {:auto-require-suffixes ["-specs"]}}
 
@@ -171,7 +171,10 @@
      :web-worker true}}
 
    :js-options
-   {:js-package-dirs ["packages/testing/node_modules"]}
+   {:js-package-dirs ["packages/testing/node_modules"]
+    ;; :js-provider :external
+    ;; :external-index "out/demo-browser/public/js/external.js"
+    }
 
    :devtools
    {:before-load-async demo.browser/stop-from-config

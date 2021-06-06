@@ -1,8 +1,10 @@
 (ns shadow.build.targets.external-index
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
-            [shadow.build.data :as data]
-            [shadow.cljs.util :as util]))
+  (:require
+    [clojure.java.io :as io]
+    [clojure.string :as str]
+    [shadow.build.data :as data]
+    [shadow.build.js-support :as js-support]
+    [shadow.cljs.util :as util]))
 
 (defn into-set [current other]
   (set (into current other)))
@@ -83,7 +85,7 @@
                                 (str "{" (refer-obj idx default refer) "}"))
                               ";"))))
 
-(defn generate-cjs [state idx {:keys [require]}]
+(defn generate-cjs [state require]
   (update state :body conj (str "ALL[\"" require "\"] = require(\"" require "\");")))
 
 (defn join-lines [all]
@@ -100,37 +102,34 @@
       (conj "")
       (join-lines)))
 
-(defn generate [ext-info]
-  (->> ext-info
+(defn generate [build-state js-requires]
 
-       ;; FIXME: need to figure out how to do proper compat first
-       ;; (:require ["react" :as X]) will be invalid since it is commonjs
-       ;; and future webpack would only allow
-       ;;   import X from "react";
-       ;; which maps to
-       ;;   (:require ["react" :default X])
-       ;; but that would break everything using :as ... which is everything ...
-       ;; (reduce-kv generate-esm {:imports [] :body []})
+  ;; FIXME: need to figure out how to do proper compat first
+  ;; (:require ["react" :as X]) will be invalid since it is commonjs
+  ;; and future webpack would only allow
+  ;;   import X from "react";
+  ;; which maps to
+  ;;   (:require ["react" :default X])
+  ;; but that would break everything using :as ... which is everything ...
+  ;; (reduce-kv generate-esm {:imports [] :body []})
 
-       (reduce-kv generate-cjs {:imports [] :body []})
-       (wrap-boilerplate)))
+  (-> (reduce generate-cjs {:build-state build-state :imports [] :body []} js-requires)
+      (wrap-boilerplate)))
 
 (comment
-  (generate
-    '[{:require "react" :import-all true}
-      {:require "something" :refer #{X A Y}, :default true}]))
+  (generate {} #{"react" "something"}))
 
 (defn flush-js [{:keys [build-sources] :as state}]
-  (let [ext-info
+  (let [js-requires
         (->> build-sources
              (map #(data/get-source-by-id state %))
-             (filter #(= :cljs (:type %)))
-             (map :ns-info)
-             (merge-js-deps))]
+             (filter ::js-support/require-shim)
+             (map :js-require)
+             (into #{}))]
 
-    (if (= ext-info (::ext-info state))
+    (if (= js-requires (::ext-info state))
       state
       (let [output-to (io/file (get-in state [:js-options :external-index] "target/external.js"))]
         (io/make-parents output-to)
-        (spit output-to (generate ext-info))
-        (assoc state ::ext-info ext-info)))))
+        (spit output-to (generate state js-requires))
+        (assoc state ::ext-info js-requires)))))
