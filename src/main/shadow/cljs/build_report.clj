@@ -198,14 +198,14 @@
       {:build-modules modules-info
        :build-sources sources-info})))
 
-(defn generate-html [build-state bundle-info report-file {:keys [inline] :or {inline true} :as opts}]
+(defn generate-html [build-state {:keys [build-id] :as bundle-info} report-file {:keys [inline] :or {inline true} :as opts}]
   (io/make-parents report-file)
   (spit
     report-file
     (html5
       {}
       [:head
-       [:title (format "[%s] Build Report - shadow-cljs" (name (:shadow.build/build-id build-state)))]
+       [:title (format "[%s] Build Report - shadow-cljs" (name build-id))]
        [:meta {:charset "utf-8"}]]
       [:body
        [:div#root]
@@ -258,7 +258,8 @@
               (build/flush))
 
           bundle-info
-          (extract-report-data state)
+          (-> (extract-report-data state)
+              (assoc :build-id build-id))
 
           report-file
           (and (seq report-file) (io/file report-file))
