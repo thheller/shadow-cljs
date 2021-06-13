@@ -408,11 +408,20 @@
         (run! project-root "powershell" ps-args {})))))
 
 (defn wait-for-server-start! [port-file ^js proc]
-  (if (fs/existsSync port-file)
+  (cond
+    (fs/existsSync port-file)
     (do (js/process.stderr.write " ready!\n")
         ;; give the server some time to settle before we release it
         ;; hopefully fixes some circleci issues
         (js/setTimeout #(.unref proc) 500))
+
+    ;; nil while process is still running, any exit is an error
+    (.-exitCode proc)
+    (do (js/process.stderr.write " server failed to launch! Please check logs for errors.\n")
+        (js/process.stderr.write " stdout log: .shadow-cljs/server.stdout.log\n")
+        (js/process.stderr.write " stderr log: .shadow-cljs/server.stderr.log\n"))
+
+    :else
     (do (js/process.stderr.write ".")
         (js/setTimeout #(wait-for-server-start! port-file proc) 250))
     ))
