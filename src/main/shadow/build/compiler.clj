@@ -140,17 +140,17 @@
 
 (defn find-protocols-pass [env ast opts]
   (when (= :def (:op ast))
-    ;; (def sym ...)
-    ;; sym will have a :protocol some.ns/sym metadata
-    ;; if defined by defprotocol
-    ;; the ast otherwise doesn't keep a hint since its all
-    ;; in the analyzer data
-    (let [def-sym (-> ast :form second)
-          {:keys [protocol] :as sym-meta} (meta def-sym)]
-      (when (symbol? protocol)
-        (let [protocol-prop def-sym
-              protocol-ns (-> env :ns :name)
-              pprefix (protocol-prefix protocol)]
+    ;; (defprotocol Name) will create a (def ^:protocol-symbol Name (fn []))
+    ;; this looks for those and remember them in a set so that inference knows which properties belong
+    ;; to protocols so it doesn't warn about them
+
+    ;; apparently we cannot use (:name ast) here since that doesn't have any metadata?
+    (let [def-sym (-> ast :form second)]
+
+      (when (-> def-sym meta :protocol-symbol)
+        (let [protocol-ns (:ns ast)
+              ;; name is fully qualified, def-sym is not
+              pprefix (protocol-prefix (:name ast))]
 
           ;; assoc into ns so cache can restore it
           (swap! env/*compiler* update-in [::ana/namespaces protocol-ns :shadow/protocol-prefixes] util/set-conj pprefix)

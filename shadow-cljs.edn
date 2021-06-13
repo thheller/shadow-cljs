@@ -142,7 +142,7 @@
     {demo.browser/FOO "bar"}}
 
    :build-hooks
-   [(shadow.build/tap-hook)
+   [ ;; (shadow.build/tap-hook)
     (shadow.cljs.build-report/hook)
     (shadow.html/copy-file
           "out/demo-browser/index.src.html"
