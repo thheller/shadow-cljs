@@ -385,7 +385,7 @@
 (defn run-clojure [project-root config args opts]
   (let [clojure-args
         (-> (get-clojure-args project-root config opts)
-            (conj "-m" "shadow.cljs.devtools.cli" "--npm")
+            (conj "-M" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
     (log "shadow-cljs - starting via \"clojure\"")
