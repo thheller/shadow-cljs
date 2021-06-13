@@ -205,7 +205,7 @@
     (html5
       {}
       [:head
-       [:title (format "[%s] Build Report - shadow-cljs" (name build-id))]
+       [:title (format "[%s] Build Report - shadow-cljs" (name (or build-id (:shadow.build/build-id build-state))))]
        [:meta {:charset "utf-8"}]]
       [:body
        [:div#root]
