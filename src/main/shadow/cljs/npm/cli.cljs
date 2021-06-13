@@ -423,7 +423,7 @@
           deps
           ["clojure"
            (-> (get-clojure-args project-root config opts)
-               (conj "-m"))]
+               (conj "-M" "-m"))]
 
           lein
           ["lein"
