@@ -335,6 +335,22 @@
         (is (= 'shadow$empty ns))
         ))))
 
+(deftest test-nested-conflict-not-used-by-default
+  (with-npm [x {}]
+    (let [test-root
+          (-> (io/file "test-env")
+              (.getAbsoluteFile))
+
+          {lvl1-file :file :as rc1}
+          (find-npm-resource x nil "lvl1")
+
+          {lvl2-file :file :as rc2}
+          (find-npm-resource x lvl1-file "lvl2")]
+
+      (is (= lvl2-file (io/file test-root "lvl2" "index.js")))
+      (is (= "node_modules/lvl2/index.js" (:resource-name rc2)))
+      )))
+
 (comment
   ;; FIXME: write proper tests for these
 
