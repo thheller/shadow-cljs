@@ -436,8 +436,19 @@
         (when (ana/js-tag? tag)
           (shadow-js-access-property
             (-> env :ns :name)
-            sprop
-            ))))))
+            sprop))
+
+        ;; cases where extend-protocol is used for js-hinted types
+        ;; (def Alias js/Foo)
+        ;; (extend-protocol Foo Alias (foo [x] (.shouldNotRename x))
+        ;; x will have target-tag that.ns/Alias, resolving to check if that is tagged as js
+        (when (and (qualified-symbol? target-tag) (not (ana/js-tag? target-tag)))
+          (when-let [{:keys [tag]} (shadow-resolve-var env target-tag nil false)]
+            (when (ana/js-tag? tag)
+              (shadow-js-access-property
+                (-> env :ns :name)
+                sprop
+                ))))))))
 
 (defn shadow-analyze-dot [env target member member+ form opts]
   (when (nil? target)
