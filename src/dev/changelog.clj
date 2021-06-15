@@ -66,9 +66,14 @@
     (.toString sw)))
 
 
-(defn -main []
+(defn main* []
   (let [history (gather-history)]
     (spit (io/file "CHANGELOG.md") (to-markdown history))))
 
 (comment
-  (-main))
+  (main*))
+
+(defn -main []
+  (main*)
+  (shutdown-agents))
+
