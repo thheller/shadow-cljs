@@ -180,6 +180,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [flexsurfer/ClojureRNProject](https://github.com/flexsurfer/ClojureRNProject) - simple React Native application with ClojureScript, re-frame and react navigation v5
 - [jacekschae/shadow-cljs-devcards](https://github.com/jacekschae/shadow-cljs-devcards) - how to configure devcards with shadow-cljs
 - [jacekschae/shadow-cljs-tailwindcss](https://github.com/jacekschae/shadow-cljs-tailwindcss) - shadow-cljs + tailwindcss-jit setup
+- [prestancedesign/pingcrm-clojure](https://github.com/prestancedesign/pingcrm-clojure) - A full stack SPA application built with Clojure + ClojureScript to illustrate how Inertia.js works.
 - ... please let me know if you created something to include here
 
 ## Libraries
