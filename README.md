@@ -181,6 +181,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - [jacekschae/shadow-cljs-devcards](https://github.com/jacekschae/shadow-cljs-devcards) - how to configure devcards with shadow-cljs
 - [jacekschae/shadow-cljs-tailwindcss](https://github.com/jacekschae/shadow-cljs-tailwindcss) - shadow-cljs + tailwindcss-jit setup
 - [ertugrulcetin/racing-game-cljs](https://github.com/ertugrulcetin/racing-game-cljs) - A 3D racing game built with ClojureScript, React and ThreeJS
+- [prestancedesign/pingcrm-clojure](https://github.com/prestancedesign/pingcrm-clojure) - A full stack SPA application built with Clojure + ClojureScript to illustrate how Inertia.js works.
 - ... please let me know if you created something to include here
 
 ## Libraries
