@@ -61,7 +61,7 @@
               w (transit/writer out :json)]
           (try
             (transit/write w data)
-            (.toString out)
+            (.toString out "UTF-8")
             (catch Exception e
               (log/warn-ex e ::transit-str-failed {:data data})
               (throw e))))))
