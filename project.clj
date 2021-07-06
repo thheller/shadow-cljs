@@ -75,6 +75,8 @@
    ;; for pathom
    [org.clojure/test.check "1.1.0"]
 
+   [com.nextjournal/beholder "1.0.0"]
+
    [thheller/shadow-cljsjs "0.0.22"]]
 
   :source-paths

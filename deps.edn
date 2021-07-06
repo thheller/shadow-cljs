@@ -43,7 +43,8 @@
   hiccup/hiccup {:mvn/version "1.0.5"}
 
   ring/ring-core {:mvn/version "1.8.0" :exclusions [clj-time/clj-time]}
-  hawk/hawk {:mvn/version "0.2.11"}
+  ;;hawk/hawk {:mvn/version "0.2.11"}
+  com.nextjournal/beholder {:mvn/version "1.0.0"}
 
   io.undertow/undertow-core
   {:mvn/version "2.0.30.Final"

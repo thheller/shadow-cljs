@@ -5,55 +5,25 @@
             [shadow.cljs.devtools.server.system-bus :as system-bus]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [shadow.build.resource :as rc])
-  (:import (shadow.util FileWatcher)
-           (java.io File)))
+            [shadow.build.resource :as rc]
+            [nextjournal.beholder :as beholder])
+  (:import (java.io File)))
 
 (defn service? [x]
   (and (map? x)
        (::service x)))
 
-(defn poll-changes [{:keys [dir ^FileWatcher watcher]}]
-  (let [changes (.pollForChanges watcher)]
-    (when (seq changes)
-      (->> changes
-           (map (fn [[name event]]
-                  {:dir dir
-                   :name (rc/normalize-name name)
-                   :ext (when-let [x (str/last-index-of name ".")]
-                          (subs name (inc x)))
-                   :file (io/file dir name)
-                   :event event}))
-           ;; ignore empty files
-           (remove (fn [{:keys [event ^File file] :as x}]
-                     (and (not= event :del)
-                          (zero? (.length file)))))
-           ))))
-
 (defn watch-loop
-  [watch-dirs control publish-fn]
+  [watcher control]
 
   (loop []
     (alt!!
       control
       ([_]
-        :terminated)
-
-      (async/timeout 500)
-      ([_]
-        (let [fs-updates
-              (->> watch-dirs
-                   (mapcat poll-changes)
-                   (into []))]
-
-          (when (seq fs-updates)
-            (publish-fn fs-updates))
-
-          (recur)))))
+        :terminated)))
 
   ;; shut down watchers when loop ends
-  (doseq [{:keys [^FileWatcher watcher]} watch-dirs]
-    (.close watcher))
+  (beholder/stop watcher)
 
   ::shutdown-complete)
 
@@ -64,21 +34,29 @@
   (let [control
         (async/chan)
 
-        watch-dirs
-        (->> directories
-             (map (fn [^File dir]
-                    {:dir dir
-                     :watcher (FileWatcher/create dir (vec file-exts))}))
-             (into []))]
+        watcher
+        (apply beholder/watch
+               (fn file-changed [{:keys [type path] :as event}]
+                 (let [file (io/file path)
+                       name (.getName file)
+                       dir (-> file (.getAbsoluteFile) (.getParent))]
+                   ;; ignore empty files
+                   (when (or (= type :delete)
+                             (pos? (.length file)))
+                     (publish-fn {:dir   dir
+                                  :name  (rc/normalize-name name)
+                                  :ext   (when-let [x (str/last-index-of name ".")]
+                                           (subs name (inc x)))
+                                  :file  file
+                                  :event event}))))
+               (map #(.getCanonicalPath %) directories))]
 
     {::service true
-     :control control
-     :watch-dirs watch-dirs
-     :thread (thread (watch-loop watch-dirs control publish-fn))}))
+     :control  control
+     :watcher  watcher
+     :thread   (thread (watch-loop watcher control))}))
 
 (defn stop [{:keys [control thread] :as svc}]
   {:pre [(service? svc)]}
   (async/close! control)
   (async/<!! thread))
-
-
