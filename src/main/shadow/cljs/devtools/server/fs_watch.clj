@@ -37,7 +37,7 @@
         watcher
         (apply beholder/watch
                (fn file-changed [{:keys [type path] :as event}]
-                 (let [file (io/file path)
+                 (let [file (.toFile path)
                        name (.getName file)
                        dir (-> file (.getAbsoluteFile) (.getParent))]
                    ;; ignore empty files
