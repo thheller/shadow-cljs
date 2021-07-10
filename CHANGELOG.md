@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.15.0](https://github.com/thheller/shadow-cljs/compare/844df3fa52bbb5c587b0eb949dc0822a5fe940a5...2c4b5a2682ef78bb80c56d75b67bd0ff742f2d61)
+- [ [`2c4b5`](https://github.com/thheller/shadow-cljs/commit/2c4b5a2682ef78bb80c56d75b67bd0ff742f2d61) ] fixup build reports to show now possible duplicates
+- [ [`a41df`](https://github.com/thheller/shadow-cljs/commit/a41dfc710db58c817d6cf36a31314a19d746db0d) ] cleanup
+- [ [`addfd`](https://github.com/thheller/shadow-cljs/commit/addfdd84744e7038452c2dd4935503297a82dae0) ] oops, add uncommit npm check versions ns
+- [ [`a1823`](https://github.com/thheller/shadow-cljs/commit/a18230853f3a4b3a923fb129b1ed5f61f2c0bc31) ] remove debug tap>
+- [ [`122bf`](https://github.com/thheller/shadow-cljs/commit/122bf58397146597f69cce677af7ed7219425b85) ] move npm version check out of browser target
+- [ [`844df`](https://github.com/thheller/shadow-cljs/commit/844df3fa52bbb5c587b0eb949dc0822a5fe940a5) ] change default npm resolve rules to match node/webpack
+
 ## [2.14.6](https://github.com/thheller/shadow-cljs/compare/bff923a5c0438326eebf0630706c35b644e66fc7...6587e85d993652e1675c060664fbfcf8a9890b97)
 - [ [`6587e`](https://github.com/thheller/shadow-cljs/commit/6587e85d993652e1675c060664fbfcf8a9890b97) ] Add full stack single page app example (#911)
 - [ [`cd280`](https://github.com/thheller/shadow-cljs/commit/cd28043bcc94e9d1a499791c377fe837734b2ec1) ] Add racing-game-cljs to Examples (#904)
