@@ -217,7 +217,6 @@
 
     ;; when package.json exists lookup entry
     ;; otherwise look for <dir>/index.js
-    (tap> [:find-package-main package-dir package-json npm])
     (or (and package-json
              (let [entries
                    (->> (get-in npm [:js-options :entry-keys])
