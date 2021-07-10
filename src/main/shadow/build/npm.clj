@@ -251,9 +251,11 @@
                            :package-dir package-dir})))
 
                entry-file))
+
+        ;; fallback for <package>/index.js without package.json
         (let [index (io/file package-dir "index.js")]
-        (when (and (.exists index) (.isFile index))
-          index)))))
+          (when (and (.exists index) (.isFile index))
+            index)))))
 
 (defn find-package-require* [npm modules-dir require]
   (or (when-let [file (test-file modules-dir require)]
@@ -267,16 +269,7 @@
           :else
           nil))
 
-      (test-file-exts npm modules-dir require)
-
-      ;; check if node_modules/<require>/package.json exists and follow :main
-      #_(when-let [package (find-package npm require)]
-          (find-package-main npm package))
-
-      ;; find node_modules/<require>/index.js
-      #_(let [^File file (io/file modules-dir require "index.js")]
-          (when (.exists file)
-            file))))
+      (test-file-exts npm modules-dir require)))
 
 (defn find-package-require
   [npm ^File require-from require]
