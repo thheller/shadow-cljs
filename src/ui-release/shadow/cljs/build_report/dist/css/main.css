@@ -50,6 +50,10 @@ table {
   padding: .5rem 0;
 }
 
+.group__duplicate {
+    color: red;
+}
+
 .group__row {
   cursor: pointer;
 }

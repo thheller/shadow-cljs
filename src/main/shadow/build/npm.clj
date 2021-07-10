@@ -85,6 +85,10 @@
 
             content
             (-> {:package-name name
+                 ;; :package-name is no longer a unique identifier with nested installs
+                 ;; need a unique identifier for build reports since they get otherwise
+                 ;; grouped together incorrectly. building it here since this has the most info
+                 :package-id (str (.getAbsolutePath package-dir) "@" version)
                  :package-dir package-dir
                  :package-json package-json
                  :version version
@@ -671,7 +675,7 @@
 
         (cond->
           pkg-info
-          (assoc :npm-info (select-keys pkg-info [:package-name :version])
+          (assoc :npm-info (select-keys pkg-info [:package-name :package-id :version])
                  :package-name package-name)))))
 
 (defn get-file-info [{:keys [index-ref] :as npm} ^File file]

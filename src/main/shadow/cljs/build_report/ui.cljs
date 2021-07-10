@@ -20,6 +20,11 @@
 (defn filesize [size]
   (gf/numBytesToString size 2 true true))
 
+(defn conj-set [x y]
+  (if (nil? x)
+    #{y}
+    (conj x y)))
+
 (defc ui-group-item [item-ident]
   (bind {:keys [resource-name optimized-size] :as item}
     (sg/query-ident item-ident))
@@ -38,7 +43,7 @@
 
 (defc ui-group [group-ident]
 
-  (bind {:keys [npm-info pom-info group-name group-type group-pct items optimized-size expanded] :as row}
+  (bind {:keys [npm-info pom-info group-name group-type group-pct items optimized-size expanded is-duplicate] :as row}
     (sg/query-ident group-ident))
 
   (render
@@ -46,6 +51,7 @@
          {:on-click {:e ::toggle-group! :group-ident group-ident}}
          [:td.group__expand-toggle (if expanded "-" "+")]
          [:td
+          {:class (when is-duplicate "group__duplicate")}
           (cond
             pom-info
             (let [{[id version] :coordinate} pom-info]
@@ -233,6 +239,29 @@
 (defn ^:dev/after-load start []
   (sg/render rt-ref root-el (ui-root)))
 
+(defn check-dupes [db]
+  (let [groups
+        (db/all-of db :group)
+
+        group-dupes
+        (reduce
+          (fn [m {:keys [group-name] :as group}]
+            (update m group-name conj-set (:db/ident group)))
+          {}
+          groups)]
+
+    (reduce-kv
+      (fn [db group-name group-ids]
+        (if-not (> (count group-ids) 1)
+          db
+          (reduce
+            (fn [db group-ident]
+              (assoc-in db [group-ident :is-duplicate] true))
+            db
+            group-ids)))
+      db
+      group-dupes)))
+
 (defn init []
   (let [{:keys [build-modules build-sources] :as data}
         (-> (js/document.querySelector "script[type=\"shadow/build-report\"]")
@@ -282,16 +311,16 @@
                                             (get sources-by-name resource-name)
 
                                             group-id
-                                            (or (and npm-info [module-id :npm (:package-name npm-info)])
-                                                (and pom-info [module-id :jar (str (:id pom-info))])
-                                                (and fs-root [module-id :fs fs-root])
-                                                [module-id :gen "Generated Files"])]
+                                            (or (and npm-info [module-id :npm (:package-id npm-info) (:package-name npm-info)])
+                                                (and pom-info [module-id :jar (:id pom-info) (str (:id pom-info))])
+                                                (and fs-root [module-id :fs fs-root fs-root])
+                                                [module-id :gen :gen "Generated Files"])]
 
-                                        (merge src-info
-                                          {:resource-name resource-name
-                                           :group-item-id [group-id resource-id]
-                                           :group-id group-id
-                                           :optimized-size optimized-size}))))
+                                        (assoc src-info
+                                          :resource-name resource-name
+                                          :group-item-id [group-id resource-id]
+                                          :group-id group-id
+                                          :optimized-size optimized-size))))
                                ;; sort all items so the sub-table is sorted
                                (sort-by :optimized-size >)
                                (group-by :group-id)
@@ -300,7 +329,7 @@
                                         (assoc item
                                           :group-id group-id
                                           :group-type (nth group-id 1)
-                                          :group-name (nth group-id 2)
+                                          :group-name (nth group-id 3)
                                           :group-pct (* 100 (double (/ group-size total)))
                                           :optimized-size group-size
                                           :item-count (count items)
@@ -319,11 +348,12 @@
                    :module-entries entries
                    :require-graph require-graph)
             (db/merge-seq :resource build-sources)
-            (db/merge-seq :module display-modules [:display-modules]))))
+            (db/merge-seq :module display-modules [:display-modules])
+            (check-dupes))))
 
 
 
-    (tap> data-ref)
+
 
     (local-eng/init! rt-ref)
 
