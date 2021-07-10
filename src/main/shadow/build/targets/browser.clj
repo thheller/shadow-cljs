@@ -773,62 +773,6 @@
                                       'cljs.core/MODULE_INFOS module-infos})
       )))
 
-
-(defmethod build-log/event->str ::npm-version-check
-  [event]
-  "Checking used npm package versions")
-
-(defmethod build-log/event->str ::npm-version-conflict
-  [{:keys [package-name wanted-dep wanted-version installed-version] :as event}]
-  (format "npm package \"%s\" expected version \"%s@%s\" but \"%s\" is installed."
-    package-name
-    wanted-dep
-    wanted-version
-    installed-version))
-
-(defn check-npm-versions [{::keys [version-checked] :keys [npm] :as state}]
-  (let [pkg-index
-        (->> (data/get-build-sources state)
-             (filter #(= :shadow-js (:type %)))
-             (map :package-name)
-             (remove nil?)
-             (remove #(contains? version-checked %))
-             (into #{})
-             (reduce
-               (fn [m package-name]
-                 (assoc m package-name (npm/find-package npm package-name)))
-               {}))]
-
-    (if-not (seq pkg-index)
-      ;; prevent the extra verbose log entry when no check is done
-      state
-      ;; keeping track of what we checked so its not repeatedly check during watch
-      ;; FIXME: updating npm package while watch is running will not check again
-      (util/with-logged-time [state {:type ::npm-version-check}]
-        (reduce
-          (fn [state package-name]
-            (doseq [[dep wanted-version]
-                    (merge (get-in pkg-index [package-name :package-json "dependencies"])
-                      (get-in pkg-index [package-name :package-json "peerDependencies"]))
-                    ;; not all deps end up being used so we don't need to check the version
-                    :when (get pkg-index dep)
-                    :let [installed-version (get-in pkg-index [dep :package-json "version"])]
-                    :when (and (not (str/includes? wanted-version "http:"))
-                               (not (str/includes? wanted-version "https:"))
-                               (not (str/includes? wanted-version "file:"))
-                               (not (str/includes? wanted-version "github:")))
-                    :when (not (npm-deps/semver-intersects wanted-version installed-version))]
-
-              (util/warn state {:type ::npm-version-conflict
-                                :package-name package-name
-                                :wanted-dep dep
-                                :wanted-version wanted-version
-                                :installed-version installed-version}))
-
-            (update state ::version-checked util/set-conj package-name))
-          state
-          (keys pkg-index))))))
-
 (defn process
   [{::build/keys [stage mode config] :as state}]
   (case stage
@@ -847,9 +791,6 @@
         (module-wrap)
 
         (cond->
-          (not (false? (get-in config [:js-options :check-versions])))
-          (check-npm-versions)
-
           (shared/bootstrap-host-build? state)
           (shared/bootstrap-host-info)))
 
