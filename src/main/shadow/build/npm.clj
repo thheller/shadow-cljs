@@ -146,6 +146,10 @@
         (when (.exists package-json-file)
           (read-package-json npm package-json-file))))))
 
+(defn get-package-info [npm ^File package-json-file]
+  (when (.exists package-json-file)
+    (read-package-json npm package-json-file)))
+
 (defn find-package* [{:keys [js-package-dirs] :as npm} package-name]
   ;; check all configured :js-package-dirs but only those
   ;; never automatically go up/down like node resolve does
@@ -190,54 +194,93 @@
          (when (not= suffix "")
            suffix))])))
 
-(defn find-package-main [npm {:keys [package-dir package-json] :as package}]
-  (let [entries
-        (->> (get-in npm [:js-options :entry-keys])
-             (map #(get package-json %))
-             (remove nil?)
-             (into []))
+(defn with-nested-package-dirs [{:keys [js-package-dirs] :as npm} ^File require-from]
+  ;; FIXME: rebuilding this a lot, maybe memoize
+  (let [roots (set js-package-dirs)]
+    (loop [dir (.getParentFile require-from)
+           result []]
+      (if (or (nil? dir) (contains? roots dir))
+        (into result js-package-dirs)
+        (let [test (io/file dir "node_modules")]
+          (if (and (.exists test) (.isDirectory test))
+            (recur (.getParentFile dir) (conj result test))
+            (recur (.getParentFile dir) result)
+            ))))))
 
-        entry-file
-        (reduce
-          (fn [_ entry]
-            ;; test file exts first, so we don't pick a directory over a file
-            ;; lib/jsdom
-            ;; lib/jsdom.js
-            (when-let [file (or (test-file-exts npm package-dir entry)
-                                (when-let [file-or-dir (test-file package-dir entry)]
-                                  (if-not (.isDirectory file-or-dir)
-                                    file-or-dir
-                                    (let [index (io/file file-or-dir "index.js")]
-                                      (and (.exists index) index)))))]
+(comment
+  (with-nested-package-dirs
+    {:js-package-dirs [(absolute-file (io/file "test-env"))]}
+    (absolute-file (io/file "test-env" "lvl1" "index.js"))))
 
-              ;; we only want the first one in case more exist
-              (reduced file)))
-          nil
-          entries)]
+(defn find-package-main [npm ^File package-dir]
+  (let [{:keys [package-json] :as package} (get-package-info npm (io/file package-dir "package.json"))]
 
-    (when (and (seq entries)
-               (not entry-file))
-      (throw (ex-info
-               (str "package in " package-dir " specified entries but they were all missing")
-               {:tag ::missing-entries
-                :entries entries
-                :package-dir package-dir})))
+    ;; when package.json exists lookup entry
+    ;; otherwise look for <dir>/index.js
+    (tap> [:find-package-main package-dir package-json npm])
+    (or (and package-json
+             (let [entries
+                   (->> (get-in npm [:js-options :entry-keys])
+                        (map #(get package-json %))
+                        (remove nil?)
+                        (into []))
 
-    entry-file))
+                   entry-file
+                   (reduce
+                     (fn [_ entry]
+                       ;; test file exts first, so we don't pick a directory over a file
+                       ;; lib/jsdom
+                       ;; lib/jsdom.js
+                       (when-let [file (or (test-file-exts npm package-dir entry)
+                                           (when-let [file-or-dir (test-file package-dir entry)]
+                                             (if-not (.isDirectory file-or-dir)
+                                               file-or-dir
+                                               (let [index (io/file file-or-dir "index.js")]
+                                                 (and (.exists index) index)))))]
+
+                         ;; we only want the first one in case more exist
+                         (reduced file)))
+                     nil
+                     entries)]
+
+               (when (and (seq entries)
+                          (not entry-file))
+                 (throw (ex-info
+                          (str "package in " package-dir " specified entries but they were all missing")
+                          {:tag ::missing-entries
+                           :entries entries
+                           :package-dir package-dir})))
+
+               entry-file))
+        (let [index (io/file package-dir "index.js")]
+        (when (and (.exists index) (.isFile index))
+          index)))))
 
 (defn find-package-require* [npm modules-dir require]
   (or (when-let [file (test-file modules-dir require)]
-        (and (.isFile file) file))
-      (test-file-exts npm modules-dir require)
-      ;; check if node_modules/<require>/package.json exists and follow :main
-      (when-let [package (find-package npm require)]
-        (find-package-main npm package))
-      ;; find node_modules/<require>/index.js
-      (let [^File file (io/file modules-dir require "index.js")]
-        (when (.exists file)
-          file))))
+        (cond
+          (.isFile file)
+          file
 
-(defn find-package-require [{:keys [js-package-dirs] :as npm} require]
+          (.isDirectory file)
+          (find-package-main npm file)
+
+          :else
+          nil))
+
+      (test-file-exts npm modules-dir require)
+
+      ;; check if node_modules/<require>/package.json exists and follow :main
+      #_(when-let [package (find-package npm require)]
+          (find-package-main npm package))
+
+      ;; find node_modules/<require>/index.js
+      #_(let [^File file (io/file modules-dir require "index.js")]
+          (when (.exists file)
+            file))))
+
+(defn find-package-require
+  [npm ^File require-from require]
   {:pre [(not (util/is-relative? require))
          (not (util/is-absolute? require))]}
 
@@ -257,7 +300,9 @@
       (when-let [file (find-package-require* npm modules-dir require)]
         (reduced file)))
     nil
-    js-package-dirs))
+    (if (and (get-in npm [:js-options :allow-nested-packages]) require-from)
+      (with-nested-package-dirs npm require-from)
+      (:js-package-dirs npm))))
 
 (defn find-relative [npm ^File relative-to ^String require]
   (when-not relative-to
@@ -298,9 +343,7 @@
               (test-file-exts npm file "index")
               (let [package-json (io/file file "package.json")]
                 (when (.exists package-json)
-                  (when-let [pkg (read-package-json npm package-json)]
-                    (find-package-main npm pkg)
-                    ))))
+                  (find-package-main npm file))))
 
           :else
           file)]
@@ -406,7 +449,7 @@
         (if-not (util/is-relative? browser-override)
           ;; don't know if this exists but probably does "./foo":"foo"
           ;; replacing a local file with a different package
-          (find-package-require npm browser-override)
+          (find-package-require npm require-from browser-override)
           ;; target is a relative path, it may either be relative to the
           ;; file it was required from or relative to the package
           (or (find-relative npm require-from browser-override)
@@ -437,7 +480,7 @@
 
           (cond
             (nil? override)
-            (find-package-require npm require)
+            (find-package-require npm require-from require)
 
             ;; "canvas": false
             (false? override)
@@ -446,7 +489,7 @@
             ;; "foo":"bar"
             ;; swap one package with the other
             :else
-            (find-package-require npm override)
+            (find-package-require npm require-from override)
             ))))))
 
 (defn maybe-convert-goog [dep]
@@ -646,10 +689,6 @@
         (swap! index-ref assoc-in [:files file] file-info)
         file-info
         )))
-
-(defn find-package-resource [npm require]
-  (when-let [file (find-package-require npm require)]
-    (get-file-info npm file)))
 
 (defn js-resource-for-global
   "a dependency might come from something already included in the page by other means
@@ -881,6 +920,7 @@
 
      ;; browser defaults
      :js-options {:extensions [#_".mjs" ".js" ".json"]
+                  :allow-nested-packages true
                   :target :browser
                   :use-browser-overrides true
                   :entry-keys ["browser" "main" "module"]}

@@ -5,7 +5,8 @@
             [shadow.build.npm :as npm]
             [shadow.build.resolve :refer (find-npm-resource)]
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
-            [shadow.cljs.util :as util])
+            [shadow.cljs.util :as util]
+            [shadow.debug :as dbg])
   (:import [clojure.lang ExceptionInfo]))
 
 (defmacro with-npm [[sym config] & body]
@@ -335,11 +336,35 @@
         (is (= 'shadow$empty ns))
         ))))
 
-(deftest test-nested-conflict-not-used-by-default
+
+;; use nested node_modules installs by default
+;; although I absolutely hate this it is the default in node/webpack
+;; and some package constellations really require this as they otherwise
+;; run into unresolvable dependency conflicts
+(deftest test-nested-conflict-used-by-default
   (with-npm [x {}]
     (let [test-root
           (-> (io/file "test-env")
               (.getAbsoluteFile))
+
+          {lvl1-file :file :as rc1}
+          (find-npm-resource x nil "lvl1")
+
+          {lvl2-file :file :as rc2}
+          (find-npm-resource x lvl1-file "lvl2")]
+
+      (is (= lvl2-file (io/file test-root "lvl1" "node_modules" "lvl2" "index.js")))
+      (is (= "node_modules/lvl1/node_modules/lvl2/index.js" (:resource-name rc2)))
+      )))
+
+(deftest test-nested-conflict-opt-out
+  (with-npm [x {}]
+    (let [test-root
+          (-> (io/file "test-env")
+              (.getAbsoluteFile))
+
+          x
+          (assoc-in x [:js-options :allow-nested-packages] false)
 
           {lvl1-file :file :as rc1}
           (find-npm-resource x nil "lvl1")
