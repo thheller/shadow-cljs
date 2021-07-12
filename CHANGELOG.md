@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.15.1](https://github.com/thheller/shadow-cljs/compare/d56bd6c3680e8e8a501ad6a0e79e82f7fe244a9a...d56bd6c3680e8e8a501ad6a0e79e82f7fe244a9a)
+- [ [`d56bd`](https://github.com/thheller/shadow-cljs/commit/d56bd6c3680e8e8a501ad6a0e79e82f7fe244a9a) ] limit new node-resolve rules to actual node_modules files only
+
 ## [2.15.0](https://github.com/thheller/shadow-cljs/compare/844df3fa52bbb5c587b0eb949dc0822a5fe940a5...2c4b5a2682ef78bb80c56d75b67bd0ff742f2d61)
 - [ [`2c4b5`](https://github.com/thheller/shadow-cljs/commit/2c4b5a2682ef78bb80c56d75b67bd0ff742f2d61) ] fixup build reports to show now possible duplicates
 - [ [`a41df`](https://github.com/thheller/shadow-cljs/commit/a41dfc710db58c817d6cf36a31314a19d746db0d) ] cleanup
