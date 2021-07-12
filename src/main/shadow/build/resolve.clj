@@ -177,7 +177,12 @@
       (or (not cp-rc?)
           (and (not abs?)
                (not rel?)))
-      (find-npm-resource (:npm state) file require)
+      (find-npm-resource
+        (:npm state)
+        (when (and (= :js (:type :require-from))
+                   (not (:classpath require-from)))
+          file)
+        require)
 
       (util/is-absolute? require)
       (cp/find-js-resource classpath require)
@@ -254,7 +259,14 @@
                    (or (not cp-rc?)
                        (and (not abs?)
                             (not rel?)))
-                   (find-npm-resource (:npm state) file require)
+                   (find-npm-resource
+                     (:npm state)
+                     ;; only consider require-from for shadow-js files
+                     ;; otherwise it may end up looking at directories it should not look at
+                     ;; relative to classpath files
+                     (when (= :shadow-js (:type require-from))
+                       file)
+                     require)
 
                    (util/is-absolute? require)
                    (cp/find-js-resource classpath require)

@@ -61,8 +61,9 @@
   (.endsWith (str/lower-case name) ".jar"))
 
 (defn is-cljs-file? [^String name]
-  (or (.endsWith (str/lower-case name) ".cljs")
-      (.endsWith (str/lower-case name) ".cljc")))
+  (let [lname (str/lower-case name)]
+    (or (.endsWith lname ".cljs")
+        (.endsWith lname ".cljc"))))
 
 (defn is-cljc? [^String name]
   (.endsWith name ".cljc"))
