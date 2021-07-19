@@ -20,9 +20,9 @@
   :dependencies
   [[org.clojure/clojure "1.10.3"]
 
-   [org.clojure/data.json "2.3.1"]
+   [org.clojure/data.json "2.4.0"]
    [org.clojure/tools.cli "1.0.206"]
-   [org.clojure/tools.reader "1.3.5"]
+   [org.clojure/tools.reader "1.3.6"]
 
    [nrepl "0.8.3"]
    [cider/piggieback "0.5.2"
@@ -37,7 +37,7 @@
    [org.clojure/core.async "1.3.618"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.10.866"
+   [org.clojure/clojurescript "1.10.879"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded
      org.clojure/google-closure-library
@@ -53,7 +53,7 @@
    [thheller/shadow-undertow "0.1.0"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.9.3"
+   [ring/ring-core "1.9.4"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
@@ -62,7 +62,7 @@
    [org.graalvm.js/js-scriptengine "21.1.0"]
 
    [expound "0.8.9"]
-   [fipp "0.6.23"]
+   [fipp "0.6.24"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
