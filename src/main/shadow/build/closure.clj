@@ -350,6 +350,7 @@
 
         js-globals
         (set/union
+          #{"module"}
           (extern-globals-from-cljs state))
 
         content
