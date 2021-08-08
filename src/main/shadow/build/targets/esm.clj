@@ -228,31 +228,28 @@
           (data/output-file state sub-path output-name)
           (data/output-file state output-name))]
 
-    ;; don't need these in dev
-    (when-not (::js-support/import-shim src)
+    ;; skip files we already have
+    (when (or true
+              (not (.exists js-file))
+              (zero? last-modified)
+              ;; js is not compiled but maybe modified
+              (> (or compiled-at last-modified)
+                 (.lastModified js-file)))
 
-      ;; skip files we already have
-      (when (or true
-                (not (.exists js-file))
-                (zero? last-modified)
-                ;; js is not compiled but maybe modified
-                (> (or compiled-at last-modified)
-                   (.lastModified js-file)))
+      (io/make-parents js-file)
 
-        (io/make-parents js-file)
+      (util/with-logged-time
+        [state {:type :flush-source
+                :resource-name resource-name}]
 
-        (util/with-logged-time
-          [state {:type :flush-source
-                  :resource-name resource-name}]
+        (let [prepend
+              (str "import \"./cljs_env.js\";\n")
 
-          (let [prepend
-                (str "import \"./cljs_env.js\";\n")
-
-                output
-                (str prepend
-                     js
-                     (output/generate-source-map state src output js-file prepend))]
-            (spit js-file output)))))))
+              output
+              (str prepend
+                   js
+                   (output/generate-source-map state src output js-file prepend))]
+          (spit js-file output))))))
 
 (defn flush-unoptimized-module
   [{:keys [worker-info build-modules] :as state}
@@ -275,7 +272,6 @@
           (->> sources
                (remove #{output/goog-base-id})
                (map #(data/get-source-by-id state %))
-               (remove ::js-support/import-shim)
                (map (fn [{:keys [output-name] :as rc}]
 
                       (str "import \"./cljs-runtime/" output-name "\";\n"
@@ -370,12 +366,12 @@
                           (filter ::js-support/import-shim))
 
                      externs
-                     (into #{} (map :ns) sources)
+                     (into #{} (map :import-alias) sources)
 
                      imports
                      (->> sources
-                          (map (fn [{:keys [ns js-import]}]
-                                 (str "import * as " ns " from \"" js-import "\";")))
+                          (map (fn [{:keys [js-import import-alias]}]
+                                 (str "import * as " import-alias " from \"" js-import "\";")))
                           (str/join "\n"))]
 
                  (-> mod
@@ -403,9 +399,9 @@
 
             imports
             (->> sources
-                 (map (fn [{:keys [ns js-import]}]
-                        (str "import * as " ns " from \"" js-import "\";\n"
-                             "globalThis." ns " = " ns ";")))
+                 (map (fn [{:keys [import-alias js-import]}]
+                        (str "import * as " import-alias " from \"" js-import "\";\n"
+                             "globalThis." import-alias " = " import-alias ";")))
                  (str/join "\n"))
 
             prepend-id
