@@ -157,26 +157,14 @@
             (when (empty? sources)
               (util/log state {:type :empty-module :mod-id mod-id}))
 
-            (let [foreign-count
-                  (->> sources
-                       (map #(get-in state [:sources %]))
-                       (filter util/foreign?)
-                       (count))
-
-                  all-foreign?
-                  (= foreign-count (count sources))
-
-                  ;; FIXME: this is a terrible hack to ensure that we know which module contains goog/base.js
+            (let [;; FIXME: this is a terrible hack to ensure that we know which module contains goog/base.js
                   ;; can't alias due to cyclic dependency, its an ordered vector, can't contains?
                   goog-base?
                   (some #(= % [:shadow.build.classpath/resource "goog/base.js"]) sources)
 
                   update
-                  (-> {:sources sources
-                       :foreign-count foreign-count}
+                  (-> {:sources sources}
                       (cond->
-                        all-foreign?
-                        (assoc :all-foreign all-foreign?)
                         goog-base?
                         (assoc :goog-base true)))]
 

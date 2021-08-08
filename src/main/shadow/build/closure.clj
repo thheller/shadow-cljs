@@ -32,8 +32,7 @@
     [com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode]
     [java.nio.charset Charset]
     [java.util.logging Logger Level]
-    [com.google.javascript.jscomp.parsing.parser FeatureSet]
-    [java.util LinkedHashMap]))
+    [com.google.javascript.jscomp.parsing.parser FeatureSet]))
 
 ;; get rid of some annoying/useless warning log messages
 ;; https://github.com/google/closure-compiler/pull/2998/files
@@ -659,16 +658,7 @@
 (defn make-js-modules
   [{:keys [build-modules build-sources] :as state}]
 
-  ;; modules that only contain foreign sources must not be exposed to closure
-  ;; since they technically do not depend on goog but closure only allows one root module
-  ;; when optimizing
-  (let [skip-mods
-        (->> build-modules
-             (filter :all-foreign)
-             (map :module-id)
-             (into #{}))
-
-        required-js-names
+  (let [required-js-names
         (data/js-names-accessed-from-cljs state build-sources)
 
         js-mods
@@ -678,8 +668,7 @@
 
                   sources
                   (->> sources
-                       (map #(data/get-source-by-id state %))
-                       (remove util/foreign?))
+                       (map #(data/get-source-by-id state %)))
 
                   mod-provides
                   (->> sources
@@ -695,7 +684,6 @@
                   (str "shadow/cljs/constants/" (name module-id) ".js")]
 
               (doseq [other-mod-id depends-on
-                      :when (not (contains? skip-mods other-mod-id))
                       :let [other-mod (get js-mods other-mod-id)]]
                 (when-not other-mod
                   (throw (ex-info (format "module \"%s\" depends on undefined module \"%s\", defined modules are %s"
@@ -761,9 +749,7 @@
 
               (assoc js-mods module-id js-mod)))
           {}
-          (->> build-modules
-               (remove :all-foreign)))
-
+          build-modules)
 
         modules
         (->> (for [{:keys [module-id] :as mod} build-modules]
@@ -1071,6 +1057,9 @@
              (into []))
 
         ;; _ (dump-js-modules js-mods)
+        _
+        (when (get-in state [:compiler-options :dump-closure-inputs])
+          (dump-closure-inputs state externs js-mods compiler-options))
 
         ^Result result
         (.compileModules
@@ -1089,10 +1078,6 @@
         source-map
         (when (and success? (get-in state [:compiler-options :source-map]))
           (.getSourceMap compiler))]
-
-
-    (when (get-in state [:compiler-options :dump-closure-inputs])
-      (dump-closure-inputs state externs js-mods compiler-options))
 
     (-> state
         (assoc ::result result ::injected-libs injected-libs)

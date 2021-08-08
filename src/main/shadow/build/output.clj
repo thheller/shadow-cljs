@@ -443,7 +443,6 @@
                 (map #(data/get-source-id-by-provide state %))
                 (distinct)
                 (map #(data/get-source-by-id state %))
-                (remove util/foreign?)
                 (map (fn [{:keys [output-name] :as x}]
                        (str "require(\"./" output-name "\");")))
                 (str/join "\n")))

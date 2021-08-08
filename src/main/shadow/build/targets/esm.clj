@@ -135,10 +135,8 @@
                    (vals)
                    (map namespace)
                    (map symbol)
-                   (cond->>
-                     (seq entries)
-                     (concat entries))
                    (distinct)
+                   (concat (or entries []))
                    (into []))
 
               module-config
