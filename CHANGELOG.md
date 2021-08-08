@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.3](https://github.com/thheller/shadow-cljs/compare/2dcb4b436a772764d38422383b43923871bdd94e...de52880090c7840ee30eb5369173c1bd7dd3055c)
+- [ [`de528`](https://github.com/thheller/shadow-cljs/commit/de52880090c7840ee30eb5369173c1bd7dd3055c) ] remove some old obsolete foreign-libs references
+- [ [`82100`](https://github.com/thheller/shadow-cljs/commit/8210087d56034487758769b5b5fb0b9fec0ab569) ] add :js-provider :import for :target :esm
+- [ [`39334`](https://github.com/thheller/shadow-cljs/commit/3933495e8267bd7160dce77065b7641325caae15) ] merge CLI -d dependencies later
+- [ [`d0ae3`](https://github.com/thheller/shadow-cljs/commit/d0ae3f63863588fb18b71eed14e1ae83810e3f41) ] fix :esm imports not working cross modules
+- [ [`2dcb4`](https://github.com/thheller/shadow-cljs/commit/2dcb4b436a772764d38422383b43923871bdd94e) ] add module as a default externs, specifically for transit-js
+
 ## [2.15.2](https://github.com/thheller/shadow-cljs/compare/e297d9c66f4c00859a166305075697a89d65eb40...e297d9c66f4c00859a166305075697a89d65eb40)
 - [ [`e297d`](https://github.com/thheller/shadow-cljs/commit/e297d9c66f4c00859a166305075697a89d65eb40) ] bump CLJS and some others deps
 
