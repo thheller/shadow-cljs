@@ -126,7 +126,7 @@
         enabled? (not (false? enabled))
         build-worker? (and enabled? (= :dev mode) worker-info)]
     (reduce-kv
-      (fn [mods module-id {:keys [exports init-fn preloads] :as module-config}]
+      (fn [mods module-id {:keys [entries exports init-fn preloads] :as module-config}]
         (let [default?
               (= default-module module-id)
 
@@ -135,6 +135,10 @@
                    (vals)
                    (map namespace)
                    (map symbol)
+                   (cond->>
+                     (seq entries)
+                     (concat entries))
+                   (distinct)
                    (into []))
 
               module-config
@@ -194,7 +198,9 @@
   (let [{:keys [runtime output-dir]} config]
     (-> state
         (build-api/with-build-options {})
-        (build-api/with-js-options {:js-provider :shadow})
+        (cond->
+          (not (get-in config [:js-options :js-provider]))
+          (build-api/with-js-options {:js-provider :shadow}))
 
         (configure-modules)
 

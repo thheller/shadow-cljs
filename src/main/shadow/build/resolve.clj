@@ -343,6 +343,65 @@
             (throw (ex-info "override not supported for :js-provider :require" resolve-cfg))
             ))))))
 
+(defmethod find-resource-for-string* :import
+  [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
+  (let [cp-rc? (when require-from
+                 (classpath-resource? require-from))]
+
+    (cond
+      (util/is-absolute? require)
+      (if-not cp-rc?
+        (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
+        (some->
+          (cp/find-js-resource classpath require)
+          (maybe-babel-rewrite)))
+
+      (util/is-relative? require)
+      (some->
+        (cp/find-js-resource classpath require-from require)
+        (maybe-babel-rewrite))
+
+      :else
+      (when (or (contains? native-node-modules require)
+                ;; if the require was a string we just pass it through
+                ;; we don't need to check if it exists since the runtime
+                ;; will take care of that. we do not actually need anything from the package
+                (not was-symbol?)
+
+                ;; treat every symbol as valid when :npm-deps in deps.cljs on the classpath contain it
+                (npm/is-npm-dep? (:npm state) require))
+
+        ;; technically this should be done before the find-package above
+        ;; but I'm fine with this breaking for symbol requires
+        (let [resolve-cfg (get-in js-options [:resolve require])]
+          (cond
+            (nil? resolve-cfg)
+            (js-support/shim-import-resource state require)
+
+            (false? resolve-cfg)
+            (assoc npm/empty-rc :deps []) ;; FIXME: why the shadow.js dep in npm?
+
+            (= :npm (:target resolve-cfg))
+            (let [{:keys [require require-min]} resolve-cfg
+
+                  require
+                  (or (and (= :release mode) require-min)
+                      require)]
+              (find-resource-for-string state require-from require false))
+
+            (= :file (:target resolve-cfg))
+            (npm/js-resource-for-file npm require resolve-cfg)
+
+            (= :global (:target resolve-cfg))
+            (npm/js-resource-for-global require resolve-cfg)
+
+            (= :resource (:target resolve-cfg))
+            (cp/find-js-resource classpath (:resource resolve-cfg))
+
+            :else
+            (throw (ex-info "override not supported for :js-provider :import" resolve-cfg))
+            ))))))
+
 (defmethod find-resource-for-string* :external
   [{:keys [npm js-options classpath mode] :as state} require-from require was-symbol?]
   (let [cp-rc? (when require-from
