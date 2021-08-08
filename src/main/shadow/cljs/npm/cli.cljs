@@ -196,7 +196,7 @@
                 (reduce-kv conj [dep-id version] mods))))
        (into [])))
 
-(defn get-classpath [project-root {:keys [cache-root user-config] :as config}]
+(defn get-classpath [project-root {:keys [cache-root user-config] :as config} opts]
   (let [cp-file
         (path/resolve project-root cache-root "classpath.edn")
 
@@ -215,6 +215,7 @@
         (-> config
             ;; allow the system config to add extra deps like cider-nrepl
             (update :dependencies into (:dependencies user-config))
+            (update :dependencies into (get-in opts [:options :dependencies]))
             (update :dependencies drop-unwanted-deps)
             (update :dependencies add-exclusions)
             (update :dependencies #(into [shadow-artifact] %)))
@@ -245,7 +246,7 @@
       ;; if anything is missing delete the classpath.edn and start over
       (do (fs/unlinkSync cp-file)
           (log "WARN: missing dependencies, reconstructing classpath.")
-          (recur project-root config)
+          (recur project-root config opts)
           ))))
 
 (defn print-error [ex]
@@ -256,9 +257,9 @@
 (defn get-shared-home []
   (path/resolve (os/homedir) ".shadow-cljs" jar-version))
 
-(defn get-jvm-opts [project-root {:keys [source-paths jvm-opts] :as config}]
+(defn get-jvm-opts [project-root {:keys [source-paths jvm-opts] :as config} opts]
   (let [classpath
-        (get-classpath project-root config)
+        (get-classpath project-root config opts)
 
         classpath-str
         (->> (:files classpath)
@@ -272,7 +273,7 @@
 
 (defn run-standalone [project-root config args opts]
   (let [cli-args
-        (-> (get-jvm-opts project-root config)
+        (-> (get-jvm-opts project-root config opts)
             (conj "clojure.main" "-m" "shadow.cljs.devtools.cli" "--npm")
             (into args))]
 
@@ -441,7 +442,7 @@
 
           :else
           ["java"
-           (-> (get-jvm-opts project-root config)
+           (-> (get-jvm-opts project-root config opts)
                (conj "clojure.main" "-m"))])
 
         server-args
@@ -498,14 +499,6 @@
    :version jar-version
    :dependencies []})
 
-(defn merge-config-with-cli-opts [config {:keys [options] :as opts}]
-  (let [{:keys [dependencies]} options]
-    (-> config
-        (cond->
-          (seq dependencies)
-          (update :dependencies into dependencies)
-          ))))
-
 (defn print-classpath-tree
   ([deps]
    (print-classpath-tree deps 0))
@@ -550,12 +543,12 @@
              (not (:deps config)))
     (println "=== Dependencies")
     (let [{:keys [deps-hierarchy] :as cp-data}
-          (get-classpath project-root config)]
+          (get-classpath project-root config opts)]
 
       (print-classpath-tree deps-hierarchy))
     (println)))
 
-(defn read-config* [config-path]
+(defn read-config [config-path]
   (try
     (let [reader-opts
           {:readers
@@ -586,11 +579,7 @@
 (defn read-user-config []
   (let [config-path (path/resolve (os/homedir) ".shadow-cljs" "config.edn")]
     (when (fs/existsSync config-path)
-      (read-config* config-path))))
-
-(defn read-config [config-path opts]
-  (-> (read-config* config-path)
-      (merge-config-with-cli-opts opts)))
+      (read-config config-path))))
 
 (defn guess-node-package-manager [project-root config]
   (or (get-in config [:node-modules :managed-by])
@@ -771,7 +760,7 @@
 
     :else
     (let [classpath
-          (get-classpath project-root config)
+          (get-classpath project-root config opts)
 
           classpath-str
           (->> (:files classpath)
@@ -832,7 +821,7 @@
                   (read-user-config)
 
                   config
-                  (read-config config-path opts)
+                  (read-config config-path)
 
                   {:keys [cache-root version] :as config}
                   (-> (merge defaults config)
