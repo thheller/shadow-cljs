@@ -61,8 +61,6 @@
    [org.graalvm.js/js "21.1.0"]
    [org.graalvm.js/js-scriptengine "21.1.0"]
 
-   [io.methvin/directory-watcher "0.15.0"]
-
    [expound "0.8.9"]
    [fipp "0.6.24"]
 
