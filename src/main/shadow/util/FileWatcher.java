@@ -2,6 +2,8 @@ package shadow.util;
 
 import clojure.lang.*;
 import com.sun.nio.file.SensitivityWatchEventModifier;
+import io.methvin.watcher.hashing.FileHasher;
+import io.methvin.watchservice.MacOSXListeningWatchService;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,7 +26,22 @@ public class FileWatcher implements AutoCloseable {
 
     FileWatcher(Path dir, PathMatcher matcher) throws IOException {
         this.root = dir;
-        this.ws = dir.getFileSystem().newWatchService();
+
+        boolean isMac = System.getProperty("os.name").toLowerCase().contains("mac");
+
+        if (isMac) {
+            // don't know exactly what this fileHasher is about but the default directory-watcher does this
+            // https://github.com/gmethvin/directory-watcher/blob/1d705974a37f34945c3cb90c0ecdeb900a2da62c/core/src/main/java/io/methvin/watcher/DirectoryWatcher.java#L129-L142
+            this.ws = new MacOSXListeningWatchService(
+                    new MacOSXListeningWatchService.Config() {
+                        @Override
+                        public FileHasher fileHasher() {
+                            return null;
+                        }
+                    });
+        } else {
+            this.ws = dir.getFileSystem().newWatchService();
+        }
         this.keys = new HashMap<WatchKey, Path>();
         this.matcher = matcher;
         registerAll(dir);
