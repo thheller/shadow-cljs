@@ -240,15 +240,16 @@
   (sg/render rt-ref root-el (ui-root)))
 
 (defn check-dupes [db]
-  (let [groups
-        (db/all-of db :group)
+  (let [npm-groups
+        (->> (db/all-of db :group)
+             (filter #(= :npm (:group-type %))))
 
         group-dupes
         (reduce
           (fn [m {:keys [group-name] :as group}]
             (update m group-name conj-set (:db/ident group)))
           {}
-          groups)]
+          npm-groups)]
 
     (reduce-kv
       (fn [db group-name group-ids]
