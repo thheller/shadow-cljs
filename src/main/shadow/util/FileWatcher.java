@@ -2,6 +2,9 @@ package shadow.util;
 
 import clojure.lang.*;
 import com.sun.nio.file.SensitivityWatchEventModifier;
+import io.methvin.watcher.hashing.FileHasher;
+import io.methvin.watchservice.MacOSXListeningWatchService;
+import io.methvin.watchservice.WatchablePath;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,13 +24,30 @@ public class FileWatcher implements AutoCloseable {
     private final WatchService ws;
     private final Map<WatchKey, Path> keys;
     private final PathMatcher matcher;
+    private final boolean isMac;
 
     FileWatcher(Path dir, PathMatcher matcher) throws IOException {
-        this.root = dir;
-        this.ws = dir.getFileSystem().newWatchService();
-        this.keys = new HashMap<WatchKey, Path>();
+        this.root = dir.toAbsolutePath();
+
+        this.isMac = System.getProperty("os.name").toLowerCase().contains("mac");
+
+        if (this.isMac) {
+            // don't know exactly what this fileHasher is about but the default directory-watcher does this
+            // https://github.com/gmethvin/directory-watcher/blob/1d705974a37f34945c3cb90c0ecdeb900a2da62c/core/src/main/java/io/methvin/watcher/DirectoryWatcher.java#L129-L142
+            this.ws = new MacOSXListeningWatchService(
+                    new MacOSXListeningWatchService.Config() {
+                        @Override
+                        public FileHasher fileHasher() {
+                            return null;
+                        }
+                    });
+        } else {
+            this.ws = this.root.getFileSystem().newWatchService();
+        }
+
+        this.keys = new HashMap<>();
         this.matcher = matcher;
-        registerAll(dir);
+        registerAll(this.root);
     }
 
 
@@ -37,6 +57,20 @@ public class FileWatcher implements AutoCloseable {
         this.ws.close();
     }
 
+    private Watchable asWatchable(Path dir) {
+        if (this.isMac) {
+            return new WatchablePath(dir);
+        } else {
+            return dir;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Path eventPath(WatchEvent event) {
+        WatchEvent<Path> ev = (WatchEvent<Path>) event;
+        return ev.context();
+    }
+
     private void registerAll(final Path start) throws IOException {
         Files.walkFileTree(
                 start,
@@ -44,7 +78,7 @@ public class FileWatcher implements AutoCloseable {
                 Integer.MAX_VALUE,
                 new SimpleFileVisitor<Path>() {
                     public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                        WatchKey key = dir.register(ws,
+                        WatchKey key = asWatchable(dir).register(ws,
                                 new WatchEvent.Kind[]{
                                         ENTRY_CREATE,
                                         ENTRY_DELETE,
@@ -100,8 +134,7 @@ public class FileWatcher implements AutoCloseable {
                     continue;
                 }
 
-                WatchEvent<Path> ev = (WatchEvent<Path>) event;
-                Path name = ev.context();
+                Path name = eventPath(event);
                 Path resolvedName = dir.resolve(name);
                 Path child = root.relativize(resolvedName);
                 String childName = child.toString();

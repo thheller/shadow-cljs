@@ -31,7 +31,7 @@
            ))))
 
 (defn watch-loop
-  [watch-dirs control publish-fn]
+  [{:keys [loop-wait] :or {loop-wait 500}} watch-dirs control publish-fn]
 
   (loop []
     (alt!!
@@ -39,7 +39,7 @@
       ([_]
         :terminated)
 
-      (async/timeout 500)
+      (async/timeout loop-wait)
       ([_]
         (let [fs-updates
               (->> watch-dirs
@@ -74,7 +74,7 @@
     {::service true
      :control control
      :watch-dirs watch-dirs
-     :thread (thread (watch-loop watch-dirs control publish-fn))}))
+     :thread (thread (watch-loop config watch-dirs control publish-fn))}))
 
 (defn stop [{:keys [control thread] :as svc}]
   {:pre [(service? svc)]}
