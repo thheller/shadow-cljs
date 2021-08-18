@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.15.4](https://github.com/thheller/shadow-cljs/compare/e381b50d142dcb93bacc7bf8804c9a1db5325d4b...f7e5b47bc2cb0b7aeac895e8febfc61c31d1652f)
+- [ [`f7e5b`](https://github.com/thheller/shadow-cljs/commit/f7e5b47bc2cb0b7aeac895e8febfc61c31d1652f) ] add faster file watcher for macOS
+- [ [`d962c`](https://github.com/thheller/shadow-cljs/commit/d962c2a512fcd1d5b76114f4b8c1ba36fafda89a) ] Revert "add faster file watcher for macOS"
+- [ [`a9bf3`](https://github.com/thheller/shadow-cljs/commit/a9bf3d973e8833b1c7738370380d9b4103475743) ] add faster file watcher for macOS
+- [ [`e381b`](https://github.com/thheller/shadow-cljs/commit/e381b50d142dcb93bacc7bf8804c9a1db5325d4b) ] fix build-reports incorrectly marking CLJS deps as duplicates
+
 ## [2.15.3](https://github.com/thheller/shadow-cljs/compare/2dcb4b436a772764d38422383b43923871bdd94e...de52880090c7840ee30eb5369173c1bd7dd3055c)
 - [ [`de528`](https://github.com/thheller/shadow-cljs/commit/de52880090c7840ee30eb5369173c1bd7dd3055c) ] remove some old obsolete foreign-libs references
 - [ [`82100`](https://github.com/thheller/shadow-cljs/commit/8210087d56034487758769b5b5fb0b9fec0ab569) ] add :js-provider :import for :target :esm
