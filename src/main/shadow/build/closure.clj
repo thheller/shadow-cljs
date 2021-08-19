@@ -878,8 +878,6 @@
                                    (map :resource-id)
                                    (into []))}]))]
 
-    (tap> [:js-mods modules])
-
     (assoc state ::modules modules)))
 
 (defn setup
@@ -1217,7 +1215,6 @@
       (fn [modules]
         (->> modules
              (map (fn [{:keys [name js-module] :as mod}]
-                    (tap> [:module-wrap-npm mod])
                     (let [requires
                           (->> (get-js-module-requires state js-module)
                                (map #(.getName %))
