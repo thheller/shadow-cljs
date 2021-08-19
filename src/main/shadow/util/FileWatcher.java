@@ -23,10 +23,10 @@ public class FileWatcher implements AutoCloseable {
     private final Path root;
     private final WatchService ws;
     private final Map<WatchKey, Path> keys;
-    private final PathMatcher matcher;
     private final boolean isMac;
+    private final List<String> extensions;
 
-    FileWatcher(Path dir, PathMatcher matcher) throws IOException {
+    FileWatcher(Path dir, List<String> extensions) throws IOException {
         this.root = dir.toAbsolutePath();
 
         this.isMac = System.getProperty("os.name").toLowerCase().contains("mac");
@@ -46,7 +46,7 @@ public class FileWatcher implements AutoCloseable {
         }
 
         this.keys = new HashMap<>();
-        this.matcher = matcher;
+        this.extensions = extensions;
         registerAll(this.root);
     }
 
@@ -88,6 +88,16 @@ public class FileWatcher implements AutoCloseable {
                         return FileVisitResult.CONTINUE;
                     }
                 });
+    }
+
+    private boolean matchesExtension(String name) {
+        for (String ext: extensions) {
+           if (name.endsWith("." + ext)) {
+               return true;
+           }
+        }
+
+        return false;
     }
 
 
@@ -146,7 +156,7 @@ public class FileWatcher implements AutoCloseable {
                     if (kind == ENTRY_CREATE) {
                         registerAll(resolvedName);
                     }
-                } else if (matcher.matches(name)) {
+                } else if (matchesExtension(childName)) {
                     if (kind == ENTRY_DELETE) {
                         changes = changes.assoc(childName, KW_DEL);
                     } else {
@@ -188,11 +198,7 @@ public class FileWatcher implements AutoCloseable {
     }
 
     public static FileWatcher create(Path dir, List<String> extensions) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        sb.append("glob:*.{");
-        sb.append(String.join(",", extensions));
-        sb.append("}");
-        return new FileWatcher(dir, dir.getFileSystem().getPathMatcher(sb.toString()));
+        return new FileWatcher(dir, extensions);
     }
 
     public static FileWatcher create(File dir, List<String> extensions) throws IOException {
