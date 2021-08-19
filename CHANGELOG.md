@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.15.5](https://github.com/thheller/shadow-cljs/compare/45be978b5ad55e3bdd0dc3ddcde57bb5622a2aed...8af80862c75f52009e76d8862d3cb3d4d94b0063)
+- [ [`8af80`](https://github.com/thheller/shadow-cljs/commit/8af80862c75f52009e76d8862d3cb3d4d94b0063) ] fix file watch on macOS
+- [ [`4dfb0`](https://github.com/thheller/shadow-cljs/commit/4dfb0b1080e5d66bbe9e9f6221e623577c17e91c) ] remove some leftover tap>
+- [ [`45be9`](https://github.com/thheller/shadow-cljs/commit/45be978b5ad55e3bdd0dc3ddcde57bb5622a2aed) ] rewrite :npm-module to produce fewer "modules"
+
 ## [2.15.4](https://github.com/thheller/shadow-cljs/compare/e381b50d142dcb93bacc7bf8804c9a1db5325d4b...f7e5b47bc2cb0b7aeac895e8febfc61c31d1652f)
 - [ [`f7e5b`](https://github.com/thheller/shadow-cljs/commit/f7e5b47bc2cb0b7aeac895e8febfc61c31d1652f) ] add faster file watcher for macOS
 - [ [`d962c`](https://github.com/thheller/shadow-cljs/commit/d962c2a512fcd1d5b76114f4b8c1ba36fafda89a) ] Revert "add faster file watcher for macOS"
