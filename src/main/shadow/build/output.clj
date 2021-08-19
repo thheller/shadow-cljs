@@ -443,6 +443,7 @@
                 (map #(data/get-source-id-by-provide state %))
                 (distinct)
                 (map #(data/get-source-by-id state %))
+                (remove :goog-src)
                 (map (fn [{:keys [output-name] :as x}]
                        (str "require(\"./" output-name "\");")))
                 (str/join "\n")))
@@ -527,7 +528,15 @@
           (data/output-file state "cljs_env.js")
 
           env-content
-          (js-module-env state config)
+          (str (js-module-env state config)
+               "\n"
+               (->> (:build-sources state)
+                    (remove #{goog-base-id})
+                    (map #(data/get-source-by-id state %))
+                    (filter :goog-src)
+                    (map #(data/get-output! state %))
+                    (map :js)
+                    (str/join "\n")))
 
           env-modified?
           (or (not (.exists env-file))
@@ -540,7 +549,8 @@
       (doseq [src-id (:build-sources state)
               :when (not= src-id goog-base-id)
               :let [src (get-in state [:sources src-id])]
-              :when (not (util/foreign? src))]
+              :when (and (not (:goog-src src))
+                         (not (util/foreign? src)))]
 
         (let [{:keys [output-name last-modified]}
               src

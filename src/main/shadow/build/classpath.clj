@@ -125,6 +125,8 @@
           (-> rc
               (assoc :type :goog
                      :requires (into #{} deps)
+                     :goog-src (or (= resource-name "goog/base.js")
+                                   (and (seq goog-provides) (every? #(str/starts-with? % "goog.") goog-provides)))
                      :source source
                      :provides
                      (-> #{}
@@ -137,7 +139,8 @@
                      :deps deps)
               (cond->
                 (seq goog-module)
-                (-> (assoc :goog-module true)
+                (-> (assoc :goog-module true
+                           :goog-src (str/starts-with? goog-module "goog."))
                     (update :provides conj (util/munge-goog-ns goog-module) (symbol goog-module)))
 
                 (= resource-name "goog/base.js")

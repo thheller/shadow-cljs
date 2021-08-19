@@ -765,90 +765,120 @@
 (defn make-js-module-per-source
   [{:keys [compiler-env build-sources] :as state}]
 
-  (let [js-mods
+  (let [^JSModule goog-mod
+        (JSModule. "cljs_env.js")
+
+        goog-sources
+        (->> build-sources
+             (map #(data/get-source-by-id state %))
+             (filter :goog-src)
+             (into []))
+
+        goog-src-ids
+        (->> goog-sources
+             (map :resource-id)
+             (into #{}))
+
+        js-mods
         (reduce
           (fn [js-mods resource-id]
             (let [{:keys [ns deps type resource-name output-name] :as src}
                   (data/get-source-by-id state resource-id)
 
                   {:keys [js] :as output}
-                  (data/get-output! state {:resource-id resource-id})
+                  (data/get-output! state {:resource-id resource-id})]
 
-                  defs
-                  (cond
-                    ;; special case for js shim namespaces
-                    (:export-self src)
-                    (str "\nmodule.exports=" ns ";")
+              (cond
+                (= output/goog-base-id resource-id)
+                (let [code
+                      (str (output/closure-defines state)
+                           js
+                           (str goog-nodeGlobalRequire-fix "\ngoog.global = global;"))]
 
-                    ;; for every CLJS namespace, collect every ^:export def
-                    ;; and copy them to module.exports, the goog.export... will be removed
-                    ;; as that exports to global which is not what we want
-                    ns
-                    (->> (get-in compiler-env [::ana/namespaces ns :defs])
-                         (vals)
-                         (filter #(get-in % [:meta :export]))
-                         (map :name)
-                         (map (fn [def]
-                                (let [export-name (-> def name str)
-                                      export-name
-                                      (if (= "default" export-name)
-                                        export-name
-                                        (-> export-name (comp/munge) (core-ext/safe-pr-str)))]
-                                  (str export-name ":" (comp/munge def)))))
-                         (str/join ",")
-                         (as-module-exports))
+                  (.add goog-mod (closure-source-file resource-name code))
+                  js-mods)
 
-                    :else
-                    nil)
+                (:goog-src src)
+                (do (.add goog-mod (closure-source-file resource-name js))
+                    js-mods)
 
-                  base?
-                  (= output/goog-base-id resource-id)
+                :else
+                (let [defs
+                      (cond
+                        ;; special case for js shim namespaces
+                        (:export-self src)
+                        (str "\nmodule.exports=" ns ";")
 
-                  code
-                  (str (when base?
-                         (output/closure-defines state))
-                       js
-                       (when base?
-                         (str goog-nodeGlobalRequire-fix
-                              "\ngoog.global = global;"))
-                       ;; FIXME: module.exports will become window.module.exports, rewritten later
-                       (when (seq defs)
-                         defs))
+                        ;; for every CLJS namespace, collect every ^:export def
+                        ;; and copy them to module.exports, the goog.export... will be removed
+                        ;; as that exports to global which is not what we want
+                        ns
+                        (->> (get-in compiler-env [::ana/namespaces ns :defs])
+                             (vals)
+                             (filter #(get-in % [:meta :export]))
+                             (map :name)
+                             (map (fn [def]
+                                    (let [export-name (-> def name str)
+                                          export-name
+                                          (if (= "default" export-name)
+                                            export-name
+                                            (-> export-name (comp/munge) (core-ext/safe-pr-str)))]
+                                      (str export-name ":" (comp/munge def)))))
+                             (str/join ",")
+                             (as-module-exports))
 
-                  js-mod
-                  (JSModule. (util/flat-filename output-name))]
+                        :else
+                        nil)
 
-              (when (= :cljs type)
-                (.add js-mod (closure-source-file (str "shadow/cljs/constants/" resource-name) "")))
+                      code
+                      (str js
+                           (when (seq defs)
+                             defs))
 
-              (.add js-mod (closure-source-file resource-name code))
+                      js-mod
+                      (JSModule. (util/flat-filename output-name))]
 
-              (doseq [dep
-                      (->> (data/deps->syms state src)
-                           (map #(data/get-source-id-by-provide state %))
-                           (distinct)
-                           (into []))]
+                  (when (= :cljs type)
+                    (.add js-mod (closure-source-file (str "shadow/cljs/constants/" resource-name) "")))
 
-                (let [other-mod (get js-mods dep)]
-                  (when-not other-mod
-                    (throw (ex-info (format "internal module error, no mod for dep:%s" dep)
-                             {:dep dep})))
-                  (.addDependency js-mod other-mod)))
+                  (.add js-mod (closure-source-file resource-name code))
 
-              (assoc js-mods resource-id js-mod)))
+                  (.addDependency js-mod goog-mod)
+
+                  (doseq [dep
+                          (->> (data/deps->syms state src)
+                               (map #(data/get-source-id-by-provide state %))
+                               (distinct)
+                               (into []))
+                          :when (not (contains? goog-src-ids dep))]
+
+                    (let [other-mod (get js-mods dep)]
+                      (when-not other-mod
+                        (throw (ex-info (format "internal module error, no mod for dep:%s" dep)
+                                 {:dep dep})))
+                      (.addDependency js-mod other-mod)))
+
+                  (assoc js-mods resource-id js-mod)))))
           {}
           build-sources)
 
         modules
         (->> build-sources
-             (map (fn [resource-id]
-                    (let [src (data/get-source-by-id state resource-id)]
-                      {:module-id resource-id
-                       :name (:name src)
-                       :output-name (util/flat-filename (:output-name src))
-                       :js-module (get js-mods resource-id)
-                       :sources [resource-id]})))
-             (into []))]
+             (map #(data/get-source-by-id state %))
+             (remove :goog-src)
+             (map (fn [{:keys [resource-id] :as src}]
+                    {:module-id resource-id
+                     :output-name (util/flat-filename (:output-name src))
+                     :js-module (get js-mods resource-id)
+                     :sources [resource-id]}))
+             (into [{:module-id output/goog-base-id
+                     :output-name "cljs_env.js"
+                     :js-module goog-mod
+                     :sources (->> goog-sources
+                                   (map :resource-id)
+                                   (into []))}]))]
+
+    (tap> [:js-mods modules])
 
     (assoc state ::modules modules)))
 
@@ -1161,7 +1191,7 @@
 
    state))
 
-(defn get-js-module-requires [{::keys [dead-modules] :as state} js-module]
+(defn get-js-module-requires [{::keys [dead-modules] :as state} ^JSModule js-module]
   ;; can't use .getAllDependencies since that is a set and unsorted
   (->> (.getDependencies js-module)
        (mapcat (fn [dep-mod]
@@ -1187,6 +1217,7 @@
       (fn [modules]
         (->> modules
              (map (fn [{:keys [name js-module] :as mod}]
+                    (tap> [:module-wrap-npm mod])
                     (let [requires
                           (->> (get-js-module-requires state js-module)
                                (map #(.getName %))
