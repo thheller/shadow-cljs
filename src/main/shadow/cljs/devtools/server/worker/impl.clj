@@ -386,7 +386,11 @@
                      :namespaces-modified #{}
                      :macros-modified #{}
                      :last-build-resources none-code-resources
-                     :last-build-provides (-> build-state :sym->id keys set)
+                     :last-build-provides
+                     (->> build-sources
+                          (map #(data/get-source-by-id build-state %))
+                          (map :provides)
+                          (reduce set/union #{}))
                      :last-build-sources build-sources
                      :last-build-macros build-macros))))
       (catch Exception e
