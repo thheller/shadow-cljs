@@ -68,7 +68,7 @@
 (defn run! [project-root cmd args proc-opts]
   (let [executable (which/sync cmd #js {:nothrow true})]
     (if-not executable
-      (do (println (str "Executable '" cmd "' not found on system path."))
+      (do (log (str "Executable '" cmd "' not found on system path."))
           (js/process.exit 1))
 
       (let [spawn-opts
@@ -780,15 +780,15 @@
                        (or (get-in pjson ["devDependencies" "shadow-cljs"])
                            (get-in pjson ["dependencies" "shadow-cljs"]))))
 
-        (println "------------------------------------------------------------------------------")
-        (println)
-        (println "   WARNING: shadow-cljs not installed in project.")
-        (println "   See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install")
-        (println)
-        (println "------------------------------------------------------------------------------")))
+        (log "------------------------------------------------------------------------------")
+        (log)
+        (log "   WARNING: shadow-cljs not installed in project.")
+        (log "   See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install")
+        (log)
+        (log "------------------------------------------------------------------------------")))
 
     (catch :default e
-      (println "WARNING: package.json not found. See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install"))))
+      (log "WARNING: package.json not found. See https://shadow-cljs.github.io/docs/UsersGuide.html#project-install"))))
 
 (defn main [args]
 
@@ -807,9 +807,9 @@
         :else
         (let [config-path (ensure-config)]
           (if-not config-path
-            (do (println "Could not find shadow-cljs.edn config file.")
-                (println "To create one run:")
-                (println "  shadow-cljs init"))
+            (do (log "Could not find shadow-cljs.edn config file.")
+                (log "To create one run:")
+                (log "  shadow-cljs init"))
 
             (let [project-root
                   (path/dirname config-path)
