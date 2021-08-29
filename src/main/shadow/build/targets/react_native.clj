@@ -40,14 +40,29 @@
   [{:keys [addr]}]
   (format "RN app will be using IP: %s" addr))
 
-(defn set-server-host [state {:keys [local-ip] :as config}]
-  (let [server-addr (or local-ip (api/get-server-addr))]
+(defn set-server-host [state config]
+  (let [addr (api/get-configured-server-addr)
+        addrs (api/get-server-addrs)]
 
-    (util/warn state {:type ::server-addr :addr server-addr})
+    (cond
+      addr
+      (assoc-in state
+        [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]
+        (str addr))
 
-    (assoc-in state
-      [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]
-      (str server-addr))))
+      (= 1 (count addrs))
+      (assoc-in state
+        [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]
+        (str (first addr)))
+
+      :else
+      (-> state
+          ;; need to set this, otherwise defaults to localhost which is never valid
+          (assoc-in [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host] "")
+          (assoc-in
+            [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-hosts]
+            (->> (api/get-server-addrs)
+                 (str/join ",")))))))
 
 (defn normalize-chunk-def [mode x]
   (let [append-key (if (= :dev mode) :append :append-js)]
@@ -250,10 +265,7 @@
                ;; always exists for :module-format :js
                "goog.global[\"$CLJS\"] = goog.global;\n"
                "\n\n"
-               out
-
-               "\n\n"
-               "console.log(\"dev init time\", new Date().getTime() - shadow$start);\n")
+               out)
           ;; else
           out)]
 

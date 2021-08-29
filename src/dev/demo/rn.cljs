@@ -21,7 +21,7 @@
   (js/console.log "pressed the bad button")
   (throw (ex-info "button pressed" {})))
 
-(js/console.log (js/require "../package.json"))
+(js/console.log "package.json just for fun" (js/require "../package.json"))
 
 (defn root []
   (react/createElement rn/View #js {:style (.-container styles)}

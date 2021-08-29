@@ -4,15 +4,16 @@
     [shadow.remote.runtime.api :as api]
     [shadow.remote.runtime.shared :as shared]
     [shadow.cljs.devtools.client.shared :as cljs-shared]
-    [shadow.cljs.devtools.client.websocket :as ws]))
+    [shadow.cljs.devtools.client.websocket :as ws]
+    [clojure.string :as str]))
 
 (defn devtools-msg
   ([x]
    (when env/log
-     (js/console.log x)))
+     (js/console.log "shadow-cljs" x)))
   ([x y]
    (when env/log
-     (js/console.log x y))))
+     (js/console.log "shadow-cljs" x y))))
 
 (defn script-eval [code]
   (js/goog.global.eval code))
@@ -59,6 +60,38 @@
     ;; hack to force eval in global scope
     ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
     (js* "(0,eval)(~{});" js)))
+
+(defn attempt-to-find-host [start-fn [host & more-hosts]]
+  (if-not host
+    (js/console.error (str "Could not find shadow-cljs host address, tried " env/server-hosts))
+    (let [controller
+          (js/AbortController.)
+
+          timeout-id
+          (js/setTimeout
+            (fn []
+              (.abort controller))
+            env/connect-timeout)
+
+          success
+          (fn []
+            (js/clearTimeout timeout-id)
+            (set! env/selected-host host)
+            (start-fn))
+
+          fail
+          (fn []
+            (js/clearTimeout timeout-id)
+            (attempt-to-find-host start-fn more-hosts))]
+
+      (-> (js/fetch (str (env/get-server-protocol) "://" host ":" env/server-port "/api/project-info")
+            #js {:signal (.-signal controller)})
+          (.then
+            (fn [^js resp]
+              (if (.-ok resp)
+                (success)
+                (fail))))
+          (.catch fail)))))
 
 (when (and env/enabled (pos? env/worker-client-id))
 
@@ -114,7 +147,7 @@
              ;; FIXME: why does this break stuff when done when the namespace is loaded?
              ;; why does it have to wait until the websocket is connected?
              (env/patch-goog!)
-             (devtools-msg (str "#"  (-> runtime :state-ref deref :client-id) " ready!")))
+             (devtools-msg (str "#" (-> runtime :state-ref deref :client-id) " ready!")))
 
            :on-disconnect
            (fn []
@@ -165,4 +198,31 @@
     (fn [{:keys [runtime] :as svc}]
       (api/del-extension runtime ::client)))
 
-  (cljs-shared/init-runtime! {:host :react-native} ws/start ws/send ws/stop))
+
+  ;; delay connecting for a little bit so errors thrown here don't disturb the app during load
+  ;; don't know when errors can actually happen but networks errors somehow seem to break the app
+  (js/setTimeout
+    (fn []
+      (let [start-fn #(cljs-shared/init-runtime! {:host :react-native} ws/start ws/send ws/stop)]
+
+        ;; try all known server ips if no specific host is configured
+        ;; host addr may change at any time eg. wlan switching, different devices
+        ;; so only making them sticky while the app is running, will reset on app reload
+        (cond
+          env/selected-host
+          (start-fn)
+
+          (and (seq env/server-host) (not= "localhost" env/server-host))
+          (start-fn)
+
+          (seq env/server-hosts)
+          (attempt-to-find-host
+            start-fn
+            (->> (str/split env/server-hosts ",")
+                 (vec)))
+
+          :else
+          (start-fn)
+          )))
+    250
+    ))

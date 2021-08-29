@@ -36,6 +36,12 @@
 
 (goog-define server-host "")
 
+(goog-define server-hosts "")
+
+(goog-define connect-timeout 1000)
+
+(def selected-host nil)
+
 (goog-define server-port 8200)
 
 (goog-define repl-pprint false)
@@ -75,6 +81,9 @@
 
 (defn get-server-host []
   (cond
+    (seq selected-host)
+    selected-host
+
     (and use-document-host
          js/goog.global.location
          (seq js/goog.global.location.hostname))
@@ -95,8 +104,11 @@
   (-> (get-url-base)
       (str/replace #"^http" "ws")))
 
+(defn get-ws-relay-path []
+  (str "/api/remote-relay?server-token=" server-token))
+
 (defn get-ws-relay-url []
-  (str (get-ws-url-base) "/api/remote-relay?server-token=" server-token))
+  (str (get-ws-url-base) (get-ws-relay-path)))
 
 ;; FIXME: this need to become idempotent somehow
 ;; but is something sets a print-fn we can't tell if that
