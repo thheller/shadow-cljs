@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.15.6](https://github.com/thheller/shadow-cljs/compare/02ece2f93aa9954e6483faf12019cdf4d1388e0c...ae6fd0ea49f4495effc965d9bb61ae30cfec407c)
+- [ [`ae6fd`](https://github.com/thheller/shadow-cljs/commit/ae6fd0ea49f4495effc965d9bb61ae30cfec407c) ] fix REPL interfering with hot-reload cycle
+- [ [`a191c`](https://github.com/thheller/shadow-cljs/commit/a191c3fc59cab85754eb372b627351076c02ba1d) ] avoid writing to stdout when possible in npm cli script
+- [ [`02ece`](https://github.com/thheller/shadow-cljs/commit/02ece2f93aa9954e6483faf12019cdf4d1388e0c) ] smarten up react-native websocket connect logic
+
 ## [2.15.5](https://github.com/thheller/shadow-cljs/compare/45be978b5ad55e3bdd0dc3ddcde57bb5622a2aed...8af80862c75f52009e76d8862d3cb3d4d94b0063)
 - [ [`8af80`](https://github.com/thheller/shadow-cljs/commit/8af80862c75f52009e76d8862d3cb3d4d94b0063) ] fix file watch on macOS
 - [ [`4dfb0`](https://github.com/thheller/shadow-cljs/commit/4dfb0b1080e5d66bbe9e9f6221e623577c17e91c) ] remove some leftover tap>
