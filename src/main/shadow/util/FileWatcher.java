@@ -171,7 +171,10 @@ public class FileWatcher implements AutoCloseable {
                         if (Files.exists(resolvedName) && !Files.isHidden(resolvedName)) {
                             if (kind == ENTRY_CREATE) {
                                 changes = changes.assoc(childName, KW_NEW);
-                            } else if (kind == ENTRY_MODIFY) {
+                            } else if (kind == ENTRY_MODIFY && !KW_NEW.equals(changes.valAt(childName))) {
+                                // only assoc as :mod event if not already :new
+                                // depending on OS there is a :new followed by an immediate :mod
+                                // need the new status more than the mod for greedy builds
                                 changes = changes.assoc(childName, KW_MOD);
                             }
                         }
