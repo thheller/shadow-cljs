@@ -75,7 +75,7 @@
 
           ;; FIXME: this isn't really about testing but the options may fit
           (contains? config :ns-regexp)
-          (tu/find-test-namespaces classpath config)
+          (tu/find-test-namespaces state config)
 
           :all
           (classpath/find-cljs-namespaces-in-files classpath nil))]
