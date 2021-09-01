@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.15.7](https://github.com/thheller/shadow-cljs/compare/720600fa12c4c59de9d625eeab8238b79d255da7...720600fa12c4c59de9d625eeab8238b79d255da7)
+- [ [`72060`](https://github.com/thheller/shadow-cljs/commit/720600fa12c4c59de9d625eeab8238b79d255da7) ] fix :npm-module :ns-regexp
+
 ## [2.15.6](https://github.com/thheller/shadow-cljs/compare/02ece2f93aa9954e6483faf12019cdf4d1388e0c...ae6fd0ea49f4495effc965d9bb61ae30cfec407c)
 - [ [`ae6fd`](https://github.com/thheller/shadow-cljs/commit/ae6fd0ea49f4495effc965d9bb61ae30cfec407c) ] fix REPL interfering with hot-reload cycle
 - [ [`a191c`](https://github.com/thheller/shadow-cljs/commit/a191c3fc59cab85754eb372b627351076c02ba1d) ] avoid writing to stdout when possible in npm cli script
