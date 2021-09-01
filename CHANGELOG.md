@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.15.8](https://github.com/thheller/shadow-cljs/compare/f303b025d2c438e5c8aaa545571d61404643273b...f303b025d2c438e5c8aaa545571d61404643273b)
+- [ [`f303b`](https://github.com/thheller/shadow-cljs/commit/f303b025d2c438e5c8aaa545571d61404643273b) ] fix greedy builds not actually picking up new files
+
 ## [2.15.7](https://github.com/thheller/shadow-cljs/compare/720600fa12c4c59de9d625eeab8238b79d255da7...720600fa12c4c59de9d625eeab8238b79d255da7)
 - [ [`72060`](https://github.com/thheller/shadow-cljs/commit/720600fa12c4c59de9d625eeab8238b79d255da7) ] fix :npm-module :ns-regexp
 
