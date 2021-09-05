@@ -11,8 +11,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@babel/core": "^7.7.2",
-    "@babel/preset-env": "^7.7.1",
-    "@zeit/ncc": "^0.20.5"
+    "@babel/core": "7.15.5",
+    "@babel/preset-env": "7.10.2",
+    "@vercel/ncc": "^0.30.0"
   }
 }

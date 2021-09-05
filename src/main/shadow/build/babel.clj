@@ -159,7 +159,9 @@
     (let [{:keys [code] :as result}
           (transform babel {:code source
                             :file file-path
-                            :preset-config (get-in state [:js-options :babel-preset-config])})]
+                            :preset-config
+                            (get-in state [:js-options :babel-preset-config]
+                              {:targets {"chrome" "90"}})})]
       (when-not (seq code)
         (throw (ex-info "babel failed?" (assoc result :file file-path))))
 
@@ -169,8 +171,11 @@
   (let [{:keys [babel-in] :as svc} (start)]
     (prn [:started])
 
-    (dotimes [x 10]
-      (prn (transform svc {:code "let foo = 1;" :resource-name "test.js"})))
+    (prn (transform svc {:code "let foo = 1;"
+                         :file "test.js"
+                         :preset-config
+                         {
+                          :targets {"chrome" "80"}}}))
 
     (stop svc)
     (prn [:done])
