@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.15.9](https://github.com/thheller/shadow-cljs/compare/724ba3dbb731fb5238c10d7b078de4026b3269d2...b2c58ecaf0ae05b356b73e54f4104bb3c8aa0cc1)
+- [ [`b2c58`](https://github.com/thheller/shadow-cljs/commit/b2c58ecaf0ae05b356b73e54f4104bb3c8aa0cc1) ] added `,' to PS list of escape chars. (#931)
+- [ [`724ba`](https://github.com/thheller/shadow-cljs/commit/724ba3dbb731fb5238c10d7b078de4026b3269d2) ] update babel & babel-worker
+
 ## [2.15.8](https://github.com/thheller/shadow-cljs/compare/f303b025d2c438e5c8aaa545571d61404643273b...f303b025d2c438e5c8aaa545571d61404643273b)
 - [ [`f303b`](https://github.com/thheller/shadow-cljs/commit/f303b025d2c438e5c8aaa545571d61404643273b) ] fix greedy builds not actually picking up new files
 
