@@ -379,6 +379,7 @@
 (defn powershell-escape [s]
   (-> s
       (str/replace " " "` ")
+      (str/replace "," "`,")
       (str/replace "{" "`{")
       (str/replace "}" "`}")
       (str/replace \" "`\"`\"")))
