@@ -115,10 +115,38 @@
      :cljs true ;; (instance? js/Error x)
      ))
 
+(def rank-predicates
+  [nil?
+   boolean?
+   number?
+   string?
+   keyword?
+   symbol?
+   vector?
+   map?
+   list?])
+
+(defn rank-val [val]
+  (reduce-kv
+    (fn [res idx pred]
+      (if (pred val)
+        (reduced idx)
+        res))
+    -1
+    rank-predicates))
+
+(defn smart-comp [a b]
+  (try
+    (compare a b)
+    (catch #?(:clj Exception :cljs js/Error) e
+      (let [ar (rank-val a)
+            br (rank-val b)]
+        (compare ar br)))))
+
 (defn attempt-to-sort [desc coll]
   (try
     (-> desc
-        (assoc :view-order (vec (sort coll)))
+        (assoc :view-order (vec (sort smart-comp coll)))
         (assoc-in [:summary :sorted] true))
     (catch #?(:clj Exception :cljs :default) e
       (-> desc
