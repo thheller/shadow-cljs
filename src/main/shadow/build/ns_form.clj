@@ -33,6 +33,11 @@
     :key #{:as}
     :value ::local-name))
 
+(s/def ::as-alias
+  (s/cat
+    :key #{:as-alias}
+    :value ::local-name))
+
 (s/def ::default
   (s/cat
     :key #{:default}
@@ -68,6 +73,7 @@
 (s/def ::require-opt
   (s/alt
     :as ::as
+    :as-alias ::as-alias
     :refer ::refer
     :refer-macros ::refer-macros
     :rename ::rename
@@ -315,8 +321,15 @@
        (remove sym-to-remove)
        (vec)))
 
+(defn assert-as-alias-used-alone [lib opts-m]
+  (when-not (= 1 (count opts-m))
+    (throw (ex-info ":as-alias cannot be used with other options"
+             {:tag ::as-alias-not-alone
+              :opts opts-m
+              :lib lib}))))
+
 (defn process-symbol-require
-  [ns-info lib {:keys [js as default refer refer-macros include-macros import rename only] :as opts-m}]
+  [ns-info lib {:keys [js as as-alias default refer refer-macros include-macros import rename only] :as opts-m}]
 
   ;; FIXME: remove this, just a sanity check since the first impl was incorrect
   (assert (not (contains? opts-m :imports)))
@@ -326,38 +339,44 @@
         refer (remove-entry refer rename-syms)
         refer-macros (remove-entry refer-macros rename-syms)]
 
-    (-> ns-info
-        (add-dep lib)
-        (merge-require :requires lib lib)
-        (cond->
-          as
-          (merge-require :requires as lib)
+    (if as-alias
+      ;; can't use :refer or others with :as-alias
+      (do (assert-as-alias-used-alone lib opts-m)
+          (update ns-info :reader-aliases assoc as-alias lib))
 
-          default
-          (update :renames assoc default (symbol (str lib) "default"))
+      ;; regular none :as-alias require
+      (-> ns-info
+          (add-dep lib)
+          (merge-require :requires lib lib)
+          (cond->
+            as
+            (merge-require :requires as lib)
 
-          import
-          (-> (merge-require :imports import lib)
-              (merge-require :requires import lib))
+            default
+            (update :renames assoc default (symbol (str lib) "default"))
 
-          (or include-macros (seq refer-macros))
-          (-> (merge-require :require-macros lib lib)
-              (cond->
-                as
-                (merge-require :require-macros as lib))))
-        (reduce->
-          (merge-require-fn :uses lib)
-          refer)
-        (reduce->
-          (merge-require-fn :use-macros lib)
-          refer-macros)
-        (reduce-kv->
-          (fn [ns-info var-to-rename rename-sym]
-            (update ns-info :renames assoc rename-sym (symbol (str lib) (str var-to-rename))))
-          rename)
-        (reduce->
-          (merge-require-fn :uses lib)
-          only))))
+            import
+            (-> (merge-require :imports import lib)
+                (merge-require :requires import lib))
+
+            (or include-macros (seq refer-macros))
+            (-> (merge-require :require-macros lib lib)
+                (cond->
+                  as
+                  (merge-require :require-macros as lib))))
+          (reduce->
+            (merge-require-fn :uses lib)
+            refer)
+          (reduce->
+            (merge-require-fn :use-macros lib)
+            refer-macros)
+          (reduce-kv->
+            (fn [ns-info var-to-rename rename-sym]
+              (update ns-info :renames assoc rename-sym (symbol (str lib) (str var-to-rename))))
+            rename)
+          (reduce->
+            (merge-require-fn :uses lib)
+            only)))))
 
 (defn process-require [ns-info lib opts]
   (if (string? lib)
@@ -487,6 +506,7 @@
    :imports nil ;; {Class ns}
    :requires nil
    :require-macros nil
+   :reader-aliases {}
    :deps []
    :uses nil
    :use-macros nil
@@ -538,7 +558,7 @@
        (if (= 'cljs.core name)
          (update ns-info :deps
            (fn [deps]
-             (->> (concat '[goog #_ shadow.cljs_helpers] deps)
+             (->> (concat '[goog #_shadow.cljs_helpers] deps)
                   (distinct)
                   (into []))))
          (-> ns-info
@@ -547,7 +567,7 @@
              (update :require-macros assoc 'cljs.core 'cljs.core)
              (update :deps
                (fn [deps]
-                 (->> (concat '[goog #_ shadow.cljs_helpers cljs.core] deps)
+                 (->> (concat '[goog #_shadow.cljs_helpers cljs.core] deps)
                       ;; just in case someone manually required cljs.core
                       (distinct)
                       (into [])

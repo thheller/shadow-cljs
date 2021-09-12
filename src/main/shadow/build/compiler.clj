@@ -284,7 +284,7 @@
                  {:read-cond :allow :features reader-features}))
         in (readers/indexing-push-back-reader (PushbackReader. (StringReader. cljs-source)) 1 resource-name)]
 
-    (loop [{:keys [ns ns-info] :as compile-state} init]
+    (loop [{:keys [ns reader-aliases] :as compile-state} init]
       (let [ns
             (if-not (:macros-ns compile-state)
               ns
@@ -306,9 +306,7 @@
                       tags/*cljs-data-readers*
 
                       reader/*alias-map*
-                      (merge reader/*alias-map*
-                        (:requires ns-info)
-                        (:require-macros ns-info))
+                      reader-aliases
 
                       reader/resolve-symbol
                       ana/resolve-symbol]
@@ -375,6 +373,13 @@
           (comp/emitln "var " ns "=" (npm/shadow-js-require rc))
           )))))
 
+(defn update-ns-reader-aliases [{:keys [ns-info] :as compile-state}]
+  (update compile-state :reader-aliases
+    merge
+    (:requires ns-info)
+    (:require-macros ns-info)
+    (:reader-aliases ns-info)))
+
 (defn default-analyze-cljs
   [{:keys [last-progress-ref] :as state} {:keys [macros-ns] :as compile-state} form]
   ;; ignore (defmacro ...) in normal cljs compilation since they otherwise end
@@ -395,9 +400,11 @@
           (update :ast conj ast)
           (cond->
             (= op :ns)
-            (assoc
-              :ns (:name ast)
-              :ns-info (dissoc ast :env)))))))
+            (-> (assoc
+                  :ns (:name ast)
+                  :ns-info (dissoc ast :env))
+                (update-ns-reader-aliases))
+            )))))
 
 (defn ns-wildcard-match? [pattern ns]
   (let [s (cond
@@ -593,7 +600,8 @@
                    :ns 'cljs.user
                    :ast []
                    :cljc (util/is-cljc? resource-name)
-                   :reader-features (data/get-reader-features state)}
+                   :reader-features (data/get-reader-features state)
+                   :reader-aliases reader/*alias-map*}
                   (cond->
                     (:macros-ns rc)
                     (assoc :macros-ns true)))

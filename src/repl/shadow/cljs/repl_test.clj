@@ -172,3 +172,12 @@
             (repl/process-input "m/max"))]
 
     (pprint repl-state)))
+
+(deftest test-repl-require-as-alias
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(require '[foo.bar :as-alias m])")
+            (repl/process-input "::m/max"))]
+
+    (pprint repl-state)))

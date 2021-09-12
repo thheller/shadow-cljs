@@ -102,6 +102,19 @@
 
     (is (thrown? ExceptionInfo (ns-form/parse test {})))))
 
+;; https://clojure.atlassian.net/browse/CLJ-2123
+(deftest test-ns-as-alias
+  (let [test
+        '(ns something
+           (:require
+             [some.a :as-alias a]))
+
+        res
+        (ns-form/parse test)]
+
+    (tap> res)
+    (is (= 'some.a (get-in res [:reader-aliases 'a])))))
+
 (deftest test-parse-with-strings
   (let [test
         '(ns something
@@ -300,6 +313,14 @@
     '(:require
        just.a.sym
        [goog.string :as gstr]
+       [some.foo :as foo :refer (x y z) :refer-macros (foo bar) :rename {x c}]
+       ["react" :as react]
+       :reload))
+
+  (check ::ns-form/ns-require
+    '(:require
+       just.a.sym
+       [goog.string :as-alias gstr]
        [some.foo :as foo :refer (x y z) :refer-macros (foo bar) :rename {x c}]
        ["react" :as react]
        :reload)))

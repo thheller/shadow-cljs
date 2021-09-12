@@ -25,7 +25,8 @@
     [shadow.build.resolve :as res]
     [shadow.build.classpath :as classpath]
     [shadow.remote.runtime.eval-support :as es]
-    [shadow.build.async :as async])
+    [shadow.build.async :as async]
+    [shadow.debug :as dbg])
   (:import
     [java.io StringReader BufferedReader]
     [java.nio.file Path]
@@ -553,7 +554,8 @@
                     reader/*alias-map*
                     (merge reader/*alias-map*
                       (:requires ns-info)
-                      (:require-macros ns-info))]
+                      (:require-macros ns-info)
+                      (:reader-aliases ns-info))]
 
             (reader/read reader-opts in))
 
