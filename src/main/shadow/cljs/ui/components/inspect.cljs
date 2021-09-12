@@ -9,7 +9,6 @@
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.experiments.grove.keyboard :as keyboard]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.components.common :as common]
     ))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
@@ -194,15 +193,22 @@
   (bind object
     (sg/query-ident ident
       [:db/ident
+       :oid
        :summary
        :is-error
+       :runtime
        :display-type]))
 
   (event ::go-first! [env _ _]
     (sg/run-tx env {:e ::m/inspect-set-current! :idx 0}))
 
   (event ::code-eval! [env {:keys [code]}]
-    (sg/run-tx env {:e ::m/inspect-code-eval! :ident ident :panel-idx panel-idx :code code}))
+    (sg/run-tx env
+      {:e ::m/inspect-code-eval!
+       :runtime-ident (:runtime object)
+       :ref-oid (:oid object)
+       :panel-idx panel-idx
+       :code code}))
 
   (event ::inspect-nav! [env tx]
     (sg/run-tx env (assoc tx :e ::m/inspect-nav! :ident ident :panel-idx panel-idx)))
@@ -246,6 +252,15 @@
              (<< [:div.flex-1.overflow-hidden.font-mono
                   (render-view object active?)]))
 
+           [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
+            [:div "View as: "]
+            (when (contains? supports :fragment)
+              (view-as-button display-type :browse "Browse" active?))
+            (when (contains? supports :pprint)
+              (view-as-button display-type :pprint "Pretty-Print" active?))
+            (when (contains? supports :edn)
+              (view-as-button display-type :edn "EDN" active?))]
+
            ;; FIXME: don't always show this
            [:div.bg-white.font-mono.flex.flex-col
             [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
@@ -256,16 +271,7 @@
                {:submit-event {:e ::code-eval!}
                 :cm-opts
                 {:autofocus false
-                 :tabindex (if active? 0 -1)}})]]
-
-           [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
-            [:div "View as: "]
-            (when (contains? supports :fragment)
-              (view-as-button display-type :browse "Browse" active?))
-            (when (contains? supports :pprint)
-              (view-as-button display-type :pprint "Pretty-Print" active?))
-            (when (contains? supports :edn)
-              (view-as-button display-type :edn "EDN" active?))]]
+                 :tabindex (if active? 0 -1)}})]]]
           ))))
 
 (defc ui-tap-stream-item [object-ident {:keys [idx focus]}]
@@ -339,6 +345,174 @@
     (if-not tap-latest
       (<< [:div.p-8.text-2xl "No Taps yet. (tap> something) to see it here."])
       (ui-object-panel tap-latest panel-idx active?))))
+
+(defc ui-explore-var-details [var-ident]
+  (bind {:keys [description var] :as data}
+    (sg/query-ident var-ident))
+
+  (render
+    (let [{:keys [doc arglists]} description]
+
+      (<< [:div.text-xl.font-bold.p-2.border-t (str var)]
+          (when (or (seq doc) (seq arglists))
+            (<< [:div {:class "border-t p-2 max-h-[12%] overflow-y-auto"}
+                 (when (seq doc)
+                   (<< [:div.p-2 doc]))
+                 (when (seq arglists)
+                   (sg/simple-seq arglists
+                     (fn [arglist]
+                       (<< [:div.px-2 "(" (pr-str arglist) ")"]))))]))))))
+
+(defc ui-explore-ns-details [ns-ident]
+  (bind {::m/keys [runtime-vars] :as data}
+    (sg/query-ident ns-ident
+      [:ns
+       {::m/runtime
+        [::m/explore-var]}
+       {::m/runtime-vars
+        [:db/ident
+         :var]}]))
+
+  (bind explore-var
+    (get-in data [::m/runtime ::m/explore-var]))
+
+  (render
+    (<< [:div.flex-1.flex.overflow-hidden.flex-col
+         [:div.flex-1.overflow-y-auto.px-2
+          (when (seq runtime-vars)
+            (sg/simple-seq runtime-vars
+              (fn [{:keys [var] :as item}]
+                (<< [:div
+                     {:class (when (= (:db/ident item) explore-var) "font-bold")
+                      :on-click {:e ::m/runtime-select-var!
+                                 :ident (:db/ident item)}}
+                     (name var)]))))]
+         ])))
+
+(defc ui-explore-object-panel
+  {:supports?
+   (fn [prev-args next-args]
+     (= (first prev-args) (first next-args)))}
+
+  [ident panel-idx active?]
+  (bind object
+    (sg/query-ident ident
+      [:db/ident
+       :summary
+       :is-error
+       :display-type]))
+
+  (event ::inspect-nav! [env tx]
+    (sg/run-tx env (assoc tx :e ::m/inspect-nav! :ident ident :panel-idx panel-idx)))
+
+  (event ::inspect-switch-display! [env tx]
+    (sg/run-tx env (assoc tx :e ::m/inspect-switch-display! :ident ident)))
+
+  (event ::kb-select! [env {:keys [idx]}]
+    (sg/run-tx env {:e ::m/inspect-nav! :ident ident :idx idx :panel-idx panel-idx}))
+
+  (render
+
+    (let [{:keys [summary is-error display-type]} object
+          {:keys [obj-type entries supports]} summary]
+
+      (<< [:div {:class "flex-1 flex flex-col overflow-hidden min-h-[52%] border-t"
+                 ::keyboard/listen true}
+           [:div {:class "flex font-mono font-bold items-center border-b border-b-200"}
+            [:div {:class (str "px-2 py-2" (when is-error " text-red-700"))} obj-type]
+            (when entries
+              (<< [:div.py-2.px-2 (str entries " Entries")]))]
+
+           (case display-type
+             :edn
+             (ui-object-as-text ident ::m/object-as-edn active?)
+
+             :pprint
+             (ui-object-as-text ident ::m/object-as-pprint active?)
+
+             ;; default
+             (<< [:div.flex-1.overflow-hidden.font-mono
+                  (render-view object active?)]))
+
+           ;; FIXME: don't always show this
+
+
+           [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
+            [:div "View as: "]
+            (when (contains? supports :fragment)
+              (view-as-button display-type :browse "Browse" active?))
+            (when (contains? supports :pprint)
+              (view-as-button display-type :pprint "Pretty-Print" active?))
+            (when (contains? supports :edn)
+              (view-as-button display-type :edn "EDN" active?))]]
+          ))))
+
+(defc ui-explore-runtime-panel [runtime-ident panel-idx active?]
+  (bind {:keys
+         [runtime-id]
+         ::m/keys
+         [explore-ns
+          explore-var
+          explore-var-object
+          runtime-namespaces
+          runtime-namespaces-filtered]
+         :as data}
+
+    (sg/query-ident runtime-ident
+      [:runtime-id
+       ::m/runtime-namespaces
+       {::m/runtime-namespaces-filtered
+        [:db/ident
+         :ns]}
+       ::m/explore-ns
+       ::m/explore-var
+       ::m/explore-var-object
+       ::m/explore-state]))
+
+  (event ::code-eval! [env {:keys [code]}]
+    (sg/run-tx env
+      {:e ::m/inspect-code-eval!
+       :runtime-ident runtime-ident
+       :runtime-ns explore-ns
+       :panel-idx panel-idx
+       :code code}))
+
+  (render
+    (<< [:div.flex-1.overflow-hidden.flex.flex-col.bg-white
+         [:div.p-2.font-bold.border-b "Exploring Runtime: #" runtime-id]
+         [:div.flex-1.flex.overflow-hidden
+          [:div.overflow-y-auto
+           (sg/keyed-seq runtime-namespaces-filtered identity
+             (fn [{:keys [ns] :as rt-ns}]
+               (<< [:div
+                    {:class (str "px-2" (when (= (:db/ident rt-ns) explore-ns) " font-bold"))
+                     :on-click {:e ::m/runtime-select-namespace!
+                                :ident (:db/ident rt-ns)}}
+                    (name ns)])))]
+
+          (if explore-ns
+            (ui-explore-ns-details explore-ns)
+            (<< [:div.flex-1 "Select a namespace ..."]))]
+
+         (when explore-var
+           (ui-explore-var-details explore-var))
+
+         (when explore-var-object
+           (ui-explore-object-panel explore-var-object panel-idx active?))
+
+         [:div.bg-white.font-mono.flex.flex-col
+          [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
+           [:div.flex-1 "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
+          [:div {:style {:height "120px"}}
+           ;; must not autofocus, otherwise the scroll-anim breaks
+           (codemirror
+             {:submit-event {:e ::code-eval!}
+              :cm-opts
+              {:autofocus false
+               :tabindex (if active? 0 -1)}})]]
+
+         ])))
+
 
 ;; really hacky way to scroll stuff
 ;; need to come up with better abstraction for this
@@ -483,6 +657,9 @@
 
                         :object-panel
                         (ui-object-panel (:ident item) idx active?)
+
+                        :explore-runtime-panel
+                        (ui-explore-runtime-panel (:runtime item) idx active?)
 
                         (<< [:div (pr-str item)]))]]
                     ))))]])))

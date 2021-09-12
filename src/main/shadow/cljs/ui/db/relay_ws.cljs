@@ -25,7 +25,7 @@
   {:db
    (assoc db ::m/tool-id client-id ::m/relay-ws-connected true)
 
-   :ws-send
+   :relay-send
    [{:op :request-clients
      :notify true
      :query [:eq :type :runtime]}]})
@@ -57,11 +57,13 @@
                               :result-data result-data})
     (cast! env (assoc msg :call-id mid))))
 
-(ev/reg-fx env/rt-ref :ws-send
-  (fn [{::keys [ws-ref] ::rt/keys [transit-str] :as env} messages]
-    (let [socket @ws-ref]
-      (doseq [msg messages]
-        (.send socket (transit-str msg))))))
+(ev/reg-fx env/rt-ref :relay-send
+  (fn [env messages]
+    (doseq [msg messages
+            :when msg]
+      (if-some [result (::result msg)]
+        (call! env (dissoc msg ::result) result)
+        (cast! env msg)))))
 
 (defn init [rt-ref server-token on-welcome]
   (let [socket (js/WebSocket.
@@ -85,6 +87,7 @@
       (.addEventListener socket "message"
         (fn [e]
           (let [{:keys [call-id op] :as msg} (transit-read (.-data e))]
+
             (cond
               call-id
               (let [{:keys [result-data] :as call-data} (get @rpc-ref call-id)]

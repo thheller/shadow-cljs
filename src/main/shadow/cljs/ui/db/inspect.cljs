@@ -35,7 +35,7 @@
               (vec))]
      (db/merge-seq db ::m/runtime runtimes [::m/runtimes]))
 
-   :ws-send
+   :relay-send
    [{:op :request-supported-ops
      :to (->> clients
               (map :client-id)
@@ -51,7 +51,7 @@
       {:db
        (db/add db ::m/runtime runtime [::m/runtimes])
 
-       :ws-send
+       :relay-send
        [{:op :request-supported-ops :to client-id}]})
 
     :client-disconnect
@@ -66,7 +66,7 @@
        (db/update-entity db ::m/runtime from assoc :supported-ops ops)}
       (cond->
         (contains? ops :tap-subscribe)
-        (assoc :ws-send [{:op :tap-subscribe :to from :history true :num 50}])
+        (assoc :relay-send [{:op :tap-subscribe :to from :history true :num 50}])
         )))
 
 (defn guess-display-type [{:keys [db] :as env} {:keys [data-type supports] :as summary}]
@@ -411,11 +411,11 @@
       (-> {:db (-> db
                    (assoc-in [::m/inspect :stack] stack)
                    (assoc-in [::m/inspect :current] 1))
-           :ws-send []}
+           :relay-send []}
           (cond->
             (not summary)
             (-> (assoc-in [:db ident :summary] :db/loading)
-                (update :ws-send conj {:op :obj-describe
+                (update :relay-send conj {:op :obj-describe
                                        :to runtime-id
                                        :oid oid}))
             )))))
@@ -520,17 +520,8 @@
 
 (defn inspect-code-eval!
   {::ev/handle ::m/inspect-code-eval!}
-  [{:keys [db] :as env} {:keys [code ident panel-idx]}]
-  (let [data
-        (eql/query env db
-          [{ident
-            [:oid
-             {:runtime
-              [:runtime-id
-               :supported-ops]}]}])
-
-        {:keys [oid runtime]} (get data ident)
-        {:keys [runtime-id supported-ops]} runtime
+  [{:keys [db] :as tx} {:keys [code runtime-ident runtime-ns ref-oid panel-idx] :as msg}]
+  (let [{:keys [runtime-id supported-ops]} (get db runtime-ident)
 
         ;; FIXME: ns and eval mode should come from UI
         [eval-mode ns]
@@ -540,28 +531,34 @@
           (contains? supported-ops :cljs-eval)
           [:cljs-eval 'cljs.user])
 
+        ns
+        (if (nil? runtime-ns)
+          ns
+          (get-in db [runtime-ns :ns]))
+
         input
         (-> {:ns ns
              :code code}
             (cond->
-              (or (str/includes? code "$o")
-                  (str/includes? code "$d"))
+              (and ref-oid
+                   (or (str/includes? code "$o")
+                       (str/includes? code "$d")))
               (assoc :wrap
-                     (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str oid) ")\n"
+                     (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str ref-oid) ")\n"
                           "      $o (:obj $ref)\n"
                           "      $d (-> $ref :desc :data)]\n"
                           "?CODE?\n"
                           "\n)"))))]
 
-    ;; FIXME: fx-ify
-    (relay-ws/call! env
-      {:op eval-mode
-       :to runtime-id
-       :input input}
-      {:e ::inspect-eval-result!
-       :code code
-       :panel-idx panel-idx})
-    {}))
+    (ev/queue-fx tx :relay-send
+      [{:op eval-mode
+        :to runtime-id
+        :input input
+        ::relay-ws/result
+        {:e ::inspect-eval-result!
+         :code code
+         :panel-idx panel-idx}}]
+      )))
 
 (defn inspect-eval-result!
   {::ev/handle ::inspect-eval-result!}

@@ -57,7 +57,7 @@
   (if (nil? obj)
     "nil"
     #?(:clj
-       (-> (class obj) (.getName))
+       (str (when (fn? obj) "function: ") (-> (class obj) (.getName)))
        :cljs
        (pr-str (type obj)))))
 

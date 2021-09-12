@@ -32,7 +32,8 @@
     [shadow.remote.runtime.clj.local :as clj-runtime]
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.tap-support :as tap-support]
-    [shadow.remote.runtime.eval-support :as eval-support])
+    [shadow.remote.runtime.eval-support :as eval-support]
+    [shadow.remote.runtime.explore-support :as explore-support])
   (:import (java.net BindException)
            [java.lang.management ManagementFactory]
            [java.util UUID]))
@@ -466,6 +467,11 @@
                   {:depends-on [:clj-runtime :clj-runtime-obj-support]
                    :start eval-support/start
                    :stop eval-support/stop}
+
+                  :clj-runtime-explore-support
+                  {:depends-on [:clj-runtime :clj-runtime-obj-support]
+                   :start explore-support/start
+                   :stop explore-support/stop}
 
                   :clj-runtime-shadow-ext
                   {:depends-on [:clj-runtime :supervisor :system-bus]

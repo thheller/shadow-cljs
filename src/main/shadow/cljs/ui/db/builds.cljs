@@ -16,7 +16,7 @@
     ::m/build-release!
     ::m/build-release-debug!]}
   [env {:keys [e build-id]}]
-  {:ws-send
+  {:relay-send
    [{:op e
      :to 1 ;; FIXME: don't hardcode CLJ runtime id
      ::m/build-id build-id}]})

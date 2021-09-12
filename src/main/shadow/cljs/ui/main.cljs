@@ -16,6 +16,7 @@
     [shadow.cljs.ui.db.generic]
     [shadow.cljs.ui.db.builds]
     [shadow.cljs.ui.db.inspect]
+    [shadow.cljs.ui.db.explorer]
     [shadow.cljs.ui.components.inspect :as inspect]
     [shadow.cljs.ui.components.dashboard :as dashboard]
     [shadow.cljs.ui.components.runtimes :as runtimes]
@@ -96,7 +97,7 @@
              {:fallback "Loading ..."
               :timeout 500}
              (case (:id current-page)
-               (:inspect :inspect-latest)
+               (:inspect :inspect-latest :explore-runtime)
                (inspect/ui-page)
 
                :builds

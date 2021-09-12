@@ -31,48 +31,6 @@
     (<< [:span.inline-flex.items-center.px-2.5.py-0.5.rounded-full.text-xs.font-medium.bg-gray-100.text-gray-800.uppercase.tracking-wider
          "-"])))
 
-(defc ui-runtime-table-row [ident]
-  (bind {:keys [runtime-id runtime-info supported-ops] :as data}
-    (sg/query-ident ident
-      [:runtime-id
-       :runtime-info
-       :supported-ops]))
-
-  (render
-    (let [{:keys [lang build-id host type since user-agent desc]} runtime-info]
-
-      (<< [:tr.bg-white
-           [:td.max-w-0.w-full.px-6.py-4.whitespace-nowrap.text-sm.text-gray-900
-            [:div.flex
-             [:a.inline-flex.space-x-2.pl-1.group.truncate.text-sm
-              {:ui/href
-               (when build-id
-                 (str "/build/" (name build-id)))}
-              [:div
-               (build-lang-icon lang)]
-              [:div.inline-flex.space-x-2.pl-1
-               [:p.text-gray-700.truncate.font-medium.group-hover:text-gray-900 runtime-id]
-               [:p.text-gray-500.truncate.group-hover:text-gray-900 (when build-id (name build-id))]]]]]
-           [:td.px-6.py-4.text-right.whitespace-nowrap.text-sm.text-gray-500
-            [:p.text-gray-700.font-medium (when host (name host))] (or desc user-agent "")]
-           [:td.px-6.py-4.text-right.whitespace-nowrap.text-sm.text-gray-500 (age-display since)]
-           #_[:td.px-6.py-4.text-right.whitespace-nowrap.text-sm.text-gray-500
-              (when (contains? supported-ops :cljs-eval)
-                (<< [:a
-                     {:class inspect/css-button
-                      :ui/href (str "/runtime/" runtime-id "/cljs-eval")}
-                     "cljs eval"]))
-              (when (contains? supported-ops :clj-eval)
-                (<< [:a
-                     {:class inspect/css-button
-                      :ui/href (str "/runtime/" runtime-id "/repl")}
-                     "clj eval"]))
-              (when (contains? supported-ops :db/get-databases)
-                (<< [:a
-                     {:class inspect/css-button
-                      :ui/href (str "/runtime/" runtime-id "/db-explorer")}
-                     "db explorer"]))]]))))
-
 (defc ui-runtime-list-item [ident]
   (bind {:keys [runtime-id runtime-info supported-ops] :as data}
     (sg/query-ident ident
@@ -94,7 +52,10 @@
               [:div.text-sm.text-gray-500.truncate
                [:div (when host (str (name host) " - ")) (or desc user-agent "")]
                [:div (age-display since)
-                ]]]]]]))))
+                ]
+               [:div
+                [:a {:ui/href (str "/runtime/" runtime-id "/explore")} "explore"]]
+               ]]]]]))))
 
 (defn ui-runtime-list [runtimes]
   (sg/keyed-seq runtimes identity ui-runtime-list-item))

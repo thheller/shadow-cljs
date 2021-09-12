@@ -390,6 +390,7 @@
               :type :runtime
               :lang :cljs
               :build-id (keyword env/build-id)
+              :worker-id env/worker-client-id
               :proc-id env/proc-id)
             (shared/init-state)
             (assoc ::shutdown false

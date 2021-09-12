@@ -7,32 +7,49 @@
 (def schema
   {::m/runtime
    {:type :entity
-    :attrs {:runtime-id [:primary-key number?]}}
+    :primary-key :runtime-id
+    :attrs {}}
 
    ::m/error
    {:type :entity
-    :attrs {:error-id [:primary-key any?]
-            ;; :text string?
-            }}
+    :primary-key :error-id
+    :attrs {}}
 
    ::m/object
    {:type :entity
-    :attrs {:oid [:primary-key number?]
-            ::m/runtime [:one ::m/runtime]}}
+    :primary-key :oid
+    :attrs {}
+    :joins {::m/runtime [:one ::m/runtime]}}
 
    ::m/http-server
    {:type :entity
-    :attrs {::m/http-server-id [:primary-key number?]}}
+    :primary-key ::m/http-server-id
+    :attrs {}}
 
    ::m/build
    {:type :entity
-    :attrs {::m/build-id [:primary-key keyword?]}}
+    :primary-key ::m/build-id
+    :attrs {}}
 
    ;; FIXME: this should have its own namespace for db-explorer
    ::m/database
    {:type :entity
-    :attrs {:db-id [:primary-key some?]
-            ::m/runtime [:one ::m/runtime]}}
+    :primary-key :db-id
+    :attrs {}
+    :joins {::m/runtime [:one ::m/runtime]}}
+
+   ::m/runtime-ns
+   {:type :entity
+    :primary-key [::m/runtime :ns]
+    :attrs {}
+    :joins {::m/runtime [:one ::m/runtime]}}
+
+   ::m/runtime-var
+   {:type :entity
+    :primary-key [::m/runtime :var]
+    :attrs {}
+    :joins {::m/runtime [:one ::m/runtime]
+            ::m/runtime-ns [:one ::m/runtime-ns]}}
    })
 
 

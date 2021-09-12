@@ -50,7 +50,7 @@
 
 (defn ui-route!
   {::ev/handle :ui/route!}
-  [{:keys [db] :as env} {:keys [tokens]}]
+  [{:keys [db] :as env} {:keys [tokens] :as msg}]
 
   (let [[main & more] tokens]
 
@@ -109,6 +109,16 @@
 
             "db-explorer"
             {:db (-> db (assoc ::m/current-page {:id :db-explorer :ident runtime-ident}))}
+
+            "explore"
+            {:db
+             (-> db
+                 (assoc ::m/current-page {:id :explore-runtime}
+                        ::m/inspect {:current 0
+                                     :stack
+                                     [{:type :explore-runtime-panel
+                                       :runtime runtime-ident}]})
+                 (update runtime-ident dissoc ::m/explore-ns ::m/explore-var ::m/explore-var-object))}
 
             (js/console.warn "unknown-runtime-route" tokens))))
 
