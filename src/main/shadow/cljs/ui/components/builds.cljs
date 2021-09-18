@@ -1,64 +1,40 @@
 (ns shadow.cljs.ui.components.builds
   (:require
     [shadow.experiments.grove :as sg :refer (<< defc)]
+    [shadow.cljs.ui.components.common :as common]
     [shadow.cljs.model :as m]))
 
 (defn build-buttons [build-id build-worker-active]
-  (let [class-button
-        "font-medium border-r py-3 px-5 bg-gray-50 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"]
-    (if build-worker-active
-      (<< [:div.font-bold.border-t.bg-gray-50
-           [:button
-            {:on-click {:e ::m/build-watch-stop! :build-id build-id}
-             :class class-button
-             :type "button"}
-            "Stop"]
-           [:button
-            {:on-click {:e ::m/build-watch-compile! :build-id build-id}
-             :class class-button
-             :type "button"}
-            "Force compile"]])
+  (if build-worker-active
+    (<< [:div.font-bold.border-t.bg-gray-50
+         [:button
+          {:on-click {:e ::m/build-watch-stop! :build-id build-id}
+           :class common/card-button-class
+           :type "button"}
+          "Stop"]
+         [:button
+          {:on-click {:e ::m/build-watch-compile! :build-id build-id}
+           :class common/card-button-class
+           :type "button"}
+          "Force compile"]])
 
-      (<< [:div.font-bold.border-t.bg-gray-50
-           [:button
-            {:on-click {:e ::m/build-watch-start! :build-id build-id}
-             :class class-button
-             :type "button"}
-            "Watch"]
-           [:button
-            {:on-click {:e ::m/build-compile! :build-id build-id}
-             :class class-button
-             :type "button"}
-            "Compile"]
-           [:button
-            {:on-click {:e ::m/build-release! :build-id build-id}
-             :class class-button
-             :type "button"}
-            "Release"]]))))
+    (<< [:div.font-bold.border-t.bg-gray-50
+         [:button
+          {:on-click {:e ::m/build-watch-start! :build-id build-id}
+           :class common/card-button-class
+           :type "button"}
+          "Watch"]
+         [:button
+          {:on-click {:e ::m/build-compile! :build-id build-id}
+           :class common/card-button-class
+           :type "button"}
+          "Compile"]
+         [:button
+          {:on-click {:e ::m/build-release! :build-id build-id}
+           :class common/card-button-class
+           :type "button"}
+          "Release"]])))
 
-(def icon-compiling
-  (<< [:span.h-6.w-6.bg-blue-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-       [:span.h-3.w-3.bg-blue-400.rounded-full]]))
-
-(def icon-warnings
-  (<< [:span.h-6.w-6.bg-green-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-       [:span.h-3.w-3.bg-green-400.rounded-full]]))
-
-(def icon-completed
-  (<< [:span.h-6.w-6.bg-yellow-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-       [:span.h-3.w-3.bg-yellow-400.rounded-full]]))
-
-(def icon-failed
-  (<< [:span.h-6.w-6.bg-red-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-       [:span.h-3.w-3.bg-red-400.rounded-full]]))
-
-(def icon-inactive
-  (<< [:span.h-6.w-6.bg-gray-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-       [:span.h-3.w-3.bg-gray-400.rounded-full]]))
-
-(def icon-pending
-  (<< [:span.h-6.w-6.bg-blue-100.rounded-full.flex.items-center.justify-center {:aria-hidden "true"}
-       [:span.h-3.w-3.bg-blue-400.rounded-full]]))
 
 (defc build-card [ident]
   (bind {::m/keys [build-status build-id build-target build-warnings-count build-worker-active] :as data}
@@ -79,24 +55,24 @@
               [:div.flex-shrink-0
                (case status
                  :compiling
-                 icon-compiling
+                 common/icon-compiling
 
                  :completed
                  (if (zero? build-warnings-count)
-                   icon-warnings
-                   icon-completed)
+                   common/icon-warnings
+                   common/icon-completed)
 
                  :failed
-                 icon-failed
+                 common/icon-failed
 
                  :inactive
-                 icon-inactive
+                 common/icon-inactive
 
                  :pending
-                 icon-pending
+                 common/icon-pending
 
                  ;default
-                 icon-inactive)]
+                 common/icon-inactive)]
 
               [:div.ml-5.w-0.flex-1
                [:dl

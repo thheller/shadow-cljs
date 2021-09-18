@@ -25,7 +25,7 @@
 (defn describe-ns [{:keys [runtime] :as svc} {:keys [ns] :as msg}]
   (shared/reply runtime msg
     {:op :explore/describe-ns-result
-     :description {}}))
+     :description (meta (find-ns ns))}))
 
 (defn describe-var [{:keys [runtime] :as svc} {:keys [var] :as msg}]
   (let [var (find-var var)

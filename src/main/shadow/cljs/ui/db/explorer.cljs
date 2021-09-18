@@ -47,7 +47,7 @@
     runtime-id
 
     ;; can't ask cljs directly, need to ask worker
-    (= :cljs (:lang :runtime-info))
+    (= :cljs (:lang runtime-info))
     (:worker-id runtime-info)
 
     :else
@@ -109,8 +109,6 @@
   {::ev/handle ::deref-var-result!}
   [{:keys [db] :as tx} {:keys [runtime-ident call-result] :as msg}]
 
-  (js/console.log "deref-var-result!" msg)
-
   (let [{:keys [op]} call-result]
     (case op
       :eval-result-ref
@@ -171,3 +169,9 @@
               {:e ::deref-var-result!
                :runtime-ident (:db/ident rt)}})
            ]))))
+
+
+(defn runtime-deselect-var!
+  {::ev/handle ::m/runtime-deselect-var!}
+  [tx {:keys [runtime-ident] :as msg}]
+  (update-in tx [:db runtime-ident] dissoc ::m/explore-var ::m/explore-var-object))

@@ -810,6 +810,52 @@
   (update-in worker-state [:runtimes from] merge {:last-pong (System/currentTimeMillis)
                                                   :last-pong-runtime time-runtime}))
 
+(defmethod do-relay-msg :explore/namespaces
+  [worker-state msg]
+
+  (relay-msg worker-state msg
+    {:op :explore/namespaces-result
+     :namespaces (->> (get-in worker-state [:build-state :sources])
+                      (vals)
+                      (filter #(= :cljs (:type %)))
+                      (map :ns)
+                      (sort-by name)
+                      (vec))})
+
+  worker-state)
+
+(defmethod do-relay-msg :explore/namespace-vars
+  [worker-state {:keys [ns] :as msg}]
+
+  (relay-msg worker-state msg
+    {:op :explore/namespace-vars-result
+     :vars (->> (get-in worker-state [:build-state :compiler-env ::cljs-ana/namespaces ns :defs])
+                (keys)
+                (sort-by name)
+                (vec))})
+
+  worker-state)
+
+(defmethod do-relay-msg :explore/describe-var
+  [worker-state {:keys [var] :as msg}]
+  (let [ns (symbol (namespace var))
+        var (symbol (name var))]
+
+    (relay-msg worker-state msg
+      {:op :explore/describe-var-result
+       :description
+       (get-in worker-state [:build-state :compiler-env ::cljs-ana/namespaces ns :defs var :meta])}))
+
+  worker-state)
+
+(defmethod do-relay-msg :explore/describe-ns
+  [worker-state {:keys [ns] :as msg}]
+  (relay-msg worker-state msg
+    {:op :explore/describe-ns-result
+     :description (get-in worker-state [:build-state :compiler-env ::cljs-ana/namespaces ns :meta])})
+
+  worker-state)
+
 (defmethod do-proc-control :runtime-select
   [worker-state {:keys [runtime-id] :as msg}]
   (assoc worker-state :default-runtime-id runtime-id))

@@ -9,7 +9,7 @@
     [shadow.experiments.grove.ui.loadable :refer (refer-lazy)]
     [shadow.experiments.grove.keyboard :as keyboard]
     [shadow.cljs.model :as m]
-    ))
+    [shadow.cljs.ui.components.common :as common]))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
@@ -353,7 +353,9 @@
   (render
     (let [{:keys [doc arglists]} description]
 
-      (<< [:div.text-xl.font-bold.p-2.border-t (str var)]
+      (<< [:div.border-t.flex
+           [:div.p-2.flex-1.text-xl.font-bold (str var)]
+           [:div.p-2 {:on-click ::runtime-deselect-var!} common/icon-close]]
           (when (or (seq doc) (seq arglists))
             (<< [:div {:class "border-t p-2 max-h-[12%] overflow-y-auto"}
                  (when (seq doc)
@@ -477,6 +479,11 @@
        :panel-idx panel-idx
        :code code}))
 
+  (event ::runtime-deselect-var! [env ev]
+    (sg/run-tx env
+      {:e ::m/runtime-deselect-var!
+       :runtime-ident runtime-ident}))
+
   (render
     (<< [:div.flex-1.overflow-hidden.flex.flex-col.bg-white
          [:div.p-2.font-bold.border-b "Exploring Runtime: #" runtime-id]
@@ -492,7 +499,7 @@
 
           (if explore-ns
             (ui-explore-ns-details explore-ns)
-            (<< [:div.flex-1 "Select a namespace ..."]))]
+            (<< [:div.flex-1.p-4 "Select a namespace ..."]))]
 
          (when explore-var
            (ui-explore-var-details explore-var))

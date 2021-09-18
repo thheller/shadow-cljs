@@ -42,7 +42,7 @@
           [:div.flex-1]
           [:div.text-right.cursor-pointer.font-bold.p-2
            {:on-click {:e ::m/dismiss-error! :ident err-ident}}
-           common/svg-close]]
+           common/icon-close]]
          [:pre.overflow-auto.p-2.overflow-auto text]])))
 
 (defc ui-errors []
