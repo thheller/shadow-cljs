@@ -17,7 +17,8 @@
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.cljs-specs] ;; FIXME: move these
     [shadow.build.macros :as macros]
-    [shadow.build.classpath :as classpath]))
+    [shadow.build.classpath :as classpath]
+    [shadow.build.npm :as npm]))
 
 (defn enhance-warnings
   "adds source excerpts to warnings if line information is available"
@@ -273,7 +274,10 @@
 (defn configure
   ([build-state mode config]
    (configure build-state mode config {}))
-  ([build-state mode {:keys [build-id target] :as config} cli-opts]
+  ([{:keys [runtime-config] :as build-state}
+    mode
+    {:keys [build-id target] :as config}
+    cli-opts]
    {:pre [(build-api/build-state? build-state)
           (map? config)
           (keyword? mode)
@@ -289,7 +293,22 @@
              (util/reduce-> build-api/deep-merge (:config-merge cli-opts)))
 
          target-fn
-         (get-target-fn target build-id)]
+         (get-target-fn target build-id)
+
+         js-options-keys
+         [:js-package-dirs :node-modules-dir :entry-keys :extensions]
+
+         npm-config
+         (merge
+           ;; global config so it doesn't have to be configured per build
+           (select-keys (:js-options runtime-config) js-options-keys)
+           ;; build config supersedes global
+           (select-keys (:js-options config) js-options-keys))
+
+         ;; don't use shared npm instance since lookups are cached and
+         ;; js-package-dirs may affect what things resolve to
+         npm
+         (npm/start npm-config)]
 
      ;; must do this after calling get-target-fn
      ;; the namespace that it is in may have added to the multi-spec
@@ -318,6 +337,8 @@
            ;; FIXME: not setting this for :release builds may cause errors
            ;; http://dev.clojure.org/jira/browse/CLJS-2002
            (update :runtime assoc :print-fn :console)
+
+           (build-api/with-npm npm)
 
            (cond->
              (seq build-hooks)

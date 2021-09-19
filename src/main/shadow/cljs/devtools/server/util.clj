@@ -7,12 +7,10 @@
     [shadow.build.log :as build-log]
     [shadow.build.warnings :as warnings]
     [shadow.build.api :as build-api]
-    [shadow.cljs.devtools.errors :as errors]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.runtime :as runtime]
     [clojure.set :as set]
-    [clojure.core.async.impl.protocols :as async-prot]
-    [shadow.build.npm :as npm])
+    [clojure.core.async.impl.protocols :as async-prot])
   (:import (java.io Writer InputStreamReader BufferedReader IOException ByteArrayOutputStream ByteArrayInputStream PrintWriter File)
            [java.net SocketException]
            [java.util List]))
@@ -73,22 +71,9 @@
         config
 
         cache-dir
-        (config/make-cache-dir cache-root build-id mode)
-
-        npm-config
-        (merge
-          ;; global config so it doesn't have to be configured per build
-          (select-keys (:js-options config) [:js-package-dirs :node-modules-dir :entry-keys :extensions])
-          ;; build config supersedes global
-          (select-keys (:js-options build-config) [:js-package-dirs :node-modules-dir :entry-keys :extensions]))
-
-        ;; don't use shared npm instance since lookups are cached and
-        ;; js-package-dirs may affect what things resolve to
-        npm
-        (npm/start npm-config)]
+        (config/make-cache-dir cache-root build-id mode)]
 
     (-> (build-api/init)
-        (build-api/with-npm npm)
         (build-api/with-babel babel)
         (build-api/with-classpath classpath)
         (build-api/with-cache-dir cache-dir)
