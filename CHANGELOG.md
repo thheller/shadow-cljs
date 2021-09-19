@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.10](https://github.com/thheller/shadow-cljs/compare/f06b383dd6ef888cc4ba357ce2b7f248f2238371...1708acb21bcdae244b50293d17633ce35a78a467)
+- [ [`1708a`](https://github.com/thheller/shadow-cljs/commit/1708acb21bcdae244b50293d17633ce35a78a467) ] delay npm subsystem init until configure
+- [ [`ca245`](https://github.com/thheller/shadow-cljs/commit/ca2451fafd5ed8235eec505edc2fb85518609ed6) ] explore support for CLJS
+- [ [`b8466`](https://github.com/thheller/shadow-cljs/commit/b8466f176b6e8f6bf61cd70fbfbaf4762c581eb1) ] [UI] add experiment runtime explore
+- [ [`9e6d8`](https://github.com/thheller/shadow-cljs/commit/9e6d8349a64396d35014406281057e8233f237a6) ] add preliminary support for CLJ-2123
+- [ [`f06b3`](https://github.com/thheller/shadow-cljs/commit/f06b383dd6ef888cc4ba357ce2b7f248f2238371) ] make inspect sort slightly smarter
+
 ## [2.15.9](https://github.com/thheller/shadow-cljs/compare/724ba3dbb731fb5238c10d7b078de4026b3269d2...b2c58ecaf0ae05b356b73e54f4104bb3c8aa0cc1)
 - [ [`b2c58`](https://github.com/thheller/shadow-cljs/commit/b2c58ecaf0ae05b356b73e54f4104bb3c8aa0cc1) ] added `,' to PS list of escape chars. (#931)
 - [ [`724ba`](https://github.com/thheller/shadow-cljs/commit/724ba3dbb731fb5238c10d7b078de4026b3269d2) ] update babel & babel-worker
