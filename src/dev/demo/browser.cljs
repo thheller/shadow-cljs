@@ -26,6 +26,9 @@
 
 (js/console.log "es6" es6 es6/default)
 
+;; (throw (js/Error. "foo"))
+;; (throw (ex-info "foo" {:foo 1}))
+
 (assert (= 1 rule-breaker/foo) "rule-breaker not handled correctly")
 
 (def ^:const some-const 1)

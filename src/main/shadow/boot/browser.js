@@ -17,12 +17,24 @@ var SHADOW_ENV = function() {
     scriptBase = CLOSURE_BASE_PATH;
   }
 
+
   env.scriptBase = scriptBase;
 
   var wentAsync = false;
 
   var canDocumentWrite = function() {
     return !wentAsync && doc.readyState == "loading";
+  };
+
+  var reportError = function(path, e) {
+    // chrome displays e.stack in a usable way while firefox is just a garbled mess
+    if (e.constructor.toString().indexOf("function cljs$core$ExceptionInfo") === 0 && navigator.appVersion.indexOf("Chrome") != -1) {
+      console.error(e);
+      console.error(e.stack);
+    } else {
+      console.error(e);
+    }
+    console.warn("The above error occurred when loading \"" + path + "\". Any additional errors after that one may be the result of that failure. In general your code cannot be trusted to execute properly after such a failure. Make sure to fix the first one before looking at others.");
   };
 
   var asyncLoad = (function() {
@@ -41,8 +53,7 @@ var SHADOW_ENV = function() {
             try {
               goog.globalEval(code);
             } catch (e) {
-              console.error("An error occurred when loading", uri);
-              console.error(e.stack);
+              reportError(uri, e);
             }
           }
         } else if (state === true) {
@@ -131,8 +142,7 @@ var SHADOW_ENV = function() {
     try {
       goog.globalEval(code);
     } catch (e) {
-      console.error("An error occurred when loading", path);
-      console.error(e.stack);
+      reportError(path, e);
     }
   }
 
