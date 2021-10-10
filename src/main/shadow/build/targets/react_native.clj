@@ -53,7 +53,7 @@
       (= 1 (count addrs))
       (assoc-in state
         [:compiler-options :closure-defines 'shadow.cljs.devtools.client.env/server-host]
-        (str (first addr)))
+        (str (first addrs)))
 
       :else
       (-> state
