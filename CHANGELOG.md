@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.15.11](https://github.com/thheller/shadow-cljs/compare/22c3f41f86a5ba4754eb774da9c03ec91043d897...60d071ad968465ad69c2bef3ba64ff056ce09850)
+- [ [`60d07`](https://github.com/thheller/shadow-cljs/commit/60d071ad968465ad69c2bef3ba64ff056ce09850) ] shadow-cljs pom should account for maven repositories
+- [ [`a3ebb`](https://github.com/thheller/shadow-cljs/commit/a3ebb64e5524e387412af5ab674ce074e65bef71) ] fix react-native websocket not connecting properly
+- [ [`22c3f`](https://github.com/thheller/shadow-cljs/commit/22c3f41f86a5ba4754eb774da9c03ec91043d897) ] attempt to make browser load errors more legible
+
 ## [2.15.10](https://github.com/thheller/shadow-cljs/compare/f06b383dd6ef888cc4ba357ce2b7f248f2238371...1708acb21bcdae244b50293d17633ce35a78a467)
 - [ [`1708a`](https://github.com/thheller/shadow-cljs/commit/1708acb21bcdae244b50293d17633ce35a78a467) ] delay npm subsystem init until configure
 - [ [`ca245`](https://github.com/thheller/shadow-cljs/commit/ca2451fafd5ed8235eec505edc2fb85518609ed6) ] explore support for CLJS
