@@ -1,5 +1,7 @@
 # Changelog
 
+## [2.15.12, fix bad 2.15.11 release](https://github.com/thheller/shadow-cljs/compare/...)
+
 ## [2.15.11](https://github.com/thheller/shadow-cljs/compare/22c3f41f86a5ba4754eb774da9c03ec91043d897...60d071ad968465ad69c2bef3ba64ff056ce09850)
 - [ [`60d07`](https://github.com/thheller/shadow-cljs/commit/60d071ad968465ad69c2bef3ba64ff056ce09850) ] shadow-cljs pom should account for maven repositories
 - [ [`a3ebb`](https://github.com/thheller/shadow-cljs/commit/a3ebb64e5524e387412af5ab674ce074e65bef71) ] fix react-native websocket not connecting properly
