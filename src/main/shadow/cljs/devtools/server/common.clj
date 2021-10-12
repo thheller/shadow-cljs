@@ -41,7 +41,7 @@
       (fn [in]
         (let [r (transit/reader
                   (if (string? in)
-                    (ByteArrayInputStream. (.getBytes in))
+                    (ByteArrayInputStream. (.getBytes in "UTF-8"))
                     in)
                   :json)]
           (try
@@ -61,7 +61,7 @@
               w (transit/writer out :json)]
           (try
             (transit/write w data)
-            (.toString out)
+            (.toString out "UTF-8")
             (catch Exception e
               (log/warn-ex e ::transit-str-failed {:data data})
               (throw e))))))
