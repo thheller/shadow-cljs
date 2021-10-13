@@ -300,6 +300,7 @@
             (fn [msg]
               ;; (js/console.log "cljs-build-complete" msg)
               (let [msg (env/add-warnings-to-info msg)]
+                (hud/connection-error-clear!)
                 (hud/hud-warnings msg)
                 (handle-build-complete runtime msg)
                 (env/run-custom-notify! (assoc msg :type :build-complete))))
