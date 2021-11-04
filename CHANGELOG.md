@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.13](https://github.com/thheller/shadow-cljs/compare/37574264eb1bf1e7f8b1bb594d0aa95fdc74d190...37574264eb1bf1e7f8b1bb594d0aa95fdc74d190)
+- [ [`37574`](https://github.com/thheller/shadow-cljs/commit/37574264eb1bf1e7f8b1bb594d0aa95fdc74d190) ] core.async bump
+
+## [bump 1.10.891 + various closure updates](https://github.com/thheller/shadow-cljs/compare/1717e3fee9add61fd935c4d9ba835ad9396021b5...4530ed1b71ffa63a0f0b8d496a474a82f4db942d)
+- [ [`4530e`](https://github.com/thheller/shadow-cljs/commit/4530ed1b71ffa63a0f0b8d496a474a82f4db942d) ] Fix server<->client Unicode data issue on MS-Windows (#945)
+- [ [`1717e`](https://github.com/thheller/shadow-cljs/commit/1717e3fee9add61fd935c4d9ba835ad9396021b5) ] clear hud errors after compile success (#947)
+
 ## [2.15.12, fix bad 2.15.11 release](https://github.com/thheller/shadow-cljs/compare/...)
 
 ## [2.15.11](https://github.com/thheller/shadow-cljs/compare/22c3f41f86a5ba4754eb774da9c03ec91043d897...60d071ad968465ad69c2bef3ba64ff056ce09850)
