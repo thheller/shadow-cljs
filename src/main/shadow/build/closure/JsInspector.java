@@ -45,6 +45,7 @@ public class JsInspector {
         boolean usesGlobalProcess = false;
 
         String googModule = null;
+        boolean googModuleLegacyNamespace = false;
 
         @Override
         public boolean shouldTraverse(NodeTraversal t, Node node, Node parent) {
@@ -126,6 +127,8 @@ public class JsInspector {
                 googProvides = googProvides.conj(x);
             } else if (NodeUtil.isCallTo(node, "goog.module")) {
                 googModule = node.getLastChild().getString();
+            } else if (NodeUtil.isCallTo(node, "goog.module.declareLegacyNamespace")) {
+                googModuleLegacyNamespace = true;
             } else if (node.isName() && node.getString().equals("Buffer") && t.getScope().getVar("Buffer") == null) {
                 usesGlobalBuffer = true;
             } else if (node.isName() && node.getString().equals("process") && t.getScope().getVar("process") == null) {
@@ -168,6 +171,7 @@ public class JsInspector {
     public static final Keyword KW_GOOG_PROVIDES = RT.keyword(NS, "goog-provides");
     public static final Keyword KW_GOOG_REQUIRES = RT.keyword(NS, "goog-requires");
     public static final Keyword KW_GOOG_MODULE = RT.keyword(NS, "goog-module");
+    public static final Keyword KW_GOOG_MODULE_LEGACY_NAMESPACE = RT.keyword(NS, "goog-module-legacy-namespace");
     public static final Keyword KW_USES_GLOBAL_BUFFER = RT.keyword(NS, "uses-global-buffer");
     public static final Keyword KW_USES_GLOBAL_PROCESS = RT.keyword(NS, "uses-global-process");
 
@@ -200,6 +204,7 @@ public class JsInspector {
                 KW_GOOG_PROVIDES, fileInfo.googProvides.persistent(),
                 KW_GOOG_REQUIRES, fileInfo.googRequires.persistent(),
                 KW_GOOG_MODULE, fileInfo.googModule,
+                KW_GOOG_MODULE_LEGACY_NAMESPACE, fileInfo.googModuleLegacyNamespace,
                 KW_INVALID_REQUIRES, fileInfo.invalidRequires.persistent(),
                 KW_LANGUAGE, fileInfo.features.version(),
                 KW_STR_OFFSETS, fileInfo.strOffsets.persistent(),

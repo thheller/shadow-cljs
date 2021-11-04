@@ -37,7 +37,7 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
         }
 
         for (ConstantRef ref : constants.values()) {
-            JSModule targetModule;
+            JSChunk targetModule;
             if (ref.usedIn.size() == 1) {
                 targetModule = ref.usedIn.iterator().next();
             } else {
@@ -143,9 +143,9 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                             ref = new ConstantRef(constantName, typeName.equals("cljs.core.Keyword"), n, nsNode, nameNode, hashNode);
                             constants.put(constantName, ref);
                         }
-                        ref.usedIn.add(t.getModule());
+                        ref.usedIn.add(t.getChunk());
                         // new versions use a bitset
-                        ref.usedInBits.set(t.getModule().getIndex());
+                        ref.usedInBits.set(t.getChunk().getIndex());
 
                         n.replaceWith(IR.name(constantName));
                         ShadowAccess.reportChangeToEnclosingScope(compiler, parent);
@@ -162,7 +162,7 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
         final Node nsNode;
         final Node nameNode;
         final Node hashNode;
-        Set<JSModule> usedIn;
+        Set<JSChunk> usedIn;
         BitSet usedInBits;
 
         public ConstantRef(String varName, boolean keyword, Node node, Node nsNode, Node nameNode, Node hashNode) {

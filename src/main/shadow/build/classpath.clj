@@ -94,6 +94,7 @@
                   js-language
                   js-str-offsets
                   goog-module
+                  goog-module-legacy-namespace
                   goog-requires
                   goog-provides]
            :as info}
@@ -102,10 +103,7 @@
             ;; SourceFile/fromFile seems to leak file descriptors
             (SourceFile/fromCode resource-name source))
 
-          rc (assoc rc :inspect-info info)
-
-          ns (-> (ModuleNames/fileToModuleName resource-name)
-                 (symbol))]
+          rc (assoc rc :inspect-info info)]
 
       (cond
         ;; goog.provide('thing')
@@ -139,7 +137,9 @@
                      :deps deps)
               (cond->
                 (seq goog-module)
-                (-> (assoc :goog-module true
+                (-> (assoc :ns (util/munge-goog-ns goog-module)
+                           :goog-module goog-module
+                           :goog-module-legacy-namespace goog-module-legacy-namespace
                            :goog-src (str/starts-with? goog-module "goog."))
                     (update :provides conj (util/munge-goog-ns goog-module) (symbol goog-module)))
 
@@ -163,7 +163,12 @@
                 (:uses-global-buffer info)
                 (conj "buffer")
                 (:uses-global-process info)
-                (conj "process"))]
+                (conj "process"))
+
+              ns
+              (-> (ModuleNames/fileToModuleName resource-name)
+                  (symbol))]
+
 
           (-> info
               (merge rc)

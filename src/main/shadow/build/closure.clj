@@ -22,7 +22,7 @@
     [com.google.javascript.jscomp
      JSError SourceFile CompilerOptions CustomPassExecutionTime
      CommandLineRunner VariableMap SourceMapInput DiagnosticGroups
-     CheckLevel JSModule CompilerOptions$LanguageMode
+     CheckLevel JSChunk CompilerOptions$LanguageMode
      Result ShadowAccess SourceMap$DetailLevel SourceMap$Format
      ClosureCodingConvention CompilationLevel VariableRenamingPolicy
      PropertyRenamingPolicy PhaseOptimizer]
@@ -664,7 +664,7 @@
         js-mods
         (reduce
           (fn [js-mods {:keys [module-id output-name depends-on sources goog-base] :as mod}]
-            (let [js-mod (JSModule. output-name)
+            (let [js-mod (JSChunk. output-name)
 
                   sources
                   (->> sources
@@ -765,8 +765,8 @@
 (defn make-js-module-per-source
   [{:keys [compiler-env build-sources] :as state}]
 
-  (let [^JSModule goog-mod
-        (JSModule. "cljs_env.js")
+  (let [^JSChunk goog-mod
+        (JSChunk. "cljs_env.js")
 
         goog-sources
         (->> build-sources
@@ -836,7 +836,7 @@
                              defs))
 
                       js-mod
-                      (JSModule. (util/flat-filename output-name))]
+                      (JSChunk. (util/flat-filename output-name))]
 
                   (when (= :cljs type)
                     (.add js-mod (closure-source-file (str "shadow/cljs/constants/" resource-name) "")))
@@ -859,6 +859,7 @@
                       (.addDependency js-mod other-mod)))
 
                   (assoc js-mods resource-id js-mod)))))
+
           {}
           build-sources)
 
@@ -934,7 +935,7 @@
     ;; add-input-source-maps requires options to be set, otherwise throws NPE
     ;; ShadowCompiler exposes this to just set options since initOptions does a bunch of stuff
     ;; we do not need yet
-    (.justSetOptions cc closure-opts)
+    (.initOptions cc closure-opts)
 
     (.setApplyInputSourceMaps closure-opts true)
     (add-input-source-maps state cc)
@@ -1041,7 +1042,6 @@
 
 (defn get-injected-libs [compiler]
   (-> (.get injected-libraries-field compiler)
-      (keys)
       (set)))
 
 (defn get-own-symbol-names [symbol-scope]
@@ -1189,7 +1189,7 @@
 
    state))
 
-(defn get-js-module-requires [{::keys [dead-modules] :as state} ^JSModule js-module]
+(defn get-js-module-requires [{::keys [dead-modules] :as state} ^JSChunk js-module]
   ;; can't use .getAllDependencies since that is a set and unsorted
   (->> (.getDependencies js-module)
        (mapcat (fn [dep-mod]

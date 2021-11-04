@@ -24,10 +24,6 @@ public class ShadowCompiler extends Compiler {
         super(errorManager);
     }
 
-    public void justSetOptions(CompilerOptions opts) {
-        this.options = opts;
-    }
-
     /**
      * fixing https://github.com/google/closure-compiler/issues/3825 by removing relative path logic
      * the inputs provided by shadow-cljs always use the full name and as such don't need that logic

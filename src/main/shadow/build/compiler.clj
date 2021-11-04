@@ -355,6 +355,20 @@
     ;; this saves downloading a bunch of data prematurely
     (comp/emitln "goog.provide(\"cljs.core$macros\");"))
 
+  ;; load goog.module into the current ns
+  (let [module-deps
+        (->> deps
+             (map #(data/get-source-by-provide state %))
+             ;; not doing this to match regular CLJS behavior
+             ;; (remove :goog-module-legacy-namespace)
+             (filter :goog-module))]
+
+    (when (seq module-deps)
+      (comp/emitln "goog.scope(function(){")
+      (doseq [{:keys [goog-module ns]} module-deps]
+        (comp/emitln (str "  " (ana/munge-goog-module-lib name ns) " = goog.module.get('" goog-module "');")))
+      (comp/emitln "});")))
+
   (when (= :dev mode)
     (doseq [dep deps
             :when (not= 'goog dep)]

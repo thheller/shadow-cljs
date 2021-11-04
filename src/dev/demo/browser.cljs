@@ -21,9 +21,13 @@
     ["./cjs.js" :as cjs]
     [demo.js-class :refer (Foo)]
     [demo.dummy-cljc]
-    [demo.didnt-follow-the-rules :as rule-breaker]
-    ))
+    [demo.didnt-follow-the-rules :as rule-breaker])
+  (:import [goog.module ModuleLoader]))
 
+(js/console.log (goog.object/get #js {:foo "foo"} "foo"))
+
+
+(js/console.log "ml" ModuleLoader)
 (js/console.log "es6" es6 es6/default)
 
 ;; (throw (js/Error. "foo"))
@@ -137,9 +141,9 @@
       (done))
     10))
 
-(defrecord Foo [a b])
+(defrecord Rec [a b])
 
-(js/console.log (pr-str Foo) (pr-str (Foo. 1 2)) (Foo. 1 2))
+(js/console.log (pr-str Rec) (pr-str (Rec. 1 2)) (Rec. 1 2))
 
 (js/console.log "test-macro" (test-macro 1 2 3))
 

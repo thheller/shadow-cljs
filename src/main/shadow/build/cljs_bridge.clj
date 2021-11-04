@@ -105,9 +105,18 @@
              (map #(get-in state [:sources %]))
              (filter #(= :goog (:type %)))
              (map :provides)
-             (reduce set/union #{}))]
+             (reduce set/union #{}))
 
-    (assoc-in state [:compiler-env :goog-names] goog-names)))
+        goog-modules
+        (->> (:build-sources state)
+             (map #(get-in state [:sources %]))
+             (filter :goog-module)
+             (map :ns)
+             (set))]
+
+    (-> state
+        (assoc-in [:compiler-env :goog-names] goog-names)
+        (assoc-in [:compiler-env :goog-modules] goog-modules))))
 
 (def ^:dynamic *in-compiler-env* false)
 
