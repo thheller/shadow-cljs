@@ -13,7 +13,7 @@
       (nil? commit)
       (conj groups group)
 
-      (re-find #"bump (\d+)\.(\d+)\.(\d+)" (:message commit))
+      (re-find #"^bump (\d+)\.(\d+)\.(\d+)" (:message commit))
       (let [version (subs (:message commit) 5)]
         (recur
           (conj groups (assoc group :prev-version version))
