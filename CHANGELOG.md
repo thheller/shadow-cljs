@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.0](https://github.com/thheller/shadow-cljs/compare/21ab24f47de5c5a01b88d51214037c2fd7e41ccf...21ab24f47de5c5a01b88d51214037c2fd7e41ccf)
+- [ [`21ab2`](https://github.com/thheller/shadow-cljs/commit/21ab24f47de5c5a01b88d51214037c2fd7e41ccf) ] add :global-goog-object&array to cache affecting options
+
 ## [2.15.13](https://github.com/thheller/shadow-cljs/compare/1717e3fee9add61fd935c4d9ba835ad9396021b5...37574264eb1bf1e7f8b1bb594d0aa95fdc74d190)
 - [ [`37574`](https://github.com/thheller/shadow-cljs/commit/37574264eb1bf1e7f8b1bb594d0aa95fdc74d190) ] core.async bump
 - [ [`7fefe`](https://github.com/thheller/shadow-cljs/commit/7fefe5b3f604ff11d33539e4899e160dd1ff6eb0) ] cljs bump 1.10.891 + various closure updates
