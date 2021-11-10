@@ -1936,6 +1936,15 @@
         _ (when (= :shadow (get-in state [:js-options :js-provider]))
             (.addCustomPass closure-opts CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector))
 
+        ;; GCC doesn't seem to track polyfills properly in some cases and just fails to compile
+        ;; reinject all polyfills that were added before to limit this problem and just have them
+        ;; available if other sources already required them
+        force-injected-libs
+        (::shadow-js-injected-libs state)
+
+        _ (when (seq force-injected-libs)
+            (.setForceLibraryInjection closure-opts force-injected-libs))
+
         result
         (try
           (util/with-logged-time [state {:type ::shadow-convert
@@ -2107,9 +2116,11 @@
         (boolean (seq recompile-sources))
 
         state
-        (if-not need-compile?
-          (update state ::shadow-js-injected-libs set/union (:injected-libs cache-index))
-          (convert-sources-simple* state recompile-sources))
+        (-> state
+            (update ::shadow-js-injected-libs set/union (:injected-libs cache-index))
+            (cond->
+              need-compile?
+              (convert-sources-simple* recompile-sources)))
 
         cache-index-updated
         (if-not need-compile?
