@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.2](https://github.com/thheller/shadow-cljs/compare/3eb99f1d368a441fa13075291199027e851fa17c...3eb99f1d368a441fa13075291199027e851fa17c)
+- [ [`3eb99`](https://github.com/thheller/shadow-cljs/commit/3eb99f1d368a441fa13075291199027e851fa17c) ] fix storybook load issue related to goog.module and :npm-module
+
 ## [2.16.1](https://github.com/thheller/shadow-cljs/compare/1938e172305b4be506d9364235e498fd20a4b619...4a99d8a6ab911cd3bdf83d91a17ea888aa6f3e32)
 - [ [`4a99d`](https://github.com/thheller/shadow-cljs/commit/4a99d8a6ab911cd3bdf83d91a17ea888aa6f3e32) ] workaround for npm incremental compile issues
 - [ [`1938e`](https://github.com/thheller/shadow-cljs/commit/1938e172305b4be506d9364235e498fd20a4b619) ] bump shadow-undertow
