@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.3](https://github.com/thheller/shadow-cljs/compare/2a3292e69d7bdaea6e9101368580e5cb737e6488...2a3292e69d7bdaea6e9101368580e5cb737e6488)
+- [ [`2a329`](https://github.com/thheller/shadow-cljs/commit/2a3292e69d7bdaea6e9101368580e5cb737e6488) ] work around certain npm filenames ending up too long for linux
+
 ## [2.16.2](https://github.com/thheller/shadow-cljs/compare/3eb99f1d368a441fa13075291199027e851fa17c...3eb99f1d368a441fa13075291199027e851fa17c)
 - [ [`3eb99`](https://github.com/thheller/shadow-cljs/commit/3eb99f1d368a441fa13075291199027e851fa17c) ] fix storybook load issue related to goog.module and :npm-module
 
