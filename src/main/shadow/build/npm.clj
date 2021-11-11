@@ -659,8 +659,12 @@
                 (assoc
                   :resource-id [::resource resource-name]
                   :resource-name resource-name
-                  ;; not using flat-name since resource-name may contain @scoped/alias
-                  :output-name (str ns ".js")
+                  ;; work around file names ending up too long on some linux systems for certain npm deps
+                  ;; FileNotFoundException: .shadow-cljs/builds/foo/dev/shadow-js/module$node_modules$$emotion$react$isolated_hoist_non_react_statics_do_not_use_this_in_your_code$dist$emotion_react_isolated_hoist_non_react_statics_do_not_use_this_in_your_code_browser_cjs.js (File name too long)
+                  :output-name
+                  (if (> (count resource-name) 127)
+                    (str "module$too_long_" (util/md5hex resource-name) ".js")
+                    (str ns ".js"))
                   :type :js
                   :file file
                   :last-modified last-modified
