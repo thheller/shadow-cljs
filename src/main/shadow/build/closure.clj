@@ -2523,7 +2523,11 @@
           ;; goog and classpath-js will :advanced compiled
           ;; and will compile the polyfills as well which makes
           ;; them unusable for shadow-js which stays simple
-          shadow-js-injected-libs
+          (set/union
+            shadow-js-injected-libs
+            ;; workaround for https://github.com/google/closure-compiler/issues/3890
+            ;; so we can fix it by config and not rely on the automatic injection
+            (set (get-in state [:js-options :force-library-injection])))
           (set/union
             (when (contains? #{:es3 :es5} (get-in state [:compiler-options :output-feature-set]))
               ;; cannot figure out how to make closure report these
@@ -2551,6 +2555,7 @@
             goog-injected-libs
             shadow-js-injected-libs
             classpath-js-injected-libs
+            (set (get-in state [:js-options :force-library-injection]))
             (set (get-in state [:compiler-options :force-library-injection]))))]
 
     (if (or (not (seq all))
