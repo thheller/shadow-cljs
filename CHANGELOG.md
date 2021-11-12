@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.4](https://github.com/thheller/shadow-cljs/compare/7e142f462c2a42e921eba9ac103b77c3c704e3f5...7e142f462c2a42e921eba9ac103b77c3c704e3f5)
+- [ [`7e142`](https://github.com/thheller/shadow-cljs/commit/7e142f462c2a42e921eba9ac103b77c3c704e3f5) ] add workaround for google/closure-compiler#3890
+
 ## [2.16.3](https://github.com/thheller/shadow-cljs/compare/2a3292e69d7bdaea6e9101368580e5cb737e6488...2a3292e69d7bdaea6e9101368580e5cb737e6488)
 - [ [`2a329`](https://github.com/thheller/shadow-cljs/commit/2a3292e69d7bdaea6e9101368580e5cb737e6488) ] work around certain npm filenames ending up too long for linux
 
