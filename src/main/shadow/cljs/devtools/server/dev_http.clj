@@ -400,7 +400,7 @@
 
 (defn start-servers [sys-bus config ssl-context out]
   (let [configs
-        (get-server-configs)
+        (transform-server-configs config)
 
         servers
         (into [] (map #(start-build-server sys-bus config ssl-context out %)) configs)]
