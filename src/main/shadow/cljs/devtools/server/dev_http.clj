@@ -48,7 +48,7 @@
       (throw (ex-info "failed to require-var by name" {:sym sym} e)))))
 
 (defn start-build-server
-  [sys-bus config ssl-context out
+  [sys-bus ssl-context out
    {:keys [proxy-url proxy-predicate port host roots handler]
     :or {port 0}
     :as config}]
@@ -376,10 +376,6 @@
         (->> (sort-by :port)
              (into [])))))
 
-(defn get-server-configs []
-  (-> (config/load-cljs-edn!)
-      (transform-server-configs)))
-
 (comment
   (clojure.pprint/pprint
     (transform-server-configs
@@ -398,16 +394,8 @@
         {:devtools
          {:http-root "foo-root"}}}})))
 
-(defn start-servers [sys-bus config ssl-context out]
-  (let [configs
-        (get-server-configs)
-
-        servers
-        (into [] (map #(start-build-server sys-bus config ssl-context out %)) configs)]
-
-    {:servers servers
-     :configs configs}
-    ))
+(defn start-servers [sys-bus configs ssl-context out]
+  (into [] (map #(start-build-server sys-bus ssl-context out %)) configs))
 
 (defn stop-servers [{:keys [servers] :as state}]
   (doseq [{:keys [instance file-watch-ref] :as srv} servers]
@@ -425,25 +413,31 @@
         sub
         (sys-bus/sub sys-bus ::m/config-watch sub-chan true)
 
+        configs
+        (transform-server-configs config)
+
         state-ref
-        (-> (start-servers sys-bus config ssl-context out)
-            (assoc :ssl-context ssl-context
-                   :sub sub
-                   :sub-chan sub-chan
-                   :out out)
+        (-> {:servers (start-servers sys-bus configs ssl-context out)
+             :configs configs
+             :ssl-context ssl-context
+             :sub sub
+             :sub-chan sub-chan
+             :out out}
             (atom))
 
         loop-chan
         (async/thread
-          (loop [config config]
-            (when-some [new-config (<!! sub-chan)]
-              (let [configs (get-server-configs)]
-                (when (not= configs (:configs @state-ref))
+          (loop [configs configs]
+            (when-some [{new-config :config} (<!! sub-chan)]
+              (let [new-configs (transform-server-configs new-config)]
+                (when (not= new-configs configs)
                   (log/debug ::config-change)
                   (>!! out {:type :println
                             :msg "shadow-cljs - HTTP config change, restarting servers"})
                   (swap! state-ref stop-servers)
-                  (swap! state-ref merge (start-servers sys-bus new-config ssl-context out))))
+                  (swap! state-ref assoc
+                    :servers (start-servers sys-bus new-configs ssl-context out)
+                    :configs new-configs)))
               (recur new-config))))]
 
     (swap! state-ref assoc :loop-chan loop-chan)
