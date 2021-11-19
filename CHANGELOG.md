@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.5](https://github.com/thheller/shadow-cljs/compare/378028ddb79913a5f8104306b0a9c8a691a2977c...378028ddb79913a5f8104306b0a9c8a691a2977c)
+- [ [`37802`](https://github.com/thheller/shadow-cljs/commit/378028ddb79913a5f8104306b0a9c8a691a2977c) ] adjust :dev-http config handling so it respects direct API config
+
 ## [2.16.4](https://github.com/thheller/shadow-cljs/compare/7e142f462c2a42e921eba9ac103b77c3c704e3f5...7e142f462c2a42e921eba9ac103b77c3c704e3f5)
 - [ [`7e142`](https://github.com/thheller/shadow-cljs/commit/7e142f462c2a42e921eba9ac103b77c3c704e3f5) ] add workaround for google/closure-compiler#3890
 
