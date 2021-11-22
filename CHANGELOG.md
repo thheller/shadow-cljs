@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.16.6](https://github.com/thheller/shadow-cljs/compare/1d95fa224e23f9ff33a17bb97aa73ca0c8e772e4...086ee94f9a4e5fac66a9c4fa985364a40ab41ce4)
+- [ [`086ee`](https://github.com/thheller/shadow-cljs/commit/086ee94f9a4e5fac66a9c4fa985364a40ab41ce4) ] add :js-options :hide-warnings-for to hide closure warnings
+- [ [`1d95f`](https://github.com/thheller/shadow-cljs/commit/1d95fa224e23f9ff33a17bb97aa73ca0c8e772e4) ] fix legacy dev http servers not starting
+
 ## [2.16.5](https://github.com/thheller/shadow-cljs/compare/378028ddb79913a5f8104306b0a9c8a691a2977c...378028ddb79913a5f8104306b0a9c8a691a2977c)
 - [ [`37802`](https://github.com/thheller/shadow-cljs/commit/378028ddb79913a5f8104306b0a9c8a691a2977c) ] adjust :dev-http config handling so it respects direct API config
 
