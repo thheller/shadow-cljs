@@ -378,14 +378,9 @@
 
     app-ref))
 
-(defn load-config []
-  (-> (config/load-cljs-edn)
-      ;; system config doesn't need build infos
-      (dissoc :builds)))
-
 (defn start!
   ([]
-   (let [config (load-config)]
+   (let [config (config/load-cljs-edn)]
      (start! config)))
   ([sys-config]
    (if (runtime/get-instance)
