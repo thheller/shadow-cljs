@@ -1172,7 +1172,17 @@
   ([{::keys [compiler result] :as state}]
    (log-warnings state compiler result))
   ([state compiler result]
-   (let [warnings (into [] (js-error-xf state compiler) (.warnings result))]
+   (let [ignore
+         (get-in state [:js-options :hide-warnings-for] #{})
+
+         warnings
+         (into []
+           (comp
+             (js-error-xf state compiler)
+             (remove
+               (fn [{:keys [resource-name]}]
+                 (contains? ignore resource-name))))
+           (.warnings result))]
      (when (seq warnings)
        (util/warn state {:type ::warnings
                          :warnings warnings})))
