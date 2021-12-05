@@ -715,11 +715,38 @@
       (.getCanonicalFile)
       (.toPath)))
 
+;; can fail to relativize when on different disks, see https://github.com/thheller/shadow-cljs/issues/966
+;; the only purpose for this path currently is the build report in a relative manner so it doesn't show
+;; machine specific details
+;; eg. ../shadow-experiments/src/main
+;; instead of C:/Users/thheller/code/shadow-experiments/src/main
+;; if that fails we show the entire path regardless with a special case for gitlibs
 (defn project-rel-path [^File dir]
-  (-> (.relativize project-root-path
-        (-> dir (.getAbsoluteFile) (.toPath)))
-      (str)
-      (rc/normalize-name)))
+  (if-not (is-gitlib-file? dir)
+    (try
+      (-> (.relativize project-root-path
+            (-> dir (.getAbsoluteFile) (.toPath)))
+          (str)
+          (rc/normalize-name))
+      (catch Exception e
+        (.getAbsolutePath dir)))
+
+    ;; gitlib files
+    (let [^File gitlib-root
+          (loop [curr dir]
+            (if (= ".gitlibs" (.getName curr))
+              (io/file curr "libs")
+              (recur (.getParentFile curr))))
+
+          dir-abs
+          (.getAbsolutePath dir)
+
+          root-abs
+          (.getAbsolutePath gitlib-root)]
+
+      ;; C:\Users\thheller\.gitlibs\libs\re-frame\re-frame\8cf68c30722a4c6f8f948a134c900d7a656ecad4\src
+      ;; gitlibs://re-frame/re-frame/8cf68c30722a4c6f8f948a134c900d7a656ecad4/src
+      (str "gitlibs:/" (rc/normalize-name (subs dir-abs (count root-abs)))))))
 
 (defn make-fs-resource
   ([^File file name]
