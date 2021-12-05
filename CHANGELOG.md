@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.7](https://github.com/thheller/shadow-cljs/compare/91a3889b154c8afedfa017325f69bc21f1588102...91a3889b154c8afedfa017325f69bc21f1588102)
+- [ [`91a38`](https://github.com/thheller/shadow-cljs/commit/91a3889b154c8afedfa017325f69bc21f1588102) ] fix gitlib references on different disk breaking everything
+
 ## [2.16.6](https://github.com/thheller/shadow-cljs/compare/1d95fa224e23f9ff33a17bb97aa73ca0c8e772e4...086ee94f9a4e5fac66a9c4fa985364a40ab41ce4)
 - [ [`086ee`](https://github.com/thheller/shadow-cljs/commit/086ee94f9a4e5fac66a9c4fa985364a40ab41ce4) ] add :js-options :hide-warnings-for to hide closure warnings
 - [ [`1d95f`](https://github.com/thheller/shadow-cljs/commit/1d95fa224e23f9ff33a17bb97aa73ca0c8e772e4) ] fix legacy dev http servers not starting
