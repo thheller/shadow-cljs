@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.8](https://github.com/thheller/shadow-cljs/compare/a2b2e4bd509fc881da951e9a00da6e355dbf94b3...a2b2e4bd509fc881da951e9a00da6e355dbf94b3)
+- [ [`a2b2e`](https://github.com/thheller/shadow-cljs/commit/a2b2e4bd509fc881da951e9a00da6e355dbf94b3) ] add timer for ReplaceCLJSConstants pass
+
 ## [2.16.7](https://github.com/thheller/shadow-cljs/compare/91a3889b154c8afedfa017325f69bc21f1588102...91a3889b154c8afedfa017325f69bc21f1588102)
 - [ [`91a38`](https://github.com/thheller/shadow-cljs/commit/91a3889b154c8afedfa017325f69bc21f1588102) ] fix gitlib references on different disk breaking everything
 
