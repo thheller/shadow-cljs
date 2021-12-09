@@ -881,6 +881,10 @@
 
     (assoc state ::modules modules)))
 
+(defmethod build-log/event->str ::replace-cljs-constants
+  [{:keys [runtime]}]
+  (format "Optimizing CLJS Constants took %dms" runtime))
+
 (defn setup
   [{::keys [modules]
     :keys [closure-injected-libs compiler-options] :as state}]
@@ -941,7 +945,12 @@
     (add-input-source-maps state cc)
 
     (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
-      (ReplaceCLJSConstants. cc (true? (get-in state [:compiler-options :shadow-keywords]))))
+      (ReplaceCLJSConstants.
+        cc
+        (true? (get-in state [:compiler-options :shadow-keywords]))
+        (fn [runtime]
+          (util/log state {:type ::replace-cljs-constants :runtime runtime}))
+        ))
     (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS
       (NodeEnvInlinePass. cc (if (= :release (:mode state))
                                "production"

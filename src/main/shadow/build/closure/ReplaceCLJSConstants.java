@@ -1,6 +1,7 @@
 package shadow.build.closure;
 // needs to be in this package because a bunch of stuff we need is package protected
 
+import clojure.lang.IFn;
 import com.google.javascript.jscomp.*;
 import com.google.javascript.jscomp.Compiler;
 import com.google.javascript.rhino.IR;
@@ -17,10 +18,12 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
     private final Compiler compiler;
     private final boolean shadowKeywords;
     private final Map<String, ConstantRef> constants = new HashMap<>();
+    private final IFn reportFn;
 
-    public ReplaceCLJSConstants(Compiler compiler, boolean shadowKeywords) {
+    public ReplaceCLJSConstants(Compiler compiler, boolean shadowKeywords, IFn reportFn) {
         this.compiler = compiler;
         this.shadowKeywords = shadowKeywords;
+        this.reportFn = reportFn;
     }
 
     @Override
@@ -28,6 +31,8 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
         if (!constants.isEmpty()) {
             throw new IllegalStateException("can only run once");
         }
+
+        final long start = System.currentTimeMillis();
 
         for (CompilerInput input : ShadowAccess.getInputsInOrder(compiler)) {
             // clj/cljs/cljc files only, clj because of self-host macros
@@ -95,6 +100,9 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
 
             ShadowAccess.reportChangeToEnclosingScope(compiler, target);
         }
+
+        final long runtime = System.currentTimeMillis() - start;
+        reportFn.invoke(runtime);
     }
 
 
