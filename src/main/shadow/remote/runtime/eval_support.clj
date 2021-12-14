@@ -62,7 +62,7 @@
              :eval-ns (symbol (str *ns*))
              :ref-oid ref-oid}))
 
-        (catch Exception e
+        (catch Throwable e
           (let [ex-oid (obj-support/register obj-support e {:input input})]
             (shared/reply runtime msg
               {:op :eval-runtime-error

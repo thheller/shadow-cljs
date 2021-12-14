@@ -416,8 +416,8 @@
             (not summary)
             (-> (assoc-in [:db ident :summary] :db/loading)
                 (update :relay-send conj {:op :obj-describe
-                                       :to runtime-id
-                                       :oid oid}))
+                                          :to runtime-id
+                                          :oid oid}))
             )))))
 
 (defmethod eql/attr ::m/inspect-object
@@ -599,11 +599,8 @@
                    :runtime-id (or ex-client-id from)
                    :runtime (db/make-ident ::m/runtime (or ex-client-id from))
                    :is-error true})
-           (assoc-in [::m/inspect :object] object-ident)
-           (update-in [::m/inspect :nav-stack] conj
-             {:idx (count (get-in db [::m/inspect :nav-stack]))
-              :code code
-              :ident (get-in db [::m/inspect :object])}))})
+           (update-in [::m/inspect :stack] conj {:type :object-panel :ident object-ident})
+           (update-in [::m/inspect :current] inc))})
 
     :eval-runtime-error
     (let [{:keys [from ex-oid]} call-result
@@ -616,9 +613,6 @@
                    :runtime-id from
                    :runtime (db/make-ident ::m/runtime from)
                    :is-error true})
-           (assoc-in [::m/inspect :object] object-ident)
-           (update-in [::m/inspect :nav-stack] conj
-             {:idx (count (get-in db [::m/inspect :nav-stack]))
-              :code code
-              :ident (get-in db [::m/inspect :object])}))})
+           (update-in [::m/inspect :stack] conj {:type :object-panel :ident object-ident})
+           (update-in [::m/inspect :current] inc))})
     ))
