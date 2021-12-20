@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.16.9](https://github.com/thheller/shadow-cljs/compare/69abb8e088cce7db7a901d9371225a0b98aa424b...9dabe73440dde2301b4429075b4d34642ca990a1)
+- [ [`9dabe`](https://github.com/thheller/shadow-cljs/commit/9dabe73440dde2301b4429075b4d34642ca990a1) ] cljs bump 1.10.914
+- [ [`69abb`](https://github.com/thheller/shadow-cljs/commit/69abb8e088cce7db7a901d9371225a0b98aa424b) ] fix inspect eval not showing errors properly
+
 ## [2.16.8](https://github.com/thheller/shadow-cljs/compare/a2b2e4bd509fc881da951e9a00da6e355dbf94b3...a2b2e4bd509fc881da951e9a00da6e355dbf94b3)
 - [ [`a2b2e`](https://github.com/thheller/shadow-cljs/commit/a2b2e4bd509fc881da951e9a00da6e355dbf94b3) ] add timer for ReplaceCLJSConstants pass
 
