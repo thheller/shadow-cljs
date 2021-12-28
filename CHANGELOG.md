@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.10](https://github.com/thheller/shadow-cljs/compare/e9093aed586d5fb49efd94555787f0bef08fb164...e9093aed586d5fb49efd94555787f0bef08fb164)
+- [ [`e9093`](https://github.com/thheller/shadow-cljs/commit/e9093aed586d5fb49efd94555787f0bef08fb164) ] add :dev/asset-load devtools hook
+
 ## [2.16.9](https://github.com/thheller/shadow-cljs/compare/69abb8e088cce7db7a901d9371225a0b98aa424b...9dabe73440dde2301b4429075b4d34642ca990a1)
 - [ [`9dabe`](https://github.com/thheller/shadow-cljs/commit/9dabe73440dde2301b4429075b4d34642ca990a1) ] cljs bump 1.10.914
 - [ [`69abb`](https://github.com/thheller/shadow-cljs/commit/69abb8e088cce7db7a901d9371225a0b98aa424b) ] fix inspect eval not showing errors properly
