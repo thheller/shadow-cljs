@@ -259,13 +259,14 @@
   (let [{:keys [name meta defs] :as ns-info}
         (get-in compiler-env [::cljs-ana/namespaces ns])
 
-        {:keys [after-load after-load-async before-load before-load-async] :as devtools-config}
+        {:keys [after-load asset-load after-load-async before-load before-load-async] :as devtools-config}
         (get-in build-state [::build/config :devtools])
 
         hooks
         (-> {:never-load #{}
              :after-load []
-             :before-load []}
+             :before-load []
+             :asset-load []}
             (cond->
               (or (:dev/never-load meta)
                   (:dev/once meta) ;; can't decide on which meta to use
@@ -291,6 +292,10 @@
                   (or (:dev/after-load meta)
                       (= name after-load))
                   (update :after-load add-entry name)
+
+                  (or (:dev/asset-load meta)
+                      (= name asset-load))
+                  (update :asset-load add-entry name)
 
                   (or (:dev/after-load-async meta)
                       (= name after-load-async))
@@ -543,14 +548,18 @@
                   (vals)
                   (filter :dom)
                   (map :client-id)
-                  (into #{}))]
+                  (into #{}))
+
+          reload-info
+          (extract-reload-info (:build-state worker-state))]
 
       (cond-> worker-state
         (seq to)
         (relay-msg
           {:op :cljs-asset-update
            :to to
-           :updates updates}
+           :updates updates
+           :reload-info reload-info}
           )))))
 
 (defn do-config-watch

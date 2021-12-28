@@ -314,7 +314,13 @@
                              (async/>!! asset-update {:updates updates}))))))))]
 
     (sys-bus/sub system-bus ::m/resource-update resource-update)
-    (sys-bus/sub system-bus ::m/asset-update asset-update)
+
+    ;; only listen to :dev-http asset update messages if :watch-dir is not set
+    ;; otherwise will lead to duplicated messages and potentially conflicting
+    ;; with :watch-path is also set
+    (when-not (seq watch-dir)
+      (sys-bus/sub system-bus ::m/asset-update asset-update))
+
     (sys-bus/sub system-bus [::m/config-watch build-id] config-watch)
 
     ;; ensure all channels are cleaned up properly

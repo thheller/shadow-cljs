@@ -116,7 +116,7 @@
            (= node-abs new)
            new))))
 
-(defn handle-asset-update [{:keys [updates] :as msg}]
+(defn handle-asset-update [{:keys [updates reload-info] :as msg}]
   (doseq [path updates
           ;; FIXME: could support images?
           :when (str/ends-with? path "css")]
@@ -135,6 +135,11 @@
 
         (set! (.-onload new-link)
           (fn [e]
+            (doseq [{:keys [fn-str fn-sym] :as task} (get-in msg [:reload-info :asset-load])
+                    :let [fn-obj (js/goog.getObjectByName fn-str js/$CLJS)]]
+              (devtools-msg (str "call " fn-sym))
+              (fn-obj path new-link))
+
             (gdom/removeNode node)))
 
         (devtools-msg "load CSS" path-match)
@@ -282,7 +287,7 @@
               (repl-init runtime msg))
 
             :cljs-asset-update
-            (fn [{:keys [updates] :as msg}]
+            (fn [msg]
               ;; (js/console.log "cljs-asset-update" msg)
               (handle-asset-update msg))
 
