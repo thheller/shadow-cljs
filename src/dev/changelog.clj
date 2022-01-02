@@ -2,7 +2,8 @@
   (:require
     [clojure.java.io :as io]
     [clojure.java.shell :refer (sh)]
-    [clojure.string :as str])
+    [clojure.string :as str]
+    [shadow.debug :refer (?> ?-> ?->>)])
   (:import [java.io StringWriter]))
 
 (defn group-by-bumps [all]
@@ -19,6 +20,7 @@
           (conj groups (assoc group :prev-version version))
           {:version version
            :sha (:sha commit)
+           :date (:date commit)
            :commits []}
           more))
 
@@ -35,14 +37,15 @@
 
 (defn gather-history []
   (let [lines
-        (-> (sh "git" "log" "--format=oneline")
+        (-> (sh "git" "log" "--format=%H %cs %s")
             (get :out)
             (str/split #"\n"))]
 
     (->> lines
          (map (fn [line]
                 {:sha (subs line 0 40)
-                 :message (subs line 41)}))
+                 :date (subs line 41 51)
+                 :message (subs line 52)}))
          (group-by-bumps)
          (vec))))
 
@@ -51,13 +54,13 @@
     (binding [*out* sw]
       (println "# Changelog")
       (println)
-      (doseq [{:keys [version commits]}
+      (doseq [{:keys [version date commits]}
               ;; drop 3 old versions where I didn't bump properly, too old to be interesting anyways
               (subvec history 1 (- (count history) 3))]
         (let [last-sha (:sha (last commits))
               first-sha (:sha (first commits))]
 
-          (println (str "## [" version "](https://github.com/thheller/shadow-cljs/compare/" last-sha "..." first-sha ")"))
+          (println (str "## [" version "](https://github.com/thheller/shadow-cljs/compare/" last-sha "..." first-sha ") - " date))
           (doseq [{:keys [sha message]} commits]
             (println (str "- [ [`" (subs sha 0 5) "`](https://github.com/thheller/shadow-cljs/commit/" sha ") ] " message))))
 
@@ -71,7 +74,9 @@
     (spit (io/file "CHANGELOG.md") (to-markdown history))))
 
 (comment
-  (main*))
+  (main*)
+
+  (tap> (gather-history)))
 
 (defn -main []
   (main*)
