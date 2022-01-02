@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.16.12](https://github.com/thheller/shadow-cljs/compare/8a93b43b43f4242b6f5f0406171155f575648860...8a93b43b43f4242b6f5f0406171155f575648860) - 2022-01-02
+- [ [`8a93b`](https://github.com/thheller/shadow-cljs/commit/8a93b43b43f4242b6f5f0406171155f575648860) ] Check filename instead of path (#975)
+
 ## [2.16.11](https://github.com/thheller/shadow-cljs/compare/1740364adb55ae08516a221698e8fa319a6d1fd2...f67da8342cfb0b1ea8969cfee4a4d39622f53759) - 2022-01-02
 - [ [`f67da`](https://github.com/thheller/shadow-cljs/commit/f67da8342cfb0b1ea8969cfee4a4d39622f53759) ] ignore emacs temp files on windows
 - [ [`17403`](https://github.com/thheller/shadow-cljs/commit/1740364adb55ae08516a221698e8fa319a6d1fd2) ] add date to changelog generator
