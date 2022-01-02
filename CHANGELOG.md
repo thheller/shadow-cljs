@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.16.11](https://github.com/thheller/shadow-cljs/compare/1740364adb55ae08516a221698e8fa319a6d1fd2...f67da8342cfb0b1ea8969cfee4a4d39622f53759) - 2022-01-02
+- [ [`f67da`](https://github.com/thheller/shadow-cljs/commit/f67da8342cfb0b1ea8969cfee4a4d39622f53759) ] ignore emacs temp files on windows
+- [ [`17403`](https://github.com/thheller/shadow-cljs/commit/1740364adb55ae08516a221698e8fa319a6d1fd2) ] add date to changelog generator
+
 ## [2.16.10](https://github.com/thheller/shadow-cljs/compare/e9093aed586d5fb49efd94555787f0bef08fb164...e9093aed586d5fb49efd94555787f0bef08fb164) - 2021-12-28
 - [ [`e9093`](https://github.com/thheller/shadow-cljs/commit/e9093aed586d5fb49efd94555787f0bef08fb164) ] add :dev/asset-load devtools hook
 
