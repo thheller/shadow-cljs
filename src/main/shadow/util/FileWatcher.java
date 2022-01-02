@@ -156,7 +156,7 @@ public class FileWatcher implements AutoCloseable {
                     if (kind == ENTRY_CREATE) {
                         registerAll(resolvedName);
                     }
-                } else if (childName.startsWith(".#")) {
+                } else if (child.getFileName().toString().startsWith(".#")) {
                     // emacs on windows creates a .#x.cljs file for each x.cljs which we should never
                     // be interested in or act on. It does not appear to be a hidden file for some reason.
                     // I can't think of a legit reason to ever use a filename like this for any CLJS resources or assets
