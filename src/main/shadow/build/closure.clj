@@ -436,7 +436,11 @@
               (conj (SourceFile/fromCode "externs.modules.js" module-externs))
 
               generate?
-              (conj (generate-externs state))))]
+              (conj (generate-externs state))
+
+              (= :external (get-in state [:js-options :js-provider]))
+              (conj (SourceFile/fromCode "externs.external.js" "var shadow$bridge = function(name) {};"))
+              ))]
 
     all-externs))
 
