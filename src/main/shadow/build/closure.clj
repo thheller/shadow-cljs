@@ -28,7 +28,7 @@
      PropertyRenamingPolicy PhaseOptimizer]
     [shadow.build.closure
      ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector
-     NodeStuffInlinePass FindSurvivingRequireCalls GlobalsAsVar]
+     NodeStuffInlinePass FindSurvivingRequireCalls GlobalsAsVar GlobalVars]
     [com.google.javascript.jscomp.deps ModuleLoader$ResolutionMode]
     [java.nio.charset Charset]
     [java.util.logging Logger Level]
@@ -1057,11 +1057,6 @@
   (-> (.get injected-libraries-field compiler)
       (set)))
 
-(defn get-own-symbol-names [symbol-scope]
-  (-> (.get own-symbols-field symbol-scope)
-      (keys)
-      (set)))
-
 (defn dump-closure-inputs [state externs js-mods compiler-options]
   (doseq [extern externs]
     ;; externs have weird filenames and we don't need to keep folders intact
@@ -1530,9 +1525,12 @@
         ;; workaround for https://github.com/thheller/shadow-cljs/issues/894
         ;; can't have const foo$$module$some$es6 in eval-loaded code since we need
         ;; to be able to redefine it and have it available globally
-        _
+        global-vars-pass
         (when (= :dev (:shadow.build/mode state))
-          (.addCustomPass co CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP (GlobalsAsVar. cc)))
+          (.addCustomPass co CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP (GlobalsAsVar. cc))
+          (let [global-vars-pass (GlobalVars. cc)]
+            (.addCustomPass co CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP global-vars-pass)
+            global-vars-pass))
 
         result
         (try
@@ -1553,9 +1551,8 @@
         (get-injected-libs cc)
 
         global-symbol-names
-        (-> (.buildKnownSymbolTable cc)
-            (.getGlobalScope)
-            (get-own-symbol-names))
+        (when global-vars-pass
+          (.-fileVars global-vars-pass))
 
         eval-in-global-scope
         (get state ::output/eval-in-global-scope true)]
@@ -1569,13 +1566,13 @@
           (fn [state source-node]
             (.reset source-map)
 
-            (let [name (.getSourceFileName source-node)]
+            (let [source-filename (.getSourceFileName source-node)]
 
               (cond
-                (= polyfill-name name)
+                (= polyfill-name source-filename)
                 state
 
-                (contains? cache-file-names name)
+                (contains? cache-file-names source-filename)
                 ;; don't update output for cached file, otherwise will cause
                 ;; them all to be reloaded and written to disk although they shouldn't have changed
                 ;; and were only fed to GCC because incremental compiles are bad
@@ -1584,10 +1581,10 @@
                 ;; actually compiled files record :output
                 :else
                 (let [source-file
-                      (get source-files-by-name name)
+                      (get source-files-by-name source-filename)
 
                       {:keys [resource-id output-name ns] :as rc}
-                      (get resource-by-name name)]
+                      (get resource-by-name source-filename)]
 
                   (cond
                     (nil? rc)
@@ -1598,7 +1595,7 @@
                           (try
                             (ShadowAccess/nodeToJs cc source-map source-node)
                             (catch Exception e
-                              (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                              (throw (ex-info (format "failed to generate JS for \"%s\"" source-filename) {:name source-filename} e))))
 
                           shadow-js-prefix
                           (when (= :dev mode)
@@ -1637,7 +1634,7 @@
                           (str ns)
 
                           names-in-this-file
-                          (->> global-symbol-names
+                          (->> (get global-symbol-names source-filename)
                                (filter #(str/ends-with? % sym-str))
                                (set))
 
@@ -1645,7 +1642,7 @@
                           (.toString sw)
 
                           properties
-                          (-> (into #{} (-> property-collector (.-properties) (.get name)))
+                          (-> (into #{} (-> property-collector (.-properties) (.get source-filename)))
                               (clean-collected-properties))
 
                           output
