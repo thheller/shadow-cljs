@@ -273,7 +273,7 @@
           (seq only)
           (assoc :only only)))))
 
-(defn check-alias-conflict! [{ns :name :as ns-info} alias]
+(defn check-alias-conflict! [ns-info ns alias]
   (let [conflict
         (or (get-in ns-info [:requires alias])
             (get-in ns-info [:require-macros alias])
@@ -292,7 +292,7 @@
   ns-info)
 
 (defn merge-require [ns-info merge-key alias ns]
-  (check-alias-conflict! ns-info alias)
+  (check-alias-conflict! ns-info ns alias)
   (update ns-info merge-key assoc alias ns))
 
 (defn merge-require-fn [merge-key ns]
@@ -355,7 +355,7 @@
     (if-not load?
       ;; only reader-alias, no loading or dependency
       (-> ns-info
-          (check-alias-conflict! as-alias)
+          (check-alias-conflict! lib as-alias)
           (update :reader-aliases assoc as-alias lib))
 
       ;; regular none :as-alias require
