@@ -100,7 +100,7 @@
              [some.a :as a]
              [some.b :as a]))]
 
-    (is (thrown? ExceptionInfo (ns-form/parse test {})))))
+    (is (thrown? ExceptionInfo (ns-form/parse test)))))
 
 ;; https://clojure.atlassian.net/browse/CLJ-2123
 ;; https://clojure.atlassian.net/browse/CLJ-2665
@@ -141,6 +141,26 @@
     (is (= '[goog cljs.core some.a] (:deps res)))
     (is (= 'some.a (get-in res [:uses 'b])))
     (is (= 'some.a (get-in res [:reader-aliases 'a])))))
+
+(deftest test-ns-as-alias-conflict
+  (let [test
+        '(ns something
+           (:require
+             [some.a :as a]
+             [some.b :as-alias a]
+             ))]
+
+    (is (thrown? ExceptionInfo (ns-form/parse test)))))
+
+(deftest test-ns-as-alias-pointless-but-fine
+  (let [test
+        '(ns something
+           (:require
+             [some.a :as a :as-alias a]
+             ))]
+
+    (ns-form/parse test)))
+
 
 
 (deftest test-parse-with-strings

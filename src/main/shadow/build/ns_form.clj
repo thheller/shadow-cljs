@@ -273,20 +273,27 @@
           (seq only)
           (assoc :only only)))))
 
-(defn merge-require [ns-info merge-key sym ns]
-  (let [conflict (get-in ns-info [merge-key sym])]
+(defn check-alias-conflict! [{ns :name :as ns-info} alias]
+  (let [conflict
+        (or (get-in ns-info [:requires alias])
+            (get-in ns-info [:require-macros alias])
+            (get-in ns-info [:reader-aliases alias]))]
     (when (and conflict
                (not= conflict ns)
                (not (contains? (:ns-aliases ns-info) ns)))
 
       (throw
-        (ex-info (format "In :require [%s :refer (%s)] already used by [%s :refer (%s)]" ns sym conflict sym)
+        (ex-info (format "The alias %s is already used for namespace %s" alias conflict)
           {:tag ::require-conflict
            :ns-info ns-info
-           :merge-key merge-key
-           :sym sym
-           :ns ns}))))
-  (update ns-info merge-key assoc sym ns))
+           :alias alias
+           :conflict conflict}))))
+
+  ns-info)
+
+(defn merge-require [ns-info merge-key alias ns]
+  (check-alias-conflict! ns-info alias)
+  (update ns-info merge-key assoc alias ns))
 
 (defn merge-require-fn [merge-key ns]
   #(merge-require %1 merge-key %2 ns))
@@ -347,7 +354,9 @@
 
     (if-not load?
       ;; only reader-alias, no loading or dependency
-      (update ns-info :reader-aliases assoc as-alias lib)
+      (-> ns-info
+          (check-alias-conflict! as-alias)
+          (update :reader-aliases assoc as-alias lib))
 
       ;; regular none :as-alias require
       (-> ns-info
