@@ -337,12 +337,17 @@
   ;; :refer (f) :rename {f other-f} should clear out the :refer (f) since its no longer accessible
   (let [rename-syms (set (keys rename))
         refer (remove-entry refer rename-syms)
-        refer-macros (remove-entry refer-macros rename-syms)]
+        refer-macros (remove-entry refer-macros rename-syms)
 
-    (if as-alias
-      ;; can't use :refer or others with :as-alias
-      (do (assert-as-alias-used-alone lib opts-m)
-          (update ns-info :reader-aliases assoc as-alias lib))
+        ;; if only :as-alias is used we don't need to load the namespace
+        ;; any other variant must load and can optionally also contain as-alias
+        ;; [something :as-alias :refer (foo)]
+        ;; [something :as foo :as-alias bar]
+        load? (not (and (= 1 (count opts-m)) as-alias))]
+
+    (if-not load?
+      ;; only reader-alias, no loading or dependency
+      (update ns-info :reader-aliases assoc as-alias lib)
 
       ;; regular none :as-alias require
       (-> ns-info
@@ -351,6 +356,9 @@
           (cond->
             as
             (merge-require :requires as lib)
+
+            as-alias
+            (update :reader-aliases assoc as-alias lib)
 
             default
             (update :renames assoc default (symbol (str lib) "default"))

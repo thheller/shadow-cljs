@@ -103,7 +103,8 @@
     (is (thrown? ExceptionInfo (ns-form/parse test {})))))
 
 ;; https://clojure.atlassian.net/browse/CLJ-2123
-(deftest test-ns-as-alias
+;; https://clojure.atlassian.net/browse/CLJ-2665
+(deftest test-ns-as-alias-no-loading
   (let [test
         '(ns something
            (:require
@@ -112,8 +113,35 @@
         res
         (ns-form/parse test)]
 
-    (tap> res)
+    (is (= '[goog cljs.core] (:deps res)))
     (is (= 'some.a (get-in res [:reader-aliases 'a])))))
+
+(deftest test-ns-as-alias-with-as
+  (let [test
+        '(ns something
+           (:require
+             [some.a :as b :as-alias a]))
+
+        res
+        (ns-form/parse test)]
+
+    (is (= '[goog cljs.core some.a] (:deps res)))
+    (is (= 'some.a (get-in res [:requires 'b])))
+    (is (= 'some.a (get-in res [:reader-aliases 'a])))))
+
+(deftest test-ns-as-alias-with-refer
+  (let [test
+        '(ns something
+           (:require
+             [some.a :refer (b) :as-alias a]))
+
+        res
+        (ns-form/parse test)]
+
+    (is (= '[goog cljs.core some.a] (:deps res)))
+    (is (= 'some.a (get-in res [:uses 'b])))
+    (is (= 'some.a (get-in res [:reader-aliases 'a])))))
+
 
 (deftest test-parse-with-strings
   (let [test
