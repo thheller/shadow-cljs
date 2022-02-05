@@ -124,6 +124,13 @@
     :panel {:output-type :chrome/shared
             :init-fn shadow.cljs.ui.chrome-ext.panel/init}}}
 
+  :npm-resolve-check
+  {:target :node-script
+   :main shadow.resolve-check/main
+   :output-to "packages/resolve-check/run.js"
+   :js-package-dirs ["packages/resolve-check/node_modules"]
+   :devtools {:enabled false}}
+
   ;; test builds
 
   :browser

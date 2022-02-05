@@ -10,7 +10,8 @@
     [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]
     [org.apache.commons.codec.digest DigestUtils]
     [java.io FileInputStream File]
-    [java.net URL]))
+    [java.net URL]
+    [java.nio.file Paths Path]))
 
 ;; FIXME: there are still lots of places that work directly with the map
 ;; that is ok for most things but makes it really annoying to change the structure of the data
@@ -347,3 +348,6 @@
 (defn sha1-url [^URL url]
   (with-open [in (.openStream url)]
     (DigestUtils/sha1Hex in)))
+
+(defn as-path ^Path [^String path]
+  (Paths/get path (into-array String [])))

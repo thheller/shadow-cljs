@@ -1,0 +1,46 @@
+[ ;; browser field overrides index.js to index-browser.js, used by default
+ {:from nil :request "pkg-a" :expected "node_modules/pkg-a/index-browser.js"}
+
+ ;; not used when disabled
+ {:from nil :request "pkg-a" :expected "node_modules/pkg-a/index.js" :use-browser-overrides false}
+
+ ;; browser fields overrides foo.js to foo.browser.js
+ {:from "pkg-nested-override" :request "./dir/foo.js" :expected "node_modules/pkg-nested-override/dir/foo.browser.js"}
+
+ ;; browser field overrides "pkg" require to local ./pkg-override.js file instead
+ {:from "pkg-nested-override/dir/bar" :request "pkg" :expected "node_modules/pkg-nested-override/pkg-override.js"}
+
+ ;; package can also disable require entirely
+ {:from "pkg-nested-override/dir/bar" :request "fs" :expected false}
+
+ ;; @ scoped package, pretty basic
+ {:from nil :request "@scoped/a" :expected "node_modules/@scoped/a/index.js"}
+
+ ;; there is a foo.js and a foo/index.js, pick the file first
+ {:from nil :request "file-over-dir/foo" :expected "node_modules/file-over-dir/foo.js"}
+ {:from nil :request "file-over-dir/foo.js" :expected "node_modules/file-over-dir/foo.js"}
+
+ ;; core-js require ..
+ {:from "pkg-a/nested/thing" :request ".." :expected "node_modules/pkg-a/index-browser.js"}
+
+ ;; finds index.js in dir
+ {:from nil :request "entry-dir/foo" :expected "node_modules/entry-dir/foo/index.js"}
+
+ ;; package.json main is directory, should find index.js
+ {:from nil :request "main-is-dir" :expected "node_modules/main-is-dir/lib/index.js"}
+
+ ;; must not use dir.js
+ {:from nil :request "dir" :fail-expected true}
+
+ ;; nested package.json with main pointing to ./main.js
+ {:from nil :request "nested-pkg/nested" :expected "node_modules/nested-pkg/nested/main.js"}
+
+ ;; also used when resolving relative inside the package
+ {:from "nested-pkg/relative/index.js" :request "../nested" :expected "node_modules/nested-pkg/nested/main.js"}
+
+ ;; nested just has index.js
+ {:from nil :request "nested-pkg/just-index" :expected "node_modules/nested-pkg/just-index/index.js"}
+
+ ;; nested node_modules install
+ {:from "lvl1" :request "lvl2" :expected "node_modules/lvl1/node_modules/lvl2/index.js"}
+ ]

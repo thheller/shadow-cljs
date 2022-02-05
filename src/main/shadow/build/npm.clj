@@ -17,6 +17,97 @@
 
 (set! *warn-on-reflection* true)
 
+(defn condition-only-map? [exports]
+  (reduce-kv
+    (fn [x key val]
+      (if (str/starts-with? key ".")
+        (reduced false)
+        x))
+    true
+    exports))
+
+(defn path-only-map? [exports]
+  (reduce-kv
+    (fn [x key val]
+      (if-not (str/starts-with? key ".")
+        (reduced false)
+        x))
+    true
+    exports))
+
+(comment
+  (condition-only-map? {"a" 1 "b" 2})
+  (condition-only-map? {"a" 1 "./b" 2})
+  (path-only-map? {"./a" 1 "./b" 2})
+  (path-only-map? {"./a" 1 "b" 2}))
+
+;; https://github.com/jkrems/proposal-pkg-exports
+;; https://webpack.js.org/guides/package-exports/
+;; https://nodejs.org/api/packages.html#packages_exports
+
+(defn decipher-path-exports [exports]
+  (reduce-kv
+    (fn [m key val]
+      (cond
+        (str/includes? key "*")
+        (update m :wildcard-match conj [key val])
+
+        (str/ends-with? key "/")
+        (update m :prefix-match conj [key val])
+
+        :else
+        (update m :exact-match conj [key val])))
+    {:exact-match []
+     :prefix-match []
+     :wildcard-match []}
+    exports))
+
+(defn decipher-exports [exports]
+  (cond
+    (string? exports)
+    [:try-one exports]
+
+    (vector? exports)
+    [:try-many exports]
+
+    (not (map? exports))
+    (throw (ex-info "invalid package.json exports value" {:exports exports}))
+
+    (condition-only-map? exports)
+    [:condition-match exports]
+
+    (path-only-map? exports)
+    [:path-match (decipher-path-exports exports)]
+
+    :else
+    (throw (ex-info "invalid package.json exports value" {:exports exports}))
+    ))
+
+(defn match-exports [exports path conditions]
+  (cond
+    (string? exports)
+    ::TBD
+
+    (vector? exports)
+    ::TBD
+
+    (not (map? exports))
+    (throw (ex-info "invalid package.json exports value" {:exports exports}))
+
+    (condition-only-map? exports)
+    ::TBD
+
+    (path-only-map? exports)
+    (if-some [exact-match (get exports path)]
+      [:exact-match exact-match]
+      )
+
+
+    :else
+    (throw (ex-info "invalid package.json exports value" {:exports exports}))
+
+    ))
+
 ;; used in every resource :cache-key to make sure it invalidates when shadow-cljs updates
 (def NPM-CACHE-KEY
   (data/sha1-url (io/resource "shadow/build/npm.clj")))
@@ -172,180 +263,14 @@
         (swap! index-ref assoc-in [:packages package-name] pkg-info)
         pkg-info)))
 
+(defn with-npm-info [npm package rc]
+  (assoc rc
+    ::package package
+    ;; FIXME: rewrite all uses of this so it looks at ::package instead
+    :package-name (:package-name package)))
+
 (defn is-npm-dep? [{:keys [npm-deps]} ^String require]
   (contains? npm-deps require))
-
-(defn split-package-require
-  "@scoped/thing -> [@scoped/thing nil]
-   @scoped/thing/foo -> [@scoped/thing foo]
-   unscoped -> [unscoped nil]
-   unscoped/foo -> [unscoped foo]"
-  [entry]
-  (let [slash-idx
-        (str/index-of entry "/")
-
-        slash-idx
-        (if-not (str/starts-with? entry "@")
-          slash-idx
-          (str/index-of entry "/" (inc slash-idx)))]
-
-    (if-not slash-idx
-      [entry nil]
-      [(subs entry 0 slash-idx)
-       ;; some requires might have trailing slash, which I guess means it is supposed to use main?
-       ;; "string_decoder/"
-       (let [suffix (subs entry (inc slash-idx))]
-         (when (not= suffix "")
-           suffix))])))
-
-(defn with-nested-package-dirs [{:keys [js-package-dirs] :as npm} ^File require-from]
-  ;; FIXME: rebuilding this a lot, maybe memoize
-  (let [roots (set js-package-dirs)]
-    (loop [dir (.getParentFile require-from)
-           result []]
-      (if (or (nil? dir) (contains? roots dir))
-        (into result js-package-dirs)
-        (let [test (io/file dir "node_modules")]
-          (if (and (.exists test) (.isDirectory test))
-            (recur (.getParentFile dir) (conj result test))
-            (recur (.getParentFile dir) result)
-            ))))))
-
-(comment
-  (with-nested-package-dirs
-    {:js-package-dirs [(absolute-file (io/file "test-env"))]}
-    (absolute-file (io/file "test-env" "lvl1" "index.js"))))
-
-(defn find-package-main [npm ^File package-dir]
-  (let [{:keys [package-json] :as package} (get-package-info npm (io/file package-dir "package.json"))]
-
-    ;; when package.json exists lookup entry
-    ;; otherwise look for <dir>/index.js
-    (or (and package-json
-             (let [entries
-                   (->> (get-in npm [:js-options :entry-keys])
-                        (map #(get package-json %))
-                        (remove nil?)
-                        (into []))
-
-                   entry-file
-                   (reduce
-                     (fn [_ entry]
-                       ;; test file exts first, so we don't pick a directory over a file
-                       ;; lib/jsdom
-                       ;; lib/jsdom.js
-                       (when-let [file (or (test-file-exts npm package-dir entry)
-                                           (when-let [file-or-dir (test-file package-dir entry)]
-                                             (if-not (.isDirectory file-or-dir)
-                                               file-or-dir
-                                               (let [index (io/file file-or-dir "index.js")]
-                                                 (and (.exists index) index)))))]
-
-                         ;; we only want the first one in case more exist
-                         (reduced file)))
-                     nil
-                     entries)]
-
-               (when (and (seq entries)
-                          (not entry-file))
-                 (throw (ex-info
-                          (str "package in " package-dir " specified entries but they were all missing")
-                          {:tag ::missing-entries
-                           :entries entries
-                           :package-dir package-dir})))
-
-               entry-file))
-
-        ;; fallback for <package>/index.js without package.json
-        (let [index (io/file package-dir "index.js")]
-          (when (and (.exists index) (.isFile index))
-            index)))))
-
-(defn find-package-require* [npm modules-dir require]
-  (or (when-let [file (test-file modules-dir require)]
-        (cond
-          (.isFile file)
-          file
-
-          (.isDirectory file)
-          (find-package-main npm file)
-
-          :else
-          nil))
-
-      (test-file-exts npm modules-dir require)))
-
-(defn find-package-require
-  [npm ^File require-from require]
-  {:pre [(not (util/is-relative? require))
-         (not (util/is-absolute? require))]}
-
-  ;; slightly modified node resolve rules since we don't go "up" the paths
-  ;; only node-modules-dir is checked
-  ;; eg. /usr/project/node_modules but not /usr/node_modules
-
-  ;; react-dom/server -> react-dom/server.js
-  ;; react-dom -> react-dom/package.json -> follow main
-  ;; firebase/app
-  ;; firebase/app.js doesn't exists
-  ;; firebase/app/package.json -> follow main
-
-  ;; first check if node_modules/<require> exists as a file (with or without exts)
-  (reduce
-    (fn [_ modules-dir]
-      (when-let [file (find-package-require* npm modules-dir require)]
-        (reduced file)))
-    nil
-    (if (and (get-in npm [:js-options :allow-nested-packages]) require-from)
-      (with-nested-package-dirs npm require-from)
-      (:js-package-dirs npm))))
-
-(defn find-relative [npm ^File relative-to ^String require]
-  (when-not relative-to
-    (throw (ex-info
-             (format "can only resolve relative require with a file reference: %s" require)
-             {:entry require})))
-
-  (let [rel-dir
-        (cond
-          (.isFile relative-to)
-          (.getParentFile relative-to)
-
-          (.isDirectory relative-to)
-          relative-to
-
-          :else
-          (throw (ex-info (format "can't find %s from %s" require relative-to)
-                   {:tag ::find-relative
-                    :relative-to relative-to
-                    :require require})))
-
-        file
-        (test-file rel-dir require)
-
-        ^File file
-        (cond
-          (not file)
-          (test-file-exts npm rel-dir require)
-
-          ;; babel-runtime has a ../core-js/symbol require
-          ;; core-js/symbol is a directory
-          ;; core-js/symbol.js is a file
-          ;; so for each directory first test if there is file by the same name
-          ;; then if there is directory/index.js
-          ;; then if there is a directory/package.json with a main entry
-          (.isDirectory file)
-          (or (test-file-exts npm rel-dir require)
-              (test-file-exts npm file "index")
-              (let [package-json (io/file file "package.json")]
-                (when (.exists package-json)
-                  (find-package-main npm file))))
-
-          :else
-          file)]
-
-    (when (and file (.isFile file))
-      file)))
 
 ;; https://github.com/webpack/node-libs-browser/blob/master/index.js
 ;; using this package so have the same dependencies that webpack would use
@@ -401,92 +326,6 @@
      :requires #{}
      :deps '[shadow.js]
      :source ""}))
-
-(defn find-file
-  [npm ^File require-from ^String require]
-  ;; early exit if a npm file contains an absolute require, eg. require("/foo.js")
-  (if (util/is-absolute? require)
-    (throw (ex-info "absolute require not allowed for node_modules files"
-             {:tag ::absolute-path
-              :require-from require-from
-              :require require}))
-
-    ;; only require("foo") or require("./foo")
-    (let [use-browser-overrides
-          (get-in npm [:js-options :use-browser-overrides])
-
-          require-from-pkg
-          (when require-from ;; no overrides for entries
-            (find-package-for-file npm require-from))
-
-          browser-override
-          (when (and use-browser-overrides require-from-pkg)
-            (get-in require-from-pkg [:browser-overrides require]))]
-
-      (cond
-        ;; browser override { "./foo" : false } to signal to ignore this dep
-        (false? browser-override)
-        false
-
-        (and browser-override
-             (not (string? browser-override)))
-        (throw (ex-info (format "invalid browser override in package: %s" require-from)
-                 {:require require
-                  :require-from require-from
-                  :override browser-override}))
-
-        ;; if package.json has browser: { "./foo" : "./foo.browser" } then all
-        ;; requires in that package using require("./foo") apparantely should be using
-        ;; ./foo.browser instead. regardless of which directory they are in.
-        ;; this seems to be in addition to overriding files with an package-relative path after
-        ;; they have been resolved.
-        ;; if we have a match then just continue resolving that directly in place of the original
-        (seq browser-override)
-        (if-not (util/is-relative? browser-override)
-          ;; don't know if this exists but probably does "./foo":"foo"
-          ;; replacing a local file with a different package
-          (find-package-require npm require-from browser-override)
-          ;; target is a relative path, it may either be relative to the
-          ;; file it was required from or relative to the package
-          (or (find-relative npm require-from browser-override)
-              (find-relative npm (:package-dir require-from-pkg) browser-override)
-              (throw (ex-info
-                       (format "failed to resolve: %s from %s, it was overridden from %s to %s"
-                         require require-from require browser-override)
-                       {:require-from require-from
-                        :require require
-                        :package-dir (:package-dir require-from-pkg)
-                        :browser-override browser-override}))))
-
-        ;; no override, require("./foo.js")
-        (util/is-relative? require)
-        (or (find-relative npm require-from require)
-            (throw (ex-info (format "failed to resolve: %s from %s" require require-from)
-                     {:require-from require-from
-                      :require require})))
-
-        ;; last check to see if a node built-in package was required
-        ;; and maybe replace it by a node-libs-browser polyfill or
-        ;; skip this require
-        :else
-        (let [override
-              (when use-browser-overrides
-                ;; node-libs-browser replacements
-                (get node-libs-browser require))]
-
-          (cond
-            (nil? override)
-            (find-package-require npm require-from require)
-
-            ;; "canvas": false
-            (false? override)
-            false
-
-            ;; "foo":"bar"
-            ;; swap one package with the other
-            :else
-            (find-package-require npm require-from override)
-            ))))))
 
 (defn maybe-convert-goog [dep]
   (if-not (str/starts-with? dep "goog:")
@@ -580,14 +419,6 @@
         last-modified
         (.lastModified file)
 
-        ;; the only reliable way to determine if something belongs to a package
-        ;; is by looking for the package.json and parsing the name
-        ;; we can't just remember the entry require("react") since that may
-        ;; require("./lib/React.js") which also belongs to the react package
-        ;; so we must determine this from the file alone not by the way it was required
-        {:keys [package-name] :as pkg-info}
-        (find-package-for-file npm file)
-
         source
         (slurp file)
 
@@ -655,32 +486,26 @@
               (log/info ::js-invalid-requires {:resource-name resource-name
                                                :requires js-invalid-requires}))
 
-            (-> info
-                (assoc
-                  :resource-id [::resource resource-name]
-                  :resource-name resource-name
-                  ;; work around file names ending up too long on some linux systems for certain npm deps
-                  ;; FileNotFoundException: .shadow-cljs/builds/foo/dev/shadow-js/module$node_modules$$emotion$react$isolated_hoist_non_react_statics_do_not_use_this_in_your_code$dist$emotion_react_isolated_hoist_non_react_statics_do_not_use_this_in_your_code_browser_cjs.js (File name too long)
-                  :output-name
-                  (if (> (count resource-name) 127)
-                    (str "module$too_long_" (util/md5hex resource-name) ".js")
-                    (str ns ".js"))
-                  :type :js
-                  :file file
-                  :last-modified last-modified
-                  :cache-key cache-key
-                  :ns ns
-                  :provides #{ns}
-                  :requires #{}
-                  :source source
-                  :js-language js-language
-                  :js-deps js-deps
-                  :deps js-deps))))
-
-        (cond->
-          pkg-info
-          (assoc :npm-info (select-keys pkg-info [:package-name :package-id :version])
-                 :package-name package-name)))))
+            (assoc info
+              :resource-id [::resource resource-name]
+              :resource-name resource-name
+              ;; work around file names ending up too long on some linux systems for certain npm deps
+              ;; FileNotFoundException: .shadow-cljs/builds/foo/dev/shadow-js/module$node_modules$$emotion$react$isolated_hoist_non_react_statics_do_not_use_this_in_your_code$dist$emotion_react_isolated_hoist_non_react_statics_do_not_use_this_in_your_code_browser_cjs.js (File name too long)
+              :output-name
+              (if (> (count resource-name) 127)
+                (str "module$too_long_" (util/md5hex resource-name) ".js")
+                (str ns ".js"))
+              :type :js
+              :file file
+              :last-modified last-modified
+              :cache-key cache-key
+              :ns ns
+              :provides #{ns}
+              :requires #{}
+              :source source
+              :js-language js-language
+              :js-deps js-deps
+              :deps js-deps))))))
 
 (defn get-file-info [{:keys [index-ref] :as npm} ^File file]
   {:pre [(service? npm)]}
@@ -690,148 +515,286 @@
         file-info
         )))
 
-(defn js-resource-for-global
-  "a dependency might come from something already included in the page by other means
+(defn find-package-for-require* [npm {:keys [package] :as require-from} require]
 
-   a config like:
-   {\"react\" {:type :global :global \"React\"}}
+  (if (or (not require-from) (not (:allow-nested-packages (:js-options npm))))
+    (find-package npm require)
+    (let [package-dir (get-in require-from [::package :package-dir])
+          nested-package-dir (io/file package-dir "node_modules")]
+      (or (and (.exists nested-package-dir)
+               (let [package-file (io/file nested-package-dir require "package.json")]
+                 (and (.exists package-file)
+                      (read-package-json npm package-file))))
+          (find-package npm require)))))
 
-   means require(\"react\") returns the global React instance"
-  [require {:keys [global] :as pkg}]
-  (let [ns (symbol (ModuleNames/fileToModuleName require))]
-    {:resource-id [::global require]
-     :resource-name (str "global$" ns ".js")
-     :output-name (str ns ".js")
-     :global-ref true
-     :type :js
-     :cache-key [NPM-CACHE-KEY CLOSURE-CACHE-KEY]
-     :last-modified 0
-     :ns ns
-     :provides #{ns}
-     :requires #{}
-     :deps []
-     :source (str "module.exports=(" global ");")}))
+(defn find-package-for-require [npm require-from require]
+  ;; finds package by require walking down from roots (done in find-package)
+  ;; "a/b/c", checks a/package.json, a/b/package.json, a/b/c/package.json
+  ;; first package.json wins, nested package.json may come in later when resolving in package
+  (let [[start & more] (str/split require #"/")]
+    (loop [path start
+           more more]
 
-(defn js-resource-for-file
-  "if we want to include something that is not on npm or we want a custom thing
-  {\"react\" {:type :file :file \"path/to/my/react.js\"}}"
+      (let [pkg (find-package-for-require* npm require-from path)]
+        (cond
+          pkg
+          pkg
 
-  [npm require {:keys [file file-min] :as cfg}]
-  (let [mode
-        (get-in npm [:js-options :mode] :release)
+          (not (seq more))
+          nil
 
+          :else
+          (recur (str path "/" (first more)) (rest more))
+          )))))
+
+;; resolves ./foo/bar.js from /node_modules/package/nested/file.js in /node_modules/packages
+;; returns ./nested/foo/bar.js
+(defn resolve-rel-require [^File package-dir ^File file ^String require]
+  {:pre [(.isFile file)]}
+  (let [path
+        (->> (.relativize
+               (.toPath package-dir)
+               (-> file (.getParentFile) (.toPath) (.resolve require)))
+             (rc/normalize-name))]
+
+    (when (str/starts-with? path "../")
+      (throw (ex-info (format "relative require %s from %s outside package %s"
+                        require
+                        (.getAbsolutePath file)
+                        (.getAbsolutePath package-dir))
+               {:package-dir package-dir
+                :file file
+                :require require})))
+
+    (str "./" path)))
+
+;; /node_modules/foo/bar.js in /node_modules/foo returns ./bar.js
+(defn as-package-rel-path [{:keys [^File package-dir] :as package} ^File file]
+  (->> (.toPath file)
+       (.relativize (.toPath package-dir))
+       (str)
+       (rc/normalize-name)
+       (str "./")))
+
+(comment
+  (resolve-rel-require
+    (absolute-file (io/file "test-env" "pkg-a"))
+    (absolute-file (io/file "test-env" "pkg-a" "nested" "thing.js"))
+    "../../index.js")
+  )
+
+(defn get-package-override
+  [{:keys [js-options] :as npm}
+   {:keys [package-name browser-overrides] :as package}
+   rel-require]
+
+  (let [package-overrides (:package-overrides js-options)]
+    (when (or (and (:use-browser-overrides js-options) (seq browser-overrides))
+              (seq package-overrides))
+
+      ;; allow :js-options config to replace files in package by name
+      ;; :js-options {:package-overrides {"codemirror" {"./lib/codemirror.js" "./addon/runmode/runmode.node.js"}}
+      (or (get-in package-overrides [package-name rel-require])
+          ;; FIXME: I'm almost certain that browser allows overriding without extension
+          ;; "./lib/some-file":"./lib/some-other-file"
+          (get browser-overrides rel-require)))))
+
+(defn find-file-in-package [npm {:keys [package-dir package-json] :as package} rel-require]
+  (if (= rel-require "./")
+    ;; package main, lookup entries
+    (let [entries
+          (->> (get-in npm [:js-options :entry-keys])
+               (map #(get package-json %))
+               (remove nil?)
+               (into []))]
+
+      (if (seq entries)
+        (let [entry-file
+              (reduce
+                (fn [_ entry]
+                  (when-let [file (find-file-in-package npm package entry)]
+                    ;; we only want the first one in case more exist
+                    (reduced file)))
+                nil
+                entries)]
+
+          (when (not entry-file)
+            (throw (ex-info
+                     (str "package in " package-dir " specified entries but they were all missing")
+                     {:tag ::missing-entries
+                      :entries entries
+                      :package-dir package-dir})))
+
+          entry-file)
+
+        ;; fallback for <package>/index.js without package.json
+        (let [index (io/file package-dir "index.js")]
+          (when (and (.exists index) (.isFile index))
+            index))))
+
+    ;; path in package
+    ;; rel-require might be ./foo
+    ;; need to check ./foo.js and ./foo/package.json or ./foo/index.js
+    (let [file (test-file package-dir rel-require)]
+      (cond
+        (nil? file)
+        (test-file-exts npm package-dir rel-require)
+
+        (.isFile file)
         file
-        (-> (if (and (= :release mode) (seq file-min))
-              (io/file file-min)
-              (io/file file))
-            (absolute-file))]
-    (when-not (.exists file)
-      (throw (ex-info "file override for require doesn't exist" {:file file :require require :config cfg})))
 
-    (get-file-info npm file)
-    ))
+        ;; babel-runtime has a ../core-js/symbol require
+        ;; core-js/symbol is a directory
+        ;; core-js/symbol.js is a file
+        ;; so for each directory first test if there is file by the same name
+        ;; then if there is directory/index.js
+        ;; then if there is a directory/package.json with a main entry
+        (.isDirectory file)
+        (or (test-file-exts npm package-dir rel-require)
+            (test-file-exts npm file "index")
+            (let [nested-package-json (io/file file "package.json")]
+              (if (.exists nested-package-json)
+                (let [nested-package (read-package-json npm nested-package-json)]
+                  ;; rel-require resolved to a dir, continue with ./ from there
+                  (find-file-in-package npm nested-package "./")))))
 
-(defn find-resource
-  [{:keys [js-options] :as npm} ^File require-from ^String require]
-  {:pre [(service? npm)
-         (or (nil? require-from)
-             (instance? File require-from))
-         (string? require)]}
+        :else
+        (throw
+          (ex-info
+            (format "found something unexpected %s for %s in %s" file rel-require package-dir)
+            {:file file
+             :package package
+             :rel-require rel-require}))
+        ))))
 
-  (let [^File file (find-file npm require-from require)]
-    (cond
-      (nil? file)
-      nil
+(declare find-resource)
 
-      (false? file)
-      empty-rc
+;; expects a require starting with ./ expressing a require relative in the package
+;; using this instead of empty string because package exports use it too
+(defn find-resource-in-package [npm package require-from rel-require]
+  {:pre [(map? package)
+         (str/starts-with? rel-require "./")]}
 
-      :else
-      (let [{:keys [browser-overrides ^File package-dir] :as pkg}
-            (find-package-for-file npm file)
+  (if (:package-exports package)
+    (throw (ex-info "tbd" {}))
 
-            {:keys [package-overrides]} js-options
+    ;; default npm resolve
+    (when-let [file (find-file-in-package npm package rel-require)]
 
-            ;; the package may have "browser":{"./a":"./b"} overrides
-            override
-            (when (and pkg
-                       (or (and (:use-browser-overrides js-options) (seq browser-overrides))
-                           (seq package-overrides)))
-
-              (let [package-path
-                    (.toPath package-dir)
-
-                    rel-name
-                    (->> (.toPath file)
-                         (.relativize package-path)
-                         (str)
-                         (rc/normalize-name)
-                         (str "./"))]
-
-                ;; allow :js-options config to replace files in package by name
-                ;; :js-options {:package-overrides {"codemirror" {"./lib/codemirror.js" "./addon/runmode/runmode.node.js"}}
-                (or (get-in package-overrides [(:package-name pkg) rel-name])
-                    ;; FIXME: I'm almost certain that browser allows overriding without extension
-                    ;; "./lib/some-file":"./lib/some-other-file"
-                    (get browser-overrides rel-name))))]
+      (let [rel-path (as-package-rel-path package file)
+            override (get-package-override npm package rel-path)]
 
         (cond
-          ;; good to go, no browser overrides
-          (nil? override)
+          ;; override to disable require, sometimes used to skip certain requires for browser
+          (false? override)
+          empty-rc
+
+          (string? override)
+          (or (if (util/is-relative? override)
+                (find-resource-in-package npm package require-from override)
+                (find-resource npm require-from override))
+              (throw (ex-info (format "require %s was overridden to %s but didn't exist in package %s"
+                                rel-require override (:package-name package))
+                       {:package package
+                        :rel-require rel-require})))
+
+          (not (nil? override))
+          (throw (ex-info (format "invalid override %s for %s in %s"
+                            override rel-require (:package-name package))
+                   {:tag ::invalid-override
+                    :package-dir (:package-dir package)
+                    :require rel-require
+                    :override override}))
+
+          :no-override
           (try
-            (get-file-info npm file)
+            (with-npm-info npm package (get-file-info npm file))
             (catch Exception e
               ;; user may opt to just ignore a require("./something.css")
-              (if (and (:ignore-asset-requires js-options)
-                       (asset-require? require))
+              (if (and (:ignore-asset-requires (:js-options npm))
+                       (asset-require? rel-require))
                 empty-rc
                 (throw (ex-info "failed to inspect node_modules file"
                          {:tag ::file-info-failed
                           :file file
                           :require-from require-from
-                          :require require}
-                         e)))))
+                          :require rel-require}
+                         e))))))))))
 
-          ;; disabled require
-          (false? override)
-          empty-rc
+(defn find-resource
+  [npm require-from ^String require]
+  {:pre [(service? npm)
+         (or (nil? require-from)
+             (map? require-from))
+         (string? require)]}
 
-          ;; FIXME: is "./lib/some-file.js":"some-package" allowed?
-          ;; currently assumes its always a file in the package itself
-          (and (string? override)
-               (util/is-relative? override))
-          (let [override-file
-                (-> (io/file package-dir override)
-                    (absolute-file))]
+  (cond
+    (util/is-absolute? require)
+    (throw (ex-info "absolute require not allowed for node_modules files"
+             {:tag ::absolute-path
+              :require-from require-from
+              :require require}))
 
-            (when-not (.exists override-file)
-              (throw (ex-info "override to file that doesn't exist"
-                       {:tag ::invalid-override
-                        :require-from require-from
-                        :require require
-                        :file file
-                        :override override
-                        :override-file override-file})))
-            (try
-              (get-file-info npm override-file)
-              (catch Exception e
-                ;; not doing asset-require check here since I doubt anyone will
-                ;; override one asset to another
-                (throw (ex-info "failed to inspect node_modules file"
-                         {::tag ::file-info-failed
-                          :file file
-                          :require-from require-from
-                          :require require
-                          :override override
-                          :override-file override-file}
-                         e)))))
+    ;; pkg relative require "./foo/bar.js"
+    (util/is-relative? require)
+    (do (when-not (and require-from (:file require-from))
+          (throw (ex-info "relative require without require-from"
+                   {:tag ::no-require-from
+                    :require-from require-from
+                    :require require})))
 
-          :else
-          (throw (ex-info "invalid override"
-                   {:tag ::invalid-override
-                    :package-dir package-dir
-                    :require require
-                    :override override})))))))
+        (when-not (::package require-from)
+          (throw (ex-info "require-from is missing package info"
+                   {:tag ::no-package-require-from
+                    :require-from require-from
+                    :require require})))
+
+        (let [package
+              (::package require-from)
+
+              rel-require
+              (resolve-rel-require (:package-dir package) (:file require-from) require)]
+
+          (find-resource-in-package npm package require-from rel-require)))
+
+    ;; "package" require
+    ;; when "package" is required from within another package its package.json
+    ;; has a chance to override what that does, need to check it before actually
+    ;; trying to find the package itself
+    :package-require
+    (let [override
+          (when (and require-from (::package require-from) (:use-browser-overrides (:js-options npm)))
+            (or (get-in require-from [::package :browser-overrides require])
+                (get node-libs-browser require)))]
+
+      (cond
+        ;; common path, no override
+        (nil? override)
+        (when-let [{:keys [package-name] :as package} (find-package-for-require npm require-from require)]
+          (if (= require package-name)
+            ;; plain package require turns into "./" rel require
+            (find-resource-in-package npm package require-from "./")
+            ;; strip package/ from package/foo turn it into ./foo
+            (let [rel-require (str "." (subs require (count package-name)))]
+              (find-resource-in-package npm package require-from rel-require)
+              )))
+
+        ;; disabled require
+        (false? override)
+        empty-rc
+
+        (not (string? override))
+        (throw (ex-info (format "invalid browser override in package: %s" require-from)
+                 {:require require
+                  :require-from require-from
+                  :override override}))
+
+        (util/is-relative? override)
+        (find-resource-in-package npm (::package require-from) require-from override)
+
+        :else
+        (find-resource npm require-from override)
+        ))))
 
 (defn shadow-js-require
   ([rc]
@@ -927,3 +890,45 @@
      }))
 
 (defn stop [npm])
+
+
+(defn js-resource-for-global
+  "a dependency might come from something already included in the page by other means
+
+   a config like:
+   {\"react\" {:type :global :global \"React\"}}
+
+   means require(\"react\") returns the global React instance"
+  [require {:keys [global] :as pkg}]
+  (let [ns (symbol (ModuleNames/fileToModuleName require))]
+    {:resource-id [::global require]
+     :resource-name (str "global$" ns ".js")
+     :output-name (str ns ".js")
+     :global-ref true
+     :type :js
+     :cache-key [NPM-CACHE-KEY CLOSURE-CACHE-KEY]
+     :last-modified 0
+     :ns ns
+     :provides #{ns}
+     :requires #{}
+     :deps []
+     :source (str "module.exports=(" global ");")}))
+
+(defn js-resource-for-file
+  "if we want to include something that is not on npm or we want a custom thing
+  {\"react\" {:type :file :file \"path/to/my/react.js\"}}"
+
+  [npm require {:keys [file file-min] :as cfg}]
+  (let [mode
+        (get-in npm [:js-options :mode] :release)
+
+        file
+        (-> (if (and (= :release mode) (seq file-min))
+              (io/file file-min)
+              (io/file file))
+            (absolute-file))]
+    (when-not (.exists file)
+      (throw (ex-info "file override for require doesn't exist" {:file file :require require :config cfg})))
+
+    (get-file-info npm file)
+    ))

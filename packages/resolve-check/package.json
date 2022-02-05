@@ -1,0 +1,17 @@
+{
+  "name": "resolve-check",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "enhanced-resolve": "^5.8.3",
+    "source-map-support": "^0.5.21"
+  }
+}

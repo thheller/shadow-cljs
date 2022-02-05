@@ -1325,11 +1325,8 @@
          (symbol? sym)]}
   (contains? (-> cp :index-ref deref :foreign-provides) sym))
 
-(defn as-path ^Path [^String path]
-  (Paths/get path (into-array String [])))
-
 (defn resolve-rel-path [^String resource-name ^String require]
-  (let [parent (-> (as-path resource-name) (.getParent))
+  (let [parent (-> (data/as-path resource-name) (.getParent))
 
         ^Path path
         (cond
@@ -1337,7 +1334,7 @@
           (.resolve parent require)
 
           (str/starts-with? require "./")
-          (as-path (subs require 2))
+          (data/as-path (subs require 2))
 
           (str/starts-with? require "../")
           (throw (ex-info
@@ -1348,7 +1345,7 @@
                     :require require}))
 
           :else
-          (as-path require))]
+          (data/as-path require))]
 
     (-> path
         (.normalize)

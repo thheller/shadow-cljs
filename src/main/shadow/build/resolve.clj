@@ -91,10 +91,10 @@
     "tls" "tty" "url" "util" "vm" "zlib" "_http_server" "process" "v8" "worker_threads"})
 
 (defn find-npm-resource
-  [npm ^File require-from ^String require]
+  [npm require-from ^String require]
   {:pre [(npm/service? npm)
          (or (nil? require-from)
-             (instance? File require-from))
+             (map? require-from))
          (string? require)]}
 
   ;; per build :resolve config that may override where certain requires go
@@ -181,7 +181,7 @@
         (:npm state)
         (when (and (= :js (:type :require-from))
                    (not (:classpath require-from)))
-          file)
+          require-from)
         require)
 
       (util/is-absolute? require)
@@ -265,7 +265,7 @@
                      ;; otherwise it may end up looking at directories it should not look at
                      ;; relative to classpath files
                      (when (= :shadow-js (:type require-from))
-                       file)
+                       require-from)
                      require)
 
                    (util/is-absolute? require)
@@ -304,13 +304,14 @@
                 ;; we don't need to check if it exists since the runtime
                 ;; will take care of that. we do not actually need anything from the package
                 (not was-symbol?)
+
+                ;; treat every symbol as valid when :npm-deps in deps.cljs on the classpath contain it
+                (npm/is-npm-dep? (:npm state) require)
+
                 ;; if `(:require [react ...])` was used we need to check if the package
                 ;; is actually installed. otherwise we will blindy return a shim for
                 ;; every symbol, no matter it was a typo or actually intended JS package.
-                (npm/find-package (:npm state) require)
-
-                ;; treat every symbol as valid when :npm-deps in deps.cljs on the classpath contain it
-                (npm/is-npm-dep? (:npm state) require))
+                (npm/find-package (:npm state) require))
 
         ;; technically this should be done before the find-package above
         ;; but I'm fine with this breaking for symbol requires
