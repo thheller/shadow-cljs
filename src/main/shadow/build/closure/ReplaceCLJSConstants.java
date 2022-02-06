@@ -102,7 +102,9 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
         }
 
         final long runtime = System.currentTimeMillis() - start;
-        reportFn.invoke(runtime);
+        if (reportFn != null) {
+            reportFn.invoke(runtime);
+        }
     }
 
 
@@ -141,7 +143,7 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                     if ((nsNode.isString() || nsNode.isNull()) // ns may be null
                             && nameNode.isString() // name is never null
                             && fqnNode.isString() // fqn is never null
-                            && hashNode.isNumber()) { // hash is precomputed
+                            && (hashNode.isNumber() || hashNode.isNeg())) { // hash is precomputed, number, can be negative number
 
                         String fqn = fqnNode.getString();
                         String constantName = "cljs$cst$" + typeName.substring(typeName.lastIndexOf(".") + 1).toLowerCase() + "$" + munge(fqn);
