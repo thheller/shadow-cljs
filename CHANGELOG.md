@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.17.0](https://github.com/thheller/shadow-cljs/compare/c2c9d6a12d093d8157e39fd7aaabec854ee702bd...39dc5397f8af8f7b7b2880bc85a41b8a22e81c07) - 2022-02-06
+- [ [`39dc5`](https://github.com/thheller/shadow-cljs/commit/39dc5397f8af8f7b7b2880bc85a41b8a22e81c07) ] fix ReplaceCLJSConstants pass
+- [ [`a48db`](https://github.com/thheller/shadow-cljs/commit/a48db40783b210fa20c68b4d8bafff4817eccae7) ] fix classpath require exception using unresolved paths
+- [ [`ed908`](https://github.com/thheller/shadow-cljs/commit/ed908d820f5571ec5544f15aabd622cfca5b4f4e) ] rewrite npm resolve to prepare for package.json exports
+- [ [`1259a`](https://github.com/thheller/shadow-cljs/commit/1259a026b0c9a310fd6b78d991b68afea9ba0e3f) ] fix broken alias check
+- [ [`d976f`](https://github.com/thheller/shadow-cljs/commit/d976f2ee9976b6be8353dd2b22c07138ecb279d8) ] add some conflict checks for :as-alias
+- [ [`0c1f2`](https://github.com/thheller/shadow-cljs/commit/0c1f2676a6df357cb605effb3f489ec894f6593a) ] fixup :as-alias support to match CLJ-2665
+- [ [`7bc76`](https://github.com/thheller/shadow-cljs/commit/7bc7677a88d3068fd22258bc42c41444e89f215d) ] closure-compiler bump v20220104
+- [ [`c2c9d`](https://github.com/thheller/shadow-cljs/commit/c2c9d6a12d093d8157e39fd7aaabec854ee702bd) ] fix shadow$bridge undeclared warning
+
 ## [2.16.12](https://github.com/thheller/shadow-cljs/compare/8a93b43b43f4242b6f5f0406171155f575648860...8a93b43b43f4242b6f5f0406171155f575648860) - 2022-01-02
 - [ [`8a93b`](https://github.com/thheller/shadow-cljs/commit/8a93b43b43f4242b6f5f0406171155f575648860) ] Check filename instead of path (#975)
 
