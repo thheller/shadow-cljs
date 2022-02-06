@@ -172,7 +172,7 @@
                 (json/read-str))
 
             package-dir
-            (.getParentFile file)
+            (.getAbsoluteFile (.getParentFile file))
 
             content
             (-> {:package-name name
