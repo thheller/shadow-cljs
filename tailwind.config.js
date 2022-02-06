@@ -8,10 +8,7 @@ if (process.env.NODE_ENV == "production") {
 }
 
 module.exports = {
-  purge: {
-    content: filesToPurge
-  },
-  variants: {},
+  content: filesToPurge,
   plugins: [
       require('@tailwindcss/forms')
   ]
