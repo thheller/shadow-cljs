@@ -276,7 +276,11 @@
 (defn check-alias-conflict! [ns-info ns alias]
   (let [conflict
         (or (get-in ns-info [:requires alias])
-            (get-in ns-info [:require-macros alias])
+            ;; apparently it is ok for :require-macros to clash with a regular alias? no need to check it then
+            ;; not sure why this is allowed
+            ;; https://github.com/clojure/clojurescript/blob/afe2cf748fb77c5194bac0608e32358e15da067d/src/main/cljs/cljs/js.cljs#L12
+            ;; https://github.com/clojure/clojurescript/blob/afe2cf748fb77c5194bac0608e32358e15da067d/src/main/cljs/cljs/js.cljs#L15
+            #_ (get-in ns-info [:require-macros alias])
             (get-in ns-info [:reader-aliases alias]))]
     (when (and conflict
                (not= conflict ns)
