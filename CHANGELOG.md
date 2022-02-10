@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.17.1](https://github.com/thheller/shadow-cljs/compare/40eba83f6b6be9635f766d0b55c8f311accbcd3e...0e7fb921b0b8e5d7f133ecd032ca0916355224ad) - 2022-02-10
+- [ [`0e7fb`](https://github.com/thheller/shadow-cljs/commit/0e7fb921b0b8e5d7f133ecd032ca0916355224ad) ] maybe fix npm/find-resource stackoverflow?
+- [ [`40eba`](https://github.com/thheller/shadow-cljs/commit/40eba83f6b6be9635f766d0b55c8f311accbcd3e) ] relax ns alias check for cljs.js can compile again
+
 ## [2.17.0](https://github.com/thheller/shadow-cljs/compare/c2c9d6a12d093d8157e39fd7aaabec854ee702bd...39dc5397f8af8f7b7b2880bc85a41b8a22e81c07) - 2022-02-06
 - [ [`39dc5`](https://github.com/thheller/shadow-cljs/commit/39dc5397f8af8f7b7b2880bc85a41b8a22e81c07) ] fix ReplaceCLJSConstants pass
 - [ [`a48db`](https://github.com/thheller/shadow-cljs/commit/a48db40783b210fa20c68b4d8bafff4817eccae7) ] fix classpath require exception using unresolved paths
