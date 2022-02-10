@@ -301,7 +301,6 @@
    "_stream_readable" "readable-stream/readable.js"
    "_stream_transform" "readable-stream/transform.js"
    "_stream_writable" "readable-stream/writable.js"
-   "string_decoder" "string_decoder"
    "sys" "util/util.js"
    "timers" "timers-browserify"
    "tls" false
@@ -689,7 +688,7 @@
           (false? override)
           empty-rc
 
-          (string? override)
+          (and (string? override) (not= override rel-path))
           (or (if (util/is-relative? override)
                 (find-resource-in-package npm package require-from override)
                 (find-resource npm require-from override))
@@ -769,7 +768,7 @@
 
       (cond
         ;; common path, no override
-        (nil? override)
+        (or (nil? override) (= override require))
         (when-let [{:keys [package-name] :as package} (find-package-for-require npm require-from require)]
           (if (= require package-name)
             ;; plain package require turns into "./" rel require
