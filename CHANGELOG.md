@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.17.2](https://github.com/thheller/shadow-cljs/compare/e0ca8d2cde2710788ebe79f15d87403e66bea836...e0ca8d2cde2710788ebe79f15d87403e66bea836) - 2022-02-12
+- [ [`e0ca8`](https://github.com/thheller/shadow-cljs/commit/e0ca8d2cde2710788ebe79f15d87403e66bea836) ] fix ns require alias conflicting with refer
+
 ## [2.17.1](https://github.com/thheller/shadow-cljs/compare/40eba83f6b6be9635f766d0b55c8f311accbcd3e...0e7fb921b0b8e5d7f133ecd032ca0916355224ad) - 2022-02-10
 - [ [`0e7fb`](https://github.com/thheller/shadow-cljs/commit/0e7fb921b0b8e5d7f133ecd032ca0916355224ad) ] maybe fix npm/find-resource stackoverflow?
 - [ [`40eba`](https://github.com/thheller/shadow-cljs/commit/40eba83f6b6be9635f766d0b55c8f311accbcd3e) ] relax ns alias check for cljs.js can compile again
