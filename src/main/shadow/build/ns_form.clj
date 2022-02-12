@@ -296,7 +296,6 @@
   ns-info)
 
 (defn merge-require [ns-info merge-key alias ns]
-  (check-alias-conflict! ns-info ns alias)
   (update ns-info merge-key assoc alias ns))
 
 (defn merge-require-fn [merge-key ns]
@@ -368,7 +367,8 @@
           (merge-require :requires lib lib)
           (cond->
             as
-            (merge-require :requires as lib)
+            (-> (check-alias-conflict! lib as)
+                (merge-require :requires as lib))
 
             as-alias
             (update :reader-aliases assoc as-alias lib)

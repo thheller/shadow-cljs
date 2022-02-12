@@ -102,6 +102,19 @@
 
     (is (thrown? ExceptionInfo (ns-form/parse test)))))
 
+(deftest test-ns-alias-does-not-conflict-with-refer
+  (let [test
+        '(ns something
+           (:require
+             [some.a :as a]
+             [some.b :refer (a)]))
+
+        res
+        (ns-form/parse test)]
+
+    (is res)))
+
+
 ;; https://clojure.atlassian.net/browse/CLJ-2123
 ;; https://clojure.atlassian.net/browse/CLJ-2665
 (deftest test-ns-as-alias-no-loading
