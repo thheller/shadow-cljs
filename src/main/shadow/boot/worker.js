@@ -4,8 +4,8 @@ var SHADOW_ENV = (function () {
   var env = {};
 
   var scriptBase = self.location.href;
-  scriptBase = scriptBase.substring(0, scriptBase.lastIndexOf("/"));
-  env.scriptBase = scriptBase + "/cljs-runtime/";
+  scriptBase = scriptBase.substring(0, scriptBase.lastIndexOf("/")) + "/cljs-runtime/";
+  env.scriptBase = scriptBase;
 
   env.load = function (opts, paths) {
     paths.forEach(function (path) {

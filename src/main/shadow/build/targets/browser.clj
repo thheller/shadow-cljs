@@ -512,22 +512,9 @@
                 (into sources))))
 
         source-loads
-        (if-not web-worker
-          (->> sources
-               (map #(get-in state [:output % :eval-js]))
-               (str/join "\n"))
-
-          ;; don't use evalLoad in worker, source maps don't work and not sure why
-          ;; guess it doesn't support sourceURL or sourceMappingURL would require full url?
-          ;; can't seem to get it to work right with eval. works fine when just loading files
-          (str "SHADOW_ENV.load({}, "
-               (->> sources
-                    (remove #{output/goog-base-id})
-                    (map #(data/get-source-by-id state %))
-                    (map :output-name)
-                    (into [])
-                    (json/write-str))
-               ");\n"))
+        (->> sources
+             (map #(get-in state [:output % :eval-js]))
+             (str/join "\n"))
 
         out
         (str prepend
