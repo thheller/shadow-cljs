@@ -24,26 +24,26 @@
    [org.clojure/tools.cli "1.0.206"]
    [org.clojure/tools.reader "1.3.6"]
 
-   [nrepl "0.8.3"]
-   [cider/piggieback "0.5.2"
+   [nrepl "0.9.0"]
+   [cider/piggieback "0.5.3"
     :exclusions
     [org.clojure/clojure
      org.clojure/clojurescript
      nrepl/nrepl]]
 
-   [com.cognitect/transit-clj "1.0.324"]
+   [com.cognitect/transit-clj "1.0.329"]
    [com.cognitect/transit-cljs "0.8.269"]
 
-   [org.clojure/core.async "1.4.627"]
+   [org.clojure/core.async "1.5.648"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.10.914"
+   [org.clojure/clojurescript "1.11.4"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20220104"]
+   [com.google.javascript/closure-compiler-unshaded "v20220202"]
 
    [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
    [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]
@@ -53,18 +53,18 @@
    [thheller/shadow-undertow "0.2.0"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.9.4"
+   [ring/ring-core "1.9.5"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [org.graalvm.js/js "21.1.0"]
-   [org.graalvm.js/js-scriptengine "21.1.0"]
+   [org.graalvm.js/js "22.0.0.2"]
+   [org.graalvm.js/js-scriptengine "22.0.0.2"]
 
    [io.methvin/directory-watcher "0.15.0"]
 
-   [expound "0.8.9"]
-   [fipp "0.6.24"]
+   [expound "0.9.0"]
+   [fipp "0.6.25"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
