@@ -2,14 +2,16 @@
   (:refer-clojure :exclude (send))
   (:require
     [cider.piggieback :as piggieback]
-    [clojure.core.async :as async]
+    [clojure.core.async :as async :refer (>!! <!! alt!! thread)]
     [nrepl.transport :as transport]
     [shadow.jvm-log :as log]
     [shadow.debug :as dbg :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.repl-impl :as repl-impl]
-    [clojure.edn :as edn])
+    [clojure.edn :as edn]
+    [shadow.remote.relay.api :as relay]
+    [nrepl.core :as nrepl])
   (:import [java.io StringReader]))
 
 (def ^:dynamic *repl-state* nil)
@@ -105,17 +107,19 @@
       (catch Exception e
         (log/warn-ex e ::init-ns-ex {:init-ns init-ns})))))
 
+(defn nrepl-merge [{:keys [transport session id] :as req} {:keys [status] :as msg}]
+  (-> msg
+      (cond->
+        id
+        (assoc :id id)
+        session
+        (assoc :session (-> session meta :id))
+        (and (some? status)
+             (not (coll? status)))
+        (assoc :status #{status}))))
+
 (defn nrepl-out [{:keys [transport session id] :as req} {:keys [status] :as msg}]
-  (let [res
-        (-> msg
-            (cond->
-              id
-              (assoc :id id)
-              session
-              (assoc :session (-> session meta :id))
-              (and (some? status)
-                   (not (coll? status)))
-              (assoc :status #{status})))]
+  (let [res (nrepl-merge req msg)]
 
     ;; (?> res :nrepl-out)
 
@@ -216,16 +220,108 @@
 
       (nrepl-out msg {:status :done}))))
 
-(defn handle [{:keys [session op] :as msg} next]
-  (let [{::keys [build-id] :as msg} (set-build-id msg)]
-    ;; (?> msg :msg)
+(defonce remote-clients-ref
+  (atom {}))
 
-    (cond
-      (and build-id (= op "eval"))
-      (do-cljs-eval msg)
+(defn handle [{:keys [transport session op] :as msg} next]
+  (case op
+    "shadow-remote-init"
+    (let [{:keys [relay] :as runtime} (api/get-runtime!)
 
-      (and build-id (= op "load-file"))
-      (do-cljs-eval (assoc msg :code (format "(cljs.core/load-file %s)" (pr-str (:file-path msg)))))
+          to-relay
+          (async/chan 10)
 
-      :else
-      (next msg))))
+          from-relay
+          (async/chan 256)
+
+          connection-stop
+          (relay/connect relay to-relay from-relay {})
+
+          session-id
+          (-> msg :session meta :id)
+
+          {:keys [client-id] :as welcome-msg}
+          (<!! from-relay)
+
+          [decoder encoder]
+          (case (:data-type msg)
+            "edn"
+            [(:edn-reader runtime) pr-str]
+            "transit"
+            [(:transit-read runtime) (:transit-str runtime)]
+            nil)]
+
+      (if-not decoder
+        (try
+          (transport/send transport (nrepl-merge msg {:err "Invalid :data-type, edn|transit expected."}))
+          (catch Exception ex
+            ;; immediately stop session if we can't even send init error
+            (async/close! connection-stop)
+            (log/debug-ex ex ::remote-out-failed msg)))
+
+        (thread
+          (swap! remote-clients-ref assoc session-id
+            {:to-relay to-relay
+             :from-relay from-relay
+             :connection-stop connection-stop
+             :session-id session-id
+             :client-id client-id
+             :encoder encoder
+             :decoder decoder})
+
+          (>!! to-relay
+               {:op :hello
+                ;; FIXME: get more data out of msg maybe?
+                :client-info {:type :nrepl-session}})
+
+          ;; forward everything from the relay to nrepl endpoint
+          ;; relay will be sending heartbeats and if they can't be delivered the connection will stop
+          ;; remote-clients-ref is sort of global but we can get away with that for now
+          (loop []
+            (when-some [x (<!! from-relay)]
+              (try
+                (transport/send transport (nrepl-merge msg {:op "shadow-remote-msg" :data (encoder x)}))
+                (catch Exception ex
+                  (async/close! connection-stop)
+                  (log/debug-ex ex ::remote-out-failed msg)))
+              (recur)))
+
+          (swap! remote-clients-ref dissoc session-id)
+          )))
+
+    "shadow-remote-msg"
+    (let [session-id (-> msg :session meta :id)
+          client (get @remote-clients-ref session-id)]
+
+      (if-not client
+        (try
+          (transport/send transport (nrepl-merge msg {:err "session did not shadow-remote-init"}))
+          (catch Exception ex
+            (log/debug-ex ex ::remote-out-failed msg)))
+
+        (let [{:keys [decoder to-relay]} client
+              remote-msg (decoder (:data msg))]
+          (async/offer! to-relay remote-msg)
+          )))
+
+    "shadow-remote-stop"
+    (let [session-id (-> msg :session meta :id)
+          client (get @remote-clients-ref session-id)]
+
+      ;; nothing to do if there is no client session
+      (when client
+        (async/close! (:connection-stop client))))
+
+    ;; default case
+    (let [{::keys [build-id] :as msg} (set-build-id msg)]
+      ;; (?> msg :msg)
+
+      (cond
+        (and build-id (= op "eval"))
+        (do-cljs-eval msg)
+
+        (and build-id (= op "load-file"))
+        (do-cljs-eval (assoc msg :code (format "(cljs.core/load-file %s)" (pr-str (:file-path msg)))))
+
+        :else
+        (next msg)))))

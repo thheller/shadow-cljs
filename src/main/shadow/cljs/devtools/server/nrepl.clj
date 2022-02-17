@@ -47,7 +47,7 @@
 ;; we intercept the work it would do, so we don't have to emulate it
 (middleware/set-descriptor! #'middleware
   {:requires #{"clone" #'print/wrap-print}
-   :expects #{"eval" "load-file" #'piggieback/wrap-cljs-repl}})
+   :expects #{"eval" "load-file" "shadow-remote-init" "shadow-remote-msg" "shadow-remote-stop" #'piggieback/wrap-cljs-repl}})
 
 (defn load-middleware-sym [sym]
   {:pre [(qualified-symbol? sym)]}
