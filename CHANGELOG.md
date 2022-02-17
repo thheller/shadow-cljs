@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.17.3](https://github.com/thheller/shadow-cljs/compare/7e98d971a79e1a98ed2ab13e44c74fda52119e62...56572a37cf94c8c380ef36edcf863d4a1df93d8c) - 2022-02-17
+- [ [`56572`](https://github.com/thheller/shadow-cljs/commit/56572a37cf94c8c380ef36edcf863d4a1df93d8c) ] use eval loader in worker modules as well
+- [ [`7e98d`](https://github.com/thheller/shadow-cljs/commit/7e98d971a79e1a98ed2ab13e44c74fda52119e62) ] add shadow-remote nrepl bridge
+
 ## [2.17.2](https://github.com/thheller/shadow-cljs/compare/e0ca8d2cde2710788ebe79f15d87403e66bea836...e0ca8d2cde2710788ebe79f15d87403e66bea836) - 2022-02-12
 - [ [`e0ca8`](https://github.com/thheller/shadow-cljs/commit/e0ca8d2cde2710788ebe79f15d87403e66bea836) ] fix ns require alias conflicting with refer
 
