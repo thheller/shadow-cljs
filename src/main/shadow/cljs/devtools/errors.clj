@@ -225,7 +225,7 @@
   (.write w (.getAbsolutePath file))
   (when require-from
     (.write w "\n\nit was required from\n  ")
-    (.write w (.getAbsolutePath require-from)))
+    (.write w (.getAbsolutePath (:file require-from))))
   (.write w "\n\n")
   (error-format w (.getCause e)))
 
