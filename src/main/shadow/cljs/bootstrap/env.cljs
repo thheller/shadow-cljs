@@ -32,7 +32,7 @@
 
     (reset! index-ref idx)
 
-    #_ (js/console.log "build-index" idx)
+    #_(js/console.log "build-index" idx)
 
     idx))
 
@@ -73,3 +73,12 @@
   ;; without cljs.user existing and it never does anything to ensure
   ;; it exists first
   (js/goog.constructNamespace_ "cljs.user"))
+
+(defn replace-goog-require! []
+  ;; must replace goog.require so it always has a return value
+  ;; otherwise transpiled goog.module namespaces using goog.require will end up with undefined references
+  ;; don't need any other the other stuff it is doing since we are not using the debug loader
+  (set! js/goog.require
+    (fn [name]
+      (or (js/goog.getObjectByName name)
+          (js/goog.module.getInternal_ name)))))
