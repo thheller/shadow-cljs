@@ -353,7 +353,7 @@
   {:target :bootstrap
    :output-dir "out/demo-selfhost/public/bootstrap"
    :exclude #{cljs.js}
-   :entries [cljs.js demo.macro demo.lib reagent.core]
+   :entries [cljs.js shadow.experiments.grove shadow.experiments.grove.ui.loadable]
    :macros []}
 
   #_#_:js-only

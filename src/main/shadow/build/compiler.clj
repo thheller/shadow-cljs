@@ -1374,11 +1374,6 @@
               (remove nil?)
               (into non-cljs-provides))
 
-         optimizing?
-         (let [x (get-in state [:compiler-options :optimizations])]
-           (or (nil? x)
-               (not= x :none)))
-
          ;; used by shadow-resolve-var to determine if rogue dotted symbols could be actual CLJS symbols
          ;; sorted by descending length to avoid bailing too early
          ;; some.foo.bar.thing should always hit some.foo.bar and never some.foo if both exist
@@ -1414,7 +1409,16 @@
                      (if-let [idx (str/index-of ns ".")]
                        (subs ns 0 idx)
                        ns)))
-              (into #{}))]
+              (into #{}))
+
+         ;; in dev mode we convert JS so that goog.module etc becomes loadable
+         ;; in release mode we can skip that since the optimizations will do that anyways
+         ;; if doing it before the optimizations will turn out difference and some things might break
+         convert-js?
+         (or (= :dev mode)
+             ;; basically only an option for :target :bootstrap where we want the transformation always to occur
+             ;; since we are not optimizing
+             (:shadow.build/skip-optimize state))]
 
      (-> state
          (assoc :compile-start (System/currentTimeMillis))
@@ -1442,19 +1446,19 @@
          (cond->
            ;; goog
            ;; release builds go through the closure compiler and we want to avoid processing goog sources twice
-           (and (= :release mode) (seq goog))
+           (and (not convert-js?) (seq goog))
            (copy-source-to-output goog)
 
-           (and (= :dev mode) (seq goog))
+           (and convert-js? (seq goog))
            (maybe-closure-convert goog closure/convert-goog)
 
            ;; classpath-js, meaning ESM code on the classpath
            ;; in dev process classpath-js now, including polyfills
-           (and (= :dev mode) (seq js))
+           (and convert-js? (seq js))
            (maybe-closure-convert js closure/convert-sources)
 
            ;; in release just copy classpath-js and run through regular optimizations
-           (and (= :release mode) (seq js))
+           (and (not convert-js?) (seq js))
            (closure/classpath-js-copy js)
 
            ;; shadow-js, node_modules or commonjs on the classpath
