@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.4](https://github.com/thheller/shadow-cljs/compare/e0a4d612cca337c55869be00a78a95da97424285...8ee15e0dbaa263b828339bdce9296d99cfe4de78) - 2022-02-20
+- [ [`8ee15`](https://github.com/thheller/shadow-cljs/commit/8ee15e0dbaa263b828339bdce9296d99cfe4de78) ] fix error message for failed npm require
+- [ [`54d4b`](https://github.com/thheller/shadow-cljs/commit/54d4bf46d7dafd8c8c047ee64e1287f582d629be) ] fix bootstrap not loading goog.module properly
+- [ [`9b1f5`](https://github.com/thheller/shadow-cljs/commit/9b1f5295db8458d5d06890b4761e1ecf71c3a7a0) ] fix :bootstrap release not converting goog.module properly
+- [ [`50e0a`](https://github.com/thheller/shadow-cljs/commit/50e0a31e1f328d6d9e728dce5c39f20a30202b1d) ] Bump tailwind-css (to 3.0.18) and associated packges (#984)
+- [ [`e0a4d`](https://github.com/thheller/shadow-cljs/commit/e0a4d612cca337c55869be00a78a95da97424285) ] bump various dependencies
+
 ## [2.17.3](https://github.com/thheller/shadow-cljs/compare/7e98d971a79e1a98ed2ab13e44c74fda52119e62...56572a37cf94c8c380ef36edcf863d4a1df93d8c) - 2022-02-17
 - [ [`56572`](https://github.com/thheller/shadow-cljs/commit/56572a37cf94c8c380ef36edcf863d4a1df93d8c) ] use eval loader in worker modules as well
 - [ [`7e98d`](https://github.com/thheller/shadow-cljs/commit/7e98d971a79e1a98ed2ab13e44c74fda52119e62) ] add shadow-remote nrepl bridge
