@@ -646,16 +646,16 @@
         ;; core-js/symbol is a directory
         ;; core-js/symbol.js is a file
         ;; so for each directory first test if there is file by the same name
-        ;; then if there is directory/index.js
         ;; then if there is a directory/package.json with a main entry
+        ;; then if there is directory/index.js
         (.isDirectory file)
         (or (test-file-exts npm package-dir rel-require)
-            (test-file-exts npm file "index")
             (let [nested-package-json (io/file file "package.json")]
-              (if (.exists nested-package-json)
+              (when (.exists nested-package-json)
                 (let [nested-package (read-package-json npm nested-package-json)]
                   ;; rel-require resolved to a dir, continue with ./ from there
-                  (find-file-in-package npm nested-package "./")))))
+                  (find-file-in-package npm nested-package "./"))))
+            (test-file-exts npm file "index"))
 
         :else
         (throw
