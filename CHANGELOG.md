@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.17.5](https://github.com/thheller/shadow-cljs/compare/41d56e07706e0da651cdefc7095fb7153d4789df...41d56e07706e0da651cdefc7095fb7153d4789df) - 2022-02-24
+- [ [`41d56`](https://github.com/thheller/shadow-cljs/commit/41d56e07706e0da651cdefc7095fb7153d4789df) ] fix npm resolve using index.js over package.json in nested dirs
+
 ## [2.17.4](https://github.com/thheller/shadow-cljs/compare/e0a4d612cca337c55869be00a78a95da97424285...8ee15e0dbaa263b828339bdce9296d99cfe4de78) - 2022-02-20
 - [ [`8ee15`](https://github.com/thheller/shadow-cljs/commit/8ee15e0dbaa263b828339bdce9296d99cfe4de78) ] fix error message for failed npm require
 - [ [`54d4b`](https://github.com/thheller/shadow-cljs/commit/54d4bf46d7dafd8c8c047ee64e1287f582d629be) ] fix bootstrap not loading goog.module properly
