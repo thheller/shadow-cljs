@@ -280,6 +280,7 @@
            ;; goog.module special treatment
            (goog-module-dep? sym)
            {:op :js-var
+            :goog-module true
             :name (symbol (ana/munge-goog-module-lib current-ns sym))
             :ns sym}
 
@@ -443,7 +444,8 @@
                    ;; don't need to warn about anything from goog.*
                    ;; {:op :js-var :name js/goog.net.ErrorCode}
                    (not (and (= :js-var (:op target))
-                             (str/starts-with? (-> target :name name) "goog."))))
+                             (or (str/starts-with? (-> target :name name) "goog.")
+                                 (:goog-module (:info target))))))
 
           (ana/warning :infer-warning env {:warn-type :target :form form}))
 
