@@ -159,8 +159,12 @@
           sources-info
           (->> build-sources
                (map (fn [src-id]
-                      (let [{:keys [resource-name fs-root pom-info npm-info package-name output-name type provides] :as src}
+                      (let [{:keys [resource-name fs-root pom-info package-name output-name type provides] :as src}
                             (data/get-source-by-id state src-id)
+
+                            npm-info
+                            (when-some [package (:shadow.build.npm/package src)]
+                              (select-keys package [:package-id :package-name :version]))
 
                             {:keys [js source] :as output}
                             (data/get-output! state src)]
@@ -348,3 +352,7 @@
 (defn -main [build-id report-file]
   (generate (keyword build-id) {:print-table true
                                 :report-file report-file}))
+
+
+(comment
+  (generate :browser {:print-table true :report-file "tmp/report.html"}))
