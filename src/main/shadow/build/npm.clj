@@ -251,7 +251,7 @@
   (reduce
     (fn [_ modules-dir]
       (when-let [pkg (find-package** npm modules-dir package-name)]
-        (reduced pkg)))
+        (reduced (assoc pkg :js-package-dir modules-dir))))
     nil
     js-package-dirs))
 
@@ -514,17 +514,36 @@
         file-info
         )))
 
-(defn find-package-for-require* [npm {:keys [package] :as require-from} require]
-
+(defn find-package-for-require* [npm {::keys [package] :as require-from} require]
   (if (or (not require-from) (not (:allow-nested-packages (:js-options npm))))
     (find-package npm require)
-    (let [package-dir (get-in require-from [::package :package-dir])
-          nested-package-dir (io/file package-dir "node_modules")]
-      (or (and (.exists nested-package-dir)
-               (let [package-file (io/file nested-package-dir require "package.json")]
-                 (and (.exists package-file)
-                      (read-package-json npm package-file))))
-          (find-package npm require)))))
+    ;; node/webpack resolve rules look for nested node_modules packages
+    ;; try to find those here
+    (let [{:keys [js-package-dir package-dir]} package]
+      (loop [^File ref-dir package-dir]
+        (cond
+          ;; don't go further than js-package-dir, just look up package regularly at that point
+          ;; doing so by requiring without require-from, which will end up check all js-package-dirs again
+          (= ref-dir js-package-dir)
+          (find-package npm require)
+
+          ;; no need to try node_modules/node_modules
+          (= "node_modules" (.getName ref-dir))
+          (recur (.getParentFile ref-dir))
+
+          ;; otherwise check for nested install, which might have multiple levels, need to check all
+          ;; node_modules/a/node_modules/b/node_modules/c
+          ;; node_modules/a/node_modules/c
+          ;; node_modules/c is then checked by find-package above again
+          :check
+          (let [nested-package-file (io/file ref-dir "node_modules" require "package.json")]
+            (if (.exists nested-package-file)
+              (when-some [pkg (read-package-json npm nested-package-file)]
+                ;; although nested it inherits this from the initial package
+                ;; in case of nesting two levels need to keep this to know which :js-package-dir this initially came from
+                (assoc pkg :js-package-dir js-package-dir))
+
+              (recur (.getParentFile ref-dir)))))))))
 
 (defn find-package-for-require [npm require-from require]
   ;; finds package by require walking down from roots (done in find-package)

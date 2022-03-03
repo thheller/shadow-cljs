@@ -43,4 +43,6 @@
 
  ;; nested node_modules install
  {:from "lvl1" :request "lvl2" :expected "node_modules/lvl1/node_modules/lvl2/index.js"}
+
+ {:from "dep-a/node_modules/dep-c" :request "dep-b" :expected "node_modules/dep-a/node_modules/dep-b/index.js"}
  ]
