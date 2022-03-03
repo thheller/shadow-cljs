@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.17.6](https://github.com/thheller/shadow-cljs/compare/69b43270c8a9fcdec899822f243a9e26824f1d5c...7cc3438ca14fc3ff3e5383ee3a5b88ae72b324cf) - 2022-03-03
+- [ [`7cc34`](https://github.com/thheller/shadow-cljs/commit/7cc3438ca14fc3ff3e5383ee3a5b88ae72b324cf) ] fix npm resolve for nested package requiring other nested pkg
+- [ [`d9bda`](https://github.com/thheller/shadow-cljs/commit/d9bda36cc4fa1eb4e0da36de2f51a08aed8a337a) ] fix build reports
+- [ [`69b43`](https://github.com/thheller/shadow-cljs/commit/69b43270c8a9fcdec899822f243a9e26824f1d5c) ] fix externs inference warnings for goog.module imports
+
 ## [2.17.5](https://github.com/thheller/shadow-cljs/compare/41d56e07706e0da651cdefc7095fb7153d4789df...41d56e07706e0da651cdefc7095fb7153d4789df) - 2022-02-24
 - [ [`41d56`](https://github.com/thheller/shadow-cljs/commit/41d56e07706e0da651cdefc7095fb7153d4789df) ] fix npm resolve using index.js over package.json in nested dirs
 
