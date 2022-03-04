@@ -164,6 +164,11 @@
 
   (local-eng/init! env/rt-ref)
 
+  (when ^boolean js/goog.DEBUG
+    (swap! env/rt-ref assoc :shadow.experiments.grove.events/tx-reporter
+      (fn [report]
+        (js/console.log (-> report :event :e) report))))
+
   (history/init! env/rt-ref
     {:start-token "/dashboard"
      :root-el root-el})
