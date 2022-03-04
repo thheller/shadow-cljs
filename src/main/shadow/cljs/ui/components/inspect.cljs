@@ -185,11 +185,7 @@
        label]))
 
 (defc ui-object-panel
-  {:supports?
-   (fn [prev-args next-args]
-     (= (first prev-args) (first next-args)))}
-
-  [ident panel-idx active?]
+  [^:stable ident panel-idx active?]
   (bind object
     (sg/query-ident ident
       [:db/ident
@@ -392,11 +388,7 @@
          ])))
 
 (defc ui-explore-object-panel
-  {:supports?
-   (fn [prev-args next-args]
-     (= (first prev-args) (first next-args)))}
-
-  [ident panel-idx active?]
+  [^:stable ident panel-idx active?]
   (bind object
     (sg/query-ident ident
       [:db/ident
