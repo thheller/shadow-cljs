@@ -617,7 +617,8 @@
           ;; "./lib/some-file":"./lib/some-other-file"
           (get browser-overrides rel-require)))))
 
-(defn find-file-in-package [npm {:keys [package-dir package-json] :as package} rel-require]
+;; returns [package file] in case a nested package.json was used overriding package
+(defn find-match-in-package [npm {:keys [package-dir package-json] :as package} rel-require]
   (if (= rel-require "./")
     ;; package main, lookup entries
     (let [entries
@@ -627,28 +628,28 @@
                (into []))]
 
       (if (seq entries)
-        (let [entry-file
+        (let [entry-match
               (reduce
                 (fn [_ entry]
-                  (when-let [file (find-file-in-package npm package entry)]
+                  (when-let [match (find-match-in-package npm package entry)]
                     ;; we only want the first one in case more exist
-                    (reduced file)))
+                    (reduced match)))
                 nil
                 entries)]
 
-          (when (not entry-file)
+          (when (not entry-match)
             (throw (ex-info
                      (str "package in " package-dir " specified entries but they were all missing")
                      {:tag ::missing-entries
                       :entries entries
                       :package-dir package-dir})))
 
-          entry-file)
+          entry-match)
 
         ;; fallback for <package>/index.js without package.json
         (let [index (io/file package-dir "index.js")]
           (when (and (.exists index) (.isFile index))
-            index))))
+            [package index]))))
 
     ;; path in package
     ;; rel-require might be ./foo
@@ -656,10 +657,11 @@
     (let [file (test-file package-dir rel-require)]
       (cond
         (nil? file)
-        (test-file-exts npm package-dir rel-require)
+        (when-some [match (test-file-exts npm package-dir rel-require)]
+          [package match])
 
         (.isFile file)
-        file
+        [package file]
 
         ;; babel-runtime has a ../core-js/symbol require
         ;; core-js/symbol is a directory
@@ -668,13 +670,17 @@
         ;; then if there is a directory/package.json with a main entry
         ;; then if there is directory/index.js
         (.isDirectory file)
-        (or (test-file-exts npm package-dir rel-require)
-            (let [nested-package-json (io/file file "package.json")]
-              (when (.exists nested-package-json)
-                (let [nested-package (read-package-json npm nested-package-json)]
-                  ;; rel-require resolved to a dir, continue with ./ from there
-                  (find-file-in-package npm nested-package "./"))))
-            (test-file-exts npm file "index"))
+        (if-some [match (test-file-exts npm package-dir rel-require)]
+          [package match]
+          (let [nested-package-json (io/file file "package.json")]
+            (if-not (.exists nested-package-json)
+              (when-some [match (test-file-exts npm file "index")]
+                [package match])
+              (let [nested-package
+                    (-> (read-package-json npm nested-package-json)
+                        (assoc ::parent package))]
+                ;; rel-require resolved to a dir, continue with ./ from there
+                (find-match-in-package npm nested-package "./")))))
 
         :else
         (throw
@@ -697,9 +703,12 @@
     (throw (ex-info "tbd" {}))
 
     ;; default npm resolve
-    (when-let [file (find-file-in-package npm package rel-require)]
+    (when-let [match (find-match-in-package npm package rel-require)]
 
-      (let [rel-path (as-package-rel-path package file)
+      ;; might have used a nested package.json, continue from there
+      ;; not the root package we started with
+      (let [[package file] match
+            rel-path (as-package-rel-path package file)
             override (get-package-override npm package rel-path)]
 
         (cond

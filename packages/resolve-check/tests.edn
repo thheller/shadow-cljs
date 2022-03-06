@@ -10,6 +10,9 @@
  ;; browser field overrides "pkg" require to local ./pkg-override.js file instead
  {:from "pkg-nested-override/dir/bar" :request "pkg" :expected "node_modules/pkg-nested-override/pkg-override.js"}
 
+ ;; nested browser override with .cjs
+ {:from nil :request "browser-override/web" :expected "node_modules/browser-override/web/dist/web.cjs"}
+
  ;; package can also disable require entirely
  {:from "pkg-nested-override/dir/bar" :request "fs" :expected false}
 
