@@ -678,7 +678,7 @@
                 [package match])
               (let [nested-package
                     (-> (read-package-json npm nested-package-json)
-                        (assoc ::parent package))]
+                        (assoc ::parent package :js-package-dir (:js-package-dir package)))]
                 ;; rel-require resolved to a dir, continue with ./ from there
                 (find-match-in-package npm nested-package "./")))))
 
