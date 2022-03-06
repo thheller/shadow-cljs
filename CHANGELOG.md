@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.7](https://github.com/thheller/shadow-cljs/compare/368b6d6252d31bcac95c89d8aaa8bd672f159add...f27699a875bb11377a3c21f57d92ad9ee7b41b0c) - 2022-03-06
+- [ [`f2769`](https://github.com/thheller/shadow-cljs/commit/f27699a875bb11377a3c21f57d92ad9ee7b41b0c) ] add missing :js-package-dir for neste pkg
+- [ [`0b03b`](https://github.com/thheller/shadow-cljs/commit/0b03b5d582bb218ecf8a9fe5682612e1ef9915f6) ] fix npm resolve not using browser overrides in nested packages
+- [ [`06033`](https://github.com/thheller/shadow-cljs/commit/060337d696906da21a37d356b80e45fb5b210b3a) ] add UI debug helper
+- [ [`73f0f`](https://github.com/thheller/shadow-cljs/commit/73f0fc5d0a73a5ddeff0b9854b04e21d31f0b927) ] use :stable meta in UI code
+- [ [`368b6`](https://github.com/thheller/shadow-cljs/commit/368b6d6252d31bcac95c89d8aaa8bd672f159add) ] add missing test files
+
 ## [2.17.6](https://github.com/thheller/shadow-cljs/compare/69b43270c8a9fcdec899822f243a9e26824f1d5c...7cc3438ca14fc3ff3e5383ee3a5b88ae72b324cf) - 2022-03-03
 - [ [`7cc34`](https://github.com/thheller/shadow-cljs/commit/7cc3438ca14fc3ff3e5383ee3a5b88ae72b324cf) ] fix npm resolve for nested package requiring other nested pkg
 - [ [`d9bda`](https://github.com/thheller/shadow-cljs/commit/d9bda36cc4fa1eb4e0da36de2f51a08aed8a337a) ] fix build reports
