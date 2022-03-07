@@ -44,6 +44,10 @@
  ;; nested just has index.js
  {:from nil :request "nested-pkg/just-index" :expected "node_modules/nested-pkg/just-index/index.js"}
 
+ ;; nested empty package just as alias mechanism
+ ;; package.json refers to ../foo.js and that wants to use files from the main package
+ {:from "nested-but-not-really/nested" :request "./bar.js" :expected "node_modules/nested-but-not-really/bar.js"}
+
  ;; nested node_modules install
  {:from "lvl1" :request "lvl2" :expected "node_modules/lvl1/node_modules/lvl2/index.js"}
 

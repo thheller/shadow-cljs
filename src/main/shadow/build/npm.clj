@@ -565,26 +565,14 @@
           (recur (str path "/" (first more)) (rest more))
           )))))
 
-;; resolves ./foo/bar.js from /node_modules/package/nested/file.js in /node_modules/packages
-;; returns ./nested/foo/bar.js
-(defn resolve-rel-require [^File package-dir ^File file ^String require]
+;; resolves foo/bar.js from /node_modules/package/nested/file.js in /node_modules/packages
+;; returns foo/bar.js, or in cases where a parent dir is referenced ../foo/bar.js
+(defn resolve-require-as-package-path [^File package-dir ^File file ^String require]
   {:pre [(.isFile file)]}
-  (let [path
-        (->> (.relativize
-               (.toPath package-dir)
-               (-> file (.getParentFile) (.toPath) (.resolve require)))
-             (rc/normalize-name))]
-
-    (when (str/starts-with? path "../")
-      (throw (ex-info (format "relative require %s from %s outside package %s"
-                        require
-                        (.getAbsolutePath file)
-                        (.getAbsolutePath package-dir))
-               {:package-dir package-dir
-                :file file
-                :require require})))
-
-    (str "./" path)))
+  (->> (.relativize
+         (.toPath package-dir)
+         (-> file (.getParentFile) (.toPath) (.resolve require)))
+       (rc/normalize-name)))
 
 ;; /node_modules/foo/bar.js in /node_modules/foo returns ./bar.js
 (defn as-package-rel-path [{:keys [^File package-dir] :as package} ^File file]
@@ -595,7 +583,7 @@
        (str "./")))
 
 (comment
-  (resolve-rel-require
+  (resolve-require-as-package-path
     (absolute-file (io/file "test-env" "pkg-a"))
     (absolute-file (io/file "test-env" "pkg-a" "nested" "thing.js"))
     "../../index.js")
@@ -776,13 +764,26 @@
                     :require-from require-from
                     :require require})))
 
-        (let [package
-              (::package require-from)
+        ;; in case of nested packages we may need to recurse since it is valid
+        ;; for nested packages to refer to files from the parent
+        ;; it is however not valid to refer to relative files outside of that
+        ;; thing/foo/bar.js can go to ../bar.js but not ../../thing.js
+        (loop [{:keys [^File package-dir] :as package} (::package require-from)]
+          (let [{:keys [^File file]} require-from
+                rel-require (resolve-require-as-package-path package-dir file require)]
 
-              rel-require
-              (resolve-rel-require (:package-dir package) (:file require-from) require)]
-
-          (find-resource-in-package npm package require-from rel-require)))
+            (if-not (str/starts-with? rel-require "../")
+              (find-resource-in-package npm package require-from (str "./" rel-require))
+              (if-some [parent (::parent package)]
+                (recur parent)
+                (throw (ex-info (format "relative require %s from %s outside package %s"
+                                  require
+                                  (.getAbsolutePath file)
+                                  (.getAbsolutePath package-dir))
+                         {:package-dir package-dir
+                          :file file
+                          :require require}))
+                )))))
 
     ;; "package" require
     ;; when "package" is required from within another package its package.json
