@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.17.8](https://github.com/thheller/shadow-cljs/compare/4110f44cf93d15d75eedba099aebf5607c58ec42...4110f44cf93d15d75eedba099aebf5607c58ec42) - 2022-03-07
+- [ [`4110f`](https://github.com/thheller/shadow-cljs/commit/4110f44cf93d15d75eedba099aebf5607c58ec42) ] fix npm resolve regression for nested packages
+
 ## [2.17.7](https://github.com/thheller/shadow-cljs/compare/368b6d6252d31bcac95c89d8aaa8bd672f159add...f27699a875bb11377a3c21f57d92ad9ee7b41b0c) - 2022-03-06
 - [ [`f2769`](https://github.com/thheller/shadow-cljs/commit/f27699a875bb11377a3c21f57d92ad9ee7b41b0c) ] add missing :js-package-dir for neste pkg
 - [ [`0b03b`](https://github.com/thheller/shadow-cljs/commit/0b03b5d582bb218ecf8a9fe5682612e1ef9915f6) ] fix npm resolve not using browser overrides in nested packages
