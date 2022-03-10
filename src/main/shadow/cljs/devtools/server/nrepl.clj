@@ -28,7 +28,13 @@
       (next msg))))
 
 (defn shadow-cljs-repl [repl-env & options]
-  {:pre [(keyword? repl-env)]}
+  (when-not (keyword? repl-env)
+    (throw
+      (ex-info
+        (str "shadow-cljs nREPL initialization failure!\n"
+             "Your nREPL client sent a wrong parameter. A keyword specifying the build-id is expected.\n"
+             "Instead got a " (pr-str repl-env))
+        {})))
   (api/nrepl-select repl-env))
 
 ;; api method, does too much stuff we don't need
