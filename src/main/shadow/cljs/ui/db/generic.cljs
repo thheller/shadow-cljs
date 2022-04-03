@@ -20,7 +20,6 @@
 (defn init-data
   {::ev/handle ::init-data}
   [{:keys [db] :as env} {:keys [result]}]
-  (js/console.log "init-data" result)
   (let [{::m/keys [http-servers build-configs]}
         result
 
