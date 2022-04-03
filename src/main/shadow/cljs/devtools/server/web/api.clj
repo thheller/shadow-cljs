@@ -1,20 +1,19 @@
 (ns shadow.cljs.devtools.server.web.api
   (:require
-    [clojure.edn :as edn]
     [clojure.java.io :as io]
     [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
     [clojure.set :as set]
     [hiccup.page :refer (html5)]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.web.common :as common]
-    [shadow.cljs.devtools.graph :as graph]
     [shadow.http.router :as http]
     [shadow.cljs.devtools.server.util :as server-util]
     [shadow.cljs.model :as m]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.core-ext]
     [shadow.remote.relay.api :as relay]
-    ))
+    [shadow.cljs.devtools.server.supervisor :as super]
+    [shadow.cljs.devtools.config :as config]))
 
 (defn index-page [req]
   {:status 200
@@ -69,24 +68,40 @@
                          :project-home project-home
                          :version (server-util/find-version)})}))
 
-(defn graph-serve [{:keys [transit-read transit-str] :as req}]
-  (let [query
-        (-> (get-in req [:ring-request :body])
-            (transit-read))
+(defn ui-init-data [{:keys [dev-http transit-str supervisor] :as req}]
+  {:status 200
+   :header {"content-type" "application/transit+json"}
+   :body
+   (transit-str
+     {::m/http-servers
+      (->> (:servers @dev-http)
+           (map-indexed
+             (fn [idx {:keys [http-url https-url config]}]
+               {::m/http-server-id idx
+                ::m/http-url http-url
+                ::m/http-config config
+                ::m/https-url https-url}))
+           (into []))
 
-        result
-        (graph/parser req query)]
+      ::m/build-configs
+      (let [{:keys [builds]}
+            (config/load-cljs-edn)]
 
-    {:status 200
-     :header {"content-type" "application/transit+json"}
-     :body (transit-str result)}
-    ))
+        (->> (vals builds)
+             (sort-by :build-id)
+             (remove #(-> % meta :generated))
+             (map (fn [{:keys [build-id target] :as config}]
+                    {::m/build-id build-id
+                     ::m/build-target target
+                     ::m/build-worker-active (some? (super/get-worker supervisor build-id))
+                     ::m/build-config-raw config}))
+             (into [])))})})
 
 (defn root* [req]
   (http/route req
     (:GET "" index-page)
     (:GET "/project-info" project-info)
-    (:POST "/graph" graph-serve)
+    (:GET "/ui-init-data" ui-init-data)
     (:POST "/open-file" open-file)
     common/not-found))
 

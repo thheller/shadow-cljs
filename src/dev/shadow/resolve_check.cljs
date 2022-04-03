@@ -11,6 +11,11 @@
   (js/console.log err)
   (js/process.exit 1))
 
+
+(-> (.process processor "* org-mode example\n your text goes here")
+    (.then (fn [^js file]
+             (js/console.log (.-result file)))))
+
 (defn main [& args]
   (let [test-dir
         (path/resolve ".." ".." "test-env")

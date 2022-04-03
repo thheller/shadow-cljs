@@ -10,19 +10,9 @@
 (defn init!
   {::ev/handle ::m/init!}
   [{:keys [db] :as env} _]
-  {:graph-api
-   {:request
-    {:body
-     [::m/http-servers
-      ;; FIXME: what would be a good place for this definition so that
-      ;; the main and worker can share it
-      ;; either the full query or just the attributes the components want
-      {::m/build-configs
-       [::m/build-id
-        ::m/build-target
-        ::m/build-config-raw
-        ::m/build-worker-active
-        ]}]}
+  {:http-api
+   {:request "/ui-init-data"
+
 
     :on-success
     {:e ::init-data}}})
@@ -30,6 +20,7 @@
 (defn init-data
   {::ev/handle ::init-data}
   [{:keys [db] :as env} {:keys [result]}]
+  (js/console.log "init-data" result)
   (let [{::m/keys [http-servers build-configs]}
         result
 

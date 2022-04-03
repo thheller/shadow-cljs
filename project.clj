@@ -68,15 +68,6 @@
 
    [com.bhauman/cljs-test-display "0.1.1"]
 
-   [com.wsscode/pathom "2.2.31"
-    :exclusions
-    [org.clojure/data.json
-     fulcrologic/fulcro
-     ;; org.clojure/test.check
-     camel-snake-kebab]]
-   ;; for pathom
-   [org.clojure/test.check "1.1.0"]
-
    [thheller/shadow-cljsjs "0.0.22"]]
 
   :source-paths
