@@ -51,6 +51,7 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.3"]
    [thheller/shadow-undertow "0.2.0"]
+   [thheller/shadow-cljsjs "0.0.22"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.9.5"
@@ -64,8 +65,7 @@
    [fipp "0.6.25"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
-
-   [thheller/shadow-cljsjs "0.0.22"]]
+   ]
 
   :source-paths
   ["src/main"]
