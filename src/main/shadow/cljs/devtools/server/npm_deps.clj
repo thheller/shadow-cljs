@@ -5,42 +5,7 @@
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [shadow.cljs.devtools.server.util :as util]
-            [shadow.jvm-log :as log])
-  (:import (javax.script ScriptEngineManager)))
-
-(defn make-engine []
-  (let [script-mgr
-        (ScriptEngineManager.)
-
-        engine
-        (.getEngineByName script-mgr "JavaScript")
-
-        semver-js
-        (slurp (io/resource "shadow/build/js/semver.js"))]
-
-    (.eval engine semver-js)
-
-    engine))
-
-(def engine-lock (Object.))
-
-(def semver-intersects
-  (let [engine (delay (make-engine))]
-    (fn [a b]
-      ;; not sure if the engine is safe to use from multiple threads
-      ;; better be sure
-      (locking engine-lock
-        (try
-          (.invokeFunction @engine "shadowIntersects" (into-array Object [a b]))
-          (catch Exception e
-            (log/debug-ex e ::failed-to-compare {:a a :b b})
-            true))))))
-
-(comment
-  (semver-intersects "^1.0.0" "^1.1.0")
-  (semver-intersects "github:foo" "github:foo")
-  (semver-intersects ">=1.3.0" "1.2.0")
-  (semver-intersects "^2.0.0" "^1.1.0"))
+            [shadow.jvm-log :as log]))
 
 (defn dep->str [dep-id]
   (cond
@@ -61,18 +26,15 @@
   [deps-to-install
    {a-version :version a-url :url :as a id :id}
    {b-version :version b-url :url :as b}]
-  (cond
-    (semver-intersects a-version b-version)
-    deps-to-install
 
-    (semver-intersects b-version a-version)
-    (assoc deps-to-install id b)
-
-    :else
-    (do (println (format "NPM version conflict for \"%s\" in deps.cljs (will use A)" id))
-        (println (format "A: \"%s\" from %s" a-version a-url))
-        (println (format "B: \"%s\" from %s" b-version b-url))
-        deps-to-install)))
+  ;; FIXME: not actually resolving conflicts any longer because of semver.js removal
+  ;; for now just ends up using the first declared version found on the classpath
+  ;; should eventually do some kind of resolving but given how icky this whole thing
+  ;; already is regardless I don't care for now.
+  ;; should just remove the automatic install altogether and turn into standalone command
+  ;; but that might break peoples project relying on automatic installs
+  ;; this way they at least still get the proper dependency most of the time
+  deps-to-install)
 
 (defn resolve-conflicts [deps]
   (let [deps-to-install
@@ -192,20 +154,9 @@
       (-> (slurp package-json-file)
           (json/read-str)))))
 
-(defn is-installed? [{:keys [id version url]} package-json]
-  (let [installed-version
-        (or (get-in package-json ["dependencies" id])
-            (get-in package-json ["devDependencies" id]))]
-    (if-not (seq installed-version)
-      false
-      (do (when-not (semver-intersects installed-version version)
-            (println
-              (format "NPM dependency \"%s\" has installed version \"%s\"%n\"%s\" was required by %s"
-                id
-                installed-version
-                version
-                url)))
-          true))))
+(defn is-installed? [{:keys [id]} package-json]
+  (or (get-in package-json ["dependencies" id])
+      (get-in package-json ["devDependencies" id])))
 
 (defn main [{:keys [npm-deps] :as config} opts]
   (when-not (false? (:install npm-deps))

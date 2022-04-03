@@ -58,9 +58,6 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [org.graalvm.js/js "22.0.0.2"]
-   [org.graalvm.js/js-scriptengine "22.0.0.2"]
-
    [io.methvin/directory-watcher "0.15.0"]
 
    [expound "0.9.0"]
