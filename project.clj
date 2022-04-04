@@ -43,7 +43,7 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20220202"]
+   [com.google.javascript/closure-compiler-unshaded "v20220301"]
 
    [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
    [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]
@@ -59,7 +59,7 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [io.methvin/directory-watcher "0.15.0"]
+   [io.methvin/directory-watcher "0.15.1"]
 
    [expound "0.9.0"]
    [fipp "0.6.25"]
