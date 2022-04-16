@@ -173,10 +173,10 @@
     {:start-token "/dashboard"
      :root-el root-el})
 
-  (ev/reg-fx env/rt-ref :graph-api
+  (ev/reg-fx env/rt-ref :http-api
     (http-fx/make-handler
       {:on-error {:e ::m/request-error!}
-       :base-url "/api/graph"
+       :base-url "/api"
        :request-format :transit}))
 
   (relay-ws/init env/rt-ref server-token

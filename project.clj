@@ -1,4 +1,4 @@
-(defproject thheller/shadow-cljs "2.17.8"
+(defproject thheller/shadow-cljs "2.18.0"
   :description "CLJS development tools"
   :url "https://github.com/thheller/shadow-cljs"
   :license {:name "Eclipse Public License"
@@ -45,7 +45,7 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20220202"]
+   [com.google.javascript/closure-compiler-unshaded "v20220301"]
 
    [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
    [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]
@@ -53,6 +53,7 @@
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.3"]
    [thheller/shadow-undertow "0.2.0"]
+   [thheller/shadow-cljsjs "0.0.22"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.9.5"
@@ -60,26 +61,13 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [org.graalvm.js/js "22.0.0.2"]
-   [org.graalvm.js/js-scriptengine "22.0.0.2"]
-
-   [io.methvin/directory-watcher "0.15.0"]
+   [io.methvin/directory-watcher "0.15.1"]
 
    [expound "0.9.0"]
    [fipp "0.6.25"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
-
-   [com.wsscode/pathom "2.2.31"
-    :exclusions
-    [org.clojure/data.json
-     fulcrologic/fulcro
-     ;; org.clojure/test.check
-     camel-snake-kebab]]
-   ;; for pathom
-   [org.clojure/test.check "1.1.0"]
-
-   [thheller/shadow-cljsjs "0.0.22"]]
+   ]
 
   :source-paths
   ["src/main"]

@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.18.0](https://github.com/thheller/shadow-cljs/compare/051b5ecc7d701ef45b3bbc839685ac6ea03d4ad7...6de144a6d9e5830dd12d8e8400c9f64fa38dddbd) - 2022-04-04
+- [ [`6de14`](https://github.com/thheller/shadow-cljs/commit/6de144a6d9e5830dd12d8e8400c9f64fa38dddbd) ] closure-compiler bump, macos directory-watcher bump
+- [ [`e2ffc`](https://github.com/thheller/shadow-cljs/commit/e2ffccaf3ef94cc4d64ace0cbb3b97dd43189a07) ] remove leftover debug log
+- [ [`bb2c5`](https://github.com/thheller/shadow-cljs/commit/bb2c511fdb6470a2041e5cb5ace91f06c55f1065) ] fix deps.edn
+- [ [`c8994`](https://github.com/thheller/shadow-cljs/commit/c89949557e1006df36d9ed2dbd4d479fbf19a580) ] sync deps.edn file
+- [ [`6daff`](https://github.com/thheller/shadow-cljs/commit/6daffeae50d0b7f029aad8e975997b20223955dc) ] dependency trim: graal-js, slightly less function npm-deps
+- [ [`1af07`](https://github.com/thheller/shadow-cljs/commit/1af078975c359f293d722c7a0d2a1fac68358a0f) ] dependency trim: pathom, remove graph api
+- [ [`051b5`](https://github.com/thheller/shadow-cljs/commit/051b5ecc7d701ef45b3bbc839685ac6ea03d4ad7) ] improve nrepl init failure error
+
 ## [2.17.8](https://github.com/thheller/shadow-cljs/compare/4110f44cf93d15d75eedba099aebf5607c58ec42...4110f44cf93d15d75eedba099aebf5607c58ec42) - 2022-03-07
 - [ [`4110f`](https://github.com/thheller/shadow-cljs/commit/4110f44cf93d15d75eedba099aebf5607c58ec42) ] fix npm resolve regression for nested packages
 
