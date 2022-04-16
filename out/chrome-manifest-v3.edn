@@ -1,0 +1,43 @@
+{:name "Getting Started Example"
+ :version "1.0"
+ :description "Build an Extension!"
+ :manifest-version 3
+
+ :shadow/outputs
+ {:inject
+  {:output-type :chrome/single-file
+   :init-fn demo.chrome.manual-inject/init}
+
+  :browser-action
+  {:init-fn demo.chrome.browser-action/init}
+
+  :content-script
+  {:init-fn demo.chrome.content/init
+   :chrome/options {:matches ["http://localhost:*/*"]
+                    :run-at "document_idle"}}
+
+  :background
+  {:init-fn demo.chrome.bg/init}}
+
+ ;; disable as only one of :page-action or :browser-action is allowed
+ #_#_:page-action
+     {:default-title "hello world"
+      :default-icon "icon.png"
+      :default-popup "page-action.html"}
+
+ :browser-action
+ {:default-title "hello world"
+  :default-icon "icon.png"
+  :default-popup "browser-action.html"}
+
+ :content-security-policy
+ ["default-src 'self';"
+  ;; FIXME: unsafe-eval should be injected for dev, user shouldn't have to write this
+  "script-src 'self' 'unsafe-eval' http://localhost:9630;"
+  "connect-src * data: blob: filesystem:;"
+  "style-src 'self' data: chrome-extension-resource: 'unsafe-inline';"
+  "img-src 'self' data: chrome-extension-resource:;"
+  "frame-src 'self' data: chrome-extension-resource:;"
+  "font-src 'self' data: chrome-extension-resource:;"
+  "media-src * data: blob: filesystem:;"]}
+

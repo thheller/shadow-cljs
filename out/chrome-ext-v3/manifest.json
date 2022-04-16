@@ -1,0 +1,14 @@
+{"name":"Getting Started Example",
+ "version":"1.0",
+ "description":"Build an Extension!",
+ "manifest_version":3,
+ "browser_action":
+ {"default_title":"hello world",
+  "default_icon":"icon.png",
+  "default_popup":"browser-action.html"},
+ "content_scripts":
+ [{"js":
+   ["out/shared.js", "out/bg-shared.js", "out/content-script.js"],
+   "matches":["http://localhost:*/*"],
+   "run_at":"document_idle"}],
+ "background":{"service_worker":"out/bg-loader.js"}}
