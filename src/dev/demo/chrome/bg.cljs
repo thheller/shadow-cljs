@@ -3,6 +3,7 @@
 (defn init []
   (js/console.log "chrome-bg")
 
+
   (js/console.log "▶❤◀")
 
   (js/chrome.runtime.onInstalled.addListener

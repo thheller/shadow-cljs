@@ -18,6 +18,7 @@
        (when (= :exit timing)
          (format " (%d ms)" duration))))
 
+
 (defn event-text [evt]
   (let [s (event->str evt)]
     (if (contains? evt :timing)

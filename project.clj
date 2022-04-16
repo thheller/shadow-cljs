@@ -18,12 +18,14 @@
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
-  [[org.clojure/clojure "1.10.3"]
-
+  [[com.rpl/specter "1.1.4"]
+   [org.clojure/clojure "1.10.3"]
    [org.clojure/data.json "2.4.0"]
    [org.clojure/tools.cli "1.0.206"]
    [org.clojure/tools.reader "1.3.6"]
 
+   [tupelo "22.03.17"]
+   
    [nrepl "0.9.0"]
    [cider/piggieback "0.5.3"
     :exclusions
@@ -167,5 +169,4 @@
      "../oss/clojurescript/src/test/cljs"
      "../oss/clojurescript/src/test/self"
      "../oss/clojurescript/src/test/cljs_cp"
-     "../oss/clojurescript/benchmark"
-     ]}})
+     "../oss/clojurescript/benchmark"]}})

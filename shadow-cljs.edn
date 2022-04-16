@@ -255,6 +255,14 @@
    :extension-dir "out/chrome-ext"
    :manifest-file "out/chrome-manifest.edn"}
 
+  :chrome-ext-v3
+  {:target :chrome-extension-v3
+   ;; https://github.com/google/closure-compiler/issues/1704
+   :compiler-options {:closure-output-charset "us-ascii"
+                      :source-map-inline true}
+   :extension-dir "out/chrome-ext-v3"
+   :manifest-file "out/chrome-manifest-v3.edn"}
+
   :test-browser
   {:target :browser-test
    :test-dir "out/demo-test-browser"}
