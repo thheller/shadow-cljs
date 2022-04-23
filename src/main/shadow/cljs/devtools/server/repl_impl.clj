@@ -124,6 +124,8 @@
 
                      error?
                      (do (repl-read-ex repl-state ex)
+                         (repl-prompt repl-state)
+                         (>!! read-lock 1)
                          (recur repl-state))
 
                      (= ":repl/quit" source)
