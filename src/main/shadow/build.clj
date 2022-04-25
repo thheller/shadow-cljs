@@ -215,6 +215,18 @@
         fn
         ))))
 
+(defmethod build-log/event->str ::hook-not-found
+  [{:keys [hook-sym]}]
+  (format "build hook: %s was not found and will not be used" hook-sym))
+
+(defmethod build-log/event->str ::hook-without-stage
+  [{:keys [hook-sym]}]
+  (format "build hook: %s declared no stages and will not be used" hook-sym))
+
+(defmethod build-log/event->str ::hook-load-failed
+  [{:keys [hook-sym]}]
+  (format "build hook: %s failed to load and will not be used" hook-sym))
+
 (defn configure-hooks-from-config [{::keys [build-id] :as state} build-hooks]
   (reduce-kv
     (fn [state hook-idx [hook-sym & args]]
@@ -225,24 +237,41 @@
 
         (let [hook-var (find-var hook-sym)
               {::keys [stages stage]} (meta hook-var)]
-          (reduce
-            (fn [state stage]
-              (assoc-in state [:build-hooks stage [hook-idx hook-sym]]
-                (fn [build-state]
-                  (let [result (apply hook-var build-state args)]
-                    (when-not (build-api/build-state? result)
-                      (throw (ex-info "hook returned invalid result" {:type ::invalid-hook-result
-                                                                      :hook-sym hook-sym
-                                                                      :build-id build-id
-                                                                      :stage stage})))
-                    result))))
-            state
-            (or stages [stage])))
+
+          (cond
+            (not hook-var)
+            (util/warn state
+              {:type ::hook-not-found
+               :hook-sym hook-sym})
+
+            (and (not stage) (not (seq stages)))
+            (util/warn state
+              {:type ::hook-without-stage
+               :hook-sym hook-sym})
+
+            :else
+            (reduce
+              (fn [state stage]
+                (assoc-in state [:build-hooks stage [hook-idx hook-sym]]
+                  (fn [build-state]
+                    (let [result (apply hook-var build-state args)]
+                      (when-not (build-api/build-state? result)
+                        (throw (ex-info "hook returned invalid result" {:type ::invalid-hook-result
+                                                                        :hook-sym hook-sym
+                                                                        :build-id build-id
+                                                                        :stage stage})))
+                      result))))
+              state
+              (or stages [stage]))))
         (catch Exception e
           (log/warn-ex e ::hook-config-ex {:hook-idx hook-idx
                                            :hook-sym hook-sym
                                            :build-id build-id})
-          state)))
+
+          (util/warn state
+            {:type ::hook-load-failed
+             :hook-sym hook-sym}
+            ))))
     state
     build-hooks))
 
