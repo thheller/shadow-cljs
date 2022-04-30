@@ -18,7 +18,7 @@
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
-  [[org.clojure/clojure "1.10.3"]
+  [[org.clojure/clojure "1.11.1"]
 
    [org.clojure/data.json "2.4.0"]
    [org.clojure/tools.cli "1.0.206"]
