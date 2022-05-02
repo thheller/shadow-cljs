@@ -130,12 +130,9 @@
      ;; no proper release yet, included via source-paths below
      #_[thheller/shadow-experiments "0.0.1"]
 
-
-
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
-     [reagent "0.10.0"]
-     [nubank/workspaces "1.0.15"]]
+     [reagent "0.10.0"]]
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware
