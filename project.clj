@@ -19,8 +19,7 @@
 
   :dependencies
   [[com.rpl/specter "1.1.4"]
-   [org.clojure/clojure "1.10.3"]
-   [org.clojure/data.json "2.4.0"]
+   [org.clojure/clojure "1.11.1"]
    [org.clojure/tools.cli "1.0.206"]
    [org.clojure/tools.reader "1.3.6"]
 
