@@ -345,7 +345,7 @@
   (shadow.cljs.devtools.api/release :chrome-ext-v3))
 
 (comment
-  (shadow.cljs.devtools.api/watch :chrome-ext {:verbose true}))
+  (shadow.cljs.devtools.api/watch :chrome-ext-v3 {:verbose true}))
 
 (comment
   (require '[cljs.compiler :as cc])
