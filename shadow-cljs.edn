@@ -257,9 +257,7 @@
 
   :chrome-ext-v3
   {:target :chrome-extension-v3
-   ;; https://github.com/google/closure-compiler/issues/1704
-   :compiler-options {:closure-output-charset "us-ascii"
-                      :source-map-inline true}
+   :compiler-options {:source-map-inline true}
    :extension-dir "out/chrome-ext-v3"
    :manifest-file "out/chrome-manifest-v3.edn"}
 
