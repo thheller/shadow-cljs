@@ -44,3 +44,4 @@ out/chrome-ext-v3/out/
 .lsp/
 .portal
 .calva
+out/chrome-ext-v3/manifest.json
