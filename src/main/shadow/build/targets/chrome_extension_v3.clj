@@ -38,6 +38,10 @@
                            (and (nil? output-type) (= :content-script mod-id))
                            (assoc :output-type :chrome/content-script)
 
+
+                           (and (nil? output-type) (= :action mod-id))
+                           (assoc :output-type :chrome/action)
+
                            (and (nil? output-type) (= :browser-action mod-id))
                            (assoc :output-type :chrome/browser-action)
 
@@ -296,6 +300,10 @@
   [state mod]
   (output/flush-optimized-module state (assoc mod :output-type ::output/default)))
 
+(defmethod output/flush-optimized-module :chrome/action
+  [state mod]
+  (output/flush-optimized-module state (assoc mod :output-type ::output/default)))
+
 (defmethod output/flush-optimized-module :chrome/browser-action
   [state mod]
   (output/flush-optimized-module state (assoc mod :output-type ::output/default)))
@@ -351,5 +359,12 @@
   (require '[cljs.compiler :as cc])
   (def a-b-cdef 123)
   (cc/munge 'a-b-cdef)
+
+  (require '[portal.api :as portal])
+  (def po (portal/open))
+  (add-tap #'portal/submit)
+  (tap> :hello)
+  (portal/clear)
+  (portal/close)
   )
 

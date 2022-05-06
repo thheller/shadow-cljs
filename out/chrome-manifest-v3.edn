@@ -6,18 +6,18 @@
  :shadow/outputs
  {:inject
   {:output-type :chrome/single-file
-   :init-fn demo.chrome.manual-inject/init}
+   :init-fn demo.chrome-ext-v3.manual-inject/init}
 
   :browser-action
-  {:init-fn demo.chrome.browser-action/init}
+  {:init-fn demo.chrome-ext-v3.browser-action/init}
 
   :content-script
-  {:init-fn demo.chrome.content/init
+  {:init-fn demo.chrome-ext-v3.content/init
    :chrome/options {:matches ["http://localhost:*/*"]
                     :run-at "document_idle"}}
 
   :background
-  {:init-fn demo.chrome.bg/init}}
+  {:init-fn demo.chrome-ext-v3.bg/init}}
 
  ;; disable as only one of :page-action or :browser-action is allowed
  #_#_:page-action

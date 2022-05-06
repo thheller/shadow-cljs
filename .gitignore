@@ -40,3 +40,7 @@ package-lock.json
 /package.json
 *.log
 out/chrome-ext-v3/out/
+.clj-kondo/
+.lsp/
+.portal
+.calva
