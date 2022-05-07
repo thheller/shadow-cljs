@@ -10,4 +10,5 @@
     (fn []
       (js/console.log "Installed!")
       (js/console.log "Hello Chromex.")
+      (js/console.log (reduce + (range 1024)))
       )))

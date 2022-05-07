@@ -21,11 +21,11 @@
 
  ;; disable as only one of :page-action or :browser-action is allowed
  #_#_:page-action
-     {:default-title "hello world"
-      :default-icon "icon.png"
-      :default-popup "page-action.html"}
+   {:default-title "hello world"
+    :default-icon "icon.png"
+    :default-popup "page-action.html"}
 
- :browser-action
+ :action
  {:default-title "hello world"
   :default-icon "icon.png"
   :default-popup "browser-action.html"}
