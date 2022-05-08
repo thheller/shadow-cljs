@@ -24,7 +24,9 @@
    [org.clojure/tools.reader "1.3.6"]
 
    [tupelo "22.03.17"]
-   
+   [binaryage/chromex "0.9.3"]
+   [org.clojure/core.async "1.5.648"]
+
    [nrepl "0.9.0"]
    [cider/piggieback "0.5.3"
     :exclusions
@@ -65,8 +67,7 @@
    [expound "0.9.0"]
    [fipp "0.6.25"]
 
-   [com.bhauman/cljs-test-display "0.1.1"]
-   ]
+   [com.bhauman/cljs-test-display "0.1.1"]]
 
   :source-paths
   ["src/main"]
