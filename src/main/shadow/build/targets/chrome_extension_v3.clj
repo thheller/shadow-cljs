@@ -6,15 +6,11 @@
     [shadow.build :as b]
     [shadow.build.targets.browser :as browser]
     [shadow.build.targets.shared :as shared]
-    [tupelo.core :as t]
-    [shadow.cljs.repl :as repl]
     [shadow.build.api :as build-api]
     [shadow.cljs.devtools.api :as api]
-    [shadow.build.modules :as modules]
     [shadow.build.output :as output]
     [shadow.build.data :as data]
     [shadow.cljs.util :as util]
-    [clojure.pprint :refer [pprint]]
     [clojure.edn :as edn]))
 
 (defn merge-left [a b]
@@ -343,10 +339,6 @@
     :else
     state))
 
-
-(comment
-  (meta #'process))
-
 (comment
   (shadow.cljs.devtools.api/compile :chrome-ext-v3))
 
@@ -357,10 +349,6 @@
   (shadow.cljs.devtools.api/watch :chrome-ext-v3 {:verbose true}))
 
 (comment
-  (require '[cljs.compiler :as cc])
-  (def a-b-cdef 123)
-  (cc/munge 'a-b-cdef)
-
   (require '[portal.api :as portal])
   (def po (portal/open))
   (add-tap #'portal/submit)
