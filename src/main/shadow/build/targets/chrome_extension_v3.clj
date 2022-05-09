@@ -212,7 +212,7 @@
   (let [manifest
         (-> manifest
             (dissoc :shadow/outputs)
-            (dissoc :content-security-policy)
+            ;(dissoc :content-security-policy)
             (util/reduce->
              (fn [manifest {:keys [output-type] :as mod}]
                (case output-type
