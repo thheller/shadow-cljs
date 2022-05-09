@@ -6,6 +6,7 @@
 
 (defn init []
   (js/console.log "▶❤◀")
+  (js/console.log (reduce + (range 1024)))
   (js/console.log (js/chrome.runtime.getURL "")))
 
 (defn ^:dev/after-load call-me-maybe []

@@ -1,17 +1,17 @@
 (ns shadow.build.targets.chrome-extension-v3
   (:require
-    [clojure.java.io :as io]
-    [clojure.data.json :as json]
-    [clojure.string :as str]
-    [shadow.build :as b]
-    [shadow.build.targets.browser :as browser]
-    [shadow.build.targets.shared :as shared]
-    [shadow.build.api :as build-api]
-    [shadow.cljs.devtools.api :as api]
-    [shadow.build.output :as output]
-    [shadow.build.data :as data]
-    [shadow.cljs.util :as util]
-    [clojure.edn :as edn]))
+   [clojure.java.io :as io]
+   [clojure.data.json :as json]
+   [clojure.string :as str]
+   [shadow.build :as b]
+   [shadow.build.targets.browser :as browser]
+   [shadow.build.targets.shared :as shared]
+   [shadow.build.api :as build-api]
+   [shadow.cljs.devtools.api :as api]
+   [shadow.build.output :as output]
+   [shadow.build.data :as data]
+   [shadow.cljs.util :as util]
+   [clojure.edn :as edn]))
 
 (defn merge-left [a b]
   (merge b a))
@@ -19,33 +19,32 @@
 (defn extract-outputs
   [modules outputs]
   (reduce-kv
-    (fn [modules mod-id {:keys [output-type] :as mod}]
-      (assoc modules mod-id
-                     (-> mod
-                         (update :depends-on util/set-conj :shared)
-                         (cond->
-                           (and (not= :chrome/content-script output-type)
-                                (not= :chrome/content-inject output-type))
-                           (update :depends-on util/set-conj :bg-shared)
+   (fn [modules mod-id {:keys [output-type] :as mod}]
+     (assoc modules mod-id
+            (-> mod
+                (update :depends-on util/set-conj :shared)
+                (cond->
+                 (and (not= :chrome/content-script output-type)
+                      (not= :chrome/content-inject output-type))
+                  (update :depends-on util/set-conj :bg-shared)
 
-                           (and (nil? output-type) (= :background mod-id))
-                           (assoc :output-type :chrome/background)
+                  (and (nil? output-type) (= :background mod-id))
+                  (assoc :output-type :chrome/background)
 
-                           (and (nil? output-type) (= :content-script mod-id))
-                           (assoc :output-type :chrome/content-script)
+                  (and (nil? output-type) (= :content-script mod-id))
+                  (assoc :output-type :chrome/content-script)
 
 
-                           (and (nil? output-type) (= :action mod-id))
-                           (assoc :output-type :chrome/action)
+                  (and (nil? output-type) (= :action mod-id))
+                  (assoc :output-type :chrome/action)
 
-                           (and (nil? output-type) (= :browser-action mod-id))
-                           (assoc :output-type :chrome/browser-action)
+                  (and (nil? output-type) (= :browser-action mod-id))
+                  (assoc :output-type :chrome/browser-action)
 
-                           (and (nil? output-type) (= :page-action mod-id))
-                           (assoc :output-type :chrome/page-action)
-                           ))))
-    modules
-    outputs))
+                  (and (nil? output-type) (= :page-action mod-id))
+                  (assoc :output-type :chrome/page-action)))))
+   modules
+   outputs))
 
 (defn configure
   [state mode {:keys [outputs extension-dir manifest-file] :as config}]
@@ -83,15 +82,15 @@
 
         config
         (update config :devtools merge-left
-          {:use-document-host false
-           :autoload true})]
+                {:use-document-host false
+                 :autoload true})]
 
     (-> state
         (assoc ::b/config config)
         (update :extra-config-files conj manifest-input-file)
         (build-api/merge-build-options
-          {:output-dir output-dir
-           :asset-path "out"})
+         {:output-dir output-dir
+          :asset-path "out"})
 
         (build-api/with-js-options
           {:js-provider :shadow})
@@ -101,7 +100,7 @@
                ::extension-dir extension-dir)
 
         (cond->
-          (and (= :dev mode) (:worker-info state))
+         (and (= :dev mode) (:worker-info state))
           (shared/merge-repl-defines config)
 
           (nil? (get-in config [:compiler-options :output-feature-set]))
@@ -139,50 +138,48 @@
                          output-name
                          "\", false, \""
                          (.escape browser/js-escaper
-                           (str js
-                                (output/generate-source-map-inline state rc output "")))
+                                  (str js
+                                       (output/generate-source-map-inline state rc output "")))
                          "\");")
-                    (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape browser/js-escaper ^String js) "\");"))
-                  )))
+                    (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape browser/js-escaper ^String js) "\");")))))
          (str/join "\n"))))
 
 (defn flush-dev-module [state {:keys [output-type output-name] :as mod}]
   (spit (data/output-file state output-name)
-    (case output-type
+        (case output-type
       ;; these are controlled via the scripts/js properties and
       ;; support loading multiple files so no loader support is required
-      (:chrome/background :chrome/content-script)
-      (str (dev-header state)
-           (slurp (io/resource "shadow/boot/static.js")))
+          (:chrome/background :chrome/content-script)
+          (str (dev-header state)
+               (slurp (io/resource "shadow/boot/static.js")))
 
       ;; special case for thing that require on isolated file
       ;; specifically chrome.tabs.executeScript(id, {file: "something.js"})
-      :chrome/single-file
-      (str (dev-header state)
-           (slurp (io/resource "shadow/boot/static.js"))
-           (let [mods (-> (browser/get-all-module-deps state mod)
-                          (conj mod))]
-             (->> mods
-                  (mapcat :sources)
-                  (remove #{output/goog-base-id})
-                  (map #(data/get-source-by-id state %))
-                  (map #(data/get-output! state %))
-                  (map :js)
-                  (str/join "\n"))))
+          :chrome/single-file
+          (str (dev-header state)
+               (slurp (io/resource "shadow/boot/static.js"))
+               (let [mods (-> (browser/get-all-module-deps state mod)
+                              (conj mod))]
+                 (->> mods
+                      (mapcat :sources)
+                      (remove #{output/goog-base-id})
+                      (map #(data/get-source-by-id state %))
+                      (map #(data/get-output! state %))
+                      (map :js)
+                      (str/join "\n"))))
 
 
-      :chrome/shared
-      (eval-load-sources state (:sources mod))
+          :chrome/shared
+          (eval-load-sources state (:sources mod))
 
       ;; anything else assumes that can load files via normal browser methods
-      (str (dev-header state)
-           (slurp (io/resource "shadow/boot/browser.js"))
-           (let [mods (-> (browser/get-all-module-deps state mod)
-                          (conj mod))]
-             (->> mods
-                  (mapcat :sources)
-                  (eval-load-sources state))
-             )))))
+          (str (dev-header state)
+               (slurp (io/resource "shadow/boot/browser.js"))
+               (let [mods (-> (browser/get-all-module-deps state mod)
+                              (conj mod))]
+                 (->> mods
+                      (mapcat :sources)
+                      (eval-load-sources state)))))))
 
 (defn mod-files [{::b/keys [mode] :as state} {:keys [output-name sources] :as mod}]
   (let [mods (browser/get-all-module-deps state mod)]
@@ -202,6 +199,14 @@
            (map #(str "out/cljs-runtime/" %))
            (into [(str "out/" output-name)])))))
 
+(defn- bg-loader-js-file [state mod]
+  (str "try {\nimportScripts("
+       (->> (mod-files state mod)
+            (map #(->> (str/split % #"/") rest (str/join "/")))
+            (map (fn [e] (str \" e \")))
+            (clojure.string/join ","))
+       ");\n}\ncatch (e) {\nconsole.error(e);\n}"))
+
 (defn flush-manifest
   [{::keys [manifest-output-file manifest extension-dir] :keys [build-modules] :as state}]
   (let [manifest
@@ -212,15 +217,10 @@
              (fn [manifest {:keys [output-type] :as mod}]
                (case output-type
                  :chrome/background
-                 (let [bg-loader (str "try {\nimportScripts("
-                                      (->> (mod-files state mod)
-                                           (map #(-> % (str/split #"/") last))
-                                           (map (fn [e] (str \" e \")))
-                                           (clojure.string/join ","))
-                                      ");\n}\ncatch (e) {\nconsole.error(e);\n}")]
+                 (let [bg-loader-js-file (bg-loader-js-file state mod)]
                    (-> extension-dir
                        (str "/out/bg-loader.js")
-                       (spit bg-loader))
+                       (spit bg-loader-js-file))
                    (update manifest :background
                            #(merge
                              {:service_worker "out/bg-loader.js"}
@@ -268,17 +268,16 @@
 
         {:keys [js source-map]}
         (reduce
-          (fn [m {:keys [prepend output append] :as mod}]
-            (update m :js str prepend output append))
-          {:js js
-           :source-map {}}
-          mods)
+         (fn [m {:keys [prepend output append] :as mod}]
+           (update m :js str prepend output append))
+         {:js js
+          :source-map {}}
+         mods)
 
         mod-file
         (data/output-file state output-name)]
 
-    (spit mod-file js)
-    ))
+    (spit mod-file js)))
 
 (defmethod output/flush-optimized-module :chrome/single-file
   [state mod]
@@ -319,7 +318,7 @@
   (let [{output :output
          stage :shadow.build/stage} s]
     (when (= :flush stage)
-       (keys output))))
+      (keys output))))
 
 (defn process
   [{::b/keys [stage mode config] :as state}]
@@ -354,5 +353,4 @@
   (add-tap #'portal/submit)
   (tap> :hello)
   (portal/clear)
-  (portal/close)
-  )
+  (portal/close))
