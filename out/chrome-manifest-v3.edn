@@ -13,7 +13,7 @@
 
   :content-script
   {:init-fn demo.chrome-ext-v3.content/init
-   :chrome/options {:matches ["https://*.baidu.com:*/*"]
+   :chrome/options {:matches ["http://localhost:*/*"]
                     :run-at "document_idle"}}
 
   :background
@@ -23,17 +23,4 @@
  {:default-title "hello world"
   :default-icon "icon.png"
   :default-popup "action.html"}
-
- :content-security-policy
- {:default-src "'self';"
-  ;; FIXME: unsafe-eval should be injected for dev, user shouldn't have to write this
-  :script-src "'self' 'unsafe-eval' https://*:*/*;"
-  :connect-src "* data: blob: filesystem:;"
-  :style-src "'self' data: chrome-extension-resource: 'unsafe-inline';"
-  :img-src "'self' data: chrome-extension-resource:;"
-  :frame-src "'self' data: chrome-extension-resource:;"
-  :font-src "'self' data: chrome-extension-resource:;"
-  :media-src "* data: blob: filesystem:;"}}
-
-
-
+ }
