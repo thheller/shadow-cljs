@@ -549,11 +549,7 @@
                  (find-resource-for-string state require-from (str require) true)]
         [rc
          (-> state
-             (cond->
-               ;; only need to turn ns into magic-symbol if it actually resolved to npm dependency
-               ;; (:require [goog$global.Foo :as Foo]) is not a magic symbol, just sugar
-               (not (::js-support/split-require rc))
-               (update :magic-syms conj require))
+             (update :magic-syms conj require)
              (update :ns-aliases assoc require ns))])
 
       ;; the ns was not found, handled elsewhere

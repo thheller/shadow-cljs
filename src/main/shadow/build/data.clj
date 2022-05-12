@@ -184,6 +184,8 @@
 (defn get-source-id-by-provide [state provide]
   {:pre [(symbol? provide)]}
   (or (get-in state [:sym->id provide])
+      (when-some [alias (get-in state [:ns-aliases provide])]
+        (get-in state [:sym->id alias]))
       (throw (ex-info (format "no source by provide: %s" provide) {:provide provide}))))
 
 (defn get-source-by-provide [state provide]

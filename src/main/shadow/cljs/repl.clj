@@ -234,7 +234,9 @@
                      (->> new-deps
                           (map (fn [dep]
                                  (or (and (string? dep) (get-in state [:str->sym (:name new-ns-info) dep]))
-                                     (and (contains? (:magic-syms state) dep) (get-in state [:ns-aliases dep]))
+                                     (let [rc (data/get-source-by-provide state dep)]
+                                       (when (= :shadow-js (:type rc))
+                                         (:ns rc)))
                                      nil)))
                           (remove nil?)
                           (into [])))))]
