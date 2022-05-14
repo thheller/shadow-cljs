@@ -6,5 +6,6 @@
   (js/console.log "▶❤◀")
 
   (js/chrome.runtime.onInstalled.addListener
-   (fn []
-     (js/console.log "onInstalled!"))))
+    (fn []
+      (js/console.log "Installed!")
+      )))

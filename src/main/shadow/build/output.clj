@@ -1,15 +1,15 @@
 (ns shadow.build.output
   (:require
-   [clojure.java.io :as io]
-   [cljs.source-map :as sm]
-   [clojure.string :as str]
-   [cljs.compiler :as comp]
-   [cljs.analyzer :as ana]
-   [clojure.data.json :as json]
-   [shadow.build.data :as data]
-   [shadow.build.resource :as rc]
-   [shadow.build.async :as async]
-   [shadow.cljs.util :as util])
+    [clojure.java.io :as io]
+    [cljs.source-map :as sm]
+    [clojure.string :as str]
+    [cljs.compiler :as comp]
+    [cljs.analyzer :as ana]
+    [clojure.data.json :as json]
+    [shadow.build.data :as data]
+    [shadow.build.resource :as rc]
+    [shadow.build.async :as async]
+    [shadow.cljs.util :as util])
   (:import (java.io StringReader File)
            (java.util Base64)))
 
@@ -389,7 +389,6 @@
 
 (defn flush-optimized
   ;; FIXME: can't alias this due to cyclic dependency
-   
   [{modules :shadow.build.closure/modules
     :keys [build-options]
     :as state}]

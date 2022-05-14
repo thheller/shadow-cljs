@@ -255,7 +255,7 @@
         ))))
 
 (defn resolve-modules [{::keys [module-order] :as state}]
-   (reduce resolve-module state module-order))
+  (reduce resolve-module state module-order))
 
 (defn get-modules-ordered
   [{::keys [modules module-order] :as state}]
