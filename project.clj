@@ -18,8 +18,8 @@
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
-  [[com.rpl/specter "1.1.4"]
-   [org.clojure/clojure "1.11.1"]
+  [[org.clojure/clojure "1.11.1"]
+   [org.clojure/data.json "2.4.0"]
    [org.clojure/tools.cli "1.0.206"]
    [org.clojure/tools.reader "1.3.6"]
 
@@ -67,7 +67,8 @@
    [expound "0.9.0"]
    [fipp "0.6.25"]
 
-   [com.bhauman/cljs-test-display "0.1.1"]]
+   [com.bhauman/cljs-test-display "0.1.1"]
+   ]
 
   :source-paths
   ["src/main"]
@@ -108,7 +109,6 @@
 
     :dependencies
     [[com.clojure-goes-fast/clj-async-profiler "0.4.1"]
-     [djblue/portal "0.25.0"]
      #_[org.slf4j/slf4j-log4j12 "1.7.25"]
      #_[log4j "1.2.17"]]}
 
@@ -158,4 +158,5 @@
      "../oss/clojurescript/src/test/cljs"
      "../oss/clojurescript/src/test/self"
      "../oss/clojurescript/src/test/cljs_cp"
-     "../oss/clojurescript/benchmark"]}})
+     "../oss/clojurescript/benchmark"
+     ]}})
