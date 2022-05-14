@@ -339,15 +339,12 @@
     state))
 
 (comment
-  (shadow.cljs.devtools.api/compile :chrome-ext-v3))
-
-(comment
-  (shadow.cljs.devtools.api/release :chrome-ext-v3))
-
-(comment
+  (shadow.cljs.devtools.api/compile :chrome-ext-v3)
+  (shadow.cljs.devtools.api/release :chrome-ext-v3)
   (shadow.cljs.devtools.api/watch :chrome-ext-v3 {:verbose true}))
 
 (comment
+  ; for viewing state data
   (require '[portal.api :as portal])
   (def po (portal/open))
   (add-tap #'portal/submit)

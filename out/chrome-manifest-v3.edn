@@ -23,4 +23,5 @@
  {:default-title "hello world"
   :default-icon "icon.png"
   :default-popup "action.html"}
- }
+ 
+ :content_security_policy {:extension_pages "default-src 'self'"}}
