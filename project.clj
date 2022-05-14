@@ -19,13 +19,10 @@
 
   :dependencies
   [[org.clojure/clojure "1.11.1"]
+
    [org.clojure/data.json "2.4.0"]
    [org.clojure/tools.cli "1.0.206"]
    [org.clojure/tools.reader "1.3.6"]
-
-   [tupelo "22.03.17"]
-   [binaryage/chromex "0.9.3"]
-   [org.clojure/core.async "1.5.648"]
 
    [nrepl "0.9.0"]
    [cider/piggieback "0.5.3"
@@ -109,6 +106,10 @@
 
     :dependencies
     [[com.clojure-goes-fast/clj-async-profiler "0.4.1"]
+     [tupelo "22.03.17"]
+     [binaryage/chromex "0.9.3"]
+     [org.clojure/core.async "1.5.648"]
+
      #_[org.slf4j/slf4j-log4j12 "1.7.25"]
      #_[log4j "1.2.17"]]}
 
