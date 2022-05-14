@@ -106,7 +106,6 @@
 
     :dependencies
     [[com.clojure-goes-fast/clj-async-profiler "0.4.1"]
-     [tupelo "22.03.17"]
      [binaryage/chromex "0.9.3"]
      [org.clojure/core.async "1.5.648"]
 
