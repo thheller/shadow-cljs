@@ -37,13 +37,13 @@
    [org.clojure/core.async "1.5.648"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.11.4"
+   [org.clojure/clojurescript "1.11.51"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20220301"]
+   [com.google.javascript/closure-compiler-unshaded "v20220502"]
 
    [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
    [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]

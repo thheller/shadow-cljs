@@ -88,7 +88,9 @@
     :ecmascript-2016 CompilerOptions$LanguageMode/ECMASCRIPT_2016
     :ecmascript-2017 CompilerOptions$LanguageMode/ECMASCRIPT_2017
     :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT
-    :ecmascript-next-in CompilerOptions$LanguageMode/ECMASCRIPT_NEXT_IN))
+    :ecmascript-next-in CompilerOptions$LanguageMode/UNSTABLE
+    :ecmascript-unstable CompilerOptions$LanguageMode/UNSTABLE
+    :unstable CompilerOptions$LanguageMode/UNSTABLE))
 
 (defn ^FeatureSet kw->feature-set [kw]
   (case kw
@@ -105,7 +107,8 @@
     :es2019 FeatureSet/ES2019
     :es2020 FeatureSet/ES2020
     :es-next FeatureSet/ES_NEXT
-    :es-next-in FeatureSet/ES_NEXT_IN
+    :es-next-in FeatureSet/ES_UNSTABLE
+    :es-unstable FeatureSet/ES_UNSTABLE
     (throw (ex-info "invalid :output-feature-set" {:val kw}))))
 
 (defn set-options

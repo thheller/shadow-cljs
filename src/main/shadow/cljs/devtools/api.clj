@@ -479,7 +479,7 @@
          :target :browser
          :output-dir (str (:cache-root config) "/builds/" (name build-id) "/js")
          :asset-path (str "/cache/" (name build-id) "/js")
-         :compiler-options {:output-feature-set :es-next-in}
+         :compiler-options {:output-feature-set :es-unstable}
          :modules
          {:repl {:entries '[shadow.cljs.devtools.client.browser-repl]}}
          :devtools
