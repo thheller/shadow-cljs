@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.19.0](https://github.com/thheller/shadow-cljs/compare/508f833975f5423a02ed95402e09cafaefe8d773...653dfa0cea96c496acc9a204ce644de284d69c50) - 2022-05-16
+- [ [`653df`](https://github.com/thheller/shadow-cljs/commit/653dfa0cea96c496acc9a204ce644de284d69c50) ] cljs + closure compiler bump
+- [ [`0421c`](https://github.com/thheller/shadow-cljs/commit/0421c93732669a3cab4397dedb90e1ce149a8f2f) ] fix issue when using multiple symbol$suffix requires
+- [ [`3af21`](https://github.com/thheller/shadow-cljs/commit/3af216620ad31320b1b6e6b6d053a161e535a9b7) ] reverd closure-compiler bump, have to wait for cljs release
+- [ [`52c98`](https://github.com/thheller/shadow-cljs/commit/52c98f408a0700440e4eb32047a1a60c0b2473fb) ] dependency bump
+- [ [`4deba`](https://github.com/thheller/shadow-cljs/commit/4debab4a2cd14bbe427ed47c1c71b3a9b3cfc623) ] remove unused old workspaces dep
+- [ [`0f957`](https://github.com/thheller/shadow-cljs/commit/0f95716ddd98975aed33ddb6b712495bce2e8813) ] update clojure dep, older versions still fine
+- [ [`1a8a1`](https://github.com/thheller/shadow-cljs/commit/1a8a1c901bc100da14d19410fde042bc1adee291) ] add warnings for misconfigured :build-hooks
+- [ [`b1d56`](https://github.com/thheller/shadow-cljs/commit/b1d564f2987ee5ff281f8114f22644a2ab5f770e) ] fix REPL locking up after read failure
+- [ [`0ef03`](https://github.com/thheller/shadow-cljs/commit/0ef03e8341c9786d2dfac37bb7ba49d5fe21f020) ] remove old unused&broken ultility script
+- [ [`508f8`](https://github.com/thheller/shadow-cljs/commit/508f833975f5423a02ed95402e09cafaefe8d773) ] update caniuse-lite to it shuts up about being outdated
+
 ## [2.18.0](https://github.com/thheller/shadow-cljs/compare/051b5ecc7d701ef45b3bbc839685ac6ea03d4ad7...6de144a6d9e5830dd12d8e8400c9f64fa38dddbd) - 2022-04-04
 - [ [`6de14`](https://github.com/thheller/shadow-cljs/commit/6de144a6d9e5830dd12d8e8400c9f64fa38dddbd) ] closure-compiler bump, macos directory-watcher bump
 - [ [`e2ffc`](https://github.com/thheller/shadow-cljs/commit/e2ffccaf3ef94cc4d64ace0cbb3b97dd43189a07) ] remove leftover debug log
