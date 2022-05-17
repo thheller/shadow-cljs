@@ -542,7 +542,8 @@
                     name
 
                     reader/*data-readers*
-                    tags/*cljs-data-readers*
+                    (merge tags/*cljs-data-readers*
+                      (ana/load-data-readers))
 
                     ;; ana/resolve-symbol accesses the env
                     ;; don't need with-compiler-env since it's read only and doesn't side effect

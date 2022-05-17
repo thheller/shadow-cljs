@@ -7,6 +7,7 @@
     [clojure.string :as str]
     [clojure.java.io :as io]
     [clojure.set :as set]
+    [cljs.analyzer :as ana]
     [cljs.tagged-literals :as tags]
     [shadow.debug :as dbg :refer (?> ?-> ?->>)]
     [shadow.jvm-log :as log]
@@ -1378,39 +1379,8 @@
      (find-js-resource cp path)
      )))
 
-;; taken from cljs.closure since its private there ...
-(defn load-data-reader-file [mappings ^java.net.URL url]
-  (let [rdr (readers/indexing-push-back-reader (readers/string-reader (slurp url)))
-        new-mappings (reader/read {:eof nil :read-cond :allow} rdr)]
-    (when (not (map? new-mappings))
-      (throw (ex-info (str "Not a valid data-reader map")
-               {:url url
-                :clojure.error/phase :compilation})))
-    (reduce
-      (fn [m [k v]]
-        (when (not (symbol? k))
-          (throw (ex-info (str "Invalid form in data-reader file")
-                   {:url url
-                    :form k
-                    :clojure.error/phase :compilation})))
-        (when (and (contains? mappings k)
-                   (not= (mappings k) v))
-          (throw (ex-info "Conflicting data-reader mapping"
-                   {:url url
-                    :conflict k
-                    :mappings m
-                    :clojure.error/phase :compilation})))
-        (assoc m k v))
-      mappings
-      new-mappings)))
-
 (defn get-data-readers! []
-  (-> (Thread/currentThread)
-      (.getContextClassLoader)
-      (.getResources "data_readers.cljc")
-      (enumeration-seq)
-      (as-> X
-        (reduce load-data-reader-file {} X))))
+  (ana/get-data-readers*))
 
 (comment
   (get-data-readers!))

@@ -303,7 +303,8 @@
                       resource-name
 
                       reader/*data-readers*
-                      tags/*cljs-data-readers*
+                      (merge tags/*cljs-data-readers*
+                        (ana/load-data-readers))
 
                       reader/*alias-map*
                       reader-aliases

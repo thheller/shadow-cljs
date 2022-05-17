@@ -476,7 +476,14 @@
                 (log/warn-ex e ::data-reader-load-ex {:tag tag :read-fn read-fn-sym :read-ns read-ns})))))
 
         (-> state
-            (update-in [:compiler-env :cljs.analyzer/data-readers] merge data-readers)
+            (update-in [:compiler-env :cljs.analyzer/data-readers] merge
+              (->> data-readers
+                   ; assoc meta as per cljs.analyzer/load-data-readers
+                   (keep (fn [[tag reader-fn]]
+                           (when-let [f (-> reader-fn find-var var-get
+                                            (with-meta {:sym reader-fn}))]
+                             [tag f])))
+                   (into {})))
             (assoc ::data-readers-loaded true))))))
 
 (defn compile
