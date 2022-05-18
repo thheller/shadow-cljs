@@ -306,3 +306,37 @@
 
 (defmacro js-template [& body]
   `(js-template* ~@body))
+
+;; FIXME: use spec for parsing this. bad errors otherwise if used incorrectly
+(defmacro js-await [[name thenable] & body]
+  (let [last-expr (last body)
+
+        [body catch]
+        (if (and (seq? last-expr) (= 'catch (first last-expr)))
+          [(butlast body) last-expr]
+          [body nil])]
+
+    ;; FIXME: -> here will always return a promise so shouldn't be necessary to add js hint?
+    `(-> ~thenable
+         ~@(when (seq body)
+             [`(.then (fn [~name] ~@body))])
+         ~@(when catch
+             (let [[name & body] catch]
+               [`(.catch (fn [~name] ~@body))]
+               )))))
+
+
+(comment
+  (macroexpand-1
+    '(js-await [{:keys [foo]} (bar)]
+       (do-thing foo)
+       (catch x (fail x))
+       ))
+
+  (macroexpand-1
+    '(js-await [{:keys [foo]} (bar)]
+       (do-thing foo)))
+
+  (macroexpand-1
+    '(js-await [foo (bar)]
+       (catch e :yo))))
