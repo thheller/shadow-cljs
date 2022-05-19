@@ -407,6 +407,7 @@
                               (:fs-watch config)
                               (->> (build-classpath/get-classpath-entries classpath)
                                    (filter #(.isDirectory %))
+                                   (remove build-classpath/is-gitlib-file?)
                                    (into []))
                               ["cljs" "cljc" "clj" "js"]
                               #(system-bus/publish! system-bus ::m/cljs-watch {:updates %})
