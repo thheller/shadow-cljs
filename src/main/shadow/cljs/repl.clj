@@ -508,13 +508,7 @@
   {:pre [(build-api/build-state? build-state)]}
 
   (try
-    (let [in
-          (readers/source-logging-push-back-reader
-            reader ;; (PushbackReader. reader (object-array buf-len) buf-len buf-len)
-            1
-            filename)
-
-          read-ns
+    (let [read-ns
           (or (:ns opts)
               (get-in build-state [:repl-state :current-ns]))
 
@@ -531,7 +525,7 @@
            :read-cond :allow
            :features (data/get-reader-features build-state)}
 
-          form
+          [form source]
           (binding [*ns*
                     (create-ns read-ns)
 
@@ -539,7 +533,7 @@
                     read-ns
 
                     ana/*cljs-file*
-                    name
+                    filename
 
                     reader/*data-readers*
                     tags/*cljs-data-readers*
@@ -559,7 +553,7 @@
                       (:require-macros ns-info)
                       (:reader-aliases ns-info))]
 
-            (reader/read reader-opts in))
+            (reader/read+string reader-opts reader))
 
           eof?
           (identical? form eof-sentinel)]
@@ -571,13 +565,7 @@
             (assoc :form (if-not wrap
                            form
                            (es/apply-wrap form (read-string wrap)))
-                   :source
-                   ;; FIXME: poking at the internals of SourceLoggingPushbackReader
-                   ;; not using (-> form meta :source) which log-source provides
-                   ;; since there are things that do not support IMeta, still want the source though
-                   (-> @(.-source-log-frames in)
-                       (:buffer)
-                       (str))))))
+                   :source source))))
     (catch Exception ex
       {:error? true
        :ex ex})))
@@ -589,10 +577,7 @@
   [reader]
   (try
     (let [in
-          (readers/source-logging-push-back-reader
-            reader ;; (PushbackReader. reader (object-array buf-len) buf-len buf-len)
-            1
-            "dummy.cljs")
+          (readers/source-logging-push-back-reader reader)
 
           eof-sentinel
           (Object.)
@@ -602,7 +587,7 @@
            :read-cond :allow
            :features #{:cljs}}
 
-          form
+          [form source]
           (binding [*ns* (find-ns 'user)
                     reader/*data-readers* {}
                     reader/*default-data-reader-fn* (fn [tag val] val)
@@ -611,8 +596,8 @@
                     ;; we don't actually care, we just want the original source
                     ;; just calls (*alias-map* sym) so a function is fine
                     reader/*alias-map* (fn [sym] sym)]
-            ;; read+string somehow not available, suspect bad AOT file from CLJS?
-            (reader/read reader-opts in))
+
+            (reader/read+string reader-opts in))
 
           eof?
           (identical? form eof-sentinel)]
@@ -620,20 +605,13 @@
       (-> {:eof? eof?}
           (cond->
             (not eof?)
-            (assoc :source
-                   ;; FIXME: poking at the internals of SourceLoggingPushbackReader
-                   ;; not using (-> form meta :source) which log-source provides
-                   ;; since there are things that do not support IMeta, still want the source though
-                   (-> @(.-source-log-frames in)
-                       (:buffer)
-                       (str)
-                       (str/trim))))))
+            (assoc :source source))))
     (catch Exception ex
       {:error? true
        :ex ex})))
 
 (comment
-  (def x (readers/string-reader "#x (+ 1 `yo :x ::y) 1 1"))
+  (def x (readers/source-logging-push-back-reader "#x (+ 1 `yo :x ::y) 1 1"))
 
   (dummy-read-one x)
   )
@@ -645,7 +623,7 @@
   ([state ^String repl-input opts]
    {:pre [(build-api/build-state? state)]}
    (let [reader
-         (readers/string-reader repl-input)]
+         (readers/source-logging-push-back-reader repl-input)]
 
      (loop [state state]
 

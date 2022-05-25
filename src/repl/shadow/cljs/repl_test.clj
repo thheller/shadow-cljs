@@ -39,10 +39,11 @@
 
         {:keys [repl-state dead-js-deps] :as state}
         (-> (basic-repl-setup)
-            (api/with-js-options {:js-provider :shadow})
-            (repl/repl-load-file* {:file-path abs-file :source "(ns demo."})
-            (repl/process-input (str "(load-file \"" abs-file "\")")))]
+            (api/with-js-options {:js-provider :require})
+            ;; (repl/repl-load-file* {:file-path abs-file :source "(ns demo."})
+            (repl/process-input (str "(load-file " (pr-str abs-file) ")")))]
 
+    (tap> state)
     (pprint repl-state)
     ))
 
