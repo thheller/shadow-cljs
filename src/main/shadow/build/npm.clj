@@ -792,8 +792,11 @@
     :package-require
     (let [override
           (when (and require-from (::package require-from) (:use-browser-overrides (:js-options npm)))
-            (or (get-in require-from [::package :browser-overrides require])
-                (get node-libs-browser require)))]
+            (let [override (get-in require-from [::package :browser-overrides require])]
+              ;; might be false, can't use or
+              (if-not (nil? override)
+                override
+                (get node-libs-browser require))))]
 
       (cond
         ;; common path, no override
