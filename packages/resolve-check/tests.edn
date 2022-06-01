@@ -13,6 +13,9 @@
  ;; nested browser override with .cjs
  {:from nil :request "browser-override/web" :expected "node_modules/browser-override/web/dist/web.cjs"}
 
+ ;; disabled require from package
+ {:from "browser-override/web" :request "false-package" :expected false}
+
  ;; package can also disable require entirely
  {:from "pkg-nested-override/dir/bar" :request "fs" :expected false}
 

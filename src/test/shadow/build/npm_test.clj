@@ -45,7 +45,7 @@
                   (slurp)
                   (edn/read-string))]
 
-    (doseq [{:keys [from request expected] :as test} tests]
+    (doseq [{:keys [from request expected fail-expected] :as test} tests]
       (with-npm [x {}]
         (let [x
               (if (false? (:use-browser-overrides test))
@@ -56,21 +56,46 @@
               (when from
                 (find-npm-resource x nil from))
 
-              {:keys [file] :as target-rc}
-              (find-npm-resource x from-rc request)
+              target-rc
+              (find-npm-resource x from-rc request)]
 
-              expected-file
-              (when expected
-                (-> (io/file "test-env" expected)
-                    (.getAbsoluteFile)))]
 
-          (if (= file expected-file)
-            (ct/do-report {:type :pass, :message (pr-str [:OK test])})
+          (cond
+            fail-expected
+            (if (nil? target-rc)
+              (ct/do-report {:type :pass, :message (pr-str [:OK test])})
+              (throw
+                (ex-info "unexpected result, wasn't supposed to find anything but did"
+                  {:test test
+                   :target target-rc})))
+
+            (false? expected)
+            (if (identical? target-rc npm/empty-rc)
+              (ct/do-report {:type :pass, :message (pr-str [:OK test])})
+              (throw
+                (ex-info "unexpected result, disabled/false require expected but got result"
+                  {:test test
+                   :target target-rc})))
+
+            (string? expected)
+            (let [file (:file target-rc)
+                  expected-file
+                  (when expected
+                    (-> (io/file "test-env" expected)
+                        (.getAbsoluteFile)))]
+
+              (if (= file expected-file)
+                (ct/do-report {:type :pass, :message (pr-str [:OK test])})
+                (throw
+                  (ex-info "unexpected result"
+                    {:test test
+                     :file file
+                     :expected-file expected-file}))))
+            :else
             (throw
-              (ex-info "unexpected result"
+              (ex-info "test with no expected?"
                 {:test test
-                 :file file
-                 :expected-file expected-file})))
+                 :file (:file target-rc)})))
           )))))
 
 (deftest test-find-package-from-require
