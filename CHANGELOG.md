@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.19.1](https://github.com/thheller/shadow-cljs/compare/05f2cd1c525fea02781eef4329d5d7823be7f8a0...49fb078b834e64f63122e3a8ad3ddcd1f4485969) - 2022-06-01
+- [ [`49fb0`](https://github.com/thheller/shadow-cljs/commit/49fb078b834e64f63122e3a8ad3ddcd1f4485969) ] add missing :output-feature-set options, bump default
+- [ [`4e19b`](https://github.com/thheller/shadow-cljs/commit/4e19b28c30a01a0c4ec6c14c6148ddf2b207082e) ] add and fix tests for previous commit
+- [ [`c2c18`](https://github.com/thheller/shadow-cljs/commit/c2c1804edd5dcdc0e188115dd95e693df48201ac) ] fix "browser" overrides with false in package.json not working
+- [ [`b9992`](https://github.com/thheller/shadow-cljs/commit/b9992b4372d76eab690ea9f23093dffa49aed56e) ] fix REPL losing line information
+- [ [`ea6e4`](https://github.com/thheller/shadow-cljs/commit/ea6e4eb581add248ed294514ca37516c99de9f45) ] stop watching .gitlibs for changes
+- [ [`05f2c`](https://github.com/thheller/shadow-cljs/commit/05f2cd1c525fea02781eef4329d5d7823be7f8a0) ] add very basic js-await macro for promise interop
+
 ## [2.19.0](https://github.com/thheller/shadow-cljs/compare/508f833975f5423a02ed95402e09cafaefe8d773...653dfa0cea96c496acc9a204ce644de284d69c50) - 2022-05-16
 - [ [`653df`](https://github.com/thheller/shadow-cljs/commit/653dfa0cea96c496acc9a204ce644de284d69c50) ] cljs + closure compiler bump
 - [ [`0421c`](https://github.com/thheller/shadow-cljs/commit/0421c93732669a3cab4397dedb90e1ce149a8f2f) ] fix issue when using multiple symbol$suffix requires
