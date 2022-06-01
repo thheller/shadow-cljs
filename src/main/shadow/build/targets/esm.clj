@@ -204,7 +204,7 @@
 
         (cond->
           (not (get-in config [:compiler-options :output-feature-set]))
-          (build-api/with-compiler-options {:output-feature-set :es6})
+          (build-api/with-compiler-options {:output-feature-set :es2020})
 
           output-dir
           (build-api/with-build-options {:output-dir (io/file output-dir)})

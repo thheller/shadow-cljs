@@ -55,7 +55,7 @@
 
         (cond->
           (nil? (get-in config [:compiler-options :output-feature-set]))
-          (assoc-in [:compiler-options :output-feature-set] :es6))
+          (assoc-in [:compiler-options :output-feature-set] :es2020))
 
         (modules/configure module-config)
         )))

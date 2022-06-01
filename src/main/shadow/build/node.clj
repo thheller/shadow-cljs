@@ -36,7 +36,7 @@
       ;; don't overwrite user choice though
       (cond->
         (nil? (get-in state [:shadow.build/config :compiler-options :output-feature-set]))
-        (assoc-in [:compiler-options :output-feature-set] :es8))))
+        (assoc-in [:compiler-options :output-feature-set] :es2020))))
 
 (defn replace-goog-global [state]
   (update-in state [:sources output/goog-base-id :source]

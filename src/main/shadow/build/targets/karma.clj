@@ -41,7 +41,7 @@
           (build-api/with-js-options js-options)
 
           (not (get-in config [:compiler-options :output-feature-set]))
-          (build-api/with-compiler-options {:output-feature-set :es8}))
+          (build-api/with-compiler-options {:output-feature-set :es2020}))
         
         (build-api/configure-modules {:test {:entries []
                                              :output-name (.getName output-to)}})

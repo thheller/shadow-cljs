@@ -72,7 +72,6 @@
     :output-wrapper false
     :warnings {:invalid-arithmetic false}
     :fn-invoke-direct true
-    :output-feature-set :es7
     :shadow-tweaks true
     :shadow-keywords true
     :source-map true}

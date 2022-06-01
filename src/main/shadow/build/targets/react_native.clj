@@ -158,7 +158,7 @@
                 '[shadow.cljs.devtools.client.react-native]))
 
           (nil? (get-in config [:compiler-options :output-feature-set]))
-          (assoc-in [:compiler-options :output-feature-set] :es6)
+          (assoc-in [:compiler-options :output-feature-set] :es2020)
 
           dev?
           (shared/inject-preloads :index config)))))

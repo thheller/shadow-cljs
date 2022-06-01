@@ -87,6 +87,10 @@
     :ecmascript-2015 CompilerOptions$LanguageMode/ECMASCRIPT_2015
     :ecmascript-2016 CompilerOptions$LanguageMode/ECMASCRIPT_2016
     :ecmascript-2017 CompilerOptions$LanguageMode/ECMASCRIPT_2017
+    :ecmascript-2018 CompilerOptions$LanguageMode/ECMASCRIPT_2018
+    :ecmascript-2019 CompilerOptions$LanguageMode/ECMASCRIPT_2019
+    :ecmascript-2020 CompilerOptions$LanguageMode/ECMASCRIPT_2020
+    :ecmascript-2021 CompilerOptions$LanguageMode/ECMASCRIPT_2021
     :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT
     :ecmascript-next-in CompilerOptions$LanguageMode/UNSTABLE
     :ecmascript-unstable CompilerOptions$LanguageMode/UNSTABLE
@@ -101,14 +105,18 @@
     :es5 FeatureSet/ES5
     ;; FIXME: probably can't allow es6-modules variants since we can never load those
     :es6 FeatureSet/ES2015
-    :es7 FeatureSet/ES2017
-    :es8 FeatureSet/ES2018
+    :es7 FeatureSet/ES2016
+    :es8 FeatureSet/ES2017
+    :es9 FeatureSet/ES2018
+    :es2017 FeatureSet/ES2017
     :es2018 FeatureSet/ES2018
     :es2019 FeatureSet/ES2019
     :es2020 FeatureSet/ES2020
+    :es2021 FeatureSet/ES2021
     :es-next FeatureSet/ES_NEXT
     :es-next-in FeatureSet/ES_UNSTABLE
     :es-unstable FeatureSet/ES_UNSTABLE
+    :es-unsupported FeatureSet/ES_UNSUPPORTED
     (throw (ex-info "invalid :output-feature-set" {:val kw}))))
 
 (defn set-options
@@ -1489,7 +1497,7 @@
           {:pretty-print true
            :source-map true
            :language-in :ecmascript-next-in
-           :output-feature-set :es6}
+           :output-feature-set :es2020}
           (get-output-options state))
 
         co
@@ -1899,7 +1907,7 @@
            ;; but closure got real picky and complains about some things being es6 that aren't
            ;; doesn't really impact much here anyways
            :language-in :ecmascript-next-in
-           :output-feature-set :es6}
+           :output-feature-set :es2020}
           (get-output-options state)
           ;; js-options should always override things pulled from :compiler-options
           (dissoc js-options :resolve)
@@ -2223,7 +2231,7 @@
     {:pretty-print true
      :pseudo-names false
      :language-in :ecmascript-next-in
-     :output-feature-set :es6
+     :output-feature-set :es2020
      :source-map true}
     (get-output-options state)))
 
