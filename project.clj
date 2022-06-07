@@ -45,6 +45,11 @@
 
    [com.google.javascript/closure-compiler-unshaded "v20220502"]
 
+   ;; only declare this since the closure-compiler jar currently doesn't
+   ;; remove once https://github.com/google/closure-compiler/issues/3896 is fixed
+   ;; there are other dependencies but this on seems to be the only one causing issues
+   [com.google.guava/guava "31.0.1-jre"]
+
    [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
    [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]
 
