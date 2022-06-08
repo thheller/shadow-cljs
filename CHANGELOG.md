@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.19.2](https://github.com/thheller/shadow-cljs/compare/c03364b6be69792e8f1bdb3d197bf256db1c9c4d...413d1d61c899dcc246b33f0e3f2923eb7821c7a7) - 2022-06-08
+- [ [`413d1`](https://github.com/thheller/shadow-cljs/commit/413d1d61c899dcc246b33f0e3f2923eb7821c7a7) ] move temp guava dep up
+- [ [`8088f`](https://github.com/thheller/shadow-cljs/commit/8088fac0c39bf5778ddac7de07666731fbbde0d8) ] actually still against polluting cljs.reader by default
+- [ [`e70f1`](https://github.com/thheller/shadow-cljs/commit/e70f179702a3047810133b42511606ac797491b1) ] fix some data_readers issues
+- [ [`f66ab`](https://github.com/thheller/shadow-cljs/commit/f66ab9bb3945b75ee06f8397d14e5787ff045574) ] add support for data_readers.cljc for CLJS compat
+- [ [`c0336`](https://github.com/thheller/shadow-cljs/commit/c03364b6be69792e8f1bdb3d197bf256db1c9c4d) ] temporary declare guava as a dependency
+
 ## [2.19.1](https://github.com/thheller/shadow-cljs/compare/05f2cd1c525fea02781eef4329d5d7823be7f8a0...49fb078b834e64f63122e3a8ad3ddcd1f4485969) - 2022-06-01
 - [ [`49fb0`](https://github.com/thheller/shadow-cljs/commit/49fb078b834e64f63122e3a8ad3ddcd1f4485969) ] add missing :output-feature-set options, bump default
 - [ [`4e19b`](https://github.com/thheller/shadow-cljs/commit/4e19b28c30a01a0c4ec6c14c6148ddf2b207082e) ] add and fix tests for previous commit
