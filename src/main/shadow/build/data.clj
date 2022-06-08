@@ -390,7 +390,13 @@
                   ns (namespace reader-sym)]
               (try
                 (when ns
-                  (require (symbol ns)))
+                  ;; using :reload here in case loading the namespace fails
+                  ;; if the var remains unbound after loading it must be due to an error
+                  ;; without :reload that error would only show up once
+                  ;; with :reload it should show up on rebuild as well
+                  ;; otherwise the (ns ...) likely succeeded but the var remains unbound
+                  ;; leading to a different error on first and subsequent builds
+                  (require (symbol ns) :reload))
                 (catch Exception e
                   (throw (ex-info (str "failed to read tag #" tag ", " ns " failed to load")
                            {:tag tag :value value}

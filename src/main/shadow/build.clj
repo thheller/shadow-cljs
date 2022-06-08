@@ -468,12 +468,12 @@
       state
       (let [data-readers (ana/get-data-readers)
             data-readers
-            (if (true? cfg)
-              data-readers
+            (if (coll? cfg)
               ;; allow `:compiler-options {:data-readers [foo bar baz]}` to limit
               ;; which data readers get included in a build since loading all of them
               ;; may pollute cljs.reader
-              (select-keys data-readers cfg))]
+              (select-keys data-readers cfg)
+              data-readers)]
 
         (-> state
             ;; this data is used to populate cljs.reader only, it is never used for compilation on the CLJ side
