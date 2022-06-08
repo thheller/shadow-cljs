@@ -1404,18 +1404,6 @@
       mappings
       new-mappings)))
 
-(defn get-data-readers! []
-  (-> (Thread/currentThread)
-      (.getContextClassLoader)
-      (.getResources "data_readers.cljc")
-      (enumeration-seq)
-      (as-> X
-        (reduce load-data-reader-file {} X))))
-
-(comment
-  (get-data-readers!))
-
-
 (comment
   ;; FIXME: implement correctly
 

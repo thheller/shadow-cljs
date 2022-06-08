@@ -5,7 +5,8 @@
     [clojure.java.io :as io]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.jvm-log :as log]
-    [shadow.build.resource :as rc])
+    [shadow.build.resource :as rc]
+    [cljs.tagged-literals :as tags])
   (:import
     [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]
     [org.apache.commons.codec.digest DigestUtils]
@@ -353,3 +354,53 @@
 
 (defn as-path ^Path [^String path]
   (Paths/get path (into-array String [])))
+
+;; instead of unconditionally loading namespaces associated with data_readers.clj(c)
+;; we delay loading them until actually used. this saves loading namespaces on the classpath
+;; that may not actually be used anywhere otherwise.
+
+;; I don't think putting a library on the classpath should trigger unconditionally loading it.
+;; clojure only reads data_readers.clj(c) and uses unbound vars until actually loaded elsewhere
+
+;; CLJS for some reason unconditionally just loads them. I think this is bad and don't want that.
+;; Not loading them ever would lead to different behavior and resulting in
+;; "why does this not work in shadow-cljs?" questions. As I want to stay as compatible as possible
+;; I went with this route instead. It'll still just load the namespace but only
+;; if the tag is actually used first.
+
+;; there is also a security concern with just loading random namespaces on the classpath that may not actually be used
+;; (ns some.lib)
+;; (defn a-fake-reader [x] ...)
+;; (hack-computer!)
+
+;; but I guess that just comes with the territory. A library can still trigger that hack by just using
+;; the data reader itself. at least in CLJ someone has to load it first. ¯\_(ツ)_/¯
+
+;; doesn't need to memoize. once loaded it'll be bound, so it won't try again
+(defn maybe-loading-data-readers []
+  (reduce-kv
+    (fn [readers tag reader-var]
+      (if (or (not (var? reader-var)) (bound? reader-var))
+        readers
+        (assoc readers
+          tag
+          ;; swap reader-var with a fn that'll load the associated namespace first
+          (fn [value]
+            (let [reader-sym (.toSymbol reader-var)
+                  ns (namespace reader-sym)]
+              (try
+                (when ns
+                  (require (symbol ns)))
+                (catch Exception e
+                  (throw (ex-info (str "failed to read tag #" tag ", " ns " failed to load")
+                           {:tag tag :value value}
+                           e))))
+
+              (try
+                (reader-var value)
+                (catch Exception e
+                  (throw (ex-info (str "failed to read tag #" tag)
+                           {:tag tag :value value}
+                           e)))))))))
+    tags/*cljs-data-readers*
+    tags/*cljs-data-readers*))

@@ -3,8 +3,9 @@
   (:require
     [clojure.java.io :as io]
     [clojure.spec.alpha :as s]
-    [shadow.jvm-log :as log]
     [clojure.set :as set]
+    [cljs.analyzer :as ana]
+    [shadow.jvm-log :as log]
     [shadow.cljs.util :as util]
     [shadow.build.api :as build-api]
     [shadow.build.config :as config]
@@ -456,35 +457,44 @@
     ;; :modules based build
     (modules/analyze state)))
 
-(defn maybe-load-data-readers
+
+;; only prepares data_readers.cljc data, so it can be transferred to cljs.reader/add-data-readers
+;; never actually loads them since that is not required for this part
+;; delaying loading via shadow.build.data/maybe-loading-data-readers for regular compilation
+(defn maybe-prepare-data-readers
   [state]
-  (let [cfg (get-in state [:compiler-options :data-readers] false)]
-    (if (or (false? cfg) (nil? cfg) (::data-readers-loaded state))
+  (let [cfg (get-in state [:compiler-options :data-readers])]
+    (if (or (false? cfg) (::data-readers-loaded state))
       state
-      (let [data-readers (classpath/get-data-readers!)
+      (let [data-readers (ana/get-data-readers)
             data-readers
             (if (true? cfg)
               data-readers
+              ;; allow `:compiler-options {:data-readers [foo bar baz]}` to limit
+              ;; which data readers get included in a build since loading all of them
+              ;; may pollute cljs.reader
               (select-keys data-readers cfg))]
 
-        (doseq [[tag read-fn-sym] data-readers
-                :let [read-ns (symbol (namespace read-fn-sym))]]
-          (locking macros/require-lock
-            (try
-              (require read-ns)
-              (catch Exception e
-                (log/warn-ex e ::data-reader-load-ex {:tag tag :read-fn read-fn-sym :read-ns read-ns})))))
-
         (-> state
-            (update-in [:compiler-env :cljs.analyzer/data-readers] merge data-readers)
+            ;; this data is used to populate cljs.reader only, it is never used for compilation on the CLJ side
+            (update-in [:compiler-env :cljs.analyzer/data-readers] merge
+              ;; could have been update-keys but not willing to officially require 1.11 yet
+              (reduce-kv
+                (fn [r tag read-sym]
+                  ;; CLJS does a var-get here
+                  ;; we don't need that since the only thing ever used is the :sym in add-data-readers
+                  ;; the CLJS code does this for self-host purposes I guess. not needed here.
+                  (assoc r tag (vary-meta read-sym assoc :sym read-sym)))
+                {}
+                data-readers))
             (assoc ::data-readers-loaded true))))))
 
 (defn compile
-  [{::keys [mode] :as state}]
+  [state]
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
   (-> state
-      (maybe-load-data-readers)
+      (maybe-prepare-data-readers)
       (compile-start)
       (resolve)
       (extract-build-macros)

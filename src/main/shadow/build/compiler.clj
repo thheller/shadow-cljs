@@ -282,7 +282,10 @@
                {:eof eof-sentinel}
                (when cljc
                  {:read-cond :allow :features reader-features}))
-        in (readers/indexing-push-back-reader (PushbackReader. (StringReader. cljs-source)) 1 resource-name)]
+        in (readers/indexing-push-back-reader (PushbackReader. (StringReader. cljs-source)) 1 resource-name)
+
+        data-readers
+        (data/maybe-loading-data-readers)]
 
     (loop [{:keys [ns reader-aliases] :as compile-state} init]
       (let [ns
@@ -303,7 +306,7 @@
                       resource-name
 
                       reader/*data-readers*
-                      tags/*cljs-data-readers*
+                      data-readers
 
                       reader/*alias-map*
                       reader-aliases

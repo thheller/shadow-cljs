@@ -30,7 +30,7 @@
         rdr (StringReader. content)
         in (readers/indexing-push-back-reader (PushbackReader. rdr) 1 resource-name)]
 
-    (binding [reader/*data-readers* tags/*cljs-data-readers*]
+    (binding [reader/*data-readers* (data/maybe-loading-data-readers)]
       (let [peek (reader/read opts in)]
         (if (identical? peek eof-sentinel)
           (throw (ex-info "file is empty" {:resource-name resource-name}))
