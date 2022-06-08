@@ -463,7 +463,7 @@
 ;; delaying loading via shadow.build.data/maybe-loading-data-readers for regular compilation
 (defn maybe-prepare-data-readers
   [state]
-  (let [cfg (get-in state [:compiler-options :data-readers])]
+  (let [cfg (get-in state [:compiler-options :data-readers] false)]
     (if (or (false? cfg) (::data-readers-loaded state))
       state
       (let [data-readers (ana/get-data-readers)
