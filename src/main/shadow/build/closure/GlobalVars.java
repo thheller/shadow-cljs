@@ -36,7 +36,7 @@ public class GlobalVars implements NodeTraversal.Callback, CompilerPass {
     @Override
     public void visit(NodeTraversal t, Node n, Node parent) {
         if (t.inGlobalScope()) {
-            if (n.isVar() || n.isFunction()) {
+            if (n.isVar() || n.isFunction() || n.isClass()) {
                 final Node fName = n.getFirstChild();
                 if (fName.isName()) {
                     addEntry(n.getSourceFileName(), fName.getString());
@@ -68,7 +68,7 @@ public class GlobalVars implements NodeTraversal.Callback, CompilerPass {
 
         SourceFile srcFile = SourceFile.fromCode(
                 "test.js",
-                "var thatGlobal = 1; function alsoGlobal() { var notGlobal = 2; return notGlobal };");
+                "var thatGlobal = 1; function alsoGlobal() { var notGlobal = 2; return notGlobal }; class ClassGlobal {}");
 
         JsAst ast = new JsAst(srcFile);
         Node node = ast.getAstRoot(cc);
