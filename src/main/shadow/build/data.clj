@@ -6,13 +6,15 @@
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.jvm-log :as log]
     [shadow.build.resource :as rc]
-    [cljs.tagged-literals :as tags])
+    [cljs.tagged-literals :as tags]
+    [cljs.analyzer :as ana])
   (:import
     [com.google.javascript.jscomp BasicErrorManager ShadowCompiler]
     [org.apache.commons.codec.digest DigestUtils]
     [java.io FileInputStream File]
     [java.net URL]
-    [java.nio.file Paths Path]))
+    [java.nio.file Paths Path]
+    [clojure.java.api Clojure]))
 
 ;; FIXME: there are still lots of places that work directly with the map
 ;; that is ok for most things but makes it really annoying to change the structure of the data
@@ -355,6 +357,17 @@
 (defn as-path ^Path [^String path]
   (Paths/get path (into-array String [])))
 
+(def cljs-data-readers
+  ;; overriding already loaded *data-readers* clj variants via CLJ
+  ;; with cljs variant from data_readers.cljc if present
+  (reduce-kv
+    (fn [readers tag sym]
+      ;; create unbound var like clojure *data-readers*
+      ;; will load later via code below
+      (assoc readers tag (Clojure/var sym)))
+    tags/*cljs-data-readers*
+    (ana/get-data-readers)))
+
 ;; instead of unconditionally loading namespaces associated with data_readers.clj(c)
 ;; we delay loading them until actually used. this saves loading namespaces on the classpath
 ;; that may not actually be used anywhere otherwise.
@@ -408,5 +421,5 @@
                   (throw (ex-info (str "failed to read tag #" tag)
                            {:tag tag :value value}
                            e)))))))))
-    tags/*cljs-data-readers*
-    tags/*cljs-data-readers*))
+    cljs-data-readers
+    cljs-data-readers))
