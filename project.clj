@@ -48,7 +48,7 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20220502"]
+   [com.google.javascript/closure-compiler-unshaded "v20220601"]
 
    [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
    [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]
