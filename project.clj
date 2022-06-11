@@ -42,7 +42,7 @@
    [com.google.guava/guava "31.0.1-jre"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
-   [org.clojure/clojurescript "1.11.51"
+   [org.clojure/clojurescript "1.11.57"
     :exclusions
     [com.google.javascript/closure-compiler-unshaded
      org.clojure/google-closure-library
