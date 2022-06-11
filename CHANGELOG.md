@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.19.3](https://github.com/thheller/shadow-cljs/compare/1b459145974b1f9566a14c3b87e1f70b3b288738...3e8db0c57ae40d2f97bd9cddb82f945d00bf54e9) - 2022-06-11
+- [ [`3e8db`](https://github.com/thheller/shadow-cljs/commit/3e8db0c57ae40d2f97bd9cddb82f945d00bf54e9) ] closure-compiler v20220601
+- [ [`2506e`](https://github.com/thheller/shadow-cljs/commit/2506e49287b9b58b831af78bd1a6e9b90781b567) ] cljs 1.11.57
+- [ [`e8c2f`](https://github.com/thheller/shadow-cljs/commit/e8c2fad22ca452468944e56b345c027b6f58e1ee) ] use :cljs variant from data_readers.cljc
+- [ [`1b459`](https://github.com/thheller/shadow-cljs/commit/1b459145974b1f9566a14c3b87e1f70b3b288738) ] also collect class declaration as global for re-export
+
 ## [2.19.2](https://github.com/thheller/shadow-cljs/compare/c03364b6be69792e8f1bdb3d197bf256db1c9c4d...413d1d61c899dcc246b33f0e3f2923eb7821c7a7) - 2022-06-08
 - [ [`413d1`](https://github.com/thheller/shadow-cljs/commit/413d1d61c899dcc246b33f0e3f2923eb7821c7a7) ] move temp guava dep up
 - [ [`8088f`](https://github.com/thheller/shadow-cljs/commit/8088fac0c39bf5778ddac7de07666731fbbde0d8) ] actually still against polluting cljs.reader by default
