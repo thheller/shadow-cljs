@@ -256,136 +256,6 @@
       false
       )))
 
-(defn process-deps-cljs [cp ^File source-path resources]
-  {:pre [(sequential? resources)
-         (util/file? source-path)]}
-
-  (let [index
-        (->> resources
-             (map (juxt :resource-name identity))
-             (into {}))
-
-        data-readers
-        (get index "data_readers.cljc")
-
-        index
-        (dissoc index "data_readers.cljc")
-
-        deps-cljs
-        (get index "deps.cljs")]
-
-    (if (nil? deps-cljs)
-      {:foreign-libs []
-       :externs []
-       :resources (vec (vals index))
-       :data-readers data-readers}
-
-      (let [{:keys [externs foreign-libs] :as deps-cljs}
-            (-> (slurp (:url deps-cljs))
-                (edn/read-string))
-
-            _ (when-not (s/valid? ::config/deps-cljs deps-cljs)
-                (throw (ex-info "invalid deps.cljs"
-                         (assoc (s/explain-data ::config/deps-cljs deps-cljs)
-                           :tag ::deps-cljs
-                           :deps deps-cljs
-                           :source-path source-path))))
-
-            get-index-rc
-            (fn [index resource-name]
-              (or (get index resource-name)
-                  (throw (ex-info (format "%s deps.cljs refers to file not in jar: %s" source-path resource-name)
-                           {:tag ::deps-cljs :source-path source-path :name resource-name}))))
-
-            foreign-rcs
-            (->> foreign-libs
-                 (map-indexed
-                   (fn [idx {:keys [externs provides requires file file-min global-exports] :as foreign-lib}]
-                     (when-not (seq provides)
-                       (throw (ex-info "deps.cljs foreign-lib without provides"
-                                {:tag ::deps-cljs :source-path source-path})))
-
-                     (let [file-rc
-                           (when file
-                             (get-index-rc index file))
-
-                           file-min-rc
-                           (when file-min
-                             (get-index-rc index file-min))
-
-                           extern-rcs
-                           (into [] (map #(get-index-rc index %)) externs)
-
-                           ;; requires and provides are strings :(
-                           deps
-                           (into [] (map symbol) requires)
-
-                           provides
-                           (set (map symbol provides))
-
-                           extern-rcs
-                           (->> externs
-                                (map #(get-index-rc index %))
-                                (into []))
-
-                           resource-name
-                           (or file file-min)
-                           ]
-
-                       (-> {:resource-id [::foreign (.getAbsolutePath source-path) idx]
-                            :resource-name resource-name
-                            :type :foreign
-                            :output-name (util/flat-js-name resource-name)
-                            ;; :file, :file-min and :externs can all invalidate the foreign lib
-                            :cache-key (-> [(:cache-key file-rc)
-                                            (:cache-key file-min-rc)]
-                                           (into (map :cache-key extern-rcs)))
-
-                            ;; FIXME: this is bad, it must choose one but loses the other in the process
-                            :last-modified (or (:last-modified file-rc)
-                                               (:last-modified file-min-rc))
-                            :requires (set deps)
-                            :provides provides
-                            :deps deps
-                            :externs extern-rcs}
-                           (cond->
-                             global-exports
-                             (assoc :global-exports global-exports)
-                             file-rc
-                             (assoc :url (:url file-rc))
-                             file-min-rc
-                             (assoc :url-min (:url file-min-rc))))
-
-                       )))
-                 (into []))
-
-            index
-            (dissoc index "deps.cljs")
-
-            things-to-drop
-            (reduce
-              (fn [x {::keys [externs file file-min]}]
-                (-> (into x externs)
-                    (cond->
-                      file
-                      (conj file)
-                      file-min
-                      (conj file-min))))
-              (into #{"deps.cljs"} externs)
-              foreign-libs)
-
-            extern-rcs
-            (into [] (map #(get-index-rc index %)) externs)
-
-            index
-            (reduce dissoc index things-to-drop)]
-
-        {:resources (vec (vals index))
-         :foreign-libs foreign-rcs
-         :data-readers data-readers
-         :externs extern-rcs}
-        ))))
-
 (defn pom-info-for-jar [^File file]
   (when (.isFile file)
     (let [pom-file (io/file
@@ -528,7 +398,9 @@
           ;; next entry
           (let [^JarEntry jar-entry (.nextElement entries)
                 name (.getName jar-entry)]
-            (if (or (not (util/is-js-file? name))
+
+            (if (or (.isDirectory jar-entry)
+                    (not (util/is-js-file? name))
                     (should-ignore-resource? cp name))
               (recur result)
               (let [url (URL. (str "jar:file:" jar-path "!/" name))]
@@ -602,8 +474,7 @@
   {:pre [(sequential? root-contents)
          (util/file? source-path)]}
 
-  (->> (process-deps-cljs cp source-path root-contents)
-       (inspect-resources cp)))
+  (inspect-resources cp {:resources root-contents}))
 
 ;; if a jar contains a cljs.core file (compiled or source) filter out all other files
 ;; from that directory as it is compiled output that shouldn't be in the jar in the first place
@@ -683,20 +554,6 @@
               (log/info-ex e ::jar-cache-write-ex {:file mfile})))
           jar-contents))))
 
-(comment
-  (tap>
-    (let [svc (start (io/file "tmp" "jar-manifests"))]
-      (find-jar-resources
-        svc
-        (io/file
-          (System/getProperty "user.home")
-          ".m2"
-          "repository"
-          "viz-cljc"
-          "viz-cljc"
-          "0.1.3"
-          "viz-cljc-0.1.3.jar"
-          )))))
 
 (defn is-gitlib-file? [^File file]
   (loop [file (.getAbsoluteFile file)]
@@ -1040,20 +897,10 @@
         (index-rc-add index rc)
         ))))
 
-;; only remember which symbols where provided by foreign-libs
-;; so error messages can check if something was supposed to be a foreign-lib
-(defn merge-foreign-libs [state foreign-libs]
-  (update state :foreign-provides set/union (->> foreign-libs (mapcat :provides) (into #{}))))
-
-(defn index-path-merge [state source-path {:keys [externs foreign-libs resources] :as dir-contents}]
+(defn index-path-merge [state source-path {:keys [resources] :as dir-contents}]
   (-> state
       (update :source-paths conj source-path)
-      (update :deps-externs assoc source-path externs)
-      (util/reduce-> index-rc-merge resources)
-      (cond->
-        (seq foreign-libs)
-        (merge-foreign-libs foreign-libs))
-      ))
+      (util/reduce-> index-rc-merge resources)))
 
 (defn index-path*
   [index path]
@@ -1319,11 +1166,6 @@
 (comment
   (let [cp (start (io/file "tmp"))]
     (find-cljs-namespaces-in-files cp)))
-
-(defn is-foreign-provide? [cp sym]
-  {:pre [(service? cp)
-         (symbol? sym)]}
-  (contains? (-> cp :index-ref deref :foreign-provides) sym))
 
 (defn resolve-rel-path [^String resource-name ^String require]
   (let [parent (-> (data/as-path resource-name) (.getParent))

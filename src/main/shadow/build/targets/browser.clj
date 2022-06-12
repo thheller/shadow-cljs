@@ -334,7 +334,7 @@
   (let [data
         (->> (or (::closure/modules state)
                  (:build-modules state))
-             (map (fn [{:keys [module-id output-name entries depends-on sources foreign-files] :as mod}]
+             (map (fn [{:keys [module-id output-name entries depends-on sources] :as mod}]
                     {:module-id module-id
                      :name module-id
                      :output-name output-name

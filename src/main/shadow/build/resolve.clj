@@ -626,7 +626,6 @@
             (format "The required namespace \"%s\" is not available." require))
           {:tag ::missing-ns
            :stack (:resolved-stack state)
-           :foreign-provide? (cp/is-foreign-provide? classpath require)
            :require require
            :require-from (:resource-name require-from)})))
 

@@ -132,6 +132,10 @@
     :dependencies
     [[aysylu/loom "1.0.2"]
 
+     ;; for cljsjs testing
+     [cljsjs/react "18.0.0-rc.0-0"]
+     [cljsjs/react-dom "18.0.0-rc.0-0"]
+
      ;; no proper release yet, included via source-paths below
      #_[thheller/shadow-experiments "0.0.1"]
 

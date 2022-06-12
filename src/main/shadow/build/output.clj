@@ -549,8 +549,7 @@
       (doseq [src-id (:build-sources state)
               :when (not= src-id goog-base-id)
               :let [src (get-in state [:sources src-id])]
-              :when (and (not (:goog-src src))
-                         (not (util/foreign? src)))]
+              :when (not (:goog-src src))]
 
         (let [{:keys [output-name last-modified]}
               src

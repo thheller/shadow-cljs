@@ -324,15 +324,6 @@
       (when source-fn
         (source-fn state))
 
-      ;; FIXME: foreign lib support removed?
-      ;; foreign is special case because it may have url-min as well as url
-      #_(when (= :foreign type)
-          (let [use-file-min
-                (not= :none (get-in state [:compiler-options :optimizations] :none))]
-            (if (and use-file-min url-min)
-              (slurp url-min)
-              (slurp url))))
-
       ;; otherwise read the file
       (when file
         (slurp file))

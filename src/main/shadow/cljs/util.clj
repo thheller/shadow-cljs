@@ -18,9 +18,6 @@
   (and (map? state)
        (true? (:shadow.build.data/build-state state))))
 
-(defn foreign? [{:keys [type] :as src}]
-  (= :foreign type))
-
 (defn file-basename [^String path]
   (let [idx (.lastIndexOf path "/")]
     (.substring path (inc idx))

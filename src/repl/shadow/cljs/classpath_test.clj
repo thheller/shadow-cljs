@@ -73,6 +73,32 @@
     ;; (pprint @(:index-ref x))
     ))
 
+
+(deftest test-classpath-index-all
+  (let [x (cp/start (io/file "target" "shadow-cljs"))]
+
+    (cp/index-classpath x)
+    (tap> [:classpath x])
+    (cp/stop x)))
+
+(deftest test-classpath-index-cljsjs-react
+  (let [svc (cp/start (io/file "tmp" "jar-manifests"))
+        jar (io/file
+              (System/getProperty "user.home")
+              ".m2"
+              "repository"
+              "cljsjs"
+              "react"
+              "18.0.0-rc.0-0"
+              "react-18.0.0-rc.0-0.jar")
+
+        result
+        (->> (cp/find-jar-resources* svc jar 123)
+             (cp/process-root-contents svc jar))]
+
+    (cp/stop svc)
+    ))
+
 (deftest test-classpath-jar
   (let [x
         (cp/start (io/file "target" "shadow-cljs"))
