@@ -250,7 +250,8 @@
               (assoc
                 :build-id build-id-alias
                 ;; not required, the files are never going to be used
-                :module-hash-names false))
+                :module-hash-names false)
+              (dissoc :build-hooks))
 
           state
           (-> (server-util/new-build build-config :release {})
