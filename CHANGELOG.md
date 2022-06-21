@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.19.4](https://github.com/thheller/shadow-cljs/compare/22d875f9b0a8a9cd5f07ee8fad590eb0fd511558...c3a41911e49c27b9c98c4e0f14f8b0da9dff62ad) - 2022-06-21
+- [ [`c3a41`](https://github.com/thheller/shadow-cljs/commit/c3a41911e49c27b9c98c4e0f14f8b0da9dff62ad) ] fix improperly initialized :compiler-env breaking stuff
+- [ [`6614c`](https://github.com/thheller/shadow-cljs/commit/6614c50fb6c4ee8302c25d2abb9061d599814f8e) ] sync deps.end
+- [ [`5eece`](https://github.com/thheller/shadow-cljs/commit/5eecea36a00faaaed34137bf30abe02e935293a1) ] don't use :build-hooks in build reports
+- [ [`22d87`](https://github.com/thheller/shadow-cljs/commit/22d875f9b0a8a9cd5f07ee8fad590eb0fd511558) ] remove some old unused :foreign-lib related code
+
 ## [2.19.3](https://github.com/thheller/shadow-cljs/compare/1b459145974b1f9566a14c3b87e1f70b3b288738...3e8db0c57ae40d2f97bd9cddb82f945d00bf54e9) - 2022-06-11
 - [ [`3e8db`](https://github.com/thheller/shadow-cljs/commit/3e8db0c57ae40d2f97bd9cddb82f945d00bf54e9) ] closure-compiler v20220601
 - [ [`2506e`](https://github.com/thheller/shadow-cljs/commit/2506e49287b9b58b831af78bd1a6e9b90781b567) ] cljs 1.11.57
