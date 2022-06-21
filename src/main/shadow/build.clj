@@ -15,6 +15,7 @@
     [shadow.build.data :as data]
     [shadow.build.log :as build-log]
     [shadow.build.async :as async]
+    [shadow.build.cljs-bridge :as cljs-bridge]
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.cljs.devtools.cljs-specs] ;; FIXME: move these
     [shadow.build.macros :as macros]
@@ -494,6 +495,15 @@
   {:pre [(build-api/build-state? state)]
    :post [(build-api/build-state? %)]}
   (-> state
+      ;; FIXME: this initializes :compiler-env only if nil
+      ;; but there may be cases where :compiler-env is actually created by targets/hooks first
+      ;; as was the case with maybe-prepare-data-readers setting [:compiler-env :data-readers]
+      ;; and then the thing supposed to ensure creating :compiler-env ends up doing nothing.
+      ;; at the same time this is called repeatedly in watch. really need a cleaner way to
+      ;; figure out when this should be created or reset
+      ;; for now just ensuring it is created first
+      ;; also still calling this in api/compile-sources. don't need it twice.
+      (cljs-bridge/ensure-compiler-env)
       (maybe-prepare-data-readers)
       (compile-start)
       (resolve)
