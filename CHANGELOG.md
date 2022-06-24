@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.19.5](https://github.com/thheller/shadow-cljs/compare/96189a525a444a06a5b0e2b52024995d540201e1...c01ef922a505d0a7bf03073370ac27b898040310) - 2022-06-24
+- [ [`c01ef`](https://github.com/thheller/shadow-cljs/commit/c01ef922a505d0a7bf03073370ac27b898040310) ] cljs bump
+- [ [`96189`](https://github.com/thheller/shadow-cljs/commit/96189a525a444a06a5b0e2b52024995d540201e1) ] make build-report/generate accept a map for build config only
+
 ## [2.19.4](https://github.com/thheller/shadow-cljs/compare/22d875f9b0a8a9cd5f07ee8fad590eb0fd511558...c3a41911e49c27b9c98c4e0f14f8b0da9dff62ad) - 2022-06-21
 - [ [`c3a41`](https://github.com/thheller/shadow-cljs/commit/c3a41911e49c27b9c98c4e0f14f8b0da9dff62ad) ] fix improperly initialized :compiler-env breaking stuff
 - [ [`6614c`](https://github.com/thheller/shadow-cljs/commit/6614c50fb6c4ee8302c25d2abb9061d599814f8e) ] sync deps.end
