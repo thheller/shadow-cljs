@@ -230,8 +230,9 @@
   (spit data-file (core-ext/safe-pr-str bundle-info)))
 
 (defn generate
-  [build-id {:keys [tag print-table report-file data-file] :or {tag "latest"} :as opts}]
+  [{:keys [build-id] :as build-config} {:keys [tag print-table report-file data-file] :or {tag "latest"} :as opts}]
   {:pre [(keyword? build-id)
+         (map? build-config)
          (string? tag)
          (seq tag)]}
   (api/with-runtime
@@ -246,7 +247,7 @@
           (keyword (str (name build-id) "-release-snapshot"))
 
           build-config
-          (-> (api/get-build-config build-id)
+          (-> build-config
               (assoc
                 :build-id build-id-alias
                 ;; not required, the files are never going to be used
@@ -297,7 +298,7 @@
       )
 
   (generate
-    :ui
+    (api/get-build-config :ui)
     {:report-file ".shadow-cljs/build-report/index.html"
      :inline false})
   )
@@ -351,9 +352,15 @@
 
 ;; FIXME: parse args properly, need support for tag and output-dir
 (defn -main [build-id report-file]
-  (generate (keyword build-id) {:print-table true
-                                :report-file report-file}))
+  (generate
+    (api/get-build-config
+      (keyword build-id))
+    {:print-table true
+     :report-file report-file}))
 
 
 (comment
-  (generate :browser {:print-table true :report-file "tmp/report.html"}))
+  (generate
+    (api/get-build-config :browser)
+    {:print-table true
+     :report-file "tmp/report.html"}))
