@@ -65,8 +65,14 @@
     (.close client)))
 
 (defn -main [from to]
-  (let [from-port (Long/parseLong from)
-        to-port (Long/parseLong to)
+  (let [from-port
+        (Long/parseLong from)
+
+        to-port
+        (Long/parseLong
+          (if (re-find #"^\d+" to)
+            to
+            (slurp (io/file to))))
 
         server-socket
         (ServerSocket. from-port)]
