@@ -157,6 +157,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 
 - [EN] [A beginner guide to compile ClojureScript with shadow-cljs](https://medium.com/@jiyinyiyong/a-beginner-guide-to-compile-clojurescript-with-shadow-cljs-26369190b786)
 - [CN] [shadow-cljs 2.x 使用教程](https://segmentfault.com/a/1190000011499210)
+- [JA] [Shadow CLJS User’s Guide 邦訳](https://t-cool.github.io/shadow-cljs-users-guide-ja/docs/UsersGuide.html)
 - [EN] [ClojureScript with Middleman via Shadow-CLJS](http://bobnadler.com/articles/2018/01/28/clojurescript-with-middleman-via-shadow-cljs.html)
 - [EN] [Clojurescript Development for JavaScript Developers in Atom with Shadow-cljs and ProtoREPL](https://medium.com/@loganpowell/clojurescript-development-for-javascript-developers-in-atom-with-shadow-cljs-and-protorepl-ec5e38e3de26)
 - [EN] [Confidence and Joy: React Native Development with ClojureScript and re-frame](https://hackmd.io/@byc70E6fQy67hPMN0WM9_A/rJilnJxE8)
