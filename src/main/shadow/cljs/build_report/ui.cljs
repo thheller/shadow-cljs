@@ -171,22 +171,21 @@
 (def schema
   {:module
    {:type :entity
-    :attrs {:module-id [:primary-key any?]
-            :groups [:many :group]}}
+    :primary-key :module-id
+    :joins {:groups [:many :group]}}
 
    :group
    {:type :entity
-    :attrs {:group-id [:primary-key any?]
-            :items [:many :group-item]}}
+    :primary-key :group-id
+    :joins {:items [:many :group-item]}}
 
    :group-item
    {:type :entity
-    :attrs {:group-item-id [:primary-key any?]}}
+    :primary-key :group-item-id}
 
    :resource
    {:type :entity
-    :attrs {:resource-id [:primary-key any?]}}
-
+    :primary-key :resource-id}
    })
 
 
