@@ -1,6 +1,6 @@
 (ns shadow.cljs.ui.components.builds
   (:require
-    [shadow.experiments.grove :as sg :refer (<< defc)]
+    [shadow.grove :as sg :refer (<< defc)]
     [shadow.cljs.ui.components.common :as common]
     [shadow.cljs.model :as m]))
 

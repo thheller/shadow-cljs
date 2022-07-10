@@ -2,7 +2,7 @@
   (:require
     [clojure.string :as str]
     [cljs-test-display.favicon :as favicon]
-    [shadow.experiments.grove.db :as db]
+    [shadow.grove.db :as db]
     [shadow.cljs.model :as m]))
 
 (def icon-red (favicon/color-data-url "#d00" 16))

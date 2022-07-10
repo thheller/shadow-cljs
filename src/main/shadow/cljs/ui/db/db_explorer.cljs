@@ -17,23 +17,25 @@
 
 (sw/reg-event env/app-ref ::list-databases
   []
-  (fn [{:keys [db] :as env} runtime-ident {:keys [databases]}]
-    (let [{:keys [runtime-id] :as runtime} (get db runtime-ident)]
-      {:db (reduce
-             (fn [db db-id]
-               (let [db-ident (db/make-ident ::m/database [runtime-id db-id])]
-                 (-> db
-                     (assoc db-ident {:db/ident db-ident
-                                      :runtime-id runtime-id
-                                      :db-id db-id
-                                      ::m/runtime runtime-ident})
-                     (update-in [runtime-ident ::m/databases] conj db-ident)
-                     (cond->
-                       (= 1 (count databases))
-                       (assoc-in [runtime-ident ::m/selected-database] db-ident)
-                       ))))
-             (assoc-in db [runtime-ident ::m/databases] [])
-             databases)})))
+  (fn [env runtime-ident {:keys [databases]}]
+    (update env :db
+      (fn [db]
+        (let [{:keys [runtime-id] :as runtime} (get db runtime-ident)]
+          (reduce
+            (fn [db db-id]
+              (let [db-ident (db/make-ident ::m/database [runtime-id db-id])]
+                (-> db
+                    (assoc db-ident {:db/ident db-ident
+                                     :runtime-id runtime-id
+                                     :db-id db-id
+                                     ::m/runtime runtime-ident})
+                    (update-in [runtime-ident ::m/databases] conj db-ident)
+                    (cond->
+                      (= 1 (count databases))
+                      (assoc-in [runtime-ident ::m/selected-database] db-ident)
+                      ))))
+            (assoc-in db [runtime-ident ::m/databases] [])
+            databases))))))
 
 (defmethod eql/attr ::m/tables [env db {:keys [runtime-id db-id] ::m/keys [tables] :as current} query-part params]
   (cond
@@ -53,11 +55,12 @@
 
 (sw/reg-event env/app-ref ::list-tables
   []
-  (fn [{:keys [db] :as env} db-ident {:keys [tables]}]
-    {:db (update db db-ident merge {::m/tables tables
-                                    ::m/table-query
-                                    {:table :db/globals
-                                     :row nil}})}))
+  (fn [env db-ident {:keys [tables]}]
+    (update-in env [:db db-ident] merge
+      {::m/tables tables
+       ::m/table-query
+       {:table :db/globals
+        :row nil}})))
 
 (defmethod eql/attr ::m/table-rows-vlist
   [env
@@ -105,8 +108,8 @@
 
 (sw/reg-event env/app-ref ::list-rows
   []
-  (fn [{:keys [db] :as env} db-ident {:keys [rows] :as msg}]
-    {:db (update db db-ident merge {::m/table-rows rows})}))
+  (fn [env db-ident {:keys [rows] :as msg}]
+    (update-in env [:db db-ident] merge {::m/table-rows rows})))
 
 (sw/reg-event env/app-ref ::m/table-query-update!
   []
@@ -131,10 +134,10 @@
            :row row}
           {:db/entry [::db-table-entry db-ident]}))
 
-      {:db (update-in db [db-ident ::m/table-query] merge msg)}
+      (update-in env [:db db-ident ::m/table-query] merge msg)
       )))
 
 (sw/reg-event env/app-ref ::db-table-entry
   []
-  (fn [{:keys [db] :as env} db-ident {:keys [row] :as msg}]
-    {:db (assoc-in db [db-ident ::m/table-entry] row)}))
+  (fn [env db-ident {:keys [row] :as msg}]
+    (assoc-in env [:db db-ident ::m/table-entry] row)))

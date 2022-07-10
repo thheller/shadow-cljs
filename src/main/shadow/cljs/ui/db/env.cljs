@@ -1,7 +1,7 @@
 (ns shadow.cljs.ui.db.env
   (:require
-    [shadow.experiments.grove.runtime :as gr]
-    [shadow.experiments.grove.db :as db]
+    [shadow.grove.runtime :as gr]
+    [shadow.grove.db :as db]
     [shadow.cljs.model :as m]))
 
 (def schema

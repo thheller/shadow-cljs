@@ -2,7 +2,7 @@
   (:require
     [goog.string.format]
     [goog.string :refer (format)]
-    [shadow.experiments.grove :as sg :refer (<< defc)]
+    [shadow.grove :as sg :refer (<< defc)]
     [shadow.cljs.model :as m]))
 
 (defn render-build-log [{:keys [log] :as build-status}]

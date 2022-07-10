@@ -1,6 +1,6 @@
 (ns shadow.cljs.ui.components.runtimes
   (:require
-    [shadow.experiments.grove :as sg :refer (<< defc)]
+    [shadow.grove :as sg :refer (<< defc)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.inspect :as inspect]
     [goog.date.relative :as rel]

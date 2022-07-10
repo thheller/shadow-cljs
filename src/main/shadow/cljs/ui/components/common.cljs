@@ -1,5 +1,5 @@
 (ns shadow.cljs.ui.components.common
-  (:require [shadow.experiments.grove :refer (<<)]))
+  (:require [shadow.grove :refer (<<)]))
 
 (def icon-close
   ;; https://github.com/sschoger/heroicons-ui/blob/master/svg/icon-x-square.svg

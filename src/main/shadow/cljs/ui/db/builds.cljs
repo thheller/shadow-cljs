@@ -1,8 +1,8 @@
 (ns shadow.cljs.ui.db.builds
   (:require
-    [shadow.experiments.grove.db :as db]
-    [shadow.experiments.grove.events :as ev]
-    [shadow.experiments.grove.eql-query :as eql]
+    [shadow.grove.db :as db]
+    [shadow.grove.events :as ev]
+    [shadow.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.db.env :as env]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]))
@@ -16,10 +16,11 @@
     ::m/build-release!
     ::m/build-release-debug!]}
   [env {:keys [e build-id]}]
-  {:relay-send
-   [{:op e
-     :to 1 ;; FIXME: don't hardcode CLJ runtime id
-     ::m/build-id build-id}]})
+  (ev/queue-fx env
+    :relay-send
+    [{:op e
+      :to 1 ;; FIXME: don't hardcode CLJ runtime id
+      ::m/build-id build-id}]))
 
 (defmethod eql/attr ::m/active-builds
   [env db _ query-part params]
@@ -66,23 +67,23 @@
          (count))))
 
 (defmethod relay-ws/handle-msg ::m/sub-msg
-  [{:keys [db] :as env} {::m/keys [topic] :as msg}]
+  [env {::m/keys [topic] :as msg}]
   (case topic
     ::m/build-status-update
     (let [{:keys [build-id build-status]} msg
           build-ident (db/make-ident ::m/build build-id)]
-      {:db (assoc-in db [build-ident ::m/build-status] build-status)})
+      (assoc-in env [:db build-ident ::m/build-status] build-status))
 
     ::m/supervisor
     (let [{::m/keys [worker-op build-id]} msg
           build-ident (db/make-ident ::m/build build-id)]
       (case worker-op
         :worker-stop
-        {:db (assoc-in db [build-ident ::m/build-worker-active] false)}
+        (assoc-in env [:db build-ident ::m/build-worker-active] false)
         :worker-start
-        {:db (assoc-in db [build-ident ::m/build-worker-active] true)}
+        (assoc-in env [:db build-ident ::m/build-worker-active] true)
 
         (js/console.warn "unhandled supervisor msg" msg)))
 
     (do (js/console.warn "unhandled sub msg" msg)
-        {})))
+        env)))

@@ -4,12 +4,12 @@
     ["codemirror/mode/clojure/clojure"]
     ["parinfer-codemirror" :as par-cm]
     [clojure.string :as str]
-    [shadow.experiments.arborist.protocols :as ap]
-    [shadow.experiments.arborist.common :as common]
-    [shadow.experiments.arborist.dom-scheduler :as ds]
-    [shadow.experiments.grove :as sg]
-    [shadow.experiments.grove.components :as comp]
-    [shadow.experiments.grove.protocols :as gp]))
+    [shadow.arborist.protocols :as ap]
+    [shadow.arborist.common :as common]
+    [shadow.arborist.dom-scheduler :as ds]
+    [shadow.grove :as sg]
+    [shadow.grove.components :as comp]
+    [shadow.grove.protocols :as gp]))
 
 (deftype EditorRoot
   [env

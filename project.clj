@@ -136,8 +136,7 @@
      [cljsjs/react "18.0.0-rc.0-0"]
      [cljsjs/react-dom "18.0.0-rc.0-0"]
 
-     ;; no proper release yet, included via source-paths below
-     #_[thheller/shadow-experiments "0.0.1"]
+     [com.thheller/shadow-grove "0.1.1"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
@@ -150,10 +149,7 @@
     ["src/dev"
      "src/gen"
      "src/test"
-     "test-project/src/main"
-     ;; lein checkouts seems buggy af in cursive
-     ;; can't be bothered to figure out how to fix it
-     "../shadow-experiments/src/main"]}
+     "test-project/src/main"]}
 
    :cljs-tests
    {:source-paths

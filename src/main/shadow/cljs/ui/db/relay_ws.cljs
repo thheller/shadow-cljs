@@ -1,8 +1,8 @@
 (ns shadow.cljs.ui.db.relay-ws
   (:require
-    [shadow.experiments.grove :as sg]
-    [shadow.experiments.grove.runtime :as rt]
-    [shadow.experiments.grove.events :as ev]
+    [shadow.grove :as sg]
+    [shadow.grove.runtime :as rt]
+    [shadow.grove.events :as ev]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.db.env :as env]
     [clojure.string :as str]))
@@ -14,29 +14,29 @@
 
 (defmethod handle-msg ::default [env msg]
   (js/console.warn "unhandled websocket msg" msg env)
-  {})
+  env)
 
 (defmethod handle-msg :welcome
-  [{:keys [db] ::keys [on-welcome] :as env} {:keys [client-id]}]
+  [{::keys [on-welcome] :as env} {:keys [client-id]}]
 
   ;; FIXME: call this via fx
   (on-welcome)
 
-  {:db
-   (assoc db ::m/tool-id client-id ::m/relay-ws-connected true)
+  (-> env
+      (update :db assoc ::m/tool-id client-id ::m/relay-ws-connected true)
+      (ev/queue-fx :relay-send
+        [{:op :request-clients
+          :notify true
+          :query [:eq :type :runtime]}])))
 
-   :relay-send
-   [{:op :request-clients
-     :notify true
-     :query [:eq :type :runtime]}]})
-
-(defmethod handle-msg ::m/ui-options [{:keys [db] :as env} {:keys [ui-options]}]
-  {:db (assoc db ::m/ui-options ui-options)})
+(defmethod handle-msg ::m/ui-options
+  [env {:keys [ui-options]}]
+  (assoc-in env [:db ::m/ui-options] ui-options))
 
 (defn relay-ws-close
   {::ev/handle ::m/relay-ws-close}
-  [{:keys [db] :as env} _]
-  {:db (assoc db ::m/relay-ws-connected false)})
+  [env _]
+  (assoc-in env [:db ::m/relay-ws-connected] false))
 
 (defn relay-ws
   {::ev/handle ::m/relay-ws}
@@ -45,7 +45,8 @@
   (handle-msg env msg))
 
 (defn cast! [{::keys [ws-ref] ::rt/keys [transit-str] :as env} msg]
-  ;; (js/console.log "ws-send" msg)
+  (when ^boolean js/goog.DEBUG
+    (js/console.log "[WS-SEND]" (:op msg) msg))
   (.send @ws-ref (transit-str msg)))
 
 (defn call! [env msg result-data]

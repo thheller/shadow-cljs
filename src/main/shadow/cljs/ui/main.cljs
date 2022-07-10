@@ -1,15 +1,15 @@
 (ns shadow.cljs.ui.main
   {:dev/always true}
   (:require
-    [shadow.experiments.arborist :as sa]
-    [shadow.experiments.grove :as sg :refer (<< defc)]
-    [shadow.experiments.grove.runtime :as rt]
-    [shadow.experiments.grove.history :as history]
-    [shadow.experiments.grove.keyboard :as keyboard]
-    [shadow.experiments.grove.local :as local-eng]
-    [shadow.experiments.grove.events :as ev]
-    [shadow.experiments.grove.transit :as transit]
-    [shadow.experiments.grove.http-fx :as http-fx]
+    [shadow.arborist :as sa]
+    [shadow.grove :as sg :refer (<< defc)]
+    [shadow.grove.runtime :as rt]
+    [shadow.grove.history :as history]
+    [shadow.grove.keyboard :as keyboard]
+    [shadow.grove.local :as local-eng]
+    [shadow.grove.events :as ev]
+    [shadow.grove.transit :as transit]
+    [shadow.grove.http-fx :as http-fx]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.db.env :as env]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]
@@ -165,9 +165,13 @@
   (local-eng/init! env/rt-ref)
 
   (when ^boolean js/goog.DEBUG
-    (swap! env/rt-ref assoc :shadow.experiments.grove.events/tx-reporter
+    (swap! env/rt-ref assoc :shadow.grove.events/tx-reporter
       (fn [report]
-        (js/console.log (-> report :event :e) report))))
+        (let [e (-> report :event :e)]
+          (case e
+            ::m/relay-ws
+            (js/console.log "[WS]" (-> report :event :msg :op) (-> report :event :msg) report)
+            (js/console.log e report))))))
 
   (history/init! env/rt-ref
     {:start-token "/dashboard"

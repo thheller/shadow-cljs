@@ -1,9 +1,9 @@
 (ns shadow.cljs.ui.db.explorer
   (:require
-    [shadow.experiments.grove.eql-query :as eql]
-    [shadow.experiments.grove.events :as ev]
+    [shadow.grove.eql-query :as eql]
+    [shadow.grove.events :as ev]
     [shadow.cljs.model :as m]
-    [shadow.experiments.grove.db :as db]
+    [shadow.grove.db :as db]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]))
 
 (defn apply-namespace-filter [tx runtime-ident]

@@ -1,13 +1,13 @@
 (ns shadow.cljs.ui.components.db-explorer
   (:require
-    [shadow.experiments.grove :as sg :refer (<< defc)]
+    [shadow.grove :as sg :refer (<< defc)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.inspect :as inspect]
-    [shadow.experiments.arborist.attributes :as a]
-    [shadow.experiments.grove.ui.vlist :as vlist]
-    [shadow.experiments.grove.ui.forms :as form]
-    [shadow.experiments.arborist.protocols :as ap]
-    [shadow.experiments.grove.protocols :as gp]))
+    [shadow.arborist.attributes :as a]
+    [shadow.grove.ui.vlist :as vlist]
+    [shadow.grove.ui.forms :as form]
+    [shadow.arborist.protocols :as ap]
+    [shadow.grove.protocols :as gp]))
 
 (def rows-vlist
   (vlist/configure ::m/table-rows-vlist

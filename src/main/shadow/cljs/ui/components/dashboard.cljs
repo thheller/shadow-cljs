@@ -1,6 +1,6 @@
 (ns shadow.cljs.ui.components.dashboard
   (:require
-    [shadow.experiments.grove :as sg :refer (<< defc)]
+    [shadow.grove :as sg :refer (<< defc)]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.build-status :as build-status]
     [shadow.cljs.ui.components.runtimes :as runtimes]

@@ -86,7 +86,7 @@
    :modules
    {:main
     {:init-fn shadow.cljs.ui.main/init
-     :preloads [shadow.experiments.grove.dev-support]}
+     :preloads [shadow.grove.dev-support]}
 
     ;; trying something to split out features not pages
     ;; maybe thats a better pattern overall, should be less config
@@ -352,7 +352,7 @@
   {:target :bootstrap
    :output-dir "out/demo-selfhost/public/bootstrap"
    :exclude #{cljs.js}
-   :entries [cljs.js shadow.experiments.grove shadow.experiments.grove.ui.loadable]
+   :entries [cljs.js shadow.grove shadow.grove.ui.loadable]
    :macros []}
 
   #_#_:js-only
