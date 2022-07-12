@@ -33,13 +33,14 @@
 
 (defc page-header [build-ident tab]
   ;; FIXME: link helpers, shouldn't use str
-  (bind {::m/keys [build-runtime-count build-worker-active]}
+  (bind {::m/keys [build-id build-runtime-count build-worker-active]}
     (sg/query-ident build-ident
-      [::m/build-runtime-count
+      [::m/build-id
+       ::m/build-runtime-count
        ::m/build-worker-active]))
 
   (render
-    (let [link-root (str "/build/" (-> build-ident second name))]
+    (let [link-root (str "/build/" (name build-id))]
 
       (<< [:div.shadow-lg.mb-4
            (builds/build-card build-ident)]
