@@ -136,7 +136,7 @@
      [cljsjs/react "18.0.0-rc.0-0"]
      [cljsjs/react-dom "18.0.0-rc.0-0"]
 
-     [com.thheller/shadow-grove "0.1.1"]
+     [com.thheller/shadow-grove "0.2.0"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
