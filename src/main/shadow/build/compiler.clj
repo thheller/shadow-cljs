@@ -490,7 +490,7 @@
            :msg msg}]
 
       (when (should-warning-throw? state *current-resource* warning-info)
-        (throw (ex-info msg warning-info)))
+        (throw (ex-info msg (assoc warning-info ::warning-as-error true))))
 
       (swap! warnings conj warning-info))))
 
@@ -963,12 +963,24 @@
                   (let [{:keys [type ex-kind] :as data}
                         (ex-data e)
 
+                        ;; prefer to use location data from cause for errors thrown
+                        ;; by warnings thrown as errors via warning-collector
+                        ;; other errors might benefit from this as well but unsure
+                        ;; so limiting this to warning-as-error until I can test more
+                        cause
+                        (when-some [ce (ex-cause e)]
+                          (when-some [cdata (ex-data ce)]
+                            (when (::warning-as-error cdata)
+                              cdata)))
+
                         line
-                        (or (:clojure.error/line data)
+                        (or (:line cause)
+                            (:clojure.error/line data)
                             (:line data))
 
                         column
-                        (or (:clojure.error/column data) ;; 1.10.516+
+                        (or (:column cause)
+                            (:clojure.error/column data) ;; 1.10.516+
                             (:column data) ;; cljs.analyzer
                             (:col data)) ;; tools.reader
 
