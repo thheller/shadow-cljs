@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.19.6](https://github.com/thheller/shadow-cljs/compare/d29e56167c973c426ac8413cbe68dc28d5fa74dd...ff9668be8982182b5382d51cd35085fe279b887d) - 2022-07-14
+- [ [`ff966`](https://github.com/thheller/shadow-cljs/commit/ff9668be8982182b5382d51cd35085fe279b887d) ] remove process use in :npm-module builds using :runtime :browser
+- [ [`12dcc`](https://github.com/thheller/shadow-cljs/commit/12dcc769afb43723f282c910929e47a5ab353692) ] fix js-await catch
+- [ [`73257`](https://github.com/thheller/shadow-cljs/commit/732577ea5257f6418d4926d10f5c0e3261303e8b) ] fix incorrect error source location when using :warning-as-errors
+- [ [`19b6f`](https://github.com/thheller/shadow-cljs/commit/19b6f9a77197d106cf11c2c5cf09b316c87f7939) ] grove bump
+- [ [`86394`](https://github.com/thheller/shadow-cljs/commit/8639487bf7d9403322202f12a6ef59fef8b8a822) ] fix UI code for grove ident change
+- [ [`31948`](https://github.com/thheller/shadow-cljs/commit/3194818f071a64329e488561591e93fc96e463dc) ] also migrate build-report UI
+- [ [`29def`](https://github.com/thheller/shadow-cljs/commit/29defe5788001a2fa2ee3aa93b927a025a386cae) ] migrate UI code to proper shadow-grove release
+- [ [`1131a`](https://github.com/thheller/shadow-cljs/commit/1131a14c01d35f4a265e19f3b8c9e7b7956609ff) ] Update README.md (#1028)
+- [ [`d29e5`](https://github.com/thheller/shadow-cljs/commit/d29e56167c973c426ac8413cbe68dc28d5fa74dd) ] nrepl-debug support for .port files
+
 ## [2.19.5](https://github.com/thheller/shadow-cljs/compare/96189a525a444a06a5b0e2b52024995d540201e1...c01ef922a505d0a7bf03073370ac27b898040310) - 2022-06-24
 - [ [`c01ef`](https://github.com/thheller/shadow-cljs/commit/c01ef922a505d0a7bf03073370ac27b898040310) ] cljs bump
 - [ [`96189`](https://github.com/thheller/shadow-cljs/commit/96189a525a444a06a5b0e2b52024995d540201e1) ] make build-report/generate accept a map for build config only
