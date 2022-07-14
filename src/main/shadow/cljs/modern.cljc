@@ -321,7 +321,7 @@
          ~@(when (seq body)
              [`(.then (fn [~name] ~@body))])
          ~@(when catch
-             (let [[name & body] catch]
+             (let [[_ name & body] catch]
                [`(.catch (fn [~name] ~@body))]
                )))))
 
