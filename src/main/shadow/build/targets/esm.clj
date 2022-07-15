@@ -305,6 +305,62 @@
 
     state))
 
+;; closure library sometimes changes how goog.global is assigned
+;; this may cause warnings in some tools because of the remaining
+;; this reference which is undefined in ES modules
+;; so instead we want to replace it with something that just uses globalThis
+
+;; starting here
+;;   goog.global =
+;;     // Check `this` first for backwards compatibility.
+;;     // Valid unless running as an ES module or in a function wrapper called
+;;     //   without setting `this` properly.
+;;     // Note that base.js can't usefully be imported as an ES module, but it may
+;;     // be compiled into bundles that are loadable as ES modules.
+;;     this ||
+;;     // https://developer.mozilla.org/en-US/docs/Web/API/Window/self
+;;     // For in-page browser environments and workers.
+;;     self;
+;; ending with the next jsdoc block
+;;   /**
+
+
+(defn replace-goog-global* [src]
+  ;; not using regexp due to multiline assignment
+  ;; and other weirdness it may contain. just hoping they never use /** comments during assignment
+  (let [needle-start "goog.global ="
+        needle-end "/**"
+
+        start-idx (str/index-of src needle-start)
+
+        _ (when-not start-idx
+            (throw (ex-info "didn't find goog.global assignment in goog/base.js" {})))
+
+        end-idx (str/index-of src needle-end start-idx)
+
+        before (subs src 0 start-idx)
+        after (subs src end-idx (count src))]
+
+    (str before "goog.global = globalThis;\n" after)
+    ))
+
+(comment
+  (tap> (replace-goog-global* (slurp (io/resource "goog/base.js")))))
+
+(defn replace-goog-global [state]
+  ;; the global must be overriden in goog/base.js since it contains some
+  ;; goog.define(...) which would otherwise be exported to "this"
+  ;; but we need it on $CLJS, can't just reassign it after
+
+  ;; doing this on the source directly before any compilation because
+  ;; for release builds the source is passed directly to the compiler
+  ;; and is not taken from :output
+  (if (::base-modified state)
+    state
+    (-> state
+        (assoc ::base-modified true)
+        (update-in [:sources output/goog-base-id :source] replace-goog-global*))))
+
 (defn js-module-env
   [{:keys [polyfill-js]
     ::build/keys [config]
@@ -312,16 +368,7 @@
 
   (->> ["globalThis.CLOSURE_DEFINES = " (output/closure-defines-json state) ";"
         "globalThis.CLOSURE_NO_DEPS = true;"
-        ;; the global must be overriden in goog/base.js since it contains some
-        ;; goog.define(...) which would otherwise be exported to "this"
-        ;; but we need it on $CLJS
-        (-> (data/get-output! state {:resource-id output/goog-base-id})
-            (get :js)
-            ;; FIXME: this is using the compiled variant of goog/base.js
-            ;; don't use goog-global-snippet, that is used for uncompiled goog/base.js
-            ;; keeping both variants for now until I can make this cleaner
-            (str/replace "goog.global = this || self;" "goog.global = globalThis;"))
-
+        (get-in state [:output output/goog-base-id :js])
         "globalThis.goog = goog;"
         "globalThis.shadow$provide = {};"
         "globalThis.shadow_esm_import = function(x) { return import(x.startsWith(\"./\") ? \".\" + x : x); }"
@@ -422,9 +469,14 @@
     (configure state)
 
     (= stage :compile-prepare)
-    (if (= :dev mode)
-      (setup-imports-dev state)
-      (setup-imports state))
+    (-> state
+        (replace-goog-global)
+        (cond->
+          (= :dev mode)
+          (setup-imports-dev)
+
+          (= :release mode)
+          (setup-imports)))
 
     (= stage :flush)
     (case mode
