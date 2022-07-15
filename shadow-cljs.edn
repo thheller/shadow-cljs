@@ -192,6 +192,7 @@
   :test-esm
   {:target :esm
    :output-dir "out/demo-browser/public/esm-js"
+   :devtools {:enabled false}
    :modules
    {:shared {}
     :a

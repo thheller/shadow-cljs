@@ -298,7 +298,7 @@
                imports "\n"
                exports "\n"
                append "\n"
-               (when worker-info
+               (when (and worker-info (not (false? (get-in state [::build/config :devtools :enabled]))))
                  (str "shadow.cljs.devtools.client.env.module_loaded(\"" (name module-id) "\");")))]
       (io/make-parents target)
       (spit target out))
