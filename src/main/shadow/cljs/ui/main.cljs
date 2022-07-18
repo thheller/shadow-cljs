@@ -1,9 +1,7 @@
 (ns shadow.cljs.ui.main
   {:dev/always true}
   (:require
-    [shadow.arborist :as sa]
     [shadow.grove :as sg :refer (<< defc)]
-    [shadow.grove.runtime :as rt]
     [shadow.grove.history :as history]
     [shadow.grove.keyboard :as keyboard]
     [shadow.grove.local :as local-eng]

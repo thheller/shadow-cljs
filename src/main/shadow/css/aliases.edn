@@ -1,0 +1,41 @@
+;; credit for all of these goes to https://tailwindcss.com/
+;; these are straight up copies, only adjusting names if they violate EDN naming rules in some way.
+;; not going for completeness, some aliases IMHO are just better expressed as maps
+
+{
+ ;; display
+ :block {:display "block"}
+ :hidden {:display "none"}
+ :inline-block {:display "inline-block"}
+
+ ;; margin
+ :m-auto {:margin "auto"}
+ :mx-auto {:magin-left "auto" :margin-right "auto"}
+ :my-auto {:margin-top "auto" :margin-bottom "auto"}
+ :mt-auto {:margin-top "auto"}
+ :mb-auto {:margin-bottom "auto"}
+ :ml-auto {:margin-left "auto"}
+ :mr-auto {:margin-right "auto"}
+
+ ;; flexbox
+ :flex {:display "flex"}
+ :flex-inline {:display "flex-inline"}
+
+ ;; flex
+ :flex-1 {:flex "1 1 0%"}
+ :flex-auto {:flex "1 1 auto"}
+ :flex-initial {:flex "0 1 auto"}
+ :flex-none {:flex "none"}
+
+ ;; flex direction
+ :flex-row {:flex-direction "row"}
+ :flex-row-reverse {:flex-direction "row-reverse"}
+ :flex-col {:flex-direction "column"}
+ :flex-col-reverse {:flex-direction "column-reverse"}
+
+ ;; flex wrap
+ :flex-wrap {:flex-wrap "wrap"}
+ :flex-wrap-reverse {:flex-wrap "wrap-reverse"}
+ :flex-nowrap {:flex-wrap "nowrap"}
+
+ }
