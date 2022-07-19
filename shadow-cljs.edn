@@ -7,6 +7,17 @@
 
  ;; :ssl {}
 
+ :css
+ {:paths
+  ["src/main"
+   "src/dev"]
+
+  :outputs
+  {"src/ui-release/shadow/cljs/ui/dist/main.css"
+   {:entries
+    [shadow.cljs.ui.main
+     shadow.cljs.devtools.server.web]}}}
+
  :http
  {}
 

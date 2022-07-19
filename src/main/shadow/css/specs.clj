@@ -2,15 +2,11 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]))
 
-(s/def ::alias
-  simple-keyword?)
-
-(s/def ::var
-  qualified-keyword?)
+(s/def ::alias keyword?)
 
 (s/def ::str-part
-  ;; str or var
-  #(or (string? %) (qualified-keyword? %)))
+  ;; str or alias
+  #(or (string? %) (keyword? %)))
 
 (s/def ::str-concat
   (s/coll-of ::str-part :kind list?))
@@ -19,7 +15,7 @@
   (s/or
     :string string?
     :number number?
-    :var ::var
+    :alias ::alias
     :concat ::str-concat))
 
 (s/def ::map
@@ -34,8 +30,8 @@
   (s/or
     :string
     sub-selector?
-    :var
-    ::var
+    :alias
+    ::alias
     ))
 
 (s/def ::group
@@ -52,8 +48,19 @@
     :alias
     ::alias
 
-    :var
-    ::var
+    :map
+    ::map
+
+    :group
+    ::group))
+
+(s/def ::root-part
+  (s/or
+    :alias
+    ::alias
+
+    :passthrough
+    string?
 
     :map
     ::map
@@ -64,7 +71,7 @@
 (s/def ::class-def
   (s/cat
     :parts
-    (s/+ ::part)))
+    (s/+ ::root-part)))
 
 (defn conform! [body]
   (let [conformed (s/conform ::class-def body)]
@@ -101,6 +108,7 @@
 
   (conform!
     '[:px-4 :my-2 :color/primary
+      "pass"
       [:ui/md :px-6]
       [:ui/lg :px-8]
       ["&:hover" :color/secondary]])

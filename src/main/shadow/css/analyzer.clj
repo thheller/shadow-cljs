@@ -1,4 +1,7 @@
-(ns shadow.css.analyzer)
+(ns shadow.css.analyzer
+  (:require [clojure.tools.reader.reader-types :as reader-types]
+            [clojure.string :as str]
+            [clojure.tools.reader :as reader]))
 
 (defn lookup-alias [index alias-kw]
   (get-in index [:aliases alias-kw]))
@@ -41,8 +44,8 @@
       (add-warning index ::missing-alias {:alias alias-kw})
       (update-in index [:current :rules] merge alias-val))))
 
-(defn add-var [index var-kw]
-  (throw (ex-info "tbd" {:var-kw var-kw})))
+(defn add-passthrough [index s]
+  (throw (ex-info "tbd, str passthrough" {:s s})))
 
 (defn add-map [index defs]
   (reduce-kv
@@ -139,8 +142,8 @@
     (add-alias index part-val)
     :map
     (add-map index part-val)
-    :var
-    (add-var index part-val)
+    :passthrough
+    (add-passthrough index part-val)
     :group
     (add-group index part-val)))
 
@@ -158,3 +161,66 @@
   (-> (reduce generate-1 {:svc svc :warnings [] :defs []} class-defs)
       (dissoc :svc)))
 
+
+;; FIXME: when parsing respect ns forms and support qualified uses
+;; this currently only looks for (css ...) calls
+;; it doesn't actually look for (shadow.grove/css ...) calls
+;; but this is just easier than going full blown analyzer with support for aliases/scoping
+
+(defn find-css-calls [state form]
+  (cond
+    (and (list? form) (= 'ns (first form)))
+    ;; FIXME: parse ns form. only need name, meta, requires. can ignore :import
+    (let [[_ ns meta] form]
+      (-> state
+          (assoc :ns ns)
+          (cond->
+            (map? meta)
+            (assoc :ns-meta meta)
+            )))
+
+    (and (list? form) (= 'css (first form)))
+    (update state :css conj
+      (-> (meta form)
+          (dissoc :source)
+          (assoc :form form)))
+
+    (map? form)
+    (reduce find-css-calls state (vals form))
+
+    (coll? form)
+    (reduce find-css-calls state form)
+
+    :else
+    state))
+
+(defn find-css-in-source [src]
+  ;; shortcut if src doesn't contain any css, faster than actually parsing
+  (when (str/index-of src "(css")
+    (let [reader (reader-types/source-logging-push-back-reader src)
+          eof (Object.)]
+
+      (loop [state
+             {:css []
+              :ns nil
+              :ns-meta {}
+              :require-aliases {}
+              :requires #{}}]
+
+        (let [form
+              (binding
+                [reader/*alias-map*
+                 (fn [sym]
+                   ;; actually does for ::aliases, need to parse ns anyways for metadata
+                   'doesnt.matter)
+
+                 reader/*default-data-reader-fn*
+                 (fn [tag data]
+                   data)]
+
+                (reader/read {:eof eof :read-cond :preserve} reader))]
+
+          (if (identical? form eof)
+            state
+            (recur (find-css-calls state form))))
+        ))))
