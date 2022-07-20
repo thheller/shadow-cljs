@@ -257,7 +257,8 @@
 
                (let [{:keys [polyfill-js]} state]
                  (when (and (or goog-base web-worker) (seq polyfill-js))
-                   (str "\n" polyfill-js)))
+                   (str "\n" polyfill-js
+                        "\nglobal.$jscomp = $jscomp;")))
 
                (slurp (io/resource "shadow/boot/react-native.js"))
                "\n\n"
