@@ -1,24 +1,15 @@
 (ns shadow.css.analyzer
-  (:require [clojure.tools.reader.reader-types :as reader-types]
-            [clojure.string :as str]
-            [clojure.tools.reader :as reader]))
+  (:require
+    [clojure.string :as str]
+    [clojure.tools.reader :as reader]
+    [clojure.tools.reader.reader-types :as reader-types]
+    ))
 
-(defn lookup-alias [index alias-kw]
-  (get-in index [:aliases alias-kw]))
+(defn reduce-> [init rfn coll]
+  (reduce rfn init coll))
 
-(defn lookup-var [index var-kw]
-  (case var-kw
-    :ui/sm
-    "@media (min-width: 640px)"
-    :ui/md
-    "@media (min-width: 768px)"
-    :ui/lg
-    "@media (min-width: 1024px)"
-    :ui/xl
-    "@media (min-width: 1280px)"
-    :ui/xxl ;; :ui/2xl invalid keyword
-    "@media (min-width: 1536px)"
-    nil))
+(defn lookup-alias [svc alias-kw]
+  (get-in svc [:aliases alias-kw]))
 
 (def plain-numeric-props
   #{:flex :order :flex-shrink :flex-grow})
@@ -32,135 +23,109 @@
             (str "invalid numeric value for prop " prop)
             {:prop prop :num num})))))
 
-(defn add-warning [{:keys [current] :as index} warning-type warning-vals]
-  (update index :warnings conj (assoc warning-vals :warning warning-type :current current)))
+(defn add-warning [svc form warning-type warning-vals]
+  (update form :warnings conj (assoc warning-vals :warning-type warning-type)))
 
 (declare add-part)
 
-(defn add-alias [index alias-kw]
-  ;; FIXME: aliases should be allowed to be any other part, and act accordingly
-  (let [alias-val (lookup-alias index alias-kw)]
+(defn add-alias [svc form alias-kw]
+  (let [alias-val (lookup-alias svc alias-kw)]
     (if-not alias-val
-      (add-warning index ::missing-alias {:alias alias-kw})
-      (update-in index [:current :rules] merge alias-val))))
+      (add-warning svc form ::missing-alias {:alias alias-kw})
+      (add-part svc form alias-val))))
 
-(defn add-passthrough [index s]
-  (throw (ex-info "tbd, str passthrough" {:s s})))
-
-(defn add-map [index defs]
+(defn add-map [svc form defs]
   (reduce-kv
-    (fn [index prop [val-type val]]
-      (case val-type
-        :val
-        (update-in index [:current :rules] assoc prop val)
+    (fn [form prop val]
+      (cond
+        ;; {:thing "val"}
+        (string? val)
+        (assoc-in form [:rules prop] val)
 
-        :number
-        (assoc-in index [:current :rules prop] (convert-num-val index prop val))
+        ;; {:thing 4}
+        (number? val)
+        (assoc-in form [:rules prop] (convert-num-val svc prop val))
 
-        :string
-        (assoc-in index [:current :rules prop] val)
-
-        :concat
-        (let [s (->> val
-                     (map (fn [part]
-                            (if (string? part)
-                              part
-                              ;; FIXME: validate exists and a string. warn otherwise
-                              (lookup-var index part))))
-                     (str/join ""))]
-          (assoc-in index [:current :rules prop] s))
-
-        :var
-        (let [var-value (lookup-var index val)]
+        ;; {:thing :alias}
+        (keyword? val)
+        (let [alias-value (lookup-alias svc val)]
           (cond
-            (nil? var-value)
-            (add-warning index ::missing-var {:var val})
+            (nil? alias-value)
+            (add-warning svc form ::missing-alias {:alias val})
 
-            (and (map? var-value) (= 1 (count var-value)))
-            (assoc-in index [:current :rules prop] (first (vals var-value)))
+            (and (map? alias-value) (contains? alias-value prop))
+            (assoc-in form [:rules prop] (get alias-value prop))
 
-            (string? var-value)
-            (assoc-in index [:current :rules prop] var-value)
+            (string? alias-value)
+            (assoc-in form [:rules prop] alias-value)
 
-            (number? var-value)
-            (assoc-in index [:current :rules prop] (convert-num-val index prop var-value))
+            (number? alias-value)
+            (assoc-in form [:rules prop] (convert-num-val form prop alias-value))
 
             :else
-            (add-warning index ::invalid-map-val {:prop prop :val-type val-type})))))
+            (add-warning svc form ::invalid-map-val {:prop prop :val val})))
 
-    index
+        #_#_:concat
+                (let [s (->> val
+                             (map (fn [part]
+                                    (if (string? part)
+                                      part
+                                      ;; FIXME: validate exists and a string. warn otherwise
+                                      (lookup-alias form part))))
+                             (str/join ""))]
+                  (assoc-in form [:current :rules prop] s))
+        ))
+
+    form
     defs))
 
-(defn current-to-defs [{:keys [current] :as index}]
-  (-> index
-      (cond->
-        (seq (:rules current))
-        (update :defs conj current))
-      (dissoc :current)))
+(defn make-sub-rule [{:keys [stack rules] :as form}]
+  (update form :sub-rules assoc stack rules))
 
-(defn make-selector [{:keys [sel] :as item} sub-sel]
-  [sub-sel sel])
+(defn add-group* [svc form sel parts]
+  (let [{:keys [stack rules]} form]
+    (-> form
+        (assoc :rules {} :stack (conj stack sel))
+        (reduce-> #(add-part svc %1 %2) parts)
+        (make-sub-rule)
+        (assoc :stack stack :rules rules))))
 
-(defn add-group [{:keys [current] :as index} {:keys [sel parts]}]
-  (let [[sel-type sel-val] sel
+(defn add-group [svc form [sel & parts]]
+  (cond
+    (keyword? sel)
+    (if-some [alias-value (lookup-alias svc sel)]
+      (add-group* svc form alias-value parts)
+      (add-warning svc form ::group-sel-alias-not-found {:alias sel}))
 
-        sel
-        (case sel-type
-          :var
-          (lookup-var index sel-val)
-          :string
-          sel-val)]
+    (not (string? sel))
+    (add-warning svc form ::invalid-group-sel {:sel sel})
 
-    (cond
-      (not sel)
-      (add-warning index ::group-sel-var-not-found {:val sel-val})
+    :else
+    (add-group* svc form sel parts)))
 
-      (map? sel)
-      (add-warning index ::group-sel-resolved-to-map {:var sel-val :val sel})
+(defn add-part [svc form part]
+  (cond
+    (string? part) ;; "other-class", passthrough, ignored here, handled in macro
+    form
 
-      :else
-      (-> (reduce add-part
-            (assoc index
-              :current
-              (-> current
-                  (assoc :rules {})
-                  (cond->
-                    (str/starts-with? sel "@")
-                    (-> (update :at-rules conj sel)
-                        (assoc :sel (:sel current)))
+    (keyword? part) ;; :px-4 alias
+    (add-alias svc form part)
 
-                    (str/index-of sel "&")
-                    (assoc :sel (str/replace sel #"&" (:sel current)))
-                    )))
-            parts)
-          (current-to-defs)
-          (assoc :current current)))))
+    (map? part) ;; {:padding 4}
+    (add-map svc form part)
 
-(defn add-part [index [part-id part-val]]
-  (case part-id
-    :alias
-    (add-alias index part-val)
-    :map
-    (add-map index part-val)
-    :passthrough
-    (add-passthrough index part-val)
-    :group
-    (add-group index part-val)))
+    (vector? part) ;; ["&:hover" :px-4] subgroup
+    (add-group svc form part)
 
-(defn generate-1 [index {:keys [css-id] :as current}]
-  (-> (reduce add-part
-        (assoc index
-          :current
-          (-> current
-              (dissoc :parts)
-              (assoc :rules {} :at-rules [] :sel (str "." css-id))))
-        (:parts current))
-      (current-to-defs)))
+    :else
+    (add-warning svc form ::invalid-part part)))
 
-(defn generate-rules [svc class-defs]
-  (-> (reduce generate-1 {:svc svc :warnings [] :defs []} class-defs)
-      (dissoc :svc)))
-
+(defn process-form [svc {:keys [form] :as form-info}]
+  (-> (reduce
+        #(add-part svc %1 %2)
+        (assoc form-info :rules {} :stack [] :sub-rules {} :warnings [])
+        (rest form))
+      (dissoc :stack)))
 
 ;; FIXME: when parsing respect ns forms and support qualified uses
 ;; this currently only looks for (css ...) calls
@@ -169,25 +134,37 @@
 
 (defn find-css-calls [state form]
   (cond
-    (and (list? form) (= 'ns (first form)))
-    ;; FIXME: parse ns form. only need name, meta, requires. can ignore :import
-    (let [[_ ns meta] form]
-      (-> state
-          (assoc :ns ns)
-          (cond->
-            (map? meta)
-            (assoc :ns-meta meta)
-            )))
-
-    (and (list? form) (= 'css (first form)))
-    (update state :css conj
-      (-> (meta form)
-          (dissoc :source)
-          (assoc :form form)))
-
     (map? form)
     (reduce find-css-calls state (vals form))
 
+    (list? form)
+    (case (first form)
+      ;; (ns foo {:maybe "meta") ...)
+      ;; FIXME: parse ns form. only need name, meta, requires. can ignore :import
+      ns
+      (let [[_ ns meta] form]
+        (-> state
+            (assoc :ns ns)
+            (cond->
+              (map? meta)
+              (assoc :ns-meta meta)
+              )))
+
+      ;; don't traverse into (comment ...)
+      comment
+      state
+
+      ;; thing we actually look for
+      css
+      (update state :css conj
+        (-> (meta form)
+            (dissoc :source)
+            (assoc :form form)))
+
+      ;; any other list
+      (reduce find-css-calls state form))
+
+    ;; sets, vectors
     (coll? form)
     (reduce find-css-calls state form)
 

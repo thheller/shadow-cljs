@@ -39,3 +39,4 @@ package-lock.json
 !/package-lock.json
 /package.json
 *.log
+src/dev/shadow-css-index.edn

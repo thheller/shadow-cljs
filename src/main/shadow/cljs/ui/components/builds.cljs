@@ -1,39 +1,39 @@
 (ns shadow.cljs.ui.components.builds
   (:require
+    [shadow.css :refer (css)]
     [shadow.grove :as sg :refer (<< defc)]
     [shadow.cljs.ui.components.common :as common]
     [shadow.cljs.model :as m]))
 
 (defn build-buttons [build-id build-worker-active]
-  (if build-worker-active
-    (<< [:div.font-bold.border-t.bg-gray-50
-         [:button
-          {:on-click {:e ::m/build-watch-stop! :build-id build-id}
-           :class common/card-button-class
-           :type "button"}
-          "Stop"]
-         [:button
-          {:on-click {:e ::m/build-watch-compile! :build-id build-id}
-           :class common/card-button-class
-           :type "button"}
-          "Force compile"]])
+  (<< [:div {:class (css :font-bold :border-t :bg-gray-50)}
+       (if build-worker-active
+         (<< [:button
+              {:on-click {:e ::m/build-watch-stop! :build-id build-id}
+               :class common/card-button-class
+               :type "button"}
+              "Stop"]
+             [:button
+              {:on-click {:e ::m/build-watch-compile! :build-id build-id}
+               :class common/card-button-class
+               :type "button"}
+              "Force compile"])
 
-    (<< [:div.font-bold.border-t.bg-gray-50
-         [:button
-          {:on-click {:e ::m/build-watch-start! :build-id build-id}
-           :class common/card-button-class
-           :type "button"}
-          "Watch"]
-         [:button
-          {:on-click {:e ::m/build-compile! :build-id build-id}
-           :class common/card-button-class
-           :type "button"}
-          "Compile"]
-         [:button
-          {:on-click {:e ::m/build-release! :build-id build-id}
-           :class common/card-button-class
-           :type "button"}
-          "Release"]])))
+         (<< [:button
+              {:on-click {:e ::m/build-watch-start! :build-id build-id}
+               :class common/card-button-class
+               :type "button"}
+              "Watch"]
+             [:button
+              {:on-click {:e ::m/build-compile! :build-id build-id}
+               :class common/card-button-class
+               :type "button"}
+              "Compile"]
+             [:button
+              {:on-click {:e ::m/build-release! :build-id build-id}
+               :class common/card-button-class
+               :type "button"}
+              "Release"]))]))
 
 
 (defc build-card [ident]
@@ -48,11 +48,11 @@
 
   (render
     (let [{:keys [status]} build-status]
-      (<< [:div.bg-white.overflow-hidden.shadow
+      (<< [:div {:class (css :bg-white :overflow-hidden :shadow)}
            [:a {:ui/href (str "/build/" (name build-id))}
-            [:div.p-4
-             [:div.flex.items-center
-              [:div.flex-shrink-0
+            [:div {:class (css :p-4)}
+             [:div {:class (css :flex :items-center)}
+              [:div {:class (css :flex-shrink-0)}
                (case status
                  :compiling
                  common/icon-compiling
@@ -74,11 +74,11 @@
                  ;default
                  common/icon-inactive)]
 
-              [:div.ml-5.w-0.flex-1
+              [:div {:class (css :ml-5 :w-0 :flex-1)}
                [:dl
-                [:dt.text-lg.font-medium.text-gray-900 (name build-id)]
+                [:dt {:class (css :text-lg :font-medium :text-gray-900)} (name build-id)]
                 [:dd
-                 [:span.text-sm.font-medium.text-gray-500.truncate (name build-target)]]]]]]]
+                 [:span {:class (css :text-sm :font-medium :text-gray-500 :truncate)} (name build-target)]]]]]]]
 
            (build-buttons build-id build-worker-active)]))))
 

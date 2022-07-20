@@ -1,5 +1,7 @@
 (ns shadow.cljs.ui.components.common
-  (:require [shadow.grove :refer (<<)]))
+  (:require
+    [shadow.css :refer (css)]
+    [shadow.grove :refer (<<)]))
 
 (def icon-close
   ;; https://github.com/sschoger/heroicons-ui/blob/master/svg/icon-x-square.svg
@@ -36,4 +38,7 @@
        [:span.h-3.w-3.bg-blue-400.rounded-full]]))
 
 (def card-button-class
-  "font-medium border-r py-3 px-5 bg-gray-50 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500")
+  (css
+    :font-medium :border-r :py-3 :px-5 :bg-gray-50
+    ["&:hover" :bg-gray-300]
+    ["&:focus" :outline-none :ring-2 :ring-offset-2 :ring-gray-500]))

@@ -1,6 +1,7 @@
 (ns shadow.css
   (:require
-    [shadow.css.specs :as s]))
+    [shadow.css.specs :as s]
+    [clojure.string :as str]))
 
 (def class-defs
   (atom {}))
@@ -14,11 +15,11 @@
 
    using a subset of Clojure/EDN to define css rules, no dynamic code allowed whatsoever"
   [& body]
-  ;; FIXME: only conforming for spec errors, not required otherwise
-  (let [conformed
-        (s/conform! body)
 
-        {:keys [line column]}
+  ;; FIXME: errors are not pretty
+  (s/conform! &form)
+
+  (let [{:keys [line column]}
         (meta &form)
 
         ns-str
@@ -46,15 +47,14 @@
         :column column
         :css-id css-id)
 
-    (if-not (:ns &env)
-      ;; expanding CLJ
-      `(get-class ~css-id)
-
-      ;; expanding CLJS
-      ;; generating js* calls so the analyzer doesn't get any idea about trying to resolve these
-      ;; emitting straight lookups instead of a map so :advanced can go its thing properly
-      ;; FIXME: no idea what to do about self-host yet
-      `(~'js* ~(str "(shadow.css.defs." css-id ")")))))
+    ;; FIXME: no idea what to do about self-host yet
+    ;; for development just emit the classname without lookup
+    ;; FIXME: figure out what to do about release builds and class optimizations
+    ;; `(~'js* ~(str "(shadow.css.defs." css-id ")"))
+    (str css-id
+         (let [passthrough (filter string? body)]
+           (when (seq passthrough)
+             (str " " (str/join " " passthrough)))))))
 
 (comment
 

@@ -18,6 +18,9 @@
     :alias ::alias
     :concat ::str-concat))
 
+(s/def ::passthrough
+  string?)
+
 (s/def ::map
   (s/map-of simple-keyword? ::val))
 
@@ -60,7 +63,7 @@
     ::alias
 
     :passthrough
-    string?
+    ::passthrough
 
     :map
     ::map
@@ -73,7 +76,7 @@
     :parts
     (s/+ ::root-part)))
 
-(defn conform! [body]
+(defn conform! [[_ & body :as form]]
   (let [conformed (s/conform ::class-def body)]
     (when (= conformed ::s/invalid)
       (throw (ex-info "failed to parse class definition"
@@ -82,7 +85,7 @@
                  :input body))))
     conformed))
 
-(defn conform [body]
+(defn conform [[_ & body :as form]]
   (let [conformed (s/conform ::class-def body)]
     (if (= conformed ::s/invalid)
       {:parts [] :invalid true :body body :spec (s/explain-data ::class-def body)}
@@ -96,20 +99,3 @@
        "L" line
        "_"
        "C" column))
-
-(comment
-  {:color/primary {:color "red"}
-   :color/secondary {:color "green"}}
-  [:div {:class
-         (css :px-4 :my-2 :color/primary
-           [:ui/md :px-6]
-           [:ui/lg :px-8]
-           ["&:hover" :color/secondary])}]
-
-  (conform!
-    '[:px-4 :my-2 :color/primary
-      "pass"
-      [:ui/md :px-6]
-      [:ui/lg :px-8]
-      ["&:hover" :color/secondary]])
-  )

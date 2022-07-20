@@ -1,39 +1,44 @@
 (ns shadow.css.build
   (:require
-    [clojure.tools.reader :as reader]
-    [clojure.tools.reader.reader-types :as reader-types]
-    [clojure.string :as str]
     [shadow.css.specs :as s]
+    [shadow.css.analyzer :as ana]
+    [shadow.css.index :as index]
     [clojure.edn :as edn]
     [clojure.java.io :as io]
-    [shadow.build.classpath :as cp]
-    [shadow.build.data :as data]
-    [shadow.build.cache :as cache]
-    [shadow.jvm-log :as log]
-    [shadow.build.resource :as rc])
-  (:import [java.io File]
-           [java.util.jar JarFile JarEntry]
-           [java.util.zip ZipException]
-           [java.net URL]))
-
-(set! *warn-on-reflection* true)
-
-(defn conform [[_ & body :as form] ns]
-  (let [{:keys [line column] :as m} (meta form)]
-    (merge {:ns ns :css-id (s/generate-id ns line column)} m (s/conform body))))
+    [clojure.string :as str]))
 
 ;; same naming patterns tailwind uses
 (def spacing-alias-groups
-  {"px-" [:padding-left :padding-right]
+  ;; padding
+  {"p-" [:padding]
+   "px-" [:padding-left :padding-right]
    "py-" [:padding-top :padding-bottom]
-   "p-" [:padding]
+   "pt-" [:padding-top]
+   "pb-" [:padding-bottomn]
+   "pl-" [:padding-left]
+   "pr-" [:padding-right]
+
+   ;; margin
+   "m-" [:margin]
    "mx-" [:margin-left :margin-right]
    "my-" [:margin-top :margin-bottom]
+   "mt-" [:margin-top]
+   "mb-" [:margin-bottom]
+   "ml-" [:margin-left]
+   "mr-" [:margin-right]
+
+   ;; width
    "w-" [:width]
    "max-w-" [:max-width]
+
+   ;; height
    "h-" [:height]
    "max-h-" [:max-height]
+
+   ;; flex
    "basis-" [:flex-basis]
+   
+   ;; grid
    "gap-" [:gap]
    "gap-x-" [:column-gap]
    "gap-y-" [:row-gap]})
@@ -56,12 +61,29 @@
 (defn load-default-aliases []
   (edn/read-string (slurp (io/resource "shadow/css/aliases.edn"))))
 
+(defn load-indexes-from-classpath [index]
+  (reduce
+    (fn [index url]
+      (let [{:keys [version namespaces] :as contents}
+            (-> (slurp url)
+                (edn/read-string))]
+        (-> index
+            (assoc-in [:sources url] contents)
+            (update :namespaces merge namespaces))))
+    index
+    (-> (Thread/currentThread)
+        (.getContextClassLoader)
+        (.getResources "shadow-css-index.edn")
+        (enumeration-seq))))
+
 (defn start [config]
   (-> {:config
        config
 
        :index-ref
-       (atom {})
+       (-> (index/create)
+           (load-indexes-from-classpath)
+           (atom))
 
        :manifest-cache-dir
        (doto (io/file ".shadow-cljs" "css")
@@ -115,27 +137,83 @@
 
       (generate-default-aliases)))
 
+(defn build-css-for-chunk
+  [{:keys [index-ref] :as svc} {:keys [include] :as entries}]
+  ;; FIXME: should support :entries and follow them, but for that we need full namespace indexing
+
+  (let [{:keys [namespaces] :as index} @index-ref
+
+        namespace-matchers
+        (->> include
+             (map (fn [x]
+                    (cond
+                      (string? x)
+                      (let [re (re-pattern x)]
+                        #(re-find re %))
+
+                      (not (symbol? x))
+                      (throw (ex-info "invalid include pattern" {:x x}))
+
+                      :else
+                      (let [s (str x)]
+                        ;; FIXME: allow more patterns that can be expressed as string?
+                        ;; foo.bar.*.views?
+
+                        (if (str/ends-with? s "*")
+                          ;; foo.bar.* - prefix match
+                          (let [prefix (subs s 0 (-> s count dec))]
+                            (fn [ns]
+                              (str/starts-with? (str ns) prefix)))
+
+                          ;; exact match
+                          (fn [ns]
+                            (= x ns))
+                          )))))
+             (into []))
+
+        included-namespaces
+        (->> (vals namespaces)
+             (filter (fn [{:keys [ns]}]
+                       (some (fn [matcher] (matcher ns)) namespace-matchers)))
+             (into []))
+
+        all-rules
+        (->> (for [{:keys [ns css] :as ns-info} included-namespaces
+                   {:keys [line column] :as form-info} css]
+               (ana/process-form svc
+                 (assoc form-info :ns ns :css-id (s/generate-id ns line column))))
+             (into []))
+
+        warnings
+        (vec
+          (for [{:keys [warnings ns line column]} all-rules
+                warning warnings]
+            (assoc warning :ns ns :line line :column column)))]
+
+    {:warnings warnings
+     :rules all-rules}))
+
+(defn generate [{:keys [normalize-src index-ref] :as svc} {:keys [output-dir chunks] :as build-config}]
+  (let [output-dir (io/file output-dir)]
+
+    ;; just to make sure output-dir exists
+    (doto (io/file output-dir "foo.txt")
+      (io/make-parents))
+
+    ;; FIXME: actually support chunks, similar to CLJS with :depends-on #{:other-chunk}
+    ;; so chunks don't repeat everything, for that needs to analyze chunks first
+    ;; then produce output
+    (reduce-kv
+      (fn [results chunk-id chunk]
+        (let [output-file (io/file output-dir (str (name chunk-id) ".css"))
+              {:keys [css] :as output} (build-css-for-chunk svc chunk)
+              css (str normalize-src "\n" css)]
+
+          (spit output-file css)
+
+          (conj results output)
+          ))
+      []
+      chunks)))
+
 (defn stop [svc])
-
-(comment
-  (time
-    (tap> (start {})))
-
-  (require 'clojure.pprint)
-  (println
-    (generate-css
-      (start)
-      [(-> (s/conform!
-             '[:px-4 {:padding 2} :flex {:foo "yo" :bar ("url(" :ui/foo ")")}
-               ["@media (prefers-color-scheme: dark)"
-                [:ui/md :px-8
-                 ["&:hover" {:color "green"}]]]])
-           (assoc :css-id "foo" :ns "foo.bar" :line 3 :column 1))]))
-
-  (time
-    (tap>
-      (->> (clojure.java.io/resource "dummy/app.cljs")
-           (slurp)
-           (find-css-in-source)
-           (map #(conform % "dummy.app"))
-           (vec)))))

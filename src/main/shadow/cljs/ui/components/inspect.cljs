@@ -4,6 +4,7 @@
     [shadow.dom :as dom]
     [shadow.arborist :as sa]
     [shadow.arborist.dom-scheduler :as ds]
+    [shadow.css :refer (css)]
     [shadow.grove :as sg :refer (<< defc)]
     [shadow.grove.ui.vlist :as vlist]
     [shadow.grove.ui.loadable :refer (refer-lazy)]
