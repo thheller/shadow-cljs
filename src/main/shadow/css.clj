@@ -3,12 +3,14 @@
     [shadow.css.specs :as s]
     [clojure.string :as str]))
 
-(def class-defs
+(def class-defs-ref
   (atom {}))
 
+;; for clojure we just do lookups at runtime
+;; by default is empty but in case something has minified the css
+;; it can provide those lookups and put them in the class-defs-ref above
 (defn get-class [class]
-  ;; FIXME: need to actually generate classnames for CLJ
-  (get @class-defs class class))
+  (get @class-defs-ref class class))
 
 (defmacro css
   "generates css classnames
@@ -35,7 +37,12 @@
         ;; but may end up emitting invalid references in code
         ;; which again is fine in JS since it'll just be undefined
         css-id
-        (s/generate-id ns-str line column)]
+        (s/generate-id ns-str line column)
+
+        passthrough
+        (->> body
+             (filter string?)
+             (str/join " "))]
 
     ;; using analyzer data is hard to combine with CLJ data
     ;; so instead just using an external thing that finds (css ...) calls
@@ -48,19 +55,19 @@
         :css-id css-id)
 
     ;; FIXME: no idea what to do about self-host yet
-    ;; for development just emit the classname without lookup
-    ;; FIXME: figure out what to do about release builds and class optimizations
-    ;; `(~'js* ~(str "(shadow.css.defs." css-id ")"))
-    (str css-id
-         (let [passthrough (filter string? body)]
-           (when (seq passthrough)
-             (str " " (str/join " " passthrough)))))))
+    (if-not (:ns &env)
+      (if (seq passthrough)
+        `(str ~(str passthrough " ") (get-class ~css-id))
+        `(get-class ~css-id))
+      (if (seq passthrough)
+        `(~'js* "(~{} + shadow.css.sel(~{}))" ~(str passthrough " ") ~css-id)
+        `(~'js* "(shadow.css.sel(~{}))" ~css-id)))))
 
 (comment
 
   (require 'clojure.pprint)
 
-  @class-defs
+  @class-defs-ref
 
   (clojure.pprint/pprint
     (macroexpand
