@@ -6,7 +6,7 @@
     [shadow.cljs.model :as m]))
 
 (defn build-buttons [build-id build-worker-active]
-  (<< [:div {:class (css :font-bold :border-t :bg-gray-50)}
+  (<< [:div {:class (css :font-bold :border-t :c-container-1l)}
        (if build-worker-active
          (<< [:button
               {:on-click {:e ::m/build-watch-stop! :build-id build-id}
@@ -52,7 +52,7 @@
            [:a {:ui/href (str "/build/" (name build-id))}
             [:div {:class (css :p-4)}
              [:div {:class (css :flex :items-center)}
-              [:div {:class (css :flex-shrink-0)}
+              [:div {:class (css {:flex-shrink 0})}
                (case status
                  :compiling
                  common/icon-compiling
@@ -76,9 +76,9 @@
 
               [:div {:class (css :ml-5 :w-0 :flex-1)}
                [:dl
-                [:dt {:class (css :text-lg :font-medium :text-gray-900)} (name build-id)]
+                [:dt {:class (css :text-lg :font-medium :c-text-1d)} (name build-id)]
                 [:dd
-                 [:span {:class (css :text-sm :font-medium :text-gray-500 :truncate)} (name build-target)]]]]]]]
+                 [:span {:class (css :text-sm :font-medium :c-text-1l :truncate)} (name build-target)]]]]]]]
 
            (build-buttons build-id build-worker-active)]))))
 

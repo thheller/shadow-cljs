@@ -1,5 +1,6 @@
 (ns shadow.cljs.ui.main
-  {:dev/always true}
+  {:dev/always true
+   :shadow.css/include ["shadow/cljs/ui/main.css"]}
   (:require
     [shadow.grove :as sg :refer (<< defc)]
     [shadow.grove.history :as history]

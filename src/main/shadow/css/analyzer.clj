@@ -30,9 +30,19 @@
 
 (defn add-alias [svc form alias-kw]
   (let [alias-val (lookup-alias svc alias-kw)]
-    (if-not alias-val
+    (cond
+      (not alias-val)
       (add-warning svc form ::missing-alias {:alias alias-kw})
-      (add-part svc form alias-val))))
+
+      (map? alias-val)
+      (add-part svc form alias-val)
+
+      (vector? alias-val)
+      (reduce #(add-part svc %1 %2) form alias-val)
+
+      :else
+      (add-warning svc form ::invalid-alias-replacement {:alias alias-kw :val alias-val})
+      )))
 
 (defn add-map [svc form defs]
   (reduce-kv
@@ -172,32 +182,40 @@
     state))
 
 (defn find-css-in-source [src]
-  ;; shortcut if src doesn't contain any css, faster than actually parsing
-  (when (str/index-of src "(css")
-    (let [reader (reader-types/source-logging-push-back-reader src)
-          eof (Object.)]
+  ;; shortcut if src doesn't contain any css, faster than parsing all forms
+  (let [has-css? (str/index-of src "(css")
 
-      (loop [state
-             {:css []
-              :ns nil
-              :ns-meta {}
-              :require-aliases {}
-              :requires #{}}]
+        reader (reader-types/source-logging-push-back-reader src)
+        eof (Object.)]
 
-        (let [form
-              (binding
-                [reader/*alias-map*
-                 (fn [sym]
-                   ;; actually does for ::aliases, need to parse ns anyways for metadata
-                   'doesnt.matter)
+    (loop [state
+           {:css []
+            :ns nil
+            :ns-meta {}
+            :require-aliases {}
+            :requires []}]
 
-                 reader/*default-data-reader-fn*
-                 (fn [tag data]
-                   data)]
+      (let [form
+            (binding
+              [reader/*alias-map*
+               (fn [sym]
+                 ;; actually does for ::aliases, need to parse ns anyways for metadata
+                 'doesnt.matter)
 
-                (reader/read {:eof eof :read-cond :preserve} reader))]
+               reader/*default-data-reader-fn*
+               (fn [tag data]
+                 data)]
 
-          (if (identical? form eof)
-            state
-            (recur (find-css-calls state form))))
-        ))))
+              (reader/read {:eof eof :read-cond :preserve} reader))]
+
+        (cond
+          (identical? form eof)
+          state
+
+          ;; stops after ns form if no (css was present in source
+          (and (:ns state) (not has-css?))
+          state
+
+          :else
+          (recur (find-css-calls state form))))
+      )))

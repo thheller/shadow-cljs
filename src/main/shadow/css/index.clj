@@ -10,12 +10,10 @@
   (let [{:keys [ns] :as contents}
         (ana/find-css-in-source src)]
 
-    (cond
-      (not contents)
+    (if (not contents)
       idx
-      (not (seq (:css contents)))
-      idx
-      :else
+      ;; index every namespace so we can follow requires properly
+      ;; without anything else having to parse everything again
       (assoc-in idx [:namespaces ns] contents))))
 
 (defn add-file [idx ^File file]

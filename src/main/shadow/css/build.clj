@@ -2,6 +2,7 @@
   (:require
     [shadow.css.specs :as s]
     [shadow.css.analyzer :as ana]
+    [shadow.css.compiler :as comp]
     [shadow.css.index :as index]
     [clojure.edn :as edn]
     [clojure.java.io :as io]
@@ -37,7 +38,7 @@
 
    ;; flex
    "basis-" [:flex-basis]
-   
+
    ;; grid
    "gap-" [:gap]
    "gap-x-" [:column-gap]
@@ -179,10 +180,20 @@
 
         all-rules
         (->> (for [{:keys [ns css] :as ns-info} included-namespaces
-                   {:keys [line column] :as form-info} css]
+                   {:keys [line column] :as form-info} css
+                   :let [css-id (s/generate-id ns line column)]]
                (ana/process-form svc
-                 (assoc form-info :ns ns :css-id (s/generate-id ns line column))))
+                 (assoc form-info
+                   :ns ns
+                   :css-id css-id
+                   ;; FIXME: when adding optimization pass selector won't be based on css-id anymore
+                   :sel (str "." css-id))))
              (into []))
+
+        cp-includes
+        (into #{} (for [{:keys [ns-meta]} included-namespaces
+                        include (:shadow.css/include ns-meta)]
+                    include))
 
         warnings
         (vec
@@ -190,8 +201,11 @@
                 warning warnings]
             (assoc warning :ns ns :line line :column column)))]
 
-    {:warnings warnings
-     :rules all-rules}))
+    (merge
+      {:warnings warnings
+       :classpath-includes cp-includes
+       :rules all-rules}
+      (comp/generate-css all-rules))))
 
 (defn generate [{:keys [normalize-src index-ref] :as svc} {:keys [output-dir chunks] :as build-config}]
   (let [output-dir (io/file output-dir)]
@@ -206,8 +220,12 @@
     (reduce-kv
       (fn [results chunk-id chunk]
         (let [output-file (io/file output-dir (str (name chunk-id) ".css"))
-              {:keys [css] :as output} (build-css-for-chunk svc chunk)
-              css (str normalize-src "\n" css)]
+              {:keys [css classpath-includes] :as output} (build-css-for-chunk svc chunk)
+              css (str normalize-src "\n"
+                       css "\n"
+                       (->> classpath-includes
+                            (map #(slurp (io/resource %)))
+                            (str/join "\n")))]
 
           (spit output-file css)
 

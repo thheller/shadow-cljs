@@ -3,11 +3,89 @@
 ;; not going for completeness, some aliases IMHO are just better expressed as maps
 
 ;; default breakpoints
-{:ui/sm "@media (min-width: 640px)"
- :ui/md "@media (min-width: 768px)"
- :ui/lg "@media (min-width: 1024px)"
- :ui/xl "@media (min-width: 1280px)"
- :ui/xxl "@media (min-width: 1536px)"
+{:>sm "@media (min-width: 640px)"
+ :>md "@media (min-width: 768px)"
+ :>lg "@media (min-width: 1024px)"
+ :>xl "@media (min-width: 1280px)"
+ :>xxl "@media (min-width: 1536px)"
+
+ :&hover "&:hover"
+
+ ;; color naming scheme based on
+ ;; https://material.io/design/color/the-color-system.html#color-usage-and-palettes
+ ;; https://material.io/resources/color/
+
+ ;; shortened, so less typing since these will be repeated a lot
+ ;; cv for actual color value only, then used in actual rules via
+ ;; c-text for text color, c-bg for background-color, c-border for border-color
+ ;; 1/2 for primary/secondary
+ ;; l/d for light/dark
+
+ ;; based on css variables by default?
+ ;; overridable in build config with fixed color?
+
+ ;; I'm not a designer, I don't have the slightest clue if this makes any sense
+
+ ;; color values, for use in maps
+ ;; using some default until I can sort out the variable stuff more
+
+ ;; https://material.io/resources/color/#!/?view.left=0&view.right=0&primary.color=F5F5F5&secondary.color=4CAF50
+ ;; grey 100
+ :cv-1 "#f5f5f5" ;; "var(--color-primary)"
+ :cv-1l "#fff" ;; "var(--color-primary-light)"
+ :cv-1d "#c2c2c2" ;; "var(--color-primary-dark)"
+ 
+ :cv-contrast-1 "#000" ;; "var(--color-contrast-primary)"
+ :cv-contrast-1l "#000" ;; "var(--color-contrast-primary-light)"
+ :cv-contrast-1d "#000" ;; "var(--color-contrast-primary-dark)"
+
+ ;; green 500
+ :cv-2 "#4caf50" ;; "var(--color-secondary)"
+ :cv-2l "#80e27e" ;; "var(--color-secondary-light)"
+ :cv-2d "#087f23" ;; "var(--color-secondary-dark)"
+
+ :cv-contrast-2 "#000" ;; "var(--color-contrast-secondary)"
+ :cv-contrast-2l "#000" ;; "var(--color-contrast-secondary-light)"
+ :cv-contrast-2d "#fff" ;; "var(--color-contrast-secondary-dark)"
+
+ ;; aliases
+ :c-container-1 {:color :cv-contrast-1 :background-color :cv-1 :border-color :cv-constrast-1}
+ :c-container-1l {:color :cv-contrast-1l :background-color :cv-1l :border-color :cv-contrast-1l}
+ :c-container-1d {:color :cv-contrast-1d :background-color :cv-1d :border-color :cv-contrast-1d}
+
+ :c-container-2 {:color :cv-contrast-2 :background-color :cv-2 :border-color :cv-constrast-2}
+ :c-container-2l {:color :cv-contrast-2l :background-color :cv-2l :border-color :cv-contrast-2l}
+ :c-container-2d {:color :cv-contrast-2d :background-color :cv-2d :border-color :cv-contrast-2d}
+
+ ;; text
+ :c-text-1 {:color :cv-contrast-1}
+ :c-text-1l {:color :cv-contrast-1l}
+ :c-text-1d {:color :cv-contrast-1d}
+
+ ;; background-color
+ :c-bg-1 {:background-color :cv-1}
+ :c-bg-1l {:background-color :cv-1l}
+ :c-bg-1d {:background-color :cv-1d}
+
+ ;; border-color
+ :c-border-1 {:border-color :cv-contrast-1}
+ :c-border-1l {:border-color :cv-contrast-1l}
+ :c-border-1d {:border-color :cv-contrast-1d}
+
+ ;; text
+ :c-text-2 {:color :cv-contrast-2}
+ :c-text-2l {:color :cv-contrast-2l}
+ :c-text-2d {:color :cv-contrast-2d}
+
+ ;; background-color
+ :c-bg-2 {:background-color :cv-2}
+ :c-bg-2l {:background-color :cv-2l}
+ :c-bg-2d {:background-color :cv-2d}
+
+ ;; border-color
+ :c-border-2 {:border-color :cv-contrast-2}
+ :c-border-2l {:border-color :cv-contrast-2l}
+ :c-border-2d {:border-color :cv-contrast-2d}
 
  ;; display
  :block {:display "block"}
@@ -16,7 +94,7 @@
 
  ;; margin
  :m-auto {:margin "auto"}
- :mx-auto {:magin-left "auto" :margin-right "auto"}
+ :mx-auto {:margin-left "auto" :margin-right "auto"}
  :my-auto {:margin-top "auto" :margin-bottom "auto"}
  :mt-auto {:margin-top "auto"}
  :mb-auto {:margin-bottom "auto"}
@@ -55,6 +133,13 @@
  :font-extrabold {:font-weight "800"}
  :font-black {:font-weight "900"}
 
+ ;; flex align-items
+ :items-baseline {:align-items "baseline"}
+ :items-center {:align-items "center"}
+ :items-end {:align-items "flex-end"}
+ :items-start {:align-items "flex-start"}
+ :items-stretch {:align-items "stretch"}
+
  ;; font size
  :text-xs {:font-size "0.75rem" :line-height "1rem"}
  :text-sm {:font-size "0.875rem" :line-height "1.25rem"}
@@ -69,4 +154,83 @@
  :text-7xl {:font-size "4.5rem" :line-height "1"}
  :text-8xl {:font-size "6rem" :line-height "1"}
  :text-9xl {:font-size "8rem" :line-height "1"}
+
+ ;; text overflow
+ :truncate {:overflow "hidden" :text-overflow "ellipsis" :white-space "nowrap"}
+ :text-ellipsis {:text-overflow "ellipsis"}
+ :text-clip {:text-overflow "clip"}
+
+ ;; overflow
+ :overflow-auto {:overflow "auto"}
+ :overflow-clip {:overflow "clip"}
+ :overflow-hidden {:overflow "hidden"}
+ :overflow-scroll {:overflow "scroll"}
+ :overflow-visible {:overflow "visible"}
+ :overflow-x-auto {:overflow-x "auto"}
+ :overflow-x-clip {:overflow-x "clip"}
+ :overflow-x-hidden {:overflow-x "hidden"}
+ :overflow-x-scroll {:overflow-x "scroll"}
+ :overflow-x-visible {:overflow-x "visible"}
+ :overflow-y-auto {:overflow-y "auto"}
+ :overflow-y-clip {:overflow-y "clip"}
+ :overflow-y-hidden {:overflow-y "hidden"}
+ :overflow-y-scroll {:overflow-y "scroll"}
+ :overflow-y-visible {:overflow-y "visible"}
+
+ ;; border
+ :border {:border-width "1px"}
+ :border-0 {:border-width "0px"}
+ :border-2 {:border-width "2px"}
+ :border-4 {:border-width "4px"}
+ :border-8 {:border-width "8px"}
+ :border-b {:border-bottom-width "1px"}
+ :border-b-0 {:border-bottom-width "0px"}
+ :border-b-2 {:border-bottom-width "2px"}
+ :border-b-4 {:border-bottom-width "4px"}
+ :border-b-8 {:border-bottom-width "8px"}
+ :border-l {:border-left-width "1px"}
+ :border-l-0 {:border-left-width "0px"}
+ :border-l-2 {:border-left-width "2px"}
+ :border-l-4 {:border-left-width "4px"}
+ :border-l-8 {:border-left-width "8px"}
+ :border-r {:border-right-width "1px"}
+ :border-r-0 {:border-right-width "0px"}
+ :border-r-2 {:border-right-width "2px"}
+ :border-r-4 {:border-right-width "4px"}
+ :border-r-8 {:border-right-width "8px"}
+ :border-t {:border-top-width "1px"}
+ :border-t-0 {:border-top-width "0px"}
+ :border-t-2 {:border-top-width "2px"}
+ :border-t-4 {:border-top-width "4px"}
+ :border-t-8 {:border-top-width "8px"}
+ :border-x {:border-left-width "1px", :border-right-width "1px"}
+ :border-x-0 {:border-left-width "0px", :border-right-width "0px"}
+ :border-x-2 {:border-left-width "2px", :border-right-width "2px"}
+ :border-x-4 {:border-left-width "4px", :border-right-width "4px"}
+ :border-x-8 {:border-left-width "8px", :border-right-width "8px"}
+ :border-y {:border-top-width "1px", :border-bottom-width "1px"}
+ :border-y-0 {:border-top-width "0px", :border-bottom-width "0px"}
+ :border-y-2 {:border-top-width "2px", :border-bottom-width "2px"}
+ :border-y-4 {:border-top-width "4px", :border-bottom-width "4px"}
+ :border-y-8 {:border-top-width "8px", :border-bottom-width "8px"}
+
+ ;; shadows
+ :shadow {:box-shadow "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)"}
+ :shadow-2xl {:box-shadow "0 25px 50px -12px rgb(0 0 0 / 0.25)"}
+ :shadow-inner {:box-shadow "inset 0 2px 4px 0 rgb(0 0 0 / 0.05)"}
+ :shadow-lg {:box-shadow "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)"}
+ :shadow-md {:box-shadow "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)"}
+ :shadow-none {:box-shadow "0 0 #0000"}
+ :shadow-sm {:box-shadow "0 1px 2px 0 rgb(0 0 0 / 0.05)"}
+ :shadow-xl {:box-shadow "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)"}
+
+ ;; outline
+ :outline {:outline-style "solid"}
+ :outline-dashed {:outline-style "dashed"}
+ :outline-dotted {:outline-style "dotted"}
+ :outline-double {:outline-style "double"}
+ :outline-hidden {:outline-style "hidden"}
+ :outline-none {:outline "2px solid transparent", :outline-offset "2px"}
+
+
  }

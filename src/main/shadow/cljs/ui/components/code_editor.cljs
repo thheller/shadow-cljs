@@ -1,4 +1,5 @@
 (ns shadow.cljs.ui.components.code-editor
+  {:shadow.css/include ["shadow/cljs/ui/components/code-editor.css"]}
   (:require
     ["codemirror" :as cm]
     ["codemirror/mode/clojure/clojure"]
