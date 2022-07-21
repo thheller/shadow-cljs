@@ -47,44 +47,39 @@
 (defn add-map [svc form defs]
   (reduce-kv
     (fn [form prop val]
-      (cond
-        ;; {:thing "val"}
-        (string? val)
-        (assoc-in form [:rules prop] val)
+      (let [[form val]
+            (cond
+              ;; {:thing "val"}
+              (string? val)
+              [form val]
 
-        ;; {:thing 4}
-        (number? val)
-        (assoc-in form [:rules prop] (convert-num-val svc prop val))
+              ;; {:thing 4}
+              (number? val)
+              [form (convert-num-val svc prop val)]
 
-        ;; {:thing :alias}
-        (keyword? val)
-        (let [alias-value (lookup-alias svc val)]
-          (cond
-            (nil? alias-value)
-            (add-warning svc form ::missing-alias {:alias val})
+              ;; {:thing :alias}
+              (keyword? val)
+              (let [alias-value (lookup-alias svc val)]
+                (cond
+                  (nil? alias-value)
+                  [(add-warning svc form ::missing-alias {:alias val})
+                   nil]
 
-            (and (map? alias-value) (contains? alias-value prop))
-            (assoc-in form [:rules prop] (get alias-value prop))
+                  (and (map? alias-value) (contains? alias-value prop))
+                  [form (get alias-value prop)]
 
-            (string? alias-value)
-            (assoc-in form [:rules prop] alias-value)
+                  (string? alias-value)
+                  [form alias-value]
 
-            (number? alias-value)
-            (assoc-in form [:rules prop] (convert-num-val form prop alias-value))
+                  (number? alias-value)
+                  [form (convert-num-val form prop alias-value)]
 
-            :else
-            (add-warning svc form ::invalid-map-val {:prop prop :val val})))
+                  :else
+                  [(add-warning svc form ::invalid-map-val {:prop prop :val val})
+                   nil]
+                  )))]
 
-        #_#_:concat
-                (let [s (->> val
-                             (map (fn [part]
-                                    (if (string? part)
-                                      part
-                                      ;; FIXME: validate exists and a string. warn otherwise
-                                      (lookup-alias form part))))
-                             (str/join ""))]
-                  (assoc-in form [:current :rules prop] s))
-        ))
+        (assoc-in form [:rules (:sel form) prop] val)))
 
     form
     defs))
@@ -92,25 +87,52 @@
 (defn make-sub-rule [{:keys [stack rules] :as form}]
   (update form :sub-rules assoc stack rules))
 
-(defn add-group* [svc form sel parts]
-  (let [{:keys [stack rules]} form]
-    (-> form
-        (assoc :rules {} :stack (conj stack sel))
-        (reduce-> #(add-part svc %1 %2) parts)
-        (make-sub-rule)
-        (assoc :stack stack :rules rules))))
+(defn add-group* [svc form group-sel group-parts]
+  (cond
+    (not (string? group-sel))
+    (add-warning svc form ::invalid-group-sel {:sel group-sel})
+
+    ;; media queries
+    (str/starts-with? group-sel "@media")
+    (let [{:keys [rules media]} form
+
+          new-media
+          (if-not (seq media)
+            group-sel
+
+            ;; attempt to combine media queries via and
+            ;; FIXME: can all @media queries combined like this?
+            ;;   @media (min-width: 300) @media print
+            ;; combined to
+            ;;   @media (min-width: 300) and print
+            ;; so there is only one media rule and no nesting?
+            (str media " and " (subs group-sel 7)))]
+
+      (-> form
+          (assoc :rules {} :media new-media)
+          (reduce-> #(add-part svc %1 %2) group-parts)
+          ((fn [{:keys [rules] :as form}]
+             (assoc-in form [:at-rules new-media] rules)))
+          (assoc :rules rules :media media)))
+
+    (str/index-of group-sel "&")
+    (let [{:keys [rules sel]} form]
+
+      (if (not= sel "&")
+        (throw (ex-info "tbd, combining &" {:sel sel :group-sel group-sel}))
+        (-> form
+            (assoc :sel group-sel)
+            (reduce-> #(add-part svc %1 %2) group-parts)
+            (assoc :sel sel))))
+
+    :else
+    (add-warning svc form ::invalid-group-sel {:sel group-sel})))
 
 (defn add-group [svc form [sel & parts]]
-  (cond
-    (keyword? sel)
+  (if (keyword? sel)
     (if-some [alias-value (lookup-alias svc sel)]
       (add-group* svc form alias-value parts)
       (add-warning svc form ::group-sel-alias-not-found {:alias sel}))
-
-    (not (string? sel))
-    (add-warning svc form ::invalid-group-sel {:sel sel})
-
-    :else
     (add-group* svc form sel parts)))
 
 (defn add-part [svc form part]
@@ -131,11 +153,10 @@
     (add-warning svc form ::invalid-part part)))
 
 (defn process-form [svc {:keys [form] :as form-info}]
-  (-> (reduce
-        #(add-part svc %1 %2)
-        (assoc form-info :rules {} :stack [] :sub-rules {} :warnings [])
-        (rest form))
-      (dissoc :stack)))
+  (-> form-info
+      (assoc :sel "&" :media nil :rules {} :at-rules {} :warnings [])
+      (reduce-> #(add-part svc %1 %2) (rest form))
+      (dissoc :stack :sel :media)))
 
 ;; FIXME: when parsing respect ns forms and support qualified uses
 ;; this currently only looks for (css ...) calls

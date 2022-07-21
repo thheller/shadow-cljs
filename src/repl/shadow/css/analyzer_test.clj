@@ -9,7 +9,7 @@
     [clojure.string :as str]))
 
 (deftest analyze-form
-  (tap>
+  (pprint
     (ana/process-form
       (build/start {})
       {:ns 'foo.bar
@@ -18,9 +18,11 @@
        :form '(css :px-4 :my-2
                 "pass"
                 :c-text-1
-                [:>md :px-6]
+                [:&hover :py-10]
+                [:>md :px-6
+                 ["@media print" :px-2]]
                 [:>lg :px-8
-                 [:&hover :py-10]])})))
+                 [:&hover :py-12]])})))
 
 
 (deftest index-src-main

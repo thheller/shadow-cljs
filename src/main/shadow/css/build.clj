@@ -182,12 +182,13 @@
         (->> (for [{:keys [ns css] :as ns-info} included-namespaces
                    {:keys [line column] :as form-info} css
                    :let [css-id (s/generate-id ns line column)]]
-               (ana/process-form svc
-                 (assoc form-info
-                   :ns ns
-                   :css-id css-id
-                   ;; FIXME: when adding optimization pass selector won't be based on css-id anymore
-                   :sel (str "." css-id))))
+               (-> (ana/process-form svc form-info)
+                   (assoc
+                     :ns ns
+                     :css-id css-id
+                     ;; FIXME: when adding optimization pass selector won't be based on css-id anymore
+                     :sel (str "." css-id)))
+               )
              (into []))
 
         cp-includes
