@@ -43,11 +43,11 @@
       (cond
         ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
         (not= :ready loading-state)
-        (<< [:div.w-full.h-full.font-mono.border-t.p-4
+        (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
              "Loading ..."])
 
         (keyword-identical? ::m/display-error! val)
-        (<< [:div.w-full.h-full.font-mono.border-t.p-4
+        (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
              (str (name attr) " request failed ...")])
 
         :else
@@ -65,13 +65,14 @@
   :default ::default)
 
 (defmethod render-view ::default [{:keys [summary]}]
-  (<< [:div.p-4
-       [:div.py-1.text-xl.font-bold "Object does not support Browser view."]]))
+  (<< [:div {:class (css :p-4)}
+       [:div {:class (css :py-1 :text-xl :font-bold)} "Object does not support Browser view."]]))
 
 (defn render-simple [value]
-  (<< [:div.border.bg-gray-200
-       [:div.bg-white
-        [:pre.border.p-4 (str value)]]]))
+  (<< [:div {:class (css :border :bg-gray-200)}
+       [:div {:class (css :bg-white)}
+        [:pre {:class (css :border :p-4)}
+         (str value)]]]))
 
 (defmethod render-view :string [object active?]
   (ui-object-as-text (:db/ident object) ::m/object-as-str active?))
@@ -89,9 +90,10 @@
   (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
 
 (defmethod render-view :nil [object active?]
-  (<< [:div.flex-1
-       [:textarea.w-full.h-full.font-mono.border-t.p-4
-        {:readOnly true
+  (<< [:div {:class (css :flex-1)}
+       [:textarea
+        {:class (css :w-full :h-full :font-mono :border-t :p-4)
+         :readOnly true
          :tab-index -1}
         "nil"]]))
 
@@ -101,12 +103,11 @@
     (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
       (<< [:div
            {:class (if focus
-                     "border-b flex bg-gray-200"
-                     "border-b flex hover:bg-gray-100")
+                     (css :border-b :flex :bg-gray-200)
+                     (css :border-b :flex [:hover :bg-gray-100]))
             :on-click {:e ::inspect-nav! :idx idx}}
            [:div
-            {:class "pl-4 px-2 border-r text-right"
-             :style {:width "60px"}}
+            {:class (css :pl-4 :px-2 :border-r :text-right {:width "60px"})}
             idx]
            [:div.px-2.flex-1.truncate
             (render-edn-limit val)]]))))
@@ -138,14 +139,14 @@
       (<< [:div
            {:on-click {:e ::inspect-nav! :idx idx}
             :class
-            (str "whitespace-no-wrap font-bold px-2 border-r truncate bg-gray-100"
-                 (if focus
-                   " bg-gray-200"
-                   " hover:bg-gray-100"))}
+            [(css :whitespace-no-wrap :font-bold :px-2 :border-r :truncate :bg-gray-100)
+             (if focus
+               (css :bg-gray-200)
+               (css [:hover :bg-gray-100]))]}
            (render-edn-limit key)]
           [:div
            {:on-click {:e ::inspect-nav! :idx idx}
-            :class "whitespace-no-wrap truncate"}
+            :class (css :whitespace-no-wrap :truncate)}
            (render-edn-limit val)])
       )))
 

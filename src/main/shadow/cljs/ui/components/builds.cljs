@@ -87,9 +87,9 @@
     (sg/query-root [::m/builds]))
 
   (render
-    (<< [:div.flex-1.overflow-auto.py-2.sm:px-2
-         [:div.flex.flex-col
-          [:div.grid.grid-cols-1.gap-2
+    (<< [:div {:class (css :flex-1 :overflow-auto :py-2 [:sm :px-2])}
+         [:div {:class (css :flex :flex-col)}
+          [:div {:class (css :grid :grid-cols-1 :gap-2)}
            (sg/keyed-seq builds identity build-card)]]])))
 
 (defc ui-build-overview [build-ident]
@@ -119,16 +119,19 @@
   (bind render-source-entry
     (fn [{:keys [resource-id resource-name] :as item}]
       (let [selected? (= resource-id selected)]
-        (<< [:div.text-xs
-             {:class (when selected? "font-bold")
+        (<< [:div
+             {:class
+              (if selected?
+                (css :text-xs :font-bold)
+                (css :text-xs))
               :on-mouseenter {:e ::highlight :resource-id resource-id}}
              resource-name]))))
 
   (render
-    (<< [:div.p-2
-         [:div.py-2.text-xl (count build-sources-sorted) " Namespaces used in build"]
-         [:div.flex
-          [:div.flex-1 "left"]
+    (<< [:div {:class (css :p-2)}
+         [:div {:class (css :py-2 :text-xl)} (count build-sources-sorted) " Namespaces used in build"]
+         [:div {:class (css :flex)}
+          [:div {:class (css :flex-1)} "left"]
           [:div
            (sg/simple-seq build-sources-sorted render-source-entry)]
-          [:div.flex-1 "right"]]])))
+          [:div {:class (css :flex-1)} "right"]]])))

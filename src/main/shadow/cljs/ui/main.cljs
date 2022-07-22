@@ -3,6 +3,7 @@
    :shadow.css/include ["shadow/cljs/ui/main.css"]}
   (:require
     [shadow.grove :as sg :refer (<< defc)]
+    [shadow.css :refer (css)]
     [shadow.grove.history :as history]
     [shadow.grove.keyboard :as keyboard]
     [shadow.grove.local :as local-eng]
@@ -26,6 +27,7 @@
     [shadow.cljs.ui.components.common :as common]
     ))
 
+
 (defc ui-error [err-ident]
   (bind {:keys [text]}
     (sg/query-ident err-ident
@@ -35,14 +37,16 @@
     (sg/run-tx env {:e ::m/dismiss-error! :ident err-ident}))
 
   (render
-    (<< [:div.w-full.h-full.bg-white.shadow.border.flex.flex-col {::keyboard/listen true}
-         [:div.flex
-          [:div.text-red-700.p-2.font-bold "An error occured:"]
-          [:div.flex-1]
-          [:div.text-right.cursor-pointer.font-bold.p-2
-           {:on-click {:e ::m/dismiss-error! :ident err-ident}}
+    (<< [:div {::keyboard/listen true
+               :class (css :w-full :h-full :bg-white :shadow :border :flex :flex-col)}
+         [:div {:class (css :flex)}
+          [:div {:class (css :text-red-700 :p-2 :font-bold)} "An error occured:"]
+          [:div {:class (css :flex-1)}]
+          [:div
+           {:class (css :text-right :cursor-pointer :font-bold :p-2)
+            :on-click {:e ::m/dismiss-error! :ident err-ident}}
            common/icon-close]]
-         [:pre.overflow-auto.p-2.overflow-auto text]])))
+         [:pre {:class (css :overflow-auto :p-2)} text]])))
 
 (defc ui-errors []
   (bind {::m/keys [errors]}
@@ -50,9 +54,10 @@
 
   (render
     (when (seq errors)
-      (<< [:div.fixed.inset-0.z-50.w-full.h-full.flex.flex-col
-           {:style "background-color: rgba(0,0,0,0.4)"}
-           [:div.flex-1.p-8.overflow-hidden
+      (<< [:div
+           {:class (css :fixed :inset-0 :z-50 :w-full :h-full :flex :flex-col
+                     {:background-color "rgba(0,0,0,0.4)"})}
+           [:div {:class (css :flex-1 :p-8 :overflow-hidden)}
             (ui-error (first errors))
             ]]))))
 
@@ -73,16 +78,17 @@
 
   (render
     (let [nav-selected
-          "inline-block rounded-t px-4 py-2 bg-blue-100 border-b-2 border-blue-200 hover:border-blue-400"
+          (css :inline-block :rounded-t :px-4 :py-2 :bg-blue-100 :border-b-2 :border-blue-200 [:hover :border-blue-400])
 
           nav-normal
-          "inline-block px-4 py-2"]
+          (css :inline-block :px-4 :py-2)]
 
-      (<< [:div.h-full.w-full.flex.flex-col.bg-gray-100.items-stretch
+      (<< [:div {:class (css :h-full :w-full :flex :flex-col :bg-gray-100 :items-stretch)}
            (when-not relay-ws-connected
-             (<< [:div.p-4.bg-red-700.text-white.text-lg.font-bold "UI WebSocket not connected! Reload page to reconnect."]))
+             (<< [:div {:class (css :p-4 :bg-red-700 :text-white :text-lg :font-bold)}
+                  "UI WebSocket not connected! Reload page to reconnect."]))
 
-           [:div.bg-white.shadow-md.z-10
+           [:div {:class (css :bg-white :shadow-md :z-10)}
             #_[:div.py-2.px-4 [:span.font-bold "shadow-cljs"]]
             [:div
              (sg/simple-seq nav-items
@@ -130,8 +136,8 @@
     (<< (sg/suspense
           {:timeout 2000
            :fallback
-           (<< [:div.inset-0.text-center.py-16
-                [:div.text-2xl.font-bold "shadow-cljs"]
+           (<< [:div {:class (css :inset-0 :text-center :py-16)}
+                [:div {:class (css :text-2xl :font-bold)} "shadow-cljs"]
                 [:div "Loading ..."]])}
           (ui-root*)))))
 

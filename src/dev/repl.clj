@@ -2,20 +2,68 @@
   (:require
     [shadow.cljs.devtools.server :as server]
     [shadow.cljs.devtools.api :as cljs]
-    [shadow.cljs.devtools.cli]))
+    [shadow.cljs.devtools.cli]
+    [shadow.css.build :as cb]
+    [shadow.cljs.devtools.server.fs-watch :as fs-watch]
+    [clojure.java.io :as io]))
+
+(defonce css-ref (atom nil))
+
+(defn generate-css
+  ([]
+   (-> (cb/start {})
+       (cb/index-path "src/main" {})
+       (generate-css)))
+  ([cssb]
+   (let [result
+         (cb/generate cssb
+           '{:output-dir ".shadow-cljs/ui/css"
+             :chunks {:main {:include [shadow.cljs.ui.*]}}})]
+
+     (prn [:CSS-GENERATED])
+
+     (doseq [mod result
+             {:keys [warning-type] :as warning} (:warnings mod)]
+
+       (prn [:CSS (name warning-type) (dissoc warning :warning-type)]))
+
+     (println))
+
+   :done))
 
 (defn start []
-  ;; (cljs/start! {:verbose true})
-  ;; (cljs/start-worker :ui)
-
   (server/start!)
-  ;; (server/start-worker :cli)
-  ;; (server/start-worker :ui)
-  ;; (cljs/watch :browser {:verbose true})
+
+  (cljs/watch :ui {})
+
+  ;; until I can figure out a clean API for this
+  (let [css
+        (-> (cb/start {})
+            (cb/index-path "src/main" {}))]
+
+    (generate-css css)
+
+    (reset! css-ref
+      (fs-watch/start
+        {}
+        [(io/file "src" "main")]
+        ["cljs" "cljc" "clj"]
+        (fn [updates]
+          (doseq [{:keys [file event]} updates
+                  :when (not= event :del)]
+            (cb/index-file css file))
+
+          (generate-css css)))))
+
   ::started)
 
 (defn stop []
   ;; (cljs/stop!)
+
+  (when-some [css-watch @css-ref]
+    (fs-watch/stop css-watch)
+    (reset! css-ref nil))
+
   (server/stop!)
   ::stopped)
 
@@ -35,3 +83,7 @@
   (read)
   (stop))
 
+
+
+(comment
+  (generate-css))

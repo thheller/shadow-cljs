@@ -42,7 +42,7 @@
       [:title (-> (io/file ".")
                   (.getCanonicalFile)
                   (.getName))]
-      [:link {:rel "stylesheet" :href "/css/ui.css"}]
+      [:link {:rel "stylesheet" :href "/css/main.css"}]
       [:meta {:name "shadow-remote-token" :content (get-in req [:http :server-token])}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body
