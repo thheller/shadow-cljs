@@ -56,6 +56,8 @@
   thheller/shadow-undertow {:mvn/version "0.2.1"}
   thheller/shadow-cljsjs {:mvn/version "0.0.22"}
 
+  com.thheller/shadow-css {:mvn/version "0.1.0"}
+
   hiccup/hiccup {:mvn/version "1.0.5"}
   ring/ring-core {:mvn/version "1.9.5" :exclusions [clj-time/clj-time]}
 
@@ -71,6 +73,8 @@
   {:override-deps
    {thheller/shadow-client {:local/root "../shadow"}
     thheller/shadow-cljsjs {:local/root "../shadow-cljsjs"}
-    thheller/shadow-undertow {:local/root "../shadow-undertow"}}
+    thheller/shadow-undertow {:local/root "../shadow-undertow"}
+    com.thheller/shadow-css {:local/root "../shadow-css"}}
    :extra-deps
-   {com.thheller/shadow-grove {:local/root "../shadow-grove"}}}}}
+   {com.thheller/shadow-grove {:local/root "../shadow-grove"}
+    }}}}

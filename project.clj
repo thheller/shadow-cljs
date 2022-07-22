@@ -111,6 +111,7 @@
 
     :dependencies
     [[com.clojure-goes-fast/clj-async-profiler "0.4.1"]
+
      #_[org.slf4j/slf4j-log4j12 "1.7.25"]
      #_[log4j "1.2.17"]]}
 
@@ -136,6 +137,8 @@
      [cljsjs/react "18.0.0-rc.0-0"]
      [cljsjs/react-dom "18.0.0-rc.0-0"]
 
+     ;; only used for UI build for now?
+     [com.thheller/shadow-css "0.1.0"]
      [com.thheller/shadow-grove "0.2.0"]
 
      ;; just so the CI build has this downloaded
