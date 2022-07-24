@@ -8,6 +8,7 @@
     [ring.middleware.file-info :as ring-file-info]
     [shadow.http.router :as http]
     [shadow.server.assets :as assets]
+    [shadow.css :refer (css)]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
     [shadow.cljs.devtools.server.supervisor :as super]
@@ -46,8 +47,7 @@
       [:meta {:name "shadow-remote-token" :content (get-in req [:http :server-token])}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body
-      ;; FIXME: tailwind/jit doesn't hit these sources
-      [:div#root {:style "width: 100vw; height: 100vh;"}]
+      [:div#root {:class (css :h-screen :w-screen)}]
       ;; defer'ing these causes the scripts to potentially run before the stylesheets finish loading
       ;; leading to incorrect measurements of elements and messing up vlists
       ;; I don't know how to fix that apart from just removing the defer?

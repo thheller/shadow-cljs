@@ -101,16 +101,22 @@
   (vlist/configure :fragment-vlist
     {:item-height 22}
     (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
-      (<< [:div
-           {:class (if focus
-                     (css :border-b :flex :bg-gray-200)
-                     (css :border-b :flex [:hover :bg-gray-100]))
-            :on-click {:e ::inspect-nav! :idx idx}}
-           [:div
-            {:class (css :pl-4 :px-2 :border-r :text-right {:width "60px"})}
-            idx]
-           [:div.px-2.flex-1.truncate
-            (render-edn-limit val)]]))))
+      (let [$row
+            (css :border-b :flex
+              [:hover :bg-gray-100]
+              ["&.focus" :bg-gray-200])
+
+            $idx
+            (css :pl-4 :px-2 :border-r :text-right {:width "60px"})
+
+            $val
+            (css :px-2 :flex-1 :truncate)]
+
+        (<< [:div
+             {:class (str $row (when focus " focus"))
+              :on-click {:e ::inspect-nav! :idx idx}}
+             [:div {:class $idx} idx]
+             [:div {:class $val} (render-edn-limit val)]])))))
 
 (defn render-seq
   [object active?]
@@ -136,18 +142,22 @@
       :grid-row-gap "1px"
       :grid-column-gap ".5rem"}}
     (fn [{:keys [key val] :as entry} {:keys [idx focus] :as opts}]
-      (<< [:div
-           {:on-click {:e ::inspect-nav! :idx idx}
-            :class
-            [(css :whitespace-no-wrap :font-bold :px-2 :border-r :truncate :bg-gray-100)
-             (if focus
-               (css :bg-gray-200)
-               (css [:hover :bg-gray-100]))]}
-           (render-edn-limit key)]
-          [:div
-           {:on-click {:e ::inspect-nav! :idx idx}
-            :class (css :whitespace-no-wrap :truncate)}
-           (render-edn-limit val)])
+      (let [$key
+            (css
+              :whitespace-nowrap :font-bold :px-2 :border-r :truncate :bg-gray-100
+              ["&:hover.focus" :bg-gray-100])
+
+            $val
+            (css :whitespace-nowrap :truncate)]
+
+        (<< [:div
+             {:class (str $key (when focus " focus"))
+              :on-click {:e ::inspect-nav! :idx idx}}
+             (render-edn-limit key)]
+            [:div
+             {:class $val
+              :on-click {:e ::inspect-nav! :idx idx}}
+             (render-edn-limit val)]))
       )))
 
 (defmethod render-view :map
@@ -164,18 +174,25 @@
        (<< [:div "Show more ... " (pr-str entry)]))}
 
     (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
-      (<< [:div.border-b.flex
-           {:on-click {:e ::inspect-nav! :idx idx}}
-           [:div.pl-4.px-2.border-r.text-right {:style {:width "60px"}} idx]
-           [:div.px-2.flex-1.truncate (render-edn-limit val)]]))))
+      (let [$row
+            (css
+              :border-b :flex
+              ["& > .idx" :pl-4 :px-2 :border-r :text-right {:width "60px"}]
+              ["& > .val" :px-2 :flex-1 :truncate])]
+
+        (<< [:div
+             {:class $row
+              :on-click {:e ::inspect-nav! :idx idx}}
+             [:div.idx idx]
+             [:div.val (render-edn-limit val)]])))))
 
 (defmethod render-view :lazy-seq
   [object active?]
   (lazy-seq-vlist {:ident (:db/ident object)
                    :tab-index (if active? 0 -1)}))
 
-(def css-button-selected "mx-2 border bg-blue-400 px-4 rounded")
-(def css-button "mx-2 border bg-blue-200 hover:bg-blue-400 px-4 rounded")
+(def css-button-selected (css :mx-2 :border :bg-blue-400 :px-4 :rounded))
+(def css-button (css :mx-2 :border :bg-blue-200 [:hover :bg-blue-400] :px-4 :rounded))
 
 (defn view-as-button [current val label active?]
   (<< [:button
@@ -220,24 +237,34 @@
   (render
 
     (let [{:keys [summary is-error display-type]} object
-          {:keys [obj-type entries supports]} summary]
+          {:keys [obj-type entries supports]} summary
 
-      (<< [:div.h-full.flex.flex-col.overflow-hidden {::keyboard/listen true}
-           [:div {:class "flex font-mono font-bold items-center border-b border-b-200"}
+          $container
+          (css :h-full :flex :flex-col :overflow-hidden)
+
+          $header
+          (css :flex :font-mono :font-bold :items-center :border-b
+            ["& > *" :py-2]
+            ["& > *:first-child" :pl-2]
+            ["& > * + *" :px-2]
+            ["& > .icon" :cursor-pointer :font-bold])]
+
+      (<< [:div {:class $container ::keyboard/listen true}
+           [:div {:class $header}
             (when (pos? panel-idx)
-              (<< [:div.cursor-pointer.py-2.pl-2.font-bold
+              (<< [:div.icon
                    {:on-click {:e ::go-first!}
                     :title "go back to tap history (key: alt+t)"}
                    svg-chevron-double-left]
 
-                  [:div.cursor-pointer.py-2.px-2.font-bold
+                  [:div.icon
                    {:on-click {:e ::go-back! :panel-idx panel-idx}
                     :title "go back one (key: left)"}
                    svg-chevron-left]))
 
-            [:div {:class (str "px-2 py-2" (when is-error " text-red-700"))} obj-type]
+            [:div {:class (when is-error "text-red-700")} obj-type]
             (when entries
-              (<< [:div.py-2.px-2 (str entries " Entries")]))]
+              (<< [:div (str entries " Entries")]))]
 
            (case display-type
              :edn
@@ -247,10 +274,10 @@
              (ui-object-as-text ident ::m/object-as-pprint active?)
 
              ;; default
-             (<< [:div.flex-1.overflow-hidden.font-mono
+             (<< [:div {:class (css :flex-1 :overflow-hidden :font-mono)}
                   (render-view object active?)]))
 
-           [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
+           [:div {:class (css :flex :bg-white :py-2 :px-4 :font-mono :border-t-2)}
             [:div "View as: "]
             (when (contains? supports :fragment)
               (view-as-button display-type :browse "Browse" active?))
@@ -260,10 +287,10 @@
               (view-as-button display-type :edn "EDN" active?))]
 
            ;; FIXME: don't always show this
-           [:div.bg-white.font-mono.flex.flex-col
-            [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
-             [:div.flex-1 "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-            [:div {:style {:height "120px"}}
+           [:div {:class (css :bg-white :font-mono :flex :flex-col)}
+            [:div {:class (css :flex :font-bold :px-4 :border-b :border-t-2 :py-1 :text-lg)}
+             [:div {:class (css :flex-1)} "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
+            [:div {:class (css {:height "120px"})}
              ;; must not autofocus, otherwise the scroll-anim breaks
              (codemirror
                {:submit-event {:e ::code-eval!}
@@ -284,13 +311,21 @@
 
   (render
     (let [{:keys [ns line column label]} summary
-          {:keys [runtime-info runtime-id]} runtime]
+          {:keys [runtime-info runtime-id]} runtime
+
+          $row
+          (css
+            :font-mono :border-b :px-2 :py-1 :cursor-pointer
+            [:hover :bg-gray-100]
+            ["&.focus" :bg-gray-200]
+            ["& > .header" :text-xs :text-gray-500]
+            ["& > .val" :truncate])]
 
       (<< [:div
-           {:class (str "font-mono border-b px-2 py-1 cursor-pointer hover:bg-gray-100" (when focus " bg-gray-200"))
+           {:class (str $row (when focus " focus"))
             :on-click {:e ::inspect-object! :ident object-ident}}
 
-           [:div.text-xs.text-gray-500
+           [:div.header
             (str (:added-at-ts summary)
                  " - #" runtime-id
                  " " (:lang runtime-info)
@@ -308,7 +343,7 @@
                                  (str ":" column))))))
                  (when label
                    (str " - " label)))]
-           [:div.truncate (render-edn-limit obj-preview)]]))))
+           [:div.val (render-edn-limit obj-preview)]]))))
 
 (def tap-vlist
   (vlist/configure :tap-vlist
@@ -323,17 +358,21 @@
     (sg/dispatch-up! env {:e ::inspect-object! :ident item}))
 
   (render
-    (<< [:div.p-2.font-bold.border-b.border-bg-gray-200 "Tap History"]
-        [:div.flex-1.overflow-hidden
-         (tap-vlist {:tab-index (if active? 0 -1)
-                     :select-event {:e ::kb-select!}})]
+    (let [$header (css :p-2 :font-bold :border-b :bg-gray-200)
+          $vlist (css :flex-1 :overflow-hidden)
+          $buttons (css :flex :bg-white :py-2 :px-4 :font-mono :border-t-2)]
 
-        [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
-         [:button
-          {:class css-button
-           :tab-index (if active? 0 -1)
-           :on-click ::m/tap-clear!}
-          "Clear"]])))
+      (<< [:div {:class $header} "Tap History"]
+          [:div {:class $vlist}
+           (tap-vlist {:tab-index (if active? 0 -1)
+                       :select-event {:e ::kb-select!}})]
+
+          [:div {:class $buttons}
+           [:button
+            {:class css-button
+             :tab-index (if active? 0 -1)
+             :on-click ::m/tap-clear!}
+            "Clear"]]))))
 
 (defc ui-tap-latest-panel [item panel-idx active?]
   (bind {::m/keys [tap-latest]}
@@ -341,7 +380,7 @@
 
   (render
     (if-not tap-latest
-      (<< [:div.p-8.text-2xl "No Taps yet. (tap> something) to see it here."])
+      (<< [:div {:class (css :p-8 :text-2xl)} "No Taps yet. (tap> something) to see it here."])
       (ui-object-panel tap-latest panel-idx active?))))
 
 (defc ui-explore-var-details [var-ident]
@@ -351,17 +390,17 @@
   (render
     (let [{:keys [doc arglists]} description]
 
-      (<< [:div.border-t.flex
-           [:div.p-2.flex-1.text-xl.font-bold (str var)]
-           [:div.p-2 {:on-click ::runtime-deselect-var!} common/icon-close]]
+      (<< [:div {:class (css :border-t :flex)}
+           [:div {:class (css :p-2 :flex-1 :text-xl :font-bold)} (str var)]
+           [:div {:class (css :p-2) :on-click ::runtime-deselect-var!} common/icon-close]]
           (when (or (seq doc) (seq arglists))
-            (<< [:div {:class "border-t p-2 max-h-[12%] overflow-y-auto"}
+            (<< [:div {:class (css :border-t :p-2 {:max-height "12%"} :overflow-y-auto)}
                  (when (seq doc)
-                   (<< [:div.p-2 doc]))
+                   (<< [:div {:class (css :p-2)} doc]))
                  (when (seq arglists)
                    (sg/simple-seq arglists
                      (fn [arglist]
-                       (<< [:div.px-2 "(" (pr-str arglist) ")"]))))]))))))
+                       (<< [:div {:class (css :px-2)} "(" (pr-str arglist) ")"]))))]))))))
 
 (defc ui-explore-ns-details [ns-ident]
   (bind {::m/keys [runtime-vars] :as data}
@@ -377,13 +416,13 @@
     (get-in data [::m/runtime ::m/explore-var]))
 
   (render
-    (<< [:div.flex-1.flex.overflow-hidden.flex-col
-         [:div.flex-1.overflow-y-auto.px-2
+    (<< [:div {:class (css :flex-1 :flex :overflow-hidden :flex-col)}
+         [:div {:class (css :flex-1 :overflow-y-auto :px-2)}
           (when (seq runtime-vars)
             (sg/simple-seq runtime-vars
               (fn [{:keys [var] :as item}]
                 (<< [:div
-                     {:class (when (= (:db/ident item) explore-var) "font-bold")
+                     {:class (when (= (:db/ident item) explore-var) (css :font-bold))
                       :on-click {:e ::m/runtime-select-var!
                                  :ident (:db/ident item)}}
                      (name var)]))))]
@@ -412,12 +451,12 @@
     (let [{:keys [summary is-error display-type]} object
           {:keys [obj-type entries supports]} summary]
 
-      (<< [:div {:class "flex-1 flex flex-col overflow-hidden min-h-[52%] border-t"
+      (<< [:div {:class (css :flex-1 :flex :flex-col :overflow-hidden {:min-height "52%"} :border-t)
                  ::keyboard/listen true}
-           [:div {:class "flex font-mono font-bold items-center border-b border-b-200"}
-            [:div {:class (str "px-2 py-2" (when is-error " text-red-700"))} obj-type]
+           [:div {:class (css :flex :font-mono :font-bold :items-center :border-b)}
+            [:div {:class (str (css :px-2 :py-2 ["&.error" :text-red-700]) (when is-error " error"))} obj-type]
             (when entries
-              (<< [:div.py-2.px-2 (str entries " Entries")]))]
+              (<< [:div {:class (css :py-2 :px-2)} (str entries " Entries")]))]
 
            (case display-type
              :edn
@@ -427,13 +466,12 @@
              (ui-object-as-text ident ::m/object-as-pprint active?)
 
              ;; default
-             (<< [:div.flex-1.overflow-hidden.font-mono
+             (<< [:div {:class (css :flex-1 :overflow-hidden :font-mono)}
                   (render-view object active?)]))
 
            ;; FIXME: don't always show this
 
-
-           [:div.flex.bg-white.py-2.px-4.font-mono.border-t-2
+           [:div {:class (css :flex :bg-white :py-2 :px-4 :font-mono :border-t-2)}
             [:div "View as: "]
             (when (contains? supports :fragment)
               (view-as-button display-type :browse "Browse" active?))
@@ -479,21 +517,22 @@
        :runtime-ident runtime-ident}))
 
   (render
-    (<< [:div.flex-1.overflow-hidden.flex.flex-col.bg-white
-         [:div.p-2.font-bold.border-b "Exploring Runtime: #" runtime-id]
-         [:div.flex-1.flex.overflow-hidden
-          [:div.overflow-y-auto
+    (<< [:div {:class (css :flex-1 :overflow-hidden :flex :flex-col :bg-white)}
+         [:div {:cass (css :p-2 :font-bold :border-b)} "Exploring Runtime: #" runtime-id]
+         [:div {:class (css :flex-1 :flex :overflow-hidden)}
+          [:div {:class (css :overflow-y-auto)}
            (sg/keyed-seq runtime-namespaces-filtered identity
              (fn [{:keys [ns] :as rt-ns}]
                (<< [:div
-                    {:class (str "px-2" (when (= (:db/ident rt-ns) explore-ns) " font-bold"))
+                    {:class (str (css :px-2 ["&.selected" :font-bold])
+                                 (when (= (:db/ident rt-ns) explore-ns) " selected"))
                      :on-click {:e ::m/runtime-select-namespace!
                                 :ident (:db/ident rt-ns)}}
                     (name ns)])))]
 
           (if explore-ns
             (ui-explore-ns-details explore-ns)
-            (<< [:div.flex-1.p-4 "Select a namespace ..."]))]
+            (<< [:div {:class (css :flex-1 :p-4)} "Select a namespace ..."]))]
 
          (when explore-var
            (ui-explore-var-details explore-var))
@@ -501,10 +540,10 @@
          (when explore-var-object
            (ui-explore-object-panel explore-var-object panel-idx active?))
 
-         [:div.bg-white.font-mono.flex.flex-col
-          [:div.flex.font-bold.px-4.border-b.border-t-2.py-1.text-l
-           [:div.flex-1 "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-          [:div {:style {:height "120px"}}
+         [:div {:class (css :bg-white :font-mono :flex :flex-col)}
+          [:div {:class (css :flex :font-bold :px-4 :border-b :border-t-2 :py-1 :text-lg)}
+           [:div {:class (css :flex-1)} "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
+          [:div {:style/height "120px"}
            ;; must not autofocus, otherwise the scroll-anim breaks
            (codemirror
              {:submit-event {:e ::code-eval!}
@@ -640,15 +679,19 @@
       (dom/ev-stop e)))
 
   (render
-    (<< [:div.flex-1.mt-4.flex.flex-col.overflow-hidden {::keyboard/listen true}
+
+    (<< [:div
+         {:class (css :flex-1 :mt-4 :flex :flex-col :overflow-hidden)
+          ::keyboard/listen true}
          ;; [:div.px-6.font-bold "current:" current]
-         [:div.flex-1.flex.overflow-hidden {:dom/ref container-ref}
+         [:div
+          {:class (css :flex-1 :flex :overflow-hidden)
+           :dom/ref container-ref}
           (sg/simple-seq stack
             (fn [{:keys [type] :as item} idx]
               (let [active? (= current idx)]
-                (<< [:div {:class "px-3 pb-3 flex-none h-full"
-                           :style {:width "100%"}}
-                     [:div.border.shadow.bg-white.h-full.flex.flex-col
+                (<< [:div {:class (css :px-3 :pb-3 :flex-none :h-full :w-full)}
+                     [:div {:class (css :border :shadow :bg-white :h-full :flex :flex-col)}
                       (case type
                         :tap-panel
                         (ui-tap-panel item idx active?)

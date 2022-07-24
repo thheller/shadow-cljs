@@ -66,7 +66,7 @@
                  ;; FIXME: don't use pprint, create proper dom structure like inspect
                  ;; not using inspect because we have the full value and I eventually want to be able to
                  ;; edit and update it from here
-                 [:textarea.w-full.h-full.font-mono.p-4.whitespace-no-wrap
+                 [:textarea.w-full.h-full.font-mono.p-4.whitespace-nowrap
                   (pr-str table-entry)]]]))]))
 
   )

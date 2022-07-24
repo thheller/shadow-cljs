@@ -10,7 +10,7 @@
   ;; FIXME: are these useful at all?
   (when (seq log)
     (<< [:div {:class (css :pl-2 :pb-2)}
-         [:div {:class (css :text-md :font-medium :mb-2)} (str (count log) " Log messages")]
+         [:div {:class (css :text-base :font-medium :mb-2)} (str (count log) " Log messages")]
          (sg/simple-seq log
            (fn [entry]
              (<< [:pre {:class (css :text-sm)} entry])))])))
@@ -83,7 +83,7 @@
                 ])))]))
 
 (defn render-completed-status [{:keys [duration warnings] :as build-status}]
-  (<< [:div {:class (css :text-md :font-medium :pt-2 :pl-2)} (str " Compiled in " duration " seconds.")]
+  (<< [:div {:class (css :text-base :font-medium :pt-2 :pl-2)} (str " Compiled in " duration " seconds.")]
       (when (seq warnings)
         (<< [:div {:class (css :flex-1 :overflow-auto)}
              [:div {:class (css :text-xl :px-1 :py-2)} (str (count warnings) " Warnings")]
@@ -129,7 +129,7 @@
     :completed
     (<< [:div {:class (css :pb-2)}
          (render-completed-status build-status)]
-        [:div.flex-1.overflow-auto
+        [:div {:class (css :flex-1 :overflow-auto)}
          (render-build-log build-status)])
 
     :failed

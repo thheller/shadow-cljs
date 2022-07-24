@@ -28,7 +28,7 @@
            (fn [{::m/keys [http-url https-url http-config]}]
              (let [url (or http-url https-url)]
                (<< [:div {:class (css :border-t :border-gray-200 :p-4 :flex :items-center)}
-                    [:div {:class (css :flex-shrink-0)}
+                    [:div {:class (css {:flex-shrink 0})}
                      [:svg
                       {:class (css :h-6 :w-6 :text-gray-400)
                        :xmlns "http://www.w3.org/2000/svg"
