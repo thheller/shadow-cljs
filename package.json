@@ -1,24 +1,10 @@
 {
   "private": true,
   "scripts": {
-    "ui:js:release": "node npm-run.js release ui",
-    "ui:css:build": "cross-env TAILWIND_MODE=build postcss src/css/ui.css -o src/ui-release/shadow/cljs/ui/dist/css/ui.css --verbose",
-    "ui:css:watch": "cross-env TAILWIND_MODE=watch postcss src/css/ui.css -o src/ui-release/shadow/cljs/ui/dist/css/ui.css -w --verbose",
-    "ui:css:release": "cross-env NODE_ENV=production postcss src/css/ui.css -o src/ui-release/shadow/cljs/ui/dist/css/ui.css --verbose",
-    "ui-dev": "run-p -l ui:*:watch",
-    "ui-release": "run-s ui:*:release"
   },
   "dependencies": {
-    "@tailwindcss/forms": "^0.4.0",
-    "autoprefixer": "^10.4.2",
-    "cross-env": "^7.0.3",
-    "cssnano": "^5.0.16",
-    "npm-run-all": "^4.1.5",
-    "postcss": "^8.4.6",
-    "postcss-cli": "^9.1.0",
     "readline-sync": "^1.4.10",
     "source-map-support": "^0.5.21",
-    "tailwindcss": "^3.0.18",
     "ws": "^7.5.8"
   }
 }

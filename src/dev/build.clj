@@ -1,24 +1,24 @@
-(ns ^:skip-aot build
-  (:require [shadow.build :as comp]
-            [shadow.build.targets.browser :as browser]
-            [shadow.build.api :as cljs]))
+(ns build
+  (:require
+    [shadow.css.build :as cb]))
 
-(defn closure-mod [cc co state]
-  ;; new favorite option to play with
-  ;; strips every (prn ...) call unconditionally
-  (.setStripTypePrefixes co #{"cljs.core.prn"})
+(defn css-release []
+  (let [result
+        (-> (cb/start {})
+            (cb/index-path "src/main" {})
+            (cb/generate
+              '{:output-dir "src/ui-release/shadow/cljs/ui/dist/css"
+                :chunks
+                {:ui
+                 {:include
+                  [shadow.cljs.ui*
+                   shadow.cljs.devtools.server.web*]}}}))]
 
-  ;; these don't work (neither Prefixes not Suffixes)
-  #_(.setStripTypePrefixes co
-      #{"cljs.core._STAR_print_fn_STAR_"
-        "cljs.core._STAR_print_err_fn_STAR_"})
-  )
+    (doseq [mod result
+            {:keys [warning-type] :as warning} (:warnings mod)]
 
-(defn custom
-  [{::comp/keys [stage mode config] :as state}]
-  (prn [:custom-build stage])
-  (-> state
-      (browser/process)
-      (cond->
-        (= :init stage)
-        (cljs/add-closure-configurator closure-mod))))
+      (prn [:CSS (name warning-type) (dissoc warning :warning-type)]))
+    ))
+
+(comment
+  (css-release))

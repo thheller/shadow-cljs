@@ -18,9 +18,11 @@
    (let [result
          (cb/generate cssb
            '{:output-dir ".shadow-cljs/ui/css"
-             :chunks {:main {:include [shadow.cljs.ui*
-                                       shadow.cljs.devtools.server.web
-                                       shadow.cljs.devtools.server.web.*]}}})]
+             :chunks
+             {:ui
+              {:include
+               [shadow.cljs.ui*
+                shadow.cljs.devtools.server.web*]}}})]
 
      (prn [:CSS-GENERATED])
 
