@@ -2582,7 +2582,8 @@
                 "util/findinternal"
                 "util/defines"
                 "util/global"
-                "es6/array/find"})
+                "es6/array/find"
+                "es6/util/inherits"})
             goog-injected-libs
             shadow-js-injected-libs
             classpath-js-injected-libs
