@@ -26,10 +26,10 @@
     (<< [:div {:class (css :flex-1 :overflow-y-auto)}
          (runtimes/ui-runtime-list build-runtimes)])))
 
-(def class-tab-selected
+(def $tab-selected
   (css :whitespace-nowrap :py-3 :px-5 :border-b-2 :font-medium))
 
-(def class-tab-normal
+(def $tab-normal
   (css :border-transparent :text-gray-500 :whitespace-nowrap :py-3 :px-5 :border-b-2 :font-medium
     [:hover :text-gray-700 :border-gray-300]))
 
@@ -54,12 +54,12 @@
               {:class (css :flex {:margin-bottom "-1px"})
                :aria-label "Tabs"}
               [:a
-               {:class (if (= tab :status) class-tab-selected class-tab-normal)
+               {:class (if (= tab :status) $tab-selected $tab-normal)
                 :ui/href link-root}
                "Status"]
               (when build-worker-active
                 (<< [:a
-                     {:class (if (= tab :runtimes) class-tab-selected class-tab-normal)
+                     {:class (if (= tab :runtimes) $tab-selected $tab-normal)
                       :ui/href (str link-root "/runtimes")}
                      (str "Runtimes (" build-runtime-count ")")]))]]]]))))
 

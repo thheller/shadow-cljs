@@ -77,10 +77,10 @@
      {:pages #{:inspect-latest} :label "Inspect Latest" :path "/inspect-latest"}])
 
   (render
-    (let [nav-selected
+    (let [$nav-selected
           (css :inline-block :rounded-t :px-4 :py-2 :bg-blue-100 :border-b-2 :border-blue-200 [:hover :border-blue-400])
 
-          nav-normal
+          $nav-normal
           (css :inline-block :px-4 :py-2)]
 
       (<< [:div {:class (css ["& *" :border-gray-100] :h-full :w-full :flex :flex-col :bg-gray-100 :items-stretch)}
@@ -94,7 +94,7 @@
              (sg/simple-seq nav-items
                (fn [{:keys [pages label path]}]
                  (<< [:a
-                      {:class (if (contains? pages (:id current-page)) nav-selected nav-normal)
+                      {:class (if (contains? pages (:id current-page)) $nav-selected $nav-normal)
                        :ui/href path}
                       label])))]]
 

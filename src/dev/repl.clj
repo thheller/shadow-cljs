@@ -38,7 +38,7 @@
 (defn start []
   (server/start!)
 
-  (cljs/watch :ui {})
+  ;; (cljs/watch :ui {})
 
   ;; until I can figure out a clean API for this
   (let [css
@@ -53,11 +53,15 @@
         [(io/file "src" "main")]
         ["cljs" "cljc" "clj"]
         (fn [updates]
-          (doseq [{:keys [file event]} updates
-                  :when (not= event :del)]
-            (cb/index-file css file))
+          (try
+            (doseq [{:keys [file event]} updates
+                    :when (not= event :del)]
+              (cb/index-file css file))
 
-          (generate-css css)))))
+            (generate-css css)
+            (catch Exception e
+              (prn :css-build-failure)
+              (prn e)))))))
 
   ::started)
 

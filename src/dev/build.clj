@@ -21,4 +21,5 @@
     ))
 
 (comment
-  (css-release))
+  (time
+    (css-release)))

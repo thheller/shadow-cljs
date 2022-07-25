@@ -34,25 +34,25 @@
       (<< [:pre (format "%4d | " (+ 1 idx start-idx)) body]))))
 
 (defn render-build-warning [{:keys [source-excerpt file line column msg resource-name] :as warning}]
-  (<< [:div {:class (css  :font-mono :border :shadow :bg-white :mb-2 :overflow-x-auto)} ;; build-warning-container
+  (<< [:div {:class (css :font-mono :border :shadow :bg-white :mb-2 :overflow-x-auto)} ;; build-warning-container
 
-       [:div {:class (css  :px-2 :py-1 :border-b)} ;; build-warning-title
+       [:div {:class (css :px-2 :py-1 :border-b)} ;; build-warning-title
         (str "Warning " (:warning warning) " in ")
         ;; FIXME: hook up open-file RPC
         [:a {:href file :target "_blank"} resource-name]
         " at " line ":" column]
 
-       [:div {:class (css  :font-bold :text-lg :p-2 :border-b)} ;; build-warning-message
+       [:div {:class (css :font-bold :text-lg :p-2 :border-b)} ;; build-warning-message
         msg]
 
        (if-not source-excerpt
-         [:div {:class (css  :p-1)}
+         [:div {:class (css :p-1)}
           (pr-str warning)]
          (let [{:keys [start-idx before line after]} source-excerpt]
-           (<< [:div {:class (css  :p-1)} ;; source-excerpt-container
+           (<< [:div {:class (css :p-1)} ;; source-excerpt-container
                 (render-source-line start-idx before)
                 (if-not column
-                  (<< [:pre {:class (css  :font-bold)} ;;source-line-highlight
+                  (<< [:pre {:class (css :font-bold)} ;;source-line-highlight
                        (format "%4d | " (+ 1 (count before) start-idx))
                        [:div ;; source-line-part-highlight
                         line]])

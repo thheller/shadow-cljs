@@ -191,14 +191,14 @@
   (lazy-seq-vlist {:ident (:db/ident object)
                    :tab-index (if active? 0 -1)}))
 
-(def css-button-selected (css :mx-2 :border :bg-blue-400 :px-4 :rounded))
-(def css-button (css :mx-2 :border :bg-blue-200 [:hover :bg-blue-400] :px-4 :rounded))
+(def $button-selected (css :mx-2 :border :bg-blue-400 :px-4 :rounded))
+(def $button (css :mx-2 :border :bg-blue-200 [:hover :bg-blue-400] :px-4 :rounded))
 
 (defn view-as-button [current val label active?]
   (<< [:button
        {:class (if (= current val)
-                 css-button-selected
-                 css-button)
+                 $button-selected
+                 $button)
         :on-click {:e ::inspect-switch-display! :display-type val}
         :tab-index (if active? 0 -1)}
        label]))
@@ -369,7 +369,7 @@
 
           [:div {:class $buttons}
            [:button
-            {:class css-button
+            {:class $button
              :tab-index (if active? 0 -1)
              :on-click ::m/tap-clear!}
             "Clear"]]))))
