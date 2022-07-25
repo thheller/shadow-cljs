@@ -32,7 +32,7 @@
      nrepl/nrepl]]
 
    [com.cognitect/transit-clj "1.0.329"]
-   [com.cognitect/transit-cljs "0.8.269"]
+   [com.cognitect/transit-cljs "0.8.280"]
 
    [org.clojure/core.async "1.5.648"]
 
@@ -48,7 +48,7 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20220601"]
+   [com.google.javascript/closure-compiler-unshaded "v20220719"]
 
    [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
    [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]
