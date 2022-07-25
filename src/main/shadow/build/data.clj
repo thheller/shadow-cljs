@@ -236,7 +236,9 @@
           ;; remove analyzer data so removed vars don't stick around
           ;; also fixes issues with ^:const otherwise ending up in compile errors
           (cond->
-            ns
+            ;; allowing users to preserve the data for stuff defined at the REPL
+            ;; (comment (def x 1)) would be undefined after a hot-reload, even if eval'd before
+            (and ns (not (false? (get-in state [:shadow.build/config :devtools :watch-namespace-reset]))))
             (update-in [:compiler-env :cljs.analyzer/namespaces] dissoc ns))
           ))))
 

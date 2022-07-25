@@ -35,8 +35,6 @@
 
 (assert (= 1 rule-breaker/foo) "rule-breaker not handled correctly")
 
-(def ^:const some-const 1)
-
 (defn custom-notify [{:keys [type] :as msg}]
   (js/console.warn "CUSTOM-NOTIFY" type msg))
 
