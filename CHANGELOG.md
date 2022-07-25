@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.19.7](https://github.com/thheller/shadow-cljs/compare/a692992acff41f7e747520793c95ca85072f3d2a...084b50b969e010b28a778a3ed4e4a6d53003a00b) - 2022-07-25
+- [ [`084b5`](https://github.com/thheller/shadow-cljs/commit/084b50b969e010b28a778a3ed4e4a6d53003a00b) ] dep bump: transit-cljs, closure-compiler
+- [ [`03506`](https://github.com/thheller/shadow-cljs/commit/0350658009f0cad684fb61da15c27e0a2e597944) ] add config option to disable namespace reset in watch
+- [ [`4ce85`](https://github.com/thheller/shadow-cljs/commit/4ce854f1c8ba41c9eec8447ec23f77cb068d0f77) ] fix REPL require :reload not actually reloading anything
+- [ [`fcfb2`](https://github.com/thheller/shadow-cljs/commit/fcfb2ec0f6b32e5d6a70acfb9785a6157ea9421c) ] css cleanup
+- [ [`17dbe`](https://github.com/thheller/shadow-cljs/commit/17dbe0ee2ee849abba53c952dd7f453c60313048) ] Polyfill inherits (#1035)
+- [ [`7b95c`](https://github.com/thheller/shadow-cljs/commit/7b95c2642b80d249d2ecec04587d64e4419ddc88) ] entirely remove tailwind and only use shadow.css
+- [ [`de1ee`](https://github.com/thheller/shadow-cljs/commit/de1ee2f08f6e2e42f6ae6e128949b4d26cc6d1a6) ] port rest of UI css to shadow.css
+- [ [`83b77`](https://github.com/thheller/shadow-cljs/commit/83b777032b4a72c67c040e5994cbcade1bd1b4f2) ] more UI css porting
+- [ [`838b9`](https://github.com/thheller/shadow-cljs/commit/838b9d052dd522bc4e61cce0abce9960a054686c) ] extract shadow.css to its own project
+- [ [`5b91d`](https://github.com/thheller/shadow-cljs/commit/5b91db91fab51b9136071c7fee5368bd9969cac9) ] prep for css optimizer, proof of concept appears to work
+- [ [`4d51d`](https://github.com/thheller/shadow-cljs/commit/4d51d1824030284f660d6637e5eac1c10a08ac67) ] css getting to reasonable state
+- [ [`f8f0c`](https://github.com/thheller/shadow-cljs/commit/f8f0ce5ba4a649c671762acde247c0447d07e9b1) ] more css
+- [ [`da675`](https://github.com/thheller/shadow-cljs/commit/da675581578dda18e69ce1fd80b2c8a2aeb0efec) ] more css, begin trials in UI code
+- [ [`da965`](https://github.com/thheller/shadow-cljs/commit/da9659d4da957b7a58e0c0b581cc2162cfb781f4) ] more css stuff
+- [ [`d6e14`](https://github.com/thheller/shadow-cljs/commit/d6e14905022b719d2e240646417f53d9ee452e4d) ] add beginnings of shadow.css (from shadow-grove)
+- [ [`361e5`](https://github.com/thheller/shadow-cljs/commit/361e592dc35c5332a0d9a80ff2a038822f286cc7) ] fix lingering goog.global = this || self for ESM builds
+- [ [`a6929`](https://github.com/thheller/shadow-cljs/commit/a692992acff41f7e747520793c95ca85072f3d2a) ] fix esm build with :devtools {:enabled false}
+
 ## [2.19.6](https://github.com/thheller/shadow-cljs/compare/d29e56167c973c426ac8413cbe68dc28d5fa74dd...ff9668be8982182b5382d51cd35085fe279b887d) - 2022-07-14
 - [ [`ff966`](https://github.com/thheller/shadow-cljs/commit/ff9668be8982182b5382d51cd35085fe279b887d) ] remove process use in :npm-module builds using :runtime :browser
 - [ [`12dcc`](https://github.com/thheller/shadow-cljs/commit/12dcc769afb43723f282c910929e47a5ab353692) ] fix js-await catch
