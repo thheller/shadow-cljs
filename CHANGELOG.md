@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.19.8](https://github.com/thheller/shadow-cljs/compare/2730fb0d98e33a1603f49dca319b2c764a91f570...2730fb0d98e33a1603f49dca319b2c764a91f570) - 2022-07-25
+- [ [`2730f`](https://github.com/thheller/shadow-cljs/commit/2730fb0d98e33a1603f49dca319b2c764a91f570) ] drop the one CLJ use of shadow.css
+
 ## [2.19.7](https://github.com/thheller/shadow-cljs/compare/a692992acff41f7e747520793c95ca85072f3d2a...084b50b969e010b28a778a3ed4e4a6d53003a00b) - 2022-07-25
 - [ [`084b5`](https://github.com/thheller/shadow-cljs/commit/084b50b969e010b28a778a3ed4e4a6d53003a00b) ] dep bump: transit-cljs, closure-compiler
 - [ [`03506`](https://github.com/thheller/shadow-cljs/commit/0350658009f0cad684fb61da15c27e0a2e597944) ] add config option to disable namespace reset in watch
