@@ -207,6 +207,12 @@
         new-deps
         (:deps new-ns-info)
 
+        state
+        (-> state
+            (cond->
+              (seq reload-deps)
+              (build-api/reset-namespaces reload-deps)))
+
         [new-sources state]
         (res/resolve-repl state (:name new-ns-info) new-deps)
 

@@ -82,6 +82,15 @@
 
     (pprint repl-state)))
 
+(deftest test-repl-require-reload
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :require})
+            (repl/process-input "(require 'demo.ns)")
+            (repl/process-input "(require 'demo.ns :reload)"))]
+
+    (pprint repl-state)))
+
 
 (deftest test-repl-string-require
   (let [{:keys [repl-state] :as state}
