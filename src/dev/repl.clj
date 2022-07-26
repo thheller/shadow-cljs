@@ -8,32 +8,28 @@
     [clojure.java.io :as io]))
 
 (defonce css-ref (atom nil))
+(defonce css-watch-ref (atom nil))
 
-(defn generate-css
-  ([]
-   (-> (cb/start {})
-       (cb/index-path "src/main" {})
-       (generate-css)))
-  ([cssb]
-   (let [result
-         (cb/generate cssb
-           '{:output-dir ".shadow-cljs/ui/css"
-             :chunks
-             {:ui
-              {:include
-               [shadow.cljs.ui*
-                shadow.cljs.devtools.server.web*]}}})]
+(defn generate-css []
+  (let [result
+        (-> @css-ref
+            (cb/generate
+              '{:ui
+                {:include
+                 [shadow.cljs.ui*
+                  shadow.cljs.devtools.server.web*]}})
+            (cb/write-outputs-to (io/file ".shadow-cljs" "ui" "css")))]
 
-     (prn [:CSS-GENERATED])
+    (prn :CSS-GENERATED)
 
-     (doseq [mod result
-             {:keys [warning-type] :as warning} (:warnings mod)]
+    (doseq [mod (:outputs result)
+            {:keys [warning-type] :as warning} (:warnings mod)]
 
-       (prn [:CSS (name warning-type) (dissoc warning :warning-type)]))
+      (prn [:CSS (name warning-type) (dissoc warning :warning-type)]))
 
-     (println))
+    (println))
 
-   :done))
+  :done)
 
 (defn start []
   (server/start!)
@@ -41,34 +37,34 @@
   ;; (cljs/watch :ui {})
 
   ;; until I can figure out a clean API for this
-  (let [css
-        (-> (cb/start {})
-            (cb/index-path "src/main" {}))]
+  (reset! css-ref
+    (-> (cb/start)
+        (cb/index-path (io/file "src" "main") {})))
 
-    (generate-css css)
+  (generate-css)
 
-    (reset! css-ref
-      (fs-watch/start
-        {}
-        [(io/file "src" "main")]
-        ["cljs" "cljc" "clj"]
-        (fn [updates]
-          (try
-            (doseq [{:keys [file event]} updates
-                    :when (not= event :del)]
-              (cb/index-file css file))
+  (reset! css-watch-ref
+    (fs-watch/start
+      {}
+      [(io/file "src" "main")]
+      ["cljs" "cljc" "clj"]
+      (fn [updates]
+        (try
+          (doseq [{:keys [file event]} updates
+                  :when (not= event :del)]
+            (swap! css-ref cb/index-file file))
 
-            (generate-css css)
-            (catch Exception e
-              (prn :css-build-failure)
-              (prn e)))))))
+          (generate-css)
+          (catch Exception e
+            (prn :css-build-failure)
+            (prn e))))))
 
   ::started)
 
 (defn stop []
   ;; (cljs/stop!)
 
-  (when-some [css-watch @css-ref]
+  (when-some [css-watch @css-watch-ref]
     (fs-watch/stop css-watch)
     (reset! css-ref nil))
 

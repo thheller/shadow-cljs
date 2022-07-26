@@ -138,7 +138,7 @@
      [cljsjs/react-dom "18.0.0-rc.0-0"]
 
      ;; only used for UI build for now?
-     [com.thheller/shadow-css "0.1.0"]
+     [com.thheller/shadow-css "0.2.0"]
      [com.thheller/shadow-grove "0.2.0"]
 
      ;; just so the CI build has this downloaded
