@@ -1,16 +1,16 @@
 (ns shadow.cljs.ui.db.generic
   (:require
-    [clojure.string :as str]
+    [shadow.grove :as sg]
     [shadow.grove.events :as ev]
     [shadow.grove.db :as db]
     [shadow.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.db.env :as env]))
+    ))
 
 (defn init!
   {::ev/handle ::m/init!}
   [env _]
-  (ev/queue-fx env :http-api
+  (sg/queue-fx env :http-api
     {:request "/ui-init-data"
      :on-success {:e ::init-data}}))
 

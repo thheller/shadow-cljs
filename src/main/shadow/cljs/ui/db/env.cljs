@@ -1,6 +1,6 @@
 (ns shadow.cljs.ui.db.env
   (:require
-    [shadow.grove.runtime :as gr]
+    [shadow.grove :as sg]
     [shadow.grove.db :as db]
     [shadow.cljs.model :as m]))
 
@@ -76,4 +76,4 @@
 
 (defonce rt-ref
   (-> {}
-      (gr/prepare data-ref ::db)))
+      (sg/prepare data-ref ::db)))

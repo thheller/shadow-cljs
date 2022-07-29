@@ -6,7 +6,6 @@
     [shadow.css :refer (css)]
     [shadow.grove.history :as history]
     [shadow.grove.keyboard :as keyboard]
-    [shadow.grove.local :as local-eng]
     [shadow.grove.events :as ev]
     [shadow.grove.transit :as transit]
     [shadow.grove.http-fx :as http-fx]
@@ -131,15 +130,14 @@
           ;; FIXME: portal this?
           (ui-errors)))))
 
-(defc ui-root []
-  (render
-    (<< (sg/suspense
-          {:timeout 2000
-           :fallback
-           (<< [:div {:class (css :inset-0 :text-center :py-16)}
-                [:div {:class (css :text-2xl :font-bold)} "shadow-cljs"]
-                [:div "Loading ..."]])}
-          (ui-root*)))))
+(defn ui-root []
+  (sg/suspense
+    {:timeout 2000
+     :fallback
+     (<< [:div {:class (css :inset-0 :text-center :py-16)}
+          [:div {:class (css :text-2xl :font-bold)} "shadow-cljs"]
+          [:div "Loading ..."]])}
+    (ui-root*)))
 
 (defonce root-el (js/document.getElementById "root"))
 
@@ -167,10 +165,8 @@
 
   (transit/init! env/rt-ref)
 
-  (local-eng/init! env/rt-ref)
-
   (when ^boolean js/goog.DEBUG
-    (swap! env/rt-ref assoc :shadow.grove.events/tx-reporter
+    (swap! env/rt-ref assoc :shadow.grove.runtime/tx-reporter
       (fn [report]
         (let [e (-> report :event :e)]
           (case e
@@ -182,7 +178,7 @@
     {:start-token "/dashboard"
      :root-el root-el})
 
-  (ev/reg-fx env/rt-ref :http-api
+  (sg/reg-fx env/rt-ref :http-api
     (http-fx/make-handler
       {:on-error {:e ::m/request-error!}
        :base-url "/api"
