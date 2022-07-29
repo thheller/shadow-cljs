@@ -22,7 +22,7 @@
 
 - [node.js](https://nodejs.org) (v6.0.0+, most recent version preferred)
 - [npm](https://www.npmjs.com) (comes bundled with `node.js`) or [yarn](https://www.yarnpkg.com)
-- [Java SDK](https://adoptopenjdk.net/) (Version 8+, Hotspot)
+- [Java SDK](https://adoptium.net/) (Version 11+, Latest LTS Version recommended)
 
 ## Quick Start
 
