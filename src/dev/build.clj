@@ -9,11 +9,10 @@
             (cb/index-path (io/file "src" "main") {})
             (cb/generate
               '{:ui
-                {:include
-                 [shadow.cljs.ui*
-                  shadow.cljs.devtools.server.web*]}})
+                {:entries
+                 [shadow.cljs.ui.main]}})
+            (cb/minify)
             (cb/write-outputs-to (io/file "src" "ui-release" "shadow" "cljs" "ui" "dist" "css")))]
-    (tap> build-state)
 
     (doseq [mod (:outputs build-state)
             {:keys [warning-type] :as warning} (:warnings mod)]
