@@ -179,6 +179,9 @@
           (util/warn state {:type ::invalid-closure-warning :key type :level level})
           (. closure-opts (setWarningLevel group check-level))))))
 
+  (when-some [use-strict (:emit-use-strict opts)]
+    (.setEmitUseStrict closure-opts use-strict))
+
   (when (contains? opts :closure-extra-annotations)
     (. closure-opts (setExtraAnnotationNames (map name (:closure-extra-annotations opts)))))
 

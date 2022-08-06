@@ -4,6 +4,8 @@
 
 (def foo "demo.esm.a/foo")
 
+(def bar "demo.esm.a/bar")
+
 (defn ^:dev/after-load init []
   (js/console.log "init from esm.a" x foo))
 
