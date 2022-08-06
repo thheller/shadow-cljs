@@ -172,7 +172,7 @@
                     (browser/inject-preloads state config)
 
                     init-fn
-                    (browser/merge-init-fn init-fn)
+                    (browser/merge-init-fn init-fn state)
 
                     ;; DEVTOOLS console, it is prepended so it loads first in case anything wants to log
                     (and default? (= :dev mode) (= :browser runtime))

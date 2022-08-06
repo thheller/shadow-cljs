@@ -120,7 +120,7 @@
 
         modules
         (-> {:index {:entries [(output/ns-only init-fn)]
-                     :append-js (output/fn-call init-fn)}}
+                     :append-js (output/fn-call state init-fn)}}
             (cond->
               (seq chunks)
               (-> (update :index assoc :prepend "var $APP = global.$APP = {};\n")

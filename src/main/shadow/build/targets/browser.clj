@@ -201,10 +201,10 @@
         (into [])
         )))
 
-(defn merge-init-fn [module init-fn]
+(defn merge-init-fn [module init-fn state]
   (-> module
       (update :entries util/vec-conj (output/ns-only init-fn))
-      (update :append-js str (output/fn-call init-fn))))
+      (update :append-js str (output/fn-call state init-fn))))
 
 (defn rewrite-modules
   "rewrites :modules to add browser related things"
@@ -255,7 +255,7 @@
 
                     ;; should run after any other append-js
                     init-fn
-                    (merge-init-fn init-fn)
+                    (merge-init-fn init-fn state)
 
                     ;; global :devtools :preloads
                     (and default? (= :dev mode))

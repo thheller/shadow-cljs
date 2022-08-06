@@ -70,9 +70,11 @@
   {:pre [(qualified-symbol? sym)]}
   (symbol (namespace sym)))
 
-(defn fn-call [sym]
+(defn fn-call [{:shadow.build/keys [mode] :as state} sym]
   {:pre [(qualified-symbol? sym)]}
-  (str "\ntry { " (comp/munge sym) "(); } catch (e) { console.error(\"An error occurred when calling (" sym ")\"); throw(e); }"))
+  (if (= :release mode)
+    (str "\n" (comp/munge sym) "();")
+    (str "\ntry { " (comp/munge sym) "(); } catch (e) { console.error(\"An error occurred when calling (" sym ")\"); throw(e); }")))
 
 (defn- ns-list-string [coll]
   (->> coll
