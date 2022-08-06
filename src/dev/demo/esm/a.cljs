@@ -2,7 +2,7 @@
   (:require
     ["https://cdn.pika.dev/preact@^10.0.0" :as x]))
 
-(def foo "demo.esm.a/foo")
+(def foo (str :foo "demo.esm.a/foo"))
 
 (def bar "demo.esm.a/bar")
 

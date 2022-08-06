@@ -207,7 +207,7 @@
    {:shared {}
     :a
     {:exports
-     {default demo.esm.a/bar
+     {default demo.esm.a/foo
       foo demo.esm.a/foo}
      :init-fn demo.esm.a/init
      :depends-on #{:shared}}

@@ -1,4 +1,4 @@
 (ns demo.esm.b)
 
-(def bar "demo.esm.b/bar")
+(def bar (str :bar "demo.esm.b/bar"))
 

@@ -80,7 +80,8 @@
             (-> mod
                 (cond->
                   default
-                  (update :prepend str "const $APP = {}; const shadow$provide = {};\n"))
+                  (-> (update :module-externs conj "shadow$export")
+                      (update :prepend str "const shadow$provide = {};\n")))
 
                 (util/reduce->
                   (fn [state other-mod-id]
@@ -91,7 +92,7 @@
                         ;; all modules re-export it so they can be loaded in any order
                         ;; and always end up getting the $APP from the default module
                         (when (= other-mod-id (first depends-on))
-                          "{ $APP, shadow$provide, $jscomp } from")
+                          "{ shadow$provide } from")
                         " \"./" other-name "\";\n")))
                   depends-on)
 
@@ -100,17 +101,14 @@
                     (let [bridge-name (str "ex_" (cljs-comp/munge (name module-id)) "_" (name export-name))]
 
                       (-> state
-                          ;; when advanced sees export ... it just remove it
-                          ;; so we must keep that out of the :advanced compiled code
-                          ;; by bridging through a local let which is declared in externs
-                          ;; so closure doesn't remove it. the :advanced part then just assigns it
-                          (update :module-externs conj bridge-name)
-                          (update :prepend str "let " bridge-name ";\n")
-                          (update :append-js str "\n" bridge-name " = " (cljs-comp/munge export-sym) ";")
-                          (update :append str "\nexport { " bridge-name " as " (name export-name) " };")
+                          ;; just adding export let foo = code; directly
+                          ;; will make closure remove the export entirely
+                          ;; so we add a function call that is externed
+                          ;; and let a closure compiler pass rewrite it to the let we want
+                          (update :append-js str "\nshadow$export(\"" (name export-name) "\"," (cljs-comp/munge export-sym) ");")
                           )))
                   exports)
-                (update :append str "\nexport { $APP, shadow$provide, $jscomp };\n")
+                (update :append str "\nexport { shadow$provide };\n")
                 )))
         modules
         modules))))
@@ -202,6 +200,7 @@
 
         (configure-modules)
 
+        (assoc-in [:compiler-options :chunk-output-type] :esm)
         (assoc-in [:compiler-options :emit-use-strict] false)
 
         (cond->
@@ -213,9 +212,6 @@
 
           (= :node runtime)
           (node/set-defaults)
-
-          (= :release mode)
-          (assoc-in [:compiler-options :rename-prefix-namespace] "$APP")
 
           (and (= :dev mode) (:worker-info state))
           (shared/merge-repl-defines config)
