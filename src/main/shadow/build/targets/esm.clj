@@ -81,7 +81,7 @@
                 (cond->
                   default
                   (-> (update :module-externs conj "shadow$export")
-                      (update :prepend str "const shadow$provide = {};\n")))
+                      (update :prepend str "const $APP = {};\nconst shadow$provide = {};\n")))
 
                 (util/reduce->
                   (fn [state other-mod-id]
@@ -92,7 +92,7 @@
                         ;; all modules re-export it so they can be loaded in any order
                         ;; and always end up getting the $APP from the default module
                         (when (= other-mod-id (first depends-on))
-                          "{ shadow$provide } from")
+                          "{ shadow$provide, $APP, $jscomp } from")
                         " \"./" other-name "\";\n")))
                   depends-on)
 
@@ -108,7 +108,7 @@
                           (update :append-js str "\nshadow$export(\"" (name export-name) "\"," (cljs-comp/munge export-sym) ");")
                           )))
                   exports)
-                (update :append str "\nexport { shadow$provide };\n")
+                (update :append str "\nexport { shadow$provide, $APP, $jscomp };\n")
                 )))
         modules
         modules))))
@@ -200,7 +200,12 @@
 
         (configure-modules)
 
-        (assoc-in [:compiler-options :chunk-output-type] :esm)
+        ;; causes various
+        ;;   Imported symbol "h" in chunk "compiler.js" cannot be assigned
+        ;; errors when compiling cherry/babashka
+
+        ;; (assoc-in [:compiler-options :chunk-output-type] :esm)
+        (assoc ::closure/rewrite-shadow-exports true)
         (assoc-in [:compiler-options :emit-use-strict] false)
 
         (cond->
@@ -212,6 +217,9 @@
 
           (= :node runtime)
           (node/set-defaults)
+
+          (= :release mode)
+          (assoc-in [:compiler-options :rename-prefix-namespace] "$APP")
 
           (and (= :dev mode) (:worker-info state))
           (shared/merge-repl-defines config)

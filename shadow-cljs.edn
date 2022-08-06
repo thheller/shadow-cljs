@@ -208,7 +208,8 @@
     :a
     {:exports
      {default demo.esm.a/foo
-      foo demo.esm.a/foo}
+      foo demo.esm.a/foo
+      bar demo.esm.a/bar}
      :init-fn demo.esm.a/init
      :depends-on #{:shared}}
     :b

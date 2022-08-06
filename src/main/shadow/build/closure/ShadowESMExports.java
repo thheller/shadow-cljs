@@ -9,19 +9,10 @@ import com.google.javascript.rhino.Token;
 
 import java.util.*;
 
-public class ShadowESMExports extends NodeTraversal.AbstractPostOrderCallback implements CompilerPass {
-
-    private final AbstractCompiler compiler;
-
-    public ShadowESMExports(AbstractCompiler compiler) {
-        this.compiler = compiler;
-    }
-
+public class ShadowESMExports extends NodeTraversal.AbstractPostOrderCallback  {
     @Override
     public void visit(NodeTraversal t, Node node, Node parent) {
         if (NodeUtil.isCallTo(node, "shadow$export")) {
-            Node scope = parent.getParent();
-
             String name = node.getChildAtIndex(1).getString();
             Node code = node.getChildAtIndex(2).detach();
             Node replacement = new Node(Token.EXPORT);
@@ -41,14 +32,12 @@ public class ShadowESMExports extends NodeTraversal.AbstractPostOrderCallback im
 
             // replace EXPR_RESULT -> CALL with just EXPORT LET;
             parent.replaceWith(replacement);
-
-            compiler.reportChangeToEnclosingScope(scope);
         }
     }
 
-    @Override
-    public void process(Node externs, Node root) {
-        NodeTraversal.traverse(compiler, root, this);
+    public static void process(Compiler compiler) {
+        // jsRoot not accessible otherwise, root has externs as first child and js root as second
+        NodeTraversal.traverse(compiler, compiler.getRoot().getSecondChild(), new ShadowESMExports());
     }
 
 
@@ -84,9 +73,7 @@ public class ShadowESMExports extends NodeTraversal.AbstractPostOrderCallback im
         SourceFile srcFile = SourceFile.fromCode("test.js", "shadow$export(\"foo\", 1 + 2); shadow$export(\"default\", 3);", StaticSourceFile.SourceKind.STRONG);
         cc.compile(SourceFile.fromCode("externs.js", "var shadow$export = function(a, b) {};"), srcFile, co);
 
-        ShadowESMExports pass = new ShadowESMExports(cc);
-
-        pass.process(cc.getRoot().getFirstChild(), cc.getRoot().getSecondChild());
+        ShadowESMExports.process(cc);
 
         System.out.println(cc.toSource());
     }
