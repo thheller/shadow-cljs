@@ -81,7 +81,7 @@
                 (cond->
                   default
                   (-> (update :module-externs conj "shadow$export")
-                      (update :prepend str "export const shadow$provide = {};\n")))
+                      (update :prepend str "export const $APP = {};\nexport const shadow$provide = {};\n")))
 
                 (util/reduce-kv->
                   (fn [state export-name export-sym]
@@ -195,7 +195,18 @@
         (configure-modules)
 
         (assoc ::closure/rewrite-shadow-exports true)
-        (assoc-in [:compiler-options :chunk-output-type] :esm)
+
+        ;; (assoc-in [:compiler-options :chunk-output-type] :esm)
+
+        ;; can't use this as it doesn't support the current way cljs.core/binding works
+        ;; cljs.core/*print-length* creates cljs.core._STAR_print_length_STAR_ and binding will
+        ;; directly re-assign it. ES_MODULES will export this so the assign fails.
+        ;; nbb builds
+        ;; --- clojure/tools/cli.cljc:253
+        ;;  Imported symbol "$cljs$core$_STAR_print_fn_STAR_$$" in chunk "nbb_tools_cli.js" cannot be assigned
+        ;; rewriting how binding works is significantly more sketchy than using the alternate
+        ;; $APP rename-prefix-namespace trick
+
         (assoc-in [:compiler-options :emit-use-strict] false)
 
         (cond->
@@ -207,6 +218,9 @@
 
           (= :node runtime)
           (node/set-defaults)
+
+          (= :release mode)
+          (assoc-in [:compiler-options :rename-prefix-namespace] "$APP")
 
           (and (= :dev mode) (:worker-info state))
           (shared/merge-repl-defines config)
@@ -432,7 +446,7 @@
                          ;; but this is fine and saves having to re-export these in every module
                          ;; $jscomp is not getting renamed due to possible uses in shadow-js sources
                          (not (:default mod))
-                         (update :prepend str "import { shadow$provide, $jscomp } from \"./" (:output-name base-mod) "\";\n"))
+                         (update :prepend str "import { $APP, shadow$provide, $jscomp } from \"./" (:output-name base-mod) "\";\n"))
                        ))))
              (vec))))))
 
