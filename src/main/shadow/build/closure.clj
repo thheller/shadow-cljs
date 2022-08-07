@@ -25,7 +25,7 @@
      CheckLevel JSChunk CompilerOptions$LanguageMode
      Result ShadowAccess SourceMap$DetailLevel SourceMap$Format
      ClosureCodingConvention CompilationLevel VariableRenamingPolicy
-     PropertyRenamingPolicy PhaseOptimizer CompilerOptions$ChunkOutputType]
+     PropertyRenamingPolicy PhaseOptimizer CompilerOptions$ChunkOutputType CompilerOptions$ExtractPrototypeMemberDeclarationsMode]
     [shadow.build.closure
      ReplaceCLJSConstants NodeEnvInlinePass ReplaceRequirePass PropertyCollector
      NodeStuffInlinePass FindSurvivingRequireCalls GlobalsAsVar GlobalVars ShadowESMExports]
@@ -183,6 +183,7 @@
     (.setEmitUseStrict closure-opts use-strict))
 
   (when (= :esm (:chunk-output-type opts))
+    (.setExtractPrototypeMemberDeclarations closure-opts CompilerOptions$ExtractPrototypeMemberDeclarationsMode/USE_CHUNK_TEMP)
     (.setChunkOutputType closure-opts CompilerOptions$ChunkOutputType/ES_MODULES))
 
   (when (contains? opts :closure-extra-annotations)

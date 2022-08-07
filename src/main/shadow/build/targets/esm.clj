@@ -81,34 +81,28 @@
                 (cond->
                   default
                   (-> (update :module-externs conj "shadow$export")
-                      (update :prepend str "const $APP = {};\nconst shadow$provide = {};\n")))
-
-                (util/reduce->
-                  (fn [state other-mod-id]
-                    (let [other-name (get-in modules [other-mod-id :output-name])]
-                      (update state :prepend str
-                        "import "
-                        ;; only import { $APP } from ... once, otherwise just import from ...
-                        ;; all modules re-export it so they can be loaded in any order
-                        ;; and always end up getting the $APP from the default module
-                        (when (= other-mod-id (first depends-on))
-                          "{ shadow$provide, $APP, $jscomp } from")
-                        " \"./" other-name "\";\n")))
-                  depends-on)
+                      (update :prepend str "export const shadow$provide = {};\n")))
 
                 (util/reduce-kv->
                   (fn [state export-name export-sym]
-                    (let [bridge-name (str "ex_" (cljs-comp/munge (name module-id)) "_" (name export-name))]
-
-                      (-> state
-                          ;; just adding export let foo = code; directly
-                          ;; will make closure remove the export entirely
-                          ;; so we add a function call that is externed
-                          ;; and let a closure compiler pass rewrite it to the let we want
-                          (update :append-js str "\nshadow$export(\"" (name export-name) "\"," (cljs-comp/munge export-sym) ");")
-                          )))
+                    (-> state
+                        ;; need to add exported names to externs
+                        ;; otherwise the cross-chunk exports may end up clashing and creating invalid code
+                        ;; FIXME: this may stop other renaming we may want, different way to protect this?
+                        ;; can't think of another way to stop the closure compiler from creating these.
+                        ;; actual names should never actually clash but anything short like :exports {a ...}
+                        ;; is almost guaranteed to clash given the closure compiler naming patterns
+                        ;; can't just create let shadow$export_foo = X; export { shadow$export_foo as foo }
+                        ;; since that can still clash if there is another export { foo }
+                        (cond->
+                          (not= export-name 'default)
+                          (update :module-externs conj (name export-name)))
+                        ;; just adding export let foo = code; directly
+                        ;; will make closure remove the export entirely
+                        ;; so we add a function call that is externed
+                        ;; and let ShadowESMExports pass rewrite it to the export we want
+                        (update :append-js str "\nshadow$export(\"" (name export-name) "\"," (cljs-comp/munge export-sym) ");")))
                   exports)
-                (update :append str "\nexport { shadow$provide, $APP, $jscomp };\n")
                 )))
         modules
         modules))))
@@ -200,12 +194,8 @@
 
         (configure-modules)
 
-        ;; causes various
-        ;;   Imported symbol "h" in chunk "compiler.js" cannot be assigned
-        ;; errors when compiling cherry/babashka
-
-        ;; (assoc-in [:compiler-options :chunk-output-type] :esm)
         (assoc ::closure/rewrite-shadow-exports true)
+        (assoc-in [:compiler-options :chunk-output-type] :esm)
         (assoc-in [:compiler-options :emit-use-strict] false)
 
         (cond->
@@ -217,9 +207,6 @@
 
           (= :node runtime)
           (node/set-defaults)
-
-          (= :release mode)
-          (assoc-in [:compiler-options :rename-prefix-namespace] "$APP")
 
           (and (= :dev mode) (:worker-info state))
           (shared/merge-repl-defines config)
@@ -409,38 +396,45 @@
   (update-in state [::closure/modules 0 :prepend] str
     (if (seq polyfill-js)
       polyfill-js
-      "const $jscomp = {};\n")))
+      "export const $jscomp = {};\n")))
 
 (defn setup-imports [state]
   (update state :build-modules
     (fn [modules]
-      (->> modules
-           (map
-             (fn [{:keys [sources] :as mod}]
-               (let [sources
-                     (->> sources
-                          (map #(data/get-source-by-id state %))
-                          (filter ::js-support/import-shim))
+      (let [base-mod (first modules)]
+        (->> modules
+             (map
+               (fn [{:keys [sources] :as mod}]
+                 (let [sources
+                       (->> sources
+                            (map #(data/get-source-by-id state %))
+                            (filter ::js-support/import-shim))
 
-                     externs
-                     (into #{} (map :import-alias) sources)
+                       externs
+                       (into #{} (map :import-alias) sources)
 
-                     imports
-                     (->> sources
-                          (map (fn [{:keys [js-import import-alias]}]
-                                 (str "import * as " import-alias " from \"" js-import "\";")))
-                          (str/join "\n"))]
+                       imports
+                       (->> sources
+                            (map (fn [{:keys [js-import import-alias]}]
+                                   (str "import * as " import-alias " from \"" js-import "\";")))
+                            (str/join "\n"))]
 
-                 (-> mod
-                     (update :module-externs set/union externs)
-                     (update :prepend str-prepend (str imports "\n"))
-                     (cond->
-                       ;; only create shadow_esm_import if shadow.esm was required anywhere
-                       ;; needs to be created in all modules since it must be module local
-                       (get-in state [:sym->id 'shadow.esm])
-                       (update :prepend str "const shadow_esm_import = function(x) { return import(x) };\n"))
-                     ))))
-           (vec)))))
+                   (-> mod
+                       (update :module-externs set/union externs)
+                       (update :prepend str-prepend (str imports "\n"))
+                       (cond->
+                         ;; only create shadow_esm_import if shadow.esm was required anywhere
+                         ;; needs to be created in all modules since it must be module local
+                         (get-in state [:sym->id 'shadow.esm])
+                         (update :prepend str "const shadow_esm_import = function(x) { return import(x) };\n")
+
+                         ;; need access to these in all modules, might import the default mod multiple times
+                         ;; but this is fine and saves having to re-export these in every module
+                         ;; $jscomp is not getting renamed due to possible uses in shadow-js sources
+                         (not (:default mod))
+                         (update :prepend str "import { shadow$provide, $jscomp } from \"./" (:output-name base-mod) "\";\n"))
+                       ))))
+             (vec))))))
 
 ;; in dev all imports must happen in the prepend
 ;; can't do it in the pseudo-module since that evals after all the sources in
