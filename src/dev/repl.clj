@@ -31,6 +31,9 @@
 
   :done)
 
+(comment
+  (generate-css))
+
 (defn start []
   (server/start!)
 
