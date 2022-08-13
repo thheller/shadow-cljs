@@ -1089,7 +1089,7 @@
     (spit opts-file (str compiler-options)))
 
   (doseq [js-mod js-mods]
-    (let [mod-file (data/cache-file state "closure-inputs" (.getName js-mod))]
+    (let [mod-file (data/cache-file state "closure-inputs" (str (.getName js-mod) ".js"))]
       (io/make-parents mod-file)
       (spit mod-file
         (->> (.getInputs js-mod)
