@@ -543,9 +543,6 @@
 
     ast))
 
-(defmethod ana/parse '.
-  [_ env [_ target field & member+ :as form] _ opts]
-  (ana/disallowing-recur (shadow-analyze-dot env target field member+ form opts)))
 
 ;; its private in cljs.compiler ...
 (def es5>=
@@ -602,11 +599,6 @@
         (when-not (= :statement (:context env))
           (comp/emit-wrap env
             (comp/emits (comp/munge info))))))))
-
-(defmethod comp/emit* :var [expr] (shadow-emit-var expr))
-(defmethod comp/emit* :binding [expr] (shadow-emit-var expr))
-(defmethod comp/emit* :js-var [expr] (shadow-emit-var expr))
-(defmethod comp/emit* :local [expr] (shadow-emit-var expr))
 
 ;; noop
 (defn shadow-load-core [])
@@ -977,48 +969,6 @@
            (.replace \/ \$))
        "$"))
 
-(defmethod comp/emit* :invoke
-  [{f :fn :keys [invoke-type args env] :as expr}]
-  (comp/emit-wrap env
-    (case invoke-type
-      :opt-not
-      (comp/emits "(!(" (first args) "))")
-
-      :opt-count
-      (comp/emits "((" (first args) ").length)")
-
-      :protocol
-      (let [protocol-name (:protocol-name expr)
-            protocol-fn (:protocol-fn expr)
-            pimpl (str (munge (protocol-prefix protocol-name))
-                       (munge (name protocol-fn))
-                       "$arity$" (count args))]
-        (comp/emits (first args) "." pimpl "(" (comma-sep (cons "null" (rest args))) ")"))
-
-      :variadic-invoke
-      (let [mfa (:max-fixed-arity expr)]
-        (comp/emits f ".cljs$core$IFn$_invoke$arity$variadic(" (comma-sep (take mfa args))
-          (when-not (zero? mfa) ",")
-          "cljs.core.prim_seq.cljs$core$IFn$_invoke$arity$2(["
-          (comma-sep (drop mfa args)) "], 0))"))
-
-      :ifn
-      (comp/emits f ".cljs$core$IFn$_invoke$arity$" (count args) "(" (comma-sep args) ")")
-
-      :fn
-      (comp/emits f "(" (comma-sep args) ")")
-
-      :maybe-ifn
-      (let [fprop (str ".cljs$core$IFn$_invoke$arity$" (count args))]
-        (if ana/*fn-invoke-direct*
-          (comp/emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
-            f "(" (comma-sep args) "))")
-          (comp/emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
-            f ".call(" (comma-sep (cons "null" args)) "))")))
-
-      :dot-call
-      (comp/emits f ".call(" (comma-sep (cons "null" args)) ")"))))
-
 ;; fixes an issue where the cljs.core variant assumes that `resolve-var` will only return
 ;; a js/foo symbol if x is also js/something which isn't true in many cases for shadow-cljs
 ;; where npm deps especially resolve some/foo to js/module$something.foo
@@ -1045,6 +995,78 @@
           (vary-meta assoc :tag 'boolean)))
     `(some? ~x)))
 
+
+;; private is just annoying, get rid of that
+;; we need access to these below
+
+(alter-meta! #'cljs.core/to-property dissoc :private)
+(alter-meta! #'cljs.core/ifn-invoke-methods dissoc :private)
+(alter-meta! #'cljs.core/adapt-obj-params dissoc :private)
+
+
+;; multimethod in core, although I don't see how this is ever going to go past 2 impls?
+;; also added the metadata for easier externs inference
+;; switched .. to nested . since .. looses form meta
+
+(defn shadow-extend-prefix [tsym sym]
+  (let [prop-sym (core/to-property sym)]
+    (case (-> tsym meta :extend)
+      :instance
+      `(. ~tsym ~prop-sym)
+      ;; :default
+      `(. (. ~tsym ~'-prototype) ~prop-sym))))
+
+(defn shadow-add-obj-methods [type type-sym sigs]
+  (map (fn [[f & meths :as form]]
+         (let [[f meths] (if (vector? (first meths))
+                                [f [(rest form)]]
+                                [f meths])]
+           `(set! ~(with-meta
+                     (shadow-extend-prefix type-sym f)
+                     {:shadow/object-fn f})
+              ~(with-meta `(fn ~@(map #(core/adapt-obj-params type %) meths)) (meta form)))))
+    sigs))
+
+;; CLJS-3003
+(defn shadow-add-ifn-methods [type type-sym [f & meths :as form]]
+  (let [this-sym (with-meta 'self__ {:tag type})
+        argsym (gensym "args")
+
+        ;; we are emulating JS .call where the first argument will become this inside the fn
+        ;; but this is not actually what we want when emulating IFn since we need "this"
+        ;; so the first arg is always dropped instead and we dispatch to the actual protocol fns
+        call-fn
+        `(fn [unused#]
+           (core/this-as ~this-sym
+             (case (-> (core/js-arguments) (core/alength) (core/dec))
+               ~@(reduce
+                   (fn [form [args & body]]
+                     (let [arity (-> args (count) (dec))]
+                       (conj
+                         form
+                         arity
+                         (concat
+                           (list
+                             (symbol (str ".cljs$core$IFn$_invoke$arity$" arity))
+                             this-sym)
+                           (for [ar (range arity)]
+                             `(core/aget (core/js-arguments) ~(inc ar)))))))
+                   []
+                   meths)
+               (throw (js/Error. (str "Invalid arity: " (-> (core/js-arguments) (core/alength) (core/dec)))))
+               )))]
+
+    (concat
+      [`(set! ~(shadow-extend-prefix type-sym 'call) ~(with-meta call-fn (meta form)))
+       `(set! ~(shadow-extend-prefix type-sym 'apply)
+          ~(with-meta
+             `(fn ~[this-sym argsym]
+                (core/this-as ~this-sym
+                  (.apply (.-call ~this-sym) ~this-sym
+                    (.concat (core/array ~this-sym) (core/aclone ~argsym)))))
+             (meta form)))]
+      (core/ifn-invoke-methods type type-sym form))))
+
 (defn install-hacks! []
   ;; cljs.analyzer tweaks
   (replace-fn! #'ana/load-core shadow-load-core)
@@ -1060,82 +1082,62 @@
 
   (replace-fn! #'cljs.core/exists? shadow-exists?)
 
+  (replace-fn! #'cljs.core/extend-prefix shadow-extend-prefix)
+  (replace-fn! #'cljs.core/add-obj-methods shadow-add-obj-methods)
+  (replace-fn! #'cljs.core/add-ifn-methods shadow-add-ifn-methods)
+
+  (.addMethod comp/emit* :invoke
+    (fn [{f :fn :keys [invoke-type args env] :as expr}]
+      (comp/emit-wrap env
+        (case invoke-type
+          :opt-not
+          (comp/emits "(!(" (first args) "))")
+
+          :opt-count
+          (comp/emits "((" (first args) ").length)")
+
+          :protocol
+          (let [protocol-name (:protocol-name expr)
+                protocol-fn (:protocol-fn expr)
+                pimpl (str (munge (protocol-prefix protocol-name))
+                           (munge (name protocol-fn))
+                           "$arity$" (count args))]
+            (comp/emits (first args) "." pimpl "(" (comma-sep (cons "null" (rest args))) ")"))
+
+          :variadic-invoke
+          (let [mfa (:max-fixed-arity expr)]
+            (comp/emits f ".cljs$core$IFn$_invoke$arity$variadic(" (comma-sep (take mfa args))
+              (when-not (zero? mfa) ",")
+              "cljs.core.prim_seq.cljs$core$IFn$_invoke$arity$2(["
+              (comma-sep (drop mfa args)) "], 0))"))
+
+          :ifn
+          (comp/emits f ".cljs$core$IFn$_invoke$arity$" (count args) "(" (comma-sep args) ")")
+
+          :fn
+          (comp/emits f "(" (comma-sep args) ")")
+
+          :maybe-ifn
+          (let [fprop (str ".cljs$core$IFn$_invoke$arity$" (count args))]
+            (if ana/*fn-invoke-direct*
+              (comp/emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
+                f "(" (comma-sep args) "))")
+              (comp/emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
+                f ".call(" (comma-sep (cons "null" args)) "))")))
+
+          :dot-call
+          (comp/emits f ".call(" (comma-sep (cons "null" args)) ")")))))
+
+  (.addMethod comp/emit* :var (fn [expr] (shadow-emit-var expr)))
+  (.addMethod comp/emit* :binding (fn [expr] (shadow-emit-var expr)))
+  (.addMethod comp/emit* :js-var (fn [expr] (shadow-emit-var expr)))
+  (.addMethod comp/emit* :local (fn [expr] (shadow-emit-var expr)))
+  (.addMethod ana/parse '.
+    (fn
+      [_ env [_ target field & member+ :as form] _ opts]
+      (ana/disallowing-recur (shadow-analyze-dot env target field member+ form opts))))
+
   ;; remove these for now, not worth the trouble
   ;; (replace-fn! #'test/deftest @#'shadow-deftest)
   ;; (replace-fn! #'test/use-fixtures @#'shadow-use-fixtures)
   )
-
-
-(in-ns 'cljs.compiler)
-
-;; FIXME: patch this in CLJS. its the only externs inference call I can't work around
-;; cljs will blindly generate (set! (.. Thing -prototype -something) ...) for
-;; (deftype Thing []
-;;   Object
-;;   (something [...] ...))
-;; but doesn't keep any kind of meta that something is being defined on Object
-;; and that we should generate externs for it
-(in-ns 'cljs.core)
-
-;; multimethod in core, although I don't see how this is ever going to go past 2 impls?
-;; also added the metadata for easier externs inference
-;; switched .. to nested . since .. looses form meta
-(defn- extend-prefix [tsym sym]
-  (let [prop-sym (to-property sym)]
-    (core/case (core/-> tsym meta :extend)
-      :instance
-      `(. ~tsym ~prop-sym)
-      ;; :default
-      `(. (. ~tsym ~'-prototype) ~prop-sym))))
-
-(core/defn- add-obj-methods [type type-sym sigs]
-  (map (core/fn [[f & meths :as form]]
-         (core/let [[f meths] (if (vector? (first meths))
-                                [f [(rest form)]]
-                                [f meths])]
-           `(set! ~(with-meta
-                     (extend-prefix type-sym f)
-                     {:shadow/object-fn f})
-              ~(with-meta `(fn ~@(map #(adapt-obj-params type %) meths)) (meta form)))))
-    sigs))
-
-
-;; CLJS-3003
-(core/defn- add-ifn-methods [type type-sym [f & meths :as form]]
-  (core/let [this-sym (with-meta 'self__ {:tag type})
-             argsym (gensym "args")
-
-             ;; we are emulating JS .call where the first argument will become this inside the fn
-             ;; but this is not actually what we want when emulating IFn since we need "this"
-             ;; so the first arg is always dropped instead and we dispatch to the actual protocol fns
-             call-fn
-             `(fn [unused#]
-                (this-as ~this-sym
-                  (case (-> (js-arguments) (alength) (dec))
-                    ~@(reduce
-                        (core/fn [form [args & body]]
-                          (core/let [arity (core/-> args (count) (core/dec))]
-                            (conj
-                              form
-                              arity
-                              (concat
-                                (core/list
-                                  (symbol (core/str ".cljs$core$IFn$_invoke$arity$" arity))
-                                  this-sym)
-                                (core/for [ar (range arity)]
-                                  `(aget (js-arguments) ~(core/inc ar)))))))
-                        []
-                        meths)
-                    (throw (js/Error. (str "Invalid arity: " (-> (js-arguments) (alength) (dec)))))
-                    )))]
-
-    (concat
-      [`(set! ~(extend-prefix type-sym 'call) ~(with-meta call-fn (meta form)))
-       `(set! ~(extend-prefix type-sym 'apply)
-          ~(with-meta
-             `(fn ~[this-sym argsym]
-                (this-as ~this-sym
-                  (.apply (.-call ~this-sym) ~this-sym
-                    (.concat (array ~this-sym) (cljs.core/aclone ~argsym)))))
-             (meta form)))]
-      (ifn-invoke-methods type type-sym form))))
