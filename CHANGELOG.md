@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.19.9](https://github.com/thheller/shadow-cljs/compare/4115a2be68160b02e88a70409000f696008663e8...53421dabbcead5c9b26ea6544190bb62f5ca0e83) - 2022-08-14
+- [ [`53421`](https://github.com/thheller/shadow-cljs/commit/53421dabbcead5c9b26ea6544190bb62f5ca0e83) ] dep bumps
+- [ [`4760e`](https://github.com/thheller/shadow-cljs/commit/4760eac19a8312f7d4c653ad6a49ecfdac4969a1) ] fix :dump-closure-inputs debug option
+- [ [`54e95`](https://github.com/thheller/shadow-cljs/commit/54e9574672711b4de40965f9f28da4c92e2b37d4) ] move all cljs hacks to delayed init to fix some AOT issues
+- [ [`5cc1e`](https://github.com/thheller/shadow-cljs/commit/5cc1ed780f444fee0072ffae9d971ccc3270f615) ] fix css build
+- [ [`e8e0c`](https://github.com/thheller/shadow-cljs/commit/e8e0cf9973bafcd472ffa1066bbd8ae8c83e5cab) ] go back to the old ESM hack
+- [ [`a6d10`](https://github.com/thheller/shadow-cljs/commit/a6d1035b908fbbeabab9e6e4c229db9bacbdd6ea) ] more :target :esm tweaks
+- [ [`70966`](https://github.com/thheller/shadow-cljs/commit/709668b94f6796287a14fd912a1edb649a90469b) ] closure ESM output seems to have some issues
+- [ [`1a761`](https://github.com/thheller/shadow-cljs/commit/1a76102e05d9ec51115585fdb66087ee5fd7a3d9) ] rewrite ESM output to use Closure Compiler ESM output
+- [ [`51d21`](https://github.com/thheller/shadow-cljs/commit/51d21f5b325d8cb18cd670a3edfab7063e91d477) ] remove try/catch for :init-fn call in release builds
+- [ [`e043e`](https://github.com/thheller/shadow-cljs/commit/e043ec084d38a8d62c8ade1b5c70a87d01c1661c) ] skip unnecessary use strict in ESM output
+- [ [`94b08`](https://github.com/thheller/shadow-cljs/commit/94b08b5ad92d68226ad4e0e03f2e3faa6520e881) ] update css build
+- [ [`6757a`](https://github.com/thheller/shadow-cljs/commit/6757a71cbf2fa9ef2a22465ffa366b238b0fefcc) ] updating year in copyright (#1043)
+- [ [`c2d49`](https://github.com/thheller/shadow-cljs/commit/c2d491f88419fe2a3b574585c1218ccba875e74e) ] fix README to indicate that Java 11 is now minimum
+- [ [`c8884`](https://github.com/thheller/shadow-cljs/commit/c8884ddfcb878b97b95058de74fdd37234f35a5e) ] adjust UI for grove changes
+- [ [`4115a`](https://github.com/thheller/shadow-cljs/commit/4115a2be68160b02e88a70409000f696008663e8) ] update css build functions
+
 ## [2.19.8](https://github.com/thheller/shadow-cljs/compare/2730fb0d98e33a1603f49dca319b2c764a91f570...2730fb0d98e33a1603f49dca319b2c764a91f570) - 2022-07-25
 - [ [`2730f`](https://github.com/thheller/shadow-cljs/commit/2730fb0d98e33a1603f49dca319b2c764a91f570) ] drop the one CLJ use of shadow.css
 
