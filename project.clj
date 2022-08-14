@@ -48,14 +48,14 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20220719"]
+   [com.google.javascript/closure-compiler-unshaded "v20220803"]
 
    [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
    [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.3"]
-   [thheller/shadow-undertow "0.2.1"]
+   [thheller/shadow-undertow "0.3.0"]
    [thheller/shadow-cljsjs "0.0.22"]
 
    [hiccup "1.0.5"]
@@ -138,8 +138,8 @@
      [cljsjs/react-dom "18.0.0-rc.0-0"]
 
      ;; only used for UI build for now?
-     [com.thheller/shadow-css "0.2.0"]
-     [com.thheller/shadow-grove "0.2.0"]
+     [com.thheller/shadow-css "0.4.0"]
+     [com.thheller/shadow-grove "0.4.1"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project
