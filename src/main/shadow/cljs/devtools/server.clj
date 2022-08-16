@@ -33,10 +33,13 @@
     [shadow.remote.runtime.obj-support :as obj-support]
     [shadow.remote.runtime.tap-support :as tap-support]
     [shadow.remote.runtime.eval-support :as eval-support]
-    [shadow.remote.runtime.explore-support :as explore-support])
-  (:import (java.net BindException)
+    [shadow.remote.runtime.explore-support :as explore-support]
+    [shadow.cljs.devtools.server.util :as server-util])
+  (:import (java.net BindException URI)
            [java.lang.management ManagementFactory]
-           [java.util UUID]))
+           [java.util UUID]
+           [java.net.http HttpRequest HttpClient HttpClient$Version HttpConnectTimeoutException HttpResponse$BodyHandlers]
+           [java.time Duration]))
 
 (defn wait-for [app-ref]
   (or @app-ref
@@ -100,7 +103,7 @@
        (discard-println ~(str "shutdown failed: " (pr-str body))))))
 
 (defn shutdown-system [{:keys [shutdown-hook http port-files-ref socket-repl cli-repl cli-checker nrepl] :as app}]
-  #_ (discard-println "shutting down ...")
+  #_(discard-println "shutting down ...")
   (try
     (. (Runtime/getRuntime) (removeShutdownHook shutdown-hook))
     (catch IllegalStateException e
@@ -313,7 +316,7 @@
         shutdown-hook
         (Thread.
           (fn []
-            #_ (println "Running shutdown hook.")
+            #_(println "Running shutdown hook.")
             (stop!)))
 
         app
@@ -378,6 +381,45 @@
 
     app-ref))
 
+(defn check-for-other-instance! [{:keys [cache-dir] :or {cache-dir ".shadow-cljs"} :as config}]
+  (let [port-file (io/file cache-dir "http.port")]
+    (when (.exists port-file)
+      (let [port
+            (Long/parseLong (str/trim (slurp port-file)))
+
+            req
+            (-> (HttpRequest/newBuilder)
+                (.uri (URI/create (str "http://localhost:" port "/api/project-info")))
+                (.GET)
+                (.build))
+
+            client
+            (-> (HttpClient/newBuilder)
+                (.version HttpClient$Version/HTTP_1_1)
+                ;; local connect shouldn't take long and don't want to wait too long
+                (.connectTimeout (Duration/ofMillis 250))
+                (.build))]
+
+        (try
+          (let [res (.send client req (HttpResponse$BodyHandlers/ofString))]
+
+            ;; just assume its not a shadow-cljs server for anything else?
+            (when (= 200 (.statusCode res))
+              (let [other (common/transit-read-in (.body res))
+                    this (server-util/project-info)]
+
+                (when (= (:project-home other)
+                         (:project-home this))
+                  (throw
+                    (ex-info
+                      (str "shadow-cljs already running in project on http://localhost:" port
+                           ". Use or terminate it before starting another one.")
+                      other))))))
+
+          (catch HttpConnectTimeoutException e
+            ;; fine, no other server running
+            ))))))
+
 (defn start!
   ([]
    (let [config (config/load-cljs-edn)]
@@ -388,6 +430,9 @@
      (do (log/set-level! (or (get-in sys-config [:log :level])
                              (get-in sys-config [:user-config :log :level])
                              :info))
+
+         (check-for-other-instance! sys-config)
+
          (let [app
                (merge
                  {:dev-http

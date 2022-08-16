@@ -32,6 +32,20 @@
       "<snapshot>"
       (find-version-from-pom pom-xml))))
 
+(defn project-info []
+  (let [project-config
+        (-> (io/file "shadow-cljs.edn")
+            (.getAbsoluteFile))
+
+        project-home
+        (-> project-config
+            (.getParentFile)
+            (.getAbsolutePath))]
+
+    {:project-config (.getAbsolutePath project-config)
+     :project-home project-home
+     :version (find-version)}))
+
 (defn async-logger [ch]
   (reify
     build-log/BuildLog

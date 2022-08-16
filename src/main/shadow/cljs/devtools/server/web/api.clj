@@ -53,20 +53,10 @@
      :body (transit-str result)}))
 
 (defn project-info [{:keys [transit-read transit-str] :as req}]
-  (let [project-config
-        (-> (io/file "shadow-cljs.edn")
-            (.getAbsoluteFile))
 
-        project-home
-        (-> project-config
-            (.getParentFile)
-            (.getAbsolutePath))]
-
-    {:status 200
-     :headers {"content-type" "application/transit+json; charset=utf-8"}
-     :body (transit-str {:project-config (.getAbsolutePath project-config)
-                         :project-home project-home
-                         :version (server-util/find-version)})}))
+  {:status 200
+   :headers {"content-type" "application/transit+json; charset=utf-8"}
+   :body (transit-str (server-util/project-info))})
 
 (defn ui-init-data [{:keys [dev-http transit-str supervisor] :as req}]
   {:status 200

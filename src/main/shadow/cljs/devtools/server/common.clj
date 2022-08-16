@@ -13,6 +13,17 @@
   (:import (java.io ByteArrayOutputStream InputStream ByteArrayInputStream)
            (java.util.concurrent Executors TimeUnit)))
 
+(defn transit-read-in [in]
+  (let [r (transit/reader
+            (if (string? in)
+              (ByteArrayInputStream. (.getBytes in "UTF-8"))
+              in)
+            :json)]
+    (try
+      (transit/read r)
+      (catch Exception e
+        (throw (ex-info "failed to transit-read" {:in in} e))))))
+
 (def app-config
   {:edn-reader
    {:depends-on []
@@ -37,18 +48,7 @@
    :transit-read
    {:depends-on []
     :start
-    (fn []
-      (fn [in]
-        (let [r (transit/reader
-                  (if (string? in)
-                    (ByteArrayInputStream. (.getBytes in "UTF-8"))
-                    in)
-                  :json)]
-          (try
-            (transit/read r)
-            (catch Exception e
-              (throw (ex-info "failed to transit-read" {:in in} e))))
-          )))
+    (constantly transit-read-in)
     :stop
     (fn [x])}
 
