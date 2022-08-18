@@ -518,7 +518,7 @@
 
   (render
     (<< [:div {:class (css :flex-1 :overflow-hidden :flex :flex-col :bg-white)}
-         [:div {:cass (css :p-2 :font-bold :border-b)} "Exploring Runtime: #" runtime-id]
+         [:div {:class (css :p-2 :font-bold :border-b)} "Exploring Runtime: #" runtime-id]
          [:div {:class (css :flex-1 :flex :overflow-hidden)}
           [:div {:class (css :overflow-y-auto)}
            (sg/keyed-seq runtime-namespaces-filtered identity
