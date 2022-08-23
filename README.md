@@ -1,10 +1,13 @@
-`shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
+<img src="https://raw.githubusercontent.com/thheller/shadow-cljs/master/src/main/shadow/cljs/devtools/server/web/resources/img/shadow-cljs.png" width="120" height="120" />
+
 
 [![](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
 [![npm](https://img.shields.io/npm/v/shadow-cljs.svg)](https://github.com/thheller/shadow-cljs)
 [![Clojars Project](https://img.shields.io/clojars/v/thheller/shadow-cljs.svg)](https://clojars.org/thheller/shadow-cljs)
 
-<a href="http://shadow-cljs.org" target="_blank"><img src="https://raw.githubusercontent.com/thheller/shadow-cljs/master/src/main/shadow/cljs/devtools/server/web/resources/img/shadow-cljs.png" width="120" height="120" /></a>
+`shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
+
+### [User's Guide](https://shadow-cljs.github.io/docs/UsersGuide.html) | [Quick Start](#quick-start) | [Tutorials](#video-courses)
 
 ## Features
 
