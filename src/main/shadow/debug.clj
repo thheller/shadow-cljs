@@ -28,7 +28,7 @@
 
 (defmacro ?>
   ([obj]
-   `(?> ~obj {}))
+   `(tap> [:shadow.remote/wrap ~obj ~(dbg-info &env &form {})]))
   ([obj opts]
    `(tap> [:shadow.remote/wrap ~obj ~(dbg-info &env &form opts)])))
 
@@ -38,13 +38,13 @@
 
 (defmacro ?->
   ([obj]
-   `(?-> ~obj {}))
+   `(tap-> ~obj ~(dbg-info &env &form {})))
   ([obj opts]
    `(tap-> ~obj ~(dbg-info &env &form opts))))
 
 (defmacro ?->>
   ([obj]
-   `(?->> {} ~obj))
+   `(tap-> ~obj ~(dbg-info &env &form {})))
   ([opts obj]
    `(tap-> ~obj ~(dbg-info &env &form opts))))
 
@@ -79,6 +79,8 @@
   (let [x 1
         y 2]
     (locals))
+
+  (?> :yo)
 
   (-> :thing
       (?-> :view-opts))
