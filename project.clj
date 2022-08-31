@@ -24,7 +24,7 @@
    [org.clojure/tools.cli "1.0.206"]
    [org.clojure/tools.reader "1.3.6"]
 
-   [nrepl "0.9.0"]
+   [nrepl "1.0.0"]
    [cider/piggieback "0.5.3"
     :exclusions
     [org.clojure/clojure
@@ -64,7 +64,7 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [io.methvin/directory-watcher "0.15.1"]
+   [io.methvin/directory-watcher "0.16.1"]
 
    [expound "0.9.0"]
    [fipp "0.6.26"]
