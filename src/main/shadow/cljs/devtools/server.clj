@@ -38,8 +38,9 @@
   (:import (java.net BindException URI)
            [java.lang.management ManagementFactory]
            [java.util UUID]
-           [java.net.http HttpRequest HttpClient HttpClient$Version HttpConnectTimeoutException HttpResponse$BodyHandlers]
-           [java.time Duration]))
+           [java.net.http HttpRequest HttpClient HttpClient$Version HttpResponse$BodyHandlers]
+           [java.time Duration]
+           [java.io IOException]))
 
 (defn wait-for [app-ref]
   (or @app-ref
@@ -416,7 +417,7 @@
                            ". Use or terminate it before starting another one.")
                       other))))))
 
-          (catch HttpConnectTimeoutException e
+          (catch IOException e
             ;; fine, no other server running
             ))))))
 
