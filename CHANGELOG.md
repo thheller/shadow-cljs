@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.20.0](https://github.com/thheller/shadow-cljs/compare/47c3824634118f27a8276a70d6bf2da8752905bc...41ea12a4849e1bcd49fc54a814d460f6eac05f97) - 2022-08-31
+- [ [`41ea1`](https://github.com/thheller/shadow-cljs/commit/41ea12a4849e1bcd49fc54a814d460f6eac05f97) ] dep bumps
+- [ [`197fc`](https://github.com/thheller/shadow-cljs/commit/197fc8bb03254cf54b65edb06114465509d6a014) ] readme
+- [ [`5e19b`](https://github.com/thheller/shadow-cljs/commit/5e19b265f1620b6b0d10e6710def9f35645f1735) ] readme
+- [ [`20972`](https://github.com/thheller/shadow-cljs/commit/20972f816660b25041c1c6af700f7a0838cd2b81) ] readme
+- [ [`0b819`](https://github.com/thheller/shadow-cljs/commit/0b819197dfcd5b944617745bc1320385df2230b4) ] reorg readme header
+- [ [`3a231`](https://github.com/thheller/shadow-cljs/commit/3a231b51d55f9a1dc21daab119406443d611f03d) ] fix typo
+- [ [`35edd`](https://github.com/thheller/shadow-cljs/commit/35edd7df69efbefc3d764315deb3b22ad94ab57a) ] hard bump to Java11 minimum
+- [ [`47c38`](https://github.com/thheller/shadow-cljs/commit/47c3824634118f27a8276a70d6bf2da8752905bc) ] add check for running instances in project
+
 ## [2.19.9](https://github.com/thheller/shadow-cljs/compare/4115a2be68160b02e88a70409000f696008663e8...53421dabbcead5c9b26ea6544190bb62f5ca0e83) - 2022-08-14
 - [ [`53421`](https://github.com/thheller/shadow-cljs/commit/53421dabbcead5c9b26ea6544190bb62f5ca0e83) ] dep bumps
 - [ [`4760e`](https://github.com/thheller/shadow-cljs/commit/4760eac19a8312f7d4c653ad6a49ecfdac4969a1) ] fix :dump-closure-inputs debug option
