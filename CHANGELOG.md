@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.20.1](https://github.com/thheller/shadow-cljs/compare/a7b6bf2c4ba7c508fc6f1a279d4ca7108dfddd02...846446eb49e51daf9c25b6016603afe38b6d4768) - 2022-08-31
+- [ [`84644`](https://github.com/thheller/shadow-cljs/commit/846446eb49e51daf9c25b6016603afe38b6d4768) ] fix debug macros
+- [ [`a7b6b`](https://github.com/thheller/shadow-cljs/commit/a7b6bf2c4ba7c508fc6f1a279d4ca7108dfddd02) ] fix not catching enough exceptions
+
 ## [2.20.0](https://github.com/thheller/shadow-cljs/compare/47c3824634118f27a8276a70d6bf2da8752905bc...41ea12a4849e1bcd49fc54a814d460f6eac05f97) - 2022-08-31
 - [ [`41ea1`](https://github.com/thheller/shadow-cljs/commit/41ea12a4849e1bcd49fc54a814d460f6eac05f97) ] dep bumps
 - [ [`197fc`](https://github.com/thheller/shadow-cljs/commit/197fc8bb03254cf54b65edb06114465509d6a014) ] readme
