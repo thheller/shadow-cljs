@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.2](https://github.com/thheller/shadow-cljs/compare/531859df882badc9601d5008ee3d98463296227e...531859df882badc9601d5008ee3d98463296227e) - 2022-09-16
+- [ [`53185`](https://github.com/thheller/shadow-cljs/commit/531859df882badc9601d5008ee3d98463296227e) ] fix breakage when npm packages don't match their installed name
+
 ## [2.20.1](https://github.com/thheller/shadow-cljs/compare/a7b6bf2c4ba7c508fc6f1a279d4ca7108dfddd02...846446eb49e51daf9c25b6016603afe38b6d4768) - 2022-08-31
 - [ [`84644`](https://github.com/thheller/shadow-cljs/commit/846446eb49e51daf9c25b6016603afe38b6d4768) ] fix debug macros
 - [ [`a7b6b`](https://github.com/thheller/shadow-cljs/commit/a7b6bf2c4ba7c508fc6f1a279d4ca7108dfddd02) ] fix not catching enough exceptions
