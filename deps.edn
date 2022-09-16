@@ -70,11 +70,15 @@
 
  :aliases
  {:dev
-  {:override-deps
+  {:extra-paths
+   ["src/test"]
+
+   :override-deps
    {thheller/shadow-client {:local/root "../shadow"}
     thheller/shadow-cljsjs {:local/root "../shadow-cljsjs"}
     thheller/shadow-undertow {:local/root "../shadow-undertow"}
     com.thheller/shadow-css {:local/root "../shadow-css"}}
+
    :extra-deps
    {com.thheller/shadow-grove {:local/root "../shadow-grove"}
     }}}}

@@ -8,7 +8,8 @@
             [shadow.build.log :as cljs-log]
             [shadow.cljs.util :as util :refer (reduce-> reduce-kv->)]
             [shadow.build.data :as data]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [shadow.debug :as dbg])
   (:import (java.io File)
            (com.google.javascript.jscomp SourceFile CompilerOptions CompilerOptions$LanguageMode)
            (com.google.javascript.jscomp.deps ModuleNames)
@@ -556,7 +557,7 @@
       (let [pkg (find-package-for-require* npm require-from path)]
         (cond
           pkg
-          pkg
+          (assoc pkg :match-name path)
 
           (not (seq more))
           nil
@@ -684,8 +685,10 @@
 ;; expects a require starting with ./ expressing a require relative in the package
 ;; using this instead of empty string because package exports use it too
 (defn find-resource-in-package [npm package require-from rel-require]
-  {:pre [(map? package)
-         (str/starts-with? rel-require "./")]}
+  {:pre [(map? package)]}
+
+  (when-not (str/starts-with? rel-require "./")
+    (throw (ex-info "invalid require" {:package (:package-name package) :require-from (:resource-id require-from) :rel-require rel-require})))
 
   (if (:package-exports package)
     (throw (ex-info "tbd" {}))
@@ -801,12 +804,17 @@
       (cond
         ;; common path, no override
         (or (nil? override) (= override require))
-        (when-let [{:keys [package-name] :as package} (find-package-for-require npm require-from require)]
-          (if (= require package-name)
+        (when-let [{:keys [match-name] :as package} (find-package-for-require npm require-from require)]
+          ;; must used the match-name provided by find-package-for-require
+          ;; package-name cannot be trusted to match the actual package name
+          ;; eg. react-intl-next has react-intl as "name" in package.json
+          ;; can't just use the first /, package names can contain / and might be nested
+          ;; @foo/bar and @foo/bar/some-nested/package.json are all valid packages
+          (if (= require match-name)
             ;; plain package require turns into "./" rel require
             (find-resource-in-package npm package require-from "./")
             ;; strip package/ from package/foo turn it into ./foo
-            (let [rel-require (str "." (subs require (count package-name)))]
+            (let [rel-require (str "." (subs require (count match-name)))]
               (find-resource-in-package npm package require-from rel-require)
               )))
 
