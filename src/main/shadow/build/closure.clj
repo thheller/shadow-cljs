@@ -276,6 +276,7 @@
          postMessage
          process
          require
+         undefined
          WebSocket
          Worker
          XMLHttpRequest
