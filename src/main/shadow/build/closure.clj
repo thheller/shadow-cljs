@@ -276,6 +276,7 @@
          postMessage
          process
          require
+         throw
          undefined
          WebSocket
          Worker
