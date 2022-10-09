@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.20.3](https://github.com/thheller/shadow-cljs/compare/0b6854ee36f9de59f78fc073809e05db4f00d37b...e53240007b45ab891f23edcb96b2ed377fafc471) - 2022-10-09
+- [ [`e5324`](https://github.com/thheller/shadow-cljs/commit/e53240007b45ab891f23edcb96b2ed377fafc471) ] fix goog.module requires in the REPL
+- [ [`bf38b`](https://github.com/thheller/shadow-cljs/commit/bf38b2c4c68c2dbd634948155ca0572cefcf739b) ] also add throw
+- [ [`0b685`](https://github.com/thheller/shadow-cljs/commit/0b6854ee36f9de59f78fc073809e05db4f00d37b) ] add undefined as known global so it doesn't end up in externs
+
 ## [2.20.2](https://github.com/thheller/shadow-cljs/compare/531859df882badc9601d5008ee3d98463296227e...531859df882badc9601d5008ee3d98463296227e) - 2022-09-16
 - [ [`53185`](https://github.com/thheller/shadow-cljs/commit/531859df882badc9601d5008ee3d98463296227e) ] fix breakage when npm packages don't match their installed name
 
