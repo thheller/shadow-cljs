@@ -344,6 +344,13 @@
 ;; most of it seems self-host related which we do not need
 ;; it also has a hard coded emit for cljs.core which would cause a double emit
 ;; since deps (correctly) contains cljs.core but not in CLJS
+
+(defn emit-goog-module-gets [current-ns module-deps]
+  (comp/emitln "goog.scope(function(){")
+  (doseq [{:keys [goog-module ns]} module-deps]
+    (comp/emitln (str "  " (ana/munge-goog-module-lib current-ns ns) " = goog.module.get('" goog-module "');")))
+  (comp/emitln "});"))
+
 (defmethod shadow-emit :ns [{:keys [mode] :as state} {:keys [name deps] :as ast}]
   ;; FIXME: can't remove goog.require/goog.provide from goog sources easily
   ;; keeping them for CLJS for now although they are not needed in JS mode
@@ -367,10 +374,7 @@
              (filter :goog-module))]
 
     (when (seq module-deps)
-      (comp/emitln "goog.scope(function(){")
-      (doseq [{:keys [goog-module ns]} module-deps]
-        (comp/emitln (str "  " (ana/munge-goog-module-lib name ns) " = goog.module.get('" goog-module "');")))
-      (comp/emitln "});")))
+      (emit-goog-module-gets name module-deps)))
 
   (when (= :dev mode)
     (doseq [dep deps

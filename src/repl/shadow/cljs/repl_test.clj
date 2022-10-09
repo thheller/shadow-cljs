@@ -191,3 +191,13 @@
             (repl/process-input "::m/max"))]
 
     (pprint repl-state)))
+
+
+(deftest test-repl-require-goog-module
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(require '[goog.object :as gobj])")
+            (repl/process-input "(gobj/set \"foo\" \"x\" 1)"))]
+
+    (tap> repl-state)))

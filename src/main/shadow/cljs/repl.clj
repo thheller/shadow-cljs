@@ -196,6 +196,9 @@
         ns-info
         (get-in state [:compiler-env ::ana/namespaces current-ns])
 
+        old-deps
+        (set (:deps ns-info))
+
         {:keys [reload-deps] :as new-ns-info}
         (-> (ns-form/merge-repl-require ns-info require-form)
             ;; (in-ns 'some.thing)
@@ -206,6 +209,9 @@
 
         new-deps
         (:deps new-ns-info)
+
+        added-deps
+        (into [] (remove old-deps) new-deps)
 
         state
         (-> state
@@ -228,7 +234,9 @@
             (build-api/compile-sources new-sources)
             (load-macros-and-set-ns-info new-ns-info))
 
-        action
+        ;; ensures all required namespaces are loaded
+        ;; not just the one just added, just in case they aren't loaded
+        repl-require
         (-> {:type :repl/require
              :sources new-sources
              :warnings (warnings-for-sources state new-sources)
@@ -245,13 +253,31 @@
                                          (:ns rc)))
                                      nil)))
                           (remove nil?)
-                          (into [])))))]
+                          (into [])))))
+
+        added-goog-modules
+        (->> added-deps
+             (filter symbol?)
+             (map #(data/get-source-by-provide state %))
+             (filter :goog-module))
+
+        actions
+        (-> [repl-require]
+            (cond->
+              ;; need to pull goog.module sources into the current ns
+              ;; cljs.user.goog$module = goog.modules.get("goog.object")
+              ;; wrapped in a goog.scope so it doesn't complain about not being in module scope
+              (seq added-goog-modules)
+              (conj {:type :repl/invoke
+                     :name "<eval>"
+                     :internal true
+                     :js (with-out-str (comp/emit-goog-module-gets current-ns added-goog-modules))})))]
 
     (doto state
       (output/flush-sources new-sources)
       (async/wait-for-pending-tasks!))
 
-    (update-in state [:repl-state :repl-actions] conj action)
+    (update-in state [:repl-state :repl-actions] into actions)
     ))
 
 (declare process-input)
