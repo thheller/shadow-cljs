@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.4](https://github.com/thheller/shadow-cljs/compare/c44293469e615813801672ecaf6d37e370e0a62e...c44293469e615813801672ecaf6d37e370e0a62e) - 2022-10-13
+- [ [`c4429`](https://github.com/thheller/shadow-cljs/commit/c44293469e615813801672ecaf6d37e370e0a62e) ] fix :esm target not properly importing :depends-on modules
+
 ## [2.20.3](https://github.com/thheller/shadow-cljs/compare/0b6854ee36f9de59f78fc073809e05db4f00d37b...e53240007b45ab891f23edcb96b2ed377fafc471) - 2022-10-09
 - [ [`e5324`](https://github.com/thheller/shadow-cljs/commit/e53240007b45ab891f23edcb96b2ed377fafc471) ] fix goog.module requires in the REPL
 - [ [`bf38b`](https://github.com/thheller/shadow-cljs/commit/bf38b2c4c68c2dbd634948155ca0572cefcf739b) ] also add throw
