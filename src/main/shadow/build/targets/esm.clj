@@ -83,6 +83,21 @@
                   (-> (update :module-externs conj "shadow$export")
                       (update :prepend str "export const $APP = {};\nexport const shadow$provide = {};\n")))
 
+                ;; import depends-on modules
+                (util/reduce->
+                  (fn [state other-mod-id]
+                    (let [other-mod (get modules other-mod-id)]
+                      ;; reference all direct :depends-on modules
+                      ;; default is covered later and added to every module
+                      ;; FIXME: doing this is two stages is confusing, should refactor
+                      ;; done because one works with the ordered :build-modules vector
+                      ;; and this on with the maps, so we can look up by keys
+                      (if (:default other-mod)
+                        state
+                        (update state :prepend str "import \"./" (:output-name other-mod) "\";\n"))))
+                  depends-on)
+
+
                 (util/reduce-kv->
                   (fn [state export-name export-sym]
                     (-> state
@@ -446,7 +461,9 @@
                          ;; but this is fine and saves having to re-export these in every module
                          ;; $jscomp is not getting renamed due to possible uses in shadow-js sources
                          (not (:default mod))
-                         (update :prepend str "import { $APP, shadow$provide, $jscomp } from \"./" (:output-name base-mod) "\";\n"))
+                         (update :prepend
+                           (fn [prepend]
+                             (str "import { $APP, shadow$provide, $jscomp } from \"./" (:output-name base-mod) "\";\n" prepend))))
                        ))))
              (vec))))))
 

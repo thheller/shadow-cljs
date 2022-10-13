@@ -215,7 +215,12 @@
     :b
     {:exports
      {default demo.esm.b/bar}
-     :depends-on #{:shared}}}}
+     :depends-on #{:shared}}
+    :c
+    {:exports
+     {default demo.esm.c/foo}
+     :depends-on #{:b}}}
+   }
 
   :now-lambda
   {:target :node-library
