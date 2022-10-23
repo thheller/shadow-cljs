@@ -370,7 +370,10 @@
                 (not was-symbol?)
 
                 ;; treat every symbol as valid when :npm-deps in deps.cljs on the classpath contain it
-                (npm/is-npm-dep? (:npm state) require))
+                (npm/is-npm-dep? (:npm state) require)
+
+                ;; `(:require [react ...])` check if <js-package-dir>/react exists
+                (npm/find-package (:npm state) require))
 
         ;; technically this should be done before the find-package above
         ;; but I'm fine with this breaking for symbol requires
