@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.6](https://github.com/thheller/shadow-cljs/compare/46af511c8b011ce2846c8106ff268df0a4d49c4a...46af511c8b011ce2846c8106ff268df0a4d49c4a) - 2022-10-23
+- [ [`46af5`](https://github.com/thheller/shadow-cljs/commit/46af511c8b011ce2846c8106ff268df0a4d49c4a) ] fix :js-provider :import not finding magic symbols
+
 ## [2.20.5](https://github.com/thheller/shadow-cljs/compare/d1d1c73ae2332c48f190e937f0712b732435f7b4...a2ce3ad9991abf8cc7247bbe79b90fdeedfe217e) - 2022-10-14
 - [ [`a2ce3`](https://github.com/thheller/shadow-cljs/commit/a2ce3ad9991abf8cc7247bbe79b90fdeedfe217e) ] docs(README): fix for broken link to Boodle project (accounting SPA) (#1047)
 - [ [`6ba35`](https://github.com/thheller/shadow-cljs/commit/6ba356bb418748df6a5fb9d98788c8b8a6786bac) ] fix externs inference to account for hinted types
