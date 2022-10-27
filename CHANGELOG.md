@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.7](https://github.com/thheller/shadow-cljs/compare/723fbf0075c8a06ba452104b61fb97ca6609f573...723fbf0075c8a06ba452104b61fb97ca6609f573) - 2022-10-27
+- [ [`723fb`](https://github.com/thheller/shadow-cljs/commit/723fbf0075c8a06ba452104b61fb97ca6609f573) ] tune :js-provider :import + :esm for JS side tree shaking
+
 ## [2.20.6](https://github.com/thheller/shadow-cljs/compare/46af511c8b011ce2846c8106ff268df0a4d49c4a...46af511c8b011ce2846c8106ff268df0a4d49c4a) - 2022-10-23
 - [ [`46af5`](https://github.com/thheller/shadow-cljs/commit/46af511c8b011ce2846c8106ff268df0a4d49c4a) ] fix :js-provider :import not finding magic symbols
 
