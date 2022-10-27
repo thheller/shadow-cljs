@@ -34,7 +34,10 @@
 
 (defn is-shadow-shim? [ns]
   (or (str/starts-with? (str ns) "shadow.js.shim")
-      (str/starts-with? (str ns) "shadow.esm.esm_import$")))
+      ;; :js-provider :import - dev
+      (str/starts-with? (str ns) "shadow.esm.esm_import$")
+      ;; :js-provider :import - release
+      (str/starts-with? (str ns) "esm_import$")))
 
 (defn resolve-js-var [ns sym current-ns]
   ;; quick hack to record all accesses to any JS mod

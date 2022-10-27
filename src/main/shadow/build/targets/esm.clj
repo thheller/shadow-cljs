@@ -434,16 +434,31 @@
         (->> modules
              (map
                (fn [{:keys [sources] :as mod}]
-                 (let [sources
+
+                 ;; resolve moved the import shims to the common module
+                 ;; for esm tree-shaking of other tools to work, we need them per module
+                 ;; so for all sources of the module also find direct uses of npm packages
+                 ;; just in case multiple modules use them.
+
+                 ;; normally this would go indirectly over a shadow.esm.esm$package = esm$react
+                 ;; assignment which is then made cross-module accessible via $APP
+                 ;; but JS tools don't understand this and never tree shake
+
+                 ;; dev builds still do this but release just has an empty shim to reserve the names
+                 ;; but actually just prepend the imports here
+                 (let [js-import-sources
                        (->> sources
                             (map #(data/get-source-by-id state %))
+                            (mapcat #(data/deps->syms state %))
+                            (set)
+                            (map #(data/get-source-by-provide state %))
                             (filter ::js-support/import-shim))
 
                        externs
-                       (into #{} (map :import-alias) sources)
+                       (into #{} (map :import-alias) js-import-sources)
 
                        imports
-                       (->> sources
+                       (->> js-import-sources
                             (map (fn [{:keys [js-import import-alias]}]
                                    (str "import * as " import-alias " from \"" js-import "\";")))
                             (str/join "\n"))]
