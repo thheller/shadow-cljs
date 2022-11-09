@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.8](https://github.com/thheller/shadow-cljs/compare/5cf0ea00a08e4de75d30465a9d84b8ad6846e2f8...5cf0ea00a08e4de75d30465a9d84b8ad6846e2f8) - 2022-11-09
+- [ [`5cf0e`](https://github.com/thheller/shadow-cljs/commit/5cf0ea00a08e4de75d30465a9d84b8ad6846e2f8) ] add :trusted-strings true closure compiler option
+
 ## [2.20.7](https://github.com/thheller/shadow-cljs/compare/723fbf0075c8a06ba452104b61fb97ca6609f573...723fbf0075c8a06ba452104b61fb97ca6609f573) - 2022-10-27
 - [ [`723fb`](https://github.com/thheller/shadow-cljs/commit/723fbf0075c8a06ba452104b61fb97ca6609f573) ] tune :js-provider :import + :esm for JS side tree shaking
 
