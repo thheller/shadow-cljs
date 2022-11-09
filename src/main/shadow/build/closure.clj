@@ -210,6 +210,9 @@
         :all VariableRenamingPolicy/ALL
         (throw (ex-info "invalid :variable-renaming (use :off, :local or :all)" {})))))
 
+  (when (true? (:trusted-strings opts))
+    (.setTrustedStrings closure-opts true))
+
   (when (contains? opts :property-renaming)
     (.setPropertyRenaming
       closure-opts
