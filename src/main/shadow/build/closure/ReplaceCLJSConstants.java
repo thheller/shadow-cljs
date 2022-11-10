@@ -20,6 +20,8 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
     private final Map<String, ConstantRef> constants = new HashMap<>();
     private final IFn reportFn;
 
+    private int idSeq = 0;
+
     public ReplaceCLJSConstants(Compiler compiler, boolean shadowKeywords, IFn reportFn) {
         this.compiler = compiler;
         this.shadowKeywords = shadowKeywords;
@@ -109,10 +111,8 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
 
 
     public String munge(String sym) {
-        // :phone_number and :phone-number munge to the same output
-        // replace - first so it doesn't get munged to _
-        // needs to replace dots as well
-        return clojure.lang.Compiler.munge(sym.replaceAll("-", "_DASH_")).replaceAll("\\.", "_DOT_");
+        // munge doesn't replace dots
+        return clojure.lang.Compiler.munge(sym).replaceAll("\\.", "_DOT_");
     }
 
     @Override
@@ -146,18 +146,23 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                             && (hashNode.isNumber() || hashNode.isNeg())) { // hash is precomputed, number, can be negative number
 
                         String fqn = fqnNode.getString();
-                        String constantName = "cljs$cst$" + typeName.substring(typeName.lastIndexOf(".") + 1).toLowerCase() + "$" + munge(fqn);
 
-                        ConstantRef ref = constants.get(constantName);
+                        // this must never munge, otherwise it may end up with conflicts where = creates the same lookup as _EQ_
+                        String lookup = typeName + "$" + fqn;
+
+                        ConstantRef ref = constants.get(lookup);
                         if (ref == null) {
-                            ref = new ConstantRef(constantName, typeName.equals("cljs.core.Keyword"), n, nsNode, nameNode, hashNode);
-                            constants.put(constantName, ref);
+                            // appending the munged name to the variable to aid pseudo-names debugging
+                            // will be shortened by :advanced anyways, so size doesn't matter here, the idSeq makes it unique
+                            String varName = "cljs$cst$" + (idSeq++) + "$" + munge(fqn);
+                            ref = new ConstantRef(varName, typeName.equals("cljs.core.Keyword"), n, nsNode, nameNode, hashNode);
+                            constants.put(lookup, ref);
                         }
                         ref.usedIn.add(t.getChunk());
                         // new versions use a bitset
                         ref.usedInBits.set(t.getChunk().getIndex());
 
-                        n.replaceWith(IR.name(constantName));
+                        n.replaceWith(IR.name(ref.varName));
                         ShadowAccess.reportChangeToEnclosingScope(compiler, parent);
                     }
                 }
