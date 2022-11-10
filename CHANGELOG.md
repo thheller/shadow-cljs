@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.9](https://github.com/thheller/shadow-cljs/compare/559628b0721778ffb8615aaf98d81529f00d74d6...559628b0721778ffb8615aaf98d81529f00d74d6) - 2022-11-10
+- [ [`55962`](https://github.com/thheller/shadow-cljs/commit/559628b0721778ffb8615aaf98d81529f00d74d6) ] support "standard" config directory location (eg. XDG_CONFIG_HOME)
+
 ## [2.20.8](https://github.com/thheller/shadow-cljs/compare/5cf0ea00a08e4de75d30465a9d84b8ad6846e2f8...5cf0ea00a08e4de75d30465a9d84b8ad6846e2f8) - 2022-11-09
 - [ [`5cf0e`](https://github.com/thheller/shadow-cljs/commit/5cf0ea00a08e4de75d30465a9d84b8ad6846e2f8) ] add :trusted-strings true closure compiler option
 
