@@ -577,10 +577,25 @@
                (format "Failed to read config file: %s\n%s" config-path (.-message ex))
                {:config-path config-path} ex)))))
 
-(defn read-user-config []
+(defn read-user-env-config [env-key]
+  (let [env-val (unchecked-get js/process.env env-key)]
+    (when (seq env-val)
+      (let [env-path (path/resolve env-val "shadow-cljs" "config.edn")]
+        (when (fs/existsSync env-path)
+          (read-config env-path))))))
+
+(defn read-user-home-config []
   (let [config-path (path/resolve (os/homedir) ".shadow-cljs" "config.edn")]
     (when (fs/existsSync config-path)
       (read-config config-path))))
+
+(defn read-user-config []
+  ;; linux and others https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+  (or (read-user-env-config "XDG_CONFIG_HOME")
+      ;; windows equiv
+      (read-user-env-config "LOCALAPPDATA")
+      ;; fallback ~/.shadow-cljs/config.edn
+      (read-user-home-config)))
 
 (defn guess-node-package-manager [project-root config]
   (or (get-in config [:node-modules :managed-by])

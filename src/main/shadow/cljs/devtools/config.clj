@@ -111,12 +111,23 @@
       (slurp)
       (read-config-str)))
 
-(defn load-user-config []
+(defn load-user-env-config [env-key]
+  (let [env-val (System/getenv env-key)]
+    (when (seq env-val)
+      (let [file (io/file env-val "shadow-cljs" "config.edn")]
+        (when (.exists file)
+          (read-config file))))))
+
+(defn load-user-home-config []
   (let [file (io/file (System/getProperty "user.home") ".shadow-cljs" "config.edn")]
-    (if-not (.exists file)
-      {}
-      (read-config file)
-      )))
+    (when (.exists file)
+      (read-config file))))
+
+(defn load-user-config []
+  (or (load-user-env-config "XDG_CONFIG_HOME")
+      (load-user-env-config "LOCALAPPDATA")
+      (load-user-home-config)
+      {}))
 
 (defn load-cljs-edn []
   (let [file (io/file "shadow-cljs.edn")]
