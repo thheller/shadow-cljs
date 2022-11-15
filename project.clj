@@ -34,7 +34,7 @@
    [com.cognitect/transit-clj "1.0.329"]
    [com.cognitect/transit-cljs "0.8.280"]
 
-   [org.clojure/core.async "1.5.648"]
+   [org.clojure/core.async "1.6.673"]
 
    ;; only declare this since the closure-compiler jar currently doesn't
    ;; remove once https://github.com/google/closure-compiler/issues/3896 is fixed
@@ -59,12 +59,12 @@
    [thheller/shadow-cljsjs "0.0.22"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.9.5"
+   [ring/ring-core "1.9.6"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [io.methvin/directory-watcher "0.16.1"]
+   [io.methvin/directory-watcher "0.17.0"]
 
    [expound "0.9.0"]
    [fipp "0.6.26"]
@@ -138,8 +138,8 @@
      [cljsjs/react-dom "18.0.0-rc.0-0"]
 
      ;; only used for UI build for now?
-     [com.thheller/shadow-css "0.4.0"]
-     [com.thheller/shadow-grove "0.4.1"]
+     [com.thheller/shadow-css "0.4.1"]
+     [com.thheller/shadow-grove "0.5.0"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project

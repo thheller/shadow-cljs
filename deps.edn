@@ -35,7 +35,7 @@
   com.cognitect/transit-clj {:mvn/version "1.0.329"}
   com.cognitect/transit-cljs {:mvn/version "0.8.280"}
 
-  org.clojure/core.async {:mvn/version "1.5.648"}
+  org.clojure/core.async {:mvn/version "1.6.673"}
 
   com.google.guava/guava {:mvn/version "31.0.1-jre"}
 
@@ -56,12 +56,12 @@
   thheller/shadow-undertow {:mvn/version "0.3.1"}
   thheller/shadow-cljsjs {:mvn/version "0.0.22"}
 
-  com.thheller/shadow-css {:mvn/version "0.1.0"}
+  com.thheller/shadow-css {:mvn/version "0.4.1"}
 
   hiccup/hiccup {:mvn/version "1.0.5"}
   ring/ring-core {:mvn/version "1.9.5" :exclusions [clj-time/clj-time]}
 
-  io.methvin/directory-watcher {:mvn/version "0.15.1"}
+  io.methvin/directory-watcher {:mvn/version "0.17.0"}
 
   expound/expound {:mvn/version "0.9.0"}
   fipp/fipp {:mvn/version "0.6.25"}
