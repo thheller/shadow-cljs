@@ -5,6 +5,8 @@
  :log
  {:level :debug}
 
+ :jvm-opts ["-Dclojure.main.report=out"]
+
  :dependencies
  [[reagent "0.8.1"]
   [funcool/bide "1.6.0"]
@@ -12,9 +14,6 @@
   ;; [re-frame "0.10.5"]
   ;; [fulcrologic/fulcro "2.6.0-RC6"]
   ]
-
- :launcher-override
- "launcher.jar"
 
  :builds
  {:reagent

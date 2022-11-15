@@ -101,7 +101,8 @@
      "src/repl"]
 
     :jvm-opts
-    ["-XX:+UnlockDiagnosticVMOptions"
+    ["-Dclojure.main.report=out"
+     "-XX:+UnlockDiagnosticVMOptions"
      "-XX:+DebugNonSafepoints"]
 
     :dependencies
