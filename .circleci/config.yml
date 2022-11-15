@@ -20,17 +20,16 @@ jobs:
 
       - restore_cache:
           keys:
-          - m2-deps-v1-{{ checksum "project.clj" }}
-          - m2-deps-v1-
+          - m2-deps-v2-{{ checksum "project.clj" }}
+          - m2-deps-v2-
 
       - run: sh build-deps.sh
-
-      - save_cache:
-          paths:
-            - ~/.m2
-          key: m2-deps-v1-{{ checksum "project.clj" }}
 
       - run: lein do test, install, run -m shadow.cljs.devtools.cli release cli
 
       - run: cd test-project; sh ci-run.sh
 
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: m2-deps-v2-{{ checksum "project.clj" }}
