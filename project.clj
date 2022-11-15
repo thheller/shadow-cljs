@@ -34,7 +34,7 @@
    [com.cognitect/transit-clj "1.0.329"]
    [com.cognitect/transit-cljs "0.8.280"]
 
-   [org.clojure/core.async "1.5.648"]
+   [org.clojure/core.async "1.6.673"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.11.60"
@@ -78,7 +78,8 @@
 
   :classifiers
   {:aot
-   {:aot [shadow.cljs.cli
+   {:aot [clojure.core.async.impl.ioc-macros
+          shadow.cljs.cli
           shadow.cljs.devtools.cli
           shadow.cljs.devtools.cli-actual
           shadow.cljs.devtools.api
