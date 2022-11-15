@@ -55,7 +55,7 @@
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.3"]
-   [thheller/shadow-undertow "0.3.0"]
+   [thheller/shadow-undertow "0.3.1"]
    [thheller/shadow-cljsjs "0.0.22"]
 
    [hiccup "1.0.5"]
