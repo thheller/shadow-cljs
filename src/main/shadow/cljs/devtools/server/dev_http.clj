@@ -145,7 +145,8 @@
              [::undertow/soft-cache
               [::undertow/ws-upgrade
                [::undertow/ws-ring {:handler-fn http-handler-fn}]
-               [::undertow/compress {} req-handler]]]]
+               [::undertow/headers-inject {:headers {"Access-Control-Allow-Origin" "*"}}
+                [::undertow/compress {} req-handler]]]]]
 
             http-options
             (-> {:port port

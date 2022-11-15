@@ -37,7 +37,7 @@ public class ShadowAccess {
         CodePrinter.Builder builder = new CodePrinter.Builder(node);
         builder.setTypeRegistry(comp.getTypeRegistry());
         builder.setCompilerOptions(comp.getOptions());
-        builder.setSourceMap(sourceMap);
+        builder.buildWithSourceMappings();
         builder.setTagAsTypeSummary(false);
         // FIXME: should it?
         builder.setTagAsStrict(false);

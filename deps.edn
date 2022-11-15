@@ -46,7 +46,7 @@
     org.clojure/google-closure-library
     org.clojure/google-closure-library-third-party]}
 
-  com.google.javascript/closure-compiler-unshaded {:mvn/version "v20220719"}
+  com.google.javascript/closure-compiler-unshaded {:mvn/version "v20221102"}
 
   org.clojure/google-closure-library {:mvn/version "0.0-20211011-0726fdeb"}
   org.clojure/google-closure-library-third-party {:mvn/version "0.0-20211011-0726fdeb"}

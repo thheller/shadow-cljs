@@ -163,7 +163,7 @@
   ;; FIXME: maybe make this more customizable. may want es5 but allow class or so
   (when-let [output-feature-set (:output-feature-set opts)]
     (let [fs (kw->feature-set output-feature-set)]
-      (.setOutputFeatureSet closure-opts fs)))
+      (.legacySetOutputFeatureSet closure-opts fs)))
 
   (when-let [extra-annotations (:closure-extra-annotations opts)]
     (. closure-opts (setExtraAnnotationNames (map name extra-annotations))))
