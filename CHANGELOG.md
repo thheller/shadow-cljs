@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.20.11](https://github.com/thheller/shadow-cljs/compare/42a98e12059826724eb5c2d83571ba9bd9f3c6d4...b034b24d8d20e538afe31b6a19087f021d0813e2) - 2022-11-15
+- [ [`b034b`](https://github.com/thheller/shadow-cljs/commit/b034b24d8d20e538afe31b6a19087f021d0813e2) ] leave note about core.async fix
+- [ [`b48d9`](https://github.com/thheller/shadow-cljs/commit/b48d91f21b744cab909acb004e996a3a8d200563) ] try to bump core.async again
+- [ [`8d0c3`](https://github.com/thheller/shadow-cljs/commit/8d0c32fbd8460b53ce38ae27a602d8b193a51ba9) ] revert core.async bump. dunno why it fails
+- [ [`c0b70`](https://github.com/thheller/shadow-cljs/commit/c0b70e5dca3d6d458ed471e94c21f5cc0b9625b4) ] try to get useful error reports
+- [ [`96782`](https://github.com/thheller/shadow-cljs/commit/9678204fc9f067528db692195db9d06b176b3acc) ] fix ci caches?
+- [ [`2b143`](https://github.com/thheller/shadow-cljs/commit/2b143d0ce5046fb1af81bb9ea368cb4eb4ece5a6) ] remove guava dep
+- [ [`2f081`](https://github.com/thheller/shadow-cljs/commit/2f081170102713796ac29b0c47d37e6ad88ba312) ] misc smaller dep bumps
+- [ [`7ef10`](https://github.com/thheller/shadow-cljs/commit/7ef10c9f7f2ecfb83028a2dda00383bf4132b92f) ] shadow-undertow bump
+- [ [`42a98`](https://github.com/thheller/shadow-cljs/commit/42a98e12059826724eb5c2d83571ba9bd9f3c6d4) ] closure-compiler bump and fixes
+
 ## [2.20.10](https://github.com/thheller/shadow-cljs/compare/319298a7ca0e28ae1e4b0a4e4752b9ecca6d2857...319298a7ca0e28ae1e4b0a4e4752b9ecca6d2857) - 2022-11-10
 - [ [`31929`](https://github.com/thheller/shadow-cljs/commit/319298a7ca0e28ae1e4b0a4e4752b9ecca6d2857) ] fix constants replacement optimization conflicts
 
