@@ -1,6 +1,7 @@
 (ns shadow.http.push-state
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]))
+  (:require
+    [clojure.java.io :as io]
+    [clojure.string :as str]))
 
 (def not-found
   {:status 404
@@ -20,9 +21,12 @@
             index-file
             (reduce
               (fn [_ http-root]
-                (let [file (io/file http-root index-name)]
-                  (when (and file (.exists file))
-                    (reduced file))))
+                (if (str/starts-with? http-root "classpath:")
+                  (when-some [rc (io/resource (str (subs http-root 10) "/" index-name))]
+                    (reduced rc))
+                  (let [file (io/file http-root index-name)]
+                    (when (and file (.exists file))
+                      (reduced file)))))
               nil
               http-roots)]
 
