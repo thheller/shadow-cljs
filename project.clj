@@ -34,7 +34,7 @@
    [com.cognitect/transit-clj "1.0.329"]
    [com.cognitect/transit-cljs "0.8.280"]
 
-   [org.clojure/core.async "1.6.673"]
+   [org.clojure/core.async "1.5.648"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.11.60"
@@ -78,14 +78,7 @@
 
   :classifiers
   {:aot
-   ;; aot compiling this core.async ns specifically to fix a problem introduced in 1.6.673
-   ;; where this ns is loaded dynamically via requiring-resolve
-   ;; https://github.com/clojure/core.async/commit/1252c589fa2e43a8320c786b41e83d079e025bf2
-   ;; not including this causes the AOT compile to succeed but blows up when starting with AOT classes loaded
-   ;; Execution error (NoSuchFieldError) at clojure.tools.analyzer.jvm.utils__init/load (REPL:259).
-   ;; __thunk__0__
-   {:aot [clojure.core.async.impl.ioc-macros
-          shadow.cljs.cli
+   {:aot [shadow.cljs.cli
           shadow.cljs.devtools.cli
           shadow.cljs.devtools.cli-actual
           shadow.cljs.devtools.api
