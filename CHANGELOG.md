@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.20.12](https://github.com/thheller/shadow-cljs/compare/8f14c6ba368642cb030bfe724edc96a884e2ebf8...c6598d47a3c30c44691d50cc05ac31c579927710) - 2022-11-17
+- [ [`c6598`](https://github.com/thheller/shadow-cljs/commit/c6598d47a3c30c44691d50cc05ac31c579927710) ] downgrade core.async until AOT issues are resolved
+- [ [`8f14c`](https://github.com/thheller/shadow-cljs/commit/8f14c6ba368642cb030bfe724edc96a884e2ebf8) ] make :dev-http properly handle index files in classpath roots
+
 ## [2.20.11](https://github.com/thheller/shadow-cljs/compare/42a98e12059826724eb5c2d83571ba9bd9f3c6d4...b034b24d8d20e538afe31b6a19087f021d0813e2) - 2022-11-15
 - [ [`b034b`](https://github.com/thheller/shadow-cljs/commit/b034b24d8d20e538afe31b6a19087f021d0813e2) ] leave note about core.async fix
 - [ [`b48d9`](https://github.com/thheller/shadow-cljs/commit/b48d91f21b744cab909acb004e996a3a8d200563) ] try to bump core.async again
