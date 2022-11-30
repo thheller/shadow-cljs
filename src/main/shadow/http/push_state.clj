@@ -18,17 +18,34 @@
             headers
             (get http-config :push-state/headers {"content-type" "text/html; charset=utf-8"})
 
+            ;; "/foo/" into "/foo"
+            ;; "/" into ""
+            uri
+            (if (str/ends-with? uri "/")
+              (subs uri 0 (-> uri (count) (dec)))
+              uri)
+
+            locations-to-test
+            (-> []
+                ;; for request going to "/foo" and http-root "public"
+                ;; checking "public/foo/index.html"
+                (into (map #(str % "/" uri "/" index-name)) http-roots)
+                ;; and then "public/index.html"
+                (into (map #(str % "/" index-name) http-roots)))
+
             index-file
             (reduce
-              (fn [_ http-root]
-                (if (str/starts-with? http-root "classpath:")
-                  (when-some [rc (io/resource (str (subs http-root 10) "/" index-name))]
+              (fn [_ file-to-test]
+                (if (str/starts-with? file-to-test "classpath:")
+                  ;; drop classpath: and check for resources
+                  (when-some [rc (io/resource (subs file-to-test 10))]
                     (reduced rc))
-                  (let [file (io/file http-root index-name)]
+                  ;; check actual file via fs
+                  (let [file (io/file file-to-test)]
                     (when (and file (.exists file))
                       (reduced file)))))
               nil
-              http-roots)]
+              locations-to-test)]
 
         (if-not index-file
           ;; FIXME: serve some kind of default page instead
