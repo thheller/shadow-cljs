@@ -602,6 +602,10 @@
               ana/*unchecked-arrays*
               ana/*unchecked-arrays*
 
+              ;; WTF is this? why are there two bindings for checked arrays?
+              ana/*checked-arrays*
+              (or (:checked-arrays compiler-options) ana/*checked-arrays*)
+
               *assert*
               (not (true? elide-asserts))
 
