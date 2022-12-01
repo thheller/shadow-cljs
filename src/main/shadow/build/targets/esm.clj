@@ -209,7 +209,7 @@
 
         (configure-modules)
 
-        (assoc ::closure/rewrite-shadow-exports true)
+        (assoc ::closure/esm true)
 
         ;; (assoc-in [:compiler-options :chunk-output-type] :esm)
 
@@ -428,59 +428,64 @@
       "export const $jscomp = {};\n")))
 
 (defn setup-imports [state]
-  (update state :build-modules
-    (fn [modules]
-      (let [base-mod (first modules)]
-        (->> modules
-             (map
-               (fn [{:keys [sources] :as mod}]
+  (let [js-import-sources
+        (->> (:build-sources state)
+             (map #(data/get-source-by-id state %))
+             (mapcat #(data/deps->syms state %))
+             (set)
+             (map #(data/get-source-by-provide state %))
+             (filter ::js-support/import-shim))
 
-                 ;; resolve moved the import shims to the common module
-                 ;; for esm tree-shaking of other tools to work, we need them per module
-                 ;; so for all sources of the module also find direct uses of npm packages
-                 ;; just in case multiple modules use them.
+        externs
+        (into #{} (map :import-alias) js-import-sources)
 
-                 ;; normally this would go indirectly over a shadow.esm.esm$package = esm$react
-                 ;; assignment which is then made cross-module accessible via $APP
-                 ;; but JS tools don't understand this and never tree shake
+        imports
+        (reduce
+          (fn [imports {:keys [js-import import-alias]}]
+            ;; import-alias is a symbol
+            (assoc imports (name import-alias) js-import))
+          {}
+          js-import-sources)]
 
-                 ;; dev builds still do this but release just has an empty shim to reserve the names
-                 ;; but actually just prepend the imports here
-                 (let [js-import-sources
-                       (->> sources
-                            (map #(data/get-source-by-id state %))
-                            (mapcat #(data/deps->syms state %))
-                            (set)
-                            (map #(data/get-source-by-provide state %))
-                            (filter ::js-support/import-shim))
+    (-> state
+        (assoc ::closure/esm-imports imports)
+        (update :build-modules
+          (fn [modules]
+            (let [base-mod (first modules)]
+              (->> modules
+                   (map
+                     (fn [mod]
 
-                       externs
-                       (into #{} (map :import-alias) js-import-sources)
+                       ;; resolve moved the import shims to the common module
+                       ;; for esm tree-shaking of other tools to work, we need them per module
+                       ;; so for all sources of the module also find direct uses of npm packages
+                       ;; just in case multiple modules use them.
 
-                       imports
-                       (->> js-import-sources
-                            (map (fn [{:keys [js-import import-alias]}]
-                                   (str "import * as " import-alias " from \"" js-import "\";")))
-                            (str/join "\n"))]
+                       ;; normally this would go indirectly over a shadow.esm.esm$package = esm$react
+                       ;; assignment which is then made cross-module accessible via $APP
+                       ;; but JS tools don't understand this and never tree shake
 
-                   (-> mod
-                       (update :module-externs set/union externs)
-                       (update :prepend str-prepend (str imports "\n"))
-                       (cond->
-                         ;; only create shadow_esm_import if shadow.esm was required anywhere
-                         ;; needs to be created in all modules since it must be module local
-                         (get-in state [:sym->id 'shadow.esm])
-                         (update :prepend str "const shadow_esm_import = function(x) { return import(x) };\n")
+                       ;; dev builds still do this but release just has an empty shim to reserve the names
+                       ;; but actually just prepend the imports here
+                       (-> mod
+                           (cond->
+                             (:default mod)
+                             (update :module-externs set/union externs)
 
-                         ;; need access to these in all modules, might import the default mod multiple times
-                         ;; but this is fine and saves having to re-export these in every module
-                         ;; $jscomp is not getting renamed due to possible uses in shadow-js sources
-                         (not (:default mod))
-                         (update :prepend
-                           (fn [prepend]
-                             (str "import { $APP, shadow$provide, $jscomp } from \"./" (:output-name base-mod) "\";\n" prepend))))
-                       ))))
-             (vec))))))
+                             ;; only create shadow_esm_import if shadow.esm was required anywhere
+                             ;; needs to be created in all modules since it must be module local
+                             (get-in state [:sym->id 'shadow.esm])
+                             (update :prepend str "const shadow_esm_import = function(x) { return import(x) };\n")
+
+                             ;; need access to these in all modules, might import the default mod multiple times
+                             ;; but this is fine and saves having to re-export these in every module
+                             ;; $jscomp is not getting renamed due to possible uses in shadow-js sources
+                             (not (:default mod))
+                             (update :prepend
+                               (fn [prepend]
+                                 (str "import { $APP, shadow$provide, $jscomp } from \"./" (:output-name base-mod) "\";\n" prepend))))
+                           )))
+                   (vec))))))))
 
 ;; in dev all imports must happen in the prepend
 ;; can't do it in the pseudo-module since that evals after all the sources in

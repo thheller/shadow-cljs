@@ -203,6 +203,7 @@
   :test-esm
   {:target :esm
    :output-dir "out/demo-browser/public/esm-js"
+   :build-hooks [(shadow.build/tap-hook)]
    :modules
    {:shared {}
     :a
