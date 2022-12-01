@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.20.13](https://github.com/thheller/shadow-cljs/compare/7e8b27fe02401956fff294f7affe51d67f55f3c2...42528e286305295200dacb2d70293150a3b74f4d) - 2022-12-01
+- [ [`42528`](https://github.com/thheller/shadow-cljs/commit/42528e286305295200dacb2d70293150a3b74f4d) ] small dep bump
+- [ [`c64e7`](https://github.com/thheller/shadow-cljs/commit/c64e77ad54988d6679a0eae6455877f1dadfb776) ] add :checked-arrays binding in compiler
+- [ [`581c2`](https://github.com/thheller/shadow-cljs/commit/581c2829e4c09f9328c6866d3fa6aa22b9c4b63f) ] fix :target :esm import handling to work cross-module
+- [ [`7e8b2`](https://github.com/thheller/shadow-cljs/commit/7e8b27fe02401956fff294f7affe51d67f55f3c2) ] properly fix dev-http push-state looking for nested indexes
+
 ## [2.20.12](https://github.com/thheller/shadow-cljs/compare/8f14c6ba368642cb030bfe724edc96a884e2ebf8...c6598d47a3c30c44691d50cc05ac31c579927710) - 2022-11-17
 - [ [`c6598`](https://github.com/thheller/shadow-cljs/commit/c6598d47a3c30c44691d50cc05ac31c579927710) ] downgrade core.async until AOT issues are resolved
 - [ [`8f14c`](https://github.com/thheller/shadow-cljs/commit/8f14c6ba368642cb030bfe724edc96a884e2ebf8) ] make :dev-http properly handle index files in classpath roots
