@@ -59,7 +59,7 @@
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [io.methvin/directory-watcher "0.17.0"]
+   [io.methvin/directory-watcher "0.17.1"]
 
    [expound "0.9.0"]
    [fipp "0.6.26"]
@@ -134,7 +134,7 @@
      [cljsjs/react-dom "18.0.0-rc.0-0"]
 
      ;; only used for UI build for now?
-     [com.thheller/shadow-css "0.4.1"]
+     [com.thheller/shadow-css "0.4.2"]
      [com.thheller/shadow-grove "0.5.0"]
 
      ;; just so the CI build has this downloaded
