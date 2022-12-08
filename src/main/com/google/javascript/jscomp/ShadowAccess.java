@@ -37,11 +37,17 @@ public class ShadowAccess {
         CodePrinter.Builder builder = new CodePrinter.Builder(node);
         builder.setTypeRegistry(comp.getTypeRegistry());
         builder.setCompilerOptions(comp.getOptions());
-        builder.buildWithSourceMappings();
         builder.setTagAsTypeSummary(false);
         // FIXME: should it?
         builder.setTagAsStrict(false);
-        return builder.build();
+
+        CodePrinter.SourceAndMappings result = builder.buildWithSourceMappings();
+
+        for (SourceMap.Mapping mapping : result.mappings){
+            sourceMap.addMapping(mapping);
+        }
+
+        return result.source;
     }
 
     public static void ensureLibraryInjected(AbstractCompiler comp, String name) {
