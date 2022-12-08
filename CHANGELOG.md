@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.14](https://github.com/thheller/shadow-cljs/compare/1bbd1103ab3f7d21580a1b6dfed70d8de1d56fb1...1bbd1103ab3f7d21580a1b6dfed70d8de1d56fb1) - 2022-12-08
+- [ [`1bbd1`](https://github.com/thheller/shadow-cljs/commit/1bbd1103ab3f7d21580a1b6dfed70d8de1d56fb1) ] fix source map generation for shadow-js files
+
 ## [2.20.13](https://github.com/thheller/shadow-cljs/compare/7e8b27fe02401956fff294f7affe51d67f55f3c2...42528e286305295200dacb2d70293150a3b74f4d) - 2022-12-01
 - [ [`42528`](https://github.com/thheller/shadow-cljs/commit/42528e286305295200dacb2d70293150a3b74f4d) ] small dep bump
 - [ [`c64e7`](https://github.com/thheller/shadow-cljs/commit/c64e77ad54988d6679a0eae6455877f1dadfb776) ] add :checked-arrays binding in compiler
