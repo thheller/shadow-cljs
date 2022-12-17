@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.20.15](https://github.com/thheller/shadow-cljs/compare/c75498fe9c5e5e01943f8746d5f4113f210a1e80...e3e7d49d0f44925edb9d678a6d5ccf72cd72bc88) - 2022-12-17
+- [ [`e3e7d`](https://github.com/thheller/shadow-cljs/commit/e3e7d49d0f44925edb9d678a6d5ccf72cd72bc88) ] add a few more cases for dotted symbol resolve
+- [ [`c7549`](https://github.com/thheller/shadow-cljs/commit/c75498fe9c5e5e01943f8746d5f4113f210a1e80) ] prioritze invokeable namespace aliases over core names
+
 ## [2.20.14](https://github.com/thheller/shadow-cljs/compare/1bbd1103ab3f7d21580a1b6dfed70d8de1d56fb1...1bbd1103ab3f7d21580a1b6dfed70d8de1d56fb1) - 2022-12-08
 - [ [`1bbd1`](https://github.com/thheller/shadow-cljs/commit/1bbd1103ab3f7d21580a1b6dfed70d8de1d56fb1) ] fix source map generation for shadow-js files
 
