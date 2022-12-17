@@ -269,13 +269,13 @@
              :name cljs.core/Object
              :ns cljs.core}
 
+           (invokeable-ns? sym env)
+           (resolve-invokeable-ns sym current-ns env)
+
            (ana/core-name? env sym)
            (do (when (some? confirm)
                  (confirm env 'cljs.core sym))
                (resolve-cljs-var 'cljs.core sym))
-
-           (invokeable-ns? sym env)
-           (resolve-invokeable-ns sym current-ns env)
 
            ;; short circuit for direct references to a fully qualify closure name eg. goog.math.Integer
            ;; will end up here for anything import such as (:import [goog.module ModuleLoader])
