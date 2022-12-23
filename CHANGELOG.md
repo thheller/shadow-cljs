@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.16](https://github.com/thheller/shadow-cljs/compare/0275661910fd356ae3312e834ef76546a42777d6...0275661910fd356ae3312e834ef76546a42777d6) - 2022-12-23
+- [ [`02756`](https://github.com/thheller/shadow-cljs/commit/0275661910fd356ae3312e834ef76546a42777d6) ] remove unused requires
+
 ## [2.20.15](https://github.com/thheller/shadow-cljs/compare/c75498fe9c5e5e01943f8746d5f4113f210a1e80...e3e7d49d0f44925edb9d678a6d5ccf72cd72bc88) - 2022-12-17
 - [ [`e3e7d`](https://github.com/thheller/shadow-cljs/commit/e3e7d49d0f44925edb9d678a6d5ccf72cd72bc88) ] add a few more cases for dotted symbol resolve
 - [ [`c7549`](https://github.com/thheller/shadow-cljs/commit/c75498fe9c5e5e01943f8746d5f4113f210a1e80) ] prioritze invokeable namespace aliases over core names
