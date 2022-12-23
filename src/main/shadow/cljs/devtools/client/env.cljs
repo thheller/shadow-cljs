@@ -2,8 +2,6 @@
   (:require
     [goog.object :as gobj]
     [clojure.string :as str]
-    [cljs.tools.reader :as reader]
-    [cljs.pprint :refer (pprint)]
     [clojure.set :as set]))
 
 (defonce active-modules-ref
