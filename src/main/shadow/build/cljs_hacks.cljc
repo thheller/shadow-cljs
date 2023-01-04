@@ -423,6 +423,12 @@
      info
      )))
 
+;; {:keys [Thing]}
+;; symbols destructured out of a map are tagged with '#{any clj-nil}
+;; so they are the same as not tagged at all or just 'any
+(defn any-tag? [tag]
+  (or (nil? tag) (= 'any tag) (and (set? tag) (contains? tag 'any))))
+
 (defn infer-externs-dot
   [{:keys [form form-meta method field target target-tag env prop tag] :as ast}
    {:keys [infer-externs] :as opts}]
@@ -448,8 +454,8 @@
                    ;; defrecord
                    (not= "getBasis" sprop)
                    (not (str/starts-with? sprop "cljs$"))
-                   (or (nil? tag) (= 'any tag))
-                   (or (nil? target-tag) (= 'any target-tag))
+                   (any-tag? tag)
+                   (any-tag? target-tag)
                    ;; protocol fns, never need externs for those
                    (not (str/includes? sprop "$arity$"))
                    (not (contains? (:shadow/protocol-prefixes @env/*compiler*) sprop))
