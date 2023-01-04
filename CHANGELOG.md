@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.17](https://github.com/thheller/shadow-cljs/compare/f35faabd94add4bc7a48df8a80483d6f9e5f6636...f35faabd94add4bc7a48df8a80483d6f9e5f6636) - 2023-01-04
+- [ [`f35fa`](https://github.com/thheller/shadow-cljs/commit/f35faabd94add4bc7a48df8a80483d6f9e5f6636) ] add externs inference warnings for destructured bindings
+
 ## [2.20.16](https://github.com/thheller/shadow-cljs/compare/0275661910fd356ae3312e834ef76546a42777d6...0275661910fd356ae3312e834ef76546a42777d6) - 2022-12-23
 - [ [`02756`](https://github.com/thheller/shadow-cljs/commit/0275661910fd356ae3312e834ef76546a42777d6) ] remove unused requires
 
