@@ -571,7 +571,7 @@
               (rt/stop-all)
               (rt/start-all))]
 
-      (vreset! runtime/instance-ref new-inst)
+      (reset! runtime/instance-ref new-inst)
       ::restarted
       )))
 
