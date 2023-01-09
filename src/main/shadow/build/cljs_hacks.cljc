@@ -711,6 +711,65 @@
     `(when-not (cljs.core/exists? ~x)
        (def ~x ~init))))
 
+
+;; reify impl using analyze-top, fixes https://clojure.atlassian.net/browse/CLJS-3207
+;; where the closure compiler decides to move some protocol impls to separate modules
+;; but with reify defining the class conditionally it may end up trying to restore the
+;; stub methods before the class is defined.
+
+;; affects spec and another known example is reitit
+
+;; $APP.$reitit$core$t_reitit$0core609782$$.prototype.$reitit$core$Router$routes$arity$1$ = $JSCompiler_unstubMethod$$(5, function() {
+;;  return this.$routes$;
+;; });
+
+(defn shadow-reify
+  [&form &env & impls]
+
+  ;; can't require directly due to circular dependency
+  (let [at (find-var 'shadow.build.compiler/*analyze-top*)]
+    (if (and at @at)
+
+      ;; only use analyze-top if bound, just in case something else tries to compile
+      ;; CLJS from outside shadow-cljs
+      (let [t (with-meta
+                (gensym (str "t_" (str/replace (str (munge ana/*cljs-ns*)) "." "$")))
+                {:anonymous true})
+            meta-sym (gensym "meta")
+            this-sym (gensym "_")
+            locals (keys (:locals &env))]
+
+        (@at
+          `(deftype ~t [~@locals ~meta-sym]
+             IWithMeta
+             (~'-with-meta [~this-sym ~meta-sym]
+               (new ~t ~@locals ~meta-sym))
+             IMeta
+             (~'-meta [~this-sym] ~meta-sym)
+             ~@impls))
+
+        `(new ~t ~@locals ~(ana/elide-reader-meta (meta &form))))
+
+      ;; default impl if shadow analyze-top is not bound
+      (let [t (with-meta
+                (gensym
+                  (str "t_" (str/replace (str (munge ana/*cljs-ns*)) "." "$")))
+                {:anonymous true})
+            meta-sym (gensym "meta")
+            this-sym (gensym "_")
+            locals (keys (:locals &env))
+            ns (-> &env :ns :name)]
+        `(do
+           (when-not (exists? ~(symbol (str ns) (str t)))
+             (deftype ~t [~@locals ~meta-sym]
+               IWithMeta
+               (~'-with-meta [~this-sym ~meta-sym]
+                 (new ~t ~@locals ~meta-sym))
+               IMeta
+               (~'-meta [~this-sym] ~meta-sym)
+               ~@impls))
+           (new ~t ~@locals ~(ana/elide-reader-meta (meta &form))))))))
+
 ;; https://github.com/clojure/clojurescript/commit/1589e5848ebb56ab451cb73f955dbc0b01e7aba0
 ;; oops, seem to have missed keyword?
 (defn shadow-all-values? [exprs]
@@ -1042,8 +1101,8 @@
 (defn shadow-add-obj-methods [type type-sym sigs]
   (map (fn [[f & meths :as form]]
          (let [[f meths] (if (vector? (first meths))
-                                [f [(rest form)]]
-                                [f meths])]
+                           [f [(rest form)]]
+                           [f meths])]
            `(set! ~(with-meta
                      (shadow-extend-prefix type-sym f)
                      {:shadow/object-fn f})
@@ -1102,6 +1161,7 @@
 
   (replace-fn! #'cljs.core/goog-define goog-define)
   (replace-fn! #'cljs.core/defonce shadow-defonce)
+  (replace-fn! #'cljs.core/reify shadow-reify)
 
   (replace-fn! #'cljs.core/exists? shadow-exists?)
 
