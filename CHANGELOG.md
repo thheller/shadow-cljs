@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.20.18](https://github.com/thheller/shadow-cljs/compare/573b9eb8b5bd0c68b665df34b46393993d6fbeb2...db9bf83562db0276f09a7c432faf247440b7e2c3) - 2023-01-09
+- [ [`db9bf`](https://github.com/thheller/shadow-cljs/commit/db9bf83562db0276f09a7c432faf247440b7e2c3) ] fix :npm-module release output
+- [ [`2b918`](https://github.com/thheller/shadow-cljs/commit/2b9185459fcdd1fa8c03ffb21712ae97ae9f0f70) ] rewrite reify to use analyze-top, fixes CLJS-3207
+- [ [`573b9`](https://github.com/thheller/shadow-cljs/commit/573b9eb8b5bd0c68b665df34b46393993d6fbeb2) ] fix unused reload! function
+
 ## [2.20.17](https://github.com/thheller/shadow-cljs/compare/f35faabd94add4bc7a48df8a80483d6f9e5f6636...f35faabd94add4bc7a48df8a80483d6f9e5f6636) - 2023-01-04
 - [ [`f35fa`](https://github.com/thheller/shadow-cljs/commit/f35faabd94add4bc7a48df8a80483d6f9e5f6636) ] add externs inference warnings for destructured bindings
 
