@@ -900,6 +900,7 @@
                      :js-module (get js-mods resource-id)
                      :sources [resource-id]}))
              (into [{:module-id output/goog-base-id
+                     :goog-mod true
                      :output-name "cljs_env.js"
                      :js-module goog-mod
                      :sources (->> goog-sources
@@ -1267,25 +1268,28 @@
   ;; FIXME: could do this in compile-modules
   [{::keys [modules dead-modules dead-sources] :as state}]
   (let [env-prepend
-        "var window=global;var $CLJS=require(\"./cljs_env\");"]
+        "var window=global;var $CLJS=require(\"./cljs_env.js\");"]
 
     (update state ::modules
       (fn [modules]
         (->> modules
-             (map (fn [{:keys [name js-module] :as mod}]
-                    (let [requires
-                          (->> (get-js-module-requires state js-module)
-                               (map #(.getName %))
-                               (distinct)
-                               (map #(str "require(\"./" % "\");"))
-                               (str/join ""))]
+             (map (fn [{:keys [goog-mod js-module] :as mod}]
+                    (if goog-mod
+                      (update mod :prepend #(str "var $CLJS = module.exports = {};\n" %))
+                      (let [requires
+                            (->> (get-js-module-requires state js-module)
+                                 (map #(.getName %))
+                                 (remove #{"cljs_env.js"})
+                                 (distinct)
+                                 (map #(str "require(\"./" % "\");"))
+                                 (str/join ""))]
 
-                      (-> mod
-                          ;; the npm prepend must be one line, will mess up source lines otherwise
-                          (update :prepend #(str env-prepend requires #_"$.module=module;\n" "\n" %))
-                          ;; the set this to null so it doesn't leak to other modules
-                          ;; (update :append str "$.module=null;")
-                          ))))
+                        (-> mod
+                            ;; the npm prepend must be one line, will mess up source lines otherwise
+                            (update :prepend #(str env-prepend requires #_"$.module=module;\n" "\n" %))
+                            ;; the set this to null so it doesn't leak to other modules
+                            ;; (update :append str "$.module=null;")
+                            )))))
              (into []))))))
 
 (defn- set-check-only

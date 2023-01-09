@@ -398,14 +398,6 @@
   (when-not (seq modules)
     (throw (ex-info "flush before optimize?" {})))
 
-  (when (= :js (get-in state [:build-options :module-format]))
-    (let [env-file
-          (data/output-file state "cljs_env.js")]
-
-      (io/make-parents env-file)
-      (spit env-file
-        (str "module.exports = {};\n"))))
-
   (util/with-logged-time
     [state {:type :flush-optimized}]
 
