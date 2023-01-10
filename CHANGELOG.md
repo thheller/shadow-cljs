@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.20.19](https://github.com/thheller/shadow-cljs/compare/7009d08432fbf1869ffc523363370ce0fcd1a307...9d0ffb63af9518efd13ffca28321da05cf2c0b2f) - 2023-01-10
+- [ [`9d0ff`](https://github.com/thheller/shadow-cljs/commit/9d0ffb63af9518efd13ffca28321da05cf2c0b2f) ] closure compiler bump & fix
+- [ [`7009d`](https://github.com/thheller/shadow-cljs/commit/7009d08432fbf1869ffc523363370ce0fcd1a307) ] fix bad quoting in shadow-reify
+
 ## [2.20.18](https://github.com/thheller/shadow-cljs/compare/573b9eb8b5bd0c68b665df34b46393993d6fbeb2...db9bf83562db0276f09a7c432faf247440b7e2c3) - 2023-01-09
 - [ [`db9bf`](https://github.com/thheller/shadow-cljs/commit/db9bf83562db0276f09a7c432faf247440b7e2c3) ] fix :npm-module release output
 - [ [`2b918`](https://github.com/thheller/shadow-cljs/commit/2b9185459fcdd1fa8c03ffb21712ae97ae9f0f70) ] rewrite reify to use analyze-top, fixes CLJS-3207
