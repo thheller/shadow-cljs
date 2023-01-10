@@ -78,7 +78,7 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
                     // only collect {foo:"foo"}, not {"foo":"foo"}
                     // this is far too general already and should probably
                     // only collect module.exports = {} ...
-                    if (!keyNode.isQuotedString()) {
+                    if (!keyNode.isQuotedStringKey()) {
                         addProperty(t, keyNode.getString());
                     }
                 }
