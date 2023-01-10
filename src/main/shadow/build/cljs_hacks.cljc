@@ -740,15 +740,15 @@
             locals (keys (:locals &env))]
 
         (@at
-          `(deftype ~t [~@locals ~meta-sym]
-             IWithMeta
+          `(cljs.core/deftype ~t [~@locals ~meta-sym]
+             cljs.core/IWithMeta
              (~'-with-meta [~this-sym ~meta-sym]
-               (new ~t ~@locals ~meta-sym))
-             IMeta
+               (~'new ~t ~@locals ~meta-sym))
+             cljs.core/IMeta
              (~'-meta [~this-sym] ~meta-sym)
              ~@impls))
 
-        `(new ~t ~@locals ~(ana/elide-reader-meta (meta &form))))
+        `(~'new ~t ~@locals ~(ana/elide-reader-meta (meta &form))))
 
       ;; default impl if shadow analyze-top is not bound
       (let [t (with-meta
@@ -759,16 +759,16 @@
             this-sym (gensym "_")
             locals (keys (:locals &env))
             ns (-> &env :ns :name)]
-        `(do
-           (when-not (exists? ~(symbol (str ns) (str t)))
-             (deftype ~t [~@locals ~meta-sym]
-               IWithMeta
+        `(~'do
+           (cljs.core/when-not (cljs.core/exists? ~(symbol (str ns) (str t)))
+             (cljs.core/deftype ~t [~@locals ~meta-sym]
+               cljs.core/IWithMeta
                (~'-with-meta [~this-sym ~meta-sym]
-                 (new ~t ~@locals ~meta-sym))
-               IMeta
+                 (~'new ~t ~@locals ~meta-sym))
+               cljs.core/IMeta
                (~'-meta [~this-sym] ~meta-sym)
                ~@impls))
-           (new ~t ~@locals ~(ana/elide-reader-meta (meta &form))))))))
+           (~'new ~t ~@locals ~(ana/elide-reader-meta (meta &form))))))))
 
 ;; https://github.com/clojure/clojurescript/commit/1589e5848ebb56ab451cb73f955dbc0b01e7aba0
 ;; oops, seem to have missed keyword?
