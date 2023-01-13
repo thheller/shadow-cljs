@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.20.20](https://github.com/thheller/shadow-cljs/compare/99b2714014d52578a3eeec2a53016bc3a9731b45...99b2714014d52578a3eeec2a53016bc3a9731b45) - 2023-01-13
+- [ [`99b27`](https://github.com/thheller/shadow-cljs/commit/99b2714014d52578a3eeec2a53016bc3a9731b45) ] pass :dev-http options through to file/classpath root handlers
+
 ## [2.20.19](https://github.com/thheller/shadow-cljs/compare/7009d08432fbf1869ffc523363370ce0fcd1a307...9d0ffb63af9518efd13ffca28321da05cf2c0b2f) - 2023-01-10
 - [ [`9d0ff`](https://github.com/thheller/shadow-cljs/commit/9d0ffb63af9518efd13ffca28321da05cf2c0b2f) ] closure compiler bump & fix
 - [ [`7009d`](https://github.com/thheller/shadow-cljs/commit/7009d08432fbf1869ffc523363370ce0fcd1a307) ] fix bad quoting in shadow-reify
