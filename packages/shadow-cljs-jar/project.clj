@@ -1,4 +1,4 @@
-(defproject shadow-cljs-jar "1.3.2"
+(defproject shadow-cljs-jar "1.3.4"
 
   :javac-options
   ["-target" "1.8"
