@@ -112,6 +112,7 @@
 
             (js/console.warn "unknown-runtime-route" tokens))))
 
-      (js/console.warn "unknown-route" tokens)
+      (do (js/console.warn "unknown-route" msg)
+          (ev/queue-fx env :ui/redirect! {:token "/dashboard"}))
       )))
 
