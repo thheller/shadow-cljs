@@ -328,11 +328,25 @@
 
       ;; otherwise read the file
       (when file
-        (slurp file))
+        (try
+          (slurp file)
+          (catch Exception e
+            (throw
+              (ex-info (str "failed to get source code from file: " (.getAbsolutePath file))
+                {:resource-id resource-id
+                 :file file}
+                e)))))
 
       ;; or url fallback when no file exists (files in jar)
       (when url
-        (slurp url))
+        (try
+          (slurp url)
+          (catch Exception e
+            (throw
+              (ex-info (str "failed to get source code from url: " url)
+                {:resource-id resource-id
+                 :url url}
+                e)))))
 
       (throw (ex-info (format "failed to get code for %s" resource-id) rc))))
 
