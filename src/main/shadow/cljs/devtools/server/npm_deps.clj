@@ -156,7 +156,8 @@
 
 (defn is-installed? [{:keys [id]} package-json]
   (or (get-in package-json ["dependencies" id])
-      (get-in package-json ["devDependencies" id])))
+      (get-in package-json ["devDependencies" id])
+      (get-in package-json ["peerDependencies" id])))
 
 (defn main [{:keys [npm-deps] :as config} opts]
   (when-not (false? (:install npm-deps))
