@@ -3,6 +3,7 @@
     [clojure.string :as str]
     [clojure.java.io :as io]
     [hiccup.page :refer (html5)]
+    [shadow.build.npm :as npm]
     [shadow.build.output :as output]
     [shadow.server.assets :as assets]
     [shadow.core-ext :as core-ext]
@@ -110,7 +111,7 @@
   "Generating build report data")
 
 (defn extract-report-data
-  [{:shadow.build.closure/keys [optimized-bytes modules] :keys [build-sources] :as state}]
+  [{:shadow.build.closure/keys [optimized-bytes modules] :keys [build-sources npm] :as state}]
   (util/with-logged-time [state {:type ::generate-bundle-info}]
     (let [modules-info
           (->> modules
@@ -164,7 +165,24 @@
 
                             npm-info
                             (when-some [package (:shadow.build.npm/package src)]
-                              (select-keys package [:package-id :package-name :version]))
+                              (let [res (select-keys package [:package-id :package-name :version])]
+                                (if (:package-name res)
+                                  res
+                                  ;; some package.json files only exist to override local entries, but contain no package-name
+                                  ;; don't treat them as actual packages and traverse dir structure up till a
+                                  ;; package.json with a name is found
+                                  ;; doing this hero since during the build nothing is interested in the name, only the entry keys
+                                  (loop [dir (.getParentFile (:package-dir package))]
+                                    (if-not dir
+                                      res
+                                      (let [package-json (io/file dir "package.json")]
+                                        (if-not (.exists package-json)
+                                          (recur (.getParentFile dir))
+                                          (let [content (npm/read-package-json npm package-json)]
+                                            (if-not (:package-name content)
+                                              (recur (.getParentFile dir))
+                                              (select-keys content [:package-id :package-name :version])
+                                              )))))))))
 
                             {:keys [js source] :as output}
                             (data/get-output! state src)]
