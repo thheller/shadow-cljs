@@ -273,7 +273,10 @@
             :form form
             :children [:statements :ret]
             :statements injected-forms
-            :ret result}))))))
+            :ret (-> result
+                     (cond->
+                       (= :expr (:context base-env))
+                       (assoc-in [:env :context] :return)))}))))))
 
 (defn do-analyze-cljs-string
   [{:keys [resource-name cljc reader-features] :as init} reduce-fn cljs-source]
