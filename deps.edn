@@ -79,4 +79,6 @@
 
    :extra-deps
    {com.thheller/shadow-grove {:local/root "../shadow-grove"}
+    org.commonmark/commonmark {:mvn/version "0.21.0"}
+    rewrite-clj/rewrite-clj {:mvn/version "1.1.46"}
     }}}}

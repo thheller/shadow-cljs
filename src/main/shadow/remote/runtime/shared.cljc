@@ -1,9 +1,6 @@
 (ns shadow.remote.runtime.shared
   (:require
-    [clojure.datafy :as d]
-    [clojure.pprint :refer (pprint)]
     [shadow.remote.runtime.api :as p]
-    [shadow.remote.runtime.writer :as lw]
     #?@(:clj
         [[shadow.jvm-log :as log]]
         :cljs
@@ -16,12 +13,33 @@
    :call-id-seq 0
    :call-handlers {}})
 
+(declare process)
+
 (defn now []
   #?(:cljs (js/Date.now)
      :clj (System/currentTimeMillis)))
 
+(defn get-client-id [{:keys [state-ref] :as runtime}]
+  (or (:client-id @state-ref)
+      (throw (ex-info "runtime has no assigned runtime-id" {:runtime runtime}))))
+
 (defn relay-msg [runtime msg]
-  (p/relay-msg runtime msg))
+  (let [self-id (get-client-id runtime)]
+    ;; check if sending msg to ourselves, then we don't need to bother the relay
+    ;; FIXME: might be better to do this in p/relay-msg?
+    (if (not= (:to msg) self-id)
+      (p/relay-msg runtime msg)
+      ;; don't immediately process, the relay hop is async, so preserve that
+      ;; this is sort of hacky for messages that we are actually sending ourselves
+      ;; should at least send to the same queue the ws messages end up in?
+      #?(:clj
+         (future (process runtime (assoc msg :from self-id)))
+         :cljs
+         (-> (js/Promise.resolve 1)
+             (.then #(process runtime (assoc msg :from self-id)))))))
+
+  ;; just so nobody assumes this has a useful return value
+  msg)
 
 (defn reply [runtime {:keys [call-id from]} res]
   (let [res (-> res
@@ -39,6 +57,9 @@
     msg
     handlers
     timeout-after-ms]
+   {:pre [(map? msg)
+          (map? handlers)
+          (nat-int? timeout-after-ms)]}
    (let [call-id (:call-id-seq @state-ref)]
      (swap! state-ref update :call-id-seq inc)
      (swap! state-ref assoc-in [:call-handlers call-id]
@@ -70,10 +91,6 @@
   [runtime msg]
   (reply runtime msg {:op :pong}))
 
-(defn get-client-id [{:keys [state-ref] :as runtime}]
-  (or (:client-id @state-ref)
-      (throw (ex-info "runtime has no assigned runtime-id" {:runtime runtime}))))
-
 (defn request-supported-ops
   [{:keys [state-ref] :as runtime} msg]
   (reply runtime msg
@@ -85,11 +102,11 @@
 
 (defn unknown-relay-op [msg]
   #?(:cljs (js/console.warn "unknown-relay-op" msg)
-     :clj  (log/warn ::unknown-relay-op msg)))
+     :clj (log/warn ::unknown-relay-op msg)))
 
 (defn unknown-op [msg]
   #?(:cljs (js/console.warn "unknown-op" msg)
-     :clj  (log/warn ::unknown-op msg)))
+     :clj (log/warn ::unknown-op msg)))
 
 (defn add-extension*
   [{:keys [extensions] :as state} key {:keys [ops] :as spec}]
@@ -135,7 +152,7 @@
 
 (defn unhandled-call-result [call-config msg]
   #?(:cljs (js/console.warn "unhandled call result" msg call-config)
-     :clj  (log/warn ::unhandled-call-result msg)))
+     :clj (log/warn ::unhandled-call-result msg)))
 
 (defn unhandled-client-not-found
   [{:keys [state-ref] :as runtime} msg]

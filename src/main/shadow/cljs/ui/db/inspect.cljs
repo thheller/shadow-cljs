@@ -285,10 +285,10 @@
     (do (throw (ex-info "FIXME: summary not loaded yet for vlist" {:current current}))
         :db/loading)
 
-    (let [{:keys [entries]} summary
+    (let [{:keys [data-count]} summary
 
           start-idx offset
-          last-idx (js/Math.min entries (+ start-idx num))
+          last-idx (js/Math.min data-count (+ start-idx num))
 
           slice
           (->> (range start-idx last-idx)
@@ -302,7 +302,7 @@
 
       ;; all requested elements are already present
       (if slice
-        {:item-count entries
+        {:item-count data-count
          :offset offset
          :slice (persistent! slice)}
 
@@ -465,36 +465,63 @@
   {::ev/handle ::inspect-nav-result}
   [env {:keys [panel-idx call-result] :as tx}]
 
-  (assert (= :obj-result-ref (:op call-result))) ;; FIXME: handle failures
+  (case (:op call-result)
+    :obj-result
+    env
 
-  (update env :db
-    (fn [db]
-      (let [{:keys [ref-oid from summary]}
-            call-result
+    ;; FIXME: decide if :obj-result should do anything
+    ;; just returning env when the nav returns :obj-result instead of :obj-result-ref
+    ;; it returns :obj-result for simple values such as nil, boolean, empty colls, etc
+    ;; the assumption is that the current display already showed sufficient info
+    ;; to make an extra panel redundant
+    ;; we could maybe guess this based on the fragment value we get when displaying the results
+    ;; but nav may turn a simple 1 into a db lookup and return actual map
+    ;; so need to ask remote to confirm first
+    #_(update env :db
+        (fn [db]
+          (let [{:keys [result]}
+                call-result
 
-            obj
-            {:oid ref-oid
-             :runtime-id from
-             :runtime (db/make-ident ::m/runtime from)
-             :summary summary
-             :display-type (guess-display-type env summary)}
+                {:keys [stack]}
+                (::m/inspect db)
 
-            obj-ident
-            (db/make-ident ::m/object ref-oid)
+                stack
+                (-> (subvec stack 0 (inc panel-idx))
+                    (conj {:type :local-object-panel
+                           :value result}))]
 
-            {:keys [stack]}
-            (::m/inspect db)
+            (-> db
+                (assoc-in [::m/inspect :stack] stack)
+                (assoc-in [::m/inspect :current] (inc panel-idx))))))
 
-            stack
-            (-> (subvec stack 0 (inc panel-idx))
-                (conj {:type :object-panel
-                       :ident obj-ident}))]
+    :obj-result-ref
+    (update env :db
+      (fn [db]
+        (let [{:keys [ref-oid from summary]}
+              call-result
 
+              obj
+              {:oid ref-oid
+               :runtime-id from
+               :runtime (db/make-ident ::m/runtime from)
+               :summary summary
+               :display-type (guess-display-type env summary)}
 
-        (-> db
-            (db/add ::m/object obj)
-            (assoc-in [::m/inspect :stack] stack)
-            (assoc-in [::m/inspect :current] (inc panel-idx)))))))
+              obj-ident
+              (db/make-ident ::m/object ref-oid)
+
+              {:keys [stack]}
+              (::m/inspect db)
+
+              stack
+              (-> (subvec stack 0 (inc panel-idx))
+                  (conj {:type :object-panel
+                         :ident obj-ident}))]
+
+          (-> db
+              (db/add ::m/object obj)
+              (assoc-in [::m/inspect :stack] stack)
+              (assoc-in [::m/inspect :current] (inc panel-idx))))))))
 
 (defn inspect-set-current!
   {::ev/handle ::m/inspect-set-current!}

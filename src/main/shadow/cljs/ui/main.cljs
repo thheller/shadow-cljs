@@ -82,7 +82,7 @@
           $nav-normal
           (css :inline-block :px-4 :py-2)]
 
-      (<< [:div {:class (css ["& *" :border-gray-100] :h-full :w-full :flex :flex-col :bg-gray-100 :items-stretch)}
+      (<< [:div {:class (css #_ ["& *" :border-gray-100] :h-full :w-full :flex :flex-col :bg-gray-100 :items-stretch)}
            (when-not relay-ws-connected
              (<< [:div {:class (css :p-4 :bg-red-700 :text-white :text-lg :font-bold)}
                   "UI WebSocket not connected! Reload page to reconnect."]))

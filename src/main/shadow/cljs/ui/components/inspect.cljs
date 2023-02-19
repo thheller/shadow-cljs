@@ -191,14 +191,13 @@
   (lazy-seq-vlist {:ident (:db/ident object)
                    :tab-index (if active? 0 -1)}))
 
-(def $button-selected (css :mx-2 :border :bg-blue-400 :px-4 :rounded))
-(def $button (css :mx-2 :border :bg-blue-200 [:hover :bg-blue-400] :px-4 :rounded))
+(def $button-base (css :block :border :px-4 :rounded {:white-space "nowrap"}))
+(def $button-selected (css :bg-blue-400))
+(def $button (css :bg-blue-200 [:hover :bg-blue-400]))
 
 (defn view-as-button [current val label active?]
-  (<< [:button
-       {:class (if (= current val)
-                 $button-selected
-                 $button)
+  (<< [:div
+       {:class [$button-base (if (= current val) $button-selected $button)]
         :on-click {:e ::inspect-switch-display! :display-type val}
         :tab-index (if active? 0 -1)}
        label]))
@@ -237,7 +236,7 @@
   (render
 
     (let [{:keys [summary is-error display-type]} object
-          {:keys [obj-type entries supports]} summary
+          {:keys [obj-type datafied data-type data-count supports]} summary
 
           $container
           (css :h-full :flex :flex-col :overflow-hidden)
@@ -262,9 +261,38 @@
                     :title "go back one (key: left)"}
                    svg-chevron-left]))
 
+            [:div {:class (css :relative
+                            ["& > .options" :hidden :absolute {:z-index 20}]
+                            ["&:hover > .options" :block])}
+
+             [:div {:class [$button-base $button]}
+              (case display-type
+                :edn "EDN"
+                :pprint "PPRINT"
+                :str "STR"
+                "BROWSER")]
+
+             [:div {:class (css "options" :top-0 :left-0 :font-mono)}
+              [:div {:class
+                     (css :px-2 :py-2 :shadow-lg :bg-white
+                       ["& > *:not(:last-child)" :mb-2])}
+               (when (contains? supports :fragment)
+                 (view-as-button display-type :browse "BROWSER" active?))
+               (when (contains? supports :pprint)
+                 (view-as-button display-type :pprint "PPRINT" active?))
+               (when (contains? supports :edn)
+                 (view-as-button display-type :edn "EDN" active?))
+               (when (= :string data-type)
+                 (view-as-button display-type :str "STR" active?))]]]
+
+            ;; FIXME: add icon or something
+            (when datafied
+              (<< [:div "DATAFIED!"]))
             [:div {:class (when is-error "text-red-700")} obj-type]
-            (when entries
-              (<< [:div (str entries " Entries")]))]
+            (when data-count
+              (<< [:div (str data-count " Entries")]))
+
+            [:div {:class (css :flex-1)}]]
 
            (case display-type
              :edn
@@ -277,18 +305,9 @@
              (<< [:div {:class (css :flex-1 :overflow-hidden :font-mono)}
                   (render-view object active?)]))
 
-           [:div {:class (css :flex :bg-white :py-2 :px-4 :font-mono :border-t-2)}
-            [:div "View as: "]
-            (when (contains? supports :fragment)
-              (view-as-button display-type :browse "Browse" active?))
-            (when (contains? supports :pprint)
-              (view-as-button display-type :pprint "Pretty-Print" active?))
-            (when (contains? supports :edn)
-              (view-as-button display-type :edn "EDN" active?))]
-
            ;; FIXME: don't always show this
            [:div {:class (css :bg-white :font-mono :flex :flex-col)}
-            [:div {:class (css :flex :font-bold :px-4 :border-b :border-t-2 :py-1 :text-lg)}
+            [:div {:class (css :flex :font-bold :px-4 :border-b :border-t-2 :py-1 :text-sm)}
              [:div {:class (css :flex-1)} "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
             [:div {:class (css {:height "120px"})}
              ;; must not autofocus, otherwise the scroll-anim breaks
@@ -296,7 +315,8 @@
                {:submit-event {:e ::code-eval!}
                 :cm-opts
                 {:autofocus false
-                 :tabindex (if active? 0 -1)}})]]]
+                 :tabindex (if active? 0 -1)}})]
+            ]]
           ))))
 
 (defc ui-tap-stream-item [object-ident {:keys [idx focus]}]
@@ -449,14 +469,14 @@
   (render
 
     (let [{:keys [summary is-error display-type]} object
-          {:keys [obj-type entries supports]} summary]
+          {:keys [obj-type data-count supports]} summary]
 
       (<< [:div {:class (css :flex-1 :flex :flex-col :overflow-hidden {:min-height "52%"} :border-t)
                  ::keyboard/listen true}
            [:div {:class (css :flex :font-mono :font-bold :items-center :border-b)}
             [:div {:class (str (css :px-2 :py-2 ["&.error" :text-red-700]) (when is-error " error"))} obj-type]
-            (when entries
-              (<< [:div {:class (css :py-2 :px-2)} (str entries " Entries")]))]
+            (when data-count
+              (<< [:div {:class (css :py-2 :px-2)} (str data-count " Entries")]))]
 
            (case display-type
              :edn

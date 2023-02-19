@@ -1,9 +1,9 @@
 (ns shadow.cljs.devtools.server.remote-ext
   "shadow.remote extension for clj-runtime adding shadow-cljs specific ops"
   (:require
+    [clojure.core.async :as async :refer (go <!)]
     [shadow.remote.runtime.api :as p]
     [shadow.cljs.model :as m]
-    [clojure.core.async :as async :refer (go <!)]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.config :as config]
@@ -35,7 +35,7 @@
 
         ;; subs only end when server is shutting down
         ;; no need to tell the client, it will notice
-        #_ (p/relay-msg runtime {:op ::m/sub-close ::m/topic topic}))
+        #_(p/relay-msg runtime {:op ::m/sub-close ::m/topic topic}))
 
     (swap! state-ref update :subs conj {:client-id from
                                         :topic topic

@@ -1,15 +1,12 @@
 (ns shadow.cljs.devtools.server.web.api
   (:require
-    [clojure.java.io :as io]
     [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
     [clojure.set :as set]
-    [hiccup.page :refer (html5)]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.http.router :as http]
     [shadow.cljs.devtools.server.util :as server-util]
     [shadow.cljs.model :as m]
-    [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.core-ext]
     [shadow.remote.relay.api :as relay]
     [shadow.cljs.devtools.server.supervisor :as super]
@@ -53,7 +50,6 @@
      :body (transit-str result)}))
 
 (defn project-info [{:keys [transit-read transit-str] :as req}]
-
   {:status 200
    :headers {"content-type" "application/transit+json; charset=utf-8"}
    :body (transit-str (server-util/project-info))})

@@ -7,7 +7,6 @@
     [ring.middleware.file :as ring-file]
     [ring.middleware.file-info :as ring-file-info]
     [shadow.http.router :as http]
-    [shadow.server.assets :as assets]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
     [shadow.cljs.devtools.server.supervisor :as super]
@@ -181,6 +180,26 @@
         [:script {:src "/cache/browser-test/out/js/test.js"}]
         [:script "shadow.test.browser.init();"]])}))
 
+(defn ext-handoff [req ext-ns]
+  (let [handler-var
+        (try
+          (requiring-resolve (symbol ext-ns "handler"))
+          (catch Exception e
+            nil))]
+
+    (if-not handler-var
+      {:status 404
+       :headers {"content-type" "text/plain"}
+       :body (str "ext handler not found: " ext-ns "/handler")}
+
+      (try
+        (handler-var req)
+        (catch Exception e
+          {:status 500
+           :headers {"content-type" "text/plain"}
+           :body (str "ext handler failed: " (.getMessage e))}
+          )))))
+
 (defn maybe-index-page [req]
   (let [accept (get-in req [:ring-request :headers "accept"])]
     (if (and accept (not (str/includes? accept "text/html")))
@@ -191,6 +210,7 @@
   (-> req
       (http/route
         (:GET "" index-page)
+        (:ANY "^/~/{ext-ns}" ext-handoff ext-ns)
         (:GET "^/cache" serve-cache-file)
         (:GET "/repl-js/{build-id:keyword}" browser-repl-js build-id)
         (:GET "/browser-test" browser-test-page)

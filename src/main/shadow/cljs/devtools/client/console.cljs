@@ -9,7 +9,7 @@
     ))
 
 (defn object-ref [obj]
-  (when obj
+  (when-not (nil? obj)
     #js ["object" #js {:object obj}]))
 
 (defn map->style [m]

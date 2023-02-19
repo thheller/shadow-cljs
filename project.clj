@@ -108,6 +108,11 @@
     :dependencies
     [[com.clojure-goes-fast/clj-async-profiler "0.4.1"]
 
+     ;; insight, not quite useful yet
+     ;; will need to add as regular dep when finished
+     [rewrite-clj "1.1.46"]
+     [org.commonmark/commonmark "0.21.0"]
+
      #_[org.slf4j/slf4j-log4j12 "1.7.25"]
      #_[log4j "1.2.17"]]}
 

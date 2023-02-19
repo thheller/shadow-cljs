@@ -6,7 +6,7 @@
     [shadow.cljs.model :as m]))
 
 (defn build-buttons [build-id build-worker-active]
-  (<< [:div {:class (css :font-bold :border-t :c-container-1l)}
+  (<< [:div {:class (css :font-bold :border-t :c-container-1l :border-gray-200)}
        (if build-worker-active
          (<< [:button
               {:on-click {:e ::m/build-watch-stop! :build-id build-id}

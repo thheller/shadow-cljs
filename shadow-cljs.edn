@@ -29,7 +29,9 @@
 
  :prepl {:browser 12345}
 
- :plugins [demo.dummy-plugin]
+ :plugins
+ [demo.dummy-plugin
+  shadow.insight.plugin]
 
  :socket-repl {:port 8204}
 
