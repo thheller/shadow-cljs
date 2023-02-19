@@ -842,15 +842,22 @@
                         ns
                         (->> (get-in compiler-env [::ana/namespaces ns :defs])
                              (vals)
-                             (filter #(get-in % [:meta :export]))
-                             (map :name)
-                             (map (fn [def]
-                                    (let [export-name (-> def name str)
+                             (filter #(or (get-in % [:meta :export])
+                                          (get-in % [:meta :export-as])))
+                             (map (fn [{def :name :as ns-def}]
+                                    (let [export-as (get-in ns-def [:meta :export-as])
                                           export-name
-                                          (if (= "default" export-name)
-                                            export-name
-                                            (-> export-name (comp/munge) (core-ext/safe-pr-str)))]
-                                      (str export-name ":" (comp/munge def)))))
+                                          (if (string? export-as)
+                                            ;; no munging for user specified export names
+                                            ;; still needs to be a string
+                                            export-as
+                                            (let [export-name (-> def name str)]
+                                              (if (= "default" export-name)
+                                                export-name
+                                                (-> export-name (comp/munge)))))]
+                                      ;; escape property name to become {"thing":demo.foo.thing}
+                                      ;; {thing: demo.foo.thing} might get renamed
+                                      (str (core-ext/safe-pr-str export-name) ":" (comp/munge def)))))
                              (str/join ",")
                              (as-module-exports))
 

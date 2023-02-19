@@ -12,7 +12,7 @@
   #_(es6/foo)
   #js["hello from cljs!" SOMETHING js/goog.DEBUG x])
 
-(defn ^:export test-file [name]
+(defn ^{:export-as "testFile"} test-file [name]
   (fs/existsSync name))
 
 (def ^:export default "hello world")

@@ -452,25 +452,40 @@
          "\n$CLJS.SHADOW_ENV.setLoaded(" (pr-str output-name) ");\n"
          "\n")))
 
-(defn js-module-src-append [state {:keys [ns provides] :as src}]
-  ;; export the shortest name always, some goog files have multiple provides
-  (let [export
-        (->> provides
-             (map str)
-             (sort)
-             (map comp/munge)
-             (first))]
+(defn js-module-src-append [state {:keys [ns] :as src}]
+  (if-not ns
+    ;; none-cljs, export the shortest name always, some goog files have multiple provides
+    (str "\nmodule.exports = "
+         (->> (:provides src)
+              (map str)
+              (sort)
+              (map comp/munge)
+              (first))
+         ";\n")
+    ;; cljs ns, export vars.
+    ;; enumarable only if tagged with :export or :export-as
+    (->> (get-in state [:compiler-env ::ana/namespaces ns :defs])
+         (vals)
+         (map (fn [def]
+                (let [{:keys [export export-as] :as def-meta}
+                      (:meta def)
 
-    (str (when-not ns ;; none-cljs
-           (str "\nmodule.exports = " export ";\n"))
-         (->> (get-in state [:compiler-env ::ana/namespaces ns :defs])
-              (vals)
-              (map (fn [def]
-                     (let [def-name (symbol (name (:name def)))]
-                       (str "Object.defineProperty(module.exports, \""
-                            (if (= 'default def-name) "default" (comp/munge def-name)) ;; avoid munge to default$
-                            "\", { enumerable: " (get-in def [:meta :export] false) ", get: function() { return " export "." (comp/munge def-name) "; } });"))))
-              (str/join "\n")))))
+                      export-name
+                      (if (string? export-as)
+                        export-as
+
+                        (let [def-name (symbol (name (:name def)))]
+                          (if (= 'default def-name) ;; avoid munge to default$
+                            "default"
+                            (comp/munge def-name))))]
+
+                  (str "Object.defineProperty(module.exports, \"" export-name "\", { "
+                       "enumerable: " (or (:export def-meta false)
+                                          (string? export-as))
+                       ", "
+                       "get: function() { return " (comp/munge (:name def)) "; }"
+                       " });"))))
+         (str/join "\n"))))
 
 (def goog-global-snippet
   "goog.global =\n    // Check `this` first for backwards compatibility.\n    // Valid unless running as an ES module or in a function wrapper called\n    //   without setting `this` properly.\n    // Note that base.js can't usefully be imported as an ES module, but it may\n    // be compiled into bundles that are loadable as ES modules.\n    this ||\n    // https://developer.mozilla.org/en-US/docs/Web/API/Window/self\n    // For in-page browser environments and workers.\n    self;")
