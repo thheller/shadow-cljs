@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.21.0](https://github.com/thheller/shadow-cljs/compare/62fb3f841f118d05c0c9fba0dc7129ec1f88a23f...2a6e483da80ee8d7c7785c5a3d714e23da244e52) - 2023-02-19
+- [ [`2a6e4`](https://github.com/thheller/shadow-cljs/commit/2a6e483da80ee8d7c7785c5a3d714e23da244e52) ] closure-compiler bump
+- [ [`55a08`](https://github.com/thheller/shadow-cljs/commit/55a086aa48a6baba91d592b5906335a15ed1f2c9) ] add support for :export-as in :npm-module builds
+- [ [`8df61`](https://github.com/thheller/shadow-cljs/commit/8df61f433e4ab8ce43c1ef7673dcbf11dd7d1db6) ] rewrite a bunch of shadow.remote related things
+- [ [`e06c2`](https://github.com/thheller/shadow-cljs/commit/e06c27e7ca5f9d4cfefa097345b95e0a172601a7) ] fix shadow-analyze-top dropping return value in REPL
+- [ [`37ab1`](https://github.com/thheller/shadow-cljs/commit/37ab13297fda2a1d60b55ed33ab886901a17ddf1) ] fix build report not grouping npm packages
+- [ [`0f849`](https://github.com/thheller/shadow-cljs/commit/0f8498f190ef0a836125ea3278535bfdd18f917d) ] set :es5 as default dev output-feature-set for RN
+- [ [`3c98a`](https://github.com/thheller/shadow-cljs/commit/3c98a4e009562c0087fffff13833c87aede65877) ] also check peerDependencies for deps.cljs install
+- [ [`a2488`](https://github.com/thheller/shadow-cljs/commit/a2488e123857fff5d02c05616ec37772736a6fd6) ] more helpful msg when source code read fails
+- [ [`c8ec4`](https://github.com/thheller/shadow-cljs/commit/c8ec4d0f9346751feab934c70561eee1f425a262) ] fix ui route not handling / properly
+- [ [`c870d`](https://github.com/thheller/shadow-cljs/commit/c870dd7f50ab9897c262cba5c464bfb293da6886) ] add shadow.remote example CLJ client
+- [ [`94b76`](https://github.com/thheller/shadow-cljs/commit/94b766df7aaed62f5b143f6c6304b10234cc1bb9) ] bump jar downloader
+- [ [`62fb3`](https://github.com/thheller/shadow-cljs/commit/62fb3f841f118d05c0c9fba0dc7129ec1f88a23f) ] Bump s3-wagon-private to a version where there isn't a dependency to a version of jackson-databind which is vulnerable to CVE-2020-10650 and aws-java-sdk-s3 which is vulnerable to CVE-2022-31159 (#1082)
+
 ## [2.20.20](https://github.com/thheller/shadow-cljs/compare/99b2714014d52578a3eeec2a53016bc3a9731b45...99b2714014d52578a3eeec2a53016bc3a9731b45) - 2023-01-13
 - [ [`99b27`](https://github.com/thheller/shadow-cljs/commit/99b2714014d52578a3eeec2a53016bc3a9731b45) ] pass :dev-http options through to file/classpath root handlers
 
