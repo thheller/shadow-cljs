@@ -100,6 +100,10 @@
     ["src/dev"
      "src/repl"]
 
+    :java-source-paths
+    ["src/dev"
+     "src/main"]
+
     :jvm-opts
     ["-Dclojure.main.report=out"
      "-XX:+UnlockDiagnosticVMOptions"
