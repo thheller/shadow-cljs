@@ -77,7 +77,7 @@
     (if (contains? supports pref)
       pref
       (cond
-        (contains? supports :fragment)
+        (contains? supports :obj-fragment)
         :browse
 
         (contains? #{:string :number :boolean} data-type)
@@ -173,10 +173,9 @@
     ;; leaving this as a hack for now until I can think of something cleaner
     :hack
     (do (relay-ws/call! env
-          {:op :obj-request
+          {:op :obj-edn-limit
            :to runtime-id
            :oid oid
-           :request-op :edn-limit
            :limit 150}
 
           {:e ::obj-preview-result})
@@ -226,10 +225,9 @@
 
     :hack
     (do (relay-ws/call! env
-          {:op :obj-request
+          {:op :obj-edn
            :to runtime-id
-           :oid oid
-           :request-op :edn}
+           :oid oid}
 
           {:e ::obj-as-result
            :ident (:db/ident current)
@@ -246,10 +244,9 @@
 
     :hack
     (do (relay-ws/call! env
-          {:op :obj-request
+          {:op :obj-str
            :to runtime-id
-           :oid oid
-           :request-op :str}
+           :oid oid}
           {:e ::obj-as-result
            :ident (:db/ident current)
            :key :str})
@@ -265,10 +262,9 @@
 
     :hack
     (do (relay-ws/call! env
-          {:op :obj-request
+          {:op :obj-pprint
            :to runtime-id
-           :oid oid
-           :request-op :pprint}
+           :oid oid}
           {:e ::obj-as-result
            :ident (:db/ident current)
            :key :pprint})
@@ -310,12 +306,11 @@
         ;; FIXME: should be smarter about which elements to fetch
         ;; might already have some
         (do (relay-ws/call! env
-              {:op :obj-request
+              {:op :obj-fragment
                :to runtime-id
                :oid oid
                :start start-idx
                :num num
-               :request-op :fragment
                :key-limit 160
                :val-limit 160}
               {:e ::fragment-slice-loaded
@@ -387,12 +382,11 @@
          :slice (persistent! slice)}
 
         (do (relay-ws/call! env
-              {:op :obj-request
+              {:op :obj-lazy-chunk
                :to runtime-id
                :oid oid
                :start start-idx
                :num num
-               :request-op :chunk
                :val-limit 100}
 
               {:e ::lazy-seq-slice-loaded
@@ -448,10 +442,9 @@
 
     ;; FIXME: fx this
     (relay-ws/call! env
-      {:op :obj-request
+      {:op :obj-nav
        :to runtime-id
        :oid oid
-       :request-op :nav
        :idx idx
        :summary true}
 

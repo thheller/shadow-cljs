@@ -10,7 +10,7 @@
 
 (deftest parsing
   (let [content
-        (slurp (io/resource "shadow/insight/example__in.cljs"))
+        (slurp (io/resource "shadow/insight/example__in.clj"))
 
         blocks
         (sip/parse content)]

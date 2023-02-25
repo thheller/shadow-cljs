@@ -3,6 +3,7 @@
     [cljs.pprint :refer (pprint)]
     [shadow.grove :as sg :refer (defc <<)]
     [shadow.grove.db :as db]
+    [shadow.grove.eql-query :as eql]
     [shadow.insight :as-alias si]
     [shadow.insight.runtime :as sir]
     [shadow.insight.remote-ext :as insight-ext]
@@ -15,7 +16,12 @@
 (def schema
   {::plan
    {:type :entity
-    :primary-key :plan-id}})
+    :primary-key :plan-id
+    :joins {:blocks [:many ::block]}}
+
+   ::block
+   {:type :entity
+    :primary-key [:plan-id :idx]}})
 
 (defonce data-ref
   (-> {}
@@ -26,39 +32,50 @@
   (-> {}
       (sg/prepare data-ref :insight-driver)))
 
-(defc ui-plan [ident]
-  (bind {::keys [runtime-id]}
-    (sg/query-root [::runtime-id]))
+(defmethod eql/attr :is-local-result? [env db current query-part query-params]
+  (or (contains? (:result current) :value)
+      (= (::runtime-id db) (:runtime (:result current)))))
 
-  (bind {:keys [blocks exec-ctx] :as data}
+
+(defc ui-block [ident]
+  (bind {:keys [idx result] :as block}
+    (sg/query-ident ident [:db/all :is-local-result?]))
+
+  (render
+    (case (:type block)
+      :text
+      (<< [:div {:dom/inner-html (:html block)}])
+
+      :comment
+      nil
+
+      :expr
+      (cond
+        (not result)
+        (<< [:div
+             [:pre {:dom/inner-html (:source block)}]
+             [:pre "Waiting ..."]])
+
+        (:hidden result)
+        nil ;; FIXME: render something to at least make it possible to reveal
+
+        :else
+        (<< [:div
+             [:pre {:dom/inner-html (:source block)}]
+             [:div (pr-str (:is-local-result? block))]
+             [:pre (pr-str result)]]))
+
+      :directives
+      (<< [:pre (:source block)])
+
+      (<< [:div (pr-str block)]))))
+
+(defc ui-plan [ident]
+  (bind {:keys [blocks] :as data}
     (sg/query-ident ident))
 
   (render
-    (<< [:pre
-         (with-out-str (pprint (dissoc exec-ctx :results)))]
-
-        (sg/simple-seq blocks
-          (fn [block idx]
-            (case (:type block)
-              :text
-              (<< [:div {:dom/inner-html (:html block)}])
-
-              :comment
-              nil
-
-              :expr
-              (let [{:keys [hidden] :as res} (get-in exec-ctx [:results idx])]
-                (if hidden
-                  nil ;; FIXME: render something to at least make it possible to reveal
-                  (<< [:div
-                       [:pre {:dom/inner-html (:source block)}]
-                       [:pre (pr-str (get-in exec-ctx [:results idx]))]])))
-
-              :directives
-              (<< [:pre (:source block)])
-
-              (<< [:div (pr-str block)]))
-            )))))
+    (sg/simple-seq blocks ui-block)))
 
 (defc ui-root []
   (bind {::keys [active-plan]}
@@ -103,20 +120,31 @@
               :file "foo"}
              {::si/plan!
               (fn [{:keys [plan] :as msg}]
-                (let [ident (db/make-ident ::plan (:plan-id plan))]
+
+                (let [self-id (srs/get-client-id runtime)
+                      plan-id (:plan-id plan)
+                      plan-ident (db/make-ident ::plan plan-id)]
 
                   (sg/run-tx! rt-ref
                     (fn [env]
                       (-> env
-                          (assoc-in [:db ::runtime-id] (srs/get-client-id runtime))
-                          (assoc-in [:db ident] (assoc plan :db/ident ident))
-                          (assoc-in [:db ::active-plan] ident))))
+                          (assoc-in [:db ::runtime-id] self-id)
+                          (update :db db/add ::plan (update plan :blocks (fn [blocks] (mapv #(assoc %1 :plan-id plan-id) blocks)))
+                            (fn [db ident]
+                              (assoc db ::active-plan ident))))))
 
                   (insight-ext-cljs/add-listener insight-ext ::ui
-                    (fn [exec-ctx]
+                    (fn [{:keys [results] :as exec-ctx}]
                       (sg/run-tx! rt-ref
                         (fn [env]
-                          (assoc-in env [:db ident :exec-ctx] exec-ctx)))))
+                          (update env :db
+                            (fn [db]
+                              (reduce-kv
+                                (fn [db idx result]
+                                  (let [block-ident (db/make-ident ::block [plan-id idx])]
+                                    (assoc-in db [block-ident :result] result)))
+                                db
+                                results)))))))
 
                   (insight-ext-cljs/plan-execute! insight-ext plan))
                 )}))
@@ -132,7 +160,6 @@
 
     (fn [{:keys [runtime] :as svc}]
       (p/del-extension runtime ::ui)))
-
 
   (sg/reg-fx rt-ref :ws-send
     (fn [{::keys [runtime] :as env} message]

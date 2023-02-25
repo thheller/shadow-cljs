@@ -276,11 +276,11 @@
               [:div {:class
                      (css :px-2 :py-2 :shadow-lg :bg-white
                        ["& > *:not(:last-child)" :mb-2])}
-               (when (contains? supports :fragment)
+               (when (contains? supports :obj-fragment)
                  (view-as-button display-type :browse "BROWSER" active?))
-               (when (contains? supports :pprint)
+               (when (contains? supports :obj-pprint)
                  (view-as-button display-type :pprint "PPRINT" active?))
-               (when (contains? supports :edn)
+               (when (contains? supports :obj-edn)
                  (view-as-button display-type :edn "EDN" active?))
                (when (= :string data-type)
                  (view-as-button display-type :str "STR" active?))]]]
@@ -493,11 +493,11 @@
 
            [:div {:class (css :flex :bg-white :py-2 :px-4 :font-mono :border-t-2)}
             [:div "View as: "]
-            (when (contains? supports :fragment)
+            (when (contains? supports :obj-fragment)
               (view-as-button display-type :browse "Browse" active?))
-            (when (contains? supports :pprint)
+            (when (contains? supports :obj-pprint)
               (view-as-button display-type :pprint "Pretty-Print" active?))
-            (when (contains? supports :edn)
+            (when (contains? supports :obj-edn)
               (view-as-button display-type :edn "EDN" active?))]]
           ))))
 

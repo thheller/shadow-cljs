@@ -361,9 +361,8 @@
                 :input {:code "(+ 1 2)"
                         :ns 'user}})
 
-  (>!! tool-in {:op :obj-request
+  (>!! tool-in {:op :obj-edn
                 :to 1
-                :request-op :edn
                 :oid "dbf3d3a5-aeed-4ba9-a1f7-b8f17eb32e12"})
 
   (require '[shadow.remote.runtime.clj.local :as clj])

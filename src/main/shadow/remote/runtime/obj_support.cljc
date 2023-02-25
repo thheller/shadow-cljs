@@ -63,47 +63,177 @@
        :cljs
        (pr-str (type obj)))))
 
+
+(defn get-data-type [summary {:keys [data] :as entry}]
+  (try
+    (cond
+      (nil? data)
+      (assoc summary :data-type :nil)
+
+      (string? data)
+      (assoc summary :data-type :string :data-count (count data))
+
+      (boolean? data)
+      (assoc summary :data-type :boolean)
+
+      (number? data)
+      (assoc summary :data-type :number)
+
+      (keyword? data)
+      (assoc summary :data-type :keyword)
+
+      (symbol? data)
+      (assoc summary :data-type :symbol)
+
+      (map? data)
+      (assoc summary :data-type :map :data-count (count data))
+
+      (vector? data)
+      (assoc summary :data-type :vec :data-count (count data))
+
+      (set? data)
+      (assoc summary :data-type :set :data-count (count data))
+
+      (list? data)
+      (assoc summary :data-type :list :data-count (count data))
+
+      ;; lazy seqs
+      (seq? data)
+      (assoc summary :data-type :seq)
+
+      :else
+      (assoc summary :data-type :unsupported))
+
+    (catch #?(:cljs :default :clj Exception) e
+      ;; just in case any of the above fail, leaving marker for debugging later
+      ;; intentionally dropping exception, since handling it breaks flow
+      #?(:clj (shadow.jvm-log/warn-ex e ::get-data-type-fail))
+
+      (assoc summary :data-type :unsupported :data-type-fail true))))
+
+(defn merge-source-info [summary {:keys [obj-info]}]
+  (merge summary (select-keys obj-info [:ns :line :column :label])))
+
+(defn inspect-entry!
+  [{:keys [state-ref] :as this}
+   {:keys [obj data added-at] :as entry}]
+
+  (-> {:added-at added-at
+       :datafied (not (identical? data obj))
+       :obj-type (obj-type-string obj)
+       :supports #{}}
+      (get-data-type entry)
+      (merge-source-info entry)
+      (as-> $
+        (reduce
+          (fn [summary inspect-fn]
+            (inspect-fn summary entry))
+          $
+          (:inspectors @state-ref)))))
+
+(defn obj-describe*
+  [{:keys [state-ref] :as this}
+   oid]
+  (when-some [entry (get-in @state-ref [:objects oid])]
+    (swap! state-ref assoc-in [:objects oid :access-at] (now))
+    (inspect-entry! this entry)))
+
+(defn handler-with-object
+  [handler-fn]
+  (fn [{:keys [state-ref runtime] :as this}
+       {:keys [op oid] :as msg}]
+
+    (let [entry (get-in @state-ref [:objects oid])]
+      (if-not entry
+        (shared/reply runtime msg {:op :obj-not-found :oid oid})
+
+        (try
+          (swap! state-ref assoc-in [:objects oid :access-at] (now))
+
+          (let [result (handler-fn this entry msg)]
+
+            ;; FIXME: add support for generic async results
+            ;; all handlers should already be sync but allow async results
+            (if-not (obj-ref? result)
+              (shared/reply runtime msg
+                {:op :obj-result
+                 :oid oid
+                 :result result})
+
+              (let [new-oid
+                    (register this (:obj result) {})
+
+                    reply-msg
+                    (-> {:op :obj-result-ref
+                         :oid oid
+                         :ref-oid new-oid}
+                        (cond->
+                          ;; only send new-obj :summary when requested
+                          (:summary msg)
+                          (assoc :summary (obj-describe* this new-oid))))]
+                (shared/reply runtime msg reply-msg))))
+
+          (catch #?(:clj Exception :cljs :default) e
+            #?(:cljs (js/console.warn "action-request-action failed" (:obj entry) e)
+               :clj (shadow.jvm-log/warn-ex e ::obj-request-failed msg))
+            (shared/reply runtime msg
+              {:op :obj-request-failed
+               :oid oid
+               :msg msg
+               :ex-oid (register this e {:msg msg})})))))))
+
+(def obj-get-value
+  (handler-with-object
+    (fn [this {:keys [obj] :as entry} msg]
+      obj)))
+
 ;; 1meg?
 (def default-max-print-size (* 1 1024 1024))
 
-(defn request-edn
-  [{:keys [data] :as entry} {:keys [limit] :or {limit default-max-print-size} :as msg}]
-  (let [lw (lw/limit-writer limit)]
-    #?(:clj
-       (print-method data lw)
-       :cljs
-       (pr-writer data lw (pr-opts)))
-    (lw/get-string lw)))
+(def obj-edn
+  (handler-with-object
+    (fn [this {:keys [data] :as entry} {:keys [limit] :or {limit default-max-print-size} :as msg}]
+      (let [lw (lw/limit-writer limit)]
+        #?(:clj
+           (print-method data lw)
+           :cljs
+           (pr-writer data lw (pr-opts)))
+        (lw/get-string lw)))))
 
-(defn request-pprint
-  [{:keys [data] :as entry} {:keys [limit] :or {limit default-max-print-size} :as msg}]
-  ;; CLJ pprint for some reason doesn't run out of memory when printing circular stuff
-  ;; but it never finishes either
-  (let [lw (lw/limit-writer limit)]
-    (pprint data lw)
-    (lw/get-string lw)))
+(def obj-pprint
+  (handler-with-object
+    (fn [this {:keys [data] :as entry} {:keys [limit] :or {limit default-max-print-size} :as msg}]
+      ;; CLJ pprint for some reason doesn't run out of memory when printing circular stuff
+      ;; but it never finishes either
+      (let [lw (lw/limit-writer limit)]
+        (pprint data lw)
+        (lw/get-string lw)))))
 
-(defn request-edn-limit
-  [{:keys [data] :as entry} {:keys [limit] :as msg}]
-  (lw/pr-str-limit data limit))
+(def obj-edn-limit
+  (handler-with-object
+    (fn [this {:keys [data] :as entry} {:keys [limit] :as msg}]
+      (lw/pr-str-limit data limit))))
 
-;; FIXME: should likely support limit options
-(defn request-str
-  [{:keys [obj] :as entry} msg]
-  (str obj))
+(def obj-str
+  (handler-with-object
+    (fn [this {:keys [obj] :as entry} msg]
+      (str obj)
+      )))
 
-(defn request-ex-str [{ex :obj :as entry} msg]
-  #?(:cljs
-     (if (instance? js/Error ex)
-       (error->str ex)
-       (str "Execution error:\n"
-            ;; can be any object, really no hope in making this any kind of readable
-            ;; capping it so throwing something large doesn't blow up the REPL
-            "  " (second (lw/pr-str-limit ex 200)) "\n"
-            "\n"))
+(def obj-ex-str
+  (handler-with-object
+    (fn [this {ex :obj :as entry} msg]
+      #?(:cljs
+         (if (instance? js/Error ex)
+           (error->str ex)
+           (str "Execution error:\n"
+                ;; can be any object, really no hope in making this any kind of readable
+                ;; capping it so throwing something large doesn't blow up the REPL
+                "  " (second (lw/pr-str-limit ex 200)) "\n"
+                "\n"))
 
-     :clj
-     (error-format ex)))
+         :clj
+         (error-format ex)))))
 
 (defn exception? [x]
   #?(:clj (instance? java.lang.Throwable x)
@@ -169,97 +299,101 @@
         view-order
         )))
 
-(defn request-nav [{:keys [data] :as entry} {:keys [idx] :as msg} state-ref]
-  (cond
-    (or (vector? data) (list? data))
-    (let [val (nth data idx)
-          nav (d/nav data idx val)]
-      (obj-ref nav))
+(def obj-nav
+  (handler-with-object
+    (fn [{:keys [state-ref]} {:keys [data] :as entry} {:keys [idx] :as msg}]
+      (cond
+        (or (vector? data) (list? data))
+        (let [val (nth data idx)
+              nav (d/nav data idx val)]
+          (obj-ref nav))
 
-    (map? data)
-    (let [view-order (cache-view-order state-ref entry (keys data))
-          key (nth view-order idx)
-          val (get data key)
-          nav (d/nav data key val)]
-      (obj-ref nav))
+        (map? data)
+        (let [view-order (cache-view-order state-ref entry (keys data))
+              key (nth view-order idx)
+              val (get data key)
+              nav (d/nav data key val)]
+          (obj-ref nav))
 
-    (set? data)
-    (let [view-order (cache-view-order state-ref entry data)
-          val (nth view-order idx)
-          nav (d/nav data idx val)]
-      (obj-ref nav))
+        (set? data)
+        (let [view-order (cache-view-order state-ref entry data)
+              val (nth view-order idx)
+              nav (d/nav data idx val)]
+          (obj-ref nav))
 
-    :else
-    (throw (ex-info "nav not supported?" entry))))
+        :else
+        (throw (ex-info "nav not supported?" entry))))))
 
-(defn request-fragment
-  [{:keys [data] :as entry}
-   {:keys [start num val-limit]
-    :or {val-limit 100}
-    :as msg}
-   state-ref]
-  (cond
-    (map? data)
-    (let [{:keys [key-limit] :or {key-limit 100}} msg
-          view-order (cache-view-order state-ref entry (keys data))
-          end (min (count view-order) (+ start num))
-          idxs (range start end)
-          fragment
-          (reduce
-            (fn [m idx]
-              (let [key (nth view-order idx)
-                    val (get data key)]
-                (assoc m idx {:key (try
-                                     (lw/pr-str-limit key key-limit)
-                                     (catch #?(:clj Exception :cljs :default) e
-                                       [true "... print failed ..."]))
-                              :val (try
-                                     (lw/pr-str-limit val val-limit)
-                                     (catch #?(:clj Exception :cljs :default) e
-                                       [true "... print failed ..."]))})))
-            {}
-            idxs)]
+(def obj-fragment
+  (handler-with-object
+    (fn
+      [{:keys [state-ref]}
+       {:keys [data] :as entry}
+       {:keys [start num val-limit]
+        :or {val-limit 100}
+        :as msg}]
+      (cond
+        (map? data)
+        (let [{:keys [key-limit] :or {key-limit 100}} msg
+              view-order (cache-view-order state-ref entry (keys data))
+              end (min (count view-order) (+ start num))
+              idxs (range start end)
+              fragment
+              (reduce
+                (fn [m idx]
+                  (let [key (nth view-order idx)
+                        val (get data key)]
+                    (assoc m idx {:key (try
+                                         (lw/pr-str-limit key key-limit)
+                                         (catch #?(:clj Exception :cljs :default) e
+                                           [true "... print failed ..."]))
+                                  :val (try
+                                         (lw/pr-str-limit val val-limit)
+                                         (catch #?(:clj Exception :cljs :default) e
+                                           [true "... print failed ..."]))})))
+                {}
+                idxs)]
 
-      fragment)
+          fragment)
 
-    (vector? data)
-    (let [end (min (count data) (+ start num))
-          idxs (range start end)
-          fragment
-          (reduce
-            (fn [m idx]
-              (let [val (nth data idx)]
-                (assoc m idx {:val (lw/pr-str-limit val val-limit)})))
-            {}
-            idxs)]
-      fragment)
+        (vector? data)
+        (let [end (min (count data) (+ start num))
+              idxs (range start end)
+              fragment
+              (reduce
+                (fn [m idx]
+                  (let [val (nth data idx)]
+                    (assoc m idx {:val (lw/pr-str-limit val val-limit)})))
+                {}
+                idxs)]
+          fragment)
 
-    (list? data)
-    (let [end (min (count data) (+ start num))
-          idxs (range start end)
-          fragment
-          (reduce
-            (fn [m idx]
-              (let [val (nth data idx)]
-                (assoc m idx {:val (lw/pr-str-limit val val-limit)})))
-            {}
-            idxs)]
+        (list? data)
+        (let [end (min (count data) (+ start num))
+              idxs (range start end)
+              fragment
+              (reduce
+                (fn [m idx]
+                  (let [val (nth data idx)]
+                    (assoc m idx {:val (lw/pr-str-limit val val-limit)})))
+                {}
+                idxs)]
 
-      fragment)
+          fragment)
 
-    (set? data)
-    (let [view-order (cache-view-order state-ref entry data)
-          end (min (count view-order) (+ start num))
-          idxs (range start end)
-          fragment
-          (reduce
-            (fn [m idx]
-              (let [val (nth view-order idx)]
-                (assoc m idx {:val (lw/pr-str-limit val val-limit)})))
-            {}
-            idxs)]
+        (set? data)
+        (let [view-order (cache-view-order state-ref entry data)
+              end (min (count view-order) (+ start num))
+              idxs (range start end)
+              fragment
+              (reduce
+                (fn [m idx]
+                  (let [val (nth view-order idx)]
+                    (assoc m idx {:val (lw/pr-str-limit val val-limit)})))
+                {}
+                idxs)]
 
-      fragment)))
+          fragment)))))
 
 (comment
   (defn pageable-seq [{:keys [data] :as desc}]
@@ -326,132 +460,12 @@
     (chunk {:start 5 :num 10})
     ))
 
-(defn get-data-type [summary {:keys [data] :as entry}]
-  (try
-    (cond
-      (nil? data)
-      (assoc summary :data-type :nil)
-
-      (string? data)
-      (assoc summary :data-type :string :data-count (count data))
-
-      (boolean? data)
-      (assoc summary :data-type :boolean)
-
-      (number? data)
-      (assoc summary :data-type :number)
-
-      (keyword? data)
-      (assoc summary :data-type :keyword)
-
-      (symbol? data)
-      (assoc summary :data-type :symbol)
-
-      (map? data)
-      (assoc summary :data-type :map :data-count (count data))
-
-      (vector? data)
-      (assoc summary :data-type :vec :data-count (count data))
-
-      (set? data)
-      (assoc summary :data-type :set :data-count (count data))
-
-      (list? data)
-      (assoc summary :data-type :list :data-count (count data))
-
-      ;; lazy seqs
-      (seq? data)
-      (assoc summary :data-type :seq)
-
-      :else
-      (assoc summary :data-type :unsupported))
-
-    (catch #?(:cljs :default :clj Exception) e
-      ;; just in case any of the above fail, leaving marker for debugging later
-      ;; intentionally dropping exception, since handling it breaks flow
-      #?(:clj (shadow.jvm-log/warn-ex e ::get-data-type-fail))
-
-      (assoc summary :data-type :unsupported :data-type-fail true))))
-
-(defn merge-source-info [summary {:keys [obj-info]}]
-  (merge summary (select-keys obj-info [:ns :line :column :label])))
-
-(defn inspect-entry!
-  [{:keys [state-ref] :as this}
-   {:keys [obj data added-at] :as entry}]
-
-  (-> {:added-at added-at
-       :datafied (not (identical? data obj))
-       :obj-type (obj-type-string obj)
-       :supports #{}}
-      (get-data-type entry)
-      (merge-source-info entry)
-      (as-> $
-        (reduce-kv
-          (fn [summary handler-id {:keys [inspect-fn] :as handler-config}]
-            (inspect-fn summary entry))
-          $
-          (:handlers @state-ref)))))
-
-(defn obj-describe*
-  [{:keys [state-ref] :as this}
-   oid]
-  (when-some [entry (get-in @state-ref [:objects oid])]
-    (swap! state-ref assoc-in [:objects oid :access-at] (now))
-    (inspect-entry! this entry)))
-
 (defn obj-describe
   [{:keys [runtime] :as this}
    {:keys [oid] :as msg}]
   (if-let [summary (obj-describe* this oid)]
     (shared/reply runtime msg {:op :obj-summary :oid oid :summary summary})
     (shared/reply runtime msg {:op :obj-not-found :oid oid})))
-
-(defn obj-request
-  [{:keys [state-ref runtime] :as this}
-   {:keys [oid request-op] :as msg}]
-  (if-not (contains? (:objects @state-ref) oid)
-    (shared/reply runtime msg {:op :obj-not-found :oid oid})
-    (do (swap! state-ref assoc-in [:objects oid :access-at] (now))
-        (let [entry (get-in @state-ref [:objects oid])
-              request-fn (get-in @state-ref [:handlers request-op :request-fn])]
-          (if-not request-fn
-            (shared/reply runtime msg {:op :obj-request-not-supported
-                                       :oid oid
-                                       :request-op request-op})
-            (try
-              (let [result (request-fn entry msg)]
-
-                ;; FIXME: add support for generic async results
-                ;; all handlers should already be sync but allow async results
-                (if-not (obj-ref? result)
-                  (shared/reply runtime msg
-                    {:op :obj-result
-                     :oid oid
-                     :result result})
-
-                  (let [new-oid
-                        (register this (:obj result) {})
-
-                        reply-msg
-                        (-> {:op :obj-result-ref
-                             :oid oid
-                             :ref-oid new-oid}
-                            (cond->
-                              ;; only send new-obj :summary when requested
-                              (:summary msg)
-                              (assoc :summary (obj-describe* this new-oid))))]
-                    (shared/reply runtime msg reply-msg))))
-
-              (catch #?(:clj Exception :cljs :default) e
-                #?(:cljs (js/console.warn "action-request-action failed" (:obj entry) e)
-                   :clj (shadow.jvm-log/warn-ex e ::obj-request-failed msg))
-                (shared/reply runtime msg
-                  {:op :obj-request-failed
-                   :oid oid
-                   :msg msg
-                   :ex-oid (register this e {:msg msg})})))))
-        )))
 
 (defn obj-forget
   [{:keys [state-ref] :as svc}
@@ -478,94 +492,78 @@
       state
       objs-to-drop)))
 
-(defn add-handler
-  [{:keys [state-ref] :as this} handler-id {:keys [inspect-fn request-fn] :as handler-config}]
-  {:pre [(map? handler-config)
-         (fn? inspect-fn)
-         (fn? request-fn)]}
-  (swap! state-ref assoc-in [:handlers handler-id] handler-config)
+(defn add-inspector
+  [{:keys [state-ref] :as this} inspect-fn]
+  {:pre [(fn? inspect-fn)]}
+  (swap! state-ref update :inspectors conj inspect-fn)
   this)
 
 (defn start [runtime]
   (let [state-ref
         (atom {:objects {}
-               :handlers {}
+               :inspectors #{}
                :id-seq-ref 0})
 
         svc
         (-> {:runtime runtime
              :state-ref state-ref}
 
-            (add-handler :get-value
-              {:inspect-fn
-               (fn [summary {:keys [obj] :as entry}]
-                 (if-not (simple-value? obj)
-                   summary
-                   (update summary :supports conj :get-value)))
-               :request-fn
-               (fn [{:keys [obj]} msg]
-                 obj)})
+            (add-inspector
+              (fn [summary {:keys [obj] :as entry}]
+                (if-not (simple-value? obj)
+                  summary
+                  (update summary :supports conj :obj-get-value))))
 
-            (add-handler :str
-              {:inspect-fn
-               (fn [summary entry]
-                 (update summary :supports conj :str))
-               :request-fn request-str})
+            (add-inspector
+              (fn [summary entry]
+                (update summary :supports conj :obj-str)))
 
-            (add-handler :ex-str
-              {:inspect-fn
-               (fn [summary {:keys [obj] :as entry}]
-                 (if (exception? obj)
-                   (update summary :supports conj :ex-str)
-                   summary))
-               :request-fn request-edn-limit})
+            (add-inspector
+              (fn [summary {:keys [obj] :as entry}]
+                (if (exception? obj)
+                  (update summary :supports conj :obj-ex-str)
+                  summary)))
 
             ;; FIXME: maybe only support these for clojure types?
-            (add-handler :edn
-              {:inspect-fn
-               (fn [summary entry]
-                 (update summary :supports conj :edn))
-               :request-fn request-edn})
+            (add-inspector
+              (fn [summary entry]
+                (update summary :supports conj :obj-edn)))
 
-            (add-handler :edn-limit
-              {:inspect-fn
-               (fn [summary entry]
-                 (update summary :supports conj :edn-limit))
-               :request-fn request-edn-limit})
+            (add-inspector
+              (fn [summary entry]
+                (update summary :supports conj :obj-edn-limit)))
 
-            (add-handler :pprint
-              {:inspect-fn
-               (fn [summary {:keys [data] :as entry}]
-                 (if (or (coll? data) (seq? data))
-                   (update summary :supports conj :pprint)
-                   summary))
-               :request-fn request-pprint})
+            (add-inspector
+              (fn [summary {:keys [data] :as entry}]
+                (if (or (coll? data) (seq? data))
+                  (update summary :supports conj :obj-pprint)
+                  summary)))
 
-            (add-handler :nav
-              {:inspect-fn
-               (fn [summary {:keys [data] :as entry}]
-                 (if (and (or (map? data) (vector? data) (set? data) (list? data))
-                          (seq data))
-                   (update summary :supports conj :nav)
-                   summary))
-               :request-fn
-               #(request-nav %1 %2 state-ref)})
+            (add-inspector
+              (fn [summary {:keys [data] :as entry}]
+                (if (and (or (map? data) (vector? data) (set? data) (list? data))
+                         (seq data))
+                  (update summary :supports conj :obj-nav)
+                  summary)))
 
-            (add-handler :fragment
-              {:inspect-fn
-               (fn [summary {:keys [data] :as entry}]
-                 (if (and (or (map? data) (vector? data) (set? data) (list? data))
-                          (seq data))
-                   (update summary :supports conj :fragment)
-                   summary))
-               :request-fn
-               #(request-fragment %1 %2 state-ref)})
+            (add-inspector
+              (fn [summary {:keys [data] :as entry}]
+                (if (and (or (map? data) (vector? data) (set? data) (list? data))
+                         (seq data))
+                  (update summary :supports conj :obj-fragment)
+                  summary)))
             )]
 
     (p/add-extension runtime
       ::ext
       {:ops {:obj-describe #(obj-describe svc %)
-             :obj-request #(obj-request svc %)
+             :obj-edn #(obj-edn svc %)
+             :obj-get-value #(obj-get-value svc %)
+             :obj-edn-limit #(obj-edn-limit svc %)
+             :obj-str #(obj-str svc %)
+             :obj-pprint #(obj-pprint svc %)
+             :obj-nav #(obj-nav svc %)
+             :obj-fragment #(obj-fragment svc %)
              :obj-forget #(obj-forget svc %)
              :obj-forget-all #(obj-forget-all svc %)}
        :on-idle #(swap! state-ref basic-gc!)})

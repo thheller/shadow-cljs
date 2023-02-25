@@ -188,9 +188,8 @@
                    (let [{:keys [from ref-oid eval-ns]} msg]
 
                      (>!! to-relay
-                       {:op :obj-request
+                       {:op :obj-as-edn
                         :to from
-                        :request-op :edn
                         :oid ref-oid})
 
                      (-> repl-state
@@ -199,7 +198,7 @@
                                 :eval-result msg)
                          (recur)))
 
-                   :obj-request-failed
+                   :obj-as-edn-failed
                    (let [{:keys [from ex-oid]} msg]
                      (if (:print-failed repl-state)
                        (do (repl-stderr repl-state "The result failed to print and printing the exception also failed. No clue whats going on.")
@@ -210,9 +209,8 @@
                                (recur)))
 
                        (do (>!! to-relay
-                             {:op :obj-request
+                             {:op :obj-as-str
                               :to from
-                              :request-op :str
                               :oid ex-oid})
 
                            (-> repl-state
@@ -269,9 +267,8 @@
                    :eval-runtime-error
                    (let [{:keys [from ex-oid]} msg]
                      (>!! to-relay
-                       {:op :obj-request
+                       {:op :obj-as-ex-str
                         :to from
-                        :request-op :ex-str
                         :oid ex-oid})
                      (recur (assoc repl-state :stage :error)))
 
