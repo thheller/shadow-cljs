@@ -395,6 +395,22 @@
 
           fragment)))))
 
+;; keeping this for backwards compatibility, found at least two libs using it
+;; https://github.com/eerohele/Tutkain/blob/34b1ae9147a28faa9badedf3818f69bbb9e0e4ef/clojure/src/tutkain/shadow.clj#L234
+;; https://github.com/mauricioszabo/repl-tooling/blob/b4962dd39b84d60cbd087a96ba6fccb1bffd0bd6/src/repl_tooling/repl_client/shadow_ws.cljs
+
+(defn obj-request [this {:keys [request-op] :as msg}]
+  (let [real-handler
+        (case request-op
+          :str obj-str
+          :ex-str obj-ex-str
+          :edn obj-edn
+          :edn-limit obj-edn
+          :pprint this
+          :nav this
+          :fragment obj-fragment)]
+    (real-handler this msg)))
+
 (comment
   (defn pageable-seq [{:keys [data] :as desc}]
     ;; data is always beginning of seq
@@ -557,6 +573,7 @@
     (p/add-extension runtime
       ::ext
       {:ops {:obj-describe #(obj-describe svc %)
+             :obj-request #(obj-request svc %)
              :obj-edn #(obj-edn svc %)
              :obj-get-value #(obj-get-value svc %)
              :obj-edn-limit #(obj-edn-limit svc %)
