@@ -170,6 +170,10 @@
   (println (str " " msg))
   (println (sep-line)))
 
+(defn print-very-short-warning
+  [{:keys [msg] :as warning}]
+  (println (str " " msg)))
+
 ;; printed after optimizations, only warnings from the closure compiler
 ;; FIXME: should be handled elsewhere since they are printed before CLJS warnings
 (defn print-closure-warnings
@@ -185,19 +189,33 @@
 
 (defn print-warnings-for-build-info
   [{:keys [compile-cycle sources] :as build-info}]
-  (let [warnings
-        (for [{:keys [warnings] :as src} sources
+  (let [project-sources (->> sources (remove :from-jar))
+        library-sources (->> sources (filter :from-jar))
+
+        project-warnings
+        (for [{:keys [warnings] :as src} project-sources
               warning warnings]
           warning)
 
-        too-many? (> (count warnings) 3)]
+        library-warnings
+        (for [{:keys [warnings] :as src} library-sources
+              warning warnings]
+          warning)]
 
-    (doseq [[idx {:keys [file source-excerpt] :as w}] (map-indexed vector warnings)
+    (doseq [[idx w] (map-indexed vector project-warnings)
             :let [w (assoc w ::idx (inc idx))]]
-
       (println)
-      (if (or (not source-excerpt)
-              (and too-many? (not file))
-              (and (not file) (pos? compile-cycle)))
-        (print-short-warning w)
-        (print-warning w)))))
+      (print-warning w))
+
+    (when (seq library-warnings)
+      (if (pos? compile-cycle)
+        ;; reduce noise for watch recompiles, for library warnings we can't fix anyways
+        (do (println "Warnings in Library Code:")
+            (doseq [[idx w] (map-indexed vector library-warnings)
+                    :let [w (assoc w ::idx (inc idx))]]
+              (print-very-short-warning w)))
+        ;; first cycle warn as normal
+        (doseq [[idx w] (map-indexed vector library-warnings)
+                :let [w (assoc w ::idx (inc idx))]]
+          (println)
+          (print-warning w))))))
