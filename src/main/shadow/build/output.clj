@@ -121,6 +121,15 @@
   (with-open [rdr (io/reader (StringReader. text))]
     (count (line-seq rdr))))
 
+(defn library-source? [src]
+  (or (:from-jar src)
+      ;; generated sources
+      (:virtual src)
+      ;; npm shadow-js
+      (:shadow.build.npm/package src)
+      ;; dev related stuff
+      (str/starts-with? (:resource-name src) "shadow/cljs/devtools/")))
+
 (defn encode-source-map
   [state
    {:keys [resource-name prepend output-name] :as src}
@@ -144,6 +153,10 @@
         (cond->
           (get-in state [:compiler-options :source-map-include-sources-content])
           (assoc "sourcesContent" [source])
+
+          ;; https://developer.chrome.com/blog/devtools-better-angular-debugging/#the-x_google_ignorelist-source-map-extension
+          (library-source? src)
+          (assoc "x_google_ignoreList" [0])
 
           (seq prepend-lines)
           (update "mappings" (fn [s] (str prepend-lines s)))))))
@@ -376,8 +389,24 @@
 
                       shadow-js-outputs))
 
-                sm
+                {:strs [sources] :as sm}
                 (json/read-str source-map-json)
+
+                ignore
+                (reduce-kv
+                  (fn [ignore idx source-name]
+                    (let [id (get-in state [:name->id source-name])]
+                      (if-not id
+                        (conj ignore idx)
+                        (let [src (get-in state [:sources id])]
+                          (if-not (library-source? src)
+                            ignore
+                            (conj ignore idx))))))
+                  []
+                  sources)
+
+                sm
+                (assoc sm "x_google_ignoreList" ignore)
 
                 sm-index
                 (-> sm-index
