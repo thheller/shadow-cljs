@@ -168,6 +168,7 @@
         (async/wait-for-pending-tasks!)
         (assoc :build-sources build-sources))))
 
+(declare process-input)
 
 (defn repl-load-file*
   [state {:keys [file-path source]}]
@@ -380,8 +381,6 @@
           (repl-require* state quoted-require (set flags)))
         state
         (map :require quoted-requires)))))
-
-(declare process-input)
 
 (defn repl-ns [state read-result [_ ns :as form]]
   (let [{:keys [ns deps ns-info] :as ns-rc}
