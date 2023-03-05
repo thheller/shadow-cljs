@@ -301,49 +301,6 @@
     (is (= '{bar other/foo} (:renames ast)))
     ))
 
-(deftest test-parse-repl-require
-  (let [test-ns
-        '(ns cljs.user)
-
-        test-require
-        '(require '[some.ns :as a :refer (x)] :reload)
-
-        ns-info
-        (ns-form/parse test-ns)
-
-        ns-required
-        (ns-form/merge-repl-require ns-info test-require)
-
-        ns-required-again
-        (-> ns-required
-            (assoc :flags {}) ;; flags should be cleared by runtime
-            (ns-form/merge-repl-require test-require))]
-
-    (is (not= ns-info ns-required))
-    (is (= ns-required ns-required-again))
-    (is (= 'some.ns (get-in ns-required [:uses 'x])))
-    (is (= 'some.ns (get-in ns-required [:requires 'a])))
-    (is (= #{:reload} (get-in ns-required [:flags :require])))
-    (is (= #{:reload} (get-in ns-required-again [:flags :require])))
-    ))
-
-(deftest test-parse-repl-string-require
-  (let [test-ns
-        '(ns cljs.user)
-
-        test-require
-        '(require '["fs" :as fs])
-
-        ns-info
-        (ns-form/parse test-ns)
-
-        ns-required
-        (ns-form/merge-repl-require ns-info test-require)]
-
-    (is (not= ns-info ns-required))
-    (pprint ns-required)
-    ))
-
 (comment
   ;; forgot what this was about
   (deftest test-aliased-refer-macros
