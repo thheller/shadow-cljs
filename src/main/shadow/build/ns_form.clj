@@ -355,13 +355,22 @@
         ;; [something :as foo :as-alias bar]
         load? (not (and (= 1 (count opts-m)) as-alias))]
 
-    (if-not load?
+    (cond
+      (not load?)
       ;; only reader-alias, no loading or dependency
       (-> ns-info
           (check-alias-conflict! lib as-alias)
           (update :reader-aliases assoc as-alias lib))
 
+      ;; self-require, from REPL
+      ;; must not be merged into regular :requires or deps since that creates a circular dependency
+      ;; which may lead to compilation issues later
+      ;; FIXME: should it remember :as aliases somewhere?
+      (= lib (:name ns-info))
+      (assoc ns-info :self-require true)
+
       ;; regular none :as-alias require
+      :regular
       (-> ns-info
           (add-dep lib)
           (merge-require :requires lib lib)
@@ -594,25 +603,6 @@
                       (into [])
                       )))
              ))))))
-
-(defn merge-repl-require [ns-info require-args]
-  (let [conformed (s/conform ::repl-require require-args)]
-
-    (when (= conformed ::s/invalid)
-      (throw (ex-info "failed to parse ns require"
-               (assoc (s/explain-data ::repl-require require-args)
-                 :tag ::invalid-require))))
-
-    (let [{:keys [flags quoted-requires]}
-          conformed]
-
-      (-> ns-info
-          (assoc-in [:flags :require] (into #{} flags))
-          (assoc :reload-deps [])
-          (reduce->
-            reduce-require
-            (map :require quoted-requires)
-            )))))
 
 (defn rewrite-ns-aliases
   [{:keys [requires require-macros uses use-macros deps renames] :as ast}
