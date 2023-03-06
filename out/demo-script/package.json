@@ -1,0 +1,17 @@
+{
+  "name": "demo-script",
+  "version": "1.0.0",
+  "description": "",
+  "main": "foo.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "react": "^18.2.0",
+    "request": "^2.88.2",
+    "which": "^3.0.0"
+  }
+}

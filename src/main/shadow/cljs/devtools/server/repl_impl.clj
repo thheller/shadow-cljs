@@ -188,7 +188,7 @@
                    (let [{:keys [from ref-oid eval-ns]} msg]
 
                      (>!! to-relay
-                       {:op :obj-as-edn
+                       {:op :obj-edn
                         :to from
                         :oid ref-oid})
 
@@ -198,7 +198,7 @@
                                 :eval-result msg)
                          (recur)))
 
-                   :obj-as-edn-failed
+                   :obj-request-failed
                    (let [{:keys [from ex-oid]} msg]
                      (if (:print-failed repl-state)
                        (do (repl-stderr repl-state "The result failed to print and printing the exception also failed. No clue whats going on.")
@@ -267,7 +267,7 @@
                    :eval-runtime-error
                    (let [{:keys [from ex-oid]} msg]
                      (>!! to-relay
-                       {:op :obj-as-ex-str
+                       {:op :obj-ex-str
                         :to from
                         :oid ex-oid})
                      (recur (assoc repl-state :stage :error)))
@@ -282,7 +282,7 @@
                      (recur repl-state))
 
                    (do (tap> [:unexpected-from-relay msg repl-state worker relay])
-                       (repl-stderr "INTERNAL REPL ERROR: Got an unexpected reply from relay, check Inspect")
+                       (repl-stderr repl-state "INTERNAL REPL ERROR: Got an unexpected reply from relay, check Inspect")
                        (recur repl-state)))))
 
               proc-stdio
