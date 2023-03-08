@@ -43,10 +43,10 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20230206"]
+   [com.google.javascript/closure-compiler-unshaded "v20230228"]
 
-   [org.clojure/google-closure-library "0.0-20211011-0726fdeb"]
-   [org.clojure/google-closure-library-third-party "0.0-20211011-0726fdeb"]
+   [org.clojure/google-closure-library "0.0-20230227-c7c0a541"]
+   [org.clojure/google-closure-library-third-party "0.0-20230227-c7c0a541"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.3.3"]

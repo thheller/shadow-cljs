@@ -37,7 +37,7 @@
 (defn start []
   (server/start!)
 
-  (cljs/watch :ui {})
+  ;; (cljs/watch :ui {})
 
   ;; until I can figure out a clean API for this
   (reset! css-ref
