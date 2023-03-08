@@ -264,15 +264,6 @@
         (let [output (str js (generate-source-map state src output js-file ""))]
           (spit js-file output))))))
 
-(defn flush-sources
-  ([{:keys [build-sources] :as state}]
-   (flush-sources state build-sources))
-  ([state source-ids]
-   (doseq [src-id source-ids]
-     (async/queue-task state #(flush-source state src-id)))
-
-   state))
-
 (defmulti flush-optimized-module
   (fn [state mod]
     (get mod :output-type ::default)))
@@ -564,12 +555,54 @@
        "\nmodule.exports = $CLJS;\n"
        ))
 
-(defn flush-dev-js-modules
-  [{:shadow.build/keys [build-info] :as state} mode config]
+(defn flush-dev-js-module-source [state {:keys [output-name last-modified] :as src}]
+  (let [{:keys [js] :as output}
+        (data/get-output! state src)
 
+        target
+        (data/output-file state output-name)]
+
+    ;; flush everything if env was modified, otherwise only flush modified
+    (when (or (not (.exists target)) (>= last-modified (.lastModified target)))
+
+      (let [prepend
+            (js-module-src-prepend state src true)
+
+            content
+            (str prepend
+                 js
+                 (js-module-src-append state src)
+                 (generate-source-map state src output target prepend))]
+
+        (spit target content)
+        ))))
+
+;; called from shadow.cljs.repl AND targets
+;; need it to be npm-module aware so it doesn't end up flushing cljs-runtime sources
+;; which are useless for npm-module. rather do this here than in shadow.cljs.repl
+(defn flush-sources
+  ([{:keys [build-sources] :as state}]
+   (flush-sources state build-sources))
+  ([state source-ids]
+
+   (if (not= :js (get-in state [:build-options :module-format]))
+     ;; regular goog style output
+     (doseq [src-id source-ids]
+       (async/queue-task state #(flush-source state src-id)))
+     ;; npm-module style output
+     (doseq [src-id source-ids
+             :when (not= src-id goog-base-id)
+             :let [src (get-in state [:sources src-id])]
+             :when (not (:goog-src src))]
+
+       (async/queue-task state #(flush-dev-js-module-source state src))))
+
+   state))
+
+(defn flush-dev-js-modules
+  [state mode config]
   (util/with-logged-time [state {:type :npm-flush
                                  :output-path (.getAbsolutePath (get-in state [:build-options :output-dir]))}]
-
     (let [env-file
           (data/output-file state "cljs_env.js")
 
@@ -588,40 +621,15 @@
           (or (not (.exists env-file))
               (not= env-content (slurp env-file)))]
 
+      ;; the goal is to avoid touching the env file as much as possible
+      ;; other tools might trigger a reload and reloading the env destroys everything
       (when env-modified?
         (io/make-parents env-file)
-        (spit env-file env-content))
+        (spit env-file env-content))))
 
-      (doseq [src-id (:build-sources state)
-              :when (not= src-id goog-base-id)
-              :let [src (get-in state [:sources src-id])]
-              :when (not (:goog-src src))]
+  (flush-sources state)
 
-        (let [{:keys [output-name last-modified]}
-              src
-
-              {:keys [js] :as output}
-              (data/get-output! state src)
-
-              target
-              (data/output-file state output-name)]
-
-          ;; flush everything if env was modified, otherwise only flush modified
-          (when (or env-modified?
-                    (contains? (:compiled build-info) src-id)
-                    (not (.exists target))
-                    (>= last-modified (.lastModified target)))
-
-            (let [prepend
-                  (js-module-src-prepend state src true)
-
-                  content
-                  (str prepend
-                       js
-                       (js-module-src-append state src)
-                       (generate-source-map state src output target prepend))]
-
-              (spit target content)
-              ))))))
   state)
+
+
 
