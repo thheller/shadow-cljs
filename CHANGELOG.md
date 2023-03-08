@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.22.0](https://github.com/thheller/shadow-cljs/compare/ac8b33e7643d187845b68f6ac4acb4fc3e043949...5168aff39ddb21ddc5f6e18828456cc73c216e65) - 2023-03-08
+- [ [`5168a`](https://github.com/thheller/shadow-cljs/commit/5168aff39ddb21ddc5f6e18828456cc73c216e65) ] closure compiler+lib bump
+- [ [`7d6ca`](https://github.com/thheller/shadow-cljs/commit/7d6ca44906143a69eb5999ce23d67641fe870073) ] hot-reload/REPL for :npm-module :runtime :node
+- [ [`78851`](https://github.com/thheller/shadow-cljs/commit/78851756b162c242270fcad08cff58f1a8f5380b) ] fix npm-module output in REPL contexts
+- [ [`ce92e`](https://github.com/thheller/shadow-cljs/commit/ce92e41ebea65c499fb2cba9b19179e9c430ab71) ] fix repl impl
+- [ [`af1a7`](https://github.com/thheller/shadow-cljs/commit/af1a77099e69b09c3799a8b64e169cd24d379a72) ] move up declare
+- [ [`d39ed`](https://github.com/thheller/shadow-cljs/commit/d39edc7d70fdc5d6e39d8fc24a81285d91954381) ] remove obsolete tests
+- [ [`fe0c7`](https://github.com/thheller/shadow-cljs/commit/fe0c7836588908a010ef6d7a0246cd32e156912d) ] change how require in REPL works
+- [ [`77c52`](https://github.com/thheller/shadow-cljs/commit/77c529540ad73f8e95a87e26bb920c7657db85c9) ] add support for chrome source map extensions
+- [ [`a7229`](https://github.com/thheller/shadow-cljs/commit/a7229169b81f315745e336fda4e79c8cb41e0471) ] remove noise from warnings in library code
+- [ [`b00f8`](https://github.com/thheller/shadow-cljs/commit/b00f837606561c2da99e29ef55e8ce01e47ab5bb) ] restore :obj-request op, other libs use it
+- [ [`c863f`](https://github.com/thheller/shadow-cljs/commit/c863f54648c6e23507959c5e6d8e0fa4229134e7) ] rewrite obj-support some more
+- [ [`ac8b3`](https://github.com/thheller/shadow-cljs/commit/ac8b33e7643d187845b68f6ac4acb4fc3e043949) ] move insight files for make CI happy
+
 ## [2.21.0](https://github.com/thheller/shadow-cljs/compare/62fb3f841f118d05c0c9fba0dc7129ec1f88a23f...2a6e483da80ee8d7c7785c5a3d714e23da244e52) - 2023-02-19
 - [ [`2a6e4`](https://github.com/thheller/shadow-cljs/commit/2a6e483da80ee8d7c7785c5a3d714e23da244e52) ] closure-compiler bump
 - [ [`55a08`](https://github.com/thheller/shadow-cljs/commit/55a086aa48a6baba91d592b5906335a15ed1f2c9) ] add support for :export-as in :npm-module builds
