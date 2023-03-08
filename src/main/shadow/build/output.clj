@@ -434,7 +434,7 @@
       (subs s 0 idx)
       s)))
 
-(defn js-module-src-prepend [state {:keys [output-name] :as src} require?]
+(defn js-module-src-prepend [state {:keys [resource-name output-name] :as src}]
   (let [dep-syms
         (data/deps->syms state src)
 
@@ -442,26 +442,38 @@
         (->> (get-in state [:compiler-env :shadow/ns-roots])
              (map comp/munge))]
 
-    (str (when require?
-           (str "var $CLJS = require(\"./cljs_env\");\n"
-                "var $jscomp = $CLJS.$jscomp;\n"))
+    (str "var $CLJS = require(\"./cljs_env\");\n"
+         "var $jscomp = $CLJS.$jscomp;\n"
 
          ;; :npm-module is picky about this
          "var COMPILED = false;\n"
 
-         (when require?
-           ;; emit requires to actual files to ensure that they were loaded properly
-           ;; can't ensure that the files were loaded before this as goog.require would
-           (->> dep-syms
-                (remove #{'goog})
-                (map #(data/get-source-id-by-provide state %))
-                (distinct)
-                (map #(data/get-source-by-id state %))
-                (remove :goog-src)
-                (map (fn [{:keys [output-name] :as x}]
-                       (str "require(\"./" output-name "\");")))
-                (str/join "\n")))
+         ;; emit requires to actual files to ensure that they were loaded properly
+         ;; can't ensure that the files were loaded before this as goog.require would
+         (->> dep-syms
+              (remove #{'goog})
+              (map #(data/get-source-id-by-provide state %))
+              (distinct)
+              (map #(data/get-source-by-id state %))
+              (remove :goog-src)
+              (map (fn [{:keys [output-name] :as x}]
+                     (str "require(\"./" output-name "\");")))
+              (str/join "\n"))
          "\n"
+
+         ;; have all project files load the worker inject automatically
+         ;; removes the need for the user to handle this from the JS side
+         (when (and (= :cljs (:type src))
+                    (:worker-info state)
+                    (not (:from-jar src))
+                    (not (str/starts-with? resource-name "shadow/"))
+                    (not (str/starts-with? resource-name "cljs/")))
+           (case (:runtime (:shadow.build/config state))
+             :browser
+             "require(\"./shadow.cljs.devtools.client.browser.js\");\n"
+             :node
+             "require(\"./shadow.cljs.devtools.client.npm_module.js\");\n"
+             nil))
 
          ;; take existing roots or create in case they don't exist yet
          (->> roots
@@ -566,7 +578,7 @@
     (when (or (not (.exists target)) (>= last-modified (.lastModified target)))
 
       (let [prepend
-            (js-module-src-prepend state src true)
+            (js-module-src-prepend state src)
 
             content
             (str prepend
@@ -613,8 +625,10 @@
                     (remove #{goog-base-id})
                     (map #(data/get-source-by-id state %))
                     (filter :goog-src)
-                    (map #(data/get-output! state %))
-                    (map :js)
+                    (map (fn [{:keys [output-name] :as src}]
+                           (let [{:keys [js]} (data/get-output! state src)]
+                             (str js
+                                  "\n$CLJS.SHADOW_ENV.setLoaded(" (pr-str output-name) ");\n"))))
                     (str/join "\n")))
 
           env-modified?

@@ -97,7 +97,7 @@
       (js/SHADOW_NODE_EVAL code))
 
     cljs-shared/IHostSpecific
-    (do-invoke [this msg]
+    (do-invoke [this ns msg]
       (node-eval msg))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]

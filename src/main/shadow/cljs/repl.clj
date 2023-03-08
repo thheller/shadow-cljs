@@ -256,25 +256,22 @@
         ns-info
         (get-in state [:compiler-env ::ana/namespaces current-ns])
 
-        old-deps
-        (set (:deps ns-info))
-
         new-ns-info
-        (ns-form/reduce-require ns-info quoted-require)]
+        (ns-form/reduce-require (assoc ns-info :deps []) quoted-require)]
 
     (cond
       ;; wasn't a self-require, proceed as normal
       (not (:self-require new-ns-info))
-      (let [new-deps
+      (let [added-deps
             (:deps new-ns-info)
-
-            added-deps
-            (into [] (remove old-deps) new-deps)
 
             reload-deps
             (if (contains? flags :reload)
               added-deps
               [])
+
+            new-deps
+            (into (:deps ns-info) (distinct) added-deps)
 
             state
             (-> state
@@ -290,6 +287,7 @@
             new-ns-info
             (-> new-ns-info
                 (dissoc :self-require) ;; forget about self-require, for next time
+                (assoc :deps new-deps)
                 (ns-form/rewrite-ns-aliases state)
                 (ns-form/rewrite-js-deps state))
 

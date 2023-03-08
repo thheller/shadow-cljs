@@ -101,7 +101,7 @@
       (global-eval code))
 
     cljs-shared/IHostSpecific
-    (do-invoke [this {:keys [js] :as _}]
+    (do-invoke [this ns {:keys [js] :as _}]
       (global-eval js))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]

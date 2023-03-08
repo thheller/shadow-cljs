@@ -578,6 +578,7 @@
              :obj-get-value #(obj-get-value svc %)
              :obj-edn-limit #(obj-edn-limit svc %)
              :obj-str #(obj-str svc %)
+             :obj-ex-str #(obj-ex-str svc %)
              :obj-pprint #(obj-pprint svc %)
              :obj-nav #(obj-nav svc %)
              :obj-fragment #(obj-fragment svc %)

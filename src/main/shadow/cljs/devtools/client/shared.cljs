@@ -20,7 +20,7 @@
 (defprotocol IHostSpecific
   (do-repl-init [this action done error])
   (do-repl-require [this require-msg done error])
-  (do-invoke [this invoke-msg]))
+  (do-invoke [this ns invoke-msg]))
 
 (defn load-sources [runtime sources callback]
   (shared/call runtime
@@ -109,14 +109,14 @@
       (callback)))
 
 (defn handle-invoke [state runtime action]
-  (let [res (do-invoke runtime action)]
+  (let [res (do-invoke runtime (:ns state) action)]
     (if (:internal action)
       state
       (update state :results conj res))))
 
 (defn handle-repl-invoke [state runtime action]
   (try
-    (let [ret (do-invoke runtime action)]
+    (let [ret (do-invoke runtime (:ns state) action)]
 
       ;; FIXME: these are nonsense with multiple sessions. refactor this properly
       (set! *3 *2)

@@ -16,3 +16,8 @@
   (fs/existsSync name))
 
 (def ^:export default "hello world")
+
+(defn ^:dev/after-load yo! []
+  (js/console.log "after-load yo!"))
+
+(js/console.log "namespace load!" js/__filename js/__dirname)

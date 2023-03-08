@@ -154,17 +154,6 @@
     ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
     (js* "(0,eval)(~{});" js)))
 
-(defn repl-init [runtime {:keys [repl-state]}]
-  (cljs-shared/load-sources
-    runtime
-    ;; maybe need to load some missing files to init REPL
-    (->> (:repl-sources repl-state)
-         (remove env/src-is-loaded?)
-         (into []))
-    (fn [sources]
-      (do-js-load sources)
-      (devtools-msg "ready!"))))
-
 (def runtime-info
   (when (exists? js/SHADOW_CONFIG)
     (j/to-clj js/SHADOW_CONFIG)))
@@ -207,7 +196,7 @@
       (global-eval code))
 
     cljs-shared/IHostSpecific
-    (do-invoke [this {:keys [js] :as _}]
+    (do-invoke [this ns {:keys [js]}]
       (global-eval js))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]
@@ -281,10 +270,6 @@
               (hud/connection-error
                 (str "Stale Output! Your loaded JS was not produced by the running shadow-cljs instance."
                      " Is the watch for this build running?")))
-
-            :cljs-runtime-init
-            (fn [msg]
-              (repl-init runtime msg))
 
             :cljs-asset-update
             (fn [msg]

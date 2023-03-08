@@ -761,25 +761,8 @@
                       :type type
                       :ns ns
                       :provides provides
-
-                      ;; FIXME: make this pretty ...
-                      :js
-                      (case module-format
-                        :goog
-                        (let [sm-text (output/generate-source-map-inline build-state src output "")]
-                          (str js sm-text))
-                        :js
-                        (let [prepend
-                              (output/js-module-src-prepend build-state src false)
-
-                              append
-                              "" #_(output/js-module-src-append build-state src)
-
-                              sm-text
-                              (output/generate-source-map-inline build-state src output prepend)]
-
-                          (str prepend js append sm-text)))
-                      })))
+                      :js (let [sm-text (output/generate-source-map-inline build-state src output "")]
+                            (str js sm-text))})))
             (into []))})
 
     worker-state))

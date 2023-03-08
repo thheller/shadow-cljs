@@ -88,7 +88,7 @@
               (browser/inject-devtools-console state config))
 
           (and repl? (= :node runtime))
-          (update :entries shared/prepend '[shadow.cljs.devtools.client.node])
+          (update :entries shared/prepend '[shadow.cljs.devtools.client.npm-module])
 
           (and repl? (= :react-native runtime))
           (-> (update :entries shared/prepend '[shadow.cljs.devtools.client.react-native])

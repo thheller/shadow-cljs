@@ -7,28 +7,31 @@
 
 ;; FIXME: protocolize the 3 fns
 
-(defn start [runtime]
-  (let [ws-url (env/get-ws-relay-url)
-        socket (js/WebSocket. ws-url)]
+(defn start
+  ([runtime]
+   (start js/WebSocket runtime))
+  ([ws-impl runtime]
+   (let [ws-url (env/get-ws-relay-url)
+         socket (ws-impl. ws-url)]
 
-    (set! socket -onmessage
-      (fn [e]
-        (cljs-shared/remote-msg runtime (.-data e))))
+     (set! socket -onmessage
+       (fn [e]
+         (cljs-shared/remote-msg runtime (.-data e))))
 
-    (set! socket -onopen
-      (fn [e]
-        (cljs-shared/remote-open runtime e)))
+     (set! socket -onopen
+       (fn [e]
+         (cljs-shared/remote-open runtime e)))
 
-    (set! socket -onclose
-      (fn [e]
-        (cljs-shared/remote-close runtime e ws-url)))
+     (set! socket -onclose
+       (fn [e]
+         (cljs-shared/remote-close runtime e ws-url)))
 
-    (set! socket -onerror
-      (fn [e]
-        ;; followed by close
-        (cljs-shared/remote-error runtime e)))
+     (set! socket -onerror
+       (fn [e]
+         ;; followed by close
+         (cljs-shared/remote-error runtime e)))
 
-    socket))
+     socket)))
 
 (defn send [socket msg]
   (.send socket msg))
