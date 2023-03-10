@@ -15,7 +15,7 @@
             [shadow.build.classpath :as classpath]
             [shadow.build.test-util :as tu]))
 
-(s/def ::runtime #{:node :browser :react-native})
+(s/def ::runtime keyword? #_ #{:node :browser :react-native})
 
 (s/def ::entries
   (s/coll-of simple-symbol? :kind vector? :distinct true))
@@ -64,7 +64,7 @@
         (shared/merge-repl-defines config)
         )))
 
-(defn resolve* [module-config {:keys [classpath] :as state} mode {:keys [entries runtime] :as config}]
+(defn resolve* [module-config {:keys [classpath] :as state} mode {:keys [entries runtime preloads] :as config}]
   (let [repl?
         (some? (:worker-info state))
 
@@ -78,7 +78,15 @@
           (tu/find-test-namespaces state config)
 
           :all
-          (classpath/find-cljs-namespaces-in-files classpath nil))]
+          (classpath/find-cljs-namespaces-in-files classpath nil))
+
+        entries
+        (cond-> entries
+          (and (= :dev mode) (seq preloads))
+          (shared/prepend preloads)
+
+          (and (= :dev mode) (seq (get-in config [:devtools :preloads])))
+          (shared/prepend (get-in config [:devtools :preloads])))]
 
     (-> module-config
         (assoc :entries entries)

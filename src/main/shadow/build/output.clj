@@ -532,7 +532,7 @@
          :browser
          "var CLJS_GLOBAL = globalThis;\n"
          ;; default, tries to figure it out on its own
-         "var CLJS_GLOBAL = process.browser ? (typeof(window) != 'undefined' ? window : self) : global;\n")
+         "var CLJS_GLOBAL = (typeof(globalThis) != 'undefined') ? globalThis : global;\n")
 
        ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
        "var CLOSURE_DEFINES = CLJS_GLOBAL.CLOSURE_DEFINES = $CLJS.CLOSURE_DEFINES = " (closure-defines-json state) ";\n"
