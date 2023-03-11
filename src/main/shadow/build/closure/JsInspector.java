@@ -34,6 +34,7 @@ public class JsInspector {
         }
 
         ITransientCollection googRequires = PersistentVector.EMPTY.asTransient();
+        ITransientCollection googRequireTypes = PersistentVector.EMPTY.asTransient();
         ITransientCollection googProvides = PersistentVector.EMPTY.asTransient();
         ITransientCollection requires = PersistentVector.EMPTY.asTransient();
         ITransientCollection invalidRequires = PersistentVector.EMPTY.asTransient();
@@ -119,9 +120,12 @@ public class JsInspector {
                 String from = importString.getString();
                 imports = imports.conj(from);
                 recordStrOffset(importString, true);
-            } else if (NodeUtil.isCallTo(node, "goog.require") || NodeUtil.isCallTo(node, "goog.requireType")) {
+            } else if (NodeUtil.isCallTo(node, "goog.require")) {
                 String x = node.getLastChild().getString();
                 googRequires = googRequires.conj(x);
+            } else if (NodeUtil.isCallTo(node, "goog.requireType")) {
+                String x = node.getLastChild().getString();
+                googRequireTypes = googRequireTypes.conj(x);
             } else if (NodeUtil.isCallTo(node, "goog.provide")) {
                 String x = node.getLastChild().getString();
                 googProvides = googProvides.conj(x);
@@ -170,6 +174,7 @@ public class JsInspector {
     public static final Keyword KW_STR_OFFSETS = RT.keyword(NS, "js-str-offsets");
     public static final Keyword KW_GOOG_PROVIDES = RT.keyword(NS, "goog-provides");
     public static final Keyword KW_GOOG_REQUIRES = RT.keyword(NS, "goog-requires");
+    public static final Keyword KW_GOOG_REQUIRE_TYPES = RT.keyword(NS, "goog-require-types");
     public static final Keyword KW_GOOG_MODULE = RT.keyword(NS, "goog-module");
     public static final Keyword KW_GOOG_MODULE_LEGACY_NAMESPACE = RT.keyword(NS, "goog-module-legacy-namespace");
     public static final Keyword KW_USES_GLOBAL_BUFFER = RT.keyword(NS, "uses-global-buffer");
@@ -203,6 +208,7 @@ public class JsInspector {
                 KW_ESM, fileInfo.esm,
                 KW_GOOG_PROVIDES, fileInfo.googProvides.persistent(),
                 KW_GOOG_REQUIRES, fileInfo.googRequires.persistent(),
+                KW_GOOG_REQUIRE_TYPES, fileInfo.googRequireTypes.persistent(),
                 KW_GOOG_MODULE, fileInfo.googModule,
                 KW_GOOG_MODULE_LEGACY_NAMESPACE, fileInfo.googModuleLegacyNamespace,
                 KW_INVALID_REQUIRES, fileInfo.invalidRequires.persistent(),

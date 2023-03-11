@@ -1,11 +1,10 @@
 (ns shadow.build.js-support
-  (:require [shadow.build.resource :as rc]
-            [shadow.cljs.util :as util]
-            [shadow.build.data :as data]
-            [shadow.build.closure :as closure]
-            [clojure.string :as str]
-            [shadow.build.npm :as npm]
-            [shadow.build.classpath :as cp])
+  (:require
+    [shadow.cljs.util :as util]
+    [shadow.build.data :as data]
+    [clojure.string :as str]
+    [shadow.build.npm :as npm]
+    [shadow.build.classpath :as cp])
   (:import (com.google.javascript.jscomp.deps ModuleNames)))
 
 (defn shim-require-resource

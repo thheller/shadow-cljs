@@ -682,6 +682,26 @@
   (str "function shadow$keyword(name) { return new cljs.core.Keyword(null, name, name, null); };\n"
        "function shadow$keyword_fqn(ns, name) { return new cljs.core.Keyword(ns, name, ns + \"/\" + name, null); };\n"))
 
+;; fake provide all goog.requireType namespaces
+;; that aren't actually provided by any of the build sources
+;; gcc complains about namespaces never being provided if we don't.
+;; not actually feeding the sources into the build since we don't type check
+;; so missing them shouldn't be a problem?
+
+(defn add-missing-goog-require-types [state js-mod]
+  (let [required-types
+        (->> (:build-sources state)
+             (map #(data/get-source-by-id state %))
+             (map :goog-require-types)
+             (remove nil?)
+             (reduce set/union #{})
+             (remove #(get-in state [:sym->id %])))]
+
+    (.add js-mod (closure-source-file "shadow$googRequireTypes.js"
+                   (->> required-types
+                        (map #(str "goog.provide('" % "');"))
+                        (str/join "\n"))))))
+
 (defn make-js-modules
   [{:keys [build-modules build-sources] :as state}]
 
@@ -721,6 +741,9 @@
                            {:id module-id :other other-mod-id})))
 
                 (.addDependency js-mod other-mod))
+
+              (when-not (seq depends-on)
+                (add-missing-goog-require-types state js-mod))
 
               ;; every module that does not contain cljs.core will get a .constants js files as its first input
               ;; so the ReplaceCLJSConstants pass can write them into that file
@@ -913,6 +936,8 @@
                      :sources (->> goog-sources
                                    (map :resource-id)
                                    (into []))}]))]
+
+    (add-missing-goog-require-types state goog-mod)
 
     (assoc state ::modules modules)))
 

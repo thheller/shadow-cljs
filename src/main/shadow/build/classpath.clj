@@ -96,6 +96,7 @@
                   goog-module
                   goog-module-legacy-namespace
                   goog-requires
+                  goog-require-types
                   goog-provides]
            :as info}
           (JsInspector/getFileInfoMap
@@ -125,6 +126,9 @@
                      :requires (into #{} deps)
                      :goog-src (or (= resource-name "goog/base.js")
                                    (and (seq goog-provides) (every? #(str/starts-with? % "goog.") goog-provides)))
+                     :goog-provides (into #{} (map util/munge-goog-ns) goog-provides)
+                     :goog-requires (into #{} (map util/munge-goog-ns) goog-requires)
+                     :goog-require-types (into #{} (map util/munge-goog-ns) goog-require-types)
                      :source source
                      :provides
                      (-> #{}
