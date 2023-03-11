@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.22.1](https://github.com/thheller/shadow-cljs/compare/c84c18630606a08ab86d9e2cd3a86c693cd605a7...683234037cc360f9d27ad7d00cecce76f13a7199) - 2023-03-11
+- [ [`68323`](https://github.com/thheller/shadow-cljs/commit/683234037cc360f9d27ad7d00cecce76f13a7199) ] fix goog.requireType dependency ordering problem
+- [ [`c84c1`](https://github.com/thheller/shadow-cljs/commit/c84c18630606a08ab86d9e2cd3a86c693cd605a7) ] less restrictive :npm-module, for some experiments
+
 ## [2.22.0](https://github.com/thheller/shadow-cljs/compare/ac8b33e7643d187845b68f6ac4acb4fc3e043949...5168aff39ddb21ddc5f6e18828456cc73c216e65) - 2023-03-08
 - [ [`5168a`](https://github.com/thheller/shadow-cljs/commit/5168aff39ddb21ddc5f6e18828456cc73c216e65) ] closure compiler+lib bump
 - [ [`7d6ca`](https://github.com/thheller/shadow-cljs/commit/7d6ca44906143a69eb5999ce23d67641fe870073) ] hot-reload/REPL for :npm-module :runtime :node
