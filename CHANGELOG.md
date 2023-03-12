@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.22.2](https://github.com/thheller/shadow-cljs/compare/3975248fd86713e9dea8aa7cb19a1e111458ed82...505670b67232f128418ffd740de12291f2082432) - 2023-03-12
+- [ [`50567`](https://github.com/thheller/shadow-cljs/commit/505670b67232f128418ffd740de12291f2082432) ] turn ESM exports into const for release builds
+- [ [`39752`](https://github.com/thheller/shadow-cljs/commit/3975248fd86713e9dea8aa7cb19a1e111458ed82) ] add rough UI settings pane
+
 ## [2.22.1](https://github.com/thheller/shadow-cljs/compare/c84c18630606a08ab86d9e2cd3a86c693cd605a7...683234037cc360f9d27ad7d00cecce76f13a7199) - 2023-03-11
 - [ [`68323`](https://github.com/thheller/shadow-cljs/commit/683234037cc360f9d27ad7d00cecce76f13a7199) ] fix goog.requireType dependency ordering problem
 - [ [`c84c1`](https://github.com/thheller/shadow-cljs/commit/c84c18630606a08ab86d9e2cd3a86c693cd605a7) ] less restrictive :npm-module, for some experiments
