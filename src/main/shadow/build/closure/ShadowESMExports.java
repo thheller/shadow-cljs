@@ -22,8 +22,8 @@ public class ShadowESMExports extends NodeTraversal.AbstractPostOrderCallback  {
                 replacement.putBooleanProp(Node.EXPORT_DEFAULT, true);
                 replacement.addChildToFront(code);
             } else {
-                // export let name = X;
-                Node let = new Node(Token.LET);
+                // export const name = X;
+                Node let = new Node(Token.CONST);
                 Node letName = IR.name(name);
                 letName.addChildToFront(code);
                 let.addChildToFront(letName);
