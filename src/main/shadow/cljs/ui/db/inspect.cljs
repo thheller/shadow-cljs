@@ -73,18 +73,30 @@
         )))
 
 (defn guess-display-type [{:keys [db] :as env} {:keys [data-type supports] :as summary}]
-  (let [pref (get-in db [::m/ui-options :preferred-display-type])]
-    (if (contains? supports pref)
-      pref
-      (cond
-        (contains? supports :obj-fragment)
-        :browse
+  (let [pref (::m/preferred-display-type db :browse)]
 
-        (contains? #{:string :number :boolean} data-type)
-        :str
+    (cond
+      (and (= :pprint pref) (contains? supports :obj-pprint))
+      :pprint
 
-        :else
-        :edn))))
+      (and (= :browse pref) (contains? supports :obj-fragment))
+      :browse
+
+      (= :edn pref)
+      :edn
+      
+      (contains? supports :obj-fragment)
+      :browse
+
+      (contains? #{:string :number :boolean} data-type)
+      :edn
+
+      (contains? supports :obj-pprint)
+      :pprint
+
+      :default
+      :edn
+      )))
 
 (defmethod relay-ws/handle-msg :tap-subscribed
   [env {:keys [from history] :as msg}]

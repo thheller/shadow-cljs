@@ -60,6 +60,41 @@
             (ui-error (first errors))
             ]]))))
 
+(defc ui-settings-drawer []
+  (bind {::m/keys [show-settings preferred-display-type] :or {preferred-display-type :browse}}
+    (sg/query-root [::m/show-settings ::m/preferred-display-type]))
+
+  (bind display-options
+    [{:val :browse :label "BROWSER"}
+     {:val :pprint :label "PPRINT"}
+     {:val :edn :label "EDN"}])
+
+  (render
+    (when show-settings
+      (<< [:div {:class (css :absolute :bg-white :shadow-2xl {:border-left "2px solid #e5e7eb" :top "0px" :right "0px" :bottom "0px" :z-index 10})}
+
+           [:div {:class (css :px-4 {:min-width "400px"})}
+            [:div {:class (css :py-4 :cursor-pointer {:float "right"}) :on-click ::m/close-settings!} common/icon-close]
+            [:div {:class (css :text-2xl :py-4)} "UI Settings"]
+
+            [:div {:class (css :text-lg)} "Preferred Display Type"]
+
+            [:p {:class (css :text-xs)} "Only affects new incoming Inspect Values"]
+
+            (sg/simple-seq display-options
+              (fn [{:keys [label val]}]
+                (<< [:div
+                     {:class [inspect/$button-base (if (= preferred-display-type val) inspect/$button-selected inspect/$button) (css :my-2)]
+                      :on-click {:e ::m/switch-preferred-display-type! :display-type val}}
+                     label])))
+
+            [:div
+             {:class [inspect/$button-base inspect/$button (css :cursor-pointer :inline-block :mt-8)]
+              :on-click ::m/close-settings!}
+             "Close"]]]
+
+          ))))
+
 (defc ui-root* []
   (bind {::m/keys [current-page relay-ws-connected] :as data}
     (sg/query-root
@@ -80,22 +115,25 @@
           (css :inline-block :rounded-t :px-4 :py-2 :bg-blue-100 :border-b-2 :border-blue-200 [:hover :border-blue-400])
 
           $nav-normal
-          (css :inline-block :px-4 :py-2)]
+          (css :cursor-pointer :inline-block :px-4 :py-2)]
 
-      (<< [:div {:class (css #_ ["& *" :border-gray-100] :h-full :w-full :flex :flex-col :bg-gray-100 :items-stretch)}
+      (<< [:div {:class (css #_["& *" :border-gray-100] :h-full :w-full :flex :flex-col :bg-gray-100 :items-stretch)}
            (when-not relay-ws-connected
              (<< [:div {:class (css :p-4 :bg-red-700 :text-white :text-lg :font-bold)}
                   "UI WebSocket not connected! Reload page to reconnect."]))
 
-           [:div {:class (css :bg-white :shadow-md :z-10)}
+           (sg/portal (ui-settings-drawer))
+
+           [:div {:class (css :flex :bg-white :shadow-md :z-10)}
             #_[:div.py-2.px-4 [:span.font-bold "shadow-cljs"]]
-            [:div
-             (sg/simple-seq nav-items
-               (fn [{:keys [pages label path]}]
-                 (<< [:a
-                      {:class (if (contains? pages (:id current-page)) $nav-selected $nav-normal)
-                       :ui/href path}
-                      label])))]]
+            (sg/simple-seq nav-items
+              (fn [{:keys [pages label path]}]
+                (<< [:a
+                     {:class (if (contains? pages (:id current-page)) $nav-selected $nav-normal)
+                      :ui/href path}
+                     label])))
+            [:div {:class (css :flex-1)}]
+            [:div {:class $nav-normal :on-click ::m/open-settings! :title "Open Settings"} common/icon-cog]]
 
            (sg/suspense
              {:fallback "Loading ..."

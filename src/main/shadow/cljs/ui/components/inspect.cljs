@@ -389,7 +389,7 @@
 
           [:div {:class $buttons}
            [:button
-            {:class $button
+            {:class [$button-base $button]
              :tab-index (if active? 0 -1)
              :on-click ::m/tap-clear!}
             "Clear"]]))))

@@ -10,9 +10,11 @@
 (defn init!
   {::ev/handle ::m/init!}
   [env _]
-  (sg/queue-fx env :http-api
-    {:request "/ui-init-data"
-     :on-success {:e ::init-data}}))
+  (-> env
+      (assoc-in [:db ::m/preferred-display-type] (keyword (or (js/localStorage.getItem "preferred-display-type") "browse")))
+      (sg/queue-fx :http-api
+        {:request "/ui-init-data"
+         :on-success {:e ::init-data}})))
 
 (defn init-data
   {::ev/handle ::init-data}
@@ -116,3 +118,19 @@
           (ev/queue-fx env :ui/redirect! {:token "/dashboard"}))
       )))
 
+(defn switch-preferred-display-type!
+  {::ev/handle ::m/switch-preferred-display-type!}
+  [env {:keys [display-type]}]
+  ;; FIXME: fx this
+  (js/localStorage.setItem "preferred-display-type" (name display-type))
+  (assoc-in env [:db ::m/preferred-display-type] display-type))
+
+(defn close-settings!
+  {::ev/handle ::m/close-settings!}
+  [env _]
+  (assoc-in env [:db ::m/show-settings] false))
+
+(defn open-settings!
+  {::ev/handle ::m/open-settings!}
+  [env _]
+  (assoc-in env [:db ::m/show-settings] true))
