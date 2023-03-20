@@ -25,13 +25,12 @@
     [clojure.string :as str]
     [shadow.build.cache :as cache]
     [shadow.build.babel :as babel]
-    [shadow.cljs.devtools.server.npm-deps :as npm-deps]
-    [shadow.cljs.graaljs :as graaljs])
+    [shadow.cljs.devtools.server.npm-deps :as npm-deps])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel)
            (javax.net.ssl KeyManagerFactory)
            (java.io FileInputStream)
            (java.security KeyStore)
-           [org.graalvm.polyglot Context Source Engine PolyglotException]))
+           ))
 
 
 (comment
@@ -188,6 +187,14 @@
 
 (deftest test-browser
   (api/compile :browser))
+
+(deftest test-browser-with-external-index
+  (api/compile :browser
+    {:config-merge
+     [{:js-options
+       {:js-provider :external
+        :external-index "packages/external-testing/index.js"
+        :external-index-format :esm}}]}))
 
 (deftest test-browser-check
   (api/check :browser))
@@ -543,22 +550,6 @@
 
     (catch Exception ex
       (errors/user-friendly-error ex))))
-
-#_(deftest test-babel-standalone
-    (let [engine (npm-deps/make-engine*)
-
-
-          babel-file
-          (io/file "node_modules" "@babel" "standalone" "babel.js")
-
-          babel-src
-          (slurp babel-file)]
-
-      (time
-        ;; blows up since WeakMap is not defined
-        (.eval engine babel-src))
-
-      ))
 
 (deftest test-babel-transform
   (let [babel (babel/start)
@@ -925,32 +916,3 @@
     (pprint info)
 
     ))
-
-(deftest test-graaljs
-  ;; (api/release :graal)
-
-  (with-open [engine
-              (Engine/create)
-
-              context
-              (-> (Context/newBuilder (into-array String ["js"]))
-                  (.engine engine)
-                  (.option "js.timer-resolution" "1")
-                  (.option "js.java-package-globals" "false")
-                  (.out System/out)
-                  (.err System/err)
-                  (.allowAllAccess true)
-                  (.allowNativeAccess true)
-                  (.build))]
-
-    (try
-      (let [src
-            (-> (Source/newBuilder "js" (io/file "out" "demo-graal" "lib.js"))
-                (.build))]
-        (prn (.eval context src))
-        (prn (.eval context "js" "demo.graal.hello('foo');"))
-        (prn context))
-
-      (catch PolyglotException e
-        (graaljs/ex-print e)
-        ))))
