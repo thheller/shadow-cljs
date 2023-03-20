@@ -57,36 +57,43 @@
           ;; dev just import * everything
           (reduce-kv (fn [acc shim-ns _] (assoc acc shim-ns ::STAR)) {} js-shim-namespaces)
           ;; release mode only imports actual vars
-          (->> build-sources
-               (mapcat #(get-in state [:output % :used-vars]))
-               (filter #(= "js" (namespace %)))
-               (map name)
-               (reduce
-                 (fn [acc js-name]
-                   ;;   (:require ["pkg" :as x]) and x used directly
-                   ;; meaning we need
-                   ;;   import * as x from "pkg";
-                   ;; no need to destructure props then
+          ;; need to look for matching namespaces, longest first
+          ;; otherwise it'll put react-dom into the react basket
+          (let [match-prefixes
+                (->> (keys js-shim-namespaces)
+                     (sort-by count)
+                     (reverse))]
 
-                   ;; (:require ["pkg" :as x]) using x somewhere
-                   (if (contains? js-shim-namespaces js-name)
-                     (assoc acc js-name ::STAR)
+            (->> build-sources
+                 (mapcat #(get-in state [:output % :used-vars]))
+                 (filter #(= "js" (namespace %)))
+                 (map name)
+                 (reduce
+                   (fn [acc js-name]
+                     ;;   (:require ["pkg" :as x]) and x used directly
+                     ;; meaning we need
+                     ;;   import * as x from "pkg";
+                     ;; no need to destructure props then
 
-                     ;; record individual property access
-                     ;; (:require ["pkg" :as x]) using x/foo
-                     (let [match-ns (first (filter #(str/starts-with? js-name %) (keys js-shim-namespaces)))]
-                       (cond
-                         (not match-ns) ;; only want to record shim access
-                         acc
+                     ;; (:require ["pkg" :as x]) using x somewhere
+                     (if (contains? js-shim-namespaces js-name)
+                       (assoc acc js-name ::STAR)
 
-                         ;; don't override * if we encounter another prop
-                         (= ::STAR (get acc match-ns))
-                         acc
+                       ;; record individual property access
+                       ;; (:require ["pkg" :as x]) using x/foo
+                       (let [match-ns (first (filter #(str/starts-with? js-name %) match-prefixes))]
+                         (cond
+                           (not match-ns) ;; only want to record shim access
+                           acc
 
-                         :else
-                         (let [prop (subs js-name (-> match-ns count inc))]
-                           (update acc match-ns util/set-conj prop))))))
-                 {})))
+                           ;; don't override * if we encounter another prop
+                           (= ::STAR (get acc match-ns))
+                           acc
+
+                           :else
+                           (let [prop (subs js-name (-> match-ns count inc))]
+                             (update acc match-ns util/set-conj prop))))))
+                   {}))))
 
         aliases
         (reduce-kv
@@ -130,10 +137,14 @@
               alias (get aliases shim-ns)]
           (if (= ::STAR used)
             (println (str "ALL[\"" js-require "\"] = " alias ";"))
-            (do (println (str "ALL[\"" js-require "\"] = {};"))
-                (doseq [prop used]
-                  (println (str "ALL[\"" (get js-shim-namespaces shim-ns) "\"]." prop " = " alias  "." prop ";"))
-                  )))))))
+            (do (println (str "ALL[\"" js-require "\"] = {"))
+                (println
+                  (->> used
+                       (map (fn [prop]
+                              (str "  " prop ": " alias "." prop)))
+                       (str/join ",\n")))
+                (println (str "};"))
+                ))))))
 
   state)
 
