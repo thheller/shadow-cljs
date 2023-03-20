@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.22.4](https://github.com/thheller/shadow-cljs/compare/39bf7bb28865650ef953bb0850b84780774d9108...39bf7bb28865650ef953bb0850b84780774d9108) - 2023-03-20
+- [ [`39bf7`](https://github.com/thheller/shadow-cljs/commit/39bf7bb28865650ef953bb0850b84780774d9108) ] fix ESM external index
+
 ## [2.22.3](https://github.com/thheller/shadow-cljs/compare/20df278860629e66ee3eefbd1990d30f8ac731fc...20df278860629e66ee3eefbd1990d30f8ac731fc) - 2023-03-20
 - [ [`20df2`](https://github.com/thheller/shadow-cljs/commit/20df278860629e66ee3eefbd1990d30f8ac731fc) ] add ESM format for :js-provider :external
 
