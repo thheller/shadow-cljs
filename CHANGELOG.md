@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.22.3](https://github.com/thheller/shadow-cljs/compare/20df278860629e66ee3eefbd1990d30f8ac731fc...20df278860629e66ee3eefbd1990d30f8ac731fc) - 2023-03-20
+- [ [`20df2`](https://github.com/thheller/shadow-cljs/commit/20df278860629e66ee3eefbd1990d30f8ac731fc) ] add ESM format for :js-provider :external
+
 ## [2.22.2](https://github.com/thheller/shadow-cljs/compare/3975248fd86713e9dea8aa7cb19a1e111458ed82...505670b67232f128418ffd740de12291f2082432) - 2023-03-12
 - [ [`50567`](https://github.com/thheller/shadow-cljs/commit/505670b67232f128418ffd740de12291f2082432) ] turn ESM exports into const for release builds
 - [ [`39752`](https://github.com/thheller/shadow-cljs/commit/3975248fd86713e9dea8aa7cb19a1e111458ed82) ] add rough UI settings pane
