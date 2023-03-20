@@ -63,23 +63,27 @@
                (map name)
                (reduce
                  (fn [acc js-name]
-                   (cond
-                     ;;   (:require ["pkg" :as x]) and x used directly
-                     ;; meaning we need
-                     ;;   import * as x from "pkg";
-                     ;; no need to destructure props then
-                     (contains? js-shim-namespaces js-name)
+                   ;;   (:require ["pkg" :as x]) and x used directly
+                   ;; meaning we need
+                   ;;   import * as x from "pkg";
+                   ;; no need to destructure props then
+
+                   ;; (:require ["pkg" :as x]) using x somewhere
+                   (if (contains? js-shim-namespaces js-name)
                      (assoc acc js-name ::STAR)
 
-                     ;; don't override if we encounter another prop
-                     (= ::STAR (get acc js-name))
-                     acc
-
                      ;; record individual property access
-                     :prop-access
+                     ;; (:require ["pkg" :as x]) using x/foo
                      (let [match-ns (first (filter #(str/starts-with? js-name %) (keys js-shim-namespaces)))]
-                       (if-not match-ns ;; only want to record shim access
+                       (cond
+                         (not match-ns) ;; only want to record shim access
                          acc
+
+                         ;; don't override * if we encounter another prop
+                         (= ::STAR (get acc match-ns))
+                         acc
+
+                         :else
                          (let [prop (subs js-name (-> match-ns count inc))]
                            (update acc match-ns util/set-conj prop))))))
                  {})))
