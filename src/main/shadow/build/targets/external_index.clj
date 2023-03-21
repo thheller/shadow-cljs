@@ -113,9 +113,13 @@
                         (OutputStreamWriter.))]
 
       ;; first emits all imports
-      (doseq [[shim-ns js-require] js-shim-namespaces
-              :when (contains? used-vars shim-ns)]
-        (println (str "import * as " (get aliases shim-ns) " from \"" js-require "\";")))
+      (doseq [[shim-ns js-require] js-shim-namespaces]
+        (if-not (contains? used-vars shim-ns)
+          ;; emit unused vars as a side effect import
+          ;; let js tool deal with whether that can be eliminated
+          (println (str "import \"" js-require "\";"))
+          ;; used import, set up as alias
+          (println (str "import * as " (get aliases shim-ns) " from \"" js-require "\";"))))
 
       ;; then boilerplate
       (println)
@@ -131,12 +135,34 @@
       (println "};")
 
       ;; then do reassignments of all used exports
-      (doseq [[shim-ns used] used-vars]
-        (println)
-        (let [js-require (get js-shim-namespaces shim-ns)
+      (doseq [[shim-ns js-require] js-shim-namespaces]
+
+        (let [used (get used-vars shim-ns)
               alias (get aliases shim-ns)]
+          (println)
+
+          ;; (:require ["pkg" :as x]) using x
+          ;; emits as
+          ;;   import * as X from "pkg";
+          ;;   ALL["pkg"] = X;
+          ;; means tree-shaking unlikely for pkg
           (if (= ::STAR used)
             (println (str "ALL[\"" js-require "\"] = " alias ";"))
+
+            ;; (:require ["pkg" :as x]) using x/foo x/bar
+            ;; emits as
+            ;;   import * as X from "pkg";
+            ;;   ALL["pkg"] = {foo: X.foo, bar: X.bar};
+            ;; lets tools tree-shake the unused exports, will leave
+            ;;   ALL["pkg"] = {};
+            ;; which is needed as long as shadow$bridge calls aren't removed
+            ;;   var x = shadow$bridge("pkg");
+            ;; if x.foo is used anywhere in optimized code, but just
+            ;;   shadow$bridge("unused");
+            ;; if the return value is never used and removed by DCE
+            ;; FIXME: remove shadow$bridge calls from optimized code when return value is unused
+            ;; we still want to keep the actual import for side-effecting imports such as polyfills
+            ;; let external tool figure out if they are needed or not
             (do (println (str "ALL[\"" js-require "\"] = {"))
                 (println
                   (->> used

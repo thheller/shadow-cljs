@@ -196,6 +196,15 @@
         :external-index "packages/external-testing/index.js"
         :external-index-format :esm}}]}))
 
+(deftest test-browser-release-with-external-index
+  (api/release :browser
+    {:config-merge
+     [{:js-options
+       {:js-provider :external
+        :external-index "packages/external-testing/index.js"
+        :external-index-format :esm}}]}))
+
+
 (deftest test-browser-check
   (api/check :browser))
 
