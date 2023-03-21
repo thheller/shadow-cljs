@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.22.6](https://github.com/thheller/shadow-cljs/compare/20b1dd3567ccec786ef27ea930d25c53fb4dc979...20b1dd3567ccec786ef27ea930d25c53fb4dc979) - 2023-03-21
+- [ [`20b1d`](https://github.com/thheller/shadow-cljs/commit/20b1dd3567ccec786ef27ea930d25c53fb4dc979) ] fix external ESM unused requires getting dropped
+
 ## [2.22.5](https://github.com/thheller/shadow-cljs/compare/52e23b22e50723d7a8223df225b7c6e95252a1b7...52e23b22e50723d7a8223df225b7c6e95252a1b7) - 2023-03-20
 - [ [`52e23`](https://github.com/thheller/shadow-cljs/commit/52e23b22e50723d7a8223df225b7c6e95252a1b7) ] some more external ESM fixes
 
