@@ -53,7 +53,8 @@
                {}))
 
         used-vars
-        (if (= :dev (:shadow.build/mode state))
+        (if (and (= :dev (:shadow.build/mode state))
+                 (not (get-in state [:js-options :external-index-always-optimize])))
           ;; dev just import * everything
           (reduce-kv (fn [acc shim-ns _] (assoc acc shim-ns ::STAR)) {} js-shim-namespaces)
           ;; release mode only imports actual vars
