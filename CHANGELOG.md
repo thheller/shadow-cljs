@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.22.7](https://github.com/thheller/shadow-cljs/compare/3089f270fceb8ba7dd800e0c55ff3c9793214865...e537ac1f9f985f580ee496e367440fe3f24ef1dc) - 2023-03-22
+- [ [`e537a`](https://github.com/thheller/shadow-cljs/commit/e537ac1f9f985f580ee496e367440fe3f24ef1dc) ] account for nested dots in external ESM
+- [ [`3089f`](https://github.com/thheller/shadow-cljs/commit/3089f270fceb8ba7dd800e0c55ff3c9793214865) ] add always optimize flag for external ESM
+
 ## [2.22.6](https://github.com/thheller/shadow-cljs/compare/20b1dd3567ccec786ef27ea930d25c53fb4dc979...20b1dd3567ccec786ef27ea930d25c53fb4dc979) - 2023-03-21
 - [ [`20b1d`](https://github.com/thheller/shadow-cljs/commit/20b1dd3567ccec786ef27ea930d25c53fb4dc979) ] fix external ESM unused requires getting dropped
 
