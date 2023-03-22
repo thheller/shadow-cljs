@@ -92,7 +92,12 @@
                            acc
 
                            :else
-                           (let [prop (subs js-name (-> match-ns count inc))]
+                           (let [prop (subs js-name (-> match-ns count inc))
+                                 ;; (:require ["pkg" :as x]) x/foo.bar, only need x/foo
+                                 prop (let [idx (str/index-of prop ".")]
+                                        (if-not idx
+                                          prop
+                                          (subs prop 0 idx)))]
                              (update acc match-ns util/set-conj prop))))))
                    {}))))
 
