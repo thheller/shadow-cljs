@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.22.8](https://github.com/thheller/shadow-cljs/compare/ba90e873c80389ad2d146825ed59bf3cedc48804...ba90e873c80389ad2d146825ed59bf3cedc48804) - 2023-03-27
+- [ [`ba90e`](https://github.com/thheller/shadow-cljs/commit/ba90e873c80389ad2d146825ed59bf3cedc48804) ] fix :js-provider :external for classpath commonjs
+
 ## [2.22.7](https://github.com/thheller/shadow-cljs/compare/3089f270fceb8ba7dd800e0c55ff3c9793214865...e537ac1f9f985f580ee496e367440fe3f24ef1dc) - 2023-03-22
 - [ [`e537a`](https://github.com/thheller/shadow-cljs/commit/e537ac1f9f985f580ee496e367440fe3f24ef1dc) ] account for nested dots in external ESM
 - [ [`3089f`](https://github.com/thheller/shadow-cljs/commit/3089f270fceb8ba7dd800e0c55ff3c9793214865) ] add always optimize flag for external ESM
