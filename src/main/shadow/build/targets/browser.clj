@@ -238,6 +238,11 @@
                     (and default? build-worker?)
                     (update :entries shared/prepend '[shadow.cljs.devtools.client.env])
 
+                    ;; override shadow.js.jsRequire for :external
+                    ;; still need to be able to use it for classpath commonjs
+                    (and default? (= :external (get-in state [:js-options :js-provider])))
+                    (update :entries shared/prepend '[shadow.js.external])
+
                     (and build-worker? default?)
                     (update :entries shared/prepend '[shadow.cljs.devtools.client.browser])
 

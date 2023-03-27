@@ -1988,9 +1988,6 @@
         require-replacements
         (require-replacement-map state)
 
-        replace-require-pass
-        (ReplaceRequirePass. cc require-replacements)
-
         closure-opts
         (doto (make-options)
           (set-options co-opts state)
@@ -2011,8 +2008,6 @@
           (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS
             (NodeStuffInlinePass. cc))
 
-          (.addCustomPass CustomPassExecutionTime/BEFORE_CHECKS replace-require-pass)
-
           ;; google SourceMapResolver is broken since it always resolves source map files relative
           ;; from the input name not from its original path. since we always use the resource-name
           ;; as the input it can never find anything. can't use the full path as input as that
@@ -2027,9 +2022,19 @@
           (.setWarningLevel DiagnosticGroups/CHECK_USELESS_CODE CheckLevel/OFF)
           (.setNumParallelThreads (get-in state [:compiler-options :closure-threads] 1)))
 
+        js-provider
+        (get-in state [:js-options :js-provider])
+
+        ;; classpath commonjs may still use require, npm packages are not processed by external
+        ;; so for :external we want to keep them as is, so the bridge can provide them
+        _ (when (not= :external js-provider)
+            (let [replace-require-pass
+                  (ReplaceRequirePass. cc require-replacements)]
+              (.addCustomPass closure-opts CustomPassExecutionTime/BEFORE_CHECKS replace-require-pass)))
+
         ;; :js-provider :shadow uses this for es6 on the classpath
         ;; we want to collect the props only for :shadow not :closure
-        _ (when (= :shadow (get-in state [:js-options :js-provider]))
+        _ (when (= :shadow js-provider)
             (.addCustomPass closure-opts CustomPassExecutionTime/AFTER_OPTIMIZATION_LOOP property-collector))
 
         ;; GCC doesn't seem to track polyfills properly in some cases and just fails to compile
