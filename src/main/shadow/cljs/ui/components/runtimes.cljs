@@ -73,7 +73,7 @@
               [:div (when host (str (name host) " - ")) (or desc user-agent "")]
               [:div "Connected " (age-display since)]]]]
 
-           [:div {:class (css :font-bold :border-t :bg-gray-50)}
+           [:div {:class (css :font-bold :border-t :bg-gray-50 :flex)}
             (when show-build-info?
               (<< [:a
                    {:ui/href (str "/build/" (name build-id))
@@ -85,6 +85,7 @@
               :class common/card-button-class
               :type "button"}
              "Explore Runtime"]
+            [:div {:class (css :flex-1)}]
             ]]))))
 
 (defn ui-runtime-list [runtimes]
