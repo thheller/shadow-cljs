@@ -1186,7 +1186,21 @@
     ;; have to do this here since the references may have moved cross module
     ;; can't do this before compilation because of that
     (when-some [imports (::esm-imports state)]
-      (ShadowESMImports/process compiler imports))
+
+      ;; :advanced may remove unused imports. sometimes we want to keep them for side-effects.
+      ;; forcing this via build config per module :force-imports #{"foo" "bar"}
+      ;; note that this may force inclusion of imports that aren't actually part of the build
+      ;; this is fine, since all we emit is `import "that-thing";` on user request
+      (let [forced-imports
+            (reduce
+              (fn [acc {:keys [module-id force-imports]}]
+                (if-not (seq force-imports)
+                  acc
+                  (assoc acc (name module-id) force-imports)))
+              {}
+              modules)]
+
+        (ShadowESMImports/process compiler imports forced-imports)))
 
     (-> state
         (assoc ::result result ::injected-libs injected-libs)

@@ -22,11 +22,10 @@ public class ShadowESMImports extends NodeTraversal.AbstractPostOrderCallback  {
         }
     }
 
-    public static void process(Compiler compiler, Map<String, String> imports) {
+    public static void process(Compiler compiler, Map<String, String> imports, Map<String, Set<String>> forcedImports) {
         // jsRoot not accessible otherwise, root has externs as first child and js root as second
         ShadowESMImports pass = new ShadowESMImports();
         NodeTraversal.traverse(compiler, compiler.getRoot().getSecondChild(), pass);
-
 
         for (JSChunk chunk : compiler.getModules()) {
             if (chunk.getInputCount() > 0) {
@@ -43,6 +42,23 @@ public class ShadowESMImports extends NodeTraversal.AbstractPostOrderCallback  {
                         }
 
                         root.addChildToFront(IR.importNode(IR.empty(), IR.importStar(ref), IR.string(importVal)));
+                    }
+                }
+            }
+
+            // :advanced may have removed all references to a given esm_import$
+            // which is good, since it means we don't need that import in the first place
+            // in some cases however we need certain imports just for their side effects
+            // so, with config we inject them as pure import "whatever"; unless the import
+            // was referenced previously somewhere
+            Set<String> forced = forcedImports.get(chunk.getName());
+            if (forced != null) {
+                Set<String> referenced = pass.references.get(chunk.getName());
+
+                for (String ref : forced) {
+                    if (referenced == null || !referenced.contains(ref)) {
+                        Node root = chunk.getInputs().get(0).getAstRoot(compiler);
+                        root.addChildToFront(IR.importNode(IR.empty(), IR.empty(), IR.string(ref)));
                     }
                 }
             }
@@ -69,7 +85,7 @@ public class ShadowESMImports extends NodeTraversal.AbstractPostOrderCallback  {
 
         Result result = cc.compile(SourceFile.fromCode("extern.js", "var esm_import$foo; var esm_import$bar; var esm_import$baz; var console;"), testFile, co);
 
-        ShadowESMImports.process(cc, (Map<String, String>) RT.map("esm_import$foo", "foo", "esm_import$bar", "bar", "esm_import$baz", "baz"));
+        ShadowESMImports.process(cc, (Map<String, String>) RT.map("esm_import$foo", "foo", "esm_import$bar", "bar", "esm_import$baz", "baz"), (Map<String, Set<String>>) RT.map());
 
         System.out.println(cc.toSource());
     }
