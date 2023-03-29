@@ -393,7 +393,10 @@
         (get-in state [:output output/goog-base-id :js])
         "globalThis.goog = goog;"
         "globalThis.shadow$provide = {};"
-        "globalThis.shadow_esm_import = function(x) { return import(x.startsWith(\"./\") ? \".\" + x : x); }"
+        ;; only include helper fn if shadow.esm namespace is actually required
+        ;; otherwise confuses vite
+        (when (get-in state [:sym->id 'shadow.esm])
+          "globalThis.shadow_esm_import = function(x) { return import(x.startsWith(\"./\") ? \".\" + x : x); }")
         "let $CLJS = globalThis.$CLJS = globalThis;"
         (slurp (io/resource "shadow/boot/esm.js"))
 
