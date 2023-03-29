@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.22.9](https://github.com/thheller/shadow-cljs/compare/3d87940d69e70a6ccbeb074a225cc54cfc2dc41a...4d2d281b1290726cc65832466c5d9766332df427) - 2023-03-29
+- [ [`4d2d2`](https://github.com/thheller/shadow-cljs/commit/4d2d281b1290726cc65832466c5d9766332df427) ] add option to force side-effect esm imports
+- [ [`c0720`](https://github.com/thheller/shadow-cljs/commit/c0720959929c6eae3a617b291f48b863f8ac070f) ] omit shadow_esm_import unless actually required
+- [ [`3d879`](https://github.com/thheller/shadow-cljs/commit/3d87940d69e70a6ccbeb074a225cc54cfc2dc41a) ] fix firefox UI issue
+
 ## [2.22.8](https://github.com/thheller/shadow-cljs/compare/ba90e873c80389ad2d146825ed59bf3cedc48804...ba90e873c80389ad2d146825ed59bf3cedc48804) - 2023-03-27
 - [ [`ba90e`](https://github.com/thheller/shadow-cljs/commit/ba90e873c80389ad2d146825ed59bf3cedc48804) ] fix :js-provider :external for classpath commonjs
 
