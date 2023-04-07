@@ -255,8 +255,7 @@
           (data/output-file state output-name))]
 
     ;; skip files we already have
-    (when (or true
-              (not (.exists js-file))
+    (when (or (not (.exists js-file))
               (zero? last-modified)
               ;; js is not compiled but maybe modified
               (> (or compiled-at last-modified)
@@ -281,51 +280,55 @@
   [{:keys [worker-info build-modules] :as state}
    {:keys [module-id output-name exports prepend append sources depends-on] :as mod}]
 
-  (let [target (data/output-file state output-name)]
+  (doseq [src-id sources]
+    (async/queue-task state #(flush-source state src-id)))
 
-    (doseq [src-id sources]
-      (async/queue-task state #(flush-source state src-id)))
+  (let [module-imports
+        (when (seq depends-on)
+          (->> (reverse build-modules)
+               (filter #(contains? depends-on (:module-id %)))
+               (map :output-name)
+               (map #(str "import \"./" % "\";"))
+               (str/join "\n")))
 
-    (let [module-imports
-          (when (seq depends-on)
-            (->> (reverse build-modules)
-                 (filter #(contains? depends-on (:module-id %)))
-                 (map :output-name)
-                 (map #(str "import \"./" % "\";"))
-                 (str/join "\n")))
+        imports
+        (->> sources
+             (remove #{output/goog-base-id})
+             (map #(data/get-source-by-id state %))
+             (map (fn [{:keys [output-name] :as rc}]
 
-          imports
-          (->> sources
-               (remove #{output/goog-base-id})
-               (map #(data/get-source-by-id state %))
-               (map (fn [{:keys [output-name] :as rc}]
+                    (str "import \"./cljs-runtime/" output-name "\";\n"
+                         "SHADOW_ENV.setLoaded(" (pr-str output-name) ");"
+                         )))
+             (str/join "\n"))
 
-                      (str "import \"./cljs-runtime/" output-name "\";\n"
-                           "SHADOW_ENV.setLoaded(" (pr-str output-name) ");"
-                           )))
-               (str/join "\n"))
+        exports
+        (->> exports
+             (map (fn [[export sym]]
+                    (let [export-name (name export)]
+                      (if (= export-name "default")
+                        (str "export default " (cljs-comp/munge sym) ";")
+                        (str "export let " export-name " = " (cljs-comp/munge sym) ";")))))
+             (str/join "\n"))
 
-          exports
-          (->> exports
-               (map (fn [[export sym]]
-                      (let [export-name (name export)]
-                        (if (= export-name "default")
-                          (str "export default " (cljs-comp/munge sym) ";")
-                          (str "export let " export-name " = " (cljs-comp/munge sym) ";")))))
-               (str/join "\n"))
+        out
+        (str prepend "\n"
+             module-imports "\n"
+             imports "\n"
+             exports "\n"
+             append "\n"
+             (when (and worker-info (not (false? (get-in state [::build/config :devtools :enabled]))))
+               (str "shadow.cljs.devtools.client.env.module_loaded(\"" (name module-id) "\");")))]
 
-          out
-          (str prepend "\n"
-               module-imports "\n"
-               imports "\n"
-               exports "\n"
-               append "\n"
-               (when (and worker-info (not (false? (get-in state [::build/config :devtools :enabled]))))
-                 (str "shadow.cljs.devtools.client.env.module_loaded(\"" (name module-id) "\");")))]
-      (io/make-parents target)
-      (spit target out))
 
-    state))
+    ;; only write if output changed, avoids confusing other watchers
+    (if (= out (get-in state [::dev-modules module-id]))
+      state
+      (let [target (data/output-file state output-name)]
+        (io/make-parents target)
+        (spit target out)
+        (assoc-in state [::dev-modules module-id] out)
+        ))))
 
 ;; closure library sometimes changes how goog.global is assigned
 ;; this may cause warnings in some tools because of the remaining
@@ -406,23 +409,28 @@
        (remove nil?)
        (str/join "\n")))
 
+(defn flush-dev-module-env [state]
+  (let [env-content (js-module-env state)]
+    ;; only actually touch file if needed, avoids confusing other watchers
+    (if (= env-content (::env-content state))
+      state
+      (let [env-file (data/output-file state "cljs-runtime" "cljs_env.js")]
+        (io/make-parents env-file)
+        (spit env-file env-content)
+        (assoc state ::env-content env-content)))))
+
 (defn flush-dev [{::build/keys [config] :keys [build-modules] :as state}]
   (when-not (seq build-modules)
     (throw (ex-info "flush before compile?" {})))
 
   (util/with-logged-time
     [state {:type :flush-unoptimized}]
-
-    (let [env-file (data/output-file state "cljs-runtime" "cljs_env.js")]
-      (io/make-parents env-file)
-      (spit env-file (js-module-env state)))
-
-    (reduce
-      (fn [state mod]
-        (flush-unoptimized-module state mod))
-      state
-      build-modules))
-  state)
+    (-> state
+        (flush-dev-module-env)
+        (util/reduce->
+          (fn [state mod]
+            (flush-unoptimized-module state mod))
+          build-modules))))
 
 (defn inject-polyfill-js [{:keys [polyfill-js] :as state}]
   (update-in state [::closure/modules 0 :prepend] str
