@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.22.10](https://github.com/thheller/shadow-cljs/compare/0a680ae8e55ef4b8dbcf89be447974a9002e26a6...0a680ae8e55ef4b8dbcf89be447974a9002e26a6) - 2023-04-07
+- [ [`0a680`](https://github.com/thheller/shadow-cljs/commit/0a680ae8e55ef4b8dbcf89be447974a9002e26a6) ] optimize :esm flush, avoid needless fs writes
+
 ## [2.22.9](https://github.com/thheller/shadow-cljs/compare/3d87940d69e70a6ccbeb074a225cc54cfc2dc41a...4d2d281b1290726cc65832466c5d9766332df427) - 2023-03-29
 - [ [`4d2d2`](https://github.com/thheller/shadow-cljs/commit/4d2d281b1290726cc65832466c5d9766332df427) ] add option to force side-effect esm imports
 - [ [`c0720`](https://github.com/thheller/shadow-cljs/commit/c0720959929c6eae3a617b291f48b863f8ac070f) ] omit shadow_esm_import unless actually required
