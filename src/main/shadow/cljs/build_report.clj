@@ -335,7 +335,7 @@
    (hook build-state {}))
   ([{::build/keys [stage mode]
      :as build-state}
-    {:keys [output-to]
+    {:keys [output-to print-table]
      :as opts}]
 
    (if-not (= :release mode)
@@ -362,6 +362,9 @@
                (data/output-file build-state "report.html"))]
 
          (generate-html build-state bundle-info output-file opts)
+
+         (when print-table
+           (print-bundle-info-table bundle-info {:group-npm true}))
 
          (build/log build-state {:type ::report-to :path (.getAbsolutePath output-file)})
 
