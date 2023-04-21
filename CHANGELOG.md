@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.23.1](https://github.com/thheller/shadow-cljs/compare/ee382ce37dceb54b2bb0a826664ddae7b6de47ca...c4052fe6afb38733ea103bbd29a2dfb6ec695847) - 2023-04-21
+- [ [`c4052`](https://github.com/thheller/shadow-cljs/commit/c4052fe6afb38733ea103bbd29a2dfb6ec695847) ] closure-compiler bump
+- [ [`ee382`](https://github.com/thheller/shadow-cljs/commit/ee382ce37dceb54b2bb0a826664ddae7b6de47ca) ] add :print-table option to build-report hook
+
 ## [2.22.10](https://github.com/thheller/shadow-cljs/compare/0a680ae8e55ef4b8dbcf89be447974a9002e26a6...0a680ae8e55ef4b8dbcf89be447974a9002e26a6) - 2023-04-07
 - [ [`0a680`](https://github.com/thheller/shadow-cljs/commit/0a680ae8e55ef4b8dbcf89be447974a9002e26a6) ] optimize :esm flush, avoid needless fs writes
 
