@@ -896,7 +896,7 @@
                          (= protocol arg-tag)
                          ;; ignore new type hints for now - David
                          (and (not (set? arg-tag))
-                              (not ('#{any clj clj-or-nil clj-nil number string boolean function object array js} arg-tag))
+                              (not ('#{any clj clj-or-nil clj-nil number string boolean function object array js ignore} arg-tag))
                               (when-let [ps (:protocols (ana/resolve-existing-var env arg-tag))]
                                 (contains? ps protocol)))))]
 
