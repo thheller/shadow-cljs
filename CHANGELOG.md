@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.23.2](https://github.com/thheller/shadow-cljs/compare/177d5964ec13fcd9c1de7a9156f615b37ae44691...177d5964ec13fcd9c1de7a9156f615b37ae44691) - 2023-04-22
+- [ [`177d5`](https://github.com/thheller/shadow-cljs/commit/177d5964ec13fcd9c1de7a9156f615b37ae44691) ] fix warning related to ignore symbol
+
 ## [2.23.1](https://github.com/thheller/shadow-cljs/compare/ee382ce37dceb54b2bb0a826664ddae7b6de47ca...c4052fe6afb38733ea103bbd29a2dfb6ec695847) - 2023-04-21
 - [ [`c4052`](https://github.com/thheller/shadow-cljs/commit/c4052fe6afb38733ea103bbd29a2dfb6ec695847) ] closure-compiler bump
 - [ [`ee382`](https://github.com/thheller/shadow-cljs/commit/ee382ce37dceb54b2bb0a826664ddae7b6de47ca) ] add :print-table option to build-report hook
