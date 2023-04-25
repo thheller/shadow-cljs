@@ -37,7 +37,7 @@
                                   #js [])
                    :mainFields (clj->js (or entry-keys ["browser" "main" "module"]))
                    :modules (clj->js (or js-package-dirs ["node_modules"]))
-                   :extensions (clj->js (or extensions [".js" ".json"]))})
+                   :extensions (clj->js (or extensions [".js" ".mjs" ".json"]))})
 
             expected
             (if (string? expected)

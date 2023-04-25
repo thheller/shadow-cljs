@@ -921,7 +921,7 @@
      :npm-deps (collect-npm-deps-from-classpath)
 
      ;; browser defaults
-     :js-options {:extensions [#_".mjs" ".js" ".json"]
+     :js-options {:extensions [".js" ".mjs" ".json"]
                   :allow-nested-packages true
                   :target :browser
                   :use-browser-overrides true
