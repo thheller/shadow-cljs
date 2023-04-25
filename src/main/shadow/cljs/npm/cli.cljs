@@ -850,7 +850,8 @@
           (if-not config-path
             (do (log "Could not find shadow-cljs.edn config file.")
                 (log "To create one run:")
-                (log "  shadow-cljs init"))
+                (log "  shadow-cljs init")
+                (js/process.exit 1))
 
             (let [project-root
                   (path/dirname config-path)
