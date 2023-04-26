@@ -231,9 +231,10 @@
   [{:keys [js-options classpath] :as state} {:keys [file] :as require-from} require was-symbol?]
 
   (cond
-    (and (:keep-native-requires js-options)
-         (or (contains? native-node-modules require)
-             (contains? (:keep-as-require js-options) require)))
+    (or (and (:keep-native-requires js-options)
+             (or (contains? native-node-modules require)
+                 (str/starts-with? require "node:")))
+        (contains? (:keep-as-require js-options) require))
     (js-support/shim-require-resource state require)
 
     (or (str/starts-with? require "esm:")
