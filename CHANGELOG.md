@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.23.3](https://github.com/thheller/shadow-cljs/compare/3312f101ec019452cf464e690e9b10a281c1dd9a...04d928436eefa864d2f9d51a1c225eeb36d75f2a) - 2023-04-26
+- [ [`04d92`](https://github.com/thheller/shadow-cljs/commit/04d928436eefa864d2f9d51a1c225eeb36d75f2a) ] fix bad boolean logic for :keep-as-require
+- [ [`7a092`](https://github.com/thheller/shadow-cljs/commit/7a092fdbc05aa97616541b581f983cc92a5045db) ] start looking for .mjs files
+- [ [`3312f`](https://github.com/thheller/shadow-cljs/commit/3312f101ec019452cf464e690e9b10a281c1dd9a) ] Exit with non-zero status when `shadow-cljs.edn` config file not found (#1113)
+
 ## [2.23.2](https://github.com/thheller/shadow-cljs/compare/177d5964ec13fcd9c1de7a9156f615b37ae44691...177d5964ec13fcd9c1de7a9156f615b37ae44691) - 2023-04-22
 - [ [`177d5`](https://github.com/thheller/shadow-cljs/commit/177d5964ec13fcd9c1de7a9156f615b37ae44691) ] fix warning related to ignore symbol
 
