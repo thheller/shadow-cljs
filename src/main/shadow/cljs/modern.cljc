@@ -45,7 +45,7 @@
          protocol-fns []
          [head & more :as current] form]
 
-    (let [l? (list? head) s? (symbol? head)]
+    (let [l? (seq? head) s? (symbol? head)]
 
       (cond
         ;; all done
