@@ -55,7 +55,7 @@
                                                  :exit exit}))
         ))))
 
-(defn maybe-start-proc [{:keys [proc] :as state}]
+(defn maybe-start-proc [{:keys [config proc] :as state}]
   (if (and proc (.isAlive proc))
     state
     (let [worker-dir ;; FIXME: use proper :cache-root config
@@ -76,8 +76,12 @@
 
       (log/debug ::start {})
 
-      (let [proc
-            (-> (ProcessBuilder. ["node" (.getAbsolutePath worker-file)])
+      (let [cmd-base
+            (if (:node-via-docker config)
+              ["docker" "run" "-i" "--rm" "-v" (str "\"" (.getAbsolutePath (io/file ".")) "\":/i") "-w" "/i" "node:18" "node" "/i/.shadow-cljs/babel-worker/babel-worker.js"]
+              ["node" (.getAbsolutePath worker-file)])
+            proc
+            (-> (ProcessBuilder. cmd-base)
                 (.directory nil)
                 (.start))]
 
@@ -120,17 +124,18 @@
     (.destroy proc)
     (.waitFor proc)))
 
-(defn babel-loop [babel-in]
-  (loop [state {}]
+(defn babel-loop [babel-in config]
+  (loop [state {:config config}]
     (if-some [req (<!! babel-in)]
       (recur (babel-transform! state req))
       (shutdown state))))
 
-(defn start []
+(defn start [config]
   (let [babel-in (async/chan 100)]
     {::service true
      :babel-in babel-in
-     :babel-loop (async/thread (babel-loop babel-in))}))
+     :config config
+     :babel-loop (async/thread (babel-loop babel-in config))}))
 
 (defn stop [{:keys [babel-in babel-loop] :as svc}]
   (async/close! babel-in)
@@ -168,7 +173,7 @@
       code)))
 
 (comment
-  (let [{:keys [babel-in] :as svc} (start)]
+  (let [{:keys [babel-in] :as svc} (start {:node-via-docker true})]
     (prn [:started])
 
     (prn (transform svc {:code "let foo = 1;"

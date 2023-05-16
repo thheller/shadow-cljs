@@ -95,6 +95,11 @@
         full-cmd
         (fill-packages-placeholder install-cmd args)
 
+        full-cmd
+        (if-not (:node-via-docker config)
+          full-cmd
+          (into ["docker" "run" "-i" "--rm" "-v" (str "\"" (.getAbsolutePath (io/file install-dir)) "\":/i") "-w" "/i" "node:18"] full-cmd))
+
         ;; FIXME: replace this on windows to properly locate npm/yarn binaries instead
         full-cmd
         (if (str/includes? (System/getProperty "os.name") "Windows")
@@ -175,3 +180,7 @@
       (when (seq deps)
         (install-deps config deps)
         ))))
+
+(comment
+  (main {:node-via-docker true
+         :npm-deps {:install-dir "tmp/npm-test"}} nil))
