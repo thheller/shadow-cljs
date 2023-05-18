@@ -101,7 +101,7 @@
     :stop build-npm/stop}
 
    :babel
-   {:depends-on []
+   {:depends-on [:config]
     :start babel/start
     :stop babel/stop}})
 
