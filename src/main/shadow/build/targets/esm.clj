@@ -178,8 +178,17 @@
                     (and default? (= :dev mode))
                     (browser/inject-preloads state config)
 
-                    init-fn
+                    (and init-fn (= :release mode))
                     (browser/merge-init-fn init-fn state)
+
+                    ;; work arround a limitation where :append-js is loaded async on node
+                    ;; and the init-fn maybe not being available to call (at least in node)
+                    ;; so we :append instead of :append-js, which just changes the location
+                    ;; to something that has a higher chance to actually be available
+                    ;; (ie. the module file itself, not the append)
+                    (and init-fn (= :dev mode))
+                    (-> (update :entries util/vec-conj (output/ns-only init-fn))
+                        (update :append str (output/fn-call state init-fn)))
 
                     ;; DEVTOOLS console, it is prepended so it loads first in case anything wants to log
                     (and default? (= :dev mode) (= :browser runtime))
@@ -268,7 +277,16 @@
                 :resource-name resource-name}]
 
         (let [prepend
-              (str "import \"./cljs_env.js\";\n")
+              (str "import \"./cljs_env.js\";\n"
+                   (->> (data/deps->syms state src)
+                        (remove #{'goog})
+                        (map #(data/get-source-id-by-provide state %))
+                        (distinct)
+                        (map #(data/get-source-by-id state %))
+                        (map (fn [{:keys [output-name] :as x}]
+                               (str "import \"./" output-name "\";")))
+                        (str/join "\n"))
+                   "\n")
 
               output
               (str prepend
@@ -498,31 +516,23 @@
                            )))
                    (vec))))))))
 
-;; in dev all imports must happen in the prepend
-;; can't do it in the pseudo-module since that evals after all the sources in
-;; it were loaded and that may lead to undefined errors since the module sets the
-;; globalThis alias too late. in release builds its just a regular prepend
-(defn setup-imports-dev [{:keys [build-modules] :as state}]
-  (reduce-kv
-    (fn [state idx {:keys [module-id sources] :as mod}]
-      (let [sources
-            (->> sources
-                 (map #(data/get-source-by-id state %))
-                 (filter ::js-support/import-shim))
-
-            imports
-            (->> sources
-                 (map (fn [{:keys [import-alias js-import]}]
-                        (str "import * as " import-alias " from \"" js-import "\";\n"
-                             "globalThis." import-alias " = " import-alias ";")))
-                 (str/join "\n"))
-
-            prepend-id
-            [:shadow.build.modules/prepend module-id]]
-
-        (update-in state [:sources prepend-id :source] str imports "\n")))
+;; for development add esm imports directly to the shim source
+;; it'll expose the imported code via shadow.esm.esm_import$alias
+;; adding it after compilation so the closure compiler is happy and doesn't see the import
+(defn add-esm-imports-dev [state]
+  (reduce
+    (fn [state src-id]
+      (let [rc (data/get-source-by-id state src-id)]
+        (if-not (::js-support/import-shim rc)
+          state
+          (update-in state [:output src-id :js]
+            (fn [code]
+              (str
+                "import * as " (:import-alias rc) " from \"" (:js-import rc) "\";\n"
+                code
+                ))))))
     state
-    build-modules))
+    (:build-sources state)))
 
 (defn process
   [{::build/keys [mode stage] :as state}]
@@ -534,11 +544,11 @@
     (-> state
         (replace-goog-global)
         (cond->
-          (= :dev mode)
-          (setup-imports-dev)
-
           (= :release mode)
           (setup-imports)))
+
+    (and (= :dev mode) (= stage :compile-finish))
+    (add-esm-imports-dev state)
 
     (= stage :flush)
     (case mode

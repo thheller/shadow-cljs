@@ -227,6 +227,13 @@
      :depends-on #{:b}}}
    }
 
+  :esm-node
+  {:target :esm
+   :runtime :node
+   :output-dir "out/esm-node/js"
+   :modules {:main {:init-fn demo.esm.node/init}}
+   :js-options {:js-provider :import}}
+
   :now-lambda
   {:target :node-library
    :exports-var demo.now/handler

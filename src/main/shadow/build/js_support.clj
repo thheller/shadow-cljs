@@ -161,5 +161,11 @@
      :source
      (if (= :release mode)
        ""
-       (str "goog.provide(\"" fake-ns "\");\n"
+       ;; we cannot add
+       ;;   import * as <import-alias> from "<import>"
+       ;; here since this code will go through the closure compiler via convert-goog
+       ;; the closure compiler will complain
+       ;;   A file cannot be both an ES6 module and a script file that contains at least one goog.provide.
+       (str
+            "goog.provide(\"" fake-ns "\");\n"
             fake-ns " = " import-alias ";\n"))}))
