@@ -523,14 +523,24 @@
   (reduce
     (fn [state src-id]
       (let [rc (data/get-source-by-id state src-id)]
-        (if-not (::js-support/import-shim rc)
+        (cond
+          (not (::js-support/import-shim rc))
           state
-          (update-in state [:output src-id :js]
-            (fn [code]
-              (str
-                "import * as " (:import-alias rc) " from \"" (:js-import rc) "\";\n"
-                code
-                ))))))
+
+          (get-in state [:output src-id ::patched])
+          state
+
+          :else
+          (update-in state [:output src-id]
+            (fn [output]
+              (-> output
+                  (assoc ::patched true)
+                  (update :js
+                    (fn [code]
+                      (str
+                        "import * as " (:import-alias rc) " from \"" (:js-import rc) "\";\n"
+                        code
+                        )))))))))
     state
     (:build-sources state)))
 
