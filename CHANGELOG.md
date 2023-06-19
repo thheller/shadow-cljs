@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.23.4](https://github.com/thheller/shadow-cljs/compare/71968b1cf860d5bfb896245da61b3640542bcbdc...ec9d63db9010b153ea14a111ec68fcd01af1fb72) - 2023-06-19
+- [ [`ec9d6`](https://github.com/thheller/shadow-cljs/commit/ec9d63db9010b153ea14a111ec68fcd01af1fb72) ] fix esm import loading order issue in node
+- [ [`c8001`](https://github.com/thheller/shadow-cljs/commit/c80011a0a8ef6880774d6cc3816914fb0483f6a2) ] fix server start code for last commit
+- [ [`fdeb2`](https://github.com/thheller/shadow-cljs/commit/fdeb2a8d36da489cb7847301ac459635ed21a031) ] add :node-via-docker option
+- [ [`71968`](https://github.com/thheller/shadow-cljs/commit/71968b1cf860d5bfb896245da61b3640542bcbdc) ] relax defclass macro requirements
+
 ## [2.23.3](https://github.com/thheller/shadow-cljs/compare/3312f101ec019452cf464e690e9b10a281c1dd9a...04d928436eefa864d2f9d51a1c225eeb36d75f2a) - 2023-04-26
 - [ [`04d92`](https://github.com/thheller/shadow-cljs/commit/04d928436eefa864d2f9d51a1c225eeb36d75f2a) ] fix bad boolean logic for :keep-as-require
 - [ [`7a092`](https://github.com/thheller/shadow-cljs/commit/7a092fdbc05aa97616541b581f983cc92a5045db) ] start looking for .mjs files
