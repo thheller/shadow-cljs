@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.23.5](https://github.com/thheller/shadow-cljs/compare/62514dda5e3f38c60af2dc4bd11a4245417fe629...62514dda5e3f38c60af2dc4bd11a4245417fe629) - 2023-06-19
+- [ [`62514`](https://github.com/thheller/shadow-cljs/commit/62514dda5e3f38c60af2dc4bd11a4245417fe629) ] fix watch issue with previous esm change
+
 ## [2.23.4](https://github.com/thheller/shadow-cljs/compare/71968b1cf860d5bfb896245da61b3640542bcbdc...ec9d63db9010b153ea14a111ec68fcd01af1fb72) - 2023-06-19
 - [ [`ec9d6`](https://github.com/thheller/shadow-cljs/commit/ec9d63db9010b153ea14a111ec68fcd01af1fb72) ] fix esm import loading order issue in node
 - [ [`c8001`](https://github.com/thheller/shadow-cljs/commit/c80011a0a8ef6880774d6cc3816914fb0483f6a2) ] fix server start code for last commit
