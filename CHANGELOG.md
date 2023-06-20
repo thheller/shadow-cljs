@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.23.7](https://github.com/thheller/shadow-cljs/compare/a85586a3093d3f960d79037ae0843931a6e8323c...a85586a3093d3f960d79037ae0843931a6e8323c) - 2023-06-20
+- [ [`a8558`](https://github.com/thheller/shadow-cljs/commit/a85586a3093d3f960d79037ae0843931a6e8323c) ] fix tslib exports using ./ mapping to itself
+
 ## [2.23.6](https://github.com/thheller/shadow-cljs/compare/97d1500d86972caaed6c1860af66ac59cf5e6e6b...93cd0088aadec85ce3d7caabb4dd550bf7034c60) - 2023-06-20
 - [ [`93cd0`](https://github.com/thheller/shadow-cljs/commit/93cd0088aadec85ce3d7caabb4dd550bf7034c60) ] fix :esm attempting to load dead js deps
 - [ [`97d15`](https://github.com/thheller/shadow-cljs/commit/97d1500d86972caaed6c1860af66ac59cf5e6e6b) ] add basic support for package.json exports
