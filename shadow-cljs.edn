@@ -35,7 +35,6 @@
 
  :socket-repl {:port 8204}
 
- :node-via-docker true
  :npm-deps {:install false}
 
  :source-paths

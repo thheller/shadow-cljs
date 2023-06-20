@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
+            [shadow.build.json-order-preserving :as json-order]
             [cljs.compiler :as cljs-comp]
             [shadow.jvm-log :as log]
             [shadow.build.resource :as rc]
@@ -17,97 +18,6 @@
            [java.nio.file Path]))
 
 (set! *warn-on-reflection* true)
-
-(defn condition-only-map? [exports]
-  (reduce-kv
-    (fn [x key val]
-      (if (str/starts-with? key ".")
-        (reduced false)
-        x))
-    true
-    exports))
-
-(defn path-only-map? [exports]
-  (reduce-kv
-    (fn [x key val]
-      (if-not (str/starts-with? key ".")
-        (reduced false)
-        x))
-    true
-    exports))
-
-(comment
-  (condition-only-map? {"a" 1 "b" 2})
-  (condition-only-map? {"a" 1 "./b" 2})
-  (path-only-map? {"./a" 1 "./b" 2})
-  (path-only-map? {"./a" 1 "b" 2}))
-
-;; https://github.com/jkrems/proposal-pkg-exports
-;; https://webpack.js.org/guides/package-exports/
-;; https://nodejs.org/api/packages.html#packages_exports
-
-(defn decipher-path-exports [exports]
-  (reduce-kv
-    (fn [m key val]
-      (cond
-        (str/includes? key "*")
-        (update m :wildcard-match conj [key val])
-
-        (str/ends-with? key "/")
-        (update m :prefix-match conj [key val])
-
-        :else
-        (update m :exact-match conj [key val])))
-    {:exact-match []
-     :prefix-match []
-     :wildcard-match []}
-    exports))
-
-(defn decipher-exports [exports]
-  (cond
-    (string? exports)
-    [:try-one exports]
-
-    (vector? exports)
-    [:try-many exports]
-
-    (not (map? exports))
-    (throw (ex-info "invalid package.json exports value" {:exports exports}))
-
-    (condition-only-map? exports)
-    [:condition-match exports]
-
-    (path-only-map? exports)
-    [:path-match (decipher-path-exports exports)]
-
-    :else
-    (throw (ex-info "invalid package.json exports value" {:exports exports}))
-    ))
-
-(defn match-exports [exports path conditions]
-  (cond
-    (string? exports)
-    ::TBD
-
-    (vector? exports)
-    ::TBD
-
-    (not (map? exports))
-    (throw (ex-info "invalid package.json exports value" {:exports exports}))
-
-    (condition-only-map? exports)
-    ::TBD
-
-    (path-only-map? exports)
-    (if-some [exact-match (get exports path)]
-      [:exact-match exact-match]
-      )
-
-
-    :else
-    (throw (ex-info "invalid package.json exports value" {:exports exports}))
-
-    ))
 
 ;; used in every resource :cache-key to make sure it invalidates when shadow-cljs updates
 (def NPM-CACHE-KEY
@@ -168,9 +78,13 @@
 
     (if (and cached (= last-modified (:last-modified cached)))
       (:content cached)
-      (let [{:strs [dependencies name version browser] :as package-json}
+      (let [{:strs [dependencies name version browser exports] :as package-json}
             (-> (slurp file)
-                (json/read-str))
+                ;; read with order preserving for objects/maps, since order is supposed to be significant for some objects
+                ;; https://webpack.js.org/guides/package-exports/#notes-about-ordering
+                ;; under normal circumstances these conditional maps should already be array maps
+                ;; just making sure they are. who knows whats gonna happen with this mess.
+                (json-order/read-str))
 
             package-dir
             (.getAbsoluteFile (.getParentFile file))
@@ -194,7 +108,11 @@
                   ;; don't use it as a main
                   (map? browser)
                   (-> (assoc :browser-overrides browser)
-                      (update :package-json dissoc "browser"))))]
+                      (update :package-json dissoc "browser"))
+
+                  exports
+                  (assoc :exports exports))
+                )]
 
         (swap! index-ref assoc-in [:package-json-cache file] {:content content
                                                               :last-modified last-modified})
@@ -680,7 +598,128 @@
              :rel-require rel-require}))
         ))))
 
-(declare find-resource)
+(declare find-resource find-resource-in-package)
+
+(defn file-as-resource [npm package rel-require file]
+  (try
+    (with-npm-info npm package (get-file-info npm file))
+    (catch Exception e
+      ;; user may opt to just ignore a require("./something.css")
+      (if (and (:ignore-asset-requires (:js-options npm))
+               (asset-require? rel-require))
+        empty-rc
+        (throw (ex-info "failed to inspect node_modules file"
+                 {:tag ::file-info-failed
+                  :file file}
+                 e))))))
+
+(defn path-map? [m]
+  (str/starts-with? (first (keys m)) "."))
+
+(defn find-exports-conditional-match
+  [npm match]
+  (loop [conditions (get-in npm [:js-options :export-conditions])]
+    (when (seq conditions)
+      (let [c (first conditions)
+            m (get match c)]
+        (cond
+          (not m)
+          (recur (rest conditions))
+
+          ;; nested conditional maps, can't recur because of loop, must recurse
+          (map? m)
+          (find-exports-conditional-match npm m)
+
+          (string? m)
+          m
+
+          :else
+          nil)))))
+
+(defn find-resource-from-exports-conditional-match
+  [npm {:keys [exports package-dir] :as package} rel-require match]
+  (let [condition-match (find-exports-conditional-match npm match)]
+    (if-not condition-match
+      (throw (ex-info (format "package export match could not find condition match")
+               {:match match :rel-require rel-require :exports exports :package-dir package-dir}))
+      (let [file (test-file package-dir condition-match)]
+        (if-not file
+          (throw (ex-info (format "package export conditional match referenced a file that doesn't exist")
+                   {:condition-match condition-match :match match :rel-require rel-require :exports exports :package-dir package-dir}))
+
+          (file-as-resource npm package rel-require file)))
+      )))
+
+(defn find-resource-from-exports
+  [npm {:keys [exports ^File package-dir] :as package} require-from rel-require]
+
+  (cond
+    ;; shortcut "exports": "./foo.js", only exports one root path
+    (and (string? exports) (= rel-require "./"))
+    (let [file (test-file package-dir exports)]
+      (if-not file
+        (throw (ex-info "package export referenced a file that doesn't exist"
+                 {:rel-require rel-require :exports exports :package-dir package-dir}))
+
+        (file-as-resource npm package rel-require file)))
+
+    ;; webpack seems to allow "exports" : ["./a.js" "./b.js"], that seems stupid to me
+    ;; why support someone referring to a file that doesn't exist in their package?
+    ;; haven't seen it used yet, so might as well not support it
+    (or (not (map? exports))
+        ;; empty exports? probably not allowed but who knows
+        (not (seq exports)))
+    (do (log/warn ::unsupported-package-exports {:exports exports :package-dir package-dir})
+        ;; try finding it without exports as a fallback
+        (find-resource-in-package npm (dissoc package :exports) require-from rel-require))
+
+    ;; {"." "./foo.js", "./foo" "./foo.js"}
+    (path-map? exports)
+    (letfn [(try-match [match]
+              (cond
+                ;; only support direct matches for now, no support for wildcards yet
+                (not match)
+                (throw (ex-info (format "require \"%s\" for package \"%s\" not exported" rel-require (.getAbsolutePath package-dir))
+                         {:rel-require rel-require :package-dir package-dir :exports exports}))
+
+                (string? match)
+                (let [file (test-file package-dir match)]
+                  (if-not file
+                    (throw (ex-info (format "package export match referenced a file that doesn't exist")
+                             {:rel-require rel-require :package-dir package-dir :match match :exports exports}))
+
+                    (file-as-resource npm package rel-require file)))
+
+                ;; conditional match, as far as I can tell nesting paths is not allowed
+                ;; FIXME: should probably still check
+                (map? match)
+                (find-resource-from-exports-conditional-match npm package rel-require match)
+
+                (vector? match)
+                (reduce
+                  (fn [_ m]
+                    (when-some [x (try-match m)]
+                      (reduced x)))
+                  nil
+                  match)
+
+                :else
+                (throw (ex-info (format "package export match has unsupported value")
+                         {:rel-require rel-require :package-dir package-dir :match match :exports exports}))))]
+
+      (try-match
+        (or (get exports rel-require)
+            ;; "." is special case, but we always have at least "./" as rel-require
+            (when (= rel-require "./") (get exports ".")))))
+
+    ;; exports is a conditional map, so only ./ matches
+    ;; everything else would be trying to access unexported files, which seems to be forbidden
+    (= rel-require "./")
+    (find-resource-from-exports-conditional-match npm package rel-require exports)
+
+    ;; FIXME: should this fail more loudly? couldn't find a match, will end up as not found later
+    :else
+    nil))
 
 ;; expects a require starting with ./ expressing a require relative in the package
 ;; using this instead of empty string because package exports use it too
@@ -690,10 +729,16 @@
   (when-not (str/starts-with? rel-require "./")
     (throw (ex-info "invalid require" {:package (:package-name package) :require-from (:resource-id require-from) :rel-require rel-require})))
 
-  (if (:package-exports package)
-    (throw (ex-info "tbd" {}))
+  (if (and (:exports package)
+           ;; always good to have a toggle to ignore exports mess
+           (not (get-in npm [:js-options :ignore-exports]))
+           ;; exports only apply to requires from other packages
+           ;; the package itself may refer to anything, following the default rules below
+           (not= (:package-id package) (get-in require-from [::package :package-id])))
+    ;; package has exports, so they take priority over everything else
+    (find-resource-from-exports npm package require-from rel-require)
 
-    ;; default npm resolve
+    ;; default npm resolve, no "exports" present, or package internal require
     (when-let [match (find-match-in-package npm package rel-require)]
 
       ;; might have used a nested package.json, continue from there
@@ -725,19 +770,8 @@
                     :override override}))
 
           :no-override
-          (try
-            (with-npm-info npm package (get-file-info npm file))
-            (catch Exception e
-              ;; user may opt to just ignore a require("./something.css")
-              (if (and (:ignore-asset-requires (:js-options npm))
-                       (asset-require? rel-require))
-                empty-rc
-                (throw (ex-info "failed to inspect node_modules file"
-                         {:tag ::file-info-failed
-                          :file file
-                          :require-from require-from
-                          :require rel-require}
-                         e))))))))))
+          (file-as-resource npm package rel-require file)
+          )))))
 
 (defn find-resource
   [npm require-from ^String require]
@@ -925,7 +959,10 @@
                   :allow-nested-packages true
                   :target :browser
                   :use-browser-overrides true
-                  :entry-keys ["browser" "main" "module"]}
+                  :entry-keys ["browser" "main" "module"]
+                  ;; FIXME: these defaults don't line up with above
+                  ;; should both still prefer commonjs or is it time to switch?
+                  :export-conditions ["module" "import" "require" "default"]}
      }))
 
 (defn stop [npm])
