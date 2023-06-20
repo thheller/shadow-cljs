@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.23.8](https://github.com/thheller/shadow-cljs/compare/fb24a7ffc1dd0cd1cdbef3ea46ed21e02aab4a00...fb24a7ffc1dd0cd1cdbef3ea46ed21e02aab4a00) - 2023-06-20
+- [ [`fb24a`](https://github.com/thheller/shadow-cljs/commit/fb24a7ffc1dd0cd1cdbef3ea46ed21e02aab4a00) ] doh
+
 ## [2.23.7](https://github.com/thheller/shadow-cljs/compare/a85586a3093d3f960d79037ae0843931a6e8323c...a85586a3093d3f960d79037ae0843931a6e8323c) - 2023-06-20
 - [ [`a8558`](https://github.com/thheller/shadow-cljs/commit/a85586a3093d3f960d79037ae0843931a6e8323c) ] fix tslib exports using ./ mapping to itself
 
