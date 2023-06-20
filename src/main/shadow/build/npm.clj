@@ -717,7 +717,7 @@
         ;; ./ is the minimum rel-require we use internally, but exports uses "." to signal "no subpath"
         ;; FIXME: for some reason tslib has "./":"./" in its package.json, no clue what that is supposed to do. can't use ./ due to that.
         ;; https://github.com/microsoft/tslib/blob/cc5ff034c859a04008e9de1393cb54c755939c1c/package.json#L45
-        (get exports (if (= "./" rel-require) "." "./"))
+        (get exports (if (= "./" rel-require) "." rel-require))
         ))
 
     ;; exports is a conditional map, so only ./ matches
