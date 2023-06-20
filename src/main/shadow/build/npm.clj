@@ -684,10 +684,16 @@
 
                 (string? match)
                 (let [file (test-file package-dir match)]
-                  (if-not file
+                  (cond
+                    (not file)
                     (throw (ex-info (format "package export match referenced a file that doesn't exist")
                              {:rel-require rel-require :package-dir package-dir :match match :exports exports}))
 
+                    (.isDirectory file)
+                    (throw (ex-info (format "package export match referenced a directory")
+                             {:file file :rel-require rel-require :package-dir package-dir :match match :exports exports}))
+
+                    :else
                     (file-as-resource npm package rel-require file)))
 
                 ;; conditional match, as far as I can tell nesting paths is not allowed
@@ -708,9 +714,11 @@
                          {:rel-require rel-require :package-dir package-dir :match match :exports exports}))))]
 
       (try-match
-        (or (get exports rel-require)
-            ;; "." is special case, but we always have at least "./" as rel-require
-            (when (= rel-require "./") (get exports ".")))))
+        ;; ./ is the minimum rel-require we use internally, but exports uses "." to signal "no subpath"
+        ;; FIXME: for some reason tslib has "./":"./" in its package.json, no clue what that is supposed to do. can't use ./ due to that.
+        ;; https://github.com/microsoft/tslib/blob/cc5ff034c859a04008e9de1393cb54c755939c1c/package.json#L45
+        (get exports (if (= "./" rel-require) "." "./"))
+        ))
 
     ;; exports is a conditional map, so only ./ matches
     ;; everything else would be trying to access unexported files, which seems to be forbidden
