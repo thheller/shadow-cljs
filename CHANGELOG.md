@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.23.6](https://github.com/thheller/shadow-cljs/compare/97d1500d86972caaed6c1860af66ac59cf5e6e6b...93cd0088aadec85ce3d7caabb4dd550bf7034c60) - 2023-06-20
+- [ [`93cd0`](https://github.com/thheller/shadow-cljs/commit/93cd0088aadec85ce3d7caabb4dd550bf7034c60) ] fix :esm attempting to load dead js deps
+- [ [`97d15`](https://github.com/thheller/shadow-cljs/commit/97d1500d86972caaed6c1860af66ac59cf5e6e6b) ] add basic support for package.json exports
+
 ## [2.23.5](https://github.com/thheller/shadow-cljs/compare/62514dda5e3f38c60af2dc4bd11a4245417fe629...62514dda5e3f38c60af2dc4bd11a4245417fe629) - 2023-06-19
 - [ [`62514`](https://github.com/thheller/shadow-cljs/commit/62514dda5e3f38c60af2dc4bd11a4245417fe629) ] fix watch issue with previous esm change
 
