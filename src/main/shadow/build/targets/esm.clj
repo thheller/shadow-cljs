@@ -280,6 +280,7 @@
               (str "import \"./cljs_env.js\";\n"
                    (->> (data/deps->syms state src)
                         (remove #{'goog})
+                        (remove (:dead-js-deps state))
                         (map #(data/get-source-id-by-provide state %))
                         (distinct)
                         (map #(data/get-source-by-id state %))
