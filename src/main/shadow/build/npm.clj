@@ -967,10 +967,12 @@
                   :allow-nested-packages true
                   :target :browser
                   :use-browser-overrides true
+                  ;; these should sort of line up, so that we don't end up mixing ESM and commonjs too much
                   :entry-keys ["browser" "main" "module"]
-                  ;; FIXME: these defaults don't line up with above
-                  ;; should both still prefer commonjs or is it time to switch?
-                  :export-conditions ["module" "import" "require" "default"]}
+                  ;; kinda tough to pick these, some packages use esm as "default, some use commonjs
+                  ;; hopefully by listing browser+require we cover most commonjs cases
+                  ;; which so far is much more reliable than esm
+                  :export-conditions ["browser" "require" "default" "module" "import"]}
      }))
 
 (defn stop [npm])
