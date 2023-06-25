@@ -213,7 +213,8 @@
       (when (or (= :cljs/quit result)
                 (= :repl/quit result))
         (let [clj-ns (reset-session (:session msg))]
-          (nrepl-out msg {:err "Exited CLJS session. You are now in CLJ again.\n"})
+          (nrepl-out msg {:err "Exited CLJS session. You are now in CLJ again.
+You can use `(shadow.cljs.devtools.api/nrepl-select <build-id>)` to get back in.\n"})
           (nrepl-out msg {:value (str result)
                           :printed-value 1
                           :ns (str clj-ns)})))
