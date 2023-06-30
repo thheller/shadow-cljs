@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.24.1](https://github.com/thheller/shadow-cljs/compare/fd84dd40a594c84c0808640d193f4cce02072690...65387eb3cfec91c280b3603aa145244b00684092) - 2023-06-30
+- [ [`65387`](https://github.com/thheller/shadow-cljs/commit/65387eb3cfec91c280b3603aa145244b00684092) ] fix REPL printing datafied stuff
+- [ [`aeb32`](https://github.com/thheller/shadow-cljs/commit/aeb32e29bb1ef1cc7343efd563326ea2ee37a3b5) ] implement prefix+wildcard exports support
+- [ [`faab2`](https://github.com/thheller/shadow-cljs/commit/faab284fe45b04328639718583a7d70feb613d26) ] 2.24.0
+- [ [`fd84d`](https://github.com/thheller/shadow-cljs/commit/fd84dd40a594c84c0808640d193f4cce02072690) ] adjust :export-conditions defaults
+
 ## [2.23.8](https://github.com/thheller/shadow-cljs/compare/fb24a7ffc1dd0cd1cdbef3ea46ed21e02aab4a00...fb24a7ffc1dd0cd1cdbef3ea46ed21e02aab4a00) - 2023-06-20
 - [ [`fb24a`](https://github.com/thheller/shadow-cljs/commit/fb24a7ffc1dd0cd1cdbef3ea46ed21e02aab4a00) ] doh
 
