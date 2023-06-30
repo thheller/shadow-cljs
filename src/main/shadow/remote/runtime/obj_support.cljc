@@ -190,29 +190,37 @@
 ;; 1meg?
 (def default-max-print-size (* 1 1024 1024))
 
+;; FIXME: should there be different ops for data and obj instead of a flag in the msg?
+(defn pick-target [entry msg]
+  (if (:original msg)
+    (:obj entry)
+    (:data entry)))
+
 (def obj-edn
   (handler-with-object
-    (fn [this {:keys [data] :as entry} {:keys [limit] :or {limit default-max-print-size} :as msg}]
-      (let [lw (lw/limit-writer limit)]
+    (fn [this entry {:keys [limit] :or {limit default-max-print-size} :as msg}]
+      (let [target (pick-target entry msg)
+            lw (lw/limit-writer limit)]
         #?(:clj
-           (print-method data lw)
+           (print-method target lw)
            :cljs
-           (pr-writer data lw (pr-opts)))
+           (pr-writer target lw (pr-opts)))
         (lw/get-string lw)))))
 
 (def obj-pprint
   (handler-with-object
-    (fn [this {:keys [data] :as entry} {:keys [limit] :or {limit default-max-print-size} :as msg}]
+    (fn [this entry {:keys [limit] :or {limit default-max-print-size} :as msg}]
       ;; CLJ pprint for some reason doesn't run out of memory when printing circular stuff
       ;; but it never finishes either
-      (let [lw (lw/limit-writer limit)]
-        (pprint data lw)
+      (let [target (pick-target entry msg)
+            lw (lw/limit-writer limit)]
+        (pprint target lw)
         (lw/get-string lw)))))
 
 (def obj-edn-limit
   (handler-with-object
-    (fn [this {:keys [data] :as entry} {:keys [limit] :as msg}]
-      (lw/pr-str-limit data limit))))
+    (fn [this entry {:keys [limit] :as msg}]
+      (lw/pr-str-limit (pick-target entry msg) limit))))
 
 (def obj-str
   (handler-with-object

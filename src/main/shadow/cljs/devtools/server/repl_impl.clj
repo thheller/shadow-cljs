@@ -190,7 +190,8 @@
                      (>!! to-relay
                        {:op :obj-edn
                         :to from
-                        :oid ref-oid})
+                        :oid ref-oid
+                        :original true})
 
                      (-> repl-state
                          (assoc :ns eval-ns
