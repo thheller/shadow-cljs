@@ -68,6 +68,62 @@
       (.normalize)
       (.toFile)))
 
+;; not allowed to mix conditions with paths, so just checking first is enough
+;; to figure out if this is a condition map or paths
+(defn path-map? [m]
+  (str/starts-with? (first (keys m)) "."))
+
+(defn merge-package-exports* [package exports]
+  (cond
+    (or (string? exports) (vector? exports))
+    (assoc-in package [:exports-exact "."] exports)
+
+    (or (not (map? exports))
+        (empty? exports))
+    (do (log/warn ::invalid-exports {:package-dir (:package-dir package)})
+        package)
+
+    (path-map? exports)
+    (reduce-kv
+      (fn [package path match]
+        (cond
+          (str/ends-with? path "/")
+          (update package :exports-prefix util/vec-conj
+            {:prefix path
+             :match match})
+
+          ;; FIXME: are wildcards only allowed at end?
+          (str/ends-with? path "*")
+          (update package :exports-wildcard util/vec-conj
+            ;; strip * here, so we don't have to do it again later
+            {:prefix (subs path 0 (dec (count path)))
+             :match match})
+
+          :just-a-path
+          (assoc-in package [:exports-exact path] match)))
+      package
+      exports)
+
+    :condition-map-at-root
+    (assoc-in package [:exports-exact "."] exports)
+    ))
+
+(defn sort-by-prefix-length [coll]
+  (sort-by #(- 0 (count (:prefix %))) coll))
+
+(defn merge-package-exports [p1 exports]
+  (let [p2 (merge-package-exports* p1 exports)]
+    (if (identical? p1 p2)
+      p1
+      ;; trying to avoid duplicating some code in the above fn
+      (-> p2
+          ;; store a single key, as a shortcut, so we don't have to check for 3 keys later
+          (assoc :exports true)
+          ;; want the longest matches first later, so just sorting here
+          (update :exports-prefix sort-by-prefix-length)
+          (update :exports-wildcard sort-by-prefix-length)
+          ))))
+
 (defn read-package-json
   "this caches the contents package.json files since we may access them quite often when resolving deps"
   [{:keys [index-ref] :as state} ^File file]
@@ -111,8 +167,7 @@
                       (update :package-json dissoc "browser"))
 
                   exports
-                  (assoc :exports exports))
-                )]
+                  (merge-package-exports exports)))]
 
         (swap! index-ref assoc-in [:package-json-cache file] {:content content
                                                               :last-modified last-modified})
@@ -613,9 +668,6 @@
                   :file file}
                  e))))))
 
-(defn path-map? [m]
-  (str/starts-with? (first (keys m)) "."))
-
 (defn find-exports-conditional-match
   [npm match]
   (loop [conditions (get-in npm [:js-options :export-conditions])]
@@ -636,98 +688,105 @@
           :else
           nil)))))
 
-(defn find-resource-from-exports-conditional-match
-  [npm {:keys [exports package-dir] :as package} rel-require match]
-  (let [condition-match (find-exports-conditional-match npm match)]
-    (if-not condition-match
-      (throw (ex-info (format "package export match could not find condition match")
-               {:match match :rel-require rel-require :exports exports :package-dir package-dir}))
-      (let [file (test-file package-dir condition-match)]
-        (if-not file
-          (throw (ex-info (format "package export conditional match referenced a file that doesn't exist")
-                   {:condition-match condition-match :match match :rel-require rel-require :exports exports :package-dir package-dir}))
-
-          (file-as-resource npm package rel-require file)))
-      )))
-
-(defn find-resource-from-exports
-  [npm {:keys [exports ^File package-dir] :as package} require-from rel-require]
-
+(defn find-exports-replacement [npm match]
   (cond
-    ;; shortcut "exports": "./foo.js", only exports one root path
-    (and (string? exports) (= rel-require "./"))
-    (let [file (test-file package-dir exports)]
-      (if-not file
-        (throw (ex-info "package export referenced a file that doesn't exist"
-                 {:rel-require rel-require :exports exports :package-dir package-dir}))
+    (string? match)
+    match
 
-        (file-as-resource npm package rel-require file)))
+    (vector? match)
+    (reduce
+      (fn [_ m]
+        (when-some [x (find-exports-replacement npm m)]
+          (reduced x)))
+      nil
+      match)
 
-    ;; webpack seems to allow "exports" : ["./a.js" "./b.js"], that seems stupid to me
-    ;; why support someone referring to a file that doesn't exist in their package?
-    ;; haven't seen it used yet, so might as well not support it
-    (or (not (map? exports))
-        ;; empty exports? probably not allowed but who knows
-        (not (seq exports)))
-    (do (log/warn ::unsupported-package-exports {:exports exports :package-dir package-dir})
-        ;; try finding it without exports as a fallback
-        (find-resource-in-package npm (dissoc package :exports) require-from rel-require))
+    (map? match)
+    (find-exports-conditional-match npm match)
 
-    ;; {"." "./foo.js", "./foo" "./foo.js"}
-    (path-map? exports)
-    (letfn [(try-match [match]
-              (cond
-                ;; only support direct matches for now, no support for wildcards yet
-                (not match)
-                (throw (ex-info (format "require \"%s\" for package \"%s\" not exported" rel-require (.getAbsolutePath package-dir))
-                         {:rel-require rel-require :package-dir package-dir :exports exports}))
-
-                (string? match)
-                (let [file (test-file package-dir match)]
-                  (cond
-                    (not file)
-                    (throw (ex-info (format "package export match referenced a file that doesn't exist")
-                             {:rel-require rel-require :package-dir package-dir :match match :exports exports}))
-
-                    (.isDirectory file)
-                    (throw (ex-info (format "package export match referenced a directory")
-                             {:file file :rel-require rel-require :package-dir package-dir :match match :exports exports}))
-
-                    :else
-                    (file-as-resource npm package rel-require file)))
-
-                ;; conditional match, as far as I can tell nesting paths is not allowed
-                ;; FIXME: should probably still check
-                (map? match)
-                (find-resource-from-exports-conditional-match npm package rel-require match)
-
-                (vector? match)
-                (reduce
-                  (fn [_ m]
-                    (when-some [x (try-match m)]
-                      (reduced x)))
-                  nil
-                  match)
-
-                :else
-                (throw (ex-info (format "package export match has unsupported value")
-                         {:rel-require rel-require :package-dir package-dir :match match :exports exports}))))]
-
-      (try-match
-        ;; ./ is the minimum rel-require we use internally, but exports uses "." to signal "no subpath"
-        ;; FIXME: for some reason tslib has "./":"./" in its package.json, no clue what that is supposed to do. can't use ./ due to that.
-        ;; https://github.com/microsoft/tslib/blob/cc5ff034c859a04008e9de1393cb54c755939c1c/package.json#L45
-        (get exports (if (= "./" rel-require) "." rel-require))
-        ))
-
-    ;; exports is a conditional map, so only ./ matches
-    ;; everything else would be trying to access unexported files, which seems to be forbidden
-    (= rel-require "./")
-    (find-resource-from-exports-conditional-match npm package rel-require exports)
-
-    ;; FIXME: should this fail more loudly? couldn't find a match, will end up as not found later
     :else
     nil))
+
+(defn find-resource-from-exports-exact
+  [npm {:keys [exports-exact ^File package-dir] :as package} rel-require]
+
+  ;; ./ is the minimum rel-require we use internally, but exports uses "." to signal "no subpath"
+  (when-some [match (get exports-exact (if (= "./" rel-require) "." rel-require))]
+    (let [path
+          (find-exports-replacement npm match)
+
+          file
+          (test-file package-dir path)]
+
+      (cond
+        (not file)
+        (throw (ex-info (format "package export match referenced a file that doesn't exist")
+                 {:rel-require rel-require :package-dir package-dir :match match :exports exports-exact}))
+
+        (.isDirectory file)
+        (throw (ex-info (format "package export match referenced a directory")
+                 {:file file :rel-require rel-require :package-dir package-dir :match match :exports exports-exact}))
+
+        :else
+        (file-as-resource npm package rel-require file)))))
+
+(defn find-resource-from-exports-by-prefix
+  [npm {:keys [package-dir] :as package} rel-require]
+  (reduce
+    (fn [_ {:keys [prefix match]}]
+      (when (str/starts-with? rel-require prefix)
+        (let [suffix (subs rel-require (count prefix) (count rel-require))]
+
+          (when-some [replacement (find-exports-replacement npm match)]
+            (let [path (str replacement suffix)
+                  file (test-file package-dir path)]
+              (cond
+                (not file)
+                (throw (ex-info "package export prefix match referenced a file that doesn't exist"
+                         {:rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+
+                (.isDirectory file)
+                (throw (ex-info (format "package export prefix match referenced a directory")
+                         {:file file :rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+
+                :else
+                (reduced (file-as-resource npm package rel-require file)))
+              )))))
+    nil
+    (:exports-prefix package)))
+
+;; FIXME: this very much looks like the above, should this be one function?
+(defn find-resource-from-exports-by-wildcard
+  [npm {:keys [package-dir] :as package} rel-require]
+  (reduce
+    (fn [_ {:keys [prefix match]}]
+      (when (str/starts-with? rel-require prefix)
+        (let [suffix (subs rel-require (count prefix) (count rel-require))]
+
+          (when-some [replacement (find-exports-replacement npm match)]
+            (let [path (str/replace replacement #"\*" suffix)
+                  file (test-file package-dir path)]
+
+              (cond
+                (not file)
+                (throw (ex-info "package export wildcard match referenced a file that doesn't exist"
+                         {:rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+
+                (.isDirectory file)
+                (throw (ex-info (format "package export wildcard match referenced a directory")
+                         {:file file :rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+
+                :else
+                (reduced (file-as-resource npm package rel-require file)))
+              )))))
+    nil
+    (:exports-wildcard package)))
+
+(defn find-resource-from-exports
+  [npm package rel-require]
+  (or (find-resource-from-exports-exact npm package rel-require)
+      (find-resource-from-exports-by-prefix npm package rel-require)
+      (find-resource-from-exports-by-wildcard npm package rel-require)))
 
 ;; expects a require starting with ./ expressing a require relative in the package
 ;; using this instead of empty string because package exports use it too
@@ -744,7 +803,11 @@
            ;; the package itself may refer to anything, following the default rules below
            (not= (:package-id package) (get-in require-from [::package :package-id])))
     ;; package has exports, so they take priority over everything else
-    (find-resource-from-exports npm package require-from rel-require)
+    (or (find-resource-from-exports npm package rel-require)
+        (throw (ex-info (format "package %s had exports, but could not resolve %s" (:package-name package) rel-require)
+                 {:package (:package-dir package)
+                  :require-from (:resource-id require-from)
+                  :rel-require rel-require})))
 
     ;; default npm resolve, no "exports" present, or package internal require
     (when-let [match (find-match-in-package npm package rel-require)]

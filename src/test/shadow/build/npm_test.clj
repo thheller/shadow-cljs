@@ -233,6 +233,65 @@
       (is (= "node_modules/lvl2/index.js" (:resource-name rc2)))
       )))
 
+
+;; exports related things
+
+(deftest test-exports-exact
+  (with-npm [x {}]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "exports")]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/exports/foo.js" resource-name))
+      )))
+
+(deftest test-exports-exact2
+  (with-npm [x {}]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "exports/foo")]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/exports/foo.js" resource-name))
+      )))
+
+(deftest test-exports-prefix
+  (with-npm [x {}]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "exports/prefix/foo.js")]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/exports/other/foo.js" resource-name))
+      )))
+
+(deftest test-exports-prefix-missing
+  (with-npm [x {}]
+    (is (thrown? ExceptionInfo (find-npm-resource x nil "exports/prefix/bar.js")))
+    ))
+
+(deftest test-exports-wildcard
+  (with-npm [x {}]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "exports/wildcard/foo")]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/exports/other/foo.js" resource-name))
+      )))
+
+(deftest test-exports-wildcard-missing
+  (with-npm [x {}]
+    (is (thrown? ExceptionInfo (find-npm-resource x nil "exports/wildcard/bar")))
+    ))
+
+
+(deftest test-exports-not-exported
+  (with-npm [x {}]
+    (is (thrown? ExceptionInfo (find-npm-resource x nil "exports/not-exported")))
+    ))
+
 (comment
   ;; FIXME: write proper tests for these
 
