@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.25.0](https://github.com/thheller/shadow-cljs/compare/51b15dd52c74f1c504010f00cb84372bc2696a4d...a21b6b169ff795ed488e62acf95e8b4508ee5375) - 2023-07-26
+- [ [`a21b6`](https://github.com/thheller/shadow-cljs/commit/a21b6b169ff795ed488e62acf95e8b4508ee5375) ] fix CLJS load-file not returning []
+- [ [`529dd`](https://github.com/thheller/shadow-cljs/commit/529ddfd5fb752a224752dc0c4e29d778491a0d32) ] Replace babel ESM rewriting with helper using GCC
+- [ [`51b15`](https://github.com/thheller/shadow-cljs/commit/51b15dd52c74f1c504010f00cb84372bc2696a4d) ] add missing files
+
 ## [2.24.1](https://github.com/thheller/shadow-cljs/compare/fd84dd40a594c84c0808640d193f4cce02072690...65387eb3cfec91c280b3603aa145244b00684092) - 2023-06-30
 - [ [`65387`](https://github.com/thheller/shadow-cljs/commit/65387eb3cfec91c280b3603aa145244b00684092) ] fix REPL printing datafied stuff
 - [ [`aeb32`](https://github.com/thheller/shadow-cljs/commit/aeb32e29bb1ef1cc7343efd563326ea2ee37a3b5) ] implement prefix+wildcard exports support
