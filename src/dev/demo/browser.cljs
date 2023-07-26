@@ -154,3 +154,6 @@
 
 (when DEBUG
   (js/console.log "foo2"))
+
+;; for testing load-file result
+(def the-last-form "is-a-var")

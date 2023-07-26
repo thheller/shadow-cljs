@@ -203,15 +203,15 @@
           next-count
           (count repl-actions)
 
-          ;; mark all resulting repl-actions as internal
+          ;; mark all resulting repl-actions (minus the last) as internal
           ;; so each form doesn't yield its own result later
-          ;; load-file should only have one result
+          ;; load-file should only have one result, which is the last form eval'd
           repl-actions
           (reduce
             (fn [actions idx]
               (assoc-in actions [idx :internal] true))
             repl-actions
-            (range prev-count next-count))
+            (range prev-count (dec next-count)))
 
           state
           (assoc-in state [:repl-state :repl-actions] repl-actions)]
