@@ -9,7 +9,8 @@
     [shadow.build.js-support :as js-support]
     [shadow.build.cljs-bridge :as cljs-bridge]
     [shadow.build.babel :as babel])
-  (:import (java.io File)))
+  (:import [com.google.javascript.jscomp ShadowESModuleRewriter]
+           (java.io File)))
 
 (defmulti resolve-deps*
   (fn [state {:keys [type]}]
@@ -199,10 +200,12 @@
       (dissoc :source)
       (assoc :source-fn
              (fn [{:keys [babel] :as state}]
-               (babel/convert-source babel state source (.getAbsolutePath file))))
-      ))
+               (if (get-in state [:js-options :use-babel])
+                 (babel/convert-source babel state source (.getAbsolutePath file))
+                 (ShadowESModuleRewriter/rewrite source))
+               ))))
 
-(defn maybe-babel-rewrite [{:keys [js-esm deps] :as rc}]
+(defn maybe-esm-rewrite [{:keys [js-esm deps] :as rc}]
   {:pre [(map? rc)]}
   (if (and (:classpath rc) js-esm)
     ;; es6 from the classpath is left as :js type so its gets processed by closure
@@ -278,7 +281,7 @@
                    :else
                    (throw (ex-info "unsupported require" {:require require})))]
 
-        (maybe-babel-rewrite rc)
+        (maybe-esm-rewrite rc)
         ))))
 
 (defmethod find-resource-for-string* :require
@@ -292,12 +295,12 @@
         (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
         (some->
           (cp/find-js-resource classpath require)
-          (maybe-babel-rewrite)))
+          (maybe-esm-rewrite)))
 
       (util/is-relative? require)
       (some->
         (cp/find-js-resource classpath require-from require)
-        (maybe-babel-rewrite))
+        (maybe-esm-rewrite))
 
       :else
       (when (or (contains? native-node-modules require)
@@ -356,12 +359,12 @@
         (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
         (some->
           (cp/find-js-resource classpath require)
-          (maybe-babel-rewrite)))
+          (maybe-esm-rewrite)))
 
       (util/is-relative? require)
       (some->
         (cp/find-js-resource classpath require-from require)
-        (maybe-babel-rewrite))
+        (maybe-esm-rewrite))
 
       :else
       (when (or (contains? native-node-modules require)
@@ -416,10 +419,10 @@
       (util/is-absolute? require)
       (if-not cp-rc?
         (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
-        (maybe-babel-rewrite (cp/find-js-resource classpath require)))
+        (maybe-esm-rewrite (cp/find-js-resource classpath require)))
 
       (util/is-relative? require)
-      (maybe-babel-rewrite (cp/find-js-resource classpath require-from require))
+      (maybe-esm-rewrite (cp/find-js-resource classpath require-from require))
 
       :else
       (when (or (contains? native-node-modules require)

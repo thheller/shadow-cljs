@@ -22,6 +22,25 @@ shadow.js.add_native_require = function(name, obj) {
   shadow.js.nativeRequires[name] = obj;
 };
 
+shadow.js.exportCopy = function(module, other) {
+  let copy = {};
+  let exports = module["exports"];
+
+  for (let key in other) {
+    // don't copy default export, don't overwrite existing
+    if (key == 'default' || key in exports || key in copy) {
+      continue;
+    }
+
+    copy[key] = {
+      enumerable: true,
+      get: function() { return other[key]; }
+    };
+  }
+
+  Object.defineProperties(exports, copy);
+}
+
 /**
  * @return {ShadowJS}
  */
@@ -101,8 +120,16 @@ shadow.js.jsRequire = function(name, opts) {
 // in shadow-cljs this is handled via :package-overrides in the build config
 // which actually prevents including the unwanted file and properly redirects
 // making the runtime calls do nothing instead
-shadow.js.jsRequire.cache = {};
-shadow.js.jsRequire.resolve = function(name) { return name };
+shadow.js.jsRequire["cache"] = {};
+shadow.js.jsRequire["resolve"] = function(name) { return name };
+
+// esm compatibility related things
+// this is called for export * from "whatever", so copying all exports from one module to another
+shadow.js.jsRequire["exportCopy"] = shadow.js.exportCopy;
+// this is used for esm-cjs compatibility where cjs is supposed to be accessible as the default export in esm
+shadow.js.jsRequire["esmDefault"] = function(mod) {
+  return (mod && mod["__esModule"]) ? mod : {"default": mod};
+};
 
 /**
  * @dict
