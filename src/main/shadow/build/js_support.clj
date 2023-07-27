@@ -7,10 +7,28 @@
     [shadow.build.classpath :as cp])
   (:import (com.google.javascript.jscomp.deps ModuleNames)))
 
+;; https://cdn.pika.dev/preact@^10.0.0
+;; ^ not replaced by ModuleNames/fileToModuleName
+;; not that anyone should ever use version ranges in an import ...
+;; should have probably used munge ...
+(defn munge-require [require]
+  (-> require
+      (str/replace #"=" "_EQ_")
+      (str/replace #"\>" "_GT_")
+      (str/replace #"\<" "_LT_")
+      (str/replace #"\^" "_CARET_")
+      (str/replace #"\~" "_TILDE_")
+      (ModuleNames/fileToModuleName)))
+
+(comment
+  (munge-require "npm:stripe@^11.16")
+  (munge-require "npm:stripe@~11.16")
+  (munge-require "npm:stripe@~>=11.16"))
+
 (defn shim-require-resource
   [state js-require]
   (let [js-ns-alias
-        (-> (ModuleNames/fileToModuleName js-require)
+        (-> (munge-require js-require)
             (->> (str "shadow.js.shim."))
             (symbol))
 
@@ -20,7 +38,7 @@
         ;; since we can't stop closure from rewriting require("react") even when it shouldn't
         ;; we create a second alias var that it replaces the require with a var we actually created
         commonjs-ns
-        (symbol (ModuleNames/fileToModuleName (str js-ns-alias)))
+        (symbol (munge-require (str js-ns-alias)))
 
         name
         (str js-ns-alias ".js")
@@ -74,7 +92,7 @@
 
         js-ns-alias
         (-> (str "shadow.js.shim."
-                 (ModuleNames/fileToModuleName (str prefix "$" suffix)))
+                 (munge-require (str prefix "$" suffix)))
             (symbol))
 
         resource-name
@@ -123,11 +141,7 @@
 (defn shim-import-resource
   [{:shadow.build/keys [mode] :as state} js-name]
   (let [import-alias
-        (-> (str "esm_" (ModuleNames/fileToModuleName js-name))
-            ;; https://cdn.pika.dev/preact@^10.0.0
-            ;; ^ not replaced by the above fn
-            ;; not that anyone should ever use version ranges in an import ...
-            (str/replace "^" "_CARET_")
+        (-> (str "esm_" (munge-require js-name))
             (str/replace "module$" "import$")
             (symbol))
 
@@ -167,5 +181,5 @@
        ;; the closure compiler will complain
        ;;   A file cannot be both an ES6 module and a script file that contains at least one goog.provide.
        (str
-            "goog.provide(\"" fake-ns "\");\n"
-            fake-ns " = " import-alias ";\n"))}))
+         "goog.provide(\"" fake-ns "\");\n"
+         fake-ns " = " import-alias ";\n"))}))
