@@ -257,13 +257,12 @@
 
        ;; going from cljs specific error
        :cljs-compile-error
-       (fn [{:keys [ex-oid ex-client-id ex-data report]}]
+       (fn [{:keys [ex-oid ex-client-id report]}]
          (callback
            ;; to more generic error, that CLJ can also use
            {:result :compile-error
             :ex-oid ex-oid
             :ex-client-id ex-client-id
-            :ex-data ex-data
             :report report}))
 
        :client-not-found

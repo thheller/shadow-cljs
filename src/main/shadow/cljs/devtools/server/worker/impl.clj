@@ -728,7 +728,8 @@
            ;; FIXME: not really, need somehow enable that via protocol impl?
            :ex-oid ex-oid
            :ex-client-id ex-client-id
-           :ex-data (ex-data e)
+           ;; can't send ex-data directly as it may contain all sorts of things that transit won't like
+           ;; :ex-data (ex-data e)
            ;; just always include report for now
            :report (binding [warnings/*color* false]
                      (errors/error-format e))
