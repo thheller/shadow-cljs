@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.25.1](https://github.com/thheller/shadow-cljs/compare/47f3e66ad868a780387f52a739305c9cae3e5671...b7ae3f56eff0462c82d9c83faa20d8bffbf9cfca) - 2023-07-27
+- [ [`b7ae3`](https://github.com/thheller/shadow-cljs/commit/b7ae3f56eff0462c82d9c83faa20d8bffbf9cfca) ] fix ^ not getting munged in weird JS requires
+- [ [`47f3e`](https://github.com/thheller/shadow-cljs/commit/47f3e66ad868a780387f52a739305c9cae3e5671) ] stop sending ex-data as part of cljs-compile-error
+
 ## [2.25.0](https://github.com/thheller/shadow-cljs/compare/51b15dd52c74f1c504010f00cb84372bc2696a4d...a21b6b169ff795ed488e62acf95e8b4508ee5375) - 2023-07-26
 - [ [`a21b6`](https://github.com/thheller/shadow-cljs/commit/a21b6b169ff795ed488e62acf95e8b4508ee5375) ] fix CLJS load-file not returning []
 - [ [`529dd`](https://github.com/thheller/shadow-cljs/commit/529ddfd5fb752a224752dc0c4e29d778491a0d32) ] Replace babel ESM rewriting with helper using GCC
