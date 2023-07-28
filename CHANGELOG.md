@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.25.2](https://github.com/thheller/shadow-cljs/compare/f3e89f2927b4ef7398166e30efc5d7d00b69c0eb...4f34de05735012735aa3ec6e7f74183b955283d4) - 2023-07-28
+- [ [`4f34d`](https://github.com/thheller/shadow-cljs/commit/4f34de05735012735aa3ec6e7f74183b955283d4) ] Created keep_awake_async.cljs, activateKeepAwake deprecated. (#1120)
+- [ [`15e69`](https://github.com/thheller/shadow-cljs/commit/15e69659f169caa12c23de9d39d8ca92dab2114e) ] add info line about how to rejoin exited CLJS repl
+- [ [`f3e89`](https://github.com/thheller/shadow-cljs/commit/f3e89f2927b4ef7398166e30efc5d7d00b69c0eb) ] fix some ESM rewriter issues
+
 ## [2.25.1](https://github.com/thheller/shadow-cljs/compare/47f3e66ad868a780387f52a739305c9cae3e5671...b7ae3f56eff0462c82d9c83faa20d8bffbf9cfca) - 2023-07-27
 - [ [`b7ae3`](https://github.com/thheller/shadow-cljs/commit/b7ae3f56eff0462c82d9c83faa20d8bffbf9cfca) ] fix ^ not getting munged in weird JS requires
 - [ [`47f3e`](https://github.com/thheller/shadow-cljs/commit/47f3e66ad868a780387f52a739305c9cae3e5671) ] stop sending ex-data as part of cljs-compile-error
