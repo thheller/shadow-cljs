@@ -89,7 +89,9 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
 
     private final Set<Node> imports = new HashSet<>();
 
-    private final Map<String, String> importRequests = new HashMap<>();
+    // must maintain insertion order since some npm packages have side effects in their imports
+    // and executing them in the wrong order may break certain packages, e.g. jsxgraph
+    private final Map<String, String> importRequests = new LinkedHashMap<>();
     private final Map<String, String> defaultWraps = new HashMap<>();
 
     ShadowESModuleRewriter(AbstractCompiler compiler, Node script) {
@@ -383,12 +385,26 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
             Node decl = child.detach();
             export.replaceWith(decl);
         } else {
-            name = JSCOMP_DEFAULT_EXPORT;
-            // Default exports are constant in more ways than one. Not only can they not be
-            // overwritten but they also act like a const for temporal dead-zone purposes.
-            Node var = IR.constNode(IR.name(name), export.removeFirstChild());
-            export.replaceWith(var.srcrefTreeIfMissing(export));
-            NodeUtil.addFeatureToScript(t.getCurrentScript(), Feature.CONST_DECLARATIONS, compiler);
+
+            if (child.isName()) {
+                name = maybeGetNameOfImportedValue(t.getScope(), child);
+            }
+
+            // import X from "whatever";
+            // export default X;
+            // can just remove the export entirely and just record the name below
+            // FIXME: I don't know if that breaks the "constant" comment below but this is basically just a re-export
+
+            if (name != null) {
+                export.detach();
+            } else {
+                // Default exports are constant in more ways than one. Not only can they not be
+                // overwritten but they also act like a const for temporal dead-zone purposes.
+                name = JSCOMP_DEFAULT_EXPORT;
+                Node var = IR.constNode(IR.name(name), export.removeFirstChild());
+                export.replaceWith(var.srcrefTreeIfMissing(export));
+                NodeUtil.addFeatureToScript(t.getCurrentScript(), Feature.CONST_DECLARATIONS, compiler);
+            }
         }
 
         exportedNameToLocalQName.put("default", new LocalQName(name, export));
@@ -544,7 +560,7 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
 
         RT.init();
 
-        String code = "import x from \"@whatever/foo-bar.js\"; import * as y from \"./bar/baz.js\"; import { xyz as a, z } from \"whatever\";export let bar = 1; export * from \"whatever\"; export { foo } from \"whatever\";export default 2; use(x, y, z, a);";
+        String code = "import x from \"@whatever/foo-bar.js\"; import * as y from \"./bar/baz.js\"; import { xyz as a, z } from \"whatever\";export let bar = 1; export * from \"whatever\"; export { foo } from \"whatever\";export default x; use(x, y, z, a);";
 
         // dumpCode("import \"whatever\";");
 
