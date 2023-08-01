@@ -515,39 +515,61 @@
        (print-classpath-tree coord-deps (inc level))))))
 
 (defn print-cli-info [project-root config-path {:keys [cache-root source-paths] :as config} opts]
-  (println "=== Version")
-  (println "jar:           " jar-version)
-  (println "cli:           " (-> (js/require "../package.json")
-                                 (gobj/get "version")))
-  (println "deps:          " (-> (js/require "shadow-cljs-jar/package.json")
-                                 (gobj/get "version")))
-  (println "config-version:" (:version config))
+  (println "=== npm package")
+  (println "cli:                 "
+    (-> (js/require "../package.json")
+        (gobj/get "version")))
+  (println "config-version:      " (:version config))
+
   (println)
 
-  (println "=== Paths")
-  (println "cli:    " js/__filename)
-  (println "config: " config-path)
-  (println "project:" project-root)
-  (println "cache:  " cache-root)
+  (when (and (not (:lein config))
+             (not (:deps config)))
+    (println "=== shadow-cljs version (via npm)")
+    (println "shadow-cljs version: " jar-version))
+
+  (when (:lein config)
+    (println "=== shadow-cljs version (via lein/project.clj)")
+    (let [lein-args
+          (-> (get-lein-args config opts)
+              (conj "run" "-m" "shadow.cljs.devtools.cli-info")
+              (into []))]
+
+      (run project-root "lein" lein-args {})))
+
+  (when (:deps config)
+    (println "=== shadow-cljs version (via clojure/deps.edn)")
+    (let [clojure-args
+          (-> (get-clojure-args project-root config opts)
+              (conj "-M" "-m" "shadow.cljs.devtools.cli-info")
+              (into []))]
+
+      (if-not (is-windows?)
+        (run project-root "clojure" clojure-args {})
+        (let [ps-args (into ["-command" "clojure"] (map powershell-escape) clojure-args)]
+          (run project-root "powershell" ps-args {})))))
+
   (println)
 
   (println "=== Java")
   (run-java project-root ["-version"] {})
   (println)
 
-  (println "=== Source Paths")
-  (doseq [source-path source-paths]
-    (println (path/resolve project-root source-path)))
-  (println)
-
   (when (and (not (:lein config))
              (not (:deps config)))
+    (println "=== Source Paths")
+    (doseq [source-path source-paths]
+      (println (path/resolve project-root source-path)))
+    (println)
+
     (println "=== Dependencies")
     (let [{:keys [deps-hierarchy] :as cp-data}
           (get-classpath project-root config opts)]
 
       (print-classpath-tree deps-hierarchy))
-    (println)))
+    (println))
+
+  (println))
 
 (defn read-config [config-path]
   (try
