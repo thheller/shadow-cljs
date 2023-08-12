@@ -351,7 +351,7 @@
 (defn emit-goog-module-gets [current-ns module-deps]
   (comp/emitln "goog.scope(function(){")
   (doseq [{:keys [goog-module ns]} module-deps]
-    (comp/emitln (str "  " (ana/munge-goog-module-lib current-ns ns) " = goog.module.get('" goog-module "');")))
+    (comp/emitln (str "  " (comp/munge current-ns) "." (ana/munge-goog-module-lib ns) " = goog.module.get('" goog-module "');")))
   (comp/emitln "});"))
 
 (defmethod shadow-emit :ns [{:keys [mode] :as state} {:keys [name deps] :as ast}]
