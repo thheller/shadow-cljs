@@ -419,10 +419,14 @@
       (util/is-absolute? require)
       (if-not cp-rc?
         (throw (ex-info "absolute require not allowed for non-classpath resources" {:require require}))
-        (maybe-esm-rewrite (cp/find-js-resource classpath require)))
+        (some->
+          (cp/find-js-resource classpath require)
+          (maybe-esm-rewrite)))
 
       (util/is-relative? require)
-      (maybe-esm-rewrite (cp/find-js-resource classpath require-from require))
+      (some->
+        (cp/find-js-resource classpath require-from require)
+        (maybe-esm-rewrite))
 
       :else
       (when (or (contains? native-node-modules require)
