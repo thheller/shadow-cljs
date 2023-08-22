@@ -280,7 +280,7 @@
             ;; not sure why this is allowed
             ;; https://github.com/clojure/clojurescript/blob/afe2cf748fb77c5194bac0608e32358e15da067d/src/main/cljs/cljs/js.cljs#L12
             ;; https://github.com/clojure/clojurescript/blob/afe2cf748fb77c5194bac0608e32358e15da067d/src/main/cljs/cljs/js.cljs#L15
-            #_ (get-in ns-info [:require-macros alias])
+            #_(get-in ns-info [:require-macros alias])
             (get-in ns-info [:reader-aliases alias]))]
     (when (and conflict
                (not= conflict ns)
@@ -338,6 +338,14 @@
               :opts opts-m
               :lib lib}))))
 
+(defn maybe-add-dep [ns-info lib]
+  ;; self-require, from REPL
+  ;; must not be merged into regular :deps since that creates a circular dependency
+  ;; which may lead to compilation issues later
+  (if (= lib (:name ns-info))
+    (assoc ns-info :self-require true)
+    (add-dep ns-info lib)))
+
 (defn process-symbol-require
   [ns-info lib {:keys [js as as-alias default refer refer-macros include-macros import rename only] :as opts-m}]
 
@@ -355,24 +363,15 @@
         ;; [something :as foo :as-alias bar]
         load? (not (and (= 1 (count opts-m)) as-alias))]
 
-    (cond
-      (not load?)
+    (if (not load?)
       ;; only reader-alias, no loading or dependency
       (-> ns-info
           (check-alias-conflict! lib as-alias)
           (update :reader-aliases assoc as-alias lib))
 
-      ;; self-require, from REPL
-      ;; must not be merged into regular :requires or deps since that creates a circular dependency
-      ;; which may lead to compilation issues later
-      ;; FIXME: should it remember :as aliases somewhere?
-      (= lib (:name ns-info))
-      (assoc ns-info :self-require true)
-
       ;; regular none :as-alias require
-      :regular
       (-> ns-info
-          (add-dep lib)
+          (maybe-add-dep lib)
           (merge-require :requires lib lib)
           (cond->
             as
