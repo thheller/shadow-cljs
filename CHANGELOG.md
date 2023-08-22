@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.25.3](https://github.com/thheller/shadow-cljs/compare/bb586a0fab475c13c6d090164c4122f2782308e3...a6b22dd943506bc5b208326adb2b5d7e15329e6c) - 2023-08-22
+- [ [`a6b22`](https://github.com/thheller/shadow-cljs/commit/a6b22dd943506bc5b208326adb2b5d7e15329e6c) ] allow self require in ns again, broke bootstrap
+- [ [`922af`](https://github.com/thheller/shadow-cljs/commit/922af1c8bee49121dd34424db61410e34f42e290) ] fix :external js provider with classpath js files
+- [ [`2bc41`](https://github.com/thheller/shadow-cljs/commit/2bc4104adbb3dfd6c41a08931e6585dff7e48039) ] fix wrong munge fn
+- [ [`bb586`](https://github.com/thheller/shadow-cljs/commit/bb586a0fab475c13c6d090164c4122f2782308e3) ] update cli-info task to properly report version
+
 ## [2.25.2](https://github.com/thheller/shadow-cljs/compare/f3e89f2927b4ef7398166e30efc5d7d00b69c0eb...4f34de05735012735aa3ec6e7f74183b955283d4) - 2023-07-28
 - [ [`4f34d`](https://github.com/thheller/shadow-cljs/commit/4f34de05735012735aa3ec6e7f74183b955283d4) ] Created keep_awake_async.cljs, activateKeepAwake deprecated. (#1120)
 - [ [`15e69`](https://github.com/thheller/shadow-cljs/commit/15e69659f169caa12c23de9d39d8ca92dab2114e) ] add info line about how to rejoin exited CLJS repl
