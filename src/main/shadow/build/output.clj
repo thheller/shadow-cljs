@@ -498,8 +498,11 @@
     ;; enumarable only if tagged with :export or :export-as
     (->> (get-in state [:compiler-env ::ana/namespaces ns :defs])
          (vals)
+         (filter (fn [def]
+                   (let [{:keys [export export-as]} (:meta def)]
+                     (or export (string? export-as)))))
          (map (fn [def]
-                (let [{:keys [export export-as] :as def-meta}
+                (let [{:keys [export-as]}
                       (:meta def)
 
                       export-name
@@ -512,9 +515,7 @@
                             (comp/munge def-name))))]
 
                   (str "Object.defineProperty(module.exports, \"" export-name "\", { "
-                       "enumerable: " (or (:export def-meta false)
-                                          (string? export-as))
-                       ", "
+                       "enumerable: true, "
                        "get: function() { return " (comp/munge (:name def)) "; }"
                        " });"))))
          (str/join "\n"))))
