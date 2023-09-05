@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.25.4](https://github.com/thheller/shadow-cljs/compare/45587a80bf55bb971ed009168a80af58a0fd02ac...81c3ebbfce19445ed9d1ff04b3d194795c9bc26b) - 2023-09-05
+- [ [`81c3e`](https://github.com/thheller/shadow-cljs/commit/81c3ebbfce19445ed9d1ff04b3d194795c9bc26b) ] Don't export at all without export or export-as meta (#1143)
+- [ [`45587`](https://github.com/thheller/shadow-cljs/commit/45587a80bf55bb971ed009168a80af58a0fd02ac) ] Add :root-source-info to analysis env (#1146)
+
 ## [2.25.3](https://github.com/thheller/shadow-cljs/compare/bb586a0fab475c13c6d090164c4122f2782308e3...a6b22dd943506bc5b208326adb2b5d7e15329e6c) - 2023-08-22
 - [ [`a6b22`](https://github.com/thheller/shadow-cljs/commit/a6b22dd943506bc5b208326adb2b5d7e15329e6c) ] allow self require in ns again, broke bootstrap
 - [ [`922af`](https://github.com/thheller/shadow-cljs/commit/922af1c8bee49121dd34424db61410e34f42e290) ] fix :external js provider with classpath js files
