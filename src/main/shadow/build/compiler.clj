@@ -241,6 +241,8 @@
            ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
            base-env
            (-> (empty-env state ns)
+               (assoc :root-source-info {:source-type :fragment
+                                         :source-form form})
                (cond->
                  repl-context?
                  (assoc ::repl-context true
