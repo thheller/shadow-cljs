@@ -223,7 +223,7 @@
         (-> {:host "0.0.0.0"}
             (merge http)
             (cond->
-              ssl
+              (and ssl (not (false? (:enabled ssl))))
               (assoc :ssl-context (undertow/make-ssl-context ssl))))
 
         {:keys [http-port https-port] :as http}
