@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.25.5](https://github.com/thheller/shadow-cljs/compare/a11f6ab9824dfaaad544dc667c405977000a1bbe...d69b2ddbfd36e7b005b4de1d79b073347f247d3f) - 2023-09-14
+- [ [`d69b2`](https://github.com/thheller/shadow-cljs/commit/d69b2ddbfd36e7b005b4de1d79b073347f247d3f) ] add option to disable SSL even if :ssl is configured
+- [ [`cf5e8`](https://github.com/thheller/shadow-cljs/commit/cf5e87d48f4ca381e9c0521616f3b87da78de9db) ] don't warn on hidden protocol lookups
+- [ [`a11f6`](https://github.com/thheller/shadow-cljs/commit/a11f6ab9824dfaaad544dc667c405977000a1bbe) ] small ui fix
+
 ## [2.25.4](https://github.com/thheller/shadow-cljs/compare/45587a80bf55bb971ed009168a80af58a0fd02ac...81c3ebbfce19445ed9d1ff04b3d194795c9bc26b) - 2023-09-05
 - [ [`81c3e`](https://github.com/thheller/shadow-cljs/commit/81c3ebbfce19445ed9d1ff04b3d194795c9bc26b) ] Don't export at all without export or export-as meta (#1143)
 - [ [`45587`](https://github.com/thheller/shadow-cljs/commit/45587a80bf55bb971ed009168a80af58a0fd02ac) ] Add :root-source-info to analysis env (#1146)
