@@ -25,7 +25,8 @@
  {8605 "out/demo-browser/public"
   8606 "out/demo-test-browser"
   8607 [".shadow-cljs/build-report"
-        "src/ui-release/shadow/cljs/build_report/dist"]}
+        "src/ui-release/shadow/cljs/build_report/dist"]
+  8608 "out/npm-web"}
 
  :prepl {:browser 12345}
 

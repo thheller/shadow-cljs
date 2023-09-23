@@ -5,4 +5,4 @@
 (defn should-be-line-5 []
   "yo")
 
-(js/console.log "demo.repl")
+(js/console.log "demo.repl" {:foo ["bar"]})

@@ -251,6 +251,7 @@
     ;; skip files we already have
     (when (or (not (.exists js-file))
               (zero? last-modified)
+              (not (::flushed state))
               ;; js is not compiled but maybe modified
               (> (or compiled-at last-modified)
                  (.lastModified js-file)))
@@ -525,15 +526,15 @@
 
 (defn js-module-env
   [{:keys [polyfill-js] :as state} {:keys [runtime] :or {runtime :node} :as config}]
-  (str "var $CLJS = {};\n"
-
-       (case runtime
+  (str (case runtime
          :node
          "var CLJS_GLOBAL = global;\n"
          :browser
          "var CLJS_GLOBAL = globalThis;\n"
          ;; default, tries to figure it out on its own
          "var CLJS_GLOBAL = (typeof(globalThis) != 'undefined') ? globalThis : global;\n")
+
+       "var $CLJS = CLJS_GLOBAL;\n"
 
        ;; closure accesses these defines via goog.global.CLOSURE_DEFINES
        "var CLOSURE_DEFINES = CLJS_GLOBAL.CLOSURE_DEFINES = $CLJS.CLOSURE_DEFINES = " (closure-defines-json state) ";\n"
@@ -542,26 +543,22 @@
        "CLJS_GLOBAL.$CLJS = $CLJS;\n"
 
        ;; in case of commonjs on the classpath
-       "global.shadow$provide = {};\n"
+       "CLJS_GLOBAL.shadow$provide = {};\n"
 
        "var goog = $CLJS.goog = {};\n"
-       ;; the global must be overriden in goog/base.js since it contains some
-       ;; goog.define(...) which would otherwise be exported to "this"
-       ;; but we need it on $CLJS
+
+       ;; replace-goog-global sets this to goog.global = global;
+       ;; FIXME: is this still required?
+       ;; I think other targets still require that, so leaving for now
        (-> (data/get-output! state {:resource-id goog-base-id})
            (get :js)
-           ;; FIXME: this is using the compiled variant of goog/base.js
-           ;; don't use goog-global-snippet, that is used for uncompiled goog/base.js
-           ;; keeping both variants for now until I can make this cleaner
-           (str/replace "goog.global = this || self;" "goog.global = $CLJS;"))
+           ;; properly ensure goog.global is the same as CLJS_GLOBAL
+           (str/replace "goog.global = global;" "goog.global = CLJS_GLOBAL;"))
 
        (if (seq polyfill-js)
          (str "\n" polyfill-js
               "\n$CLJS.$jscomp = $jscomp;")
          (str "\n$CLJS.$jscomp = {};"))
-
-       ;; set global back to actual global so things like setTimeout work
-       "\ngoog.global = CLJS_GLOBAL;"
 
        (slurp (io/resource "shadow/boot/static.js"))
        (slurp (io/resource "shadow/build/targets/npm_module_goog_overrides.js"))
@@ -575,8 +572,11 @@
         target
         (data/output-file state output-name)]
 
-    ;; flush everything if env was modified, otherwise only flush modified
-    (when (or (not (.exists target)) (>= last-modified (.lastModified target)))
+    ;; flush everything on first compile, otherwise only flush modified
+    ;; avoid touching files as much as possible to it doesn't trigger other watches
+    (when (or (not (::flushed state))
+              (not (.exists target))
+              (>= last-modified (.lastModified target)))
 
       (let [prepend
             (js-module-src-prepend state src)
@@ -597,7 +597,6 @@
   ([{:keys [build-sources] :as state}]
    (flush-sources state build-sources))
   ([state source-ids]
-
    (if (not= :js (get-in state [:build-options :module-format]))
      ;; regular goog style output
      (doseq [src-id source-ids]
@@ -610,7 +609,7 @@
 
        (async/queue-task state #(flush-dev-js-module-source state src))))
 
-   state))
+   (assoc state ::flushed true)))
 
 (defn flush-dev-js-modules
   [state mode config]
