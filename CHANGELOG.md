@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.25.6](https://github.com/thheller/shadow-cljs/compare/7a88a79ba5cccddf5f1d5e38e3f1ce906a906779...be2a119bd8e9bf03bbd74e4dd2a36210eb42ca45) - 2023-09-23
+- [ [`be2a1`](https://github.com/thheller/shadow-cljs/commit/be2a119bd8e9bf03bbd74e4dd2a36210eb42ca45) ] relax :npm-module to remove some hackiness
+- [ [`7a88a`](https://github.com/thheller/shadow-cljs/commit/7a88a79ba5cccddf5f1d5e38e3f1ce906a906779) ] handle uncaughtException in node-repl
+
 ## [2.25.5](https://github.com/thheller/shadow-cljs/compare/a11f6ab9824dfaaad544dc667c405977000a1bbe...d69b2ddbfd36e7b005b4de1d79b073347f247d3f) - 2023-09-14
 - [ [`d69b2`](https://github.com/thheller/shadow-cljs/commit/d69b2ddbfd36e7b005b4de1d79b073347f247d3f) ] add option to disable SSL even if :ssl is configured
 - [ [`cf5e8`](https://github.com/thheller/shadow-cljs/commit/cf5e87d48f4ca381e9c0521616f3b87da78de9db) ] don't warn on hidden protocol lookups
