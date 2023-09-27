@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.7](https://github.com/thheller/shadow-cljs/compare/a08f16f8b7b5e929959f797c23384f47fd545a1c...9cc5e7830ceea6adcd814ec551526f13291431a5) - 2023-09-27
+- [ [`9cc5e`](https://github.com/thheller/shadow-cljs/commit/9cc5e7830ceea6adcd814ec551526f13291431a5) ] fix npm-module output with load tracking
+- [ [`d318f`](https://github.com/thheller/shadow-cljs/commit/d318f73e87b8eb21baacb78c97fa5f32382452b1) ] fix REPL handling of errors
+- [ [`637c4`](https://github.com/thheller/shadow-cljs/commit/637c4c6c8c2270ca207696efc276c3e0c9122acf) ] fix repl eval using ns + macros from required ns
+- [ [`44540`](https://github.com/thheller/shadow-cljs/commit/44540483b6cd442224f45d9f2dc60c1dd092af77) ] fix missing worker error msg
+- [ [`a08f1`](https://github.com/thheller/shadow-cljs/commit/a08f16f8b7b5e929959f797c23384f47fd545a1c) ] validate watch worker is still active
+
 ## [2.25.6](https://github.com/thheller/shadow-cljs/compare/7a88a79ba5cccddf5f1d5e38e3f1ce906a906779...be2a119bd8e9bf03bbd74e4dd2a36210eb42ca45) - 2023-09-23
 - [ [`be2a1`](https://github.com/thheller/shadow-cljs/commit/be2a119bd8e9bf03bbd74e4dd2a36210eb42ca45) ] relax :npm-module to remove some hackiness
 - [ [`7a88a`](https://github.com/thheller/shadow-cljs/commit/7a88a79ba5cccddf5f1d5e38e3f1ce906a906779) ] handle uncaughtException in node-repl
