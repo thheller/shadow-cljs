@@ -115,21 +115,16 @@
       (update state :results conj res))))
 
 (defn handle-repl-invoke [state runtime action]
-  (try
-    (let [ret (do-invoke runtime (:ns state) action)]
+  (let [ret (do-invoke runtime (:ns state) action)]
 
-      ;; FIXME: these are nonsense with multiple sessions. refactor this properly
-      (set! *3 *2)
-      (set! *2 *1)
-      (set! *1 ret)
+    ;; FIXME: these are nonsense with multiple sessions. refactor this properly
+    (set! *3 *2)
+    (set! *2 *1)
+    (set! *1 ret)
 
-      (if (:internal action)
-        state
-        (update state :results conj ret)))
-
-    (catch :default e
-      (set! *e e)
-      (throw e))))
+    (if (:internal action)
+      state
+      (update state :results conj ret))))
 
 (defn interpret-action
   [{:keys [runtime] :as state}
@@ -168,18 +163,24 @@
           (abort! state action ex))))
 
     :repl/invoke
-    (try
-      (let [repl (get-in state [:input :repl])
+    (let [repl (get-in state [:input :repl])]
+      (try
+        (let [invoke-fn
+              (if (and repl (not (:internal action)))
+                handle-repl-invoke
+                handle-invoke)]
+          (-> state
+              (invoke-fn runtime action)
+              (continue!)))
+        (catch :default ex
+          (when repl
+            ;; doing this here and no longer in handle-repl-invoke to avoid
+            ;; rethrowing the exception. JS doesn't do that very well and messes
+            ;; with the stacktrace, basically killing the original one
+            (set! *e ex))
 
-            invoke-fn
-            (if (and repl (not (:internal action)))
-              handle-repl-invoke
-              handle-invoke)]
-        (-> state
-            (invoke-fn runtime action)
-            (continue!)))
-      (catch :default ex
-        (abort! state action ex)))
+          (js/console.error "REPL Invoke Exception" ex action)
+          (abort! state action ex))))
 
     (throw (ex-info "unhandled repl action" {:state state :action action}))))
 
