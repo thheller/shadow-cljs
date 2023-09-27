@@ -497,10 +497,29 @@
       ::shared
       {:on-welcome
        (fn []
-         (shared/relay-msg runtime
-           {:op :request-notify
+         ;; request notifications about worker responsible for us
+         ;; also acts as verification the worker that produced the JS output is still actually running
+         ;; in case of webpack it can be that the build was restarted, but webpack didn't properly update the code
+         ;; so still pointing to an older worker, potentially causing troubles for hot-reload and REPL later on.
+         (shared/call runtime
+           {:op :request-clients
+            :notify true
             :notify-op ::env/worker-notify
-            :query [:eq :shadow.cljs.model/worker-for (keyword env/build-id)]}))})
+            :query [:eq :shadow.cljs.model/worker-for (keyword env/build-id)]}
+           {:clients
+            (fn [{:keys [clients] :as msg}]
+              (if-not (seq clients)
+                (js/console.error "shadow-cljs watch for build not running! This likely means your loaded JS it out of date. Make sure no cache is involved, and other tools processing this JS are using the latest code.")
+                (let [worker (first clients)
+                      {:keys [client-id]} worker]
+
+                  (when (not= client-id env/worker-client-id)
+                    (js/console.warn "shadow-cljs worker id outdated! This can mean that the JS loaded is outdated! Ensure that the shadow-cljs output is not cached. If other tools process this output make sure they update correctly. The code may continue to run fine, but if unexplained things happen make sure to fix this first.")
+
+                    ;; just updating to the current one, as triggering a reload will likely do nothing
+                    (set! env/worker-client-id client-id)
+                    ))))})
+         )})
 
     (start-all-plugins! runtime)
 
