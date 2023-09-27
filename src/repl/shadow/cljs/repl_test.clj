@@ -201,3 +201,12 @@
             (repl/process-input "(gobj/set \"foo\" \"x\" 1)"))]
 
     (tap> repl-state)))
+
+(deftest test-repl-ns-deftest
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(ns foo.bar-test (:require [cljs.test :refer (deftest is)]))")
+            (repl/process-input "(deftest foo (is (= 1 1)))"))]
+
+    (tap> state)))

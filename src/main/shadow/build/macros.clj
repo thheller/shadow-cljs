@@ -1,11 +1,12 @@
 (ns shadow.build.macros
-  (:require [cljs.env :as env]
-            [cljs.analyzer :as ana]
-            [shadow.build.cljs-bridge :as cljs-bridge]
-            [clojure.java.io :as io]
-            [shadow.cljs.util :as util]
-            [shadow.build.classpath :as cp]
-            [shadow.build.data :as data])
+  (:require
+    [clojure.java.io :as io]
+    [cljs.env :as env]
+    [cljs.analyzer :as ana]
+    [shadow.build.cljs-bridge :as cljs-bridge]
+    [shadow.build.data :as data]
+    [shadow.cljs.util :as util]
+    [shadow.jvm-log :as log])
   (:import (clojure.lang Namespace)
            (java.net URL)))
 
@@ -96,6 +97,8 @@
           (doseq [macro-ns macro-namespaces]
             ;; reloading is handled somewhere else
             (when-not (contains? @active-macros-ref macro-ns)
+
+              (log/debug ::macro-load {:ns macro-ns})
 
               (try
                 (require macro-ns)

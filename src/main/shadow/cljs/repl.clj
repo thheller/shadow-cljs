@@ -394,13 +394,15 @@
             (ns-form/rewrite-ns-aliases state)
             (ns-form/rewrite-js-deps state))
 
+        ;; must compile dependencies before analyzing the ns further
+        ;; otherwise macro data may be missing
+        state
+        (build-api/compile-sources state dep-sources)
+
         state
         (cljs-bridge/with-compiler-env state
           (comp/post-analyze-ns ns-info state)
           state)
-
-        state
-        (build-api/compile-sources state dep-sources)
 
         ns-requires
         {:type :repl/require
