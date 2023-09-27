@@ -1,7 +1,7 @@
 var SHADOW_ENV = function() {
-  var loadedFiles = {};
-
   var env = {};
+
+  var loadedFiles = env.loadedFiles = {};
 
   var doc = goog.global.document;
 
