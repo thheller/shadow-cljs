@@ -509,7 +509,7 @@
            {:clients
             (fn [{:keys [clients] :as msg}]
               (if-not (seq clients)
-                (js/console.error "shadow-cljs watch for build not running! This likely means your loaded JS it out of date. Make sure no cache is involved, and other tools processing this JS are using the latest code.")
+                (js/console.error (str "shadow-cljs watch for build :" env/build-id " not running!"))
                 (let [worker (first clients)
                       {:keys [client-id]} worker]
 
