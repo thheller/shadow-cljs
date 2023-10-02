@@ -8,7 +8,7 @@ shadow.js.files = {};
 /**
  * @dict
  */
-shadow.js.nativeRequires = {};
+shadow.js.nativeProvides = {};
 
 /**
  * @define {string}
@@ -17,10 +17,6 @@ shadow.js.nativeRequires = {};
 shadow.js.NODE_ENV = goog.define("shadow.js.NODE_ENV", "development");
 
 shadow.js.requireStack = [];
-
-shadow.js.add_native_require = function(name, obj) {
-  shadow.js.nativeRequires[name] = obj;
-};
 
 shadow.js.exportCopy = function(module, other) {
   let copy = {};
@@ -45,7 +41,7 @@ shadow.js.exportCopy = function(module, other) {
  * @return {ShadowJS}
  */
 shadow.js.jsRequire = function(name, opts) {
-  var nativeObj = shadow.js.nativeRequires[name];
+  var nativeObj = shadow.js.nativeProvides[name];
   if (nativeObj !== undefined) {
     return nativeObj;
   }

@@ -69,9 +69,7 @@
      ;; as it won't touch the require call unless specifically told to
      :source (str "goog.provide(\"" js-ns-alias "\");\n"
                   "goog.provide(\"" commonjs-ns "\");\n"
-                  js-ns-alias " = " require-fn "(\"" js-require "\");\n"
-                  (when register-shadow-js
-                    (str "shadow.js.add_native_require(\"" js-ns-alias "\", " js-ns-alias ");\n"))
+                  js-ns-alias " = shadow.js.nativeProvides[\"" js-require "\"] = " require-fn "(\"" js-require "\");\n"
                   ;; FIXME: this default business is annoying
                   commonjs-ns ".default = " js-ns-alias ";\n"
                   )}

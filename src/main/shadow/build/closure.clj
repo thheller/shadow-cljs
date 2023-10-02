@@ -13,6 +13,7 @@
     [shadow.build.data :as data]
     [shadow.build.npm :as npm]
     [shadow.build.cache :as cache]
+    [shadow.build.js-support :as js-support]
     [shadow.core-ext :as core-ext]
     [shadow.build.resource :as rc]
     [shadow.debug :refer (?> ?-> ?->>)]
@@ -1884,6 +1885,21 @@
             (data/get-source-id-by-provide state ns)
             {:keys [resource-name] :as rc}
             (data/get-source-by-id state rc-id)
+
+            ;; we want requires to stay as they are in case of shadow-js requiring npm
+            ;; which can be the case for node targets using shadow-js on the classpath
+            ;; otherwise shadow-js will only be pointing to other shadow-js
+            ;; we just filter out any requires that point to require shims
+            require-map
+            (reduce-kv
+              (fn [m require target]
+                (let [src-id (get sym->id target)
+                      src (get-in state [:sources src-id])]
+                  (if (and src (::js-support/require-shim src))
+                    (dissoc m require)
+                    m)))
+              require-map
+              require-map)
 
             require-map
             (if-not (get-in state [:js-options :minimize-require])
