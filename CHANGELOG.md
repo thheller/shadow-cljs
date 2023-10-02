@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.25.8](https://github.com/thheller/shadow-cljs/compare/26f01a9a15e336fbaef0c34134ead7f2003e5751...b6d0afbddc8952b67879bc9cc605526dc1cc0769) - 2023-10-02
+- [ [`b6d0a`](https://github.com/thheller/shadow-cljs/commit/b6d0afbddc8952b67879bc9cc605526dc1cc0769) ] fix previous commit
+- [ [`26f01`](https://github.com/thheller/shadow-cljs/commit/26f01a9a15e336fbaef0c34134ead7f2003e5751) ] fix shadow-js for node targets
+
 ## [2.25.7](https://github.com/thheller/shadow-cljs/compare/a08f16f8b7b5e929959f797c23384f47fd545a1c...9cc5e7830ceea6adcd814ec551526f13291431a5) - 2023-09-27
 - [ [`9cc5e`](https://github.com/thheller/shadow-cljs/commit/9cc5e7830ceea6adcd814ec551526f13291431a5) ] fix npm-module output with load tracking
 - [ [`d318f`](https://github.com/thheller/shadow-cljs/commit/d318f73e87b8eb21baacb78c97fa5f32382452b1) ] fix REPL handling of errors
