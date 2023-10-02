@@ -32,9 +32,6 @@
             (->> (str "shadow.js.shim."))
             (symbol))
 
-        register-shadow-js
-        (= :shadow (get-in state [:js-options :js-provider]))
-
         ;; since we can't stop closure from rewriting require("react") even when it shouldn't
         ;; we create a second alias var that it replaces the require with a var we actually created
         commonjs-ns
@@ -58,10 +55,7 @@
      :ns js-ns-alias
      :provides #{js-ns-alias commonjs-ns}
      :requires #{}
-     :deps (-> '[goog]
-               (cond->
-                 register-shadow-js
-                 (conj 'shadow.js)))
+     :deps '[goog shadow.js]
      ;; for :npm-module support since we don't have a property to export
      ;; but need to export the entire "ns" which is just the result of require
      :export-self true
