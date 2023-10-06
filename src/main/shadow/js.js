@@ -87,6 +87,7 @@ shadow.js.jsRequire = function(name, opts) {
         );
       } catch (e) {
         console.warn("shadow-cljs - failed to load", name);
+        console.error(e);
         throw e;
       }
 
