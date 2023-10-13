@@ -237,6 +237,12 @@
           :deps '[goog cljs.core])
         ))))
 
+(defn check-self-require! [{:keys [ns] :as rc}]
+  (when (get-in rc [:ns-info :self-require])
+    (throw (ex-info (str "The namespace " ns " cannot require itself!") {:ns ns})))
+
+  rc)
+
 (defn inspect-resource
   [state {:keys [resource-name url] :as rc}]
   (cond
@@ -245,7 +251,8 @@
 
     (util/is-cljs-file? resource-name)
     (->> (assoc rc :type :cljs)
-         (inspect-cljs))
+         (inspect-cljs)
+         (check-self-require!))
 
     :else
     (throw (ex-info "cannot identify as cljs resource" {:resource-name resource-name :url (str url)}))))
