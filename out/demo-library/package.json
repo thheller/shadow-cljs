@@ -4,8 +4,8 @@
   "description": "",
   "main": "lib.js",
   "dependencies": {
+    "which": "^4.0.0"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

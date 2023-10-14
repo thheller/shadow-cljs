@@ -73,10 +73,10 @@
                 (map symbol)
                 (into #{}))
            (if (= :release (:shadow.build/mode state))
-             `(cljs.core/js-obj ~@(->> exports (mapcat (fn [[k v]] [(-> k (name) (cljs-comp/munge)) v]))))
+             `(cljs.core/js-obj ~@(->> exports (mapcat (fn [[k v]] [(-> k (name) (cond-> (not= k :default) (cljs-comp/munge))) v]))))
              `(doto (cljs.core/js-obj)
                 ~@(for [[k v] exports]
-                    `(js/Object.defineProperty ~(-> k (name) (cljs-comp/munge))
+                    `(js/Object.defineProperty ~(-> k (name) (cond-> (not= k :default) (cljs-comp/munge)))
                        (cljs.core/js-obj
                          "enumerable" true
                          "get" (fn [] ~v)))))
