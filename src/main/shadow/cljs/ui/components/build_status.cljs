@@ -46,8 +46,8 @@
         msg]
 
        (if-not source-excerpt
-         [:div {:class (css :p-1)}
-          (pr-str warning)]
+         (<< [:div {:class (css :p-1)}
+              (pr-str warning)])
          (let [{:keys [start-idx before line after]} source-excerpt]
            (<< [:div {:class (css :p-1)} ;; source-excerpt-container
                 (render-source-line start-idx before)
