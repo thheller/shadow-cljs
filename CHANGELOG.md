@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.9](https://github.com/thheller/shadow-cljs/compare/b01b7b57457007ddf2ad93d6187c9b2ff8a24315...42143df4630356d62c808adad08fa4cb80401b1e) - 2023-10-22
+- [ [`42143`](https://github.com/thheller/shadow-cljs/commit/42143df4630356d62c808adad08fa4cb80401b1e) ] fix UI issue
+- [ [`1b960`](https://github.com/thheller/shadow-cljs/commit/1b960ade748f072d0794bcb1f7e1d8be0928533f) ] enable :node-library default exports
+- [ [`ad9cd`](https://github.com/thheller/shadow-cljs/commit/ad9cd4942f30d67073ceb98d291ced27dbea0703) ] add check for ns self requires
+- [ [`f242a`](https://github.com/thheller/shadow-cljs/commit/f242a68805e715ffa909d8623444c5e98b9eb067) ] update FUNDING.yml
+- [ [`b01b7`](https://github.com/thheller/shadow-cljs/commit/b01b7b57457007ddf2ad93d6187c9b2ff8a24315) ] log loading errors
+
 ## [2.25.8](https://github.com/thheller/shadow-cljs/compare/26f01a9a15e336fbaef0c34134ead7f2003e5751...b6d0afbddc8952b67879bc9cc605526dc1cc0769) - 2023-10-02
 - [ [`b6d0a`](https://github.com/thheller/shadow-cljs/commit/b6d0afbddc8952b67879bc9cc605526dc1cc0769) ] fix previous commit
 - [ [`26f01`](https://github.com/thheller/shadow-cljs/commit/26f01a9a15e336fbaef0c34134ead7f2003e5751) ] fix shadow-js for node targets
