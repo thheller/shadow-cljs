@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.25.10](https://github.com/thheller/shadow-cljs/compare/a0c8695453fe0da48d20bc3029d5e9c26acaea45...4faee4b45629d0b0eed36c20b9f671b59eb8ca65) - 2023-10-29
+- [ [`4faee`](https://github.com/thheller/shadow-cljs/commit/4faee4b45629d0b0eed36c20b9f671b59eb8ca65) ] bump shadow-undertow, for :trust-all-certs
+- [ [`d022c`](https://github.com/thheller/shadow-cljs/commit/d022c2e9f7ca2e52a9ab09c77b80715f4d7fcafe) ] don't ignore user defmacro definitions
+- [ [`fffea`](https://github.com/thheller/shadow-cljs/commit/fffea2899ccfa3993edd0dac4fbe1ca060e52fa6) ] bump shadow-undertow for new trust proxy option
+- [ [`a0c86`](https://github.com/thheller/shadow-cljs/commit/a0c8695453fe0da48d20bc3029d5e9c26acaea45) ] reorder dev-http handlers, make ws proxying work
+
 ## [2.25.9](https://github.com/thheller/shadow-cljs/compare/b01b7b57457007ddf2ad93d6187c9b2ff8a24315...42143df4630356d62c808adad08fa4cb80401b1e) - 2023-10-22
 - [ [`42143`](https://github.com/thheller/shadow-cljs/commit/42143df4630356d62c808adad08fa4cb80401b1e) ] fix UI issue
 - [ [`1b960`](https://github.com/thheller/shadow-cljs/commit/1b960ade748f072d0794bcb1f7e1d8be0928533f) ] enable :node-library default exports
