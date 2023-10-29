@@ -1,5 +1,6 @@
 (ns shadow.build.compiler
   (:require
+    [cljs.analyzer.api :as ana-api]
     [clojure.string :as str]
     [clojure.set :as set]
     [clojure.java.io :as io]
@@ -413,7 +414,11 @@
   ;; FIXME: could use a better warning than "Use of undeclared Var demo.browser/dummy-macro"
   (if (and (not macros-ns)
            (list? form)
-           (= 'defmacro (first form)))
+           (= 'defmacro (first form))
+           ;; only ignore actual cljs defmacro, not user using own defmacro sym
+           (= 'cljs.core/defmacro
+              (binding [ana/*cljs-ns* (:ns compile-state)]
+                (ana/resolve-symbol 'defmacro))))
     compile-state
 
     (let [{:keys [op] :as ast}
