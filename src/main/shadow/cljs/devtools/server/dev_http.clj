@@ -85,8 +85,11 @@
     (try
       (let [req-handler
             [::undertow/classpath {:root "shadow/cljs/devtools/server/dev_http"}
-             [::undertow/blocking
-              [::undertow/ring {:handler-fn http-handler-fn}]]]
+             [::undertow/ws-upgrade
+              [::undertow/ws-ring {:handler-fn http-handler-fn}]
+              [::undertow/headers-inject {:headers {"Access-Control-Allow-Origin" "*"}}
+               [::undertow/blocking
+                [::undertow/ring {:handler-fn http-handler-fn}]]]]]
 
             req-handler
             (cond
@@ -143,10 +146,7 @@
             handler-config
             [::file-recorder {:on-request file-request-fn}
              [::undertow/soft-cache
-              [::undertow/ws-upgrade
-               [::undertow/ws-ring {:handler-fn http-handler-fn}]
-               [::undertow/headers-inject {:headers {"Access-Control-Allow-Origin" "*"}}
-                [::undertow/compress {} req-handler]]]]]
+              [::undertow/compress {} req-handler]]]
 
             http-options
             (-> {:port port
