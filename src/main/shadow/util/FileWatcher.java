@@ -34,13 +34,7 @@ public class FileWatcher implements AutoCloseable {
         if (this.isMac) {
             // don't know exactly what this fileHasher is about but the default directory-watcher does this
             // https://github.com/gmethvin/directory-watcher/blob/1d705974a37f34945c3cb90c0ecdeb900a2da62c/core/src/main/java/io/methvin/watcher/DirectoryWatcher.java#L129-L142
-            this.ws = new MacOSXListeningWatchService(
-                    new MacOSXListeningWatchService.Config() {
-                        @Override
-                        public FileHasher fileHasher() {
-                            return null;
-                        }
-                    });
+            this.ws = new MacOSXListeningWatchService(new MacOSXListeningWatchService.Config() {});
         } else {
             this.ws = this.root.getFileSystem().newWatchService();
         }
