@@ -22,7 +22,7 @@
 
    [org.clojure/data.json "2.4.0"]
    [org.clojure/tools.cli "1.0.206"]
-   [org.clojure/tools.reader "1.3.6"]
+   [org.clojure/tools.reader "1.3.7"]
 
    [nrepl "1.0.0"]
    [cider/piggieback "0.5.3"
