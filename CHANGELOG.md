@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.26.0](https://github.com/thheller/shadow-cljs/compare/99291b1285d0262fba415351eb83e1fe35fe62b7...131ac1831eab48231ecf274fb1ded7d6d94d768b) - 2023-11-09
+- [ [`131ac`](https://github.com/thheller/shadow-cljs/commit/131ac1831eab48231ecf274fb1ded7d6d94d768b) ] bump tools.reader
+- [ [`99291`](https://github.com/thheller/shadow-cljs/commit/99291b1285d0262fba415351eb83e1fe35fe62b7) ] bump closure compiler
+
 ## [2.25.10](https://github.com/thheller/shadow-cljs/compare/a0c8695453fe0da48d20bc3029d5e9c26acaea45...4faee4b45629d0b0eed36c20b9f671b59eb8ca65) - 2023-10-29
 - [ [`4faee`](https://github.com/thheller/shadow-cljs/commit/4faee4b45629d0b0eed36c20b9f671b59eb8ca65) ] bump shadow-undertow, for :trust-all-certs
 - [ [`d022c`](https://github.com/thheller/shadow-cljs/commit/d022c2e9f7ca2e52a9ab09c77b80715f4d7fcafe) ] don't ignore user defmacro definitions
