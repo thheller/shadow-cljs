@@ -429,6 +429,15 @@
   (write-msg w e)
   (error-format w (.getCause e)))
 
+(defmethod ex-data-format :shadow.build.resolve/unexpected-ns
+  [w e data]
+  (.write w (.getMessage e)))
+
+(defmethod ex-data-format :shadow.build.resolve/require-mismatch
+  [w e data]
+  (.write w (.getMessage e)))
+
+
 (defn error-format
   ([e]
    (let [w (StringWriter.)]

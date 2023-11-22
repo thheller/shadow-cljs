@@ -520,6 +520,25 @@
                   :expected-ns expected-ns
                   :actual-ns ns}))))))
 
+;; (:require [some.with_dash]) resolves correct but par-compile tracks the actual some.with-dash ns
+;; so ensure that all requires use actual ns name to avoid par-compile getting stuck
+;; FIXME: could just rewrite requires to the proper name instead? or add alias?
+;; for sake of keeping this clean I think its best to just abort and let user correct it
+(defn check-correct-require! [{:keys [type ns]} require-from require]
+  (when (and (= type :cljs) (not= ns require))
+    (let [require-from-ns
+          (when require-from
+            (:ns require-from))]
+      (throw
+        (ex-info
+          (if require-from-ns
+            (format "Namespace %s required %s, but the target is %s" require-from-ns require ns)
+            (format "Require of %s should be %s" require ns))
+          {:tag ::require-mismatch
+           :require require
+           :require-from require-from-ns
+           :ns ns})))))
+
 (defn find-resource-for-symbol*
   [{:keys [classpath] :as state} require-from require]
   ;; check if ns is an alias
@@ -532,6 +551,7 @@
       ;; otherwise check if the classpath provides a symbol
       (when-let [rc (cp/find-resource-for-provide classpath require)]
         (check-correct-ns! rc)
+        (check-correct-require! rc require-from require)
         [rc state])
 
       ;; special cases where clojure.core.async gets aliased to cljs.core.async
@@ -544,6 +564,7 @@
           ;; auto alias clojure.core.async -> cljs.core.async if it exists
           (when-let [rc (cp/find-resource-for-provide classpath cljs-sym)]
             (check-correct-ns! rc)
+            (check-correct-require! rc require-from cljs-sym)
             [rc
              (-> state
                  (update :ns-aliases assoc require cljs-sym)
