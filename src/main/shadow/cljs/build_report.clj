@@ -247,6 +247,14 @@
   (io/make-parents data-file)
   (spit data-file (core-ext/safe-pr-str bundle-info)))
 
+;; node builds put files into .shadow-cljs/ and only a single :output-to file into the regular :output-dir
+;; we want all the files to go into our temp folder, so overwrite that too
+(defn maybe-redirect-node-output [{:keys [node-config] :as state} temp-dir]
+  (if-not node-config
+    state
+    (assoc-in state [:node-config :output-to] (io/file temp-dir (.getName (:output-to node-config))))
+    ))
+
 (defn generate
   [{:keys [build-id] :as build-config} {:keys [tag print-table report-file data-file] :or {tag "latest"} :as opts}]
   {:pre [(keyword? build-id)
@@ -276,7 +284,8 @@
           (-> (server-util/new-build build-config :release {})
               (build/configure :release build-config opts)
               (build-api/enable-source-maps)
-              (assoc-in [:build-options :output-dir] (io/file output-dir))
+              (assoc-in [:build-options :output-dir] output-dir)
+              (maybe-redirect-node-output output-dir)
               (build/compile)
               (build/optimize)
               (build/flush))

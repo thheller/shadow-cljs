@@ -108,9 +108,6 @@
         output-name
         (.getName output-to)
 
-        module-name
-        (-> output-name (str/replace #".js$" "") (keyword))
-
         node-config
         {:output-to output-to}
 
@@ -141,6 +138,7 @@
            {:entries '[shadow.umd-helper]
             :depends-on #{}
             :prepend prepend
+            :output-name output-name
             :append-js "\nshadow$umd$export = shadow.umd_helper.get_exports();\n"
             :append (str/trim append)}}))))
 
