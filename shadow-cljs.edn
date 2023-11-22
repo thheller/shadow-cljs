@@ -245,6 +245,11 @@
    :entries [demo.graal]
    :compiler-options {:source-map true}}
 
+  :single
+  {:target :single-file
+   :output-to "out/demo-single/lib.js"
+   :entries [demo.graal]}
+
   :self-contained-script
   {:target :node-script
    :main demo.script/main

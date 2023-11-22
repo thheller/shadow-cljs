@@ -15,31 +15,24 @@
     [shadow.cljs.util :as util]))
 
 (defn configure
-  [{:keys [worker-info] :as state} mode {:keys [build-id output-to entry] :as config}]
+  [state mode {:keys [build-id output-to entry entries] :as config}]
   (let [runtime
         (api/get-runtime!)
 
         asset-path
         (str "http://localhost:9630/cache/" (name build-id) "/dev/out")
 
+        output-to
+        (io/file output-to)
+
         output-dir
-        (io/file (get-in runtime [:config :cache-root]) "builds" (name build-id) "dev" "out")
+        (if (= :dev mode)
+          (io/file (get-in runtime [:config :cache-root]) "builds" (name build-id) "dev" "out")
+          (.getParentFile output-to))
 
         module-config
-        (-> {:module-id :main
-             :default true
-             :entries [entry]}
-            (cond->
-              ;; REPL client - only for watch (via worker-info), not compile
-              (and (= :dev mode) worker-info)
-              (browser/inject-repl-client state config)
-
-              ;; DEVTOOLS console, it is prepended so it loads first in case anything wants to log
-              (= :dev mode)
-              (browser/inject-devtools-console state config)
-
-              (= :dev mode)
-              (browser/inject-preloads state config)))]
+        {:entries (or entries [entry])
+         :output-name (.getName output-to)}]
 
     (-> state
         (assoc ::output-to (io/file output-to))
@@ -50,16 +43,9 @@
         (build-api/with-js-options
           {:js-provider :shadow})
 
-        (cond->
-          (and (= :dev mode) (:worker-info state))
-          (shared/merge-repl-defines config))
-
         (modules/configure {:main module-config})
         )))
 
-;; acts of sort of a cache for source maps
-;; converting CLJS format to v3 is quite expensive
-;; so we only want to do that once
 (defn generate-source-maps
   [state]
   (reduce
@@ -147,10 +133,7 @@
                         (map #(data/get-source-by-id state %))
                         (map :output-name)
                         (into []))]
-               (str "SHADOW_ENV.load("
-                    (json/write-str {:forceAsync true})
-                    ", "
-                    (json/write-str require-files) ");\n"))
+               (str "SHADOW_ENV.load({}, " (json/write-str require-files) ");\n"))
 
              "\n\n")
 
