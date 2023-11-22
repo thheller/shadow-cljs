@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.26.1](https://github.com/thheller/shadow-cljs/compare/e2d5f248509fb3bc269c735c4d129adc6f4a9757...d751170992de5e06349523d75b47eb555e98e487) - 2023-11-22
+- [ [`d7511`](https://github.com/thheller/shadow-cljs/commit/d751170992de5e06349523d75b47eb555e98e487) ] refresh :target :single-file
+- [ [`ddd0f`](https://github.com/thheller/shadow-cljs/commit/ddd0f5a84402b86aaea3942fa6c2406bee3fa494) ] check requires to actually match provided ns
+- [ [`e2d5f`](https://github.com/thheller/shadow-cljs/commit/e2d5f248509fb3bc269c735c4d129adc6f4a9757) ] make build reports work with node targets
+
 ## [2.26.0](https://github.com/thheller/shadow-cljs/compare/99291b1285d0262fba415351eb83e1fe35fe62b7...131ac1831eab48231ecf274fb1ded7d6d94d768b) - 2023-11-09
 - [ [`131ac`](https://github.com/thheller/shadow-cljs/commit/131ac1831eab48231ecf274fb1ded7d6d94d768b) ] bump tools.reader
 - [ [`99291`](https://github.com/thheller/shadow-cljs/commit/99291b1285d0262fba415351eb83e1fe35fe62b7) ] bump closure compiler
