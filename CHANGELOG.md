@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.26.2](https://github.com/thheller/shadow-cljs/compare/95319704e300d897a2a1bf33433f0d4d8d3586e8...95319704e300d897a2a1bf33433f0d4d8d3586e8) - 2023-11-22
+- [ [`95319`](https://github.com/thheller/shadow-cljs/commit/95319704e300d897a2a1bf33433f0d4d8d3586e8) ] move CORS headers up in :dev-http
+
 ## [2.26.1](https://github.com/thheller/shadow-cljs/compare/e2d5f248509fb3bc269c735c4d129adc6f4a9757...d751170992de5e06349523d75b47eb555e98e487) - 2023-11-22
 - [ [`d7511`](https://github.com/thheller/shadow-cljs/commit/d751170992de5e06349523d75b47eb555e98e487) ] refresh :target :single-file
 - [ [`ddd0f`](https://github.com/thheller/shadow-cljs/commit/ddd0f5a84402b86aaea3942fa6c2406bee3fa494) ] check requires to actually match provided ns
