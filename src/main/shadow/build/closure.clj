@@ -1222,9 +1222,13 @@
                                   ""
                                   (.toSource compiler js-module))]
 
-                            (if (and (not (seq js))
-                                     (not (seq prepend))
-                                     (not (seq append)))
+                            ;; modules that have all code moved out of it will still have
+                            ;; use strict generated for it, which is useless if the file is empty
+                            ;; so filter that too since we don't need source maps for an empty file
+                            (if (or (= js "'use strict';")
+                                    (and (not (seq js))
+                                         (not (seq prepend))
+                                         (not (seq append))))
                               (assoc mod :dead true :output "")
 
                               (-> mod
