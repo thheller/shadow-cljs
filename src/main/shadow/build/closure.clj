@@ -1087,29 +1087,6 @@
       (str/replace "window.global", "/*****/global")
       ))
 
-(defn source-map-sources [state]
-  (->> (:build-sources state)
-       (map (fn [src-id]
-              (let [{:keys [resource-name] :as rc}
-                    (get-in state [:sources src-id])
-
-                    {:keys [source]}
-                    (data/get-output! state rc)]
-
-                (when (string? source)
-                  (closure-source-file resource-name source)))))
-       (remove nil?)
-       (into [])))
-
-(defn add-sources-to-source-map [state source-map]
-  ;; this needs to add ALL sources, not just the sources of the module
-  ;; this is because cross-module motion may have moved code
-  ;; closure will only include the relevant files but it needs to be able to find all
-  ;; for some reason .reset removes them all so we need to repeat this for every module
-  ;; since modules require .reset
-  (doseq [src-file (source-map-sources state)]
-    (.addSourceFile source-map (.getName src-file) (.getCode src-file))))
-
 (defn get-injected-libs [compiler]
   (-> (.get injected-libraries-field compiler)
       (set)))
@@ -1213,9 +1190,7 @@
                    (map (fn [{:keys [goog-base module-id prepend append output-name js-module sources includes] :as mod}]
                           ;; must reset source map before calling .toSource
                           (when source-map
-                            (.reset source-map)
-                            (when (get-in state [:compiler-options :source-map-include-sources-content])
-                              (add-sources-to-source-map state source-map)))
+                            (.reset source-map))
 
                           (let [js
                                 (if-not js-module ;; foreign only doesnt have JSModule instance
