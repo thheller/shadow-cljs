@@ -751,7 +751,7 @@
               ;; special case for cljs.core since we shouldn't create keywords before they are defined
               (when (and (contains? mod-deps 'cljs.core)
                          (not (contains? mod-provides 'cljs.core)))
-                (.add js-mod (closure-source-file mod-constants-name "")))
+                (.add js-mod (closure-source-file mod-constants-name "// generated")))
 
               ;; closure for some reason creates
               ;;   module$demo$es6 = { ... };
@@ -897,7 +897,7 @@
                       (JSChunk. (util/flat-filename output-name))]
 
                   (when (= :cljs type)
-                    (.add js-mod (closure-source-file (str "shadow/cljs/constants/" resource-name) "")))
+                    (.add js-mod (closure-source-file (str "shadow/cljs/constants/" resource-name) "// generated")))
 
                   (.add js-mod (closure-source-file resource-name code))
 

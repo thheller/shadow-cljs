@@ -59,7 +59,7 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
 
             for (CompilerInput input : targetModule.getInputs()) {
                 if (input.getName().startsWith("shadow/cljs/constants/")) {
-                    target = input.getAstRoot(compiler);
+                    target = compiler.getScriptNode(input.getName());
                     break;
                 }
             }
