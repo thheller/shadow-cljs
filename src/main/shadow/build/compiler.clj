@@ -209,6 +209,107 @@
 
 (def ^:dynamic *analyze-top* nil)
 
+(defn maybe-replace [ast path val next-val]
+  (if (identical? val next-val)
+    ast
+    (assoc-in ast path next-val)))
+
+(declare optimize-constants)
+
+(defn optimize-constants* [{:keys [children] :as ast} opts constants-ref]
+  (reduce
+    (fn [ast child-key]
+      (let [child (get ast child-key)]
+        (cond
+          (map? child)
+          (maybe-replace ast [child-key] child (optimize-constants child opts constants-ref))
+
+          (vector? child)
+          (loop [i 0
+                 ast ast]
+            (if (>= i (count child))
+              ast
+              (let [child (nth child i)]
+                (recur
+                  (inc i)
+                  (maybe-replace ast [child-key i] child (optimize-constants child opts constants-ref)))
+                )))
+
+          :else
+          (throw (ex-info "unexpected analyzer child" {}))
+          )))
+    ast
+    children))
+
+;; https://github.com/thheller/shadow-grove/blob/master/src/main/shadow/arborist/fragments.cljc#L31
+(defn const? [env thing]
+  (or (string? thing)
+      (number? thing)
+      (boolean? thing)
+      (keyword? thing)
+      (= thing 'nil)
+      (and (vector? thing) (every? #(const? env %) thing))
+      (and (map? thing)
+           (reduce-kv
+             (fn [r k v]
+               (if-not (and (const? env k) (const? env v))
+                 (reduced false)
+                 r))
+             true
+             thing))
+
+      ;; treat foo/bar symbols as constants as they are assumed to be def'd vars
+      ;; which shouldn't ever change during a lifecycle update
+      ;; treat non-local symbols as constants as well since they shouldn't change either
+
+      ;; (def some-class "foo bar")
+      ;; (<< [:div {:class some-class} ...])
+      ;; (<< [:div {:class styles/card} ...])
+      ;; don't ever need to update :class
+
+      ;; this might be to aggressive
+      #_(qualified-symbol? thing)
+      #_(and (simple-symbol? thing)
+             (not (get-in env [:locals thing])))))
+
+(defn optimize-constants [{:keys [op] :as ast} opts constants-ref]
+  (cond
+    (or (= :map op)
+        (= :vector op)
+        (= :set op))
+    (let [form (:form ast)
+          env (:env ast)]
+      (cond
+        (not (seq form))
+        ast
+
+        ;; not completely constant, descent further
+        (not (const? env form))
+        (optimize-constants* ast opts constants-ref)
+
+        ;; completely constant, pull up into delay and deref
+        :else
+        (let [ns (:name (:ns env))
+              const-sym (gensym "shadow_const_")
+              const-fqsym (symbol (str ns) (str const-sym))]
+          ;; construct constant with delay
+          ;; replace constant with delay deref
+          (let [inject
+                (ana/analyze* (assoc env :context :statement)
+                  `(~'def ~const-sym (cljs.core/delay ~form)) nil opts)]
+            ;; delay+deref to avoid constructing all constants on script load
+            ;; load time vs runtime overhead? might also affect DCE
+            ;; closure seems to eliminate a delay that is never deref'd fine
+            ;; FIXME: actually benchmark this,
+            (swap! constants-ref conj inject))
+
+          (ana/analyze* env `(clojure.core/deref ~const-fqsym) nil opts)
+          )))
+
+    :else
+    (optimize-constants* ast opts constants-ref)
+    ))
+
 (defn analyze
   ([state compile-state form]
    (analyze state compile-state form false))
@@ -265,7 +366,11 @@
                  ;; it seems to do this to get rid of duplicated warnings?
                  ;; we just do a distinct later
                  (ana/analyze* form nil opts)
-                 (post-analyze state)))]
+                 (post-analyze state)
+                 (cond->
+                   (and (not= ns 'cljs.core) (get-in state [:compiler-options :shadow-optimize-constants]))
+                   (optimize-constants opts injected-forms-ref)
+                   )))]
 
        (let [injected-forms @injected-forms-ref]
          (if-not (seq injected-forms)
