@@ -795,54 +795,55 @@
 
   (when-not (str/starts-with? rel-require "./")
     (throw (ex-info "invalid require" {:package (:package-name package) :require-from (:resource-id require-from) :rel-require rel-require})))
+  (let [use-exports? (and (:exports package)
+                          ;; always good to have a toggle to ignore exports mess
+                          (not (get-in npm [:js-options :ignore-exports])))]
 
-  (if (and (:exports package)
-           ;; always good to have a toggle to ignore exports mess
-           (not (get-in npm [:js-options :ignore-exports]))
-           ;; exports only apply to requires from other packages
-           ;; the package itself may refer to anything, following the default rules below
-           (not= (:package-id package) (get-in require-from [::package :package-id])))
     ;; package has exports, so they take priority over everything else
-    (or (find-resource-from-exports npm package rel-require)
-        (throw (ex-info (format "package %s had exports, but could not resolve %s" (:package-name package) rel-require)
-                 {:package (:package-dir package)
-                  :require-from (:resource-id require-from)
-                  :rel-require rel-require})))
+    (or (and use-exports? (find-resource-from-exports npm package rel-require))
 
-    ;; default npm resolve, no "exports" present, or package internal require
-    (when-let [match (find-match-in-package npm package rel-require)]
+        ;; exports lock down the package, so only the package itself may require its files normally
+        ;; outsiders should fail
+        (when (and use-exports? (:exports package) (not= (:package-id package) (get-in require-from [::package :package-id])))
+          (throw (ex-info (format "package %s had exports, but could not resolve %s" (:package-name package) rel-require)
+                   {:package (:package-dir package)
+                    :require-from (:resource-id require-from)
+                    :rel-require rel-require})))
 
-      ;; might have used a nested package.json, continue from there
-      ;; not the root package we started with
-      (let [[package file] match
-            rel-path (as-package-rel-path package file)
-            override (get-package-override npm package rel-path)]
+        ;; default npm resolve, no "exports" present, or package internal require
+        (when-let [match (find-match-in-package npm package rel-require)]
 
-        (cond
-          ;; override to disable require, sometimes used to skip certain requires for browser
-          (false? override)
-          empty-rc
+          ;; might have used a nested package.json, continue from there
+          ;; not the root package we started with
+          (let [[package file] match
+                rel-path (as-package-rel-path package file)
+                override (get-package-override npm package rel-path)]
 
-          (and (string? override) (not= override rel-path))
-          (or (if (util/is-relative? override)
-                (find-resource-in-package npm package require-from override)
-                (find-resource npm require-from override))
-              (throw (ex-info (format "require %s was overridden to %s but didn't exist in package %s"
-                                rel-require override (:package-name package))
-                       {:package package
-                        :rel-require rel-require})))
+            (cond
+              ;; override to disable require, sometimes used to skip certain requires for browser
+              (false? override)
+              empty-rc
 
-          (not (nil? override))
-          (throw (ex-info (format "invalid override %s for %s in %s"
-                            override rel-require (:package-name package))
-                   {:tag ::invalid-override
-                    :package-dir (:package-dir package)
-                    :require rel-require
-                    :override override}))
+              (and (string? override) (not= override rel-path))
+              (or (if (util/is-relative? override)
+                    (find-resource-in-package npm package require-from override)
+                    (find-resource npm require-from override))
+                  (throw (ex-info (format "require %s was overridden to %s but didn't exist in package %s"
+                                    rel-require override (:package-name package))
+                           {:package package
+                            :rel-require rel-require})))
 
-          :no-override
-          (file-as-resource npm package rel-require file)
-          )))))
+              (not (nil? override))
+              (throw (ex-info (format "invalid override %s for %s in %s"
+                                override rel-require (:package-name package))
+                       {:tag ::invalid-override
+                        :package-dir (:package-dir package)
+                        :require rel-require
+                        :override override}))
+
+              :no-override
+              (file-as-resource npm package rel-require file)
+              ))))))
 
 (defn find-resource
   [npm require-from ^String require]
