@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.26.4](https://github.com/thheller/shadow-cljs/compare/defd998d26bdb6050875a86f66aeb113f4b33374...e800cbccbb18588238d868d93c592dd38f21fc97) - 2024-01-11
+- [ [`e800c`](https://github.com/thheller/shadow-cljs/commit/e800cbccbb18588238d868d93c592dd38f21fc97) ] fix npm require for self exports
+- [ [`a3886`](https://github.com/thheller/shadow-cljs/commit/a3886a0c17cd2929b923879a48b95c7c17bc6df4) ] fix error message for unexpected-ns
+- [ [`defd9`](https://github.com/thheller/shadow-cljs/commit/defd998d26bdb6050875a86f66aeb113f4b33374) ] add experimental constant lifting
+
 ## [2.26.3](https://github.com/thheller/shadow-cljs/compare/27703641b64b412a26861e7cab77378752c801d3...63b7276c59a9cea1aa252a907c67fec278547cf3) - 2024-01-08
 - [ [`63b72`](https://github.com/thheller/shadow-cljs/commit/63b7276c59a9cea1aa252a907c67fec278547cf3) ] avoid passing empty sources to compiler
 - [ [`64aa9`](https://github.com/thheller/shadow-cljs/commit/64aa9c5acdbb9ce5b7563323d02cefec736f102e) ] remove closure workaround
