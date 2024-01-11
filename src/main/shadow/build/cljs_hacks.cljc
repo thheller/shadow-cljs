@@ -816,20 +816,19 @@
 
 (defn shadow-parse-invoke*
   [env [f & args :as form]]
-  (let
-    [enve (assoc env :context :expr)
-     fexpr (ana/analyze enve f)
+  (let [enve (assoc env :context :expr)
+        fexpr (ana/analyze enve f)
 
-     argc (count args)
-     ftag (ana/infer-tag env fexpr)
+        argc (count args)
+        ftag (ana/infer-tag env fexpr)
 
-     ;; delay parsing args
-     ;; :maybe-ifn case may decide to wrap in which case args shouldn't be analyzed twice
-     args-exprs (delay (mapv #(ana/analyze enve %) args))
+        ;; delay parsing args
+        ;; :maybe-ifn case may decide to wrap in which case args shouldn't be analyzed twice
+        args-exprs (delay (mapv #(ana/analyze enve %) args))
 
-     info (:info fexpr)
-     ;; fully-qualified symbol name of protocol-fn (if protocol-fn)
-     protocol (:protocol info)]
+        info (:info fexpr)
+        ;; fully-qualified symbol name of protocol-fn (if protocol-fn)
+        protocol (:protocol info)]
 
     (when (:fn-var info)
       (when (invalid-arity? (:info fexpr) argc)

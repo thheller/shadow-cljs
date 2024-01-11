@@ -430,8 +430,17 @@
   (error-format w (.getCause e)))
 
 (defmethod ex-data-format :shadow.build.resolve/unexpected-ns
-  [w e data]
-  (.write w (.getMessage e)))
+  [w e {:keys [resource actual-ns expected-ns]}]
+  (.write w (.getMessage e))
+  (.write w "Resource: ")
+  (.write w resource)
+  (.write w "\n")
+  (.write w "Expected: ")
+  (.write w (pr-str expected-ns))
+  (.write w "\n")
+  (.write w "Actual: ")
+  (.write w (pr-str actual-ns))
+  (.write w "\n"))
 
 (defmethod ex-data-format :shadow.build.resolve/require-mismatch
   [w e data]
