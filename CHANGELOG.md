@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.26.5](https://github.com/thheller/shadow-cljs/compare/8637590f26e9f59a1aac00c67192e1804bf920e7...8637590f26e9f59a1aac00c67192e1804bf920e7) - 2024-01-15
+- [ [`86375`](https://github.com/thheller/shadow-cljs/commit/8637590f26e9f59a1aac00c67192e1804bf920e7) ] tweak exports logic once more
+
 ## [2.26.4](https://github.com/thheller/shadow-cljs/compare/defd998d26bdb6050875a86f66aeb113f4b33374...e800cbccbb18588238d868d93c592dd38f21fc97) - 2024-01-11
 - [ [`e800c`](https://github.com/thheller/shadow-cljs/commit/e800cbccbb18588238d868d93c592dd38f21fc97) ] fix npm require for self exports
 - [ [`a3886`](https://github.com/thheller/shadow-cljs/commit/a3886a0c17cd2929b923879a48b95c7c17bc6df4) ] fix error message for unexpected-ns
