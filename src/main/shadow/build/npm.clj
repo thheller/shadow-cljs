@@ -720,12 +720,14 @@
 
       (cond
         (not file)
-        (throw (ex-info (format "package export match referenced a file that doesn't exist")
-                 {:rel-require rel-require :package-dir package-dir :match match :exports exports-exact}))
+        nil
+        #_(throw (ex-info (format "package export match referenced a file that doesn't exist")
+                   {:rel-require rel-require :package-dir package-dir :match match :exports exports-exact}))
 
         (.isDirectory file)
-        (throw (ex-info (format "package export match referenced a directory")
-                 {:file file :rel-require rel-require :package-dir package-dir :match match :exports exports-exact}))
+        nil
+        #_(throw (ex-info (format "package export match referenced a directory")
+                   {:file file :rel-require rel-require :package-dir package-dir :match match :exports exports-exact}))
 
         :else
         (file-as-resource npm package rel-require file)))))
@@ -742,12 +744,14 @@
                   file (test-file package-dir path)]
               (cond
                 (not file)
-                (throw (ex-info "package export prefix match referenced a file that doesn't exist"
-                         {:rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+                nil
+                #_(throw (ex-info "package export prefix match referenced a file that doesn't exist"
+                           {:rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
 
                 (.isDirectory file)
-                (throw (ex-info (format "package export prefix match referenced a directory")
-                         {:file file :rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+                nil
+                #_(throw (ex-info (format "package export prefix match referenced a directory")
+                           {:file file :rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
 
                 :else
                 (reduced (file-as-resource npm package rel-require file)))
@@ -769,12 +773,14 @@
 
               (cond
                 (not file)
-                (throw (ex-info "package export wildcard match referenced a file that doesn't exist"
-                         {:rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+                nil
+                #_(throw (ex-info "package export wildcard match referenced a file that doesn't exist"
+                           {:rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
 
                 (.isDirectory file)
-                (throw (ex-info (format "package export wildcard match referenced a directory")
-                         {:file file :rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+                nil
+                #_(throw (ex-info (format "package export wildcard match referenced a directory")
+                           {:file file :rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
 
                 :else
                 (reduced (file-as-resource npm package rel-require file)))
@@ -784,6 +790,7 @@
 
 (defn find-resource-from-exports
   [npm package rel-require]
+  ;; no hard fail in any of these, if no match can be found it should just return nil
   (or (find-resource-from-exports-exact npm package rel-require)
       (find-resource-from-exports-by-prefix npm package rel-require)
       (find-resource-from-exports-by-wildcard npm package rel-require)))
@@ -795,55 +802,63 @@
 
   (when-not (str/starts-with? rel-require "./")
     (throw (ex-info "invalid require" {:package (:package-name package) :require-from (:resource-id require-from) :rel-require rel-require})))
-  (let [use-exports? (and (:exports package)
-                          ;; always good to have a toggle to ignore exports mess
-                          (not (get-in npm [:js-options :ignore-exports])))]
+  (let [use-exports?
+        (and (:exports package)
+             ;; always good to have a toggle to ignore exports mess
+             (not (get-in npm [:js-options :ignore-exports])))
 
-    ;; package has exports, so they take priority over everything else
-    (or (and use-exports? (find-resource-from-exports npm package rel-require))
+        package-internal-request?
+        (= (:package-id package) (get-in require-from [::package :package-id]))]
 
-        ;; exports lock down the package, so only the package itself may require its files normally
-        ;; outsiders should fail
-        (when (and use-exports? (:exports package) (not= (:package-id package) (get-in require-from [::package :package-id])))
+    ;; package has exports, so they take priority over everything else when the request is from a different package
+    (if (and use-exports? (not package-internal-request?))
+      (or (find-resource-from-exports npm package rel-require)
+
+          ;; exports lock down the package, so only the package itself may require its files normally
+          ;; outsiders should fail
           (throw (ex-info (format "package %s had exports, but could not resolve %s" (:package-name package) rel-require)
                    {:package (:package-dir package)
                     :require-from (:resource-id require-from)
                     :rel-require rel-require})))
 
-        ;; default npm resolve, no "exports" present, or package internal require
-        (when-let [match (find-match-in-package npm package rel-require)]
+      ;; package internal require may still use exports, but shouldn't fail when no match is found and instead
+      ;; fall through to the regular npm lookup logic
+      ;; always going that route when no exports are present in the package
+      (or (and use-exports? (find-resource-from-exports npm package rel-require))
+          (when-let [match (find-match-in-package npm package rel-require)]
 
-          ;; might have used a nested package.json, continue from there
-          ;; not the root package we started with
-          (let [[package file] match
-                rel-path (as-package-rel-path package file)
-                override (get-package-override npm package rel-path)]
+            ;; might have used a nested package.json, continue from there
+            ;; not the root package we started with
+            (let [[package file] match
+                  rel-path (as-package-rel-path package file)
+                  override (get-package-override npm package rel-path)]
 
-            (cond
-              ;; override to disable require, sometimes used to skip certain requires for browser
-              (false? override)
-              empty-rc
+              (cond
+                ;; override to disable require, sometimes used to skip certain requires for browser
+                (false? override)
+                empty-rc
 
-              (and (string? override) (not= override rel-path))
-              (or (if (util/is-relative? override)
-                    (find-resource-in-package npm package require-from override)
-                    (find-resource npm require-from override))
-                  (throw (ex-info (format "require %s was overridden to %s but didn't exist in package %s"
-                                    rel-require override (:package-name package))
-                           {:package package
-                            :rel-require rel-require})))
+                (and (string? override) (not= override rel-path))
+                (or (if (util/is-relative? override)
+                      (find-resource-in-package npm package require-from override)
+                      (find-resource npm require-from override))
+                    (throw (ex-info (format "require %s was overridden to %s but didn't exist in package %s"
+                                      rel-require override (:package-name package))
+                             {:package package
+                              :rel-require rel-require})))
 
-              (not (nil? override))
-              (throw (ex-info (format "invalid override %s for %s in %s"
-                                override rel-require (:package-name package))
-                       {:tag ::invalid-override
-                        :package-dir (:package-dir package)
-                        :require rel-require
-                        :override override}))
+                (not (nil? override))
+                (throw (ex-info (format "invalid override %s for %s in %s"
+                                  override rel-require (:package-name package))
+                         {:tag ::invalid-override
+                          :package-dir (:package-dir package)
+                          :require rel-require
+                          :override override}))
 
-              :no-override
-              (file-as-resource npm package rel-require file)
-              ))))))
+                :no-override
+                (file-as-resource npm package rel-require file)
+                )))
+          ))))
 
 (defn find-resource
   [npm require-from ^String require]
