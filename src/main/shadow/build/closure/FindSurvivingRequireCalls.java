@@ -20,7 +20,7 @@ public class FindSurvivingRequireCalls extends NodeTraversal.AbstractPostOrderCa
 
             if (name.isName()) {
                 refName = name;
-            } else if (name.isGetProp() || name.getFirstChild().isName()) {
+            } else if (name.isGetProp() && name.getFirstChild().isName()) {
                 refName = name.getFirstChild();
             } else {
                 return;
