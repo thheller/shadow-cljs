@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.26.6](https://github.com/thheller/shadow-cljs/compare/ff6c4c9aa3d1e9188303850a95319455f31c6317...eb92d3f1c907de0074b0a17da1d2ebe6b9cbc994) - 2024-01-23
+- [ [`eb92d`](https://github.com/thheller/shadow-cljs/commit/eb92d3f1c907de0074b0a17da1d2ebe6b9cbc994) ] add missing files
+- [ [`561d4`](https://github.com/thheller/shadow-cljs/commit/561d4990d4ee8bbdb50fad537b5e9c4cd32f96c4) ] emulate import() support for npm sources
+- [ [`ff6c4`](https://github.com/thheller/shadow-cljs/commit/ff6c4c9aa3d1e9188303850a95319455f31c6317) ] add basic detection of dynamic import() uses
+
 ## [2.26.5](https://github.com/thheller/shadow-cljs/compare/8637590f26e9f59a1aac00c67192e1804bf920e7...8637590f26e9f59a1aac00c67192e1804bf920e7) - 2024-01-15
 - [ [`86375`](https://github.com/thheller/shadow-cljs/commit/8637590f26e9f59a1aac00c67192e1804bf920e7) ] tweak exports logic once more
 
