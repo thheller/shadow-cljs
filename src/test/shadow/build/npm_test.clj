@@ -292,6 +292,14 @@
     (is (thrown? ExceptionInfo (find-npm-resource x nil "exports/not-exported")))
     ))
 
+
+(deftest test-dynamic-import
+  (with-npm [x {}]
+    (let [{:keys [js-dynamic-imports] :as rc} (find-npm-resource x nil "dyn-import")]
+      (tap> rc)
+      (is (= ["./dynamic.js"] js-dynamic-imports))
+      )))
+
 (comment
   ;; FIXME: write proper tests for these
 

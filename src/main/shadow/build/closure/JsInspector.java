@@ -6,6 +6,7 @@ import com.google.javascript.jscomp.*;
 import com.google.javascript.jscomp.Compiler;
 import com.google.javascript.jscomp.parsing.parser.FeatureSet;
 import com.google.javascript.rhino.Node;
+import com.google.javascript.rhino.Token;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -39,6 +40,7 @@ public class JsInspector {
         ITransientCollection requires = PersistentVector.EMPTY.asTransient();
         ITransientCollection invalidRequires = PersistentVector.EMPTY.asTransient();
         ITransientCollection imports = PersistentVector.EMPTY.asTransient();
+        ITransientCollection dynamicImports = PersistentVector.EMPTY.asTransient();
         ITransientCollection strOffsets = PersistentVector.EMPTY.asTransient();
 
         boolean esm = false;
@@ -120,6 +122,15 @@ public class JsInspector {
                 String from = importString.getString();
                 imports = imports.conj(from);
                 recordStrOffset(importString, true);
+            } else if (node.getToken() == Token.DYNAMIC_IMPORT) {
+                Node arg = node.getFirstChild();
+                if (node.getChildCount() == 1 && arg.isStringLit()) {
+                    String x = arg.getString();
+                    dynamicImports = dynamicImports.conj(x);
+                    recordStrOffset(arg, false);
+                } else {
+                   throw new IllegalArgumentException("file uses import() with unsupported arguments and cannot be processed");
+                }
             } else if (NodeUtil.isCallTo(node, "goog.require")) {
                 String x = node.getLastChild().getString();
                 googRequires = googRequires.conj(x);
@@ -167,6 +178,7 @@ public class JsInspector {
     public static final Keyword KW_INVALID_REQUIRES = RT.keyword(NS, "js-invalid-requires");
     public static final Keyword KW_REQUIRES = RT.keyword(NS, "js-requires");
     public static final Keyword KW_IMPORTS = RT.keyword(NS, "js-imports");
+    public static final Keyword KW_DYNAMIC_IMPORTS = RT.keyword(NS, "js-dynamic-imports");
     public static final Keyword KW_ERRORS = RT.keyword(NS, "js-errors");
     public static final Keyword KW_WARNINGS = RT.keyword(NS, "js-warnings");
     public static final Keyword KW_LANGUAGE = RT.keyword(NS, "js-language");
@@ -205,6 +217,7 @@ public class JsInspector {
         IPersistentMap map = RT.map(
                 KW_REQUIRES, fileInfo.requires.persistent(),
                 KW_IMPORTS, fileInfo.imports.persistent(),
+                KW_DYNAMIC_IMPORTS, fileInfo.dynamicImports.persistent(),
                 KW_ESM, fileInfo.esm,
                 KW_GOOG_PROVIDES, fileInfo.googProvides.persistent(),
                 KW_GOOG_REQUIRES, fileInfo.googRequires.persistent(),
