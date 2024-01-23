@@ -499,7 +499,7 @@
              (if eval-js
                state
                (let [source-map? (output/has-source-map? output)
-                     eval-js (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? " , \"" (.escape js-escaper ^String js) "\");")]
+                     eval-js (str "SHADOW_ENV.evalLoad(\"" output-name "\", " source-map? ", \"" (.escape js-escaper ^String js) "\");")]
                  (assoc-in state [:output src-id :eval-js] eval-js)))))
          state)))
 

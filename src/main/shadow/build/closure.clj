@@ -1975,7 +1975,7 @@
           ;; :whitespace or :simple work but some patterns really require the DCE done by :simple
           ;; eg some conditional imports done by react&friends
           {:optimizations :simple
-           :pretty-print false
+           :pretty-print (boolean (= mode :dev))
            :pseudo-names false
            ;; es6+ is transformed by babel first
            ;; but closure got real picky and complains about some things being es6 that aren't
@@ -2089,24 +2089,24 @@
           (fn [state source-node]
             (.reset source-map)
 
-            (let [name (.getSourceFileName source-node)]
+            (let [source-name (.getSourceFileName source-node)]
               (cond
                 ;; capture polyfills separately later via injected-libs tracking
-                (= name polyfill-name)
+                (= source-name polyfill-name)
                 state
 
                 :else
                 (let [source-file
-                      (get source-files-by-name name)
+                      (get source-files-by-name source-name)
 
                       {:keys [resource-id ns output-name deps] :as rc}
-                      (get resource-by-name name)
+                      (get resource-by-name source-name)
 
                       js
                       (try
                         (ShadowAccess/nodeToJs cc source-map source-node)
                         (catch Exception e
-                          (throw (ex-info (format "failed to generate JS for \"%s\"" name) {:name name} e))))
+                          (throw (ex-info (format "failed to generate JS for \"%s\"" source-name) {:name source-name} e))))
 
                       sm-json
                       (when generate-source-map?
@@ -2126,7 +2126,7 @@
                       (FindSurvivingRequireCalls/find cc source-node)
 
                       removed-requires
-                      (->> (get require-replacements name)
+                      (->> (get require-replacements source-name)
                            (vals)
                            (remove (fn [dep]
                                      ;; may be symbol, number or string
@@ -2142,7 +2142,7 @@
                       (into #{} (remove removed-requires) deps)
 
                       properties
-                      (-> (into #{} (-> property-collector (.-properties) (.get name)))
+                      (-> (into #{} (-> property-collector (.-properties) (.get source-name)))
                           (clean-collected-properties))
 
                       output

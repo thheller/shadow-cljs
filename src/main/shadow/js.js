@@ -128,6 +128,17 @@ shadow.js.jsRequire["esmDefault"] = function(mod) {
   return (mod && mod["__esModule"]) ? mod : {"default": mod};
 };
 
+// compat for transpiled import()
+// changed to require.dynamic("module$...") by ReplaceRequirePass to hide it entirely from the closure compiler
+// there is no actual dynamic loading as the sources are already loaded
+// but we can still delay initializing the moduleFn until actually used
+// using Promise.resolve as dynamic import still needs to return a promise
+shadow.js.jsRequire["dynamic"] = function(name) {
+  // delaying the actual require until .then triggers, so that it is actually
+  // happening as if async and not in the same task as the request
+  return Promise.resolve().then(function() { return shadow.js.jsRequire(name) });
+}
+
 /**
  * @dict
  */

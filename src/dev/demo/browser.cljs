@@ -20,12 +20,16 @@
     [shadow.lazy :as lazy]
     ["./cjs.js" :as cjs]
     [demo.js-class :refer (Foo)]
+    ["dyn-import" :as dyn]
+    [shadow.cljs.modern :refer (js-await)]
     [demo.dummy-cljc]
     [demo.didnt-follow-the-rules :as rule-breaker])
   (:import [goog.module ModuleLoader]))
 
 (js/console.log (goog.object/get #js {:foo "foo"} "foo"))
 
+(js-await [mod (dyn/bar)]
+  (js/console.log "dyn-import" mod (.bar mod)))
 
 (js/console.log "ml" ModuleLoader)
 (js/console.log "es6" es6 es6/default)

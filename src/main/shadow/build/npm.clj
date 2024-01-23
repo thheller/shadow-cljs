@@ -421,7 +421,7 @@
           ;; :js-requires ["foo" "bar/thing" "./baz]
           ;; all imports are collected into
           ;; :js-imports ["react"]
-          (let [{:keys [js-requires js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
+          (let [{:keys [js-requires js-dynamic-imports js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
                 (try
                   (JsInspector/getFileInfoMap
                     compiler
@@ -435,7 +435,7 @@
                              e))))
 
                 js-deps
-                (->> (concat js-requires js-imports)
+                (->> (concat js-requires js-imports js-dynamic-imports)
                      (distinct)
                      (map maybe-convert-goog)
                      (into []))

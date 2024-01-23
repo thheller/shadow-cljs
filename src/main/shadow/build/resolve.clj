@@ -706,7 +706,7 @@
 (defn resolve-entry [state entry]
   (resolve-require state nil entry))
 
-(defn resolve-cleanup [state]
+(defn resolve-cleanup [{:keys [resolved-order] :as state}]
   (dissoc state :resolved-order :resolved-set :resolved-stack))
 
 (defn resolve-entries

@@ -193,7 +193,8 @@
      :web-worker true}}
 
    :js-options
-   {:js-package-dirs ["packages/testing/node_modules"
+   {:js-package-dirs ["test-env/node_modules"
+                      "packages/testing/node_modules"
                       "packages/local-testing/node_modules"]
     ;; :js-provider :external
     ;; :external-index "out/demo-browser/public/js/external.js"

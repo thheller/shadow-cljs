@@ -3,6 +3,7 @@ package shadow.build.closure;
 import com.google.javascript.jscomp.*;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
+import com.google.javascript.rhino.Token;
 
 import java.util.*;
 
@@ -58,6 +59,43 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
                                 t.reportCodeChange();
                             }
                         }
+                    }
+                }
+            }
+        } else if (node.getToken() == Token.DYNAMIC_IMPORT) {
+            // assuming that the only way we get here is that JSInspector already threw for invalid import() args
+            String require = node.getFirstChild().getString();
+
+            String sfn = node.getSourceFileName();
+            if (sfn != null) {
+                Map<String, Object> requires = replacements.get(sfn);
+
+                if (requires != null) {
+                    // might be a clj-sym or String
+                    Object replacement = requires.get(require);
+                    if (replacement != null) {
+                        Node replacementNode = null;
+
+                        Node requireFn = IR.name("require");
+
+                        Node getProp = IR.getprop(requireFn, "dynamic");
+
+                        if (replacement instanceof Long) {
+                            replacementNode = IR.call(getProp, IR.number((Long) replacement));
+                        } else {
+                            replacementNode = IR.call(getProp, IR.string(replacement.toString()));
+                        }
+
+                        // placing import("foo") with require.dynamic("foo")
+
+                        node.replaceWith(replacementNode);
+
+                        // for FindSurvivingRequireCalls, otherwise nil
+                        // replaceWith transfers src infos to the new nodes
+                        // so this must be called after that is done, otherwise it'll override wil null
+                        requireFn.setOriginalName("require");
+
+                        t.reportCodeChange();
                     }
                 }
             }
