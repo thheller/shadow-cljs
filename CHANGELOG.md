@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.26.7](https://github.com/thheller/shadow-cljs/compare/ba995470c99e84c329382f7ba7921533de19879a...ba995470c99e84c329382f7ba7921533de19879a) - 2024-01-23
+- [ [`ba995`](https://github.com/thheller/shadow-cljs/commit/ba995470c99e84c329382f7ba7921533de19879a) ] boolean logic is hard ...
+
 ## [2.26.6](https://github.com/thheller/shadow-cljs/compare/ff6c4c9aa3d1e9188303850a95319455f31c6317...eb92d3f1c907de0074b0a17da1d2ebe6b9cbc994) - 2024-01-23
 - [ [`eb92d`](https://github.com/thheller/shadow-cljs/commit/eb92d3f1c907de0074b0a17da1d2ebe6b9cbc994) ] add missing files
 - [ [`561d4`](https://github.com/thheller/shadow-cljs/commit/561d4990d4ee8bbdb50fad537b5e9c4cd32f96c4) ] emulate import() support for npm sources
