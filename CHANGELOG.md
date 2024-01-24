@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.27.0](https://github.com/thheller/shadow-cljs/compare/d493f9cf121f967c81e694946040cca4f48c404b...e8811fbeab6e9ab859079b8ffa0633c80bab2938) - 2024-01-24
+- [ [`e8811`](https://github.com/thheller/shadow-cljs/commit/e8811fbeab6e9ab859079b8ffa0633c80bab2938) ] update deps.edn
+- [ [`dcd1b`](https://github.com/thheller/shadow-cljs/commit/dcd1b9d67583fd902e3a07b6259b71d617a35888) ] bump closure compiler, fix usual breakage
+- [ [`d493f`](https://github.com/thheller/shadow-cljs/commit/d493f9cf121f967c81e694946040cca4f48c404b) ] bump cljs
+
 ## [2.26.7](https://github.com/thheller/shadow-cljs/compare/ba995470c99e84c329382f7ba7921533de19879a...ba995470c99e84c329382f7ba7921533de19879a) - 2024-01-23
 - [ [`ba995`](https://github.com/thheller/shadow-cljs/commit/ba995470c99e84c329382f7ba7921533de19879a) ] boolean logic is hard ...
 
