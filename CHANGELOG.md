@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.27.1](https://github.com/thheller/shadow-cljs/compare/6d03cd2cd4ef0a0dc0d720336127754074028419...6d03cd2cd4ef0a0dc0d720336127754074028419) - 2024-01-24
+- [ [`6d03c`](https://github.com/thheller/shadow-cljs/commit/6d03cd2cd4ef0a0dc0d720336127754074028419) ] oops missed one rename
+
 ## [2.27.0](https://github.com/thheller/shadow-cljs/compare/d493f9cf121f967c81e694946040cca4f48c404b...e8811fbeab6e9ab859079b8ffa0633c80bab2938) - 2024-01-24
 - [ [`e8811`](https://github.com/thheller/shadow-cljs/commit/e8811fbeab6e9ab859079b8ffa0633c80bab2938) ] update deps.edn
 - [ [`dcd1b`](https://github.com/thheller/shadow-cljs/commit/dcd1b9d67583fd902e3a07b6259b71d617a35888) ] bump closure compiler, fix usual breakage
