@@ -19,8 +19,8 @@ public class ShadowAccess {
         comp.reportChangeToEnclosingScope(node);
     }
 
-    public static JSChunkGraph getModuleGraph(AbstractCompiler compiler) {
-        return compiler.getModuleGraph();
+    public static JSChunkGraph getChunkGraph(AbstractCompiler compiler) {
+        return compiler.getChunkGraph();
     }
 
     public static Node getJsRoot(AbstractCompiler compiler) {

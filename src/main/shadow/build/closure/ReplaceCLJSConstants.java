@@ -49,7 +49,7 @@ public class ReplaceCLJSConstants implements CompilerPass, NodeTraversal.Callbac
                 targetModule = ref.usedIn.iterator().next();
             } else {
                 targetModule = ShadowAccess
-                        .getModuleGraph(compiler)
+                        .getChunkGraph(compiler)
                         .getDeepestCommonDependencyInclusive(ref.usedIn);
             }
 
