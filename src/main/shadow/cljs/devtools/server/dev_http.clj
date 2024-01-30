@@ -439,8 +439,8 @@
                   (swap! state-ref stop-servers)
                   (swap! state-ref assoc
                     :servers (start-servers sys-bus new-configs ssl-context out)
-                    :configs new-configs)))
-              (recur new-config))))]
+                    :configs new-configs))
+                (recur new-configs)))))]
 
     (swap! state-ref assoc :loop-chan loop-chan)
 
