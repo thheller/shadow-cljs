@@ -27,7 +27,7 @@ public class ShadowESMImports extends NodeTraversal.AbstractPostOrderCallback  {
         ShadowESMImports pass = new ShadowESMImports();
         NodeTraversal.traverse(compiler, compiler.getRoot().getSecondChild(), pass);
 
-        for (JSChunk chunk : compiler.getChunks()) {
+        for (JSChunk chunk : compiler.getModules()) {
             if (chunk.getInputCount() > 0) {
                 CompilerInput firstInput = chunk.getInputs().get(0);
 
