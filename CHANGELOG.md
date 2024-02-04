@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.27.2](https://github.com/thheller/shadow-cljs/compare/98a83efb8d83541f88d502380a22eb1ca566d40c...2a110739a519b1e7fd76123bc380f0c7dc677c6b) - 2024-02-04
+- [ [`2a110`](https://github.com/thheller/shadow-cljs/commit/2a110739a519b1e7fd76123bc380f0c7dc677c6b) ] downgrade closure-compiler due to #1170
+- [ [`cbd6a`](https://github.com/thheller/shadow-cljs/commit/cbd6a8b22ab8a453e660d80ab207d4123a286d29) ] remove unused ui code
+- [ [`98a83`](https://github.com/thheller/shadow-cljs/commit/98a83efb8d83541f88d502380a22eb1ca566d40c) ] fix :dev-http restarting too often
+
 ## [2.27.1](https://github.com/thheller/shadow-cljs/compare/6d03cd2cd4ef0a0dc0d720336127754074028419...6d03cd2cd4ef0a0dc0d720336127754074028419) - 2024-01-24
 - [ [`6d03c`](https://github.com/thheller/shadow-cljs/commit/6d03cd2cd4ef0a0dc0d720336127754074028419) ] oops missed one rename
 
