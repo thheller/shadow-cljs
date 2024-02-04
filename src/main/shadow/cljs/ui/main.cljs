@@ -22,7 +22,6 @@
     [shadow.cljs.ui.components.builds :as builds]
     [shadow.cljs.ui.components.build :as build]
     [shadow.cljs.ui.components.eval :as eval]
-    [shadow.cljs.ui.components.db-explorer :as db-explorer]
     [shadow.cljs.ui.components.common :as common]
     ))
 
@@ -160,7 +159,7 @@
                :repl
                (eval/ui-repl-page (:ident current-page))
 
-               :db-explorer
+               #_ #_:db-explorer
                (db-explorer/ui-page (:ident current-page))
 
                "Unknown Page"))]
