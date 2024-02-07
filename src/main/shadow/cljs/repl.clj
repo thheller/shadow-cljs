@@ -175,8 +175,8 @@
   ;; FIXME: could clojure.core/load-file .clj files?
 
   (if (not (util/is-cljs-file? file-path))
-    (throw (ex-info "can only load .cljs and .cljc files"
-             {:file-path file-path}))
+    (do (clojure.core/load-file file-path)
+        state)
 
     ;; don't bother creating resources or anything, just eval one form at a time
     ;; this allows loading files that aren't on the classpath and doesn't end up

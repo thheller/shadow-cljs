@@ -1,4 +1,3 @@
 (ns user)
 
-;; proto-repl fix
-(defn reset [])
+;; just using this to prevent any other user.clj from every being loaded
