@@ -818,7 +818,15 @@
                 (assoc :js (.toString sw)
                        :source-map-compact (compact-source-map (:source-map @sm-ref))
                        :compiled-at (System/currentTimeMillis)
-                       :used-vars used-vars)
+                       :used-vars used-vars
+                       ;; used for invalidating recompile cycles
+                       :used-var-namespaces
+                       (->> used-vars
+                            (map namespace)
+                            ;; FIXME: all used vars should have been namespaced symbols, but some are not
+                            (remove nil?)
+                            (map symbol)
+                            (set)))
                 (dissoc :ast)
                 (update :warnings into @size-warnings-ref)
                 (cond->

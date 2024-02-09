@@ -322,7 +322,35 @@
   [state callback]
   (update state :closure-configurators conj callback))
 
-(defn find-resources-affected-by
+(defn find-resources-affected-via-used-vars
+  "during compilation the :output collects :used-vars and :used-var-namespaces,
+   which represent the actual used vars in a namespace, not only those required.
+
+   this can find things emitted by macros that are otherwise not visible via just requires.
+
+   used for watch invalidation to more accurately compile changed things since we
+   want to recompile everything that referenced the modified namespaces.
+
+   not tracking actual individual used vars since we cannot yet track which vars
+   were modified, only namespaces"
+  [state modified]
+  (reduce
+    (fn [affected modified-src]
+      (let [provided-ns (get-in state [:sources modified-src :ns])]
+        (if-not provided-ns
+          ;; skip over non-cljs sources
+          affected
+
+          ;; find everything using the modified ns
+          (->> (:output state)
+               (vals)
+               (filter #(contains? (:used-var-namespaces %) provided-ns))
+               (map :resource-id)
+               (into affected)))))
+    #{}
+    modified))
+
+(defn find-resources-affected-via-deps
   "returns the set all resources and the immediate dependents of those sources
    intended for cache invalidation if one or more resources are changed
    a resource may change a function signature and we need to invalidate all namespaces
@@ -341,7 +369,14 @@
                        (set/intersection modified deps-of)]
                    (seq uses-modified-resources)
                    )))
-       (into modified)))
+       (set)))
+
+(defn find-resources-affected-by [state modified]
+  (set/union
+    modified
+    (find-resources-affected-via-deps state modified)
+    (find-resources-affected-via-used-vars state modified)
+    ))
 
 (defn reset-resources [state source-ids]
   {:pre [(coll? source-ids)]}
