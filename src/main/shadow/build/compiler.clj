@@ -272,6 +272,16 @@
       #_(and (simple-symbol? thing)
              (not (get-in env [:locals thing])))))
 
+;; FIXME: this currently introduces some redundant code
+;; where
+;;   (def x {:a "constant"})
+;; ends up as
+;;   (def shadow_const_123 {:a "constant"})
+;;   (def x shadow_const_123)
+;; advanced takes care of that but maybe this should
+;; must really take care of that in case of delay+deref
+
+;; still not convinced this is useful at all, so still need more testing
 (defn optimize-constants [{:keys [op] :as ast} opts constants-ref]
   (cond
     (or (= :map op)
@@ -291,19 +301,28 @@
         :else
         (let [ns (:name (:ns env))
               const-sym (gensym "shadow_const_")
-              const-fqsym (symbol (str ns) (str const-sym))]
-          ;; construct constant with delay
-          ;; replace constant with delay deref
-          (let [inject
-                (ana/analyze* (assoc env :context :statement)
-                  `(~'def ~const-sym (cljs.core/delay ~form)) nil opts)]
-            ;; delay+deref to avoid constructing all constants on script load
-            ;; load time vs runtime overhead? might also affect DCE
-            ;; closure seems to eliminate a delay that is never deref'd fine
-            ;; FIXME: actually benchmark this,
-            (swap! constants-ref conj inject))
+              const-fqsym (symbol (str ns) (str const-sym))
 
-          (ana/analyze* env `(clojure.core/deref ~const-fqsym) nil opts)
+              deref?
+              (= :deref (:shadow-optimize-constants opts))
+              ;; otherwise true-ish, false won't call this at all
+
+              const-def
+              (if deref?
+                `(~'def ~const-sym (cljs.core/delay ~form))
+                `(~'def ~const-sym ~form))
+
+              const-use
+              (if deref?
+                `(clojure.core/deref ~const-fqsym)
+                const-fqsym)
+
+              inject
+              (ana/analyze* (assoc env :context :statement) const-def nil opts)]
+
+          (swap! constants-ref conj inject)
+
+          (ana/analyze* env const-use nil opts)
           )))
 
     :else
@@ -869,6 +888,7 @@
    [:compiler-options :load-tests]
    [:compiler-options :data-readers]
    [:compiler-options :shadow-tweaks]
+   [:compiler-options :shadow-optimize-constants]
    [:compiler-options :global-goog-object&array]
    [:compiler-options :warnings]
    ;; some community macros seem to use this
