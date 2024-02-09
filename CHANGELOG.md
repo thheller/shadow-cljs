@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.27.3](https://github.com/thheller/shadow-cljs/compare/dae9e4cdb7570d8e8cfaa759fb3be5d6bc61fc51...d00725223642b17dfdea8023b47d83193216edc3) - 2024-02-09
+- [ [`d0072`](https://github.com/thheller/shadow-cljs/commit/d00725223642b17dfdea8023b47d83193216edc3) ] tweak constants code
+- [ [`3da98`](https://github.com/thheller/shadow-cljs/commit/3da9880ca86666bbdb0e49b43034973789141c05) ] tweak watch source invalidation
+- [ [`dae9e`](https://github.com/thheller/shadow-cljs/commit/dae9e4cdb7570d8e8cfaa759fb3be5d6bc61fc51) ] some cleanup
+
 ## [2.27.2](https://github.com/thheller/shadow-cljs/compare/98a83efb8d83541f88d502380a22eb1ca566d40c...2a110739a519b1e7fd76123bc380f0c7dc677c6b) - 2024-02-04
 - [ [`2a110`](https://github.com/thheller/shadow-cljs/commit/2a110739a519b1e7fd76123bc380f0c7dc677c6b) ] downgrade closure-compiler due to #1170
 - [ [`cbd6a`](https://github.com/thheller/shadow-cljs/commit/cbd6a8b22ab8a453e660d80ab207d4123a286d29) ] remove unused ui code
