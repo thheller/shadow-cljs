@@ -502,6 +502,9 @@
          (filter (fn [def]
                    (let [{:keys [export export-as]} (:meta def)]
                      (or export (string? export-as)))))
+         ;; FIXME: any potential for :line missing?
+         ;; if so should they be first or last?
+         (sort-by #(:line % 0))
          (map (fn [def]
                 (let [{:keys [export-as]}
                       (:meta def)

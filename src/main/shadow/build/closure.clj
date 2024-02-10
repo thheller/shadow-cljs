@@ -868,6 +868,7 @@
                              (vals)
                              (filter #(or (get-in % [:meta :export])
                                           (get-in % [:meta :export-as])))
+                             (sort-by #(:line % 0))
                              (map (fn [{def :name :as ns-def}]
                                     (let [export-as (get-in ns-def [:meta :export-as])
                                           export-name
