@@ -1044,7 +1044,7 @@
           (doto (make-options)
             (set-options
               {:optimizations :simple
-               :language-in :ecmascript5}
+               :language-in :ecmascript-next-in}
               state))
 
           externs
