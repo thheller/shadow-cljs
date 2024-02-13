@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.27.4](https://github.com/thheller/shadow-cljs/compare/5f859cd9244977daf10aa38c4419b68ed7fe872f...e43dec25a42a66fc7ca9234f3322b54972fd3d9b) - 2024-02-13
+- [ [`e43de`](https://github.com/thheller/shadow-cljs/commit/e43dec25a42a66fc7ca9234f3322b54972fd3d9b) ] bump :language-in for externs processing
+- [ [`5f859`](https://github.com/thheller/shadow-cljs/commit/5f859cd9244977daf10aa38c4419b68ed7fe872f) ] try to preserve ordering of :npm-module exports
+
 ## [2.27.3](https://github.com/thheller/shadow-cljs/compare/dae9e4cdb7570d8e8cfaa759fb3be5d6bc61fc51...d00725223642b17dfdea8023b47d83193216edc3) - 2024-02-09
 - [ [`d0072`](https://github.com/thheller/shadow-cljs/commit/d00725223642b17dfdea8023b47d83193216edc3) ] tweak constants code
 - [ [`3da98`](https://github.com/thheller/shadow-cljs/commit/3da9880ca86666bbdb0e49b43034973789141c05) ] tweak watch source invalidation
