@@ -145,10 +145,12 @@
       (let [$key
             (css
               :whitespace-nowrap :font-bold :px-2 :border-r :truncate :bg-gray-100
-              ["&:hover.focus" :bg-gray-100])
+              [:hover :bg-gray-200]
+              ["&:hover.focus" :bg-gray-300])
 
             $val
-            (css :whitespace-nowrap :truncate)]
+            (css :whitespace-nowrap :truncate
+              [:hover :bg-gray-100])]
 
         (<< [:div
              {:class (str $key (when focus " focus"))
