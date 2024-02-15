@@ -159,9 +159,6 @@
                :repl
                (eval/ui-repl-page (:ident current-page))
 
-               #_ #_:db-explorer
-               (db-explorer/ui-page (:ident current-page))
-
                "Unknown Page"))]
 
           ;; FIXME: portal this?
