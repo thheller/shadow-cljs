@@ -187,11 +187,8 @@
                    (nrepl-out msg
                      {:value (edn/read-string
                                {:default
-                                ;; FIXME: piggieback uses own UnknownTaggedLiteral
-                                ;; not sure why? seems like it might as well skip trying to use it
-                                ;; and use the result we had instead.
                                 (fn [sym val]
-                                  (throw (ex-info "unknown edn tags" {:sym sym :val val})))}
+                                  (tagged-literal sym val))}
                                result-as-printed-string)
                       :nrepl.middleware.print/keys #{:value}
                       :ns (str ns)})
