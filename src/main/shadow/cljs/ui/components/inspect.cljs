@@ -29,35 +29,34 @@
     text))
 
 (defc ui-object-as-text [ident attr active?]
-  (bind {::sg/keys [loading-state] :as data}
+  (bind data
     (sg/query-ident ident
       [attr]
       {:suspend false}))
 
   (render
-    (let [val (get data attr)]
-      #_[:button.absolute.rounded-full.shadow-lg.p-4.bg-blue-200.bottom-0.right-0.m-4.mr-8
-         {:on-click [::copy-to-clipboard val]
-          :disabled (not= :ready loading-state)}
-         "COPY"]
-      (cond
-        ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
-        (not= :ready loading-state)
-        (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
-             "Loading ..."])
+    #_[:button.absolute.rounded-full.shadow-lg.p-4.bg-blue-200.bottom-0.right-0.m-4.mr-8
+       {:on-click [::copy-to-clipboard val]
+        :disabled (not= :ready loading-state)}
+       "COPY"]
 
-        (keyword-identical? ::m/display-error! val)
-        (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
-             (str (name attr) " request failed ...")])
+    ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
+    (if (= :db/loading data)
+      (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
+           "Loading ..."])
 
-        :else
-        (codemirror {:value val
-                     :clojure (not= attr ::m/object-as-str)
-                     :cm-opts {:tabindex (if active? 0 -1)
-                               :readOnly true
-                               :autofocus false}})
+      (let [val (get data attr)]
+        (if (keyword-identical? ::m/display-error! val)
+          (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
+               (str (name attr) " request failed ...")])
 
-        ))))
+          (codemirror {:value val
+                       :clojure (not= attr ::m/object-as-str)
+                       :cm-opts {:tabindex (if active? 0 -1)
+                                 :readOnly true
+                                 :autofocus false}})))
+
+      )))
 
 (defmulti render-view
   (fn [data active?]
