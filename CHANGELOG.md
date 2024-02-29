@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.27.5](https://github.com/thheller/shadow-cljs/compare/03fc04a53c74803afb0226b6afe4bb321b9bd4b8...3579024808eafdfcf42b93f5e0d3eb2d28abf6e4) - 2024-02-29
+- [ [`35790`](https://github.com/thheller/shadow-cljs/commit/3579024808eafdfcf42b93f5e0d3eb2d28abf6e4) ] fix for repl tagged literals not being pretty-printed (#1174)
+- [ [`4ec5a`](https://github.com/thheller/shadow-cljs/commit/4ec5afc92e811f9eccaf4239558953a984faf0f1) ] restore row hover in inspect
+- [ [`03fc0`](https://github.com/thheller/shadow-cljs/commit/03fc04a53c74803afb0226b6afe4bb321b9bd4b8) ] remove never finished db-explorer prototype
+
 ## [2.27.4](https://github.com/thheller/shadow-cljs/compare/5f859cd9244977daf10aa38c4419b68ed7fe872f...e43dec25a42a66fc7ca9234f3322b54972fd3d9b) - 2024-02-13
 - [ [`e43de`](https://github.com/thheller/shadow-cljs/commit/e43dec25a42a66fc7ca9234f3322b54972fd3d9b) ] bump :language-in for externs processing
 - [ [`5f859`](https://github.com/thheller/shadow-cljs/commit/5f859cd9244977daf10aa38c4419b68ed7fe872f) ] try to preserve ordering of :npm-module exports
