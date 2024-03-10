@@ -109,7 +109,7 @@
      :clj (log/warn ::unknown-op msg)))
 
 (defn add-extension*
-  [{:keys [extensions] :as state} key {:keys [ops] :as spec}]
+  [{:keys [extensions] :as state} key {:keys [ops transit-write-handlers] :as spec}]
   (when (contains? extensions key)
     (throw (ex-info "extension already registered" {:key key :spec spec})))
 

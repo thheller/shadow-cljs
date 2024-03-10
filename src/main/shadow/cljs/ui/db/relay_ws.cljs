@@ -51,8 +51,9 @@
 
 (defn call! [env msg result-data]
   {:pre [(map? msg)
-         (map? result-data)
-         (keyword? (:e result-data))]}
+         (or (fn? result-data)
+             (and (map? result-data)
+                  (keyword? (:e result-data))))]}
   (let [mid (swap! rpc-id-seq inc)]
     (swap! rpc-ref assoc mid {:msg msg
                               :result-data result-data})
@@ -92,7 +93,9 @@
             (cond
               call-id
               (let [{:keys [result-data] :as call-data} (get @rpc-ref call-id)]
-                (sg/run-tx! env/rt-ref (assoc result-data :call-result msg)))
+                (if (fn? result-data)
+                  (result-data msg)
+                  (sg/run-tx! env/rt-ref (assoc result-data :call-result msg))))
 
               (= :ping op)
               (cast! @rt-ref {:op :pong})

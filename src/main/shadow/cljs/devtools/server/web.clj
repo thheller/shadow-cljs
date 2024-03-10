@@ -5,7 +5,10 @@
     [hiccup.core :refer (html)]
     [hiccup.page :refer (html5)]
     [ring.middleware.file :as ring-file]
+    [ring.middleware.resource :as ring-resource]
     [ring.middleware.file-info :as ring-file-info]
+    [ring.middleware.content-type :as ring-content-type]
+    [ring.middleware.not-modified :as ring-not-modified]
     [shadow.http.router :as http]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.cljs.devtools.server.web.api :as web-api]
@@ -67,6 +70,19 @@
           (ring-file/file-request ring-req root {})
           (ring-file-info/file-info-response ring-req {"transit" "application/json"})
           (no-cache!))
+        (common/not-found req))))
+
+(defn serve-classpath-file
+  [{:keys [ring-request] :as req}]
+  (let [ring-req (update ring-request :uri str/replace #"^/classpath" "/")]
+    (or (some->
+          (ring-resource/resource-request ring-req "" {})
+          (ring-content-type/content-type-response ring-req
+            {:mime-types
+             {"cljs" "text/plain"
+              "clj" "text/plain"
+              "cljc" "text/plain"}})
+          (ring-not-modified/not-modified-response ring-req))
         (common/not-found req))))
 
 (def logo-svg
@@ -224,4 +240,5 @@
         (:ANY "/api/remote-relay" web-api/api-remote-relay)
         (:ANY "^/api" web-api/root)
         (:GET "^/cache" serve-cache-file)
+        (:GET "^/classpath" serve-classpath-file)
         pages)))

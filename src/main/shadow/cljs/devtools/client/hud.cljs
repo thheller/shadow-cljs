@@ -26,12 +26,13 @@
              :cache "no-cache"
              :mode "cors"
              :body (shared/transit-str
+                     {}
                      {:file file
                       :line line
                       :column column})})
       (.then #(.text %))
       (.then (fn [result-text]
-               (let [data (shared/transit-read result-text)]
+               (let [data (shared/transit-read {} result-text)]
                  (js/console.log "open file result" data))))))
 
 (comment

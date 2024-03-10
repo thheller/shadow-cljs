@@ -98,9 +98,6 @@
             "repl" ;; FIXME: should these be separate page types?
             (assoc-in env [:db ::m/current-page] {:id :repl :ident runtime-ident})
 
-            "db-explorer"
-            (assoc-in env [:db ::m/current-page] {:id :db-explorer :ident runtime-ident})
-
             "explore"
             (update env :db
               (fn [db]

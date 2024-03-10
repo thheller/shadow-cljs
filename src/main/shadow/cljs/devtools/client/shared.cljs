@@ -87,12 +87,12 @@
   (when-some [runtime @runtime-ref]
     (start-all-plugins! runtime)))
 
-(defn transit-read [data]
-  (let [t (transit/reader :json)]
+(defn transit-read [{::shared/keys [transit-readers] :as state} data]
+  (let [t (transit/reader :json {:handlers transit-readers})]
     (transit/read t data)))
 
-(defn transit-str [obj]
-  (let [w (transit/writer :json)]
+(defn transit-str [{::shared/keys [transit-writers] :as state} obj]
+  (let [w (transit/writer :json {:handlers transit-writers})]
     (transit/write w obj)))
 
 (declare interpret-actions)
@@ -230,7 +230,7 @@
       (if-not ws-connected
         (js/console.warn "shadow-cljs - dropped ws message, not connected" msg state)
         (let [s (try
-                  (transit-str msg)
+                  (transit-str state msg)
                   (catch :default e
                     (throw (ex-info "failed to encode relay msg" {:msg msg}))))]
           ;; (js/console.log "sending" msg state)
@@ -281,7 +281,7 @@
       ::ws-last-msg (shared/now)))
 
   (remote-msg [this text]
-    (let [msg (transit-read text)]
+    (let [msg (transit-read @state-ref text)]
       ;; (js/console.log "runtime remote-msg" this msg)
       (swap! state-ref assoc ::ws-last-msg (shared/now))
       (when (= :access-denied (:op msg))
@@ -397,6 +397,8 @@
                    ::stale false
                    ::plugins {}
                    ::ws-errors 0
+                   ::shared/transit-writers {}
+                   ::shared/transit-readers {:default transit/tagged-value}
                    ::ws-start-fn ws-start-fn
                    ::ws-send-fn ws-send-fn
                    ::ws-stop-fn ws-stop-fn)

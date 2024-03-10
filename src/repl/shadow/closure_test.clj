@@ -1,5 +1,5 @@
 (ns shadow.closure-test
-  (:require [clojure.test :refer :all])
+  (:require [clojure.test :as t :refer :all])
   (:import (com.google.javascript.jscomp JSChunk JSChunkGraph)))
 
 

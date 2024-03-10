@@ -94,13 +94,14 @@
    {:js-package-dirs ["packages/ui/node_modules"]}
 
    :devtools
-   {:watch-dir ".shadow-cljs/ui"}
+   {:watch-dir "src/ui-release/shadow/cljs/ui/dist"}
 
    :module-loader true
    :modules
    {:main
     {:init-fn shadow.cljs.ui.main/init
-     :preloads [shadow.grove.dev-support]}
+     :preloads [shadow.grove.dev-support
+                shadow.grove.preload]}
 
     ;; trying something to split out features not pages
     ;; maybe thats a better pattern overall, should be less config
