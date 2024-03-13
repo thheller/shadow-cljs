@@ -296,8 +296,9 @@
       (swap! state-ref assoc-in [:clients client-id :queries notify-op] query))
 
     (relay-send relay origin
-      (maybe-add-call-id msg {:op :clients
-                              :clients result}))))
+      (maybe-add-call-id msg
+        {:op (get msg :reply-op :clients)
+         :clients result}))))
 
 ;; origin wants to be notified when clients connect or disconnect
 ;; optional matching query, optional custom :query-id for messages

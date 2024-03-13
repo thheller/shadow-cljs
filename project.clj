@@ -98,7 +98,10 @@
    :dev
    {:source-paths
     ["src/dev"
-     "src/repl"]
+     "src/repl"
+     ;; FIXME: should really move to deps.edn, lein checkouts suck
+     "../shadow-grove/src/gen"
+     "../shadow-grove/src/ui-release"]
 
     :java-source-paths
     ["src/dev"

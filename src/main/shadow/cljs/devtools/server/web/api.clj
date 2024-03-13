@@ -54,6 +54,12 @@
    :headers {"content-type" "application/transit+json; charset=utf-8"}
    :body (transit-str (server-util/project-info))})
 
+(defn project-token [req]
+  {:status 200
+   :headers {"content-type" "text/plain; charset=utf-8"}
+   :body (get-in req [:http :server-token])})
+
+
 (defn ui-init-data [{:keys [dev-http transit-str supervisor] :as req}]
   {:status 200
    :header {"content-type" "application/transit+json"}
@@ -87,6 +93,7 @@
   (http/route req
     (:GET "" index-page)
     (:GET "/project-info" project-info)
+    (:GET "/token" project-token)
     (:GET "/ui-init-data" ui-init-data)
     (:POST "/open-file" open-file)
     common/not-found))

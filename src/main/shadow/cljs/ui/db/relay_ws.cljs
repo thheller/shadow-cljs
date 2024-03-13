@@ -46,7 +46,8 @@
 
 (defn cast! [{::keys [ws-ref] ::rt/keys [transit-str] :as env} msg]
   (when ^boolean js/goog.DEBUG
-    (js/console.log "[WS-SEND]" (:op msg) msg))
+    (when (not= :pong (:op msg))
+      (js/console.log "[WS-SEND]" (:op msg) msg)))
   (.send @ws-ref (transit-str msg)))
 
 (defn call! [env msg result-data]
