@@ -6,11 +6,12 @@
     [shadow.arborist.dom-scheduler :as ds]
     [shadow.css :refer (css)]
     [shadow.grove :as sg :refer (<< defc)]
-    [shadow.grove.ui.vlist :as vlist]
+    [shadow.grove.ui.vlist2 :as vlist]
     [shadow.grove.ui.loadable :refer (refer-lazy)]
     [shadow.grove.keyboard :as keyboard]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.components.common :as common]))
+    [shadow.cljs.ui.components.common :as common]
+    [shadow.cljs.ui.db.inspect :as db]))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
@@ -96,9 +97,16 @@
          :tab-index -1}
         "nil"]]))
 
-(def seq-vlist
-  (vlist/configure :fragment-vlist
-    {:item-height 22}
+(defn render-seq
+  [object active?]
+  (vlist/render
+    {:item-height 22
+     :select-event {:e ::kb-select!}
+     :tab-index (if active? 0 -1)}
+
+    (fn read-fn [params]
+      (sg/db-read db/fragment-vlist object params))
+
     (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
       (let [$row
             (css :border-b :flex
@@ -115,13 +123,8 @@
              {:class (str $row (when focus " focus"))
               :on-click {:e ::inspect-nav! :idx idx}}
              [:div {:class $idx} idx]
-             [:div {:class $val} (render-edn-limit val)]])))))
-
-(defn render-seq
-  [object active?]
-  (seq-vlist {:ident (:db/ident object)
-              :select-event {:e ::kb-select!}
-              :tab-index (if active? 0 -1)}))
+             [:div {:class $val} (render-edn-limit val)]])))
+    ))
 
 (defmethod render-view :vec [data active?]
   (render-seq data active?))
@@ -132,15 +135,22 @@
 (defmethod render-view :list [data active?]
   (render-seq data active?))
 
-(def map-vlist
-  (vlist/configure :fragment-vlist
+(defmethod render-view :map
+  [object active?]
+  (vlist/render
     {:item-height 22
      :box-style
      {:display "grid"
       :grid-template-columns "min-content minmax(25%, auto)"
       :grid-row-gap "1px"
-      :grid-column-gap ".5rem"}}
-    (fn [{:keys [key val] :as entry} {:keys [idx focus] :as opts}]
+      :grid-column-gap ".5rem"}
+     :select-event {:e ::kb-select!}
+     :tab-index (if active? 0 -1)}
+
+    (fn read-fn [params]
+      (sg/db-read db/fragment-vlist object params))
+
+    (fn item-fn [{:keys [key val] :as entry} {:keys [idx focus] :as opts}]
       (let [$key
             (css
               :whitespace-nowrap :font-bold :px-2 :border-r :truncate :bg-gray-100
@@ -161,18 +171,17 @@
              (render-edn-limit val)]))
       )))
 
-(defmethod render-view :map
+(defmethod render-view :lazy-seq
   [object active?]
-  (map-vlist {:ident (:db/ident object)
-              :select-event {:e ::kb-select!}
-              :tab-index (if active? 0 -1)}))
-
-(def lazy-seq-vlist
-  (vlist/configure :lazy-seq-vlist
+  (vlist/render
     {:item-height 22
+     :tab-index (if active? 0 -1)
      :show-more
      (fn [entry]
        (<< [:div "Show more ... " (pr-str entry)]))}
+
+    (fn [params]
+      (sg/db-read db/lazy-seq-vlist object params))
 
     (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
       (let [$row
@@ -186,11 +195,6 @@
               :on-click {:e ::inspect-nav! :idx idx}}
              [:div.idx idx]
              [:div.val (render-edn-limit val)]])))))
-
-(defmethod render-view :lazy-seq
-  [object active?]
-  (lazy-seq-vlist {:ident (:db/ident object)
-                   :tab-index (if active? 0 -1)}))
 
 (def $button-base (css :block :border :px-4 :rounded {:white-space "nowrap"}))
 (def $button-selected (css :bg-blue-400))
@@ -366,14 +370,6 @@
                    (str " - " label)))]
            [:div.val (render-edn-limit obj-preview)]]))))
 
-(def tap-vlist
-  (vlist/configure :tap-vlist
-    {:item-height 46
-     :key-fn identity}
-    ;; FIXME: for reasons I can't remember this currently only accepts functions
-    (fn [ident info]
-      (ui-tap-stream-item ident info))))
-
 (defc ui-tap-panel [item panel-idx active?]
   (event ::kb-select! [env {:keys [item] :as e}]
     (sg/dispatch-up! env {:e ::inspect-object! :ident item}))
@@ -385,8 +381,16 @@
 
       (<< [:div {:class $header} "Tap History"]
           [:div {:class $vlist}
-           (tap-vlist {:tab-index (if active? 0 -1)
-                       :select-event {:e ::kb-select!}})]
+
+           (vlist/render
+             {:item-height 46
+              :key-fn identity
+              :tab-index (if active? 0 -1)
+              :select-event {:e ::kb-select!}}
+             (fn [params]
+               (sg/db-read db/tap-vlist params))
+             (fn [ident info]
+               (ui-tap-stream-item ident info)))]
 
           [:div {:class $buttons}
            [:button

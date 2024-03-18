@@ -282,60 +282,54 @@
            :key :pprint})
         :db/loading)))
 
-(defmethod eql/attr :fragment-vlist
-  [env
-   db
-   {:keys [oid runtime-id summary fragment] :as current}
-   _
-   {:keys [offset num] :or {offset 0 num 0} :as params}]
+(defn fragment-vlist [env db object {:keys [offset num] :or {offset 0 num 0} :as params}]
+  (let [{:keys [oid runtime-id summary fragment] :as current}
+        (get db (:db/ident object))]
 
-  (if-not summary
-    (do (throw (ex-info "FIXME: summary not loaded yet for vlist" {:current current}))
-        :db/loading)
+    (if-not summary
+      (do (throw (ex-info "FIXME: summary not loaded yet for vlist" {:current current}))
+          :db/loading)
 
-    (let [{:keys [data-count]} summary
+      (let [{:keys [data-count]} summary
 
-          start-idx offset
-          last-idx (js/Math.min data-count (+ start-idx num))
+            start-idx offset
+            last-idx (js/Math.min data-count (+ start-idx num))
 
-          slice
-          (->> (range start-idx last-idx)
-               (reduce
-                 (fn [m idx]
-                   (let [val (get fragment idx)]
-                     (if-not val
-                       (reduced nil)
-                       (conj! m val))))
-                 (transient [])))]
+            slice
+            (->> (range start-idx last-idx)
+                 (reduce
+                   (fn [m idx]
+                     (let [val (get fragment idx)]
+                       (if-not val
+                         (reduced nil)
+                         (conj! m val))))
+                   (transient [])))]
 
-      ;; all requested elements are already present
-      (if slice
-        {:item-count data-count
-         :offset offset
-         :slice (persistent! slice)}
+        ;; all requested elements are already present
+        (if slice
+          {:item-count data-count
+           :offset offset
+           :slice (persistent! slice)}
 
-        ;; missing elements
-        ;; FIXME: should be smarter about which elements to fetch
-        ;; might already have some
-        (do (relay-ws/call! env
-              {:op :obj-fragment
-               :to runtime-id
-               :oid oid
-               :start start-idx
-               :num num
-               :key-limit 160
-               :val-limit 160}
-              {:e ::fragment-slice-loaded
-               :ident (:db/ident current)})
-            :db/loading)))))
+          ;; missing elements
+          ;; FIXME: should be smarter about which elements to fetch
+          ;; might already have some
+          (do (relay-ws/call! env
+                {:op :obj-fragment
+                 :to runtime-id
+                 :oid oid
+                 :start start-idx
+                 :num num
+                 :key-limit 160
+                 :val-limit 160}
+                {:e ::fragment-slice-loaded
+                 :ident (:db/ident current)})
+              :db/loading))))))
 
-(defmethod eql/attr :tap-vlist
+(defn tap-vlist
   [env
    {::m/keys [tap-stream] :as db}
-   current
-   _
    {:keys [offset num] :or {offset 0 num 0} :as params}]
-
 
   (let [entries (count tap-stream)
 
@@ -357,11 +351,10 @@
     (assert (= :obj-result op)) ;; FIXME: handle failures
     (update-in env [:db ident :fragment] merge result)))
 
-(defmethod eql/attr :lazy-seq-vlist
+(defn lazy-seq-vlist
   [env
    db
    {:keys [oid runtime-id summary realized more? fragment] :as current}
-   _
    {:keys [offset num] :or {offset 0 num 0} :as params}]
 
   (js/console.log "lazy-seq-vlist" current)
