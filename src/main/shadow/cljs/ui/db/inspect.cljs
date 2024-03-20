@@ -331,7 +331,8 @@
    {::m/keys [tap-stream] :as db}
    {:keys [offset num] :or {offset 0 num 0} :as params}]
 
-  (let [entries (count tap-stream)
+  (let [entries
+        (count tap-stream)
 
         slice
         (->> tap-stream

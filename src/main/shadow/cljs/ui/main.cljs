@@ -25,7 +25,6 @@
     [shadow.cljs.ui.components.common :as common]
     ))
 
-
 (defc ui-error [err-ident]
   (bind {:keys [text]}
     (sg/query-ident err-ident

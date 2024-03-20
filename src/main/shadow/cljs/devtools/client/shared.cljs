@@ -87,13 +87,17 @@
   (when-some [runtime @runtime-ref]
     (start-all-plugins! runtime)))
 
-(defn transit-read [{::shared/keys [transit-readers] :as state} data]
+(defn transit-read [{::keys [transit-readers] :as state} data]
   (let [t (transit/reader :json {:handlers transit-readers})]
     (transit/read t data)))
 
-(defn transit-str [{::shared/keys [transit-writers] :as state} obj]
+(defn transit-str [{::keys [transit-writers] :as state} obj]
   (let [w (transit/writer :json {:handlers transit-writers})]
     (transit/write w obj)))
+
+(defn add-transit-writers! [{:keys [state-ref] :as runtime} writers]
+  (swap! state-ref update ::transit-writers merge writers)
+  runtime)
 
 (declare interpret-actions)
 
@@ -365,6 +369,7 @@
 
     (swap! state-ref assoc ::shutdown true)))
 
+
 (defn init-runtime! [client-info ws-start-fn ws-send-fn ws-stop-fn]
   ;; in case of hot-reload or reconnect, clean up previous runtime
   (when-some [runtime @runtime-ref]
@@ -397,8 +402,8 @@
                    ::stale false
                    ::plugins {}
                    ::ws-errors 0
-                   ::shared/transit-writers {}
-                   ::shared/transit-readers {:default transit/tagged-value}
+                   ::transit-writers {}
+                   ::transit-readers {:default tagged-literal}
                    ::ws-start-fn ws-start-fn
                    ::ws-send-fn ws-send-fn
                    ::ws-stop-fn ws-stop-fn)
