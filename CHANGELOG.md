@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.28.2](https://github.com/thheller/shadow-cljs/compare/07dc62e1b6b55be796e5a4b4be287affd079ce8e...07dc62e1b6b55be796e5a4b4be287affd079ce8e) - 2024-03-21
+- [ [`07dc6`](https://github.com/thheller/shadow-cljs/commit/07dc62e1b6b55be796e5a4b4be287affd079ce8e) ] great, missed that one again
+
 ## [2.28.0](https://github.com/thheller/shadow-cljs/compare/36cef49505278bcd7d42dd7a9cdef6dad55fbace...198e149478ec7eee7a46b9b1afbbb24fd419de6d) - 2024-03-21
 - [ [`198e1`](https://github.com/thheller/shadow-cljs/commit/198e149478ec7eee7a46b9b1afbbb24fd419de6d) ] bump closure compiler
 - [ [`6d7d7`](https://github.com/thheller/shadow-cljs/commit/6d7d75c309a6afc65613346950ab850b7111d235) ] configureable transit writers for shadow.remote
