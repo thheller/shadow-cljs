@@ -20,7 +20,7 @@ public class ShadowAccess {
     }
 
     public static JSChunkGraph getChunkGraph(AbstractCompiler compiler) {
-        return compiler.getModuleGraph();
+        return compiler.getChunkGraph();
     }
 
     public static Node getJsRoot(AbstractCompiler compiler) {

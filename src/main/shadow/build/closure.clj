@@ -1133,7 +1133,7 @@
           (dump-closure-inputs state externs js-mods compiler-options))
 
         ^Result result
-        (.compileModules
+        (.compileChunks
           compiler
           externs
           js-mods
