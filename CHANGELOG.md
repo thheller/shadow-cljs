@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.28.0](https://github.com/thheller/shadow-cljs/compare/36cef49505278bcd7d42dd7a9cdef6dad55fbace...198e149478ec7eee7a46b9b1afbbb24fd419de6d) - 2024-03-21
+- [ [`198e1`](https://github.com/thheller/shadow-cljs/commit/198e149478ec7eee7a46b9b1afbbb24fd419de6d) ] bump closure compiler
+- [ [`6d7d7`](https://github.com/thheller/shadow-cljs/commit/6d7d75c309a6afc65613346950ab850b7111d235) ] configureable transit writers for shadow.remote
+- [ [`c1ad1`](https://github.com/thheller/shadow-cljs/commit/c1ad1de99c6a6bcec23afa5f02c50e099353d81d) ] move inspect to new vlist2 impl
+- [ [`6f0a3`](https://github.com/thheller/shadow-cljs/commit/6f0a315082a6f9319e0b4822967fe577060e245e) ] some shadow.remote tweaks
+- [ [`eafa5`](https://github.com/thheller/shadow-cljs/commit/eafa54c17ab3ac42cad939cfab7e2dede7fb5f1d) ] cleanup some UI stuff
+- [ [`36cef`](https://github.com/thheller/shadow-cljs/commit/36cef49505278bcd7d42dd7a9cdef6dad55fbace) ] fix UI Inspect edn/pprint not working
+
 ## [2.27.5](https://github.com/thheller/shadow-cljs/compare/03fc04a53c74803afb0226b6afe4bb321b9bd4b8...3579024808eafdfcf42b93f5e0d3eb2d28abf6e4) - 2024-02-29
 - [ [`35790`](https://github.com/thheller/shadow-cljs/commit/3579024808eafdfcf42b93f5e0d3eb2d28abf6e4) ] fix for repl tagged literals not being pretty-printed (#1174)
 - [ [`4ec5a`](https://github.com/thheller/shadow-cljs/commit/4ec5afc92e811f9eccaf4239558953a984faf0f1) ] restore row hover in inspect
