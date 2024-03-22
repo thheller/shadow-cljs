@@ -24,7 +24,8 @@
 (defn with-added-at-ts [{:keys [added-at] :as summary}]
   (assoc summary :added-at-ts (.format ts-format (js/Date. added-at))))
 
-(defmethod relay-ws/handle-msg :clients
+(defn relay-clients
+  {::ev/handle ::relay-ws/clients}
   [{:keys [db] :as env} {:keys [clients] :as msg}]
   (-> env
       (update :db
@@ -44,7 +45,8 @@
                    (map :client-id)
                    (into #{}))}])))
 
-(defmethod relay-ws/handle-msg :notify
+(defn relay-notify
+  {::ev/handle ::relay-ws/notify}
   [{:keys [db] :as env}
    {:keys [event-op client-id client-info]}]
   (case event-op
@@ -63,7 +65,8 @@
               (db/remove runtime-ident)
               (update ::m/runtimes without runtime-ident)))))))
 
-(defmethod relay-ws/handle-msg :supported-ops
+(defn relay-supported-opts
+  {::ev/handle ::relay-ws/supported-ops}
   [{:keys [db] :as env} {:keys [ops from]}]
   (-> env
       (update :db db/update-entity ::m/runtime from assoc :supported-ops ops)
@@ -98,7 +101,8 @@
       :edn
       )))
 
-(defmethod relay-ws/handle-msg :tap-subscribed
+(defn relay-tap-subscribed
+  {::ev/handle ::relay-ws/tap-subscribed}
   [env {:keys [from history] :as msg}]
   (update env :db
     (fn [db]
@@ -122,7 +126,8 @@
         db
         (reverse history)))))
 
-(defmethod relay-ws/handle-msg :tap
+(defn relay-tap
+  {::ev/handle ::relay-ws/tap}
   [env {:keys [oid from] :as msg}]
   (let [object-ident (db/make-ident ::m/object oid)]
     (update env :db
@@ -146,7 +151,8 @@
             (db/remove-idents tap-stream)
             (assoc ::m/tap-stream (list)))))))
 
-(defmethod relay-ws/handle-msg :obj-summary
+(defn relay-obj-summary
+  {::ev/handle ::relay-ws/obj-summary}
   [env {:keys [oid summary]}]
   (update env :db
     (fn [db]

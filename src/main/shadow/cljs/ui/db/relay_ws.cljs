@@ -10,13 +10,8 @@
 (defonce rpc-id-seq (atom 0))
 (defonce rpc-ref (atom {}))
 
-(defmulti handle-msg (fn [env msg] (:op msg)) :default ::default)
-
-(defmethod handle-msg ::default [env msg]
-  (js/console.warn "unhandled websocket msg" msg env)
-  env)
-
-(defmethod handle-msg :welcome
+(defn relay-welcome
+  {::ev/handle ::welcome}
   [{::keys [on-welcome] :as env} {:keys [client-id]}]
 
   ;; FIXME: call this via fx
@@ -29,7 +24,8 @@
           :notify true
           :query [:eq :type :runtime]}])))
 
-(defmethod handle-msg ::m/ui-options
+(defn ui-options
+  {::ev/handle ::m/ui-options}
   [env {:keys [ui-options]}]
   (assoc-in env [:db ::m/ui-options] ui-options))
 
@@ -37,12 +33,6 @@
   {::ev/handle ::m/relay-ws-close}
   [env _]
   (assoc-in env [:db ::m/relay-ws-connected] false))
-
-(defn relay-ws
-  {::ev/handle ::m/relay-ws}
-  [env {:keys [msg]}]
-  ;; (js/console.log ::m/relay-ws op msg)
-  (handle-msg env msg))
 
 (defn cast! [{::keys [ws-ref] ::rt/keys [transit-str] :as env} msg]
   (when ^boolean js/goog.DEBUG
@@ -102,7 +92,13 @@
               (cast! @rt-ref {:op :pong})
 
               :else
-              (sg/run-tx! env/rt-ref {:e ::m/relay-ws :msg msg}))))))
+              (sg/run-tx! env/rt-ref
+                (if (qualified-keyword? op)
+                  (assoc msg :e op)
+                  ;; meh, probably shouldn't have used unqualified keywords in shadow.remote?
+                  ;; not doing the previous ::m/relay-msg multi method since that sucks in grove event log
+                  (assoc msg :e (keyword "shadow.cljs.ui.db.relay-ws" (name op)))
+                  )))))))
 
     (.addEventListener socket "open"
       (fn [e]

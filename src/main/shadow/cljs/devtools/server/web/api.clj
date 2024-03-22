@@ -163,7 +163,9 @@
            (async/>! ws-out {:op :access-denied})
            :access-denied)})
 
-      (let [ws-in (async/chan 10 (map transit-read))
+      ;; relay can be very chatty, try to not drop too many messages
+      ;; while also not buffering too much
+      (let [ws-in (async/chan 256 (map transit-read))
             ws-out (async/chan 256 (map transit-str))]
         {:ws-in ws-in
          :ws-out ws-out

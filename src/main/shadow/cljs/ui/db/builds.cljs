@@ -66,7 +66,8 @@
                         (= build-id (:build-id runtime-info)))))
          (count))))
 
-(defmethod relay-ws/handle-msg ::m/sub-msg
+(defn relay-sub-msg
+  {::ev/handle ::m/sub-msg}
   [env {::m/keys [topic] :as msg}]
   (case topic
     ::m/build-status-update
