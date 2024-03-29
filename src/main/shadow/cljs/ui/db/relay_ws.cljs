@@ -35,9 +35,10 @@
   (assoc-in env [:db ::m/relay-ws-connected] false))
 
 (defn cast! [{::keys [ws-ref] ::rt/keys [transit-str] :as env} msg]
-  (when ^boolean js/goog.DEBUG
+  (sg/dev-only
     (when (not= :pong (:op msg))
-      (js/console.log "[WS-SEND]" (:op msg) msg)))
+      (sg/dev-log "WS-SEND" (:op msg) msg)))
+
   (.send @ws-ref (transit-str msg)))
 
 (defn call! [env msg result-data]
