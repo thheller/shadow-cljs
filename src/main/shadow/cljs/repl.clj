@@ -195,7 +195,7 @@
           (process-input state source {:filename file-path})
 
           next-ns
-          (get-in state [:repl-state :next-ns])
+          (get-in state [:repl-state :current-ns])
 
           repl-actions
           (get-in state [:repl-state :repl-actions])
@@ -248,10 +248,11 @@
           ))))
 
 (defn repl-require*
-  [{:keys [repl-state] :as state} quoted-require flags]
+  [{:keys [repl-state] :as state} read-result quoted-require flags]
 
-  (let [{:keys [current-ns]}
-        repl-state
+  (let [current-ns
+        (or (:ns read-result)
+            (:current-ns repl-state))
 
         ns-info
         (get-in state [:compiler-env ::ana/namespaces current-ns])
@@ -376,7 +377,7 @@
       ;; we have gap in the build state. so instead, process each sequentially
       (reduce
         (fn [state quoted-require]
-          (repl-require* state quoted-require (set flags)))
+          (repl-require* state read-result quoted-require (set flags)))
         state
         (map :require quoted-requires)))))
 
