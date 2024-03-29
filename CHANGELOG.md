@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.28.3](https://github.com/thheller/shadow-cljs/compare/2204ac2ac9441cb430ee501cff3c34507b5f3a31...8825ec9245ac1ceb46a6b866403375f0473fcda9) - 2024-03-29
+- [ [`8825e`](https://github.com/thheller/shadow-cljs/commit/8825ec9245ac1ceb46a6b866403375f0473fcda9) ] grove devtools UI test
+- [ [`64e7c`](https://github.com/thheller/shadow-cljs/commit/64e7cc5caa899abf67f29d11b5ce4b93d2fbb970) ] fix REPL inconsistency
+- [ [`6efb2`](https://github.com/thheller/shadow-cljs/commit/6efb2e724708665ea02294fd47deab1b6ba8da96) ] fix IFn invoke > 20 args
+- [ [`2204a`](https://github.com/thheller/shadow-cljs/commit/2204ac2ac9441cb430ee501cff3c34507b5f3a31) ] change relay-ws message handling in UI
+
 ## [2.28.2](https://github.com/thheller/shadow-cljs/compare/07dc62e1b6b55be796e5a4b4be287affd079ce8e...07dc62e1b6b55be796e5a4b4be287affd079ce8e) - 2024-03-21
 - [ [`07dc6`](https://github.com/thheller/shadow-cljs/commit/07dc62e1b6b55be796e5a4b4be287affd079ce8e) ] great, missed that one again
 
