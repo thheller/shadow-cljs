@@ -1148,6 +1148,20 @@
              (meta form)))]
       (core/ifn-invoke-methods type type-sym form))))
 
+(defn emit-ifn-args [args]
+  ;; ifn past 20 args is supposed to supply rest arg, which to match varargs behavior
+  ;; is emitted as a IndexedSeq over an array
+  (let [c (count args)]
+    (if (<= c 20)
+      (comp/emits (comma-sep args))
+      (let [head (take 20 args)
+            tail (drop 20 args)]
+        (comp/emits (comma-sep head) ", new cljs.core.IndexedSeq([" (comma-sep tail) "],0,null)")
+        ))))
+
+(defn as-ifn-prop [args]
+  (str ".cljs$core$IFn$_invoke$arity$" (min 21 (count args))))
+
 (defn install-hacks! []
   ;; cljs.analyzer tweaks
   (replace-fn! #'ana/load-core shadow-load-core)
@@ -1184,7 +1198,7 @@
                 pimpl (str (munge (protocol-prefix protocol-name))
                            (munge (name protocol-fn))
                            "$arity$" (count args))]
-            (comp/emits (first args) "." pimpl "(" (comma-sep (cons "null" (rest args))) ")"))
+            (comp/emits (first args) "." pimpl "(null, " (comma-sep (rest args)) ")"))
 
           :variadic-invoke
           (let [mfa (:max-fixed-arity expr)]
@@ -1194,21 +1208,28 @@
               (comma-sep (drop mfa args)) "], 0))"))
 
           :ifn
-          (comp/emits f ".cljs$core$IFn$_invoke$arity$" (count args) "(" (comma-sep args) ")")
+          (do (comp/emits f (as-ifn-prop args) "(")
+              (emit-ifn-args args)
+              (comp/emits ")"))
 
           :fn
           (comp/emits f "(" (comma-sep args) ")")
 
           :maybe-ifn
-          (let [fprop (str ".cljs$core$IFn$_invoke$arity$" (count args))]
-            (if ana/*fn-invoke-direct*
-              (comp/emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
-                f "(" (comma-sep args) "))")
-              (comp/emits "(" f fprop " ? " f fprop "(" (comma-sep args) ") : "
-                f ".call(" (comma-sep (cons "null" args)) "))")))
+          (let [fprop (as-ifn-prop args)]
+            ;; checks for ifn prop and invokes if found
+            ;;   x.ifn ? x.ifn(...) : x(...)
+            ;; or uses .call if fn-invoke-direct is false
+            ;;   x.ifn ? x.ifn(...) : x.call(null, ...)
+            (comp/emits "(" f fprop " ? " f fprop "(")
+            (emit-ifn-args args)
+            (comp/emits ") : " f (if ana/*fn-invoke-direct* "(" ".call(null, ")
+              ;; didn't have ifn property, assuming function and no max ifn args limit
+              (comma-sep args)
+              "))"))
 
           :dot-call
-          (comp/emits f ".call(" (comma-sep (cons "null" args)) ")")))))
+          (comp/emits f ".call(null, " (comma-sep args) ")")))))
 
   (.addMethod comp/emit* :var (fn [expr] (shadow-emit-var expr)))
   (.addMethod comp/emit* :binding (fn [expr] (shadow-emit-var expr)))
