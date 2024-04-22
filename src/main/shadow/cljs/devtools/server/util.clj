@@ -108,7 +108,7 @@
 (defn print-warnings [warnings]
   (doseq [{:keys [msg line column source-name] :as w} warnings]
     (warnings/print-warning w)
-    #_ (println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
+    #_(println (str "WARNING: " msg " (" (or source-name "<stdin>") " at " line ":" column ")"))))
 
 (defn print-build-start [{:keys [build-id] :as x}]
   (println (format "[%s] Compiling ..." build-id)))
@@ -321,6 +321,16 @@
       (str/replace "/mnt/c/" "C:\\")
       (str/replace "/" "\\")))
 
+(defn get-file-path [file]
+  (let [test-file (io/file file)]
+    (if (.exists test-file)
+      ;; if file argument can be found as is, get its absolute path
+      (.getAbsolutePath test-file)
+      ;; if it does not exist check if it is a resource path and translate that
+      (let [test (io/resource file)]
+        (.getAbsolutePath (io/file test))
+        ))))
+
 (defn make-open-arg
   [{:keys [file line column] :as data} opt]
   (cond
@@ -345,20 +355,40 @@
         (wsl-ify))
 
     (= opt :wsl-file)
-    (wsl-ify file)
+    (wsl-ify (get-file-path file))
 
     (= opt :file)
-    file
+    (get-file-path file)
 
     (= opt :line)
-    (str (or line 1))
+    (str (or line 0))
 
     (= opt :column)
-    (str (or column 1))
+    (str (or column 0))
+
+    ;; editors might be 0 or 1 indexed, reader is 1 index
+    ;; instead of trying to figure this somehow, let user specify
+    (= opt :line-1)
+    (str (dec (or line 1)))
+
+    (= opt :column-1)
+    (str (dec (or column 1)))
+
+    (= opt :line+1)
+    (str (inc (or line 1)))
+
+    (= opt :column+1)
+    (str (inc (or column 1)))
 
     :else
     (throw (ex-info "invalid literal in :open-file-command" {:opt opt}))
     ))
+
+(comment
+  (make-open-args {:file "shadow/user.clj"} [:file])
+  ;; ok if this breaks for now
+  ;; dunno how you'd even tell Cursive to open a file in a jar?
+  (make-open-args {:file "cljs/core.cljs"} [:file]))
 
 (defn make-open-args
   "transforms :open-file-command template by replacing keywords with actual values"
@@ -371,9 +401,7 @@
           (keyword? template)
           (case template
             :idea
-            ;; /usr/local/bin/idea [-l|--line line] [project_dir|--temp-project] file[:line]
-            ;; --line doesn't seem to work properly
-            ["idea" :pwd ["%s:%s" :file :line]]
+            ["idea" :pwd "--line" :line "--column" :column-1 :file]
             :emacs
             ["emacsclient" "-n" ["+%s:%s" :line :column] :file]
             (throw (ex-info "no :open-file-command template by that name" {:template template})))
