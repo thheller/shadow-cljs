@@ -46,7 +46,7 @@
              :ex-data (ex-data e)}))]
 
     {:status 200
-     :headers {"content-type" "application/edn; charset=utf-8"}
+     :headers {"content-type" "application/transit+json; charset=utf-8"}
      :body (transit-str result)}))
 
 (defn project-info [{:keys [transit-read transit-str] :as req}]
