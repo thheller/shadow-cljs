@@ -9,8 +9,7 @@
             (cb/index-path (io/file "src" "main") {})
             (cb/generate
               '{:ui
-                {:include
-                 [shadow.cljs.ui*]}})
+                {:entries [shadow.cljs.ui.main]}})
             (cb/minify)
             (cb/write-outputs-to (io/file "src" "ui-release" "shadow" "cljs" "ui" "dist" "css")))]
 

@@ -66,17 +66,18 @@
       (let [[build-id-token sub-page] more
             build-id (keyword build-id-token)
             build-ident (db/make-ident ::m/build build-id)
-            build-page-id
+            build-tab
             (case sub-page
-              "runtimes"
-              :build+runtimes
-              :build+status)]
+              "runtimes" :runtimes
+              "config" :config
+              :status)]
         (update env :db
           (fn [db]
             (-> db
                 (assoc ::m/current-page
-                       {:id build-page-id
-                        :ident build-ident})
+                       {:id :build
+                        :ident build-ident
+                        :tab build-tab})
                 (assoc ::m/current-build build-ident)))))
 
       "dashboard"

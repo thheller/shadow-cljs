@@ -764,7 +764,6 @@
     nil
     (:exports-prefix package)))
 
-;; FIXME: this very much looks like the above, should this be one function?
 (defn find-resource-from-exports-by-wildcard
   [npm {:keys [package-dir] :as package} rel-require]
   (reduce

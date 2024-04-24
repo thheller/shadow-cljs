@@ -143,11 +143,8 @@
                :builds
                (builds/ui-builds-page)
 
-               :build+status
-               (build/ui-page-status (:ident current-page))
-
-               :build+runtimes
-               (build/ui-page-runtimes (:ident current-page))
+               :build
+               (build/ui-page (:ident current-page) (:tab current-page))
 
                :dashboard
                (dashboard/ui-page)

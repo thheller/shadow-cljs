@@ -5,7 +5,8 @@
     [shadow.cljs.ui.components.build-status :as build-status]
     [shadow.cljs.ui.components.runtimes :as runtimes]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.components.builds :as builds]))
+    [shadow.cljs.ui.components.builds :as builds]
+    [shadow.grove.ui.edn :as edn]))
 
 (defc tab-status [build-ident]
   (bind {::m/keys [build-status] :as data}
@@ -25,6 +26,14 @@
   (render
     (<< [:div {:class (css :flex-1 :overflow-y-auto)}
          (runtimes/ui-runtime-list build-runtimes)])))
+
+(defc tab-config [build-ident]
+  (bind build-config-raw
+    (sg/db-read [build-ident ::m/build-config-raw]))
+
+  (render
+    (<< [:div {:class (css :flex-1 :overflow-y-auto :bg-white)}
+         (edn/render-edn build-config-raw)])))
 
 (def $tab-selected
   (css :whitespace-nowrap :py-3 :px-5 :border-b-2 :font-medium))
@@ -57,16 +66,20 @@
                {:class (if (= tab :status) $tab-selected $tab-normal)
                 :ui/href link-root}
                "Status"]
+              [:a
+               {:class (if (= tab :config) $tab-selected $tab-normal)
+                :ui/href (str link-root "/config")}
+               "Config"]
               (when build-worker-active
                 (<< [:a
                      {:class (if (= tab :runtimes) $tab-selected $tab-normal)
                       :ui/href (str link-root "/runtimes")}
                      (str "Runtimes (" build-runtime-count ")")]))]]]]))))
 
-(defn ui-page-runtimes [build-ident]
-  (<< (page-header build-ident :runtimes)
-      (tab-runtimes build-ident)))
-
-(defn ui-page-status [build-ident]
-  (<< (page-header build-ident :status)
-      (tab-status build-ident)))
+(defn ui-page [build-ident tab]
+  (<< (page-header build-ident tab)
+      (case tab
+        :runtimes (tab-runtimes build-ident)
+        :config (tab-config build-ident)
+        (tab-status build-ident)
+        )))
