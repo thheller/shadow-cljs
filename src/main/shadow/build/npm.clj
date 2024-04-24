@@ -91,7 +91,11 @@
             {:prefix path
              :match match})
 
-          ;; FIXME: are wildcards only allowed at end?
+          ;; wildcards are allowed to appear at the end and with additional suffix
+          ;; https://nodejs.org/api/packages.html#subpath-patterns
+          ;; although webpack makes it appear its only allowed at the end
+          ;; https://webpack.js.org/guides/package-exports/
+          ;; leave :suffix nil if at the end, so later we know if that needs to be checked
           (if-some [star-idx (str/index-of path "*")]
             (update package :exports-wildcard util/vec-conj
               ;; strip * here, so we don't have to do it again later
