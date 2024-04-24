@@ -281,6 +281,17 @@
       (is (= "node_modules/exports/other/foo.js" resource-name))
       )))
 
+(deftest test-exports-wildcard-with-suffix
+  (with-npm [x {}]
+    (let [{:keys [resource-name] :as rc1}
+          (find-npm-resource x nil "exports/wildcard-with-suffix/foo.js")]
+
+      (is rc1)
+      (is (string? resource-name))
+      (is (= "node_modules/exports/other/foo.js" resource-name))
+      )))
+
+
 (deftest test-exports-wildcard-missing
   (with-npm [x {}]
     (is (thrown? ExceptionInfo (find-npm-resource x nil "exports/wildcard/bar")))

@@ -86,21 +86,22 @@
     (path-map? exports)
     (reduce-kv
       (fn [package path match]
-        (cond
-          (str/ends-with? path "/")
+        (if (str/ends-with? path "/")
           (update package :exports-prefix util/vec-conj
             {:prefix path
              :match match})
 
           ;; FIXME: are wildcards only allowed at end?
-          (str/ends-with? path "*")
-          (update package :exports-wildcard util/vec-conj
-            ;; strip * here, so we don't have to do it again later
-            {:prefix (subs path 0 (dec (count path)))
-             :match match})
+          (if-some [star-idx (str/index-of path "*")]
+            (update package :exports-wildcard util/vec-conj
+              ;; strip * here, so we don't have to do it again later
+              {:prefix (subs path 0 star-idx)
+               :suffix (when (not= star-idx (dec (count path)))
+                         (subs path (inc star-idx)))
+               :match match})
 
-          :just-a-path
-          (assoc-in package [:exports-exact path] match)))
+            ;; just-a-path
+            (assoc-in package [:exports-exact path] match))))
       package
       exports)
 
@@ -763,28 +764,37 @@
 (defn find-resource-from-exports-by-wildcard
   [npm {:keys [package-dir] :as package} rel-require]
   (reduce
-    (fn [_ {:keys [prefix match]}]
+    (fn [_ {:keys [prefix suffix match] :as x}]
       (when (str/starts-with? rel-require prefix)
-        (let [suffix (subs rel-require (count prefix) (count rel-require))]
+        (let [fill (subs rel-require (count prefix) (count rel-require))
 
-          (when-some [replacement (find-exports-replacement npm match)]
-            (let [path (str/replace replacement #"\*" suffix)
-                  file (test-file package-dir path)]
+              ;; patterns may either have ended in ./foo/* or with an additional suffix ./foo/*.js
+              ;; the merge-package-exports* already parsed that and left :suffix nil if at the end
+              ;; otherwise we need to check of the rel-require also matched the suffix
+              fill (if (nil? suffix)
+                     fill
+                     (when (str/ends-with? fill suffix)
+                       (subs fill 0 (- (count fill) (count suffix)))))]
 
-              (cond
-                (not file)
-                nil
-                #_(throw (ex-info "package export wildcard match referenced a file that doesn't exist"
-                           {:rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+          (when fill
+            (when-some [replacement (find-exports-replacement npm match)]
+              (let [path (str/replace replacement #"\*" fill)
+                    file (test-file package-dir path)]
 
-                (.isDirectory file)
-                nil
-                #_(throw (ex-info (format "package export wildcard match referenced a directory")
-                           {:file file :rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+                (cond
+                  (not file)
+                  nil
+                  #_(throw (ex-info "package export wildcard match referenced a file that doesn't exist"
+                             {:rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
 
-                :else
-                (reduced (file-as-resource npm package rel-require file)))
-              )))))
+                  (.isDirectory file)
+                  nil
+                  #_(throw (ex-info (format "package export wildcard match referenced a directory")
+                             {:file file :rel-require rel-require :package-dir package-dir :prefix prefix :match match}))
+
+                  :else
+                  (reduced (file-as-resource npm package rel-require file)))
+                ))))))
     nil
     (:exports-wildcard package)))
 
