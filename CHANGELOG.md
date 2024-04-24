@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.28.4](https://github.com/thheller/shadow-cljs/compare/194c46d9c8d3739a640f33510e83ef31a8671117...531b64f193f6bd26747907aa87c48209c31d9c90) - 2024-04-24
+- [ [`531b6`](https://github.com/thheller/shadow-cljs/commit/531b64f193f6bd26747907aa87c48209c31d9c90) ] add config tab to build UI
+- [ [`236e3`](https://github.com/thheller/shadow-cljs/commit/236e357de37ae4032495807c1473292f7210ff9c) ] fix comment
+- [ [`b3e22`](https://github.com/thheller/shadow-cljs/commit/b3e22dada45389bff47ac3e788d97515b5eca2bb) ] add support for npm "exports" with wildcard suffix
+- [ [`53d59`](https://github.com/thheller/shadow-cljs/commit/53d59bd0480624dfbc36ffaabac3861de24c95af) ] fix some file-open util things
+- [ [`ac5fe`](https://github.com/thheller/shadow-cljs/commit/ac5fe5adc7297c6a7c25f2baea1a486936142c84) ] fix wrong content-type
+- [ [`194c4`](https://github.com/thheller/shadow-cljs/commit/194c46d9c8d3739a640f33510e83ef31a8671117) ] tools.reader bump
+
 ## [2.28.3](https://github.com/thheller/shadow-cljs/compare/2204ac2ac9441cb430ee501cff3c34507b5f3a31...8825ec9245ac1ceb46a6b866403375f0473fcda9) - 2024-03-29
 - [ [`8825e`](https://github.com/thheller/shadow-cljs/commit/8825ec9245ac1ceb46a6b866403375f0473fcda9) ] grove devtools UI test
 - [ [`64e7c`](https://github.com/thheller/shadow-cljs/commit/64e7cc5caa899abf67f29d11b5ce4b93d2fbb970) ] fix REPL inconsistency
