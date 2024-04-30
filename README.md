@@ -7,7 +7,7 @@
 
 `shadow-cljs` provides everything you need to compile your ClojureScript code with a focus on simplicity and ease of use.
 
-### [User's Guide](https://shadow-cljs.github.io/docs/UsersGuide.html) | [Quick Start](#quick-start) | [Tutorials](#video-courses)
+### [User's Guide](https://shadow-cljs.github.io/docs/UsersGuide.html) | [Quick Start](#quick-start) | [Tutorials](#video-courses) | [Browser Extension](https://github.com/thheller/shadow-cljs-ext)
 
 ## Features
 
