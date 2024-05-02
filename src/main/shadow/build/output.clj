@@ -74,7 +74,7 @@
   {:pre [(qualified-symbol? sym)]}
   (if (= :release mode)
     (str "\n" (comp/munge sym) "();")
-    (str "\ntry { " (comp/munge sym) "(); } catch (e) { console.error(\"An error occurred when calling (" sym ")\"); throw(e); }")))
+    (str "\ntry { " (comp/munge sym) "(); } catch (e) { console.error(\"An error occurred when calling (" sym ")\"); console.error(e); }")))
 
 (defn- ns-list-string [coll]
   (->> coll
