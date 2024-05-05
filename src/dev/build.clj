@@ -9,7 +9,9 @@
             (cb/index-path (io/file "src" "main") {})
             (cb/generate
               '{:ui
-                {:entries [shadow.cljs.ui.main]}})
+                {:entries [shadow.cljs.ui.main
+                           ;; FIXME: since this is lazy-loaded shadow.css doesn't find it on its own
+                           shadow.cljs.ui.components.code-editor]}})
             (cb/minify)
             (cb/write-outputs-to (io/file "src" "ui-release" "shadow" "cljs" "ui" "dist" "css")))]
 

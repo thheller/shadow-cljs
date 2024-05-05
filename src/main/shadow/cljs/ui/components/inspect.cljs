@@ -51,11 +51,12 @@
           (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
                (str (name attr) " request failed ...")])
 
-          (codemirror {:value val
-                       :clojure (not= attr ::m/object-as-str)
-                       :cm-opts {:tabindex (if active? 0 -1)
-                                 :readOnly true
-                                 :autofocus false}})))
+          (codemirror
+            {:value val
+             :clojure (not= attr ::m/object-as-str)
+             :cm-opts {:tabindex (if active? 0 -1)
+                       :readOnly true
+                       :autofocus false}})))
 
       )))
 
