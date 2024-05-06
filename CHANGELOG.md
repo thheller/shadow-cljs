@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.28.5](https://github.com/thheller/shadow-cljs/compare/42604693e29f1d1225df63af7c1496167dd1ef97...95533c1734f0593bd6ea98a0ea9e53f29a2ed233) - 2024-05-06
+- [ [`95533`](https://github.com/thheller/shadow-cljs/commit/95533c1734f0593bd6ea98a0ea9e53f29a2ed233) ] add EDN pretty viewer for inspect
+- [ [`9cd4d`](https://github.com/thheller/shadow-cljs/commit/9cd4d3b15e9779e8002e7e9ed0e51addf6c3c8db) ] fix UI css
+- [ [`9e01c`](https://github.com/thheller/shadow-cljs/commit/9e01c3f87b81e3e2df681790c65956fc53c6c151) ] remove JS exception re-throw for init-fn calls
+- [ [`42604`](https://github.com/thheller/shadow-cljs/commit/42604693e29f1d1225df63af7c1496167dd1ef97) ] browser extension link
+
 ## [2.28.4](https://github.com/thheller/shadow-cljs/compare/194c46d9c8d3739a640f33510e83ef31a8671117...531b64f193f6bd26747907aa87c48209c31d9c90) - 2024-04-24
 - [ [`531b6`](https://github.com/thheller/shadow-cljs/commit/531b64f193f6bd26747907aa87c48209c31d9c90) ] add config tab to build UI
 - [ [`236e3`](https://github.com/thheller/shadow-cljs/commit/236e357de37ae4032495807c1473292f7210ff9c) ] fix comment
