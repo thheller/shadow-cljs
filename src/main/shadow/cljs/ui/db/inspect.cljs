@@ -87,18 +87,18 @@
 
       (= :edn pref)
       :edn
-      
+
+      (= :edn-pretty pref)
+      :edn-pretty
+
       (contains? supports :obj-fragment)
       :browse
 
       (contains? #{:string :number :boolean} data-type)
       :edn
 
-      (contains? supports :obj-pprint)
-      :pprint
-
       :default
-      :edn
+      :edn-pretty
       )))
 
 (defn relay-tap-subscribed

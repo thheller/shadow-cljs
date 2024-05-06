@@ -65,7 +65,8 @@
   (bind display-options
     [{:val :browse :label "BROWSER"}
      {:val :pprint :label "PPRINT"}
-     {:val :edn :label "EDN"}])
+     {:val :edn-pretty :label "EDN (pretty)"}
+     {:val :edn :label "EDN (raw)"}])
 
   (render
     (when show-settings

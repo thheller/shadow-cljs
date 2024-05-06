@@ -9,6 +9,7 @@
     [shadow.grove.ui.vlist2 :as vlist]
     [shadow.grove.ui.loadable :refer (refer-lazy)]
     [shadow.grove.keyboard :as keyboard]
+    [shadow.grove.ui.edn :as edn]
     [shadow.cljs.model :as m]
     [shadow.cljs.ui.components.common :as common]
     [shadow.cljs.ui.db.inspect :as db]))
@@ -59,6 +60,26 @@
                        :autofocus false}})))
 
       )))
+
+(defc ui-object-as-edn [ident]
+  (bind data
+    (sg/query-ident ident
+      [::m/object-as-edn]
+      {:suspend false}))
+
+  (render
+    ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
+    (if (= :db/loading data)
+      (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
+           "Loading ..."])
+
+      (let [val (get data ::m/object-as-edn)]
+        (if (keyword-identical? ::m/display-error! val)
+          (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
+               "request failed ..."])
+
+          (<< [:div {:class (css :w-full :h-full :overflow-auto)}
+               (edn/render-edn-str val)]))))))
 
 (defmulti render-view
   (fn [data active?]
@@ -273,7 +294,8 @@
 
              [:div {:class [$button-base $button]}
               (case display-type
-                :edn "EDN"
+                :edn "EDN (raw)"
+                :edn-pretty "EDN (pretty)"
                 :pprint "PPRINT"
                 :str "STR"
                 "BROWSER")]
@@ -287,7 +309,9 @@
                (when (contains? supports :obj-pprint)
                  (view-as-button display-type :pprint "PPRINT" active?))
                (when (contains? supports :obj-edn)
-                 (view-as-button display-type :edn "EDN" active?))
+                 (view-as-button display-type :edn-pretty "EDN (pretty)" active?))
+               (when (contains? supports :obj-edn)
+                 (view-as-button display-type :edn "EDN (raw)" active?))
                (when (= :string data-type)
                  (view-as-button display-type :str "STR" active?))]]]
 
@@ -304,8 +328,11 @@
              :edn
              (ui-object-as-text ident ::m/object-as-edn active?)
 
+             :edn-pretty
+             (ui-object-as-edn ident active?)
+
              :pprint
-             (ui-object-as-text ident ::m/object-as-pprint active?)
+             (ui-object-as-text ident ::m/object-as-pprint active? {})
 
              ;; default
              (<< [:div {:class (css :flex-1 :overflow-hidden :font-mono)}
