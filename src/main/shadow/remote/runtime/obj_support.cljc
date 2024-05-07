@@ -237,7 +237,7 @@
            (str "Execution error:\n"
                 ;; can be any object, really no hope in making this any kind of readable
                 ;; capping it so throwing something large doesn't blow up the REPL
-                "  " (second (lw/pr-str-limit ex 200)) "\n"
+                "  " (subs (lw/pr-str-limit ex 200) 2) "\n"
                 "\n"))
 
          :clj

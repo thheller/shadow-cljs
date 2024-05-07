@@ -1,5 +1,6 @@
 (ns shadow.cljs.ui.components.inspect
   (:require
+    [clojure.string :as str]
     [goog.math :as math]
     [shadow.dom :as dom]
     [shadow.arborist :as sa]
@@ -24,11 +25,10 @@
   (<< [:svg {:width "24" :height "24" :viewBox "0 0 24 24" :fill "none" :xmlns "http://www.w3.org/2000/svg"}
        [:path {:d "M15 19L8 12L15 5" :stroke "#4A5568" :stroke-width "2" :stroke-linecap "round" :stroke-linejoin "round"}]]))
 
-(defn render-edn-limit [[limit-reached text]]
-  (if limit-reached
-    (str text " ...")
-
-    text))
+(defn render-edn-limit [text]
+  (if (str/starts-with? text "1,")
+    (str (subs text 2) " ...")
+    (subs text 2)))
 
 (defc ui-object-as-text [ident attr active?]
   (bind data

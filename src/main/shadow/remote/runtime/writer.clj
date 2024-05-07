@@ -6,9 +6,9 @@
     (try
       (binding [*out* lw]
         (pr obj))
-      [false (.getString lw)]
+      (str "0," (.getString lw))
       (catch LimitWriter$LimitReachedException e
-        [true (.getString lw)]))))
+        (str "1," (.getString lw))))))
 
 (defn limit-writer [limit]
   (LimitWriter. limit))

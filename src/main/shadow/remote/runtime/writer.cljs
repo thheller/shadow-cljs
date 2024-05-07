@@ -18,15 +18,15 @@
         writer (LimitWriter. sb limit)]
     (try
       (pr-writer obj writer (pr-opts))
-      [false (.toString sb)]
+      (str "0," (.toString sb))
       (catch :default e
         (if-not (keyword-identical? ::limit-reached (:tag (ex-data e)))
           (throw e)
-          [true
-           (let [s (.toString sb)]
-             (if (> (.-length s) limit)
-               (subs s 0 limit)
-               s))])))))
+          (str "1,"
+               (let [s (.toString sb)]
+                 (if (> (.-length s) limit)
+                   (subs s 0 limit)
+                   s))))))))
 
 (defn limit-writer [limit]
   (let [sb (StringBuffer.)]
