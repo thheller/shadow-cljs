@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.28.6](https://github.com/thheller/shadow-cljs/compare/47a197ce1d5bfcae6a37f7324e85e1fa2b9f67f7...a10c1bf1cde69f3bcf5335d4fb741bb28b014d15) - 2024-05-09
+- [ [`a10c1`](https://github.com/thheller/shadow-cljs/commit/a10c1bf1cde69f3bcf5335d4fb741bb28b014d15) ] use simplified grove rt handling
+- [ [`47a19`](https://github.com/thheller/shadow-cljs/commit/47a197ce1d5bfcae6a37f7324e85e1fa2b9f67f7) ] move edn-limit to only print a str
+
 ## [2.28.5](https://github.com/thheller/shadow-cljs/compare/42604693e29f1d1225df63af7c1496167dd1ef97...95533c1734f0593bd6ea98a0ea9e53f29a2ed233) - 2024-05-06
 - [ [`95533`](https://github.com/thheller/shadow-cljs/commit/95533c1734f0593bd6ea98a0ea9e53f29a2ed233) ] add EDN pretty viewer for inspect
 - [ [`9cd4d`](https://github.com/thheller/shadow-cljs/commit/9cd4d3b15e9779e8002e7e9ed0e51addf6c3c8db) ] fix UI css
