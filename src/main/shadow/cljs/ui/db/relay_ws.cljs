@@ -4,11 +4,11 @@
     [shadow.grove.runtime :as rt]
     [shadow.grove.events :as ev]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.db.env :as env]
     [clojure.string :as str]))
 
 (defonce rpc-id-seq (atom 0))
 (defonce rpc-ref (atom {}))
+(defonce rt-ref (sg/get-runtime ::m/ui))
 
 (defn relay-welcome
   {::ev/handle ::welcome}
@@ -51,7 +51,7 @@
                               :result-data result-data})
     (cast! env (assoc msg :call-id mid))))
 
-(ev/reg-fx env/rt-ref :relay-send
+(ev/reg-fx rt-ref :relay-send
   (fn [env messages]
     (doseq [msg messages
             :when msg]
@@ -87,13 +87,13 @@
               (let [{:keys [result-data] :as call-data} (get @rpc-ref call-id)]
                 (if (fn? result-data)
                   (result-data msg)
-                  (sg/run-tx! env/rt-ref (assoc result-data :call-result msg))))
+                  (sg/run-tx! rt-ref (assoc result-data :call-result msg))))
 
               (= :ping op)
               (cast! @rt-ref {:op :pong})
 
               :else
-              (sg/run-tx! env/rt-ref
+              (sg/run-tx! rt-ref
                 (if (qualified-keyword? op)
                   (assoc msg :e op)
                   ;; meh, probably shouldn't have used unqualified keywords in shadow.remote?
@@ -108,7 +108,7 @@
 
     (.addEventListener socket "close"
       (fn [e]
-        (sg/run-tx! env/rt-ref {:e ::m/relay-ws-close})
+        (sg/run-tx! rt-ref {:e ::m/relay-ws-close})
         (js/console.log "tool-close" e)))
 
     (.addEventListener socket "error"

@@ -5,7 +5,6 @@
     [shadow.grove.db :as db]
     [shadow.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.db.env :as env]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]
     )
   (:import [goog.i18n DateTimeFormat]))
@@ -652,6 +651,10 @@
                       :is-error true})
               (update-in [::m/inspect :stack] conj {:type :object-panel :ident object-ident})
               (update-in [::m/inspect :current] inc)))))
+
+    :eval-compile-warnings
+    (do (js/console.log "there were some warnings" call-result)
+        env)
 
     :eval-runtime-error
     (let [{:keys [from ex-oid]} call-result

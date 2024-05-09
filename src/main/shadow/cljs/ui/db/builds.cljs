@@ -4,7 +4,6 @@
     [shadow.grove.events :as ev]
     [shadow.grove.eql-query :as eql]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.db.env :as env]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]))
 
 (defn forward-to-ws!

@@ -10,7 +10,6 @@
     [shadow.grove.transit :as transit]
     [shadow.grove.http-fx :as http-fx]
     [shadow.cljs.model :as m]
-    [shadow.cljs.ui.db.env :as env]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]
     [shadow.cljs.ui.db.generic]
     [shadow.cljs.ui.db.builds]
@@ -170,17 +169,21 @@
           [:div "Loading ..."]])}
     (ui-root*)))
 
-(defonce root-el (js/document.getElementById "root"))
+(defonce root-el
+  (js/document.getElementById "root"))
+
+(def rt-ref
+  (sg/get-runtime ::m/ui))
 
 (defn start []
-  (sg/render env/rt-ref root-el (ui-root)))
+  (sg/render rt-ref root-el (ui-root)))
 
 ;; macro magic requires this ns always being recompiled
 ;; not yet possible to hide this, maybe a build-hook would be better than a macro?
 ;; experimenting with use metadata to configure app, might also be more useful
 ;; for documentation purposes or tooling.
 (defn register-events! []
-  (ev/register-events! env/rt-ref))
+  (ev/register-events! rt-ref))
 
 (defn ^:dev/after-load reload []
   (register-events!)
@@ -191,49 +194,91 @@
       (.-content)))
 
 (defn init []
+
+  (sg/add-db-type rt-ref ::m/runtime
+    {:primary-key :runtime-id})
+
+  (sg/add-db-type rt-ref ::m/error
+    {:primary-key :error-id})
+
+  (sg/add-db-type rt-ref ::m/object
+    {:primary-key :oid
+     :joins {::m/runtime [:one ::m/runtime]}})
+
+  (sg/add-db-type rt-ref ::m/http-server
+    {:primary-key ::m/http-server-id})
+
+  (sg/add-db-type rt-ref ::m/build
+    {:type :entity
+     :primary-key ::m/build-id})
+
+  (sg/add-db-type rt-ref ::m/database
+    {:primary-key :db-id
+     :joins {::m/runtime [:one ::m/runtime]}})
+
+  (sg/add-db-type rt-ref ::m/runtime-ns
+    {:primary-key [::m/runtime :ns]
+     :joins {::m/runtime [:one ::m/runtime]}})
+
+  (sg/add-db-type rt-ref ::m/runtime-var
+    {:primary-key [::m/runtime :var]
+     :joins {::m/runtime [:one ::m/runtime]
+             ::m/runtime-ns [:one ::m/runtime-ns]}})
+
+  (sg/db-init
+    rt-ref
+    (fn [db]
+      {::m/current-page :db/loading
+       ::m/builds :db/loading
+       ::m/http-servers :db/loading
+       ::m/init-complete? :db/loading ;; used a marker for initial suspense
+       ;; assume that the first connect will succeed
+       ;; otherwise shows disconnect banner for a few ms on startup
+       ::m/relay-ws-connected true
+       ::m/ui-options {} ;; FIXME: should probably store this somewhere on the client side too
+       ::m/runtimes []
+       ::m/active-builds []
+       ::m/tap-stream (list)
+       ::m/tap-latest nil
+       ::m/inspect
+       {:current 0
+        :stack
+        [{:type :tap-panel}]}}))
+
   ;; needs to be called before start since otherwise we can't process events triggered by any of these
   (register-events!)
 
-  (transit/init! env/rt-ref)
+  (transit/init! rt-ref)
 
-  (when ^boolean js/goog.DEBUG
-    (swap! env/rt-ref assoc :shadow.grove.runtime/tx-reporter
-      (fn [report]
-        (let [e (-> report :event :e)]
-          (case e
-            ::m/relay-ws
-            (js/console.log "[WS]" (-> report :event :msg :op) (-> report :event :msg) report)
-            (js/console.log e report))))))
-
-  (history/init! env/rt-ref
+  (history/init! rt-ref
     {:start-token "/dashboard"
      :root-el root-el})
 
-  (sg/reg-fx env/rt-ref :http-api
+  (sg/reg-fx rt-ref :http-api
     (http-fx/make-handler
       {:on-error {:e ::m/request-error!}
        :base-url "/api"
        :request-format :transit}))
 
-  (relay-ws/init env/rt-ref server-token
+  (relay-ws/init rt-ref server-token
     (fn []
-      (relay-ws/cast! @env/rt-ref
+      (relay-ws/cast! @rt-ref
         {:op ::m/load-ui-options
          :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
          })
 
       ;; builds starting, stopping
-      (relay-ws/cast! @env/rt-ref
+      (relay-ws/cast! @rt-ref
         {:op ::m/subscribe
          :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
          ::m/topic ::m/supervisor})
 
       ;; build progress, errors, success
-      (relay-ws/cast! @env/rt-ref
+      (relay-ws/cast! @rt-ref
         {:op ::m/subscribe
          :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
          ::m/topic ::m/build-status-update})))
 
-  (sg/run-tx! env/rt-ref {:e ::m/init!})
+  (sg/run-tx! rt-ref {:e ::m/init!})
 
-  (js/setTimeout start 0))
+  (start))
