@@ -49,15 +49,24 @@
 (defn is-windows? []
   (str/includes? js/process.platform "win32"))
 
-(defn run [project-root cmd args proc-opts]
-  (let [spawn-opts
-        (-> {:cwd project-root
-             :stdio "inherit"}
-            (merge proc-opts)
-            (clj->js))
+;; https://github.com/thheller/shadow-cljs/issues/1180
+;; https://nodejs.org/en/blog/vulnerability/april-2024-security-releases-2
+;; apparently need a shell in windows to execute lein.bat or .cmd
+(defn needs-shell? [executable]
+  (let [executable (str/lower-case executable)]
+    (or (str/ends-with? executable ".cmd")
+        (str/ends-with? executable ".bat"))))
 
-        executable
-        (which/sync cmd #js {:nothrow true})]
+(defn run [project-root cmd args proc-opts]
+  (let [executable
+        (which/sync cmd #js {:nothrow true})
+
+        spawn-opts
+        (-> {:cwd project-root
+             :stdio "inherit"
+             :shell (needs-shell? executable)}
+            (merge proc-opts)
+            (clj->js))]
 
     (if-not executable
       (throw (ex-info (str "Executable '" cmd "' not found on system path.") {:cmd cmd :args args}))
@@ -75,7 +84,8 @@
             (-> {:cwd project-root
                  :env (-> #js {"SHADOW_CLI_PID" js/process.pid}
                           (js/Object.assign js/process.env))
-                 :stdio "inherit"}
+                 :stdio "inherit"
+                 :shell (needs-shell? executable)}
                 (merge proc-opts)
                 (clj->js))
 
