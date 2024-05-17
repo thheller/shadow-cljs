@@ -211,20 +211,47 @@
       :stack
       [{:type :tap-panel}]}})
 
+  ;; FIXME: figure out proper schema support
+  ;; don't want to hard depend on spec or malli from grove
+  ;; but it would be super useful to have this information in some place
+  ;; FIXME: also sort out this messy mix of regular and namespaced keywords
   (sg/add-kv-table rt-ref ::m/runtime
-    {:primary-key :runtime-id})
+    {:primary-key :runtime-id
+     ;; :runtime-id number?
+     ;; :runtime-info shadow-remote-runtime-info-map
+     ;; :supported-opts set-of-keywords
+     })
+
+  (sg/add-kv-table rt-ref ::m/object
+    {:primary-key :oid
+     ;; :oid number
+     ;; :runtime-id number
+     ;; :display-type keyword
+     ;; :summary shadow-remote-obj-summary
+     ;; :edn-limit preview-edn-string
+     ;; :obj-edn string
+     ;; :obj-pprint string
+     ;; :fragment map-of-row-id-to-edn-limit-preview-for-row
+     })
+
+  (sg/add-kv-table rt-ref ::m/http-server
+    {:primary-key ::m/http-server-id
+     ;; ::m/http-server-id number
+     ;; ::m/http-config dev-http-config-map
+     ;; ::m/http-url string
+     ;; ::m/https-url string
+     })
+
+  (sg/add-kv-table rt-ref ::m/build
+    {:primary-key ::m/build-id
+     ;; ::m/build-id keyword
+     ;; ::m/build-target keyword
+     ;; ::m/build-config-raw build-config-map
+     ;; ::m/build-worker-active boolean
+     })
 
   (sg/add-kv-table rt-ref ::m/error
     {:primary-key :error-id})
-
-  (sg/add-kv-table rt-ref ::m/object
-    {:primary-key :oid})
-
-  (sg/add-kv-table rt-ref ::m/http-server
-    {:primary-key ::m/http-server-id})
-
-  (sg/add-kv-table rt-ref ::m/build
-    {:primary-key ::m/build-id})
 
   ;; needs to be called before start since otherwise we can't process events triggered by any of these
   (register-events!)
