@@ -4,7 +4,7 @@
     [goog.string :refer (format)]
     [shadow.css :refer (css)]
     [shadow.grove :as sg :refer (<< defc)]
-    [shadow.cljs.model :as m]))
+    [shadow.cljs :as-alias m]))
 
 (defn render-build-log [{:keys [log] :as build-status}]
   ;; FIXME: are these useful at all?

@@ -9,10 +9,8 @@
     [goog.style :as gs]
     [goog.positioning :as gpos]
     [shadow.grove :as sg :refer (defc <<)]
-    [shadow.grove.runtime :as gr]
+    [shadow.grove.kv :as kv]
     [shadow.grove.events :as ev]
-    [shadow.grove.local :as local-eng]
-    [shadow.grove.db :as db]
     [loom.graph :as lg]
     [loom.alg :as la]
     [loom.graph :as g]))
@@ -25,9 +23,9 @@
     #{y}
     (conj x y)))
 
-(defc ui-group-item [item-ident]
+(defc ui-group-item [item-id]
   (bind {:keys [resource-name optimized-size] :as item}
-    (sg/query-ident item-ident))
+    (sg/kv-lookup ::group-item item-id))
 
   (event ::group-item-enter! [env ev e]
     (let [el (.. e -target)
@@ -35,20 +33,19 @@
       (sg/dispatch-up! env (assoc ev :rect rect))))
 
   (render
-    (<< [:tr.group-item {:on-mouseenter {:e ::group-item-enter! :item-ident item-ident}
-                         :on-mouseleave {:e ::group-item-leave!}
-                         }
+    (<< [:tr.group-item {:on-mouseenter {:e ::group-item-enter! :item-id item-id}
+                         :on-mouseleave {:e ::group-item-leave!}}
          [:td resource-name]
          [:td.numeric (filesize optimized-size)]])))
 
-(defc ui-group [group-ident]
+(defc ui-group [group-id]
 
   (bind {:keys [npm-info pom-info group-name group-type group-pct items optimized-size expanded is-duplicate] :as row}
-    (sg/query-ident group-ident))
+    (sg/kv-lookup ::group group-id))
 
   (render
     (<< [:tr.group__row
-         {:on-click {:e ::toggle-group! :group-ident group-ident}}
+         {:on-click {:e ::toggle-group! :group-id group-id}}
          [:td.group__expand-toggle (if expanded "-" "+")]
          [:td
           {:class (when is-duplicate "group__duplicate")}
@@ -83,13 +80,9 @@
                   (sg/simple-seq items ui-group-item)]]]
                [:td]])))))
 
-(defc ui-module [mod-ident]
+(defc ui-module [mod-id]
   (bind {:keys [module-id js-size gzip-size groups]}
-    (sg/query-ident mod-ident
-      [:module-id
-       :js-size
-       :gzip-size
-       :groups]))
+    (sg/kv-lookup ::module mod-id))
 
   (render
     (<< [:div.module
@@ -105,35 +98,22 @@
            (sg/simple-seq groups ui-group)]
           ]])))
 
-(defc ui-hover-item []
-
-  (bind {:keys [hover-item]}
-    (sg/query-root
-      [{:hover-item
-        [:db/all
-         {:resource [:resource-name]}
-         {:paths
-          [:db/all
-           {:entry [:resource-name]}
-           {:path [:resource-name]}]}
-         ]}]))
+(defc ui-hover-item [hover-item]
+  (bind resources
+    (sg/kv-lookup ::resource))
 
   (bind container-ref
     (sg/ref))
 
-  (hook
-    (sg/mount-effect
-      (fn [env]
-        (let [rect (:rect hover-item)
-              pos (gm/Coordinate.
-                    (+ 20 (.-left rect))
-                    (+ 20 (.-top rect) (.-height rect)))]
-          (gpos/positionAtCoordinate
-            pos
-            @container-ref
-            gpos/Corner.TOP_LEFT
-            ))
-
+  (effect :mount [env]
+    (let [rect (:rect hover-item)
+          pos (gm/Coordinate.
+                (+ 20 (.-left rect))
+                (+ 20 (.-top rect) (.-height rect)))]
+      (gpos/positionAtCoordinate
+        pos
+        @container-ref
+        gpos/Corner.TOP_LEFT
         )))
 
   (render
@@ -151,62 +131,33 @@
 
                     [:div.hover__require-trace-items
                      (sg/simple-seq (reverse path)
-                       (fn [{:keys [resource-name]}]
-                         (<< [:div.hover__require-trace-item (str " - " resource-name)])))]])
+                       (fn [resource-id]
+                         (<< [:div.hover__require-trace-item
+                              (str " - " (get-in resources [resource-id :resource-name]))])))]])
                ))]))))
 
 (defc ui-root []
   (bind {:keys [display-modules hover-item]}
-    (sg/query-root
-      [:display-modules
-       :hover-item]))
+    (sg/kv-lookup ::root))
 
   (render
     (<< (sg/simple-seq display-modules ui-module)
-
         (when hover-item
-          (ui-hover-item)
+          (ui-hover-item hover-item)
           ))))
 
-(def schema
-  {:module
-   {:type :entity
-    :primary-key :module-id
-    :joins {:groups [:many :group]}}
-
-   :group
-   {:type :entity
-    :primary-key :group-id
-    :joins {:items [:many :group-item]}}
-
-   :group-item
-   {:type :entity
-    :primary-key :group-item-id}
-
-   :resource
-   {:type :entity
-    :primary-key :resource-id}
-   })
-
-
-(defonce data-ref
-  (-> {}
-      (db/configure schema)
-      (atom)))
-
-(defonce rt-ref
-  (-> {}
-      (gr/prepare data-ref ::db)))
+(def rt-ref
+  (sg/get-runtime ::ui))
 
 (ev/reg-event rt-ref ::toggle-group!
-  (fn [env {:keys [group-ident]}]
-    (update-in env [:db group-ident :expanded] not)))
+  (fn [env {:keys [group-id]}]
+    (update-in env [::group group-id :expanded] not)))
 
 (ev/reg-event rt-ref ::group-item-enter!
-  (fn [{:keys [db] :as env} {:keys [item-ident rect]}]
-    (let [{:keys [require-graph module-entries]} db
+  (fn [env {:keys [item-id rect]}]
+    (let [{:keys [require-graph module-entries]} (::root env)
 
-          rc-id (get-in db [item-ident :resource-id])
+          rc-id (get-in env [::group-item item-id :resource-id])
 
           hover-item
           (reduce
@@ -214,23 +165,23 @@
               (let [path (la/shortest-path require-graph entry-id rc-id)]
                 (if-not path
                   item
-                  (update item :paths conj {:path (mapv #(db/make-ident :resource %) path)
-                                            :entry (db/make-ident :resource entry-id)}))))
+                  (update item :paths conj {:path path
+                                            :entry-id entry-id}))))
 
-            {:item item-ident
+            {:item-id item-id
              :rect rect
-             :resource (db/make-ident :resource rc-id)
+             :resource-id rc-id
              :paths []}
 
             module-entries)]
 
       (if-not (seq (:paths hover-item))
         env
-        (assoc-in env [:db :hover-item] hover-item)))))
+        (assoc-in env [::root :hover-item] hover-item)))))
 
 (ev/reg-event rt-ref ::group-item-leave!
-  (fn [env {:keys [item-ident]}]
-    (assoc-in env [:db :hover-item] nil)))
+  (fn [env {:keys [item-id]}]
+    (assoc-in env [::root :hover-item] nil)))
 
 (defonce root-el
   (js/document.getElementById "root"))
@@ -238,31 +189,49 @@
 (defn ^:dev/after-load start []
   (sg/render rt-ref root-el (ui-root)))
 
-(defn check-dupes [db]
+(defn check-dupes [env]
   (let [npm-groups
-        (->> (db/all-of db :group)
+        (->> (::group env)
+             (vals)
              (filter #(= :npm (:group-type %))))
 
         group-dupes
         (reduce
-          (fn [m {:keys [group-name] :as group}]
-            (update m group-name conj-set (:db/ident group)))
+          (fn [m {:keys [group-name group-id] :as group}]
+            (update m group-name conj-set group-id))
           {}
           npm-groups)]
 
     (reduce-kv
-      (fn [db group-name group-ids]
+      (fn [env group-name group-ids]
         (if-not (> (count group-ids) 1)
-          db
+          env
           (reduce
-            (fn [db group-ident]
-              (assoc-in db [group-ident :is-duplicate] true))
-            db
+            (fn [env group-id]
+              (assoc-in env [::group group-id :is-duplicate] true))
+            env
             group-ids)))
-      db
+      env
       group-dupes)))
 
 (defn init []
+  (sg/add-kv-table rt-ref ::root
+    {})
+
+  (sg/add-kv-table rt-ref ::module
+    {:primary-key :module-id
+     :joins {:groups ::group}})
+
+  (sg/add-kv-table rt-ref ::group
+    {:primary-key :group-id
+     :joins {:items ::group-item}})
+
+  (sg/add-kv-table rt-ref ::group-item
+    {:primary-key :group-item-id})
+
+  (sg/add-kv-table rt-ref ::resource
+    {:primary-key :resource-id})
+
   (let [{:keys [build-modules build-sources] :as data}
         (-> (js/document.querySelector "script[type=\"shadow/build-report\"]")
             (.-innerText)
@@ -340,21 +309,16 @@
                       (assoc mod :groups groups))))
              (vec))]
 
-    (swap! data-ref
-      (fn [db]
-        (-> db
-            (assoc :build-modules build-modules
-                   :build-sources build-sources
-                   :module-entries entries
-                   :require-graph require-graph)
-            (db/merge-seq :resource build-sources)
-            (db/merge-seq :module display-modules [:display-modules])
+    (sg/kv-init rt-ref
+      (fn [env]
+        (-> env
+            (update ::root merge
+              {:build-modules build-modules
+               :build-sources build-sources
+               :module-entries entries
+               :require-graph require-graph})
+            (kv/merge-seq ::resource build-sources)
+            (kv/merge-seq ::module display-modules [::root :display-modules])
             (check-dupes))))
-
-
-
-
-
-    (local-eng/init! rt-ref)
 
     (start)))

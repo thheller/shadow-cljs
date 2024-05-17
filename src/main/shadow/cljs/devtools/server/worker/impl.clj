@@ -10,7 +10,7 @@
     [shadow.debug :refer (?> ?-> ?->>)]
     [shadow.jvm-log :as log]
     [shadow.cljs.repl :as repl]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.util :as util :refer (set-conj reduce->)]
     [shadow.build :as build]
     [shadow.build.api :as build-api]
@@ -825,7 +825,8 @@
      :vars (->> (get-in worker-state [:build-state :compiler-env ::cljs-ana/namespaces ns :defs])
                 (keys)
                 (sort-by name)
-                (vec))})
+                (mapv (fn [sym]
+                        (symbol (name ns) (name sym)))))})
 
   worker-state)
 

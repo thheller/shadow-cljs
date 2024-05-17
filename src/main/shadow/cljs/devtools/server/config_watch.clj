@@ -4,7 +4,7 @@
             [clojure.java.io :as io]
             [clojure.core.async :as async :refer (thread <!!)]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
-            [shadow.cljs.model :as m]
+            [shadow.cljs :as-alias m]
             [shadow.jvm-log :as log]))
 
 (defn- service? [x]

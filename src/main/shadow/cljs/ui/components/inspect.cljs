@@ -11,9 +11,11 @@
     [shadow.grove.ui.loadable :refer (refer-lazy)]
     [shadow.grove.keyboard :as keyboard]
     [shadow.grove.ui.edn :as edn]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.ui.components.common :as common]
-    [shadow.cljs.ui.db.inspect :as db]))
+    [shadow.cljs.ui.db.inspect :as db]
+    [shadow.cljs.ui.db.explorer :as explorer-db]
+    ))
 
 (refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
@@ -30,11 +32,12 @@
     (str (subs text 2) " ...")
     (subs text 2)))
 
-(defc ui-object-as-text [ident attr active?]
-  (bind data
-    (sg/query-ident ident
-      [attr]
-      {:suspend false}))
+(defc ui-object-as-text [object attr active?]
+  (bind val
+    (get object attr))
+
+  (effect :mount [env]
+    (db/maybe-load-object-as env object attr))
 
   (render
     #_[:button.absolute.rounded-full.shadow-lg.p-4.bg-blue-200.bottom-0.right-0.m-4.mr-8
@@ -43,47 +46,46 @@
        "COPY"]
 
     ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
-    (if (= :db/loading data)
+    (if (nil? val)
       (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
            "Loading ..."])
 
-      (let [val (get data attr)]
-        (if (keyword-identical? ::m/display-error! val)
-          (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
-               (str (name attr) " request failed ...")])
+      (if (keyword-identical? ::m/display-error! val)
+        (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
+             (str (name attr) " request failed ...")])
 
-          (codemirror
-            {:value val
-             :clojure (not= attr ::m/object-as-str)
-             :cm-opts {:tabindex (if active? 0 -1)
-                       :readOnly true
-                       :autofocus false}})))
+        (codemirror
+          {:value val
+           :clojure (not= attr ::m/object-as-str)
+           :cm-opts {:tabindex (if active? 0 -1)
+                     :readOnly true
+                     :autofocus false}}))
 
       )))
 
-(defc ui-object-as-edn [ident]
-  (bind data
-    (sg/query-ident ident
-      [::m/object-as-edn]
-      {:suspend false}))
+(defc ui-object-as-edn [object active?]
+  (bind val
+    (:obj-edn object))
+
+  (effect :mount [env]
+    (db/maybe-load-object-as env object :obj-edn))
 
   (render
     ;; not using codemirror initially since it wants to treat "Loading ..." as clojure code
-    (if (= :db/loading data)
+    (if (nil? val)
       (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
            "Loading ..."])
 
-      (let [val (get data ::m/object-as-edn)]
-        (if (keyword-identical? ::m/display-error! val)
-          (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
-               "request failed ..."])
+      (if (keyword-identical? ::m/display-error! val)
+        (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
+             "request failed ..."])
 
-          (<< [:div {:class (css :w-full :h-full :overflow-auto)}
-               (edn/render-edn-str val)]))))))
+        (<< [:div {:class (css :w-full :h-full :overflow-auto)}
+             (edn/render-edn-str val)])))))
 
 (defmulti render-view
-  (fn [data active?]
-    (get-in data [:summary :data-type]))
+  (fn [object active?]
+    (get-in object [:summary :data-type]))
   :default ::default)
 
 (defmethod render-view ::default [{:keys [summary]}]
@@ -97,19 +99,19 @@
          (str value)]]]))
 
 (defmethod render-view :string [object active?]
-  (ui-object-as-text (:db/ident object) ::m/object-as-str active?))
+  (ui-object-as-text object :obj-str active?))
 
 (defmethod render-view :number [object active?]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
+  (ui-object-as-text object :obj-edn active?))
 
 (defmethod render-view :boolean [object active?]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
+  (ui-object-as-text object :obj-edn active?))
 
 (defmethod render-view :symbol [object active?]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
+  (ui-object-as-text object :obj-edn active?))
 
 (defmethod render-view :keyword [object active?]
-  (ui-object-as-text (:db/ident object) ::m/object-as-edn active?))
+  (ui-object-as-text object :obj-edn active?))
 
 (defmethod render-view :nil [object active?]
   (<< [:div {:class (css :flex-1)}
@@ -127,7 +129,7 @@
      :tab-index (if active? 0 -1)}
 
     (fn read-fn [params]
-      (sg/db-read db/fragment-vlist object params))
+      (sg/query db/fragment-vlist (:oid object) params))
 
     (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
       (let [$row
@@ -170,7 +172,9 @@
      :tab-index (if active? 0 -1)}
 
     (fn read-fn [params]
-      (sg/db-read db/fragment-vlist object params))
+      ;; FIXME: dumb that we can't pass object here
+      ;; fragment-vlist needs to read object from kv, otherwise it won't update
+      (sg/query db/fragment-vlist (:oid object) params))
 
     (fn item-fn [{:keys [key val] :as entry} {:keys [idx focus] :as opts}]
       (let [$key
@@ -203,7 +207,7 @@
        (<< [:div "Show more ... " (pr-str entry)]))}
 
     (fn [params]
-      (sg/db-read db/lazy-seq-vlist object params))
+      (sg/query db/lazy-seq-vlist object params))
 
     (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
       (let [$row
@@ -230,15 +234,13 @@
        label]))
 
 (defc ui-object-panel
-  [^:stable ident panel-idx active?]
+  [^:stable oid panel-idx active?]
   (bind object
-    (sg/query-ident ident
-      [:db/ident
-       :oid
-       :summary
-       :is-error
-       :runtime
-       :display-type]))
+    (sg/kv-lookup ::m/object oid))
+
+  (effect :mount [env]
+    (db/maybe-load-summary env object)
+    (db/maybe-load-obj-preview env object))
 
   (event ::go-first! [env _ _]
     (sg/run-tx env {:e ::m/inspect-set-current! :idx 0}))
@@ -252,13 +254,13 @@
        :code code}))
 
   (event ::inspect-nav! [env tx]
-    (sg/run-tx env (assoc tx :e ::m/inspect-nav! :ident ident :panel-idx panel-idx)))
+    (sg/run-tx env (assoc tx :e ::m/inspect-nav! :oid oid :panel-idx panel-idx)))
 
   (event ::inspect-switch-display! [env tx]
-    (sg/run-tx env (assoc tx :e ::m/inspect-switch-display! :ident ident)))
+    (sg/run-tx env (assoc tx :e ::m/inspect-switch-display! :oid oid)))
 
   (event ::kb-select! [env {:keys [idx]}]
-    (sg/run-tx env {:e ::m/inspect-nav! :ident ident :idx idx :panel-idx panel-idx}))
+    (sg/run-tx env {:e ::m/inspect-nav! :oid oid :idx idx :panel-idx panel-idx}))
 
   (render
 
@@ -326,13 +328,13 @@
 
            (case display-type
              :edn
-             (ui-object-as-text ident ::m/object-as-edn active?)
+             (ui-object-as-text object :obj-edn active?)
 
              :edn-pretty
-             (ui-object-as-edn ident active?)
+             (ui-object-as-edn object active?)
 
              :pprint
-             (ui-object-as-text ident ::m/object-as-pprint active? {})
+             (ui-object-as-text object :obj-pprint active?)
 
              ;; default
              (<< [:div {:class (css :flex-1 :overflow-hidden :font-mono)}
@@ -352,15 +354,16 @@
             ]]
           ))))
 
-(defc ui-tap-stream-item [object-ident {:keys [idx focus]}]
-  (bind {:keys [summary runtime obj-preview] :as data}
-    (sg/query-ident object-ident
-      [:oid
-       {:runtime
-        [:runtime-id
-         :runtime-info]}
-       :obj-preview
-       :summary]))
+(defc ui-tap-stream-item [oid {:keys [idx focus]}]
+  (bind {:keys [summary edn-limit] :as object}
+    (sg/kv-lookup ::m/object oid))
+
+  (bind runtime
+    (sg/kv-lookup ::m/runtime (:runtime-id object)))
+
+  (effect :mount [env]
+    (db/maybe-load-obj-preview env object)
+    (db/maybe-load-summary env object))
 
   (render
     (let [{:keys [ns line column label]} summary
@@ -376,7 +379,7 @@
 
       (<< [:div
            {:class (str $row (when focus " focus"))
-            :on-click {:e ::inspect-object! :ident object-ident}}
+            :on-click {:e ::inspect-object! :oid oid}}
 
            [:div.header
             (str (:added-at-ts summary)
@@ -396,7 +399,9 @@
                                  (str ":" column))))))
                  (when label
                    (str " - " label)))]
-           [:div.val (render-edn-limit obj-preview)]]))))
+           [:div.val
+            (when edn-limit
+              (render-edn-limit edn-limit))]]))))
 
 (defc ui-tap-panel [item panel-idx active?]
   (event ::kb-select! [env {:keys [item] :as e}]
@@ -416,7 +421,7 @@
               :tab-index (if active? 0 -1)
               :select-event {:e ::kb-select!}}
              (fn [params]
-               (sg/db-read db/tap-vlist params))
+               (sg/query db/tap-vlist params))
              (fn [ident info]
                (ui-tap-stream-item ident info)))]
 
@@ -428,17 +433,17 @@
             "Clear"]]))))
 
 (defc ui-tap-latest-panel [item panel-idx active?]
-  (bind {::m/keys [tap-latest]}
-    (sg/query-root [::m/tap-latest]))
+  (bind tap-latest
+    (sg/kv-lookup ::m/ui ::m/tap-latest))
 
   (render
     (if-not tap-latest
       (<< [:div {:class (css :p-8 :text-2xl)} "No Taps yet. (tap> something) to see it here."])
       (ui-object-panel tap-latest panel-idx active?))))
 
-(defc ui-explore-var-details [var-ident]
-  (bind {:keys [description var] :as data}
-    (sg/query-ident var-ident))
+(defc ui-explore-var-details [runtime-id var]
+  (bind description
+    (sg/kv-lookup ::m/runtime runtime-id :explore-var-description))
 
   (render
     (let [{:keys [doc arglists]} description]
@@ -455,49 +460,44 @@
                      (fn [arglist]
                        (<< [:div {:class (css :px-2)} "(" (pr-str arglist) ")"]))))]))))))
 
-(defc ui-explore-ns-details [ns-ident]
-  (bind {::m/keys [runtime-vars] :as data}
-    (sg/query-ident ns-ident
-      [:ns
-       {::m/runtime
-        [::m/explore-var]}
-       {::m/runtime-vars
-        [:db/ident
-         :var]}]))
+(defc ui-explore-ns-details [runtime-id ns]
+  (bind runtime-vars
+    (sg/kv-lookup ::m/runtime runtime-id :runtime-vars ns))
 
   (bind explore-var
-    (get-in data [::m/runtime ::m/explore-var]))
+    (sg/kv-lookup ::m/runtime runtime-id :explore-var))
 
   (render
     (<< [:div {:class (css :flex-1 :flex :overflow-hidden :flex-col)}
          [:div {:class (css :flex-1 :overflow-y-auto :px-2)}
           (when (seq runtime-vars)
             (sg/simple-seq runtime-vars
-              (fn [{:keys [var] :as item}]
+              (fn [var]
                 (<< [:div
-                     {:class (when (= (:db/ident item) explore-var) (css :font-bold))
+                     {:class (when (= var explore-var) (css :font-bold))
                       :on-click {:e ::m/runtime-select-var!
-                                 :ident (:db/ident item)}}
-                     (name var)]))))]
-         ])))
+                                 :runtime-id runtime-id
+                                 :ns ns
+                                 :var var}}
+                     (name var)]))))]])))
 
 (defc ui-explore-object-panel
-  [^:stable ident panel-idx active?]
+  [^:stable oid panel-idx active?]
   (bind object
-    (sg/query-ident ident
-      [:db/ident
-       :summary
-       :is-error
-       :display-type]))
+    (sg/kv-lookup ::m/object oid))
+
+  (effect :mount [env]
+    (db/maybe-load-summary env object)
+    (db/maybe-load-obj-preview env object))
 
   (event ::inspect-nav! [env tx]
-    (sg/run-tx env (assoc tx :e ::m/inspect-nav! :ident ident :panel-idx panel-idx)))
+    (sg/run-tx env (assoc tx :e ::m/inspect-nav! :ident oid :panel-idx panel-idx)))
 
   (event ::inspect-switch-display! [env tx]
-    (sg/run-tx env (assoc tx :e ::m/inspect-switch-display! :ident ident)))
+    (sg/run-tx env (assoc tx :e ::m/inspect-switch-display! :ident oid)))
 
   (event ::kb-select! [env {:keys [idx]}]
-    (sg/run-tx env {:e ::m/inspect-nav! :ident ident :idx idx :panel-idx panel-idx}))
+    (sg/run-tx env {:e ::m/inspect-nav! :ident oid :idx idx :panel-idx panel-idx}))
 
   (render
 
@@ -513,10 +513,10 @@
 
            (case display-type
              :edn
-             (ui-object-as-text ident ::m/object-as-edn active?)
+             (ui-object-as-text object :obj-edn active?)
 
              :pprint
-             (ui-object-as-text ident ::m/object-as-pprint active?)
+             (ui-object-as-text object :obj-pprint active?)
 
              ;; default
              (<< [:div {:class (css :flex-1 :overflow-hidden :font-mono)}
@@ -534,32 +534,22 @@
               (view-as-button display-type :edn "EDN" active?))]]
           ))))
 
-(defc ui-explore-runtime-panel [runtime-ident panel-idx active?]
+(defc ui-explore-runtime-panel [runtime-id panel-idx active?]
   (bind {:keys
-         [runtime-id]
-         ::m/keys
          [explore-ns
           explore-var
           explore-var-object
-          runtime-namespaces
-          runtime-namespaces-filtered]
-         :as data}
+          runtime-namespaces]
+         :as runtime}
+    (sg/kv-lookup ::m/runtime runtime-id))
 
-    (sg/query-ident runtime-ident
-      [:runtime-id
-       ::m/runtime-namespaces
-       {::m/runtime-namespaces-filtered
-        [:db/ident
-         :ns]}
-       ::m/explore-ns
-       ::m/explore-var
-       ::m/explore-var-object
-       ::m/explore-state]))
+  (effect :mount [env]
+    (explorer-db/maybe-load-runtime-namespaces env runtime))
 
   (event ::code-eval! [env {:keys [code]}]
     (sg/run-tx env
       {:e ::m/inspect-code-eval!
-       :runtime-ident runtime-ident
+       :runtime-id runtime-id
        :runtime-ns explore-ns
        :panel-idx panel-idx
        :code code}))
@@ -567,28 +557,29 @@
   (event ::runtime-deselect-var! [env ev]
     (sg/run-tx env
       {:e ::m/runtime-deselect-var!
-       :runtime-ident runtime-ident}))
+       :runtime-id runtime-id}))
 
   (render
     (<< [:div {:class (css :flex-1 :overflow-hidden :flex :flex-col :bg-white)}
          [:div {:class (css :p-2 :font-bold :border-b)} "Exploring Runtime: #" runtime-id]
          [:div {:class (css :flex-1 :flex :overflow-hidden)}
           [:div {:class (css :overflow-y-auto)}
-           (sg/keyed-seq runtime-namespaces-filtered :db/ident
-             (fn [{:keys [ns] :as rt-ns}]
+           (sg/keyed-seq runtime-namespaces identity
+             (fn [ns]
                (<< [:div
                     {:class (str (css :px-2 ["&.selected" :font-bold])
-                                 (when (= (:db/ident rt-ns) explore-ns) " selected"))
+                                 (when (= ns explore-ns) " selected"))
                      :on-click {:e ::m/runtime-select-namespace!
-                                :ident (:db/ident rt-ns)}}
+                                :runtime-id runtime-id
+                                :ns ns}}
                     (name ns)])))]
 
           (if explore-ns
-            (ui-explore-ns-details explore-ns)
+            (ui-explore-ns-details runtime-id explore-ns)
             (<< [:div {:class (css :flex-1 :p-4)} "Select a namespace ..."]))]
 
          (when explore-var
-           (ui-explore-var-details explore-var))
+           (ui-explore-var-details runtime-id explore-var))
 
          (when explore-var-object
            (ui-explore-object-panel explore-var-object panel-idx active?))
@@ -650,11 +641,8 @@
           (js/requestAnimationFrame animate-scroll))))))
 
 (defc ui-page []
-  (bind {::m/keys [inspect] :as data}
-    (sg/query-root [::m/inspect]))
-
   (bind {:keys [stack current]}
-    inspect)
+    (sg/kv-lookup ::m/ui ::m/inspect))
 
   (event ::inspect-object! [env tx]
     (sg/run-tx env (assoc tx :e ::m/inspect-object!)))
@@ -753,10 +741,10 @@
                         (ui-tap-latest-panel item idx active?)
 
                         :object-panel
-                        (ui-object-panel (:ident item) idx active?)
+                        (ui-object-panel (:oid item) idx active?)
 
                         :explore-runtime-panel
-                        (ui-explore-runtime-panel (:runtime item) idx active?)
+                        (ui-explore-runtime-panel (:runtime-id item) idx active?)
 
                         (<< [:div (pr-str item)]))]]
                     ))))]])))

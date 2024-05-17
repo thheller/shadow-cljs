@@ -121,7 +121,8 @@
    :release {:output-dir "src/ui-release/shadow/cljs/build_report/dist/js"}
 
    :modules
-   {:main {:init-fn shadow.cljs.build-report.ui/init}}
+   {:main {:init-fn shadow.cljs.build-report.ui/init
+           :preloads [shadow.grove.preload]}}
 
    :js-options
    {:js-package-dirs ["packages/ui/node_modules"]}

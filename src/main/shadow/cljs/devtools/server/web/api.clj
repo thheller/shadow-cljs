@@ -6,7 +6,7 @@
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.http.router :as http]
     [shadow.cljs.devtools.server.util :as server-util]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.core-ext]
     [shadow.remote.relay.api :as relay]
     [shadow.cljs.devtools.server.supervisor :as super]

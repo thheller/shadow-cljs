@@ -1,45 +1,22 @@
 (ns shadow.cljs.ui.db.explorer
   (:require
-    [shadow.grove.eql-query :as eql]
+    [shadow.grove :as sg]
     [shadow.grove.events :as ev]
-    [shadow.cljs.model :as m]
-    [shadow.grove.db :as db]
+    [shadow.grove.kv :as kv]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]))
-
-(defn apply-namespace-filter [tx runtime-ident]
-  (assoc-in tx [:db runtime-ident ::m/runtime-namespaces-filtered]
-    (get-in tx [:db runtime-ident ::m/runtime-namespaces])))
 
 (defn runtimes-reply
   {::ev/handle ::runtimes-reply}
-  [tx {:keys [runtime-ident call-result] :as msg}]
+  [tx {:keys [runtime-id call-result] :as msg}]
   (let [{:keys [namespaces]} call-result] ;; remote-result
-
-    (-> tx
-        (update :db db/merge-seq ::m/runtime-ns
-          (->> namespaces
-               (map (fn [ns]
-                      {:ns ns
-                       ::m/runtime runtime-ident})))
-          [runtime-ident ::m/runtime-namespaces])
-        (apply-namespace-filter runtime-ident))))
+    (assoc-in tx [::m/runtime runtime-id :runtime-namespaces] namespaces)))
 
 (defn vars-reply
   {::ev/handle ::vars-reply}
-  [{:keys [db] :as tx} {:keys [ns-ident call-result] :as msg}]
-  (let [{:keys [vars]} call-result
-        {:keys [ns] :as runtime-ns} (get db ns-ident)
-        runtime (::m/runtime runtime-ns)]
-    (-> tx
-        (update :db db/merge-seq ::m/runtime-var
-          (->> vars
-               (map (fn [var]
-                      {:var (symbol (name ns) (name var))
-                       ::m/runtime runtime
-                       ::m/runtime-ns ns-ident}
-                      )))
-          [ns-ident ::m/runtime-vars]
-          ))))
+  [tx {:keys [runtime-id ns call-result] :as msg}]
+  (let [{:keys [vars]} call-result]
+    (assoc-in tx [::m/runtime runtime-id :runtime-vars ns] vars)))
 
 (defn get-target-id-for-runtime [{:keys [runtime-id runtime-info supported-ops] :as runtime}]
   (cond
@@ -53,43 +30,22 @@
     :else
     (throw (ex-info "can't query for runtime namespaces" {:runtime runtime}))))
 
-(defmethod eql/attr ::m/runtime-namespaces
-  [env
-   db
-   {:keys [runtime-id]
-    ::m/keys [runtime-namespaces]
-    :as current}
-   query-part
-   params]
-
-  (cond
-    runtime-namespaces
-    runtime-namespaces
-
-    (not runtime-id)
-    (throw (ex-info "can only request ::m/runtime-namespaces for runtime" {:current current}))
-
-    :hack
-    (do (relay-ws/call! env
-          {:op :explore/namespaces
-           :to (get-target-id-for-runtime current)}
-          {:e ::runtimes-reply
-           :runtime-ident (:db/ident current)})
-        :db/loading)))
+(defn maybe-load-runtime-namespaces [env runtime]
+  (when-not (::m/runtime-namespaces runtime)
+    (relay-ws/call! (::sg/runtime-ref env)
+      {:op :explore/namespaces
+       :to (get-target-id-for-runtime runtime)}
+      {:e ::runtimes-reply
+       :runtime-id (:runtime-id runtime)})))
 
 (defn runtime-select-namespace!
   {::ev/handle ::m/runtime-select-namespace!}
-  [{:keys [db] :as tx} {:keys [ident ns] :as msg}]
-  (let [{:keys [ns] ::m/keys [runtime] :as rt-ns}
-        (get db ident)
-
-        runtime
-        (get db runtime)]
-
+  [tx {:keys [runtime-id ns] :as msg}]
+  (let [runtime (get-in tx [::m/runtime runtime-id])]
     (-> tx
-        (assoc-in [:db (:db/ident runtime) ::m/explore-ns] ident)
+        (assoc-in [::m/runtime runtime-id :explore-ns] ns)
         (cond->
-          (not (:vars rt-ns))
+          (not (get-in tx [::m/runtime runtime-id :runtime-vars ns]))
           (ev/queue-fx :relay-send
             [{:op :explore/namespace-vars
               :to (get-target-id-for-runtime runtime)
@@ -97,81 +53,73 @@
 
               ::relay-ws/result
               {:e ::vars-reply
-               :ns-ident ident}}]
+               :runtime-id runtime-id
+               :ns ns}}]
             )))))
+
 
 (defn describe-var-result!
   {::ev/handle ::describe-var-result!}
-  [{:keys [db] :as tx} {:keys [ident call-result] :as msg}]
-  (assoc-in tx [:db ident :description] (:description call-result)))
+  [tx {:keys [runtime-id call-result] :as msg}]
+  (assoc-in tx [::m/runtime runtime-id :explore-var-description] (:description call-result)))
 
 (defn deref-var-result!
   {::ev/handle ::deref-var-result!}
-  [{:keys [db] :as tx} {:keys [runtime-ident call-result] :as msg}]
+  [tx {:keys [runtime-id call-result] :as msg}]
 
   (let [{:keys [op]} call-result]
     (case op
       :eval-result-ref
-      (let [{:keys [ref-oid from]} call-result
-            object-ident (db/make-ident ::m/object ref-oid)]
+      (let [{:keys [ref-oid from]} call-result]
         (-> tx
-            (assoc-in [:db object-ident]
-              {:db/ident object-ident
-               :oid ref-oid
-               :runtime-id from
-               :runtime (db/make-ident ::m/runtime from)})
-            (assoc-in [:db runtime-ident ::m/explore-var-object] object-ident)))
+            (kv/add ::m/object {:oid ref-oid :runtime-id from})
+            (assoc-in [::m/runtime runtime-id :explore-var-object] ref-oid)))
 
       :eval-runtime-error
-      (let [{:keys [ex-oid from]} call-result
-            object-ident (db/make-ident ::m/object ex-oid)]
+      (let [{:keys [ex-oid from]} call-result]
         (-> tx
-            (assoc-in [:db object-ident]
-              {:db/ident object-ident
-               :oid ex-oid
+            (kv/add ::m/object
+              {:oid ex-oid
                :runtime-id from
-               :runtime (db/make-ident ::m/runtime from)
                :is-error true})
-            (assoc-in [:db runtime-ident ::m/explore-var-object] object-ident)))
+            (assoc-in [::m/runtime runtime-id :explore-var-object] ex-oid)))
 
       (throw (ex-info "not handled" msg)))))
 
 (defn runtime-select-var!
   {::ev/handle ::m/runtime-select-var!}
-  [{:keys [db] :as tx} {:keys [ident] :as msg}]
-  (let [rt-var
-        (get db ident)
-
-        rt
-        (get db (::m/runtime rt-var))]
+  [tx {:keys [runtime-id var] :as msg}]
+  (let [runtime (get-in tx [::m/runtime runtime-id])]
 
     (-> tx
-        (assoc-in [:db (:db/ident rt) ::m/explore-var] ident)
+        (assoc-in [::m/runtime runtime-id :explore-var] var)
         (ev/queue-fx :relay-send
           ;; always fetching these even if we might have them
           ;; might have changed in the meantime with no clean way to tell
           [{:op :explore/describe-var
-            :to (get-target-id-for-runtime rt)
-            :var (:var rt-var)
+            :to (get-target-id-for-runtime runtime)
+            :var var
             ::relay-ws/result
             {:e ::describe-var-result!
-             :ident ident}}
+             :runtime-id runtime-id
+             :var var}}
 
-           (when-some [op (case (get-in rt [:runtime-info :lang])
+           (when-some [op (case (get-in runtime [:runtime-info :lang])
                             :clj :clj-eval
                             :cljs :cljs-eval
                             nil)]
              {:op op
-              :to (:runtime-id rt) ;; always goes directly to runtime
-              :input {:ns (symbol (namespace (:var rt-var)))
-                      :code (str (:var rt-var))}
+              :to runtime-id ;; always goes directly to runtime
+              :input {:ns (symbol (namespace var))
+                      :code (name var)}
               ::relay-ws/result
               {:e ::deref-var-result!
-               :runtime-ident (:db/ident rt)}})
+               :runtime-id runtime-id
+               :var var}})
            ]))))
 
 
 (defn runtime-deselect-var!
   {::ev/handle ::m/runtime-deselect-var!}
   [tx {:keys [runtime-ident] :as msg}]
-  (update-in tx [:db runtime-ident] dissoc ::m/explore-var ::m/explore-var-object))
+  (update-in tx [::m/ui runtime-ident] dissoc ::m/explore-var ::m/explore-var-object))

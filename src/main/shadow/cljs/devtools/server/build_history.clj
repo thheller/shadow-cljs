@@ -1,7 +1,7 @@
 (ns shadow.cljs.devtools.server.build-history
   (:require
     [clojure.core.async :as async :refer (go alt!)]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.build.log :as build-log]))
 

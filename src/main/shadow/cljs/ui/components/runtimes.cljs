@@ -2,7 +2,7 @@
   (:require
     [shadow.css :refer (css)]
     [shadow.grove :as sg :refer (<< defc)]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.ui.components.inspect :as inspect]
     [goog.date.relative :as rel]
     [shadow.cljs.ui.components.common :as common]))
@@ -43,18 +43,14 @@
     (<< [:span {:class (css :inline-flex :items-center :px-2.5 :py-0.5 :rounded-full :text-xs :font-medium :bg-gray-100 :text-gray-800 :uppercase :tracking-wider)}
          "-"])))
 
-(defc ui-runtime-list-item [ident]
-  (bind {:keys [runtime-id runtime-info supported-ops] :as data}
-    (sg/query-ident ident
-      [:runtime-id
-       :runtime-info
-       :supported-ops]))
+(defc ui-runtime-list-item [runtime-id]
+  (bind {:keys [runtime-info supported-ops] :as data}
+    (sg/kv-lookup ::m/runtime runtime-id))
 
   ;; FIXME: should have gone with two different components
   ;; checking the page we are on to decide what to render sucks
-  (bind {::m/keys [current-page]}
-    (sg/query-root
-      [::m/current-page]))
+  (bind current-page
+    (sg/kv-lookup ::m/ui ::m/current-page))
 
   (render
     (let [{:keys [lang build-id host type since user-agent desc]} runtime-info
@@ -92,10 +88,15 @@
   (<< [:div {:class (css :grid :grid-cols-1 :gap-2 :px-2)}
        (sg/keyed-seq runtimes identity ui-runtime-list-item)]))
 
+(defn q-runtimes-sorted [env]
+  (->> (::m/runtime env)
+       (vals)
+       (sort-by #(get-in % [:runtime-info :since]))
+       (mapv :runtime-id)))
+
 (defc ui-page []
-  (bind {::m/keys [runtimes-sorted]}
-    (sg/query-root
-      [::m/runtimes-sorted]))
+  (bind runtimes-sorted
+    (sg/query q-runtimes-sorted))
 
   (render
     (<< [:div {:class (css :flex-1 :overflow-y-auto :py-2)}

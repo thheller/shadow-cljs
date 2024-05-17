@@ -1,6 +1,6 @@
 (ns shadow.cljs.devtools.server.system-bus
   (:require
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [clojure.core.async :as async]))
 
 (defn svc? [x]

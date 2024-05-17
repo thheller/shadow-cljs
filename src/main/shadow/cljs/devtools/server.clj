@@ -9,7 +9,7 @@
     [shadow.undertow :as undertow]
     [shadow.build :as sb]
     [shadow.build.classpath :as build-classpath]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.config-watch :as config-watch]
     [shadow.cljs.devtools.server.fs-watch :as fs-watch]

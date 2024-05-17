@@ -8,7 +8,7 @@
     [shadow.build.resource :as rc]
     [shadow.build.classpath :as cp]
     [shadow.build.npm :as npm]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.server.worker.impl :as impl]
     [shadow.cljs.devtools.server.util :as util]

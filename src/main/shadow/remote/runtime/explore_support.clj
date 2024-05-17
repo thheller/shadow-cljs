@@ -20,7 +20,8 @@
      :vars (->> (ns-publics ns)
                 (keys)
                 (sort-by name)
-                (vec))}))
+                (mapv (fn [sym]
+                        (symbol (name ns) (name sym)))))}))
 
 (defn describe-ns [{:keys [runtime] :as svc} {:keys [ns] :as msg}]
   (shared/reply runtime msg

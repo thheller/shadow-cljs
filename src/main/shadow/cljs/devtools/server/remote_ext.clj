@@ -3,7 +3,7 @@
   (:require
     [clojure.core.async :as async :refer (go <!)]
     [shadow.remote.runtime.api :as p]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.cljs.devtools.config :as config]

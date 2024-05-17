@@ -1,9 +1,8 @@
 (ns shadow.cljs.ui.db.relay-ws
   (:require
     [shadow.grove :as sg]
-    [shadow.grove.runtime :as rt]
     [shadow.grove.events :as ev]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [clojure.string :as str]))
 
 (defonce rpc-id-seq (atom 0))
@@ -12,13 +11,14 @@
 
 (defn relay-welcome
   {::ev/handle ::welcome}
-  [{::keys [on-welcome] :as env} {:keys [client-id]}]
+  [env {:keys [client-id]}]
 
   ;; FIXME: call this via fx
-  (on-welcome)
+  (let [on-welcome (::on-welcome @(::sg/runtime-ref env))]
+    (on-welcome))
 
   (-> env
-      (update :db assoc ::m/tool-id client-id ::m/relay-ws-connected true)
+      (update ::m/ui assoc ::m/tool-id client-id ::m/relay-ws-connected true)
       (ev/queue-fx :relay-send
         [{:op :request-clients
           :notify true
@@ -27,21 +27,22 @@
 (defn ui-options
   {::ev/handle ::m/ui-options}
   [env {:keys [ui-options]}]
-  (assoc-in env [:db ::m/ui-options] ui-options))
+  (assoc-in env [::m/ui ::m/ui-options] ui-options))
 
 (defn relay-ws-close
   {::ev/handle ::m/relay-ws-close}
   [env _]
-  (assoc-in env [:db ::m/relay-ws-connected] false))
+  (assoc-in env [::m/ui ::m/relay-ws-connected] false))
 
-(defn cast! [{::keys [ws-ref] ::rt/keys [transit-str] :as env} msg]
+(defn cast! [rt-ref msg]
   (sg/dev-only
     (when (not= :pong (:op msg))
       (sg/dev-log "WS-SEND" (:op msg) msg)))
 
-  (.send @ws-ref (transit-str msg)))
+  (let [{::keys [ws-ref] ::sg/keys [transit-str]} @rt-ref]
+    (.send @ws-ref (transit-str msg))))
 
-(defn call! [env msg result-data]
+(defn call! [rt-ref msg result-data]
   {:pre [(map? msg)
          (or (fn? result-data)
              (and (map? result-data)
@@ -49,15 +50,16 @@
   (let [mid (swap! rpc-id-seq inc)]
     (swap! rpc-ref assoc mid {:msg msg
                               :result-data result-data})
-    (cast! env (assoc msg :call-id mid))))
+    (cast! rt-ref (assoc msg :call-id mid))))
 
 (ev/reg-fx rt-ref :relay-send
   (fn [env messages]
-    (doseq [msg messages
-            :when msg]
-      (if-some [result (::result msg)]
-        (call! env (dissoc msg ::result) result)
-        (cast! env msg)))))
+    (let [rt-ref (::sg/runtime-ref env)]
+      (doseq [msg messages
+              :when msg]
+        (if-some [result (::result msg)]
+          (call! rt-ref (dissoc msg ::result) result)
+          (cast! rt-ref msg))))))
 
 (defn init [rt-ref server-token on-welcome]
   (let [socket (js/WebSocket.
@@ -73,11 +75,11 @@
       ::server-token server-token
       ::on-welcome
       (fn []
-        (cast! @rt-ref {:op :hello
-                        :client-info {:type :shadow-cljs-ui}})
+        (cast! rt-ref {:op :hello
+                       :client-info {:type :shadow-cljs-ui}})
         (on-welcome)))
 
-    (let [{::rt/keys [^function transit-read]} @rt-ref]
+    (let [^function transit-read (::sg/transit-read @rt-ref)]
       (.addEventListener socket "message"
         (fn [e]
           (let [{:keys [call-id op] :as msg} (transit-read (.-data e))]
@@ -90,7 +92,7 @@
                   (sg/run-tx! rt-ref (assoc result-data :call-result msg))))
 
               (= :ping op)
-              (cast! @rt-ref {:op :pong})
+              (cast! rt-ref {:op :pong})
 
               :else
               (sg/run-tx! rt-ref

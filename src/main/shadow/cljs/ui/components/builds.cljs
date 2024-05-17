@@ -3,7 +3,7 @@
     [shadow.css :refer (css)]
     [shadow.grove :as sg :refer (<< defc)]
     [shadow.cljs.ui.components.common :as common]
-    [shadow.cljs.model :as m]))
+    [shadow.cljs :as-alias m]))
 
 (defn build-buttons [build-id build-worker-active]
   (<< [:div {:class (css :font-bold :border-t :c-container-1l :border-gray-200)}
@@ -36,15 +36,12 @@
               "Release"]))]))
 
 
-(defc build-card [ident]
-  (bind {::m/keys [build-status build-id build-target build-warnings-count build-worker-active] :as data}
-    (sg/query-ident ident
-      [::m/build-id
-       ::m/build-target
-       ::m/build-worker-active
-       ::m/build-warnings-count
-       ::m/build-status
-       ::m/build-config-raw]))
+(defc build-card [build-id]
+  (bind {::m/keys [build-status build-target build-worker-active] :as data}
+    (sg/kv-lookup ::m/build build-id))
+
+  (bind build-warnings-count
+    (count (:warnings build-status)))
 
   (render
     (let [{:keys [status]} build-status]
@@ -83,55 +80,11 @@
            (build-buttons build-id build-worker-active)]))))
 
 (defc ui-builds-page []
-  (bind {::m/keys [builds]}
-    (sg/query-root [::m/builds]))
+  (bind builds
+    (sg/kv-lookup ::m/ui ::m/builds))
 
   (render
     (<< [:div {:class (css :flex-1 :overflow-auto :py-2 [:sm :px-2])}
          [:div {:class (css :flex :flex-col)}
           [:div {:class (css :grid :grid-cols-1 :gap-2)}
            (sg/keyed-seq builds identity build-card)]]])))
-
-(defc ui-build-overview [build-ident]
-  (bind {::m/keys [build-sources-sorted] :as data}
-    (sg/query-ident build-ident
-      [::m/build-sources-sorted]))
-
-  (bind state-ref
-    (atom {:selected nil}))
-
-  (bind selected
-    (sg/watch state-ref [:selected]))
-
-  (bind id->src
-    (into {} (map (juxt :resource-id identity)) build-sources-sorted))
-
-  (bind id->idx
-    (reduce-kv
-      (fn [m idx {:keys [resource-id] :as v}]
-        (assoc m resource-id idx))
-      {}
-      build-sources-sorted))
-
-  (event ::highlight [env {:keys [resource-id]}]
-    (swap! state-ref assoc :selected resource-id))
-
-  (bind render-source-entry
-    (fn [{:keys [resource-id resource-name] :as item}]
-      (let [selected? (= resource-id selected)]
-        (<< [:div
-             {:class
-              (if selected?
-                (css :text-xs :font-bold)
-                (css :text-xs))
-              :on-mouseenter {:e ::highlight :resource-id resource-id}}
-             resource-name]))))
-
-  (render
-    (<< [:div {:class (css :p-2)}
-         [:div {:class (css :py-2 :text-xl)} (count build-sources-sorted) " Namespaces used in build"]
-         [:div {:class (css :flex)}
-          [:div {:class (css :flex-1)} "left"]
-          [:div
-           (sg/simple-seq build-sources-sorted render-source-entry)]
-          [:div {:class (css :flex-1)} "right"]]])))

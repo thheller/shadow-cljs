@@ -9,7 +9,7 @@
     [shadow.grove.events :as ev]
     [shadow.grove.transit :as transit]
     [shadow.grove.http-fx :as http-fx]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]
     [shadow.cljs.ui.db.generic]
     [shadow.cljs.ui.db.builds]
@@ -20,17 +20,15 @@
     [shadow.cljs.ui.components.runtimes :as runtimes]
     [shadow.cljs.ui.components.builds :as builds]
     [shadow.cljs.ui.components.build :as build]
-    [shadow.cljs.ui.components.eval :as eval]
     [shadow.cljs.ui.components.common :as common]
     ))
 
-(defc ui-error [err-ident]
+(defc ui-error [error-id]
   (bind {:keys [text]}
-    (sg/query-ident err-ident
-      [:text]))
+    (sg/kv-lookup ::m/error error-id))
 
   (event ::keyboard/escape [env _ e]
-    (sg/run-tx env {:e ::m/dismiss-error! :ident err-ident}))
+    (sg/run-tx env {:e ::m/dismiss-error! :ident error-id}))
 
   (render
     (<< [:div {::keyboard/listen true
@@ -40,13 +38,13 @@
           [:div {:class (css :flex-1)}]
           [:div
            {:class (css :text-right :cursor-pointer :font-bold :p-2)
-            :on-click {:e ::m/dismiss-error! :ident err-ident}}
+            :on-click {:e ::m/dismiss-error! :ident error-id}}
            common/icon-close]]
          [:pre {:class (css :overflow-auto :p-2)} text]])))
 
 (defc ui-errors []
-  (bind {::m/keys [errors]}
-    (sg/query-root [::m/errors]))
+  (bind errors
+    (sg/kv-lookup ::m/ui ::m/errors))
 
   (render
     (when (seq errors)
@@ -59,7 +57,7 @@
 
 (defc ui-settings-drawer []
   (bind {::m/keys [show-settings preferred-display-type] :or {preferred-display-type :browse}}
-    (sg/query-root [::m/show-settings ::m/preferred-display-type]))
+    (sg/kv-lookup ::m/ui))
 
   (bind display-options
     [{:val :browse :label "BROWSER"}
@@ -94,12 +92,12 @@
           ))))
 
 (defc ui-root* []
-  (bind {::m/keys [current-page relay-ws-connected] :as data}
-    (sg/query-root
-      [::m/current-page
-       ;; load marker for suspense, ensures that all basic data is loaded
-       ::m/init-complete?
-       ::m/relay-ws-connected]))
+  (bind {::m/keys [init-complete? current-page relay-ws-connected]}
+    (sg/kv-lookup ::m/ui))
+
+  (hook
+    (when-not init-complete?
+      (sg/suspend!)))
 
   (bind nav-items
     [{:pages #{:dashboard} :label "Dashboard" :path "/dashboard"}
@@ -144,16 +142,13 @@
                (builds/ui-builds-page)
 
                :build
-               (build/ui-page (:ident current-page) (:tab current-page))
+               (build/ui-page (:build-id current-page) (:tab current-page))
 
                :dashboard
                (dashboard/ui-page)
 
                :runtimes
                (runtimes/ui-page)
-
-               :repl
-               (eval/ui-repl-page (:ident current-page))
 
                "Unknown Page"))]
 
@@ -194,56 +189,42 @@
       (.-content)))
 
 (defn init []
+  (sg/add-kv-table rt-ref ::m/ui
+    {:validate-fn
+     (fn [table key value]
+       (when-not (keyword? key)
+         (throw (ex-info "::m/ui can only take keyword keys" {:key key :value value}))))}
+    {::m/current-page {:id :dashboard}
+     ::m/builds []
+     ::m/http-servers []
+     ::m/init-complete? false
+     ;; assume that the first connect will succeed
+     ;; otherwise shows disconnect banner for a few ms on startup
+     ::m/relay-ws-connected true
+     ::m/ui-options {} ;; FIXME: should probably store this somewhere on the client side too
+     ::m/runtimes []
+     ::m/active-builds []
+     ::m/tap-stream (list)
+     ::m/tap-latest nil
+     ::m/inspect
+     {:current 0
+      :stack
+      [{:type :tap-panel}]}})
 
-  (sg/add-db-type rt-ref ::m/runtime
+  (sg/add-kv-table rt-ref ::m/runtime
     {:primary-key :runtime-id})
 
-  (sg/add-db-type rt-ref ::m/error
+  (sg/add-kv-table rt-ref ::m/error
     {:primary-key :error-id})
 
-  (sg/add-db-type rt-ref ::m/object
-    {:primary-key :oid
-     :joins {::m/runtime [:one ::m/runtime]}})
+  (sg/add-kv-table rt-ref ::m/object
+    {:primary-key :oid})
 
-  (sg/add-db-type rt-ref ::m/http-server
+  (sg/add-kv-table rt-ref ::m/http-server
     {:primary-key ::m/http-server-id})
 
-  (sg/add-db-type rt-ref ::m/build
-    {:type :entity
-     :primary-key ::m/build-id})
-
-  (sg/add-db-type rt-ref ::m/database
-    {:primary-key :db-id
-     :joins {::m/runtime [:one ::m/runtime]}})
-
-  (sg/add-db-type rt-ref ::m/runtime-ns
-    {:primary-key [::m/runtime :ns]
-     :joins {::m/runtime [:one ::m/runtime]}})
-
-  (sg/add-db-type rt-ref ::m/runtime-var
-    {:primary-key [::m/runtime :var]
-     :joins {::m/runtime [:one ::m/runtime]
-             ::m/runtime-ns [:one ::m/runtime-ns]}})
-
-  (sg/db-init
-    rt-ref
-    (fn [db]
-      {::m/current-page :db/loading
-       ::m/builds :db/loading
-       ::m/http-servers :db/loading
-       ::m/init-complete? :db/loading ;; used a marker for initial suspense
-       ;; assume that the first connect will succeed
-       ;; otherwise shows disconnect banner for a few ms on startup
-       ::m/relay-ws-connected true
-       ::m/ui-options {} ;; FIXME: should probably store this somewhere on the client side too
-       ::m/runtimes []
-       ::m/active-builds []
-       ::m/tap-stream (list)
-       ::m/tap-latest nil
-       ::m/inspect
-       {:current 0
-        :stack
-        [{:type :tap-panel}]}}))
+  (sg/add-kv-table rt-ref ::m/build
+    {:primary-key ::m/build-id})
 
   ;; needs to be called before start since otherwise we can't process events triggered by any of these
   (register-events!)
@@ -262,19 +243,19 @@
 
   (relay-ws/init rt-ref server-token
     (fn []
-      (relay-ws/cast! @rt-ref
+      (relay-ws/cast! rt-ref
         {:op ::m/load-ui-options
          :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
          })
 
       ;; builds starting, stopping
-      (relay-ws/cast! @rt-ref
+      (relay-ws/cast! rt-ref
         {:op ::m/subscribe
          :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
          ::m/topic ::m/supervisor})
 
       ;; build progress, errors, success
-      (relay-ws/cast! @rt-ref
+      (relay-ws/cast! rt-ref
         {:op ::m/subscribe
          :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
          ::m/topic ::m/build-status-update})))

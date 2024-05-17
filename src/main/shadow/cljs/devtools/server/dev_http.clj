@@ -7,7 +7,7 @@
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.undertow :as undertow]
     [shadow.http.push-state :as push-state]
     [clojure.string :as str])

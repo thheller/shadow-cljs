@@ -513,7 +513,7 @@
            {:op :request-clients
             :notify true
             :notify-op ::env/worker-notify
-            :query [:eq :shadow.cljs.model/worker-for (keyword env/build-id)]}
+            :query [:eq :shadow.cljs/worker-for (keyword env/build-id)]}
            {:clients
             (fn [{:keys [clients] :as msg}]
               (if-not (seq clients)

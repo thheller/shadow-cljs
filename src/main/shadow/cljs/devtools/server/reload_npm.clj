@@ -5,7 +5,7 @@
     [clojure.set :as set]
     [shadow.jvm-log :as log]
     [shadow.build.npm :as npm]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.debug :refer (?> ?-> ?->>)])
   (:import [java.util.concurrent Executors TimeUnit]))
 

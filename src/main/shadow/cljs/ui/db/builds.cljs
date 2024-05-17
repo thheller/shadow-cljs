@@ -1,9 +1,7 @@
 (ns shadow.cljs.ui.db.builds
   (:require
-    [shadow.grove.db :as db]
     [shadow.grove.events :as ev]
-    [shadow.grove.eql-query :as eql]
-    [shadow.cljs.model :as m]
+    [shadow.cljs :as-alias m]
     [shadow.cljs.ui.db.relay-ws :as relay-ws]))
 
 (defn forward-to-ws!
@@ -21,67 +19,29 @@
       :to 1 ;; FIXME: don't hardcode CLJ runtime id
       ::m/build-id build-id}]))
 
-(defmethod eql/attr ::m/active-builds
-  [env db _ query-part params]
-  (->> (db/all-of db ::m/build)
+(defn active-builds [env]
+  (->> (::m/build env)
+       (vals)
        (filter ::m/build-worker-active)
        (sort-by ::m/build-id)
-       (map :db/ident)
+       (map ::m/build-id)
        (into [])))
-
-(defmethod eql/attr ::m/build-sources-sorted
-  [env db current query-part params]
-  (when-let [info (get-in current [::m/build-status :info])]
-    (let [{:keys [sources]} info]
-      (->> sources
-           (sort-by :resource-name)
-           (vec)
-           ))))
-
-(defmethod eql/attr ::m/build-warnings-count
-  [env db current query-part params]
-  (let [{:keys [warnings] :as info} (::m/build-status current)]
-    (count warnings)))
-
-(defmethod eql/attr ::m/build-runtimes
-  [env db current query-part params]
-  (let [build-ident (get current :db/ident)
-        {::m/keys [build-id] :as build} (get db build-ident)]
-
-    (->> (db/all-of db ::m/runtime)
-         (filter (fn [{:keys [runtime-info]}]
-                   (and (= :cljs (:lang runtime-info))
-                        (= build-id (:build-id runtime-info)))))
-         (mapv :db/ident))))
-
-(defmethod eql/attr ::m/build-runtime-count
-  [env db current query-part params]
-  (let [build-ident (get current :db/ident)
-        {::m/keys [build-id] :as build} (get db build-ident)]
-
-    (->> (db/all-of db ::m/runtime)
-         (filter (fn [{:keys [runtime-info]}]
-                   (and (= :cljs (:lang runtime-info))
-                        (= build-id (:build-id runtime-info)))))
-         (count))))
 
 (defn relay-sub-msg
   {::ev/handle ::m/sub-msg}
   [env {::m/keys [topic] :as msg}]
   (case topic
     ::m/build-status-update
-    (let [{:keys [build-id build-status]} msg
-          build-ident (db/make-ident ::m/build build-id)]
-      (assoc-in env [:db build-ident ::m/build-status] build-status))
+    (let [{:keys [build-id build-status]} msg]
+      (assoc-in env [::m/build build-id ::m/build-status] build-status))
 
     ::m/supervisor
-    (let [{::m/keys [worker-op build-id]} msg
-          build-ident (db/make-ident ::m/build build-id)]
+    (let [{::m/keys [worker-op build-id]} msg]
       (case worker-op
         :worker-stop
-        (assoc-in env [:db build-ident ::m/build-worker-active] false)
+        (assoc-in env [::m/build build-id ::m/build-worker-active] false)
         :worker-start
-        (assoc-in env [:db build-ident ::m/build-worker-active] true)
+        (assoc-in env [::m/build build-id ::m/build-worker-active] true)
 
         (js/console.warn "unhandled supervisor msg" msg)))
 
