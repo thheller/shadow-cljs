@@ -91,6 +91,7 @@
 (defn q-runtimes-sorted [env]
   (->> (::m/runtime env)
        (vals)
+       (remove :disconnected)
        (sort-by #(get-in % [:runtime-info :since]))
        (mapv :runtime-id)))
 

@@ -2,6 +2,7 @@
   {:dev/always true
    :shadow.css/include ["shadow/cljs/ui/main.css"]}
   (:require
+    [clojure.core.protocols :as cp]
     [shadow.grove :as sg :refer (<< defc)]
     [shadow.css :refer (css)]
     [shadow.grove.history :as history]
@@ -224,6 +225,8 @@
 
   (sg/add-kv-table rt-ref ::m/object
     {:primary-key :oid
+     :attrs
+     {:runtime-id {:references ::m/runtime}}
      ;; :oid number
      ;; :runtime-id number
      ;; :display-type keyword

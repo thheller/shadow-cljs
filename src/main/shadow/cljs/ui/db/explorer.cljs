@@ -121,5 +121,5 @@
 
 (defn runtime-deselect-var!
   {::ev/handle ::m/runtime-deselect-var!}
-  [tx {:keys [runtime-ident] :as msg}]
-  (update-in tx [::m/ui runtime-ident] dissoc ::m/explore-var ::m/explore-var-object))
+  [tx {:keys [runtime-id] :as msg}]
+  (update-in tx [::m/runtime runtime-id] dissoc ::m/explore-var ::m/explore-var-object))

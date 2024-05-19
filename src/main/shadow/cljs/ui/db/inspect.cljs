@@ -53,7 +53,7 @@
           (ev/queue-fx :relay-send [{:op :request-supported-ops :to client-id}])))
 
     :client-disconnect
-    (update env ::m/runtime dissoc client-id)))
+    (assoc-in env [::m/runtime client-id :disconnected] true)))
 
 (defn relay-supported-ops
   {::ev/handle ::relay-ws/supported-ops}
@@ -442,7 +442,9 @@
 (defn inspect-code-eval!
   {::ev/handle ::m/inspect-code-eval!}
   [tx {:keys [code runtime-id runtime-ns ref-oid panel-idx] :as msg}]
-  (let [{:keys [supported-ops]} (get-in tx [::m/runtime runtime-id])
+  (let [supported-ops (get-in tx [::m/runtime runtime-id :supported-ops])
+
+        _ (js/console.log "code-eval" tx msg supported-ops)
 
         ;; FIXME: ns and eval mode should come from UI
         [eval-mode ns]

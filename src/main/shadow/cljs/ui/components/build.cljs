@@ -21,6 +21,7 @@
   [env build-id]
   (->> (::m/runtime env)
        (vals)
+       (remove :disconnected)
        (filter (fn [{:keys [runtime-info]}]
                  (and (= :cljs (:lang runtime-info))
                       (= build-id (:build-id runtime-info)))))

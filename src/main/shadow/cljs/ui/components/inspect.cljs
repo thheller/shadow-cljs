@@ -248,7 +248,7 @@
   (event ::code-eval! [env {:keys [code]}]
     (sg/run-tx env
       {:e ::m/inspect-code-eval!
-       :runtime-ident (:runtime object)
+       :runtime-id (:runtime-id object)
        :ref-oid (:oid object)
        :panel-idx panel-idx
        :code code}))
@@ -367,19 +367,22 @@
 
   (render
     (let [{:keys [ns line column label]} summary
-          {:keys [runtime-info runtime-id]} runtime
+          {:keys [runtime-info runtime-id disconnected]} runtime
 
           $row
           (css
             :font-mono :border-b :px-2 :py-1 :cursor-pointer
             [:hover :bg-gray-100]
+            ["&.disconnected" :cursor-not-allowed {:opacity "0.5"}]
             ["&.focus" :bg-gray-200]
             ["& > .header" :text-xs :text-gray-500]
             ["& > .val" :truncate])]
 
       (<< [:div
-           {:class (str $row (when focus " focus"))
-            :on-click {:e ::inspect-object! :oid oid}}
+           {:class (str $row (when focus " focus") (when disconnected " disconnected"))
+            :title (when disconnected "runtime disconnected")
+            :on-click (when-not disconnected
+                        {:e ::inspect-object! :oid oid})}
 
            [:div.header
             (str (:added-at-ts summary)
