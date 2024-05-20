@@ -231,6 +231,9 @@
   api/IRuntime
   (relay-msg [this msg]
     (let [{::keys [ws-state ws-connected ws-send-fn] :as state} @state-ref]
+      ;; also count messages sent as activity as relay will not send ping if it received regular messages
+      ;; so if there is consistent activity but no reply from relay we'd otherwise disconnect due to idle-fn
+      (swap! state-ref assoc ::ws-last-msg (shared/now))
       (if-not ws-connected
         (js/console.warn "shadow-cljs - dropped ws message, not connected" msg state)
         (let [s (try
