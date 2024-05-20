@@ -363,13 +363,14 @@
 
       {:e ::inspect-nav-result
        :oid oid
+       :idx idx
        :panel-idx panel-idx})
 
     env))
 
 (defn inspect-nav-result
   {::ev/handle ::inspect-nav-result}
-  [env {:keys [panel-idx call-result] :as tx}]
+  [env {:keys [idx panel-idx call-result] :as tx}]
 
   (case (:op call-result)
     :obj-result
@@ -401,7 +402,7 @@
                 (assoc-in [::m/inspect :current] (inc panel-idx))))))
 
     :obj-result-ref
-    (let [{:keys [ref-oid from summary]}
+    (let [{:keys [oid ref-oid from summary]}
           call-result
 
           obj
@@ -416,7 +417,9 @@
           stack
           (-> (subvec stack 0 (inc panel-idx))
               (conj {:type :object-panel
-                     :oid ref-oid}))]
+                     :oid ref-oid
+                     :nav-from oid
+                     :nav-idx idx}))]
 
       (-> env
           (kv/add ::m/object obj)

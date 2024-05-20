@@ -32,6 +32,14 @@
     (str (subs text 2) " ...")
     (subs text 2)))
 
+(defn render-edn-limit-truncated [text]
+  ;; just in case browser truncated the display
+  ;; FIXME: maybe do this properly in a mouseover dialog showing edn-pretty?
+  (<< [:span {:title (subs text 2)}
+       (if (str/starts-with? text "1,")
+         (str (subs text 2) " ...")
+         (subs text 2))]))
+
 (defc ui-object-as-text [object attr active?]
   (bind val
     (get object attr))
@@ -233,6 +241,23 @@
         :tab-index (if active? 0 -1)}
        label]))
 
+(defc ui-object-crumb [{:keys [nav-idx nav-from oid] :as stack-item} panel-idx active?]
+  (bind object
+    (sg/kv-lookup ::m/object (or nav-from oid)))
+
+  (bind label
+    (if-not nav-idx
+      (render-edn-limit-truncated (:edn-limit object))
+      (if (= :map (get-in object [:summary :data-type]))
+        (render-edn-limit-truncated (get-in object [:fragment nav-idx :key]))
+        nav-idx
+        )))
+
+  (render
+    (<< [:div {:class (css :border-r :p-2 :cursor-pointer :truncate {:max-width "160px"})
+               :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
+         label])))
+
 (defc ui-object-panel
   [^:stable oid panel-idx active?]
   (bind object
@@ -279,16 +304,6 @@
 
       (<< [:div {:class $container ::keyboard/listen true}
            [:div {:class $header}
-            (when (pos? panel-idx)
-              (<< [:div.icon
-                   {:on-click {:e ::go-first!}
-                    :title "go back to tap history (key: alt+t)"}
-                   svg-chevron-double-left]
-
-                  [:div.icon
-                   {:on-click {:e ::go-back! :panel-idx panel-idx}
-                    :title "go back one (key: left)"}
-                   svg-chevron-left]))
 
             [:div {:class (css :relative
                             ["& > .options" :hidden :absolute {:z-index 20}]
@@ -342,7 +357,7 @@
 
            ;; FIXME: don't always show this
            [:div {:class (css :bg-white :font-mono :flex :flex-col)}
-            [:div {:class (css :flex :font-bold :px-4 :border-b :border-t-2 :py-1 :text-sm)}
+            [:div {:class (css :flex :font-bold :px-4 :border-b :border-t :py-1 :text-sm)}
              [:div {:class (css :flex-1)} "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
             [:div {:class (css {:height "120px"})}
              ;; must not autofocus, otherwise the scroll-anim breaks
@@ -406,17 +421,20 @@
             (when edn-limit
               (render-edn-limit edn-limit))]]))))
 
+(defn ui-tap-crumb [stack-item panel-idx active?]
+  (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
+       "Tap History"]))
+
 (defc ui-tap-panel [item panel-idx active?]
   (event ::kb-select! [env {:keys [item] :as e}]
     (sg/dispatch-up! env {:e ::inspect-object! :ident item}))
 
   (render
-    (let [$header (css :p-2 :font-bold :border-b :bg-gray-200)
-          $vlist (css :flex-1 :overflow-hidden)
+    (let [$vlist (css :flex-1 :overflow-hidden)
           $buttons (css :flex :bg-white :py-2 :px-4 :font-mono :border-t-2)]
 
-      (<< [:div {:class $header} "Tap History"]
-          [:div {:class $vlist}
+      (<< [:div {:class $vlist}
 
            (vlist/render
              {:item-height 46
@@ -434,6 +452,11 @@
              :tab-index (if active? 0 -1)
              :on-click ::m/tap-clear!}
             "Clear"]]))))
+
+(defn ui-tap-latest-crumb [stack-item panel-idx active?]
+  (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
+       "Tap Latest"]))
 
 (defc ui-tap-latest-panel [item panel-idx active?]
   (bind tap-latest
@@ -483,6 +506,11 @@
                                  :ns ns
                                  :var var}}
                      (name var)]))))]])))
+
+(defn ui-explore-object-crumb [stack-item panel-idx active?]
+  (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
+       "Explore Object"]))
 
 (defc ui-explore-object-panel
   [^:stable oid panel-idx active?]
@@ -536,6 +564,11 @@
             (when (contains? supports :obj-edn)
               (view-as-button display-type :edn "EDN" active?))]]
           ))))
+
+(defn ui-explore-runtime-crumb [stack-item panel-idx active?]
+  (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
+       "Explore Runtime"]))
 
 (defc ui-explore-runtime-panel [runtime-id panel-idx active?]
   (bind {:keys
@@ -723,31 +756,54 @@
       (dom/ev-stop e)))
 
   (render
-
     (<< [:div
-         {:class (css :flex-1 :mt-4 :flex :flex-col :overflow-hidden)
+         {:class (css :flex-1 :mt-2 :p-2 :flex :flex-col :overflow-hidden)
           ::keyboard/listen true}
          ;; [:div.px-6.font-bold "current:" current]
-         [:div
-          {:class (css :flex-1 :flex :overflow-hidden)
-           :dom/ref container-ref}
-          (sg/simple-seq stack
-            (fn [{:keys [type] :as item} idx]
-              (let [active? (= current idx)]
-                (<< [:div {:class (css :px-3 :pb-3 :flex-none :h-full :w-full)}
-                     [:div {:class (css :border :shadow :bg-white :h-full :flex :flex-col)}
-                      (case type
-                        :tap-panel
-                        (ui-tap-panel item idx active?)
 
-                        :tap-latest-panel
-                        (ui-tap-latest-panel item idx active?)
+         [:div {:class (css :flex-1 :flex :flex-col :overflow-hidden :shadow :bg-white :border)}
 
-                        :object-panel
-                        (ui-object-panel (:oid item) idx active?)
+          [:div {:class (css :overflow-hidden :flex)}
+           (sg/simple-seq stack
+             (fn [{:keys [type] :as item} idx]
+               (let [active? (= current idx)]
+                 (case type
+                   :tap-panel
+                   (ui-tap-crumb item idx active?)
 
-                        :explore-runtime-panel
-                        (ui-explore-runtime-panel (:runtime-id item) idx active?)
+                   :tap-latest-panel
+                   (ui-tap-latest-crumb item idx active?)
 
-                        (<< [:div (pr-str item)]))]]
-                    ))))]])))
+                   :object-panel
+                   (ui-object-crumb item idx active?)
+
+                   :explore-runtime-panel
+                   (ui-explore-runtime-crumb item idx active?)
+
+                   (<< [:div (pr-str item)])))
+
+               ))]
+
+          [:div
+           {:class (css :flex-1 :flex :overflow-hidden)
+            :dom/ref container-ref}
+           (sg/simple-seq stack
+             (fn [{:keys [type] :as item} idx]
+               (let [active? (= current idx)]
+                 (<< [:div {:class (css :flex-none :h-full :w-full)}
+                      [:div {:class (css :border-t :h-full :flex :flex-col)}
+                       (case type
+                         :tap-panel
+                         (ui-tap-panel item idx active?)
+
+                         :tap-latest-panel
+                         (ui-tap-latest-panel item idx active?)
+
+                         :object-panel
+                         (ui-object-panel (:oid item) idx active?)
+
+                         :explore-runtime-panel
+                         (ui-explore-runtime-panel (:runtime-id item) idx active?)
+
+                         (<< [:div (pr-str item)]))]]
+                     ))))]]])))
