@@ -16,11 +16,14 @@
         :cljs [[cljs.repl :refer (error->str)]]))
   #?(:clj (:import [java.util UUID])))
 
-(defrecord Reference [obj])
+(defrecord Reference [obj extra])
 
-(defn obj-ref [obj]
-  (when (some? obj)
-    (Reference. obj)))
+(defn obj-ref
+  ([obj]
+   (obj-ref obj nil))
+  ([obj extra]
+   (when (some? obj)
+     (Reference. obj extra))))
 
 (defn obj-ref? [result]
   (instance? Reference result))
@@ -170,7 +173,10 @@
                         (cond->
                           ;; only send new-obj :summary when requested
                           (:summary msg)
-                          (assoc :summary (obj-describe* this new-oid))))]
+                          (assoc :summary (obj-describe* this new-oid))
+
+                          (:extra result)
+                          (merge (:extra result))))]
                 (shared/reply runtime msg reply-msg))))
 
           (catch #?(:clj Exception :cljs :default) e
@@ -314,20 +320,22 @@
         (or (vector? data) (list? data))
         (let [val (nth data idx)
               nav (d/nav data idx val)]
-          (obj-ref nav))
+          ;; using not= since the value might not be identical but equal
+          ;; nav may attach more metadata without altering actual value
+          (obj-ref nav {:nav? (not= val nav)}))
 
         (map? data)
         (let [view-order (cache-view-order state-ref entry (keys data))
               key (nth view-order idx)
               val (get data key)
               nav (d/nav data key val)]
-          (obj-ref nav))
+          (obj-ref nav {:nav? (not= val nav)}))
 
         (set? data)
         (let [view-order (cache-view-order state-ref entry data)
               val (nth view-order idx)
               nav (d/nav data idx val)]
-          (obj-ref nav))
+          (obj-ref nav {:nav? (not= val nav)}))
 
         :else
         (throw (ex-info "nav not supported?" entry))))))

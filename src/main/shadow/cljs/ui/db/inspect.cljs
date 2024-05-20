@@ -402,7 +402,7 @@
                 (assoc-in [::m/inspect :current] (inc panel-idx))))))
 
     :obj-result-ref
-    (let [{:keys [oid ref-oid from summary]}
+    (let [{:keys [oid nav? ref-oid from summary]}
           call-result
 
           obj
@@ -418,6 +418,7 @@
           (-> (subvec stack 0 (inc panel-idx))
               (conj {:type :object-panel
                      :oid ref-oid
+                     :nav? nav?
                      :nav-from oid
                      :nav-idx idx}))]
 

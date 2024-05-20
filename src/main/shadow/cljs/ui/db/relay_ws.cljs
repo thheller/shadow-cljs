@@ -66,7 +66,9 @@
                  (str (str/replace js/self.location.protocol "http" "ws")
                       "//" js/self.location.host
                       "/api/remote-relay"
-                      "?server-token=" server-token))
+                      "?id=shadow-cljs-ui"
+                      "&server-token=" server-token
+                      ))
         ws-ref (atom socket)]
 
     (swap! rt-ref assoc

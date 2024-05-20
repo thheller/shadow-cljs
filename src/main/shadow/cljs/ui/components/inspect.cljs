@@ -241,7 +241,7 @@
         :tab-index (if active? 0 -1)}
        label]))
 
-(defc ui-object-crumb [{:keys [nav-idx nav-from oid] :as stack-item} panel-idx active?]
+(defc ui-object-crumb [{:keys [nav? nav-idx nav-from oid] :as stack-item} panel-idx active?]
   (bind object
     (sg/kv-lookup ::m/object (or nav-from oid)))
 
@@ -256,6 +256,7 @@
   (render
     (<< [:div {:class (css :border-r :p-2 :cursor-pointer :truncate {:max-width "160px"})
                :style/font-weight (if active? "600" "400")
+               :style/font-style (if nav? "italic" "normal")
                :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
          label])))
 
