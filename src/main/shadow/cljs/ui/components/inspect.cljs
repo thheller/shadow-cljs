@@ -255,6 +255,7 @@
 
   (render
     (<< [:div {:class (css :border-r :p-2 :cursor-pointer :truncate {:max-width "160px"})
+               :style/font-weight (if active? "600" "400")
                :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
          label])))
 
@@ -423,6 +424,7 @@
 
 (defn ui-tap-crumb [stack-item panel-idx active?]
   (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :style/font-weight (if active? "600" "400")
              :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
        "Tap History"]))
 
@@ -455,6 +457,7 @@
 
 (defn ui-tap-latest-crumb [stack-item panel-idx active?]
   (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :style/font-weight (if active? "600" "400")
              :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
        "Tap Latest"]))
 
@@ -509,6 +512,7 @@
 
 (defn ui-explore-object-crumb [stack-item panel-idx active?]
   (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :style/font-weight (if active? "600" "400")
              :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
        "Explore Object"]))
 
@@ -567,6 +571,7 @@
 
 (defn ui-explore-runtime-crumb [stack-item panel-idx active?]
   (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :style/font-weight (if active? "600" "400")
              :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
        "Explore Runtime"]))
 
