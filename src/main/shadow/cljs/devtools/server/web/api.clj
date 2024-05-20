@@ -118,31 +118,12 @@
       )))
 
 (defn api-remote-relay [{:keys [relay transit-read transit-str] :as req}]
-  ;; FIXME: negotiate encoding somehow? could just as well use edn
-  (let [remote-addr
-        (get-in req [:ring-request :remote-addr])
-
-        trusted-hosts
-        (set/union
-          #{"127.0.0.1"
-            "0:0:0:0:0:0:0:1"
-            "localhost"}
-          (set (get-in req [:config :trusted-hosts]))
-          (set (get-in req [:config :user-config :trusted-hosts])))
-
-        server-token
+  (let [server-token
         (get-in req [:http :server-token])
 
         trusted?
         (or (= server-token
-               (get-in req [:ring-request :query-params "server-token"]))
-
-            ;; cannot trust websocket connections even from localhost
-            ;; a hostile page might include WebSocket("ws://localhost:9630/...")
-            ;; could check Origin but not sure how much that can be trusted either
-            ;; so all relay clients should send this token as part of their request
-
-            #_(contains? trusted-hosts remote-addr))]
+               (get-in req [:ring-request :query-params "server-token"])))]
 
     ;; FIXME:
     (if-not trusted?
