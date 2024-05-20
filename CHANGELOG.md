@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.28.7](https://github.com/thheller/shadow-cljs/compare/adcf8d7f5cd3df312099d9a0c8cacd9e967cbc0f...38214262ca2c0e59029a6ebc9b149c46ecc3af04) - 2024-05-20
+- [ [`38214`](https://github.com/thheller/shadow-cljs/commit/38214262ca2c0e59029a6ebc9b149c46ecc3af04) ] fix dropped ws connections when ws was too active
+- [ [`2c455`](https://github.com/thheller/shadow-cljs/commit/2c45593d1d4cfc0ec5efbe818e0b52d00cc72f9b) ] add visual indicator for nav values
+- [ [`34a56`](https://github.com/thheller/shadow-cljs/commit/34a56a372e465244bfd50215dd1b460893ae4a16) ] visually hightlight active crumb
+- [ [`616d8`](https://github.com/thheller/shadow-cljs/commit/616d8444bcc1ef0076702544008ded4d989e326e) ] remove some dead code
+- [ [`f7de4`](https://github.com/thheller/shadow-cljs/commit/f7de4ef1d75562c4bf55f685e25e38700dc7ddf0) ] increase ws buffers
+- [ [`b0fc7`](https://github.com/thheller/shadow-cljs/commit/b0fc7ee8642fb82463efb57a47d69b4e6fd550fb) ] inspect breadcrumbs
+- [ [`4cc37`](https://github.com/thheller/shadow-cljs/commit/4cc37fc24da6774c299a935d2b14b457ac321bd4) ] handle disconnect runtime in inspect
+- [ [`c3689`](https://github.com/thheller/shadow-cljs/commit/c3689e0374ff2bc039327f05e5cb790a0eae77f7) ] document UI data schema
+- [ [`d248a`](https://github.com/thheller/shadow-cljs/commit/d248a3da458e0687345be48cc43708359d675801) ] Update UI with grove-kv changes
+- [ [`adcf8`](https://github.com/thheller/shadow-cljs/commit/adcf8d7f5cd3df312099d9a0c8cacd9e967cbc0f) ] fix EINVAL issue on newer node+windows
+
 ## [2.28.6](https://github.com/thheller/shadow-cljs/compare/47a197ce1d5bfcae6a37f7324e85e1fa2b9f67f7...a10c1bf1cde69f3bcf5335d4fb741bb28b014d15) - 2024-05-09
 - [ [`a10c1`](https://github.com/thheller/shadow-cljs/commit/a10c1bf1cde69f3bcf5335d4fb741bb28b014d15) ] use simplified grove rt handling
 - [ [`47a19`](https://github.com/thheller/shadow-cljs/commit/47a197ce1d5bfcae6a37f7324e85e1fa2b9f67f7) ] move edn-limit to only print a str
