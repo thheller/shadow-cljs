@@ -165,8 +165,8 @@
 
       ;; relay can be very chatty, try to not drop too many messages
       ;; while also not buffering too much
-      (let [ws-in (async/chan 256 (map transit-read))
-            ws-out (async/chan 256 (map transit-str))]
+      (let [ws-in (async/chan 4096 (map transit-read))
+            ws-out (async/chan 4096 (map transit-str))]
         {:ws-in ws-in
          :ws-out ws-out
          :ws-loop (relay/connect relay ws-in ws-out {:remote true :websocket true})}))))
