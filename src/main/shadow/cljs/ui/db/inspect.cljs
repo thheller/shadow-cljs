@@ -5,7 +5,8 @@
     [shadow.grove.events :as ev]
     [shadow.grove.kv :as kv]
     [shadow.cljs :as-alias m]
-    [shadow.cljs.ui.db.relay-ws :as relay-ws])
+    [shadow.cljs.ui.db.relay-ws :as relay-ws]
+    [shadow.grove.runtime :as rt])
   (:import [goog.i18n DateTimeFormat]))
 
 (defn without [v item]
@@ -47,7 +48,8 @@
   (case event-op
     :client-connect
     (let [runtime {:runtime-id client-id
-                   :runtime-info client-info}]
+                   :runtime-info client-info
+                   :eval-history []}]
       (-> env
           (kv/add ::m/runtime runtime)
           (ev/queue-fx :relay-send [{:op :request-supported-ops :to client-id}])))
@@ -448,8 +450,6 @@
   [tx {:keys [code runtime-id runtime-ns ref-oid panel-idx] :as msg}]
   (let [supported-ops (get-in tx [::m/runtime runtime-id :supported-ops])
 
-        _ (js/console.log "code-eval" tx msg supported-ops)
-
         ;; FIXME: ns and eval mode should come from UI
         [eval-mode ns]
         (cond
@@ -523,3 +523,140 @@
                               :is-error true})
           (update-in [::m/inspect :stack] conj {:type :object-panel :oid ex-oid})
           (update-in [::m/inspect :current] inc)))))
+
+(defn runtime-eval!
+  {::ev/handle ::m/runtime-eval!}
+  [tx {:keys [code runtime-id] :as msg}]
+  (let [{:keys [supported-ops eval-ns eval-history] :as runtime}
+        (get-in tx [::m/runtime runtime-id])
+
+        eval-idx
+        (count eval-history)
+
+        obj-refs
+        (->> eval-history
+             (reverse)
+             (take 3)
+             (mapv :ref-oid))
+
+        [eval-mode ns]
+        (if (contains? supported-ops :cljs-eval)
+          [:cljs-eval (or eval-ns 'cljs.user)]
+          [:clj-eval (or eval-ns 'user)])
+
+        input
+        {:ns ns
+         :code code
+         :obj-refs obj-refs}]
+
+    (-> tx
+        (update-in [::m/runtime runtime-id :eval-history] vec-conj
+          {:code code
+           :status :pending
+           :started-at (rt/now)})
+
+        (ev/queue-fx :relay-send
+          [{:op eval-mode
+            :to runtime-id
+            :input input
+            ::relay-ws/result
+            {:e ::runtime-eval-result!
+             :runtime-id runtime-id
+             :eval-idx eval-idx}}]
+          ))))
+
+(defn runtime-eval-result!
+  {::ev/handle ::runtime-eval-result!}
+  [env {:keys [eval-idx call-result]}]
+  (case (:op call-result)
+    :eval-result-ref
+    (let [{:keys [ref-oid from warnings]} call-result]
+      (when (seq warnings)
+        (doseq [w warnings]
+          (js/console.warn "FIXME: warning not yet displayed in UI" w)))
+
+      ;; FIXME: fx this!
+      (relay-ws/call!
+        (::sg/runtime-ref env)
+        {:op :obj-edn-limit
+         :to from
+         :oid ref-oid
+         :limit 1024}
+        {:e ::obj-preview-result})
+
+      (-> env
+          (kv/add ::m/object {:oid ref-oid :runtime-id from})
+          (assoc-in [::m/runtime from :eval-ns] (:eval-ns call-result))
+          (update-in [::m/runtime from :eval-history eval-idx] merge
+            {:status :completed
+             :ref-oid ref-oid
+             :completed-at (rt/now)
+             :eval-ms (:eval-ms call-result)})
+          ))
+
+    :eval-compile-error
+    (let [{:keys [from ex-oid ex-client-id]} call-result]
+
+      ;; FIXME: fx this!
+      (relay-ws/call!
+        (::sg/runtime-ref env)
+        {:op :obj-edn-limit
+         :to (or ex-client-id from)
+         :oid ex-oid
+         :limit 1024}
+        {:e ::obj-preview-result})
+
+      (-> env
+          (kv/add ::m/object {:oid ex-oid
+                              :runtime-id (or ex-client-id from)
+                              :is-error true})
+          (update-in [::m/runtime from :eval-history eval-idx] merge
+            {:status :compile-error
+             :ref-oid ex-oid})
+
+          ;; FIXME: should maybe not use the stack for this, might be better as a dialog to dismiss
+          (update-in [::m/inspect :stack] conj {:type :object-panel :oid ex-oid})
+          (update-in [::m/inspect :current] inc)))
+
+    :eval-compile-warnings
+    (do (js/console.log "there were some warnings" call-result)
+        env)
+
+    :eval-runtime-error
+    (let [{:keys [from ex-oid]} call-result]
+
+      ;; FIXME: fx this!
+      (relay-ws/call!
+        (::sg/runtime-ref env)
+        {:op :obj-edn-limit
+         :to from
+         :oid ex-oid
+         :limit 1024}
+        {:e ::obj-preview-result})
+
+      (-> env
+          (kv/add ::m/object {:oid ex-oid
+                              :runtime-id from
+                              :is-error true})
+          (update-in [::m/runtime from :eval-history eval-idx] merge
+            {:status :runtime-error
+             :ref-oid ex-oid})
+
+          ;; FIXME: should maybe not use the stack for this, might be better as a dialog to dismiss
+          (update-in [::m/inspect :stack] conj {:type :object-panel :oid ex-oid})
+          (update-in [::m/inspect :current] inc)))))
+
+(defn send-to-repl!
+  {::ev/handle ::m/send-to-repl!}
+  [tx {:keys [oid] :as msg}]
+  (let [{:keys [runtime-id] :as object}
+        (get-in tx [::m/object oid])]
+
+    (-> tx
+        (update-in [::m/runtime runtime-id :eval-history] vec-conj
+          {:status :completed
+           :ref-oid oid})
+        ;; FIXME: somehow pre-fill codemirror input with *1
+        (sg/queue-fx
+          :ui/redirect!
+          {:token (str "/runtime/" runtime-id "/eval")}))))

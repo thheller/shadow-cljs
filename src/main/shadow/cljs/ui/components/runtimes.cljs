@@ -77,6 +77,13 @@
                     :type "button"}
                    "Go to Build"]))
             [:a
+             {:ui/href (str "/runtime/" runtime-id "/eval")
+              :class common/card-button-class
+              :type "button"}
+             ;; FIXME: this isn't a REPL but close enough
+             ;; calling it something else likely just confuses people
+             "REPL"]
+            [:a
              {:ui/href (str "/runtime/" runtime-id "/explore")
               :class common/card-button-class
               :type "button"}

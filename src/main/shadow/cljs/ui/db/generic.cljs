@@ -84,8 +84,14 @@
           (ev/queue-fx env :ui/redirect! {:token "/runtimes"})
 
           (case sub-page
-            "repl" ;; FIXME: should these be separate page types?
-            (assoc-in env [::m/ui ::m/current-page] {:id :repl :runtime-id runtime-id})
+            "eval"
+            (-> env
+                (assoc-in [::m/ui ::m/inspect]
+                  {:current 0
+                   :stack [{:type :eval-panel
+                            :runtime-id runtime-id}]})
+                ;; FIXME: make this a custom page at some point
+                (assoc-in [::m/ui ::m/current-page] {:id :repl :runtime-id runtime-id}))
 
             "explore"
             (-> env

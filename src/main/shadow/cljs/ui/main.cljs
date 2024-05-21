@@ -103,7 +103,7 @@
   (bind nav-items
     [{:pages #{:dashboard} :label "Dashboard" :path "/dashboard"}
      {:pages #{:builds :build} :label "Builds" :path "/builds"}
-     {:pages #{:runtimes} :label "Runtimes" :path "/runtimes"}
+     {:pages #{:runtimes :repl} :label "Runtimes" :path "/runtimes"}
      {:pages #{:inspect} :label "Inspect Stream" :path "/inspect"}
      {:pages #{:inspect-latest} :label "Inspect Latest" :path "/inspect-latest"}])
 
@@ -150,6 +150,9 @@
 
                :runtimes
                (runtimes/ui-page)
+
+               :repl
+               (inspect/ui-repl-page (:runtime-id current-page))
 
                "Unknown Page"))]
 

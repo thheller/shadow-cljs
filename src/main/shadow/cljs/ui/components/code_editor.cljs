@@ -82,6 +82,9 @@
 
         (set! editor ed)
 
+        (when-some [ref (:ref opts)]
+          (vreset! ref ed))
+
         (when (:submit-event opts)
           (.setOption ed "extraKeys"
             #js {"Ctrl-Enter" submit-fn
@@ -92,6 +95,8 @@
 
   (destroy! [this dom-remove?]
     (when dom-remove?
+      (when-some [ref (:ref opts)]
+        (vreset! ref nil))
       (when editor-el
         ;; FIXME: can't find a dispose method on codemirror?
         (.remove editor-el))

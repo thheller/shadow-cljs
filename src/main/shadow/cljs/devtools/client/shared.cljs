@@ -131,7 +131,7 @@
       (update state :results conj ret))))
 
 (defn interpret-action
-  [{:keys [runtime] :as state}
+  [{:keys [runtime obj-support] :as state}
    {:keys [type] :as action}]
   (case type
     :repl/init
@@ -169,6 +169,17 @@
     :repl/invoke
     (let [repl (get-in state [:input :repl])]
       (try
+        ;; FIXME: avoiding bindings since to many things in JS go async
+        (when-some [obj-refs (get-in state [:input :obj-refs])]
+          (let [obj-support (:obj-support (::plugins @(:state-ref runtime)))
+                [a b c] obj-refs]
+            (when a
+              (set! *1 (:obj (obj-support/get-ref obj-support a))))
+            (when b
+              (set! *2 (:obj (obj-support/get-ref obj-support b))))
+            (when c
+              (set! *3 (:obj (obj-support/get-ref obj-support c))))))
+
         (let [invoke-fn
               (if (and repl (not (:internal action)))
                 handle-repl-invoke

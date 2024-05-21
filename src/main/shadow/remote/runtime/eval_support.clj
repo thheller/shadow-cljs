@@ -29,7 +29,7 @@
   [{:keys [runtime obj-support]}
    {:keys [input] :as msg}]
 
-  (let [{:keys [code ns wrap]
+  (let [{:keys [code ns wrap obj-refs]
          :or {ns 'user}}
         input]
     (binding [*ns* (find-ns ns)
@@ -37,6 +37,9 @@
       (try
         (let [form
               (read-string code)
+              ;; FIXME: what if there are multiple forms in code?
+              ;; I think client should ensure only one is sent?
+              ;; currently UI just takes the whole string and does no parsing though
 
               eval-form
               (cond-> form
@@ -47,7 +50,26 @@
               (System/currentTimeMillis)
 
               res
-              (eval eval-form)
+              (if-not obj-refs
+                (eval form)
+                (let [[a b c] obj-refs
+                      eval-bindings
+                      (-> {}
+                          ;; FIXME: there has to be a better way for client to select which these should be
+                          ;; the whole assumption is that this is NOT a streaming REPL
+                          ;; but these are still useful for UI purposes
+                          ;; introducing new things such as the $o via the apply-wrap hack work
+                          ;; but are far from ideal
+                          (cond->
+                            a (assoc #'*1 (:obj (obj-support/get-ref obj-support a)))
+                            b (assoc #'*2 (:obj (obj-support/get-ref obj-support b)))
+                            c (assoc #'*3 (:obj (obj-support/get-ref obj-support c)))))]
+
+                  (push-thread-bindings eval-bindings)
+                  (try
+                    (eval eval-form)
+                    (finally
+                      (pop-thread-bindings)))))
 
               eval-ms
               (- (System/currentTimeMillis) eval-start)

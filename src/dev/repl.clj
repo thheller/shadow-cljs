@@ -15,6 +15,8 @@
 (defn start []
   (server/start!)
 
+  ;; (cljs/watch :ui)
+
   (build/css-release)
 
   (reset! css-watch-ref
@@ -23,7 +25,10 @@
       [(io/file "src" "main")]
       ["cljs" "cljc" "clj"]
       (fn [updates]
-        (build/css-release)
+        (try
+          (build/css-release)
+          (catch Exception e
+            (prn [:css-failed e])))
         )))
 
   ::started)

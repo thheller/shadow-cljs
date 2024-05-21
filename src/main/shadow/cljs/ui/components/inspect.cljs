@@ -297,16 +297,16 @@
           $container
           (css :h-full :flex :flex-col :overflow-hidden)
 
-          $header
-          (css :flex :font-mono :font-bold :items-center :border-b
+          controls
+          (css :flex :font-mono :font-bold :items-center :border-b-2
             ["& > *" :py-2]
             ["& > *:first-child" :pl-2]
             ["& > * + *" :px-2]
             ["& > .icon" :cursor-pointer :font-bold])]
 
       (<< [:div {:class $container ::keyboard/listen true}
-           [:div {:class $header}
-
+           [:div {:class controls}
+            [:div "Viewer: "]
             [:div {:class (css :relative
                             ["& > .options" :hidden :absolute {:z-index 20}]
                             ["&:hover > .options" :block])}
@@ -341,7 +341,12 @@
             (when data-count
               (<< [:div (str data-count " Entries")]))
 
-            [:div {:class (css :flex-1)}]]
+            [:div {:class (css :flex-1)}]
+            [:div {:class (css :p-2)}
+             [:button
+              {:class [$button-base $button]
+               :on-click {:e ::m/send-to-repl! :oid oid}}
+              "Send to REPL"]]]
 
            (case display-type
              :edn
@@ -357,19 +362,7 @@
              (<< [:div {:class (css :flex-1 :overflow-hidden :font-mono)}
                   (render-view object active?)]))
 
-           ;; FIXME: don't always show this
-           [:div {:class (css :bg-white :font-mono :flex :flex-col)}
-            [:div {:class (css :flex :font-bold :px-4 :border-b :border-t :py-1 :text-sm)}
-             [:div {:class (css :flex-1)} "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-            [:div {:class (css {:height "120px"})}
-             ;; must not autofocus, otherwise the scroll-anim breaks
-             (codemirror
-               {:submit-event {:e ::code-eval!}
-                :cm-opts
-                {:autofocus false
-                 :tabindex (if active? 0 -1)}})]
-            ]]
-          ))))
+           ]))))
 
 (defc ui-tap-stream-item [oid {:keys [idx focus]}]
   (bind {:keys [summary edn-limit] :as object}
@@ -399,7 +392,7 @@
            {:class (str $row (when focus " focus") (when disconnected " disconnected"))
             :title (when disconnected "runtime disconnected")
             :on-click (when-not disconnected
-                        {:e ::inspect-object! :oid oid})}
+                        {:e ::m/inspect-object! :oid oid})}
 
            [:div.header
             (str (:added-at-ts summary)
@@ -431,7 +424,7 @@
 
 (defc ui-tap-panel [item panel-idx active?]
   (event ::kb-select! [env {:keys [item] :as e}]
-    (sg/dispatch-up! env {:e ::inspect-object! :ident item}))
+    (sg/dispatch-up! env {:e ::m/inspect-object! :oid (:oid item)}))
 
   (render
     (let [$vlist (css :flex-1 :overflow-hidden)
@@ -625,20 +618,79 @@
 
          (when explore-var-object
            (ui-explore-object-panel explore-var-object panel-idx active?))
-
-         [:div {:class (css :bg-white :font-mono :flex :flex-col)}
-          [:div {:class (css :flex :font-bold :px-4 :border-b :border-t-2 :py-1 :text-lg)}
-           [:div {:class (css :flex-1)} "Runtime Eval (use $o for current obj, ctrl+enter for eval)"]]
-          [:div {:style/height "120px"}
-           ;; must not autofocus, otherwise the scroll-anim breaks
-           (codemirror
-             {:submit-event {:e ::code-eval!}
-              :cm-opts
-              {:autofocus false
-               :tabindex (if active? 0 -1)}})]]
-
          ])))
 
+(defn ui-eval-crumb [stack-item panel-idx active?]
+  (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
+             :style/font-weight (if active? "600" "400")
+             :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
+       (str "Eval #" (:runtime-id stack-item))]))
+
+(defc ui-eval-item [{:keys [code status ref-oid] :as item} idx eval-count]
+  (bind object
+    (when ref-oid
+      (sg/kv-lookup ::m/object ref-oid)))
+
+  (render
+    (<< [:div {:class (css :border-b-4 :flex :font-mono)
+               :style/color (when (:is-error object) "red")}
+         [:div
+          [:div {:class (css :p-1)}
+           (case status
+             :pending "⏳"
+             :completed "✅"
+             :compile-error "\uD83E\uDD22"
+             :runtime-error "\uD83E\uDD2F"
+             "?")]
+          [:div {:class (css :p-1)}
+           (let [star-idx (- eval-count idx)]
+             (when (< star-idx 4)
+               (str "*" star-idx)))]
+          ]
+         [:div {:class (css :flex-1)}
+          [:div {:class (css :truncate :border-l :border-b :p-1)} (or code "via Inspect")]
+          [:div {:class (css :border-l)}
+           (if-not object
+             "..."
+             (let [edn-limit (:edn-limit object)]
+               (if-not edn-limit
+                 "..."
+                 (if (str/starts-with? edn-limit "0,")
+                   (edn/render-edn-str (subs edn-limit 2))
+                   (<< [:div {:class (css :truncate :font-mono :p-1 :cursor-pointer)
+                              :on-click {:e ::m/inspect-object! :oid ref-oid}}
+                        (render-edn-limit edn-limit)])))))]]])))
+
+(defc ui-eval-panel [{:keys [runtime-id] :as item} panel-idx active?]
+  (bind {:keys [eval-history eval-ns eval-text] :as runtime}
+    (sg/kv-lookup ::m/runtime runtime-id))
+
+  (render
+    (let [$container (css :flex-1 :overflow-auto :bg-white)]
+
+      (<< [:div {:class $container}
+           [:div {:class (css :overflow-hidden)}
+            (sg/simple-seq eval-history
+              (fn [item idx]
+                (ui-eval-item item idx (count eval-history))))]
+
+           (if (:disconnected runtime)
+             (<< [:div {:class (css :p-2 :font-bold :text-red-500)} "Runtime has disconnected, no further evals possible!"])
+             (<< [:div {:class (css :border-b-2 :bg-white :font-mono :flex :flex-col)}
+                  [:div {:style/height "200px"}
+                   (codemirror
+                     {:submit-event {:e ::m/runtime-eval! :runtime-id runtime-id :panel-idx panel-idx}
+                      :cm-opts
+                      {:autofocus true
+                       :tabindex (if active? 0 -1)}})]]
+                 [:div {:class (css :p-1 :border-b)}
+                  "Current Namespace: " (pr-str (or eval-ns 'user))]
+                 [:div {:class (css :p-1)}
+                  [:div "Instructions:"]
+                  [:ul
+                   [:li "- ctrl+enter to eval"]
+                   [:li "- no more commands for now"]]]
+                 ))]))))
 
 ;; really hacky way to scroll stuff
 ;; need to come up with better abstraction for this
@@ -685,9 +737,6 @@
 (defc ui-page []
   (bind {:keys [stack current]}
     (sg/kv-lookup ::m/ui ::m/inspect))
-
-  (event ::inspect-object! [env tx]
-    (sg/run-tx env (assoc tx :e ::m/inspect-object!)))
 
   (bind container-ref (sg/ref))
 
@@ -777,6 +826,9 @@
                    :tap-panel
                    (ui-tap-crumb item idx active?)
 
+                   :eval-panel
+                   (ui-eval-crumb item idx active?)
+
                    :tap-latest-panel
                    (ui-tap-latest-crumb item idx active?)
 
@@ -811,5 +863,12 @@
                          :explore-runtime-panel
                          (ui-explore-runtime-panel (:runtime-id item) idx active?)
 
+                         :eval-panel
+                         (ui-eval-panel item idx active?)
+
                          (<< [:div (pr-str item)]))]]
                      ))))]]])))
+
+(defn ui-repl-page [runtime-id]
+  ;; FIXME: show some kind of runtime header?
+  (ui-page))
