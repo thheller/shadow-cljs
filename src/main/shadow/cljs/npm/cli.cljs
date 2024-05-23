@@ -80,17 +80,32 @@
       (do (log (str "Executable '" cmd "' not found on system path."))
           (js/process.exit 1))
 
-      (let [spawn-opts
+      (let [shell?
+            (needs-shell? executable)
+
+            spawn-opts
             (-> {:cwd project-root
                  :env (-> #js {"SHADOW_CLI_PID" js/process.pid}
                           (js/Object.assign js/process.env))
                  :stdio "inherit"
-                 :shell (needs-shell? executable)}
+                 :shell shell?}
                 (merge proc-opts)
                 (clj->js))
 
+            args-array
+            (if shell?
+              ;; https://github.com/thheller/shadow-cljs/issues/1182
+              ;; just double escape everything, otherwise -d cider/cider-nrepl:0.47.0 blows up with lein due to spaces
+              (into-array (map pr-str args))
+              (into-array args))
+
+            executable
+            (if shell?
+              (pr-str executable)
+              executable)
+
             ^js proc
-            (cp/spawn executable (into-array args) spawn-opts)]
+            (cp/spawn executable args-array spawn-opts)]
 
         (.on proc "error"
           (fn [^js error]
