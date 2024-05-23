@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.28.8](https://github.com/thheller/shadow-cljs/compare/f0aebe479ac0fb7589a127e706d59a0cad01ff46...6f96f73202d56e284ee1300aa321ec0ea207137b) - 2024-05-23
+- [ [`6f96f`](https://github.com/thheller/shadow-cljs/commit/6f96f73202d56e284ee1300aa321ec0ea207137b) ] double escape shell commands for windows
+- [ [`f0aeb`](https://github.com/thheller/shadow-cljs/commit/f0aebe479ac0fb7589a127e706d59a0cad01ff46) ] add first draft of REPL in UI
+
 ## [2.28.7](https://github.com/thheller/shadow-cljs/compare/adcf8d7f5cd3df312099d9a0c8cacd9e967cbc0f...38214262ca2c0e59029a6ebc9b149c46ecc3af04) - 2024-05-20
 - [ [`38214`](https://github.com/thheller/shadow-cljs/commit/38214262ca2c0e59029a6ebc9b149c46ecc3af04) ] fix dropped ws connections when ws was too active
 - [ [`2c455`](https://github.com/thheller/shadow-cljs/commit/2c45593d1d4cfc0ec5efbe818e0b52d00cc72f9b) ] add visual indicator for nav values
