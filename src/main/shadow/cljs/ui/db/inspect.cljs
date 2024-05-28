@@ -135,33 +135,16 @@
 
 (defn relay-obj-summary
   {::ev/handle ::relay-ws/obj-summary}
-  [env {:keys [oid summary]}]
-  (let [{:keys [display-type] :as obj}
-        (get-in env [::m/object oid])]
+  [env {:keys [from oid summary]}]
+  (let [display-type (get-in env [::m/object oid :display-type])]
     (-> env
-        (assoc-in [::m/object oid :summary] (with-added-at-ts summary))
+        (update-in [::m/object oid] merge
+          {:summary (with-added-at-ts summary)
+           :oid oid
+           :runtime-id from})
         (cond->
           (nil? display-type)
           (assoc-in [::m/object oid :display-type] (guess-display-type env summary))))))
-
-(defn obj-preview-result
-  {::ev/handle ::obj-preview-result}
-  [env {:keys [call-result]}]
-
-  (let [{:keys [op oid result]} call-result] ;; remote-result
-    (assert (= op :obj-result))
-    (assoc-in env [::m/object oid :edn-limit] result)))
-
-(defn maybe-load-obj-preview
-  [env {:keys [oid runtime-id obj-preview] :as obj}]
-  (when-not obj-preview
-    (relay-ws/call!
-      (::sg/runtime-ref env)
-      {:op :obj-edn-limit
-       :to runtime-id
-       :oid oid
-       :limit 150}
-      {:e ::obj-preview-result})))
 
 (defn maybe-load-summary
   [env {:keys [oid runtime-id summary] :as current}]
@@ -576,13 +559,11 @@
           (js/console.warn "FIXME: warning not yet displayed in UI" w)))
 
       ;; FIXME: fx this!
-      (relay-ws/call!
+      (relay-ws/cast!
         (::sg/runtime-ref env)
-        {:op :obj-edn-limit
+        {:op :obj-describe
          :to from
-         :oid ref-oid
-         :limit 1024}
-        {:e ::obj-preview-result})
+         :oid ref-oid})
 
       (-> env
           (kv/add ::m/object {:oid ref-oid :runtime-id from})
@@ -598,13 +579,11 @@
     (let [{:keys [from ex-oid ex-client-id]} call-result]
 
       ;; FIXME: fx this!
-      (relay-ws/call!
+      (relay-ws/cast!
         (::sg/runtime-ref env)
-        {:op :obj-edn-limit
+        {:op :obj-describe
          :to (or ex-client-id from)
-         :oid ex-oid
-         :limit 1024}
-        {:e ::obj-preview-result})
+         :oid ex-oid})
 
       (-> env
           (kv/add ::m/object {:oid ex-oid
@@ -626,13 +605,11 @@
     (let [{:keys [from ex-oid]} call-result]
 
       ;; FIXME: fx this!
-      (relay-ws/call!
+      (relay-ws/cast!
         (::sg/runtime-ref env)
-        {:op :obj-edn-limit
+        {:op :obj-describe
          :to from
-         :oid ex-oid
-         :limit 1024}
-        {:e ::obj-preview-result})
+         :oid ex-oid})
 
       (-> env
           (kv/add ::m/object {:oid ex-oid

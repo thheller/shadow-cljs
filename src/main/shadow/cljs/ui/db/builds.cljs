@@ -30,20 +30,6 @@
 (defn relay-sub-msg
   {::ev/handle ::m/sub-msg}
   [env {::m/keys [topic] :as msg}]
-  (case topic
-    ::m/build-status-update
-    (let [{:keys [build-id build-status]} msg]
-      (assoc-in env [::m/build build-id ::m/build-status] build-status))
-
-    ::m/supervisor
-    (let [{::m/keys [worker-op build-id]} msg]
-      (case worker-op
-        :worker-stop
-        (assoc-in env [::m/build build-id ::m/build-worker-active] false)
-        :worker-start
-        (assoc-in env [::m/build build-id ::m/build-worker-active] true)
-
-        (js/console.warn "unhandled supervisor msg" msg)))
-
-    (do (js/console.warn "unhandled sub msg" msg)
-        env)))
+  ;; FIXME: this is dead right? superseded by sync-db?
+  (do (js/console.warn "unhandled sub msg" msg)
+      env))

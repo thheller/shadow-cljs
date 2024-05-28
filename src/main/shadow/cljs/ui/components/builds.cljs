@@ -37,7 +37,7 @@
 
 
 (defc build-card [build-id]
-  (bind {::m/keys [build-status build-target build-worker-active] :as data}
+  (bind {::m/keys [build-status build-worker-active] :as data}
     (sg/kv-lookup ::m/build build-id))
 
   (bind build-warnings-count
@@ -75,13 +75,18 @@
                [:dl
                 [:dt {:class (css :text-lg :font-medium :c-text-1d)} (name build-id)]
                 [:dd
-                 [:span {:class (css :text-sm :font-medium :c-text-1l :truncate)} (name build-target)]]]]]]]
+                 [:span {:class (css :text-sm :font-medium :c-text-1l :truncate)} (name (:target (::m/build-config-raw data)))]]]]]]]
 
            (build-buttons build-id build-worker-active)]))))
 
 (defc ui-builds-page []
   (bind builds
-    (sg/kv-lookup ::m/ui ::m/builds))
+    (sg/query
+      (fn [env]
+        (->> (::m/build env)
+             (keys)
+             (sort)
+             (vec)))))
 
   (render
     (<< [:div {:class (css :flex-1 :overflow-auto :py-2 [:sm :px-2])}

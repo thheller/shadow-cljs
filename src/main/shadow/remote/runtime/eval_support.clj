@@ -36,7 +36,10 @@
               get-ref #(get-ref* obj-support %)]
       (try
         (let [form
-              (read-string code)
+              (read-string
+                {:read-cond :allow
+                 :features #{:clj}}
+                code)
               ;; FIXME: what if there are multiple forms in code?
               ;; I think client should ensure only one is sent?
               ;; currently UI just takes the whole string and does no parsing though

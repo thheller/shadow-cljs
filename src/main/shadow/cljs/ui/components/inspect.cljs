@@ -2,11 +2,13 @@
   (:require
     [clojure.string :as str]
     [goog.math :as math]
+    [shadow.cljs.ui.db.relay-ws :as relay-ws]
     [shadow.dom :as dom]
     [shadow.arborist :as sa]
     [shadow.arborist.dom-scheduler :as ds]
     [shadow.css :refer (css)]
     [shadow.grove :as sg :refer (<< defc)]
+    [shadow.grove.events :as ev]
     [shadow.grove.ui.vlist2 :as vlist]
     [shadow.grove.ui.loadable :refer (refer-lazy)]
     [shadow.grove.keyboard :as keyboard]
@@ -247,7 +249,7 @@
 
   (bind label
     (if-not nav-idx
-      (render-edn-limit-truncated (:edn-limit object))
+      (render-edn-limit-truncated (:preview (:summary object)))
       (if (= :map (get-in object [:summary :data-type]))
         (render-edn-limit-truncated (get-in object [:fragment nav-idx :key]))
         nav-idx
@@ -266,8 +268,7 @@
     (sg/kv-lookup ::m/object oid))
 
   (effect :mount [env]
-    (db/maybe-load-summary env object)
-    (db/maybe-load-obj-preview env object))
+    (db/maybe-load-summary env object))
 
   (event ::go-first! [env _ _]
     (sg/run-tx env {:e ::m/inspect-set-current! :idx 0}))
@@ -365,18 +366,17 @@
            ]))))
 
 (defc ui-tap-stream-item [oid {:keys [idx focus]}]
-  (bind {:keys [summary edn-limit] :as object}
+  (bind {:keys [summary] :as object}
     (sg/kv-lookup ::m/object oid))
 
   (bind runtime
     (sg/kv-lookup ::m/runtime (:runtime-id object)))
 
   (effect :mount [env]
-    (db/maybe-load-obj-preview env object)
     (db/maybe-load-summary env object))
 
   (render
-    (let [{:keys [ns line column label]} summary
+    (let [{:keys [ns line column label preview]} summary
           {:keys [runtime-info runtime-id disconnected]} runtime
 
           $row
@@ -413,8 +413,8 @@
                  (when label
                    (str " - " label)))]
            [:div.val
-            (when edn-limit
-              (render-edn-limit edn-limit))]]))))
+            (when preview
+              (render-edn-limit preview))]]))))
 
 (defn ui-tap-crumb [stack-item panel-idx active?]
   (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
@@ -516,8 +516,7 @@
     (sg/kv-lookup ::m/object oid))
 
   (effect :mount [env]
-    (db/maybe-load-summary env object)
-    (db/maybe-load-obj-preview env object))
+    (db/maybe-load-summary env object))
 
   (event ::inspect-nav! [env tx]
     (sg/run-tx env (assoc tx :e ::m/inspect-nav! :ident oid :panel-idx panel-idx)))
@@ -620,77 +619,241 @@
            (ui-explore-object-panel explore-var-object panel-idx active?))
          ])))
 
-(defn ui-eval-crumb [stack-item panel-idx active?]
+(defn ui-repl-crumb [stack-item panel-idx active?]
   (<< [:div {:class (css :inline-block :border-r :p-2 :cursor-pointer :whitespace-nowrap)
              :style/font-weight (if active? "600" "400")
              :on-click {:e ::m/inspect-set-current! :idx panel-idx}}
-       (str "Eval #" (:runtime-id stack-item))]))
+       "REPL"]))
 
-(defc ui-eval-item [{:keys [code status ref-oid] :as item} idx eval-count]
+(defn obj-load-preview
+  {::ev/handle ::obj-load-preview}
+  [env {:keys [call-result] :as msg}]
+  (case (:op call-result)
+    :obj-result
+    (update-in env [::m/object (:oid call-result)] merge
+      {:obj-preview (:result call-result)
+       :oid (:oid call-result)
+       :runtime-id (:from call-result)})))
+
+(defn load-object [env {:keys [from ex-oid ref-oid]}]
+  (relay-ws/cast!
+    (::sg/runtime-ref env)
+    {:op :obj-describe
+     :to from
+     :oid (or ex-oid ref-oid)}))
+
+(defc ui-repl-result [{:keys [result] :as entry}]
+  (bind runtime
+    (sg/kv-lookup ::m/runtime (:from result)))
+
   (bind object
-    (when ref-oid
-      (sg/kv-lookup ::m/object ref-oid)))
+    (sg/kv-lookup ::m/object (:ref-oid result)))
+
+  (effect :mount [env]
+    (when (or (not object) (not (:summary object)))
+      (load-object env result)))
+
+  (render
+    (if-not object
+      "..."
+      (<< [:div {:class (css :truncate :font-mono :p-1 :cursor-pointer)
+                 :on-click {:e ::m/inspect-object! :oid (:oid object)}}
+           (render-edn-limit (:preview (:summary object)))]))))
+
+(defc ui-repl-error [{:keys [result] :as entry}]
+  (bind runtime
+    (sg/kv-lookup ::m/runtime (:from result)))
+
+  (bind object
+    (sg/kv-lookup ::m/object (:ex-oid result)))
+
+  (effect :mount [env]
+    (when (or (not object) (not (:summary object)))
+      (load-object env result)))
+
+  (render
+    (if-not object
+      "..."
+      (<< [:div {:class (css :truncate :font-mono :p-1 :cursor-pointer)
+                 :on-click {:e ::m/inspect-object! :oid (:oid object)}}
+           (render-edn-limit (:preview (:summary object)))]))))
+
+(defc ui-repl-entry [entry-id]
+  (bind {:keys [result code target target-op target-ns] :as entry}
+    (sg/kv-lookup ::m/repl-history entry-id))
 
   (render
     (<< [:div {:class (css :border-b-4 :flex :font-mono)
-               :style/color (when (:is-error object) "red")}
-         [:div
-          [:div {:class (css :p-1)}
-           (case status
-             :pending "⏳"
-             :completed "✅"
-             :compile-error "\uD83E\uDD22"
-             :runtime-error "\uD83E\uDD2F"
-             "?")]
-          [:div {:class (css :p-1)}
-           (let [star-idx (- eval-count idx)]
-             (when (< star-idx 4)
-               (str "*" star-idx)))]
-          ]
-         [:div {:class (css :flex-1)}
-          [:div {:class (css :truncate :border-l :border-b :p-1)} (or code "via Inspect")]
-          [:div {:class (css :border-l)}
-           (if-not object
-             "..."
-             (let [edn-limit (:edn-limit object)]
-               (if-not edn-limit
-                 "..."
-                 (if (str/starts-with? edn-limit "0,")
-                   (edn/render-edn-str (subs edn-limit 2))
-                   (<< [:div {:class (css :truncate :font-mono :p-1 :cursor-pointer)
-                              :on-click {:e ::m/inspect-object! :oid ref-oid}}
-                        (render-edn-limit edn-limit)])))))]]])))
+               #_#_:style/color (when (:is-error object) "red")}
+         [:div {:class (css :p-1)}
+          (cond
+            (nil? result) "⏳"
+            (= :eval-result-ref (:op result)) "✅"
+            (= :eval-runtime-error (:op result)) "\uD83E\uDD2F"
+            ;;:compile-error "\uD83E\uDD22"
+            :else "?")]
 
-(defc ui-eval-panel [{:keys [runtime-id] :as item} panel-idx active?]
-  (bind {:keys [eval-history eval-ns eval-text] :as runtime}
-    (sg/kv-lookup ::m/runtime runtime-id))
+         [:div {:class (css :flex-1 :border-l)}
+          [:div {:class (css :text-xs :p-1 :border-b)} (str "Runtime: #" target " Namespace: " target-ns)]
+          [:div {:class (css :truncate :border-b :p-1)} (or code "via Inspect")]
+          (case (:op result)
+            :eval-result-ref (ui-repl-result entry)
+            :eval-runtime-error (ui-repl-error entry)
+            "...")
+          #_[:div {:class (css :border-l)}
+             (if-not object
+               "..."
+               (let [edn-limit (:edn-limit object)]
+                 (if-not edn-limit
+                   "..."
+                   (if (str/starts-with? edn-limit "0,")
+                     (edn/render-edn-str (subs edn-limit 2))
+                     ))))]]])))
+
+(defn ?runtime-options [env]
+  (->> (::m/runtime env)
+       (vals)
+       (remove :disconnected)
+       (filter (fn [{:keys [supported-ops] :as runtime}]
+                 (or (contains? supported-ops :clj-eval)
+                     (contains? supported-ops :cljs-eval))))
+       (map (fn [{:keys [supported-ops] :as runtime}]
+              [(:runtime-id runtime)
+
+               (str "#" (:runtime-id runtime)
+                    (cond
+                      (contains? supported-ops :clj-eval)
+                      " - CLJ"
+                      (contains? supported-ops :cljs-eval)
+                      (str " - CLJS (" (get-in runtime [:runtime-info :build-id]) ")")))
+               ]))
+       (into [[nil "Select Runtime ..."]])))
+
+;; FIXME: make actually reusable select element
+(defc select [change-ev val options]
+  (bind dom-ref (sg/ref))
+
+  ;; doing this dance since HTML select option .value is only ever a string
+  ;; I'd like to preserve the actual value received via options
+  ;; that does require a bit of manual index management, which is fine
+  (effect :auto [env]
+    (loop [idx (dec (count options))]
+      (let [[opt-val label] (nth options idx)]
+        (if (= opt-val val)
+          (set! @dom-ref -selectedIndex idx)
+          (when-not (zero? idx)
+            (recur (dec idx)))))))
+
+  (event ::change! [env ev e]
+    (let [v-idx (.-selectedIndex @dom-ref)
+          v (first (nth options v-idx))]
+      (sg/run-tx env (assoc change-ev :value v :value-idx v-idx))))
+
+  (render
+    (<< [:select
+         {:dom/ref dom-ref
+          :on-change {:e ::change!}
+          :class (css :py-1 :px-2 :border-l :border-r {:width "200px"})}
+         (sg/simple-seq options
+           (fn [[val label]]
+             (<< [:option label])))])))
+
+(defc repl-input [stream-id]
+  (bind dom-ref (sg/ref))
+
+  (event ::keyboard/ctrl+enter [env _ e]
+    (.preventDefault e)
+    (let [val (.-value @dom-ref)]
+      (set! @dom-ref -value "")
+
+      (relay-ws/cast!
+        (::sg/runtime-ref env)
+        {:op ::m/repl-stream-input!
+         :to 1
+         :stream-id stream-id
+         :code val})))
+
+  ;; FIXME: actually implement some sort of history
+  (event ::keyboard/arrowup [env _ e]
+    (let [el @dom-ref]
+      (when (= 0 (.-selectionStart el) (.-selectionEnd el))
+        (.preventDefault e)
+        (js/console.log "history up")
+        )))
+
+  (event ::keyboard/arrowdown [env _ e]
+    (let [el @dom-ref]
+      (when (= (count (.-value el)) (.-selectionStart el) (.-selectionEnd el))
+        (.preventDefault e)
+        (js/console.log "history down")
+        )))
+
+
+  (render
+    (<< [:textarea
+         {::keyboard/listen true
+          :dom/ref dom-ref
+          :type "text"
+          :class (css :block :font-mono :w-full :p-2 {:height "84px"})
+          :placeholder "REPL Input ... ctrl+enter to eval"
+          :name "code"}])))
+
+(defc ui-repl-controls []
+  (bind stream-id
+    ;; FIXME: figure out ui to select stream if multiple exist
+    :default)
+
+  (bind stream
+    (sg/kv-lookup ::m/repl-stream stream-id))
+
+  (bind runtime-options
+    (sg/query ?runtime-options))
+
+  (render
+    (<< [:div {:class (css :border-b :text-sm :flex)}
+         [:div {:class (css :py-1 :px-2 :font-semibold)}
+          " Runtime: "]
+         [:div
+          (select
+            {:e ::m/repl-select-runtime!
+             :stream-id stream-id}
+            (:target stream)
+            runtime-options)]
+
+         [:div {:class (css :py-1 :px-2 :font-semibold)}
+          " Current Namespace: "]
+         [:div {:class (css :py-1)}
+          (str (:target-ns stream))]]
+
+        ;; FIXME: trying to get by without codemirror
+        ;; input is supposed to come from editor, this is just for "emergencies"
+        ;; does making it extra bad help push users to use editor instead?
+
+        [:div {:class (css :border-b-2)}
+         (repl-input stream-id)
+
+         ])))
+
+(defc ui-repl-panel [item panel-idx active?]
+  (bind repl-history
+    (sg/query
+      (fn [env]
+        (->> (::m/repl-history env)
+             (vals)
+             (sort-by :id)
+             (reverse)
+             (mapv :id)))))
 
   (render
     (let [$container (css :flex-1 :overflow-auto :bg-white)]
 
       (<< [:div {:class $container}
-           [:div {:class (css :overflow-hidden)}
-            (sg/simple-seq eval-history
-              (fn [item idx]
-                (ui-eval-item item idx (count eval-history))))]
+           (ui-repl-controls)
 
-           (if (:disconnected runtime)
-             (<< [:div {:class (css :p-2 :font-bold :text-red-500)} "Runtime has disconnected, no further evals possible!"])
-             (<< [:div {:class (css :border-b-2 :bg-white :font-mono :flex :flex-col)}
-                  [:div {:style/height "200px"}
-                   (codemirror
-                     {:submit-event {:e ::m/runtime-eval! :runtime-id runtime-id :panel-idx panel-idx}
-                      :cm-opts
-                      {:autofocus true
-                       :tabindex (if active? 0 -1)}})]]
-                 [:div {:class (css :p-1 :border-b)}
-                  "Current Namespace: " (pr-str (or eval-ns 'user))]
-                 [:div {:class (css :p-1)}
-                  [:div "Instructions:"]
-                  [:ul
-                   [:li "- ctrl+enter to eval"]
-                   [:li "- no more commands for now"]]]
-                 ))]))))
+           ;; FIXME: vlist
+           [:div {:class (css :overflow-hidden)}
+            (sg/simple-seq repl-history ui-repl-entry)]]
+          ))))
 
 ;; really hacky way to scroll stuff
 ;; need to come up with better abstraction for this
@@ -826,8 +989,8 @@
                    :tap-panel
                    (ui-tap-crumb item idx active?)
 
-                   :eval-panel
-                   (ui-eval-crumb item idx active?)
+                   :repl-panel
+                   (ui-repl-crumb item idx active?)
 
                    :tap-latest-panel
                    (ui-tap-latest-crumb item idx active?)
@@ -863,12 +1026,8 @@
                          :explore-runtime-panel
                          (ui-explore-runtime-panel (:runtime-id item) idx active?)
 
-                         :eval-panel
-                         (ui-eval-panel item idx active?)
+                         :repl-panel
+                         (ui-repl-panel item idx active?)
 
                          (<< [:div (pr-str item)]))]]
                      ))))]]])))
-
-(defn ui-repl-page [runtime-id]
-  ;; FIXME: show some kind of runtime header?
-  (ui-page))

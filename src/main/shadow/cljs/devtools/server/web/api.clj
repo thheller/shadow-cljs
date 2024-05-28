@@ -67,12 +67,7 @@
    (transit-str
      {::m/http-servers
       (->> (:servers @dev-http)
-           (map-indexed
-             (fn [idx {:keys [http-url https-url config]}]
-               {::m/http-server-id idx
-                ::m/http-url http-url
-                ::m/http-config config
-                ::m/https-url https-url}))
+
            (into []))
 
       ::m/build-configs
@@ -84,8 +79,6 @@
              (remove #(-> % meta :generated))
              (map (fn [{:keys [build-id target] :as config}]
                     {::m/build-id build-id
-                     ::m/build-target target
-                     ::m/build-worker-active (some? (super/get-worker supervisor build-id))
                      ::m/build-config-raw config}))
              (into [])))})})
 

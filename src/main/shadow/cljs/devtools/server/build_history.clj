@@ -2,6 +2,7 @@
   (:require
     [clojure.core.async :as async :refer (go alt!)]
     [shadow.cljs :as-alias m]
+    [shadow.cljs.devtools.server.sync-db :as sync-db]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
     [shadow.build.log :as build-log]))
 
@@ -31,7 +32,7 @@
                (into []))]
 
       (assoc state
-        :info info
+        ;; :info info
         :status :completed
         :resources (count sources)
         :compiled (count compiled)
@@ -73,26 +74,29 @@
     ;; mostly REPL related things
     state))
 
-(defn build-status-loop [{:keys [system-bus state-ref sub-chan]}]
+(defn build-status-loop [{:keys [sync-db state-ref sub-chan]}]
   ;; FIXME: figure out which update frequency makes sense for the UI
   ;; 10fps is probably more than enough?
   (let [flush-delay 100
         flush-fn
         (fn [needs-flush]
-          (doseq [build-id needs-flush]
-            (let [state
-                  (get @state-ref build-id)
+          (sync-db/update! sync-db update ::m/build
+            (fn [table]
+              (reduce
+                (fn [table build-id]
+                  (let [state
+                        (get @state-ref build-id)
 
-                  flush-state
-                  (-> state
-                      (cond->
-                        (not (contains? #{:failed :completed} (:status state)))
-                        (dissoc :log)))
+                        flush-state
+                        (-> state
+                            (cond->
+                              (not (contains? #{:failed :completed} (:status state)))
+                              (dissoc :log)))]
 
-                  msg {:build-id build-id
-                       :build-status flush-state}]
+                    (assoc-in table [build-id ::m/build-status] flush-state)))
 
-              (sys-bus/publish! system-bus ::m/build-status-update msg))))]
+                table
+                needs-flush))))]
 
     (go (loop [needs-flush #{}
                timeout (async/timeout flush-delay)]
@@ -112,7 +116,7 @@
                 (do (swap! state-ref update build-id update-build-status msg)
                     (recur (conj needs-flush build-id) timeout)))))))))
 
-(defn start [sys-bus]
+(defn start [sys-bus sync-db]
   (let [sub-chan
         (-> (async/sliding-buffer 100)
             (async/chan))
@@ -123,6 +127,7 @@
         svc
         {:system-bus sys-bus
          :sub-chan sub-chan
+         :sync-db sync-db
          :state-ref state-ref}]
 
     (build-status-loop svc)

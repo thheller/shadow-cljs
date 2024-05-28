@@ -1,5 +1,6 @@
 (ns shadow.cljs.ui.db.generic
   (:require
+    [shadow.cljs.ui.db.relay-ws :as relay-ws]
     [shadow.grove :as sg]
     [shadow.grove.events :as ev]
     [shadow.cljs :as-alias m]
@@ -9,19 +10,9 @@
   {::ev/handle ::m/init!}
   [env _]
   (-> env
-      (assoc-in [::m/ui ::m/preferred-display-type] (keyword (or (js/localStorage.getItem "preferred-display-type") "browse")))
-      (sg/queue-fx :http-api
-        {:request "/ui-init-data"
-         :on-success {:e ::init-data}})))
+      (assoc-in [::m/ui ::m/preferred-display-type] (keyword (or (js/localStorage.getItem "preferred-display-type") "browse")))))
 
-(defn init-data
-  {::ev/handle ::init-data}
-  [env {:keys [result]}]
-  (let [{::m/keys [http-servers build-configs]} result]
-    (-> env
-        (assoc-in [::m/ui ::m/init-complete?] true)
-        (kv/merge-seq ::m/http-server http-servers [::m/ui ::m/http-servers])
-        (kv/merge-seq ::m/build build-configs [::m/ui ::m/builds]))))
+
 
 (defn dismiss-error!
   {::ev/handle ::m/dismiss-error!}
@@ -75,6 +66,13 @@
       "runtimes"
       (assoc-in env [::m/ui ::m/current-page] {:id :runtimes})
 
+      "repl"
+      (-> env
+          (assoc-in [::m/ui ::m/current-page] {:id :repl})
+          (assoc-in [::m/ui ::m/inspect]
+            {:current 0
+             :stack [{:type :repl-panel}]}))
+
       "runtime"
       (let [[runtime-id sub-page] more
             runtime-id (js/parseInt runtime-id 10)]
@@ -84,15 +82,6 @@
           (ev/queue-fx env :ui/redirect! {:token "/runtimes"})
 
           (case sub-page
-            "eval"
-            (-> env
-                (assoc-in [::m/ui ::m/inspect]
-                  {:current 0
-                   :stack [{:type :eval-panel
-                            :runtime-id runtime-id}]})
-                ;; FIXME: make this a custom page at some point
-                (assoc-in [::m/ui ::m/current-page] {:id :repl :runtime-id runtime-id}))
-
             "explore"
             (-> env
                 (update ::m/ui assoc
@@ -125,3 +114,56 @@
   {::ev/handle ::m/open-settings!}
   [env _]
   (assoc-in env [::m/ui ::m/show-settings] true))
+
+(defn db-sync
+  {::ev/handle ::m/db-sync}
+  [env {::m/keys [builds repl-streams repl-history http-servers]}]
+  (-> env
+      (assoc-in [::m/ui ::m/init-complete?] true)
+      (kv/merge-seq ::m/http-server http-servers)
+      (kv/merge-seq ::m/build builds)
+      (kv/merge-seq ::m/repl-stream repl-streams)
+      (kv/merge-seq ::m/repl-history repl-history)))
+
+(defn db-update
+  {::ev/handle ::m/db-update}
+  [env {:keys [changes]}]
+  (reduce
+    (fn [env [op & more :as change]]
+      (case op
+        (:entity-add :entity-update)
+        (let [[table id key val] more]
+          (assoc-in env [table id key] val))
+
+        :entity-remove
+        (let [[table id key] more]
+          (update-in env [table id] dissoc key))
+
+        :table-add
+        (let [[table id val] more]
+          (assoc-in env [table id] val))
+
+        :table-remove
+        (let [[table id] more]
+          (update env table dissoc id))
+
+        (do (js/console.log "unknown op" change)
+            env)))
+    env
+    changes))
+
+(defn repl-switch!
+  {::ev/handle ::m/repl-select-runtime!}
+  [env {:keys [stream-id value]}]
+  (-> env
+      (cond->
+        value
+        (sg/queue-fx :relay-send
+          [{:op ::m/repl-stream-switch!
+            :to 1
+            :stream-id stream-id
+            :target value
+            :target-ns 'shadow.user
+            ;; FIXME: if there ever is support for multiple CLJ targets this will break
+            :target-op (if (= value 1) :clj-eval :cljs-eval)}]))))
+

@@ -4,6 +4,7 @@
     [clojure.java.io :as io]
     [clojure.core.async :as async :refer (>!! <!!)]
     [clojure.spec.alpha :as s]
+    [shadow.cljs.devtools.server.sync-db :as sync-db]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
@@ -407,7 +408,20 @@
       (reset! file-watch-ref false)))
   (dissoc state :server :configs))
 
-(defn start [sys-bus config ssl-context out]
+(defn sync-servers [sync-db servers]
+  (sync-db/update! sync-db update ::m/http-server
+    (fn [table]
+      (reduce-kv
+        (fn [table idx {:keys [http-url https-url config]}]
+          (assoc table idx {::m/http-server-id idx
+                            ::m/http-url http-url
+                            ::m/http-config config
+                            ::m/https-url https-url}))
+        ;; FIXME: don't fully reset table in case these ever receive updates elsewhere?
+        {}
+        servers))))
+
+(defn start [sys-bus config ssl-context out sync-db]
   (let [sub-chan
         (-> (async/sliding-buffer 1)
             (async/chan))
@@ -439,8 +453,13 @@
                   (swap! state-ref stop-servers)
                   (swap! state-ref assoc
                     :servers (start-servers sys-bus new-configs ssl-context out)
-                    :configs new-configs))
+                    :configs new-configs)
+
+                  (sync-servers sync-db (:servers @state-ref)))
+
                 (recur new-configs)))))]
+
+    (sync-servers sync-db (:servers @state-ref))
 
     (swap! state-ref assoc :loop-chan loop-chan)
 

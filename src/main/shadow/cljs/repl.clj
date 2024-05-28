@@ -647,7 +647,7 @@
   "dummy read one form from a stream, only meant to get the string form
    cannot perform actual read since it doesn't know current ns or aliases
    only meant to be used when forced to read from a stream but wanting a string"
-  [reader]
+  [reader reader-opts]
   (try
     (let [in
           (readers/source-logging-push-back-reader reader)
@@ -656,9 +656,7 @@
           (Object.)
 
           reader-opts
-          {:eof eof-sentinel
-           :read-cond :allow
-           :features #{:cljs}}
+          (assoc reader-opts :eof eof-sentinel)
 
           [form source]
           (binding [*ns* (find-ns 'user)

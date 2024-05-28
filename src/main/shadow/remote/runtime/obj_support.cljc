@@ -124,6 +124,7 @@
   (-> {:added-at added-at
        :datafied (not (identical? data obj))
        :obj-type (obj-type-string obj)
+       :preview (lw/pr-str-limit obj 250)
        :supports #{}}
       (get-data-type entry)
       (merge-source-info entry)

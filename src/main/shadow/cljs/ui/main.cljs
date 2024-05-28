@@ -22,6 +22,7 @@
     [shadow.cljs.ui.components.builds :as builds]
     [shadow.cljs.ui.components.build :as build]
     [shadow.cljs.ui.components.common :as common]
+    [shadow.cljs.ui.components.repl :as repl]
     ))
 
 (defc ui-error [error-id]
@@ -103,7 +104,8 @@
   (bind nav-items
     [{:pages #{:dashboard} :label "Dashboard" :path "/dashboard"}
      {:pages #{:builds :build} :label "Builds" :path "/builds"}
-     {:pages #{:runtimes :repl} :label "Runtimes" :path "/runtimes"}
+     {:pages #{:repl} :label "REPL" :path "/repl"}
+     {:pages #{:runtimes} :label "Runtimes" :path "/runtimes"}
      {:pages #{:inspect} :label "Inspect Stream" :path "/inspect"}
      {:pages #{:inspect-latest} :label "Inspect Latest" :path "/inspect-latest"}])
 
@@ -152,7 +154,7 @@
                (runtimes/ui-page)
 
                :repl
-               (inspect/ui-repl-page (:runtime-id current-page))
+               (repl/ui-page)
 
                "Unknown Page"))]
 
@@ -199,8 +201,6 @@
        (when-not (keyword? key)
          (throw (ex-info "::m/ui can only take keyword keys" {:key key :value value}))))}
     {::m/current-page {:id :dashboard}
-     ::m/builds []
-     ::m/http-servers []
      ::m/init-complete? false
      ;; assume that the first connect will succeed
      ;; otherwise shows disconnect banner for a few ms on startup
@@ -225,6 +225,12 @@
      ;; :runtime-info shadow-remote-runtime-info-map
      ;; :supported-opts set-of-keywords
      })
+
+  (sg/add-kv-table rt-ref ::m/repl-stream
+    {:primary-key :stream-id})
+
+  (sg/add-kv-table rt-ref ::m/repl-history
+    {:primary-key :id})
 
   (sg/add-kv-table rt-ref ::m/object
     {:primary-key :oid
@@ -256,6 +262,15 @@
      ;; ::m/build-worker-active boolean
      })
 
+  (sg/add-kv-table rt-ref ::m/build-config
+    {:primary-key ::m/build-id
+     ;; ::m/build-id keyword
+     ;; ::m/build-target keyword
+     ;; ::m/build-config-raw build-config-map
+     ;; ::m/build-worker-active boolean
+     })
+
+
   (sg/add-kv-table rt-ref ::m/error
     {:primary-key :error-id})
 
@@ -281,17 +296,10 @@
          :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
          })
 
-      ;; builds starting, stopping
       (relay-ws/cast! rt-ref
-        {:op ::m/subscribe
+        {:op ::m/db-sync-init!
          :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
-         ::m/topic ::m/supervisor})
-
-      ;; build progress, errors, success
-      (relay-ws/cast! rt-ref
-        {:op ::m/subscribe
-         :to 1 ;; FIXME: don't blindly assume CLJ runtime is 1
-         ::m/topic ::m/build-status-update})))
+         })))
 
   (sg/run-tx! rt-ref {:e ::m/init!})
 

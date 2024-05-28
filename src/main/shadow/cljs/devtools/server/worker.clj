@@ -3,6 +3,7 @@
   (:require
     [clojure.core.async :as async :refer (go thread alt!! alt! <!! <! >! >!!)]
     [clojure.java.io :as io]
+    [shadow.cljs.devtools.server.sync-db :as sync-db]
     [shadow.jvm-log :as log]
     [shadow.build.babel :as babel]
     [shadow.build.resource :as rc]
@@ -105,7 +106,8 @@
            http
            classpath
            npm
-           babel]}
+           babel
+           sync-db]}
    {:keys [build-id] :as build-config}
    cli-opts]
   {:pre [(map? http)
@@ -211,6 +213,7 @@
          :npm npm
          :babel babel
          :proc-id proc-id
+         :sync-db sync-db
          :build-id build-id
          :build-config build-config
          :autobuild false
@@ -280,6 +283,7 @@
              :cli-opts cli-opts
              :build-id build-id
              :system-bus system-bus
+             :sync-db sync-db
              :resource-update resource-update
              :output output
              :output-mult output-mult
@@ -313,6 +317,8 @@
                              ;; don't need file instances, just the names
                              (async/>!! asset-update {:updates updates}))))))))]
 
+    (sync-db/update! sync-db assoc-in [::m/build build-id ::m/build-worker-active] true)
+
     (sys-bus/sub system-bus ::m/resource-update resource-update)
 
     ;; only listen to :dev-http asset update messages if :watch-dir is not set
@@ -325,6 +331,7 @@
 
     ;; ensure all channels are cleaned up properly
     (go (<! thread-ref)
+        (sync-db/update! sync-db update-in [::m/build build-id] dissoc ::m/build-worker-active)
         (async/close! output)
         (async/close! proc-stop)
         (async/close! proc-control)

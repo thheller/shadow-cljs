@@ -60,7 +60,11 @@
 
 (defc ui-http-servers []
   (bind http-servers
-    (sg/kv-lookup ::m/ui ::m/http-servers))
+    (sg/query
+      (fn [env]
+        (->> (::m/http-server env)
+             (keys)
+             (sort)))))
 
   (render
     (<< [:div {:class (css :shadow :bg-white :mb-4)}
@@ -95,5 +99,4 @@
   (<< [:div {:class (css :flex-1 :overflow-auto :mt-4 [:sm :px-3])}
        (ui-active-builds)
        (ui-active-runtimes)
-       (ui-http-servers)
-       ]))
+       (ui-http-servers)]))

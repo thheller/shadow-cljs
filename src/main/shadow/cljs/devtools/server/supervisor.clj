@@ -1,5 +1,6 @@
 (ns shadow.cljs.devtools.server.supervisor
-  (:require [shadow.cljs.devtools.server.worker :as worker]
+  (:require [shadow.cljs.devtools.server.sync-db :as sync-db]
+            [shadow.cljs.devtools.server.worker :as worker]
             [clojure.core.async :as async :refer (go <! alt!)]
             [shadow.cljs.devtools.server.system-bus :as sys-bus]
             [shadow.cljs :as-alias m]
@@ -29,14 +30,9 @@
     (let [{:keys [proc-stop] :as proc}
           (worker/start svc build-config cli-opts)]
 
-      (sys-bus/publish! system-bus ::m/supervisor {::m/worker-op :worker-start
-                                                   ::m/build-id build-id})
-
       (swap! workers-ref assoc build-id proc)
 
       (go (<! proc-stop)
-          (sys-bus/publish! system-bus ::m/supervisor {::m/worker-op :worker-stop
-                                                       ::m/build-id build-id})
           (swap! workers-ref dissoc build-id))
 
       proc
@@ -49,11 +45,12 @@
     (worker/stop proc)))
 
 ;; FIXME: too many args, use a map
-(defn start [config system-bus executor relay clj-runtime clj-obj-support cache-root http classpath npm babel]
+(defn start [config system-bus executor relay clj-runtime clj-obj-support cache-root http classpath npm babel sync-db]
   {:system-bus system-bus
    :config config
    :executor executor
    :relay relay
+   :sync-db sync-db
    :clj-runtime clj-runtime
    :clj-obj-support clj-obj-support
    :cache-root cache-root

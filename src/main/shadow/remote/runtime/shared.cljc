@@ -78,7 +78,7 @@
 (defn welcome
   [{:keys [state-ref] :as runtime} {:keys [client-id] :as msg}]
   ;; #?(:cljs (js/console.log "shadow.remote - runtime-id:" rid))
-  (swap! state-ref assoc :client-id client-id)
+  (swap! state-ref assoc :client-id client-id :welcome true)
 
   (let [{:keys [client-info extensions]} @state-ref]
     (relay-msg runtime
@@ -122,8 +122,15 @@
     (assoc-in state [:extensions key] spec)
     ops))
 
-(defn add-extension [{:keys [state-ref]} key spec]
-  (swap! state-ref add-extension* key spec))
+(defn add-extension [{:keys [state-ref] :as runtime} key spec]
+  (swap! state-ref add-extension* key spec)
+
+  ;; trigger on-welcome immediately if already welcome was already received
+  (when-some [on-welcome (:on-welcome spec)]
+    (when (:welcome @state-ref)
+      (on-welcome)))
+
+  runtime)
 
 (defn add-defaults [runtime]
   (add-extension runtime

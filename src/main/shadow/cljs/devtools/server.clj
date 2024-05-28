@@ -28,6 +28,7 @@
     [shadow.cljs.devtools.server.build-history :as build-history]
     [shadow.cljs.devtools.server.system-bus :as system-bus]
     [shadow.cljs.devtools.server.remote-ext :as remote-ext]
+    [shadow.cljs.devtools.server.sync-db :as sync-db]
     [shadow.remote.relay.local :as relay]
     [shadow.remote.runtime.clj.local :as clj-runtime]
     [shadow.remote.runtime.obj-support :as obj-support]
@@ -437,7 +438,7 @@
          (let [app
                (merge
                  {:dev-http
-                  {:depends-on [:system-bus :config :ssl-context :out]
+                  {:depends-on [:system-bus :config :ssl-context :out :sync-db]
                    :start dev-http/start
                    :stop dev-http/stop}
 
@@ -461,7 +462,7 @@
                    :stop fs-watch/stop}
 
                   :config-watch
-                  {:depends-on [:system-bus]
+                  {:depends-on [:system-bus :sync-db]
                    :start config-watch/start
                    :stop config-watch/stop}
 
@@ -476,12 +477,12 @@
                    :stop reload-classpath/stop}
 
                   :build-history
-                  {:depends-on [:system-bus]
+                  {:depends-on [:system-bus :sync-db]
                    :start build-history/start
                    :stop build-history/stop}
 
                   :supervisor
-                  {:depends-on [:config :system-bus :build-executor :relay :clj-runtime :clj-runtime-obj-support :cache-root :http :classpath :npm :babel]
+                  {:depends-on [:config :system-bus :build-executor :relay :clj-runtime :clj-runtime-obj-support :cache-root :http :classpath :npm :babel :sync-db]
                    :start super/start
                    :stop super/stop}
 
@@ -516,9 +517,14 @@
                    :stop explore-support/stop}
 
                   :clj-runtime-shadow-ext
-                  {:depends-on [:clj-runtime :supervisor :system-bus]
+                  {:depends-on [:clj-runtime :sync-db :supervisor :system-bus]
                    :start remote-ext/start
                    :stop remote-ext/stop}
+
+                  :sync-db
+                  {:depends-on []
+                   :start sync-db/start
+                   :stop sync-db/stop}
 
                   :out
                   {:depends-on [:config]

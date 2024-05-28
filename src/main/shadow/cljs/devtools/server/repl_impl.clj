@@ -89,7 +89,7 @@
         (loop []
           ;; wait until told to read
           (when (some? (<!! read-lock))
-            (let [{:keys [eof?] :as next} (repl/dummy-read-one input-stream)]
+            (let [{:keys [eof?] :as next} (repl/dummy-read-one input-stream {:read-cond :allow :features #{:cljs}})]
               (if eof?
                 (async/close! stdin)
                 ;; don't recur in case stdin was closed while in blocking read
