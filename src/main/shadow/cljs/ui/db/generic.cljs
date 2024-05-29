@@ -71,7 +71,8 @@
           (assoc-in [::m/ui ::m/current-page] {:id :repl})
           (assoc-in [::m/ui ::m/inspect]
             {:current 0
-             :stack [{:type :repl-panel}]}))
+             :stack [{:type :repl-panel
+                      :stream-id :default}]}))
 
       "runtime"
       (let [[runtime-id sub-page] more

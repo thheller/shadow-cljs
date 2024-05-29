@@ -208,7 +208,11 @@
             ;; FIXME: is likely in blocking *in* read, should kill that and terminate or reconnect
             (println "WS disconnected!"))))
 
-      (async/>!! msg-out {:op ::m/repl-stream-start! :to 1 :stream-id stream-id})
+      (async/>!! msg-out {:op ::m/repl-stream-start! :to 1
+                          :stream-id stream-id
+                          :target 1
+                          :target-ns 'shadow.user
+                          :target-op :clj-eval})
       (loop []
         (let [val (dummy-read-one *in*)]
           (when-not (:eof? val)

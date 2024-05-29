@@ -312,18 +312,18 @@
 
 (defn inspect-object!
   {::ev/handle ::m/inspect-object!}
-  [env {:keys [oid]}]
+  [env {:keys [oid keep-idx]}]
   (let [{:keys [summary runtime-id] :as object} (get-in env [::m/object oid])]
     (let [stack
           (-> (get-in env [::m/ui ::m/inspect :stack])
-              (subvec 0 1)
+              (subvec 0 (or keep-idx 1))
               (conj {:type :object-panel
                      :oid oid}))]
 
       (-> env
           (update-in [::m/ui ::m/inspect] merge
             {:stack stack
-             :current 1})
+             :current (dec (count stack))})
           (cond->
             (not summary)
             (ev/queue-fx :relay-send
@@ -430,30 +430,17 @@
 
 (defn inspect-code-eval!
   {::ev/handle ::m/inspect-code-eval!}
-  [tx {:keys [code runtime-id runtime-ns ref-oid panel-idx] :as msg}]
-  (let [supported-ops (get-in tx [::m/runtime runtime-id :supported-ops])
+  [tx {:keys [code oid panel-idx] :as msg}]
+  (let [{:keys [runtime-id] :as object}
+        (get-in tx [::m/object oid])
 
-        ;; FIXME: ns and eval mode should come from UI
-        [eval-mode ns]
-        (cond
-          (contains? supported-ops :clj-eval)
-          [:clj-eval 'user]
-          (contains? supported-ops :cljs-eval)
-          [:cljs-eval 'cljs.user])
+        eval-mode
+        (if (= 1 runtime-id) :clj-eval :cljs-eval)
 
         input
-        (-> {:ns ns
-             :code code}
-            (cond->
-              (and ref-oid
-                   (or (str/includes? code "$o")
-                       (str/includes? code "$d")))
-              (assoc :wrap
-                     (str "(let [$ref (shadow.remote.runtime.eval-support/get-ref " (pr-str ref-oid) ")\n"
-                          "      $o (:obj $ref)\n"
-                          "      $d (-> $ref :desc :data)]\n"
-                          "?CODE?\n"
-                          "\n)"))))]
+        {:ns 'shadow.user
+         :code code
+         :obj-refs [oid]}]
 
     (ev/queue-fx tx :relay-send
       [{:op eval-mode
@@ -483,6 +470,7 @@
               (-> stack
                   (subvec 0 (inc panel-idx))
                   (conj {:type :object-panel
+                         :label code
                          :oid ref-oid}))))))
 
     :eval-compile-error
@@ -491,8 +479,8 @@
           (kv/add ::m/object {:oid ex-oid
                               :runtime-id (or ex-client-id from)
                               :is-error true})
-          (update-in [::m/inspect :stack] conj {:type :object-panel :oid ex-oid})
-          (update-in [::m/inspect :current] inc)))
+          (update-in [::m/ui ::m/inspect :stack] conj {:type :object-panel :oid ex-oid :label code})
+          (update-in [::m/ui ::m/inspect :current] inc)))
 
     :eval-compile-warnings
     (do (js/console.log "there were some warnings" call-result)
@@ -504,136 +492,30 @@
           (kv/add ::m/object {:oid ex-oid
                               :runtime-id from
                               :is-error true})
-          (update-in [::m/inspect :stack] conj {:type :object-panel :oid ex-oid})
-          (update-in [::m/inspect :current] inc)))))
+          (update-in [::m/ui ::m/inspect :stack] conj {:type :object-panel :oid ex-oid :label code})
+          (update-in [::m/ui ::m/inspect :current] inc)))))
 
-(defn runtime-eval!
-  {::ev/handle ::m/runtime-eval!}
-  [tx {:keys [code runtime-id] :as msg}]
-  (let [{:keys [supported-ops eval-ns eval-history] :as runtime}
-        (get-in tx [::m/runtime runtime-id])
+(defn inspect-def-as!
+  {::ev/handle ::m/inspect-def-as!}
+  [tx {:keys [oid runtime-id panel-idx name] :as msg}]
+  (let [stack
+        (get-in tx [::m/ui ::m/inspect :stack])
 
-        eval-idx
-        (count eval-history)
-
-        obj-refs
-        (->> eval-history
-             (reverse)
-             (take 3)
-             (mapv :ref-oid))
-
-        [eval-mode ns]
-        (if (contains? supported-ops :cljs-eval)
-          [:cljs-eval (or eval-ns 'cljs.user)]
-          [:clj-eval (or eval-ns 'user)])
-
-        input
-        {:ns ns
-         :code code
-         :obj-refs obj-refs}]
-
+        stack
+        (-> (subvec stack 0 (inc panel-idx))
+            (conj {:type :repl-panel
+                   :stream-id oid}))]
     (-> tx
-        (update-in [::m/runtime runtime-id :eval-history] vec-conj
-          {:code code
-           :status :pending
-           :started-at (rt/now)})
-
-        (ev/queue-fx :relay-send
-          [{:op eval-mode
-            :to runtime-id
-            :input input
-            ::relay-ws/result
-            {:e ::runtime-eval-result!
-             :runtime-id runtime-id
-             :eval-idx eval-idx}}]
-          ))))
-
-(defn runtime-eval-result!
-  {::ev/handle ::runtime-eval-result!}
-  [env {:keys [eval-idx call-result]}]
-  (case (:op call-result)
-    :eval-result-ref
-    (let [{:keys [ref-oid from warnings]} call-result]
-      (when (seq warnings)
-        (doseq [w warnings]
-          (js/console.warn "FIXME: warning not yet displayed in UI" w)))
-
-      ;; FIXME: fx this!
-      (relay-ws/cast!
-        (::sg/runtime-ref env)
-        {:op :obj-describe
-         :to from
-         :oid ref-oid})
-
-      (-> env
-          (kv/add ::m/object {:oid ref-oid :runtime-id from})
-          (assoc-in [::m/runtime from :eval-ns] (:eval-ns call-result))
-          (update-in [::m/runtime from :eval-history eval-idx] merge
-            {:status :completed
-             :ref-oid ref-oid
-             :completed-at (rt/now)
-             :eval-ms (:eval-ms call-result)})
-          ))
-
-    :eval-compile-error
-    (let [{:keys [from ex-oid ex-client-id]} call-result]
-
-      ;; FIXME: fx this!
-      (relay-ws/cast!
-        (::sg/runtime-ref env)
-        {:op :obj-describe
-         :to (or ex-client-id from)
-         :oid ex-oid})
-
-      (-> env
-          (kv/add ::m/object {:oid ex-oid
-                              :runtime-id (or ex-client-id from)
-                              :is-error true})
-          (update-in [::m/runtime from :eval-history eval-idx] merge
-            {:status :compile-error
-             :ref-oid ex-oid})
-
-          ;; FIXME: should maybe not use the stack for this, might be better as a dialog to dismiss
-          (update-in [::m/inspect :stack] conj {:type :object-panel :oid ex-oid})
-          (update-in [::m/inspect :current] inc)))
-
-    :eval-compile-warnings
-    (do (js/console.log "there were some warnings" call-result)
-        env)
-
-    :eval-runtime-error
-    (let [{:keys [from ex-oid]} call-result]
-
-      ;; FIXME: fx this!
-      (relay-ws/cast!
-        (::sg/runtime-ref env)
-        {:op :obj-describe
-         :to from
-         :oid ex-oid})
-
-      (-> env
-          (kv/add ::m/object {:oid ex-oid
-                              :runtime-id from
-                              :is-error true})
-          (update-in [::m/runtime from :eval-history eval-idx] merge
-            {:status :runtime-error
-             :ref-oid ex-oid})
-
-          ;; FIXME: should maybe not use the stack for this, might be better as a dialog to dismiss
-          (update-in [::m/inspect :stack] conj {:type :object-panel :oid ex-oid})
-          (update-in [::m/inspect :current] inc)))))
-
-(defn send-to-repl!
-  {::ev/handle ::m/send-to-repl!}
-  [tx {:keys [oid] :as msg}]
-  (let [{:keys [runtime-id] :as object}
-        (get-in tx [::m/object oid])]
-
-    (-> tx
-        (update-in [::m/runtime runtime-id :eval-history] vec-conj
-          {:status :completed
-           :ref-oid oid})
-        ;; FIXME: somehow pre-fill codemirror input with *1
-        (sg/queue-fx
-          :ui/redirect!
-          {:token (str "/runtime/" runtime-id "/eval")}))))
+        (assoc-in [::m/ui ::m/inspect :stack] stack)
+        (assoc-in [::m/ui ::m/inspect :current] (inc panel-idx))
+        (sg/queue-fx :relay-send
+          [{:op ::m/repl-stream-start!
+            :to 1
+            :stream-id oid
+            :target runtime-id
+            :target-op (if (= 1 runtime-id) :clj-eval :cljs-eval)
+            :target-ns 'shadow.user}
+           {:op ::m/repl-stream-input!
+            :to 1
+            :stream-id oid
+            :code (str "(def " name " (shadow.remote.runtime.eval-support/get-ref \"" oid "\"))")}]))))

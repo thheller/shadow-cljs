@@ -42,6 +42,45 @@
          (str (subs text 2) " ...")
          (subs text 2))]))
 
+(defc code-input [opts]
+  (bind dom-ref (sg/ref))
+
+  (event ::keyboard/ctrl+enter [env _ e]
+    (.preventDefault e)
+    (let [val (.-value @dom-ref)]
+      (set! @dom-ref -value "")
+
+      (sg/dispatch-up! env
+        {:e ::code-input!
+         :code val})
+
+      ))
+
+  ;; FIXME: actually implement some sort of history
+  (event ::keyboard/arrowup [env _ e]
+    (let [el @dom-ref]
+      (when (= 0 (.-selectionStart el) (.-selectionEnd el))
+        (.preventDefault e)
+        (js/console.log "history up")
+        )))
+
+  (event ::keyboard/arrowdown [env _ e]
+    (let [el @dom-ref]
+      (when (= (count (.-value el)) (.-selectionStart el) (.-selectionEnd el))
+        (.preventDefault e)
+        (js/console.log "history down")
+        )))
+
+
+  (render
+    (<< [:textarea
+         {::keyboard/listen true
+          :dom/ref dom-ref
+          :type "text"
+          :class (css :block :font-mono :w-full :p-2 {:height "84px"})
+          :placeholder (:placeholder opts "REPL Input ... ctrl+enter to eval")
+          :name "code"}])))
+
 (defc ui-object-as-text [object attr active?]
   (bind val
     (get object attr))
@@ -243,17 +282,18 @@
         :tab-index (if active? 0 -1)}
        label]))
 
-(defc ui-object-crumb [{:keys [nav? nav-idx nav-from oid] :as stack-item} panel-idx active?]
+(defc ui-object-crumb [{:keys [nav? label nav-idx nav-from oid] :as stack-item} panel-idx active?]
   (bind object
     (sg/kv-lookup ::m/object (or nav-from oid)))
 
   (bind label
-    (if-not nav-idx
-      (render-edn-limit-truncated (:preview (:summary object)))
-      (if (= :map (get-in object [:summary :data-type]))
-        (render-edn-limit-truncated (get-in object [:fragment nav-idx :key]))
-        nav-idx
-        )))
+    (or label
+        (if-not nav-idx
+          (render-edn-limit-truncated (:preview (:summary object)))
+          (if (= :map (get-in object [:summary :data-type]))
+            (render-edn-limit-truncated (get-in object [:fragment nav-idx :key]))
+            nav-idx
+            ))))
 
   (render
     (<< [:div {:class (css :border-r :p-2 :cursor-pointer :truncate {:max-width "160px"})
@@ -273,11 +313,10 @@
   (event ::go-first! [env _ _]
     (sg/run-tx env {:e ::m/inspect-set-current! :idx 0}))
 
-  (event ::code-eval! [env {:keys [code]}]
+  (event ::code-input! [env {:keys [code]}]
     (sg/run-tx env
       {:e ::m/inspect-code-eval!
-       :runtime-id (:runtime-id object)
-       :ref-oid (:oid object)
+       :oid (:oid object)
        :panel-idx panel-idx
        :code code}))
 
@@ -290,6 +329,18 @@
   (event ::kb-select! [env {:keys [idx]}]
     (sg/run-tx env {:e ::m/inspect-nav! :oid oid :idx idx :panel-idx panel-idx}))
 
+  (event ::submit-def-as! [env ev e]
+    (let [form (.-target e)
+          val (-> form (.-elements) (aget 0) (.-value))]
+
+      (when (seq val)
+        (sg/run-tx env
+          {:e ::m/inspect-def-as!
+           :runtime-id (:runtime-id object)
+           :oid (:oid object)
+           :panel-idx panel-idx
+           :name val}))))
+
   (render
 
     (let [{:keys [summary is-error display-type]} object
@@ -298,17 +349,13 @@
           $container
           (css :h-full :flex :flex-col :overflow-hidden)
 
-          controls
-          (css :flex :font-mono :font-bold :items-center :border-b-2
-            ["& > *" :py-2]
-            ["& > *:first-child" :pl-2]
-            ["& > * + *" :px-2]
-            ["& > .icon" :cursor-pointer :font-bold])]
+          $controls
+          (css :flex :font-mono :items-center :border-b-2)]
 
       (<< [:div {:class $container ::keyboard/listen true}
-           [:div {:class controls}
-            [:div "Viewer: "]
-            [:div {:class (css :relative
+           [:div {:class $controls}
+            [:div {:class (css :p-2)} "Viewer: "]
+            [:div {:class (css :relative :pr-2
                             ["& > .options" :hidden :absolute {:z-index 20}]
                             ["&:hover > .options" :block])}
 
@@ -320,9 +367,9 @@
                 :str "STR"
                 "BROWSER")]
 
-             [:div {:class (css "options" :top-0 :left-0 :font-mono)}
+             [:div {:class (css "options" :font-mono {:top "-8px" :left "-8px"})}
               [:div {:class
-                     (css :px-2 :py-2 :shadow-lg :bg-white
+                     (css :px-2 :py-2 :shadow-2xl :bg-white
                        ["& > *:not(:last-child)" :mb-2])}
                (when (contains? supports :obj-fragment)
                  (view-as-button display-type :browse "BROWSER" active?))
@@ -337,17 +384,23 @@
 
             ;; FIXME: add icon or something
             (when datafied
-              (<< [:div "DATAFIED!"]))
-            [:div {:class (when is-error "text-red-700")} obj-type]
+              (<< [:div {:class (css :py-2 :pr-2)} "DATAFIED!"]))
+
+            [:div {:class (css :py-2 :font-semibold)} obj-type]
             (when data-count
-              (<< [:div (str data-count " Entries")]))
+              (<< [:div {:class (css :pl-2)} (str data-count " Entries")]))
 
             [:div {:class (css :flex-1)}]
-            [:div {:class (css :p-2)}
-             [:button
-              {:class [$button-base $button]
-               :on-click {:e ::m/send-to-repl! :oid oid}}
-              "Send to REPL"]]]
+            [:form {:class (css :flex)
+                    :on-submit {:e ::submit-def-as!
+                                :e/prevent-default true}}
+             [:div {:class (css :py-2 :pr-2)} "Def as: "]
+             [:input {:type "text" :value "x" :class (css :p-2 :border-l :border-r {:width "60px"})}]
+             [:div {:class (css :p-2)}
+              [:button
+               {:type "submit"
+                :class [$button-base $button]}
+               "in REPL"]]]]
 
            (case display-type
              :edn
@@ -362,6 +415,9 @@
              ;; default
              (<< [:div {:class (css :flex-1 :overflow-hidden :font-mono)}
                   (render-view object active?)]))
+           [:div {:class (css :border-t-2)}
+            (code-input
+              {:placeholder "Code Input ... ctrl+enter to eval, *1 for inspected Object"})]
 
            ]))))
 

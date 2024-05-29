@@ -197,11 +197,6 @@
       (remove-watch sync-db [::ui client-id])
       (swap! state-ref update :clients dissoc client-id))))
 
-(defn repl-stream-start [svc {:keys [stream-id from] :as msg}]
-  ;; FIXME: when supporting actual multiple streams this is supposed to initialize it
-  )
-
-
 (defn db-sync-init
   [{:keys [state-ref sync-db runtime] :as svc}
    {:keys [from] :as msg}]
@@ -225,6 +220,17 @@
             {:op ::m/db-update
              :to from
              :changes changes}))))))
+
+(defn repl-stream-start
+  [{:keys [sync-db] :as svc}
+   {:keys [stream-id from target target-ns target-op] :as msg}]
+  (log/debug ::repl-stream-start {:stream-id stream-id :from from :target target :target-ns target-ns :target-op target-op})
+  (sync-db/update! sync-db update-in [::m/repl-stream stream-id] merge
+    {:stream-id stream-id
+     :from from
+     :target target
+     :target-ns target-ns
+     :target-op target-op}))
 
 (defn vec-conj [x y]
   (if (nil? x)
@@ -311,6 +317,7 @@
 (defn repl-stream-input
   [{:keys [state-ref sync-db] :as svc}
    {:keys [stream-id from code] :as msg}]
+  (log/debug ::repl-stream-input {:stream-id stream-id :from from :code code})
 
   (when (seq code)
     (let [rdr (readers/source-logging-push-back-reader code)]

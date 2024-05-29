@@ -87,15 +87,18 @@
 
 
          [:div {:class (css :flex-1 :border-l)}
-          (if (= :client-not-found (:op result))
-            (<< [:div {:class (css :text-xs :p-1 :border-b :text-red-500)} (str "Runtime: #" target " not found. Eval could not complete.")])
-            (<< [:div {:class (css :text-xs :p-1 :border-b)} (str "Runtime: #" target " Namespace: " target-ns)]))
+
           [:div {:class (css :truncate :border-b :p-1)} (or code "via Inspect")]
           (case (:op result)
             :eval-result-ref (ui-repl-result entry)
             :eval-runtime-error (ui-repl-error entry)
             :client-not-found nil
-            "...")]])))
+            "...")
+          (if (= :client-not-found (:op result))
+            (<< [:div {:class (css :text-xs :p-1 :border-t :text-red-500)} (str "Runtime: #" target " not found. Eval could not complete.")])
+            (<< [:div {:class (css :text-xs :p-1 :border-t :text-gray-500)} (str "Runtime: #" target " Executed in Namespace: " target-ns)]))]
+
+         ])))
 
 (defn ?runtime-options [env]
   (->> (::m/runtime env)
@@ -145,56 +148,21 @@
            (fn [[val label]]
              (<< [:option label])))])))
 
-(defc repl-input [stream-id]
-  (bind dom-ref (sg/ref))
-
-  (event ::keyboard/ctrl+enter [env _ e]
-    (.preventDefault e)
-    (let [val (.-value @dom-ref)]
-      (set! @dom-ref -value "")
-
-      (relay-ws/cast!
-        (::sg/runtime-ref env)
-        {:op ::m/repl-stream-input!
-         :to 1
-         :stream-id stream-id
-         :code val})))
-
-  ;; FIXME: actually implement some sort of history
-  (event ::keyboard/arrowup [env _ e]
-    (let [el @dom-ref]
-      (when (= 0 (.-selectionStart el) (.-selectionEnd el))
-        (.preventDefault e)
-        (js/console.log "history up")
-        )))
-
-  (event ::keyboard/arrowdown [env _ e]
-    (let [el @dom-ref]
-      (when (= (count (.-value el)) (.-selectionStart el) (.-selectionEnd el))
-        (.preventDefault e)
-        (js/console.log "history down")
-        )))
-
-
-  (render
-    (<< [:textarea
-         {::keyboard/listen true
-          :dom/ref dom-ref
-          :type "text"
-          :class (css :block :font-mono :w-full :p-2 {:height "84px"})
-          :placeholder "REPL Input ... ctrl+enter to eval"
-          :name "code"}])))
-
-(defc ui-repl-controls []
-  (bind stream-id
-    ;; FIXME: figure out ui to select stream if multiple exist
-    :default)
+(defc ui-repl-controls [stream-id]
 
   (bind stream
     (sg/kv-lookup ::m/repl-stream stream-id))
 
   (bind runtime-options
     (sg/query ?runtime-options))
+
+  (event ::inspect/code-input! [env ev e]
+    (relay-ws/cast!
+      (::sg/runtime-ref env)
+      {:op ::m/repl-stream-input!
+       :to 1
+       :stream-id stream-id
+       :code (:code ev)}))
 
   (render
     (<< [:div {:class (css :border-b :text-sm :flex)}
@@ -217,11 +185,9 @@
       ;; does making it extra bad help push users to use editor instead?
 
       [:div {:class (css :border-b-2)}
-       (repl-input stream-id)
+       (inspect/code-input {})])))
 
-       ])))
-
-(defc ui-repl-panel [item panel-idx active?]
+(defc ui-repl-panel [stream-id panel-idx active?]
   (bind repl-history
     (sg/query
       (fn [env]
@@ -231,11 +197,14 @@
              (reverse)
              (mapv :id)))))
 
+  (event ::m/inspect-object! [env ev e]
+    (sg/dispatch-up! env (assoc ev :keep-idx (inc panel-idx))))
+
   (render
     (let [$container (css :flex-1 :overflow-auto :bg-white)]
 
       (<< [:div {:class $container}
-           (ui-repl-controls)
+           (ui-repl-controls stream-id)
 
            ;; FIXME: vlist
            [:div {:class (css :overflow-hidden)}
@@ -247,7 +216,7 @@
   (ui-repl-crumb item idx active?))
 
 (defmethod inspect/render-panel :repl-panel [item idx active?]
-  (ui-repl-panel item idx active?))
+  (ui-repl-panel (:stream-id item) idx active?))
 
 (defn ui-page []
   ;; abusing inspect for this for now
