@@ -71,9 +71,15 @@
          (card-title "Active HTTP Servers")
          (sg/simple-seq http-servers ui-http-server)])))
 
+(defn ?active-builds [env]
+  (->> (::m/build env)
+       (vals)
+       (filter ::m/build-worker-active)
+       (mapv ::m/build-id)))
+
 (defc ui-active-builds []
   (bind active-builds
-    (sg/kv-lookup ::m/ui ::m/active-builds))
+    (sg/query ?active-builds))
 
   (render
     (<< [:div {:class (css :bg-white :shadow :mb-4)}
