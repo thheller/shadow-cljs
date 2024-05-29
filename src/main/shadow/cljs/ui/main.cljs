@@ -106,15 +106,15 @@
      {:pages #{:builds :build} :label "Builds" :path "/builds"}
      {:pages #{:repl} :label "REPL" :path "/repl"}
      {:pages #{:runtimes} :label "Runtimes" :path "/runtimes"}
-     {:pages #{:inspect} :label "Inspect Stream" :path "/inspect"}
+     {:pages #{:inspect} :label "Inspect" :path "/inspect"}
      {:pages #{:inspect-latest} :label "Inspect Latest" :path "/inspect-latest"}])
 
   (render
     (let [$nav-selected
-          (css :inline-block :rounded-t :px-4 :py-2 :bg-blue-100 :border-b-2 :border-blue-200 [:hover :border-blue-400])
+          (css :inline-block :px-3 :py-1 :bg-blue-100 :border-b-2 :border-blue-200 [:hover :border-blue-400])
 
           $nav-normal
-          (css :cursor-pointer :inline-block :px-4 :py-2)]
+          (css :cursor-pointer :inline-block :px-3 :py-1)]
 
       (<< [:div {:class (css #_["& *" :border-gray-100] :h-full :w-full :flex :flex-col :bg-gray-100 :items-stretch)}
            (when-not relay-ws-connected
