@@ -177,6 +177,22 @@
 
     :client-disconnect
     (let [client-info (get-in @state-ref [:clients client-id])]
+
+      ;; delete repl entries from disconnected runtime
+      ;; only client keeps result infos and cannot get them again when runtime is gone
+      (sync-db/update! sync-db
+        (fn [db]
+          (-> db
+              (update ::m/repl-history
+                (fn [table]
+                  (reduce-kv
+                    (fn [table id entry]
+                      (if (not= client-id (:target entry))
+                        table
+                        (dissoc table id)))
+                    table
+                    table))))))
+
       ;; FIXME: should probably check if actual UI?
       (remove-watch sync-db [::ui client-id])
       (swap! state-ref update :clients dissoc client-id))))
@@ -247,15 +263,28 @@
 
               result-fn
               (fn [{:keys [eval-ns] :as result}]
+                (log/debug ::repl-eval-result {:entry-id entry-id :stream-id stream-id :result result})
                 (sync-db/update! sync-db update-in [::m/repl-history entry-id] merge {:result (dissoc result :call-id) :ts-result (System/currentTimeMillis)})
 
-                (when eval-ns
-                  (sync-db/update! sync-db assoc-in [::m/repl-stream stream-id :target-ns] eval-ns))
+                (sync-db/update! sync-db
+                  (fn [db]
+                    (-> db
+                        (cond->
+                          eval-ns
+                          (assoc-in [::m/repl-stream stream-id :target-ns] eval-ns)
+
+                          ;; FIXME: would be better if it tried to state with the CLJS runtime that left
+                          ;; but this isn't the correct place to do that as this means an eval was already sent to it
+                          (= :client-not-found (:op result))
+                          (update-in [::m/repl-stream stream-id] merge {:target 1
+                                                                        :target-op :clj-eval
+                                                                        :target-ns 'shadow.user})
+                          ))))
 
                 (swap! state-ref update :stream-busy dissoc stream-id)
                 (eval-next svc stream-id))]
 
-          (log/debug ::repl-eval {:stream-id stream-id :target target :target-op target-op :target-ns target-ns :code code})
+          (log/debug ::repl-eval {:entry-id entry-id :stream-id stream-id :target target :target-op target-op :target-ns target-ns :code code})
 
           (sync-db/update! sync-db update-in [::m/repl-history entry-id] merge
             {:ts-eval (System/currentTimeMillis)
@@ -274,7 +303,8 @@
             {:eval-result-ref result-fn
              :eval-compile-error result-fn
              :eval-compile-warnings result-fn
-             :eval-runtime-error result-fn}))))))
+             :eval-runtime-error result-fn
+             :client-not-found result-fn}))))))
 
 (defonce id-seq-ref (atom 0))
 
