@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.28.9](https://github.com/thheller/shadow-cljs/compare/9d97fbe00fe2c0c7b339e9de7e6606f0bb3301f6...0f3d91e3e3b76e75597c7153f94dbbaf6097cb1d) - 2024-06-10
+- [ [`0f3d9`](https://github.com/thheller/shadow-cljs/commit/0f3d91e3e3b76e75597c7153f94dbbaf6097cb1d) ] change :root-source-info to be REPL only
+- [ [`aece0`](https://github.com/thheller/shadow-cljs/commit/aece0cf573d173e298eb506164ef770a924bed1b) ] UI shrink top menu a bit
+- [ [`c33b9`](https://github.com/thheller/shadow-cljs/commit/c33b9827f4867c44408656f87780eac10e3452cc) ] UI fix active builds
+- [ [`f78a2`](https://github.com/thheller/shadow-cljs/commit/f78a265979c7e1fe6585039c3c6a012a302bdf65) ] def as, bring back per object eval
+- [ [`72d48`](https://github.com/thheller/shadow-cljs/commit/72d48a34a6b996cd577bad89fe10e7e172a23b03) ] UI cleanup
+- [ [`9d97f`](https://github.com/thheller/shadow-cljs/commit/9d97fbe00fe2c0c7b339e9de7e6606f0bb3301f6) ] more UI work
+
 ## [2.28.8](https://github.com/thheller/shadow-cljs/compare/f0aebe479ac0fb7589a127e706d59a0cad01ff46...6f96f73202d56e284ee1300aa321ec0ea207137b) - 2024-05-23
 - [ [`6f96f`](https://github.com/thheller/shadow-cljs/commit/6f96f73202d56e284ee1300aa321ec0ea207137b) ] double escape shell commands for windows
 - [ [`f0aeb`](https://github.com/thheller/shadow-cljs/commit/f0aebe479ac0fb7589a127e706d59a0cad01ff46) ] add first draft of REPL in UI
