@@ -362,13 +362,13 @@
            ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
            base-env
            (-> (empty-env state ns)
-               (assoc :root-source-info {:source-type :fragment
-                                         :source-form form})
                (cond->
                  repl-context?
                  (assoc ::repl-context true
                         :context :expr
-                        :def-emits-var true)))
+                        :def-emits-var true
+                        :root-source-info {:source-type :fragment
+                                           :source-form form})))
 
 
            result
