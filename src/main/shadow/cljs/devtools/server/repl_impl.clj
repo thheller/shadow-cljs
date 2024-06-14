@@ -210,7 +210,7 @@
                                (recur)))
 
                        (do (>!! to-relay
-                             {:op :obj-as-str
+                             {:op :obj-str
                               :to from
                               :oid ex-oid})
 
