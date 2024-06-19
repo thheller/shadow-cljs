@@ -318,13 +318,14 @@
         (update :reload-deps conj-distinct sym)
         )))
 
-(defn process-string-require [ns-info lib {:keys [as refer only rename] :as opts}]
-  ;; FIXME: should warn on refer-macros or include-macros
-  ;; string require, delayed resolve until compile time
+(defn process-string-require [ns-info lib opts]
   (-> ns-info
       (add-dep lib)
-      ;; merge cause there can be (:require ["react"]) and (:import ["react" Component])
-      (update-in [:js-deps lib] merge opts)))
+      ;; string require, delayed resolve until compile time, so only add for now
+      ;; using a vector and not a map in case requires of the same lib are repeated
+      ;; ["foo" :refer (A)]
+      ;; ["foo" :refer (B)]
+      (update :js-deps conj (assoc opts ::lib lib))))
 
 (defn remove-entry [syms sym-to-remove]
   (->> syms
@@ -541,7 +542,7 @@
    :use-macros nil
    :renames {} ;; seems to be only one that is never nil in cljs.core
    :rename-macros nil
-   :js-deps {}
+   :js-deps []
    ;; map of which clause had which flags
    ;; (:require [foo.bar] :reload)
    ;; (:require-macros [foo.bar] :reload-all)
@@ -661,8 +662,8 @@
     ns-info
 
     (let [js-aliases
-          (reduce-kv
-            (fn [js-aliases js-require _]
+          (reduce
+            (fn [js-aliases {js-require ::lib}]
               ;; get throws if not found
               (let [alias (data/get-string-alias build-state name js-require)]
                 (assoc js-aliases js-require alias)))
@@ -679,9 +680,8 @@
 
       (-> ns-info
           (assoc :js-aliases js-aliases :deps deps)
-          (util/reduce-kv->
-            (fn [ns-info js-require opts]
+          (util/reduce->
+            (fn [ns-info {js-require ::lib :as opts}]
               (process-symbol-require ns-info (get js-aliases js-require) (assoc opts :js true)))
-            js-deps)
-          ))))
+            js-deps)))))
 

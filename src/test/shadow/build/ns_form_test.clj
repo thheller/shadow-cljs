@@ -74,9 +74,9 @@
         (is (= (:name a) (:name b)))
         ;; cljs doesn't add cljs.core here but some time later
         (is (= (dissoc (:requires a) 'cljs.core)
-              (:requires b)))
+               (:requires b)))
         (is (= (dissoc (:require-macros a) 'cljs.core)
-              (:require-macros b)))
+               (:require-macros b)))
         (is (= (:uses a) (:uses b)))
         (is (= (:use-macros a) (:use-macros b)))
         (is (= (:imports a) (:imports b)))
@@ -87,7 +87,7 @@
         (comment
           ;; cljs actually drops the docstring if separate from meta
           (is (= (meta (:name a))
-                (meta (:name b))))))
+                 (meta (:name b))))))
 
       ;; meh, clojure.test doesn't show ex-data still ...
       (catch Exception e
@@ -188,9 +188,8 @@
         {:keys [js-deps] :as ast}
         (ns-form/parse test)]
 
-    (is (map? js-deps))
-    (is (= '{:as react} (get js-deps "react")))
-    ;; (pprint ast)
+    (is (vector? js-deps))
+    (is (= 'react (get-in js-deps [0 :as])))
     ))
 
 (deftest test-require-macros-plus-refer-macros
@@ -235,7 +234,7 @@
            '{something {"react" alias$react}}})]
 
     (is (= 'alias$react (get-in ast-resolved [:requires 'react])))
-    (is (= '[goog #_ shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
+    (is (= '[goog #_shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
     ;; (pprint ast)
     ;; (pprint ast-resolved)
     ))
@@ -254,7 +253,7 @@
            '{react alias$react}})]
 
     (is (= 'alias$react (get-in ast-resolved [:requires 'react])))
-    (is (= '[goog #_ shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
+    (is (= '[goog #_shadow.cljs_helpers cljs.core alias$react] (:deps ast-resolved)))
     ;; (pprint ast)
     ;; (pprint ast-resolved)
     ))
@@ -284,7 +283,7 @@
            '{react-dnd-html5-backend alias$react-dnd-html5-backend}})]
 
     (is (= 'alias$react-dnd-html5-backend (get-in ast-resolved [:requires 'react-dnd-html5-backend])))
-    (is (= '[goog #_ shadow.cljs_helpers cljs.core alias$react-dnd-html5-backend] (:deps ast-resolved)))
+    (is (= '[goog #_shadow.cljs_helpers cljs.core alias$react-dnd-html5-backend] (:deps ast-resolved)))
     (is (= 'alias$react-dnd-html5-backend/default (get-in ast-resolved [:renames 'HTML5Backend])))
     ;; (pprint ast)
     ;; (pprint ast-resolved)
@@ -292,7 +291,8 @@
 
 (deftest test-rename-clears-refer
   (let [test
-        '(ns something (:require [other :refer (foo xzy) :rename {foo bar}]))
+        '(ns something
+           (:require [other :refer (foo xzy) :rename {foo bar}]))
 
         ast
         (ns-form/parse test)]
@@ -300,6 +300,32 @@
     (is (= '{xzy other} (:uses ast)))
     (is (= '{bar other/foo} (:renames ast)))
     ))
+
+;; https://github.com/thheller/shadow-cljs/issues/879
+(deftest test-parse-with-duplicate-string-require
+  (let [test
+        '(ns something
+           (:require
+             [a :refer (A)]
+             [a :refer (B)]
+             ["foo" :refer (C)]
+             ["foo" :refer (D)]))
+
+        ast
+        (ns-form/parse test)
+
+        ast-resolved
+        (ns-form/rewrite-js-deps ast
+          {:str->sym
+           ;; this maps the namespace that required a string to an alias created elsewhere
+           ;; done per ns because of relative requires
+           '{something {"foo" alias$foo}}})]
+
+    (= {"foo" 'alias$foo} (:js-aliases ast-resolved))
+    (= 'a (get-in ast-resolved [:uses 'A]))
+    (= 'a (get-in ast-resolved [:uses 'B]))
+    (= 'alias$foo (get-in ast-resolved [:uses 'C]))
+    (= 'alias$foo (get-in ast-resolved [:uses 'D]))))
 
 (comment
   ;; forgot what this was about
