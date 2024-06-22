@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.28.10](https://github.com/thheller/shadow-cljs/compare/3d81bff7b3fd907b9d38d8e2d7d8b8fe54381363...5930d21365867ffa830162c758c05202a5793fec) - 2024-06-22
+- [ [`5930d`](https://github.com/thheller/shadow-cljs/commit/5930d21365867ffa830162c758c05202a5793fec) ] keep root-form in analyzer/macro env
+- [ [`019b8`](https://github.com/thheller/shadow-cljs/commit/019b8b42d1960b1bb3fa75070d950640b6b3a438) ] add experimental :esm-files target
+- [ [`de906`](https://github.com/thheller/shadow-cljs/commit/de906f4c204e595fe2b2cc968820a20dc80ba151) ] fix string require conflicts
+- [ [`3d81b`](https://github.com/thheller/shadow-cljs/commit/3d81bff7b3fd907b9d38d8e2d7d8b8fe54381363) ] fix repl error using non-existent shadow.remote op
+
 ## [2.28.9](https://github.com/thheller/shadow-cljs/compare/9d97fbe00fe2c0c7b339e9de7e6606f0bb3301f6...0f3d91e3e3b76e75597c7153f94dbbaf6097cb1d) - 2024-06-10
 - [ [`0f3d9`](https://github.com/thheller/shadow-cljs/commit/0f3d91e3e3b76e75597c7153f94dbbaf6097cb1d) ] change :root-source-info to be REPL only
 - [ [`aece0`](https://github.com/thheller/shadow-cljs/commit/aece0cf573d173e298eb506164ef770a924bed1b) ] UI shrink top menu a bit
