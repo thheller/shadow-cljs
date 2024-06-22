@@ -362,6 +362,11 @@
            ;; this is anything but empty! requires *cljs-ns*, env/*compiler*
            base-env
            (-> (empty-env state ns)
+               ;; added here so that tools can figure out what the root form was before macro expansion
+               ;; https://github.com/thheller/shadow-cljs/issues/1188
+               ;; not using :root-source-info since that ends up in analyzer data
+               ;; and ends up making cache larger than needed or possibly breaking with custom literals
+               (assoc :shadow.build/root-form form)
                (cond->
                  repl-context?
                  (assoc ::repl-context true
