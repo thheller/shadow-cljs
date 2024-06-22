@@ -230,6 +230,19 @@
      :depends-on #{:b}}}
    }
 
+  :esm-files
+  {:target :esm-files
+   :output-dir "out/demo-browser/public/esm-js-auto"
+   :build-hooks [(shadow.build/tap-hook)]
+   :entries
+   [demo.esm.a
+    demo.esm.b
+    demo.esm.c]
+
+   :js-options
+   {:js-package-dirs ["node_modules" "test-env/node_modules"]
+    :js-provider :shadow}}
+
   :esm-node
   {:target :esm
    :runtime :node

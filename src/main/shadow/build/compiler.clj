@@ -467,6 +467,9 @@
         ;; the goog.exportSymbol call since that will create a global variable
         ;; we instead generated module.exports from the export metadata
         (= :js (get-in build-state [:build-options :module-format]))
+        (dissoc :export)
+
+        (get-in build-state [:build-options :no-goog-exports])
         (dissoc :export))
       (comp/emit)))
 
