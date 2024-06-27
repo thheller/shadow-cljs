@@ -237,6 +237,63 @@
      (.start t#)
      c#))
 
+(defn server-thread*
+  "options
+
+  :on-error (fn [state msg ex] state)
+  :validate (fn [state])
+  :validate-error (fn [state-before state-after msg] state-before)
+  :do-shutdown (fn [last-state])"
+
+  [thread-name state-ref init-state dispatch-table chans
+   {:keys [server-id idle-action idle-timeout validate validate-error on-error do-shutdown] :as options}]
+  (let [last-state
+        (loop [state init-state]
+          (vreset! state-ref state)
+
+          (let [timeout-chan
+                (when idle-action
+                  (async/timeout (or idle-timeout 500)))
+
+                [msg ch]
+                (alts!! (cond-> chans timeout-chan (conj timeout-chan)))]
+
+            (cond
+              (identical? ch timeout-chan)
+              (-> (try
+                    (idle-action state)
+                    (catch Exception ex
+                      (log/warn-ex ex ::idle-ex)
+                      state))
+                  (recur))
+
+              (nil? msg)
+              state
+
+              :else
+              (let [handler (get dispatch-table ch)]
+                (if (nil? handler)
+                  state
+                  (-> (let [state-after
+                            (try
+                              (handler state msg)
+                              (catch Throwable ex
+                                (log/warn-ex ex ::handle-ex {:msg msg})
+                                (if (ifn? on-error)
+                                  (on-error state msg ex)
+                                  ;; FIXME: silently dropping e if no on-error is defined is bad
+                                  state)))]
+                        (if (and (ifn? validate)
+                                 (not (validate state-after)))
+                          (validate-error state state-after msg)
+                          state-after))
+                      (recur)))))))]
+
+    (if-not do-shutdown
+      last-state
+      (do-shutdown last-state)
+      )))
+
 (defn server-thread
   "options
 
@@ -245,58 +302,10 @@
   :validate-error (fn [state-before state-after msg] state-before)
   :do-shutdown (fn [last-state])"
 
-  [thread-name state-ref init-state dispatch-table
-   {:keys [server-id idle-action idle-timeout validate validate-error on-error do-shutdown] :as options}]
-  (let [chans
-        (into [] (keys dispatch-table))]
-
+  [thread-name state-ref init-state dispatch-table options]
+  (let [chans (into [] (keys dispatch-table))]
     (thread thread-name
-      (let [last-state
-            (loop [state init-state]
-              (vreset! state-ref state)
-
-              (let [timeout-chan
-                    (when idle-action
-                      (async/timeout (or idle-timeout 500)))
-
-                    [msg ch]
-                    (alts!! (cond-> chans timeout-chan (conj timeout-chan)))]
-
-                (cond
-                  (identical? ch timeout-chan)
-                  (-> (try
-                        (idle-action state)
-                        (catch Exception ex
-                          (log/warn-ex ex ::idle-ex)
-                          state))
-                      (recur))
-
-                  (nil? msg)
-                  state
-
-                  :else
-                  (let [handler (get dispatch-table ch)]
-                    (if (nil? handler)
-                      state
-                      (-> (let [state-after
-                                (try
-                                  (handler state msg)
-                                  (catch Throwable ex
-                                    (log/warn-ex ex ::handle-ex {:msg msg})
-                                    (if (ifn? on-error)
-                                      (on-error state msg ex)
-                                      ;; FIXME: silently dropping e if no on-error is defined is bad
-                                      state)))]
-                            (if (and (ifn? validate)
-                                     (not (validate state-after)))
-                              (validate-error state state-after msg)
-                              state-after))
-                          (recur)))))))]
-
-        (if-not do-shutdown
-          last-state
-          (do-shutdown last-state)
-          )))))
+            (server-thread* thread-name state-ref init-state dispatch-table chans options))))
 
 ;; https://github.com/clojure/clojurescript/blob/master/src/main/clojure/cljs/repl/node.clj
 ;; I would just call that but it is private ...
