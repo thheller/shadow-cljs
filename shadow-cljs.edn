@@ -32,7 +32,7 @@
 
  :plugins
  [demo.dummy-plugin
-  shadow.insight.plugin]
+  demo.notify-plugin]
 
  :socket-repl {:port 8204}
 
