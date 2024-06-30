@@ -7,7 +7,8 @@
     ))
 
 (def plugin
-  {:depends-on [:system-bus]
+  {:requires-server true
+   :depends-on [:system-bus]
    :start
    (fn [sys-bus]
      (log/debug ::start)
