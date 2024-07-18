@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.28.11](https://github.com/thheller/shadow-cljs/compare/9c8a8242ad092ebd46a789358c25d2b9456a9565...b7bff53759e28d91f689d31abf847c0990da4932) - 2024-07-18
+- [ [`b7bff`](https://github.com/thheller/shadow-cljs/commit/b7bff53759e28d91f689d31abf847c0990da4932) ] add support for :external in :karma
+- [ [`dafc9`](https://github.com/thheller/shadow-cljs/commit/dafc911d3b35068c49cd682215763de2c1a8b8e4) ] fix plugin
+- [ [`9c8a8`](https://github.com/thheller/shadow-cljs/commit/9c8a8242ad092ebd46a789358c25d2b9456a9565) ] demo notify plugin
+
 ## [2.28.10](https://github.com/thheller/shadow-cljs/compare/3d81bff7b3fd907b9d38d8e2d7d8b8fe54381363...5930d21365867ffa830162c758c05202a5793fec) - 2024-06-22
 - [ [`5930d`](https://github.com/thheller/shadow-cljs/commit/5930d21365867ffa830162c758c05202a5793fec) ] keep root-form in analyzer/macro env
 - [ [`019b8`](https://github.com/thheller/shadow-cljs/commit/019b8b42d1960b1bb3fa75070d950640b6b3a438) ] add experimental :esm-files target
