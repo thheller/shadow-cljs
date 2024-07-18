@@ -6,6 +6,7 @@
     [shadow.build.modules :as modules]
     [shadow.build.classpath :as cp]
     [shadow.build.targets.browser :as browser]
+    [shadow.build.targets.external-index :as external-index]
     [shadow.cljs.util :as util]
     [hiccup.page :refer (html5)]
     [clojure.java.io :as io]
@@ -104,12 +105,17 @@
   state)
 
 (defn flush [state mode config]
-  (case mode
-    :dev
-    (flush-karma-test-file state config)
+  (-> state
+      (cond->
+        (= :external (get-in state [:js-options :js-provider]))
+        (external-index/flush-js)
 
-    :release
-    (output/flush-optimized state)))
+        (= :dev mode)
+        (flush-karma-test-file config)
+
+        (= :release mode)
+        (output/flush-optimized)
+        )))
 
 (defn process
   [{::build/keys [stage mode config] :as state}]
