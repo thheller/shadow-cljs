@@ -646,6 +646,12 @@
 
 (defn guess-node-package-manager [project-root config]
   (or (get-in config [:node-modules :managed-by])
+      (let [bun-lock (path/resolve project-root "bun.lockb")]
+        (when (fs/existsSync bun-lock)
+          :bun))
+      (let [pnpm-lock (path/resolve project-root "pnpm-lock.yaml")]
+        (when (fs/existsSync pnpm-lock)
+          :pnpm))
       (let [yarn-lock (path/resolve project-root "yarn.lock")]
         (when (fs/existsSync yarn-lock)
           :yarn))
@@ -669,6 +675,10 @@
               false
               (let [[pkg-cmd pkg-args]
                     (case (guess-node-package-manager project-root config)
+                      :bun
+                      ["bun" ["add" "--dev" "shadow-cljs"]]
+                      :pnpm
+                      ["pnpm" ["add" "--save-dev" "shadow-cljs"]]
                       :yarn
                       ["yarn" ["add" "--dev" "shadow-cljs"]]
                       :npm
