@@ -110,7 +110,8 @@
                         ;; can't just create let shadow$export_foo = X; export { shadow$export_foo as foo }
                         ;; since that can still clash if there is another export { foo }
                         (cond->
-                          (not= export-name 'default)
+                          (and (not= export-name 'default)
+                               (not= export-name :default))
                           (update :module-externs conj (name export-name)))
                         ;; just adding export let foo = code; directly
                         ;; will make closure remove the export entirely
