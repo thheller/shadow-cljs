@@ -51,6 +51,12 @@
 (defn guess-node-package-manager [config]
   (or (get-in config [:node-modules :managed-by])
       (get-in config [:npm-deps :managed-by])
+      (let [bun-lock (io/file "bun.lockb")]
+        (when (.exists bun-lock)
+          :bun))
+      (let [pnpm-lock (io/file "pnpm-lock.yaml")]
+        (when (.exists pnpm-lock)
+          :pnpm))
       (let [yarn-lock (io/file "yarn.lock")]
         (when (.exists yarn-lock)
           :yarn))
@@ -87,6 +93,10 @@
         (or (get-in config [:node-modules :install-cmd])
             (get-in config [:npm-deps :install-cmd])
             (case (guess-node-package-manager config)
+              :bun
+              ["bun" "add" "--exact"]
+              :pnpm
+              ["pnpm" "add" "--save-exact"]
               :yarn
               ["yarn" "add" "--exact"]
               :npm
