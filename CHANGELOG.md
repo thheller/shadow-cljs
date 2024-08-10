@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.28.12](https://github.com/thheller/shadow-cljs/compare/4f4540802f7e0376631d5b02ca1de06120a12910...5206a38935005a2d398847193ed1d03499945d29) - 2024-08-10
+- [ [`5206a`](https://github.com/thheller/shadow-cljs/commit/5206a38935005a2d398847193ed1d03499945d29) ] add support for the Bun and pnpm package managers (#1193)
+- [ [`9cadb`](https://github.com/thheller/shadow-cljs/commit/9cadb2c985cecfc8635797de7e7735d1e92f5d9f) ] bump shadow-client lib
+- [ [`4f454`](https://github.com/thheller/shadow-cljs/commit/4f4540802f7e0376631d5b02ca1de06120a12910) ] exclude :default in externs gen
+
 ## [2.28.11](https://github.com/thheller/shadow-cljs/compare/9c8a8242ad092ebd46a789358c25d2b9456a9565...b7bff53759e28d91f689d31abf847c0990da4932) - 2024-07-18
 - [ [`b7bff`](https://github.com/thheller/shadow-cljs/commit/b7bff53759e28d91f689d31abf847c0990da4932) ] add support for :external in :karma
 - [ [`dafc9`](https://github.com/thheller/shadow-cljs/commit/dafc911d3b35068c49cd682215763de2c1a8b8e4) ] fix plugin
