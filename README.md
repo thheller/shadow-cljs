@@ -23,8 +23,8 @@
 
 ## Requirements
 
-- [node.js](https://nodejs.org) (v6.0.0+, most recent version preferred)
-- [npm](https://www.npmjs.com) (comes bundled with `node.js`) or [yarn](https://www.yarnpkg.com)
+- [Node.js](https://nodejs.org) or [Bun](https://bun.sh)
+- [npm](https://www.npmjs.com) (comes with Node.js), [bun](https://bun.sh) (comes with Bun), [pnpm](https://pnpm.io), or [yarn](https://www.yarnpkg.com)
 - [Java SDK](https://adoptium.net/) (Version 11+, Latest LTS Version recommended)
 
 ## Quick Start
@@ -140,7 +140,7 @@ We also need a simple HTTP server to serve our HTML since modern Browsers all pl
    }}}
 ```
 
-Once the config is saved the server will automatically start and serve the content at http://localhost:8080. There is no need to restart `shadow-cljs`. When opening the above URL the Browser Console should show "Hello World". 
+Once the config is saved the server will automatically start and serve the content at http://localhost:8080. There is no need to restart `shadow-cljs`. When opening the above URL the Browser Console should show "Hello World".
 
 
 To be continued ...
@@ -195,7 +195,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 
 ## License
 
-Copyright © 2022 Thomas Heller
+Copyright © 2024 Thomas Heller
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
