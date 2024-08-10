@@ -94,13 +94,13 @@
             (get-in config [:npm-deps :install-cmd])
             (case (guess-node-package-manager config)
               :bun
-              ["bun" "add" "--exact"]
+              ["bun" "add"]
               :pnpm
-              ["pnpm" "add" "--save-exact"]
+              ["pnpm" "add"]
               :yarn
-              ["yarn" "add" "--exact"]
+              ["yarn" "add"]
               :npm
-              ["npm" "install" "--save" "--save-exact"]))
+              ["npm" "install"]))
 
         full-cmd
         (fill-packages-placeholder install-cmd args)
