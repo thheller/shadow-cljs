@@ -49,7 +49,7 @@
    [org.clojure/google-closure-library-third-party "0.0-20230227-c7c0a541"]
 
    [thheller/shadow-util "0.7.0"]
-   [thheller/shadow-client "1.3.3"]
+   [thheller/shadow-client "1.4.0"]
    [thheller/shadow-undertow "0.3.4"]
    [thheller/shadow-cljsjs "0.0.22"]
 
