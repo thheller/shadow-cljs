@@ -330,81 +330,89 @@
                         :name (symbol (namespace renamed-sym) (str (name renamed-sym) "." suffix))
                         :ns (symbol (namespace renamed-sym))}
 
-                       ;; attempt to fix
-                       ;; https://dev.clojure.org/jira/browse/CLJS-712
-                       ;; https://dev.clojure.org/jira/browse/CLJS-2957
-                       ;; FIXME: patch this properly in clojurescript so we don't need this hackery
 
-                       ;; CLJS defaults to just resolving everything with a dot in it and is completely broken
-                       ;; process.env.FOO ends up as process/env.FOO and never warns
-                       ;; cljs.core.-invoke ends up as cljs/core.-invoke
-                       ;; ANY symbol with a dot should not automatically resolve magically without any further checks
+                       ;; special case for PersistentHashSet.createWithCheck where prefix is from cljs.core
+                       ;; https://github.com/thheller/shadow-cljs/issues/1198
+                       (if (ana/core-name? env prefix-sym)
+                         {:op :var
+                          :name (symbol "cljs.core" s)
+                          :ns 'cljs.core}
 
-                       ;; I don't see how this could ever resolve something useful but this is what CLJS does
-                       (if-let [last-hope (ana/gets @env/*compiler* ::ana/namespaces prefix-sym :defs (symbol suffix))]
-                         (merge last-hope
-                           {:op :local
-                            :name (if (= "" prefix-sym) (symbol suffix) (symbol (str prefix-sym) suffix))
-                            :ns prefix-sym})
+                          ;; attempt to fix
+                          ;; https://dev.clojure.org/jira/browse/CLJS-712
+                          ;; https://dev.clojure.org/jira/browse/CLJS-2957
+                          ;; FIXME: patch this properly in clojurescript so we don't need this hackery
 
-                         (let [{:shadow/keys [goog-provides cljs-provides]} @env/*compiler*]
-                           ;; matches goog.DEBUG since goog is provided but goog.DEBUG was no explicit provide
-                           (if (potential-ns-match? goog-provides s)
-                             {:op :js-var
-                              :name (symbol "js" s)
-                              :ns 'js}
+                          ;; CLJS defaults to just resolving everything with a dot in it and is completely broken
+                          ;; process.env.FOO ends up as process/env.FOO and never warns
+                          ;; cljs.core.-invoke ends up as cljs/core.-invoke
+                          ;; ANY symbol with a dot should not automatically resolve magically without any further checks
 
-                             ;; tailrecursion.priority-map.PersistentPriorityMap.EMPTY
-                             ;; is technically an incorrect symbol but munges to the correct one
-                             ;; references like this should not warn since there are far too many of them
-                             ;; so if the symbol starts with a known CLJS ns prefix we'll accept it
-                             ;; although it may not actually contain any analyzer data
-                             ;;
-                             ;; cannot blindly accept by ns-root since clojure.string creates clojure
-                             ;; but clojure.lang does not exist so didn't warn about clojure.lang.MapEntry
-                             (let [hit (potential-ns-match? cljs-provides s)]
-                               (cond
-                                 ;; (exists? some.cljs.ns/foo) will emit a runtime lookup for some, some.cljs, some.cljs.ns
-                                 ;; but not actually use them in any other way so lets pretend this is a raw JS var
-                                 (= hit sym)
-                                 {:op :js-var
-                                  :name (symbol "js" s)
-                                  :ns 'js}
+                          ;; I don't see how this could ever resolve something useful but this is what CLJS does
+                          (if-let [last-hope (ana/gets @env/*compiler* ::ana/namespaces prefix-sym :defs (symbol suffix))]
+                            (merge last-hope
+                              {:op :local
+                               :name (if (= "" prefix-sym) (symbol suffix) (symbol (str prefix-sym) suffix))
+                               :ns prefix-sym})
 
-                                 ;; partial match
-                                 hit
-                                 (let [guessed-ns hit
-                                       guessed-sym (symbol (subs s (-> hit str count inc)))]
+                            (let [{:shadow/keys [goog-provides cljs-provides]} @env/*compiler*]
+                              ;; matches goog.DEBUG since goog is provided but goog.DEBUG was no explicit provide
+                              (if (potential-ns-match? goog-provides s)
+                                {:op :js-var
+                                 :name (symbol "js" s)
+                                 :ns 'js}
 
-                                   ;; this path happens way too often and should be fixed properly
-                                   #_(log/debug ::autofix-symbol
-                                       {:sym sym
-                                        :guessed-ns guessed-ns
-                                        :guessed-sym guessed-sym})
+                                ;; tailrecursion.priority-map.PersistentPriorityMap.EMPTY
+                                ;; is technically an incorrect symbol but munges to the correct one
+                                ;; references like this should not warn since there are far too many of them
+                                ;; so if the symbol starts with a known CLJS ns prefix we'll accept it
+                                ;; although it may not actually contain any analyzer data
+                                ;;
+                                ;; cannot blindly accept by ns-root since clojure.string creates clojure
+                                ;; but clojure.lang does not exist so didn't warn about clojure.lang.MapEntry
+                                (let [hit (potential-ns-match? cljs-provides s)]
+                                  (cond
+                                    ;; (exists? some.cljs.ns/foo) will emit a runtime lookup for some, some.cljs, some.cljs.ns
+                                    ;; but not actually use them in any other way so lets pretend this is a raw JS var
+                                    (= hit sym)
+                                    {:op :js-var
+                                     :name (symbol "js" s)
+                                     :ns 'js}
 
-                                   ;; although this split will sometimes produce valid matches it won't always work
-                                   ;; cljs.core.-invoke works and ens up as cljs.core/-invoke
-                                   ;; tailrecursion.priority-map.PersistentPriorityMap.EMPTY
-                                   ;; ends as tailrecursion.priority-map/PersistentPriorityMap.EMPTY
-                                   ;; since EMPTY is a property the analyzer doesn't not anything about
+                                    ;; partial match
+                                    hit
+                                    (let [guessed-ns hit
+                                          guessed-sym (symbol (subs s (-> hit str count inc)))]
 
-                                   (merge (ana/gets @env/*compiler* ::ana/namespaces guessed-ns :defs guessed-sym)
-                                     {:op :var
-                                      :name (symbol (str guessed-ns) (str guessed-sym))
-                                      :ns guessed-ns}))
+                                      ;; this path happens way too often and should be fixed properly
+                                      #_(log/debug ::autofix-symbol
+                                          {:sym sym
+                                           :guessed-ns guessed-ns
+                                           :guessed-sym guessed-sym})
 
-                                 ;; not known namespace root, resolve as js/ as a last ditch effort
-                                 ;; this should probably hard fail instead but that would break too many builds
-                                 ;; resolving as js/* is closer to the default behavior
-                                 ;; and will most likely be for cases where we are actually accessing a global
-                                 ;; ala process.env.FOO which will then warn properly
-                                 :else
-                                 (do (when (some? confirm)
-                                       (confirm env current-ns sym))
-                                     {:op :js-var
-                                      :name (symbol "js" s)
-                                      :ns 'js}
-                                     ))))))))))))
+                                      ;; although this split will sometimes produce valid matches it won't always work
+                                      ;; cljs.core.-invoke works and ens up as cljs.core/-invoke
+                                      ;; tailrecursion.priority-map.PersistentPriorityMap.EMPTY
+                                      ;; ends as tailrecursion.priority-map/PersistentPriorityMap.EMPTY
+                                      ;; since EMPTY is a property the analyzer doesn't not anything about
+
+                                      (merge (ana/gets @env/*compiler* ::ana/namespaces guessed-ns :defs guessed-sym)
+                                        {:op :var
+                                         :name (symbol (str guessed-ns) (str guessed-sym))
+                                         :ns guessed-ns}))
+
+                                    ;; not known namespace root, resolve as js/ as a last ditch effort
+                                    ;; this should probably hard fail instead but that would break too many builds
+                                    ;; resolving as js/* is closer to the default behavior
+                                    ;; and will most likely be for cases where we are actually accessing a global
+                                    ;; ala process.env.FOO which will then warn properly
+                                    :else
+                                    (do (when (some? confirm)
+                                          (confirm env current-ns sym))
+                                        {:op :js-var
+                                         :name (symbol "js" s)
+                                         :ns 'js}
+                                        )))))))))))))
 
            :else
            (when default?
