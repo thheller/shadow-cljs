@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.28.13](https://github.com/thheller/shadow-cljs/compare/63bf3874e734ef3da64ffdac69aa85a0e85050c4...7446b5804f363179a2c0413c84e1a2f3497f604b) - 2024-08-26
+- [ [`7446b`](https://github.com/thheller/shadow-cljs/commit/7446b5804f363179a2c0413c84e1a2f3497f604b) ] upgrade to nrepl 1.3.0
+- [ [`63bf3`](https://github.com/thheller/shadow-cljs/commit/63bf3874e734ef3da64ffdac69aa85a0e85050c4) ] fix dotted core symbols
+
 ## [2.28.12](https://github.com/thheller/shadow-cljs/compare/4f4540802f7e0376631d5b02ca1de06120a12910...5206a38935005a2d398847193ed1d03499945d29) - 2024-08-10
 - [ [`5206a`](https://github.com/thheller/shadow-cljs/commit/5206a38935005a2d398847193ed1d03499945d29) ] add support for the Bun and pnpm package managers (#1193)
 - [ [`9cadb`](https://github.com/thheller/shadow-cljs/commit/9cadb2c985cecfc8635797de7e7735d1e92f5d9f) ] bump shadow-client lib
