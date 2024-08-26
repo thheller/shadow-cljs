@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.28.14](https://github.com/thheller/shadow-cljs/compare/3cf222518721f79a589e0fbd23c524d6d6953ffd...3cf222518721f79a589e0fbd23c524d6d6953ffd) - 2024-08-26
+- [ [`3cf22`](https://github.com/thheller/shadow-cljs/commit/3cf222518721f79a589e0fbd23c524d6d6953ffd) ] fix recursive load-middlware call
+
 ## [2.28.13](https://github.com/thheller/shadow-cljs/compare/63bf3874e734ef3da64ffdac69aa85a0e85050c4...7446b5804f363179a2c0413c84e1a2f3497f604b) - 2024-08-26
 - [ [`7446b`](https://github.com/thheller/shadow-cljs/commit/7446b5804f363179a2c0413c84e1a2f3497f604b) ] upgrade to nrepl 1.3.0
 - [ [`63bf3`](https://github.com/thheller/shadow-cljs/commit/63bf3874e734ef3da64ffdac69aa85a0e85050c4) ] fix dotted core symbols
