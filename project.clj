@@ -24,7 +24,7 @@
    [org.clojure/tools.cli "1.0.206"]
    [org.clojure/tools.reader "1.4.2"]
 
-   [nrepl "1.0.0"]
+   [nrepl "1.3.0"]
    [cider/piggieback "0.5.3"
     :exclusions
     [org.clojure/clojure

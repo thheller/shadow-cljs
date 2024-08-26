@@ -65,9 +65,9 @@
 
 (defn load-middleware
   "loads vars for a sequence of symbols, expands if var refers to a vector of symbols"
-  [input output]
+  [input]
   (loop [[sym & more :as rem] input
-         output output]
+         output []]
     (cond
       (not (seq rem))
       output
@@ -91,7 +91,6 @@
 (defn make-middleware-stack [{:keys [cider] :as config}]
   (-> []
       (into (:middleware config))
-
       (cond->
         (and (io/resource "cider/nrepl.clj")
              (not (false? cider)))
@@ -101,18 +100,9 @@
              (not (false? cider)))
         (conj 'refactor-nrepl.middleware/wrap-refactor))
 
-      (into ['nrepl.middleware/wrap-describe
-             'nrepl.middleware.interruptible-eval/interruptible-eval
-             'nrepl.middleware.load-file/wrap-load-file
-
-             ;; cljs support
-             `shadow-init ;; for :init-ns support
-             `middleware
-
-             'nrepl.middleware.session/add-stdin
-             'nrepl.middleware.session/session])
-      (load-middleware [])
-      (middleware/linearize-middleware-stack)))
+      (into [`shadow-init ;; for :init-ns support
+             `middleware])
+      (load-middleware)))
 
 (defn start [config]
   (let [merged-config
@@ -122,7 +112,7 @@
         (make-middleware-stack merged-config)
 
         handler-fn
-        ((apply comp (reverse middleware-stack)) server/unknown-op)
+        (apply server/default-handler middleware-stack)
 
         {:keys [host port transport-fn]
          :or {host "127.0.0.1"
