@@ -65,9 +65,9 @@
 
 (defn load-middleware
   "loads vars for a sequence of symbols, expands if var refers to a vector of symbols"
-  [input]
+  [input output]
   (loop [[sym & more :as rem] input
-         output []]
+         output output]
     (cond
       (not (seq rem))
       output
@@ -102,7 +102,7 @@
 
       (into [`shadow-init ;; for :init-ns support
              `middleware])
-      (load-middleware)))
+      (load-middleware [])))
 
 (defn start [config]
   (let [merged-config
