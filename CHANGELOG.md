@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.28.15](https://github.com/thheller/shadow-cljs/compare/27d05fc2e51323abff92ec844ca176f7c38cedd0...27d05fc2e51323abff92ec844ca176f7c38cedd0) - 2024-09-16
+- [ [`27d05`](https://github.com/thheller/shadow-cljs/commit/27d05fc2e51323abff92ec844ca176f7c38cedd0) ] fix #foo/bar require aliases
+
 ## [2.28.14](https://github.com/thheller/shadow-cljs/compare/3cf222518721f79a589e0fbd23c524d6d6953ffd...3cf222518721f79a589e0fbd23c524d6d6953ffd) - 2024-08-26
 - [ [`3cf22`](https://github.com/thheller/shadow-cljs/commit/3cf222518721f79a589e0fbd23c524d6d6953ffd) ] fix recursive load-middlware call
 
