@@ -18,6 +18,7 @@
       (str/replace #"\<" "_LT_")
       (str/replace #"\^" "_CARET_")
       (str/replace #"\~" "_TILDE_")
+      (str/replace #"#" "_HASH_")
       (ModuleNames/fileToModuleName)))
 
 (comment
