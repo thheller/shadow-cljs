@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.28.16](https://github.com/thheller/shadow-cljs/compare/a1fc58fc1b09ff1707ac718f9b33f1fa5261f8ba...a1fc58fc1b09ff1707ac718f9b33f1fa5261f8ba) - 2024-09-30
+- [ [`a1fc5`](https://github.com/thheller/shadow-cljs/commit/a1fc58fc1b09ff1707ac718f9b33f1fa5261f8ba) ] hopefull fix all future jar URL related issues
+
 ## [2.28.15](https://github.com/thheller/shadow-cljs/compare/27d05fc2e51323abff92ec844ca176f7c38cedd0...27d05fc2e51323abff92ec844ca176f7c38cedd0) - 2024-09-16
 - [ [`27d05`](https://github.com/thheller/shadow-cljs/commit/27d05fc2e51323abff92ec844ca176f7c38cedd0) ] fix #foo/bar require aliases
 
