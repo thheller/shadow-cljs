@@ -368,7 +368,7 @@
     (let [idx (str/index-of path "!/")]
       (when-not idx
         (throw (ex-info "expected to find !/ in jar url but didn't" {:rc-url rc-url})))
-      (let [jar-path (URLDecoder/decode (subs path 5 idx) "utf-8")]
+      (let [jar-path (URLDecoder/decode (clojure.string/replace (subs path 5 idx) "+" "%2B") "utf-8")]
         (get-jar-info jar-path)))))
 
 (defn make-jar-resource [^URL rc-url name]
