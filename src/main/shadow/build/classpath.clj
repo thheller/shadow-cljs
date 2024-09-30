@@ -368,8 +368,16 @@
     (let [idx (str/index-of path "!/")]
       (when-not idx
         (throw (ex-info "expected to find !/ in jar url but didn't" {:rc-url rc-url})))
-      (let [jar-path (URLDecoder/decode (subs path 5 idx) "utf-8")]
-        (get-jar-info jar-path)))))
+      ;; using URI->URI->File conversion to get path, so that OS can resolve all URL encoding issues such as spaces/+
+      ;; previously used URLDecoder, but that was proven unreliable
+      ;; https://github.com/thheller/shadow-cljs/issues/1204
+      ;; https://github.com/thheller/shadow-cljs/issues/732
+      (let [jar-path (subs path 0 idx)
+            jar-url (URL. jar-path)
+            jar-uri (.toURI jar-url)
+            jar-file (File. jar-uri)
+            jar-actual-path (.getAbsolutePath jar-file)]
+        (get-jar-info jar-actual-path)))))
 
 (defn make-jar-resource [^URL rc-url name]
   (let [{:keys [checksum last-modified pom-info]}
