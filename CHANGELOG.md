@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.28.17](https://github.com/thheller/shadow-cljs/compare/6b164d946e3a404c370cce3921debffd08de2464...6b164d946e3a404c370cce3921debffd08de2464) - 2024-10-14
+- [ [`6b164`](https://github.com/thheller/shadow-cljs/commit/6b164d946e3a404c370cce3921debffd08de2464) ] provides not requires
+
 ## [2.28.16](https://github.com/thheller/shadow-cljs/compare/a1fc58fc1b09ff1707ac718f9b33f1fa5261f8ba...a1fc58fc1b09ff1707ac718f9b33f1fa5261f8ba) - 2024-09-30
 - [ [`a1fc5`](https://github.com/thheller/shadow-cljs/commit/a1fc58fc1b09ff1707ac718f9b33f1fa5261f8ba) ] hopefull fix all future jar URL related issues
 
