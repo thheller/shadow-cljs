@@ -7,7 +7,7 @@ goog.require("shadow.js")
 // for first checking if package is provided via shadow$provide, and if not check shadow$bridge
 
 shadow.js.jsRequire = function(name, opts) {
-  var nativeObj = shadow.js.nativeRequires[name];
+  var nativeObj = shadow.js.nativeProvides[name];
   if (nativeObj !== undefined) {
     return nativeObj;
   }
