@@ -887,6 +887,38 @@
               :require-from require-from
               :require require}))
 
+    ;; package.json import support, must start with # according to node.js docs
+    (and (str/starts-with? require "#") require-from)
+    (let [package (::package require-from)
+          override (get-in package [:package-json "imports" require])]
+      (when-not override
+        (throw (ex-info (str "require for import: " require " not found in package.json imports")
+                 {:tag ::no-import
+                  :require-from require-from
+                  :require require})))
+
+      (let [replacement
+            (cond
+              ;; might be a map similar to package.json exports
+              ;; this is currently using :export-conditions config value
+              ;; not sure if this is ever different that would warrant its own config value
+              (map? override)
+              (find-exports-conditional-match npm override)
+
+              (string? override)
+              override
+
+              :else
+              (throw (ex-info "unsupported package.json imports value" {:value override :require require})))]
+
+        (if (util/is-relative? replacement)
+          ;; relative paths must resolve relative to package, not the require-from
+          ;; so going directly with find-resource-in-package here
+          (find-resource-in-package npm package require-from replacement)
+          ;; overrides may just replace entire packages too though, so won't find them in the package itself
+          (find-resource npm require-from replacement))))
+
+
     ;; pkg relative require "./foo/bar.js"
     (util/is-relative? require)
     (do (when-not (and require-from (:file require-from))

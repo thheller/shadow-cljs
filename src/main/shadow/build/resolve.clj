@@ -268,14 +268,16 @@
                      ;; only consider require-from for shadow-js files
                      ;; otherwise it may end up looking at directories it should not look at
                      ;; relative to classpath files
-                     (when (= :shadow-js (:type require-from))
+                     ;; also using this path for package.json #import files, which needs the require-from
+                     (when (or (= :shadow-js (:type require-from))
+                               (str/starts-with? require "#"))
                        require-from)
                      require)
 
-                   (util/is-absolute? require)
+                   abs?
                    (cp/find-js-resource classpath require)
 
-                   (util/is-relative? require)
+                   rel?
                    (cp/find-js-resource classpath require-from require)
 
                    :else
