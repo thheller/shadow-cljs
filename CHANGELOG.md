@@ -1,5 +1,8 @@
 # Changelog
 
+## [2.28.18](https://github.com/thheller/shadow-cljs/compare/5c7d17afba2bf818cdf64ff21fb1f975b03ea4d5...5c7d17afba2bf818cdf64ff21fb1f975b03ea4d5) - 2024-10-17
+- [ [`5c7d1`](https://github.com/thheller/shadow-cljs/commit/5c7d17afba2bf818cdf64ff21fb1f975b03ea4d5) ] add support for package.json imports
+
 ## [2.28.17](https://github.com/thheller/shadow-cljs/compare/6b164d946e3a404c370cce3921debffd08de2464...6b164d946e3a404c370cce3921debffd08de2464) - 2024-10-14
 - [ [`6b164`](https://github.com/thheller/shadow-cljs/commit/6b164d946e3a404c370cce3921debffd08de2464) ] provides not requires
 
