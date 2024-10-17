@@ -58,19 +58,17 @@
         (str/ends-with? executable ".bat"))))
 
 (defn run [project-root cmd args proc-opts]
-  (let [executable
-        (which/sync cmd #js {:nothrow true})
-
-        spawn-opts
-        (-> {:cwd project-root
-             :stdio "inherit"
-             :shell (needs-shell? executable)}
-            (merge proc-opts)
-            (clj->js))]
+  (let [executable (which/sync cmd #js {:nothrow true})]
 
     (if-not executable
       (throw (ex-info (str "Executable '" cmd "' not found on system path.") {:cmd cmd :args args}))
-      (cp/spawnSync executable (into-array args) spawn-opts))))
+      (let [spawn-opts
+            (-> {:cwd project-root
+                 :stdio "inherit"
+                 :shell (needs-shell? executable)}
+                (merge proc-opts)
+                (clj->js))]
+        (cp/spawnSync executable (into-array args) spawn-opts)))))
 
 ;; same as run! but preserves the exit code of the process
 ;; must be run as the last step since it will kill the node process after
