@@ -824,7 +824,10 @@
         (= (:package-id package) (get-in require-from [::package :package-id]))]
 
     ;; package has exports, so they take priority over everything else when the request is from a different package
-    (if (and use-exports? (not package-internal-request?))
+    ;; it should be a hard fail if a request cannot be matched to exports, unless user opts into bypassing that
+    (if (and use-exports?
+             (not package-internal-request?)
+             (not (true? (get-in npm [:js-options :exports-bypass]))))
       (or (find-resource-from-exports npm package rel-require)
 
           ;; exports lock down the package, so only the package itself may require its files normally

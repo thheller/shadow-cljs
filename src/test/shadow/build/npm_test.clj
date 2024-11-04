@@ -303,6 +303,25 @@
     (is (thrown? ExceptionInfo (find-npm-resource x nil "exports/not-exported")))
     ))
 
+(deftest test-export-bypass
+  ;; give use option to bypass strict exports, basically allowing access to whole package
+  ;; instead of just things that were exported. exports are still checked first and still need to work.
+  (with-npm [npm {}]
+    (let [npm
+          (assoc-in npm [:js-options :exports-bypass] true)
+
+          rc1
+          (find-npm-resource npm nil "exports/other/foo.js")
+
+          rc2
+          (find-npm-resource npm nil "exports/prefix/foo.js")]
+
+      (is rc1)
+      (is (= "node_modules/exports/other/foo.js" (:resource-name rc1)))
+      (is rc2)
+      (is (= "node_modules/exports/other/foo.js" (:resource-name rc2)))
+      )))
+
 
 (deftest test-dynamic-import
   (with-npm [x {}]
