@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.28.19](https://github.com/thheller/shadow-cljs/compare/2d7849ebc810f9d18d37326668ce86f4dcb6860b...a7f5b4379cfd72e78ec931ba79aa393866602e04) - 2024-11-04
+- [ [`a7f5b`](https://github.com/thheller/shadow-cljs/commit/a7f5b4379cfd72e78ec931ba79aa393866602e04) ] add option to bypass strict npm exports
+- [ [`2d784`](https://github.com/thheller/shadow-cljs/commit/2d7849ebc810f9d18d37326668ce86f4dcb6860b) ] fix potential NPE
+
 ## [2.28.18](https://github.com/thheller/shadow-cljs/compare/5c7d17afba2bf818cdf64ff21fb1f975b03ea4d5...5c7d17afba2bf818cdf64ff21fb1f975b03ea4d5) - 2024-10-17
 - [ [`5c7d1`](https://github.com/thheller/shadow-cljs/commit/5c7d17afba2bf818cdf64ff21fb1f975b03ea4d5) ] add support for package.json imports
 
