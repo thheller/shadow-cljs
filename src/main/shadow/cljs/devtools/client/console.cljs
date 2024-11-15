@@ -89,7 +89,7 @@
           [:td {} (object-ref key)]
           [:td {} (object-ref value)]])])))
 
-(def keyword-style {:color "rgb(136, 19, 145)"})
+(def keyword-style {:color "var(--sys-color-token-keyword, var(--theme-highlight-pink, rgb(136, 19, 145)))"})
 
 (deftype KeywordFormatter []
   Object
