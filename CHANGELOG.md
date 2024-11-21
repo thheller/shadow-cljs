@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.28.20](https://github.com/thheller/shadow-cljs/compare/2f79a157ab8e876b6e129a77a9947a837075ae9d...2263d986167698535d79f89c3084752f1dab23ca) - 2024-11-21
+- [ [`2263d`](https://github.com/thheller/shadow-cljs/commit/2263d986167698535d79f89c3084752f1dab23ca) ] fix UI breaking when using browser-repl
+- [ [`2f79a`](https://github.com/thheller/shadow-cljs/commit/2f79a157ab8e876b6e129a77a9947a837075ae9d) ] Improve the readability for the color of keywords in web console (#1213)
+
 ## [2.28.19](https://github.com/thheller/shadow-cljs/compare/2d7849ebc810f9d18d37326668ce86f4dcb6860b...a7f5b4379cfd72e78ec931ba79aa393866602e04) - 2024-11-04
 - [ [`a7f5b`](https://github.com/thheller/shadow-cljs/commit/a7f5b4379cfd72e78ec931ba79aa393866602e04) ] add option to bypass strict npm exports
 - [ [`2d784`](https://github.com/thheller/shadow-cljs/commit/2d7849ebc810f9d18d37326668ce86f4dcb6860b) ] fix potential NPE
