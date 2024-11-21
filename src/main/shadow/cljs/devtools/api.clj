@@ -5,6 +5,7 @@
     [clojure.java.io :as io]
     [clojure.java.browse :refer (browse-url)]
     [clojure.string :as str]
+    [shadow.cljs :as-alias m]
     [shadow.jvm-log :as log]
     [shadow.runtime.services :as rt]
     [shadow.build :as build]
@@ -476,6 +477,7 @@
    {:keys [build-id] :or {build-id :browser-repl} :as opts}]
   (let [cfg
         {:build-id build-id
+         ::m/generated true
          :target :browser
          :output-dir (str (:cache-root config) "/builds/" (name build-id) "/js")
          :asset-path (str "/cache/" (name build-id) "/js")

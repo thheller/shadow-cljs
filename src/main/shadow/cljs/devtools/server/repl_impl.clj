@@ -1,15 +1,17 @@
 (ns shadow.cljs.devtools.server.repl-impl
-  (:require [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
-            [clojure.java.io :as io]
-            [shadow.cljs.repl :as repl]
-            [shadow.cljs.devtools.server.worker :as worker]
-            [shadow.cljs.devtools.server.util :as util]
-            [shadow.cljs.devtools.server.supervisor :as super]
-            [shadow.build.log :as build-log]
-            [shadow.jvm-log :as log]
-            [shadow.build.warnings :as warnings]
-            [shadow.cljs.devtools.errors :as errors]
-            [shadow.remote.relay.api :as relay])
+  (:require
+    [clojure.core.async :as async :refer (go <! >! >!! <!! alt!!)]
+    [clojure.java.io :as io]
+    [shadow.cljs :as-alias m]
+    [shadow.cljs.repl :as repl]
+    [shadow.cljs.devtools.server.worker :as worker]
+    [shadow.cljs.devtools.server.util :as util]
+    [shadow.cljs.devtools.server.supervisor :as super]
+    [shadow.build.log :as build-log]
+    [shadow.jvm-log :as log]
+    [shadow.build.warnings :as warnings]
+    [shadow.cljs.devtools.errors :as errors]
+    [shadow.remote.relay.api :as relay])
   (:import (java.io File InputStreamReader BufferedReader IOException)))
 
 ;; (defn repl-prompt [repl-state])
@@ -395,6 +397,7 @@
 
         build-config
         {:build-id build-id
+         ::m/generated true
          :target :node-script
          :main 'shadow.cljs.devtools.client.node-repl/main
          :hashbang false

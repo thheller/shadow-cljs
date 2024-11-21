@@ -317,7 +317,12 @@
                              ;; don't need file instances, just the names
                              (async/>!! asset-update {:updates updates}))))))))]
 
-    (sync-db/update! sync-db assoc-in [::m/build build-id ::m/build-worker-active] true)
+    (sync-db/update! sync-db update-in [::m/build build-id] merge
+      {::m/build-worker-active true
+       ;; setting these in case a build is started that has no corresponding entry in config file (e.g. browser-repl)
+       ;; UI needs to know these and this seems like best place to ensure this basic info exists in db
+       ::m/build-id build-id
+       ::m/build-config-raw build-config})
 
     (sys-bus/sub system-bus ::m/resource-update resource-update)
 
@@ -331,7 +336,10 @@
 
     ;; ensure all channels are cleaned up properly
     (go (<! thread-ref)
-        (sync-db/update! sync-db update-in [::m/build build-id] dissoc ::m/build-worker-active)
+        (if (::m/generated build-config)
+          ;; forget generated configs entirely
+          (sync-db/update! sync-db update ::m/build dissoc build-id)
+          (sync-db/update! sync-db update-in [::m/build build-id] dissoc ::m/build-worker-active))
         (async/close! output)
         (async/close! proc-stop)
         (async/close! proc-control)
