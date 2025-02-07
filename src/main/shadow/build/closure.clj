@@ -127,7 +127,7 @@
     (when-let [level
                (case level-kw
                  :advanced CompilationLevel/ADVANCED_OPTIMIZATIONS
-                 :whitespace CompilationLevel/WHITESPACE_ONLY
+                 :whitespace (throw (ex-info ":whitespace optimizations are not supported!" {})) #_ CompilationLevel/WHITESPACE_ONLY
                  :simple CompilationLevel/SIMPLE_OPTIMIZATIONS
                  :none nil
                  (throw (ex-info "invalid :optimizations level" opts)))]
