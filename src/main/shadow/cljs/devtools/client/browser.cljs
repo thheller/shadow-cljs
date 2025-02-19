@@ -114,7 +114,9 @@
       (and (or (= (.hasSameDomainAs page-load-uri node-uri))
                (not (.hasDomain node-uri)))
            (= node-abs new)
-           new))))
+           (str (doto node-uri
+                  (.setQuery nil)  ;; remove previous ?r cache bust
+                  (.setPath new)))))))
 
 (defn handle-asset-update [{:keys [updates reload-info] :as msg}]
   (doseq [path updates
