@@ -5,7 +5,7 @@
  :log
  {:level :debug}
 
- :jvm-opts ["-Dclojure.main.report=out"]
+ :jvm-opts ["-Dclojure.main.report=out" "-Xmx1G"]
 
  :dependencies
  [[reagent "0.8.1"]
