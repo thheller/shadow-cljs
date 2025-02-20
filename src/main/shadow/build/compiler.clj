@@ -885,6 +885,7 @@
   ;; paths into the build state
   ;; options which may effect the output of the CLJS compiler
   [[:mode]
+   [:shadow.build/config :target]
    [:js-options :js-provider]
    [:js-options :use-babel]
    [:compiler-options :form-size-threshold] ;; for tracking big suspicious code chunks
