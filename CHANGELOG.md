@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.28.21](https://github.com/thheller/shadow-cljs/compare/e73b2666506362532227606ae3b8ad81e1ef1454...9141450a4050f12c9b5ca4d9079f0158b322c98c) - 2025-02-21
+- [ [`91414`](https://github.com/thheller/shadow-cljs/commit/9141450a4050f12c9b5ca4d9079f0158b322c98c) ] preserve domain of reloaded assets (#1218)
+- [ [`70476`](https://github.com/thheller/shadow-cljs/commit/704760bd1dcc1463f712ba17df3e255e663cc1f4) ] CI getting killed?
+- [ [`0e931`](https://github.com/thheller/shadow-cljs/commit/0e93119b2617cefbbaae8f72c2dbea4f133888a1) ] take build :target into account for cache
+- [ [`e73b2`](https://github.com/thheller/shadow-cljs/commit/e73b2666506362532227606ae3b8ad81e1ef1454) ] throw on :whitespace
+
 ## [2.28.20](https://github.com/thheller/shadow-cljs/compare/2f79a157ab8e876b6e129a77a9947a837075ae9d...2263d986167698535d79f89c3084752f1dab23ca) - 2024-11-21
 - [ [`2263d`](https://github.com/thheller/shadow-cljs/commit/2263d986167698535d79f89c3084752f1dab23ca) ] fix UI breaking when using browser-repl
 - [ [`2f79a`](https://github.com/thheller/shadow-cljs/commit/2f79a157ab8e876b6e129a77a9947a837075ae9d) ] Improve the readability for the color of keywords in web console (#1213)
