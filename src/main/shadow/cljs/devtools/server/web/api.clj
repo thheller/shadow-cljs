@@ -60,27 +60,10 @@
    :body (get-in req [:http :server-token])})
 
 
-(defn ui-init-data [{:keys [dev-http transit-str supervisor] :as req}]
-  {:status 200
-   :header {"content-type" "application/transit+json"}
-   :body
-   (transit-str
-     {::m/http-servers
-      (->> (:servers @dev-http)
-
-           (into []))
-
-      ::m/build-configs
-      (let [{:keys [builds]}
-            (config/load-cljs-edn)]
-
-        (->> (vals builds)
-             (sort-by :build-id)
-             (remove #(-> % meta :generated))
-             (map (fn [{:keys [build-id target] :as config}]
-                    {::m/build-id build-id
-                     ::m/build-config-raw config}))
-             (into [])))})})
+(defn ui-init-data [req]
+  {:status 410 ;; gone
+   :header {"content-type" "text/plain"}
+   :body "Your browser requested old data, please hard refresh the UI!"})
 
 (defn root* [req]
   (http/route req
