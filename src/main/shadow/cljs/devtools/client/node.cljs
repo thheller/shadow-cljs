@@ -93,12 +93,18 @@
 
   (extend-type cljs-shared/Runtime
     api/IEvalJS
-    (-js-eval [this code]
-      (js/SHADOW_NODE_EVAL code))
+    (-js-eval [this code success fail]
+      (try
+        (success (js/SHADOW_NODE_EVAL code))
+        (catch :default e
+          (fail e))))
 
     cljs-shared/IHostSpecific
-    (do-invoke [this ns msg]
-      (node-eval msg))
+    (do-invoke [this ns msg success fail]
+      (try
+        (success (node-eval msg))
+        (catch :default e
+          (fail e))))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]
       (try

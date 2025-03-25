@@ -90,28 +90,34 @@
 
   (extend-type cljs-shared/Runtime
     api/IEvalJS
-    (-js-eval [this code]
-      (js/eval code))
+    (-js-eval [this code success fail]
+      (try
+        (success (js/eval code))
+        (catch :default e
+          (fail e))))
 
     cljs-shared/IHostSpecific
-    (do-invoke [this ns {:keys [js] :as msg}]
+    (do-invoke [this ns {:keys [js] :as msg} success fail]
       ;; attempting to use actual module specific specials, instead of re-creating them
       ;; providing something generic might break code that would work when loaded via require directly
       ;; would be better if we were able to eval directly in the module context, but I'm not sure how to do that
-      (let [js (str "goog.shadow$tmp = function(exports, require, module, __filename, __dirname) { return " js "};")]
-        (js/eval js)
+      (try
+        (success
+          (let [js (str "goog.shadow$tmp = function(exports, require, module, __filename, __dirname) { return " js "};")]
+            (js/eval js)
 
-        (let [abs-file (str js/__dirname "/" (-> ns (str) (str/replace #"-" "_")) ".js")
-              mod (unchecked-get js/require.cache abs-file)]
+            (let [abs-file (str js/__dirname "/" (-> ns (str) (str/replace #"-" "_")) ".js")
+                  mod (unchecked-get js/require.cache abs-file)]
 
-          (js/goog.shadow$tmp
-            (if mod (.-exports mod) #js {})
-            (if mod (.-require mod) js/require)
-            mod
-            abs-file
-            ;; all files always sit in the same dir, so fine to re-use this
-            js/__dirname))
-        ))
+              (js/goog.shadow$tmp
+                (if mod (.-exports mod) #js {})
+                (if mod (.-require mod) js/require)
+                mod
+                abs-file
+                ;; all files always sit in the same dir, so fine to re-use this
+                js/__dirname))))
+        (catch :default e
+          (fail e))))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]
       (let [sources-to-load

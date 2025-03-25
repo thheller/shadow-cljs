@@ -46,6 +46,7 @@
   (bind dom-ref (sg/ref))
 
   (event ::keyboard/ctrl+enter [env _ e]
+
     (.preventDefault e)
     (let [val (.-value @dom-ref)]
       (set! @dom-ref -value "")

@@ -97,12 +97,19 @@
 
   (extend-type cljs-shared/Runtime
     api/IEvalJS
-    (-js-eval [this code]
-      (global-eval code))
+    (-js-eval [this code success fail]
+      (try
+        (success (global-eval code))
+
+        (catch :default e
+          (fail e))))
 
     cljs-shared/IHostSpecific
-    (do-invoke [this ns {:keys [js] :as _}]
-      (global-eval js))
+    (do-invoke [this ns {:keys [js] :as _} success fail]
+      (try
+        (success (global-eval js))
+        (catch :default e
+          (fail e))))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]
       (cljs-shared/load-sources

@@ -14,7 +14,7 @@
          (-cljs-eval [runtime input callback]))
 
        (defprotocol IEvalJS
-         (-js-eval [runtime code]))
+         (-js-eval [runtime code success fail]))
 
        (defn cljs-eval
          [^IEvalCLJS runtime {:keys [code ns] :as input} callback]
@@ -24,9 +24,9 @@
          (-cljs-eval runtime input callback))
 
        (defn js-eval
-         [^IEvalJS runtime code]
+         [^IEvalJS runtime code success fail]
          {:pre [(string? code)]}
-         (-js-eval runtime code))))
+         (-js-eval runtime code success fail))))
 
 (comment
   ;; nav feels limited by being in metadata

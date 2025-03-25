@@ -67,19 +67,19 @@
 (defn js-eval
   [{:keys [^Runtime runtime obj-support] :as svc} {:keys [code] :as msg}]
 
-  (try
-    (let [res (p/js-eval runtime code)
-          ref-oid (obj-support/register obj-support res {:js-code code})]
+  (p/js-eval runtime code
+    (fn eval-success [res]
+      (let [ref-oid (obj-support/register obj-support res {:js-code code})]
 
-      (shared/reply runtime msg
-        ;; FIXME: separate result ops for :cljs-eval :js-eval :clj-eval?
-        {:op :eval-result-ref
-         :ref-oid ref-oid}))
-
-    (catch :default e
+        (shared/reply runtime msg
+          ;; FIXME: separate result ops for :cljs-eval :js-eval :clj-eval?
+          {:op :eval-result-ref
+           :ref-oid ref-oid})))
+    (fn eval-fail [e]
       (shared/reply runtime msg
         {:op :eval-error
-         :e (.-message e)}))))
+         :e (.-message e)})
+      )))
 
 (defn start [runtime obj-support]
   (let [svc

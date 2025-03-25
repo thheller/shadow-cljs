@@ -20,7 +20,7 @@
 (defprotocol IHostSpecific
   (do-repl-init [this action done error])
   (do-repl-require [this require-msg done error])
-  (do-invoke [this ns invoke-msg]))
+  (do-invoke [this ns invoke-msg success fail]))
 
 (defn load-sources [runtime sources callback]
   (shared/call runtime
@@ -113,25 +113,46 @@
       (callback)))
 
 (defn handle-invoke [state runtime action]
-  (let [res (do-invoke runtime (:ns state) action)]
-    (if (:internal action)
-      state
-      (update state :results conj res))))
+  (do-invoke runtime (:ns state) action
+    (fn invoke-success [res]
+      (-> state
+          (cond->
+            (not (:internal action))
+            (update :results conj res))
+          (continue!)))
+    (fn invoke-fail [ex]
+      ;; doing this here and no longer in handle-repl-invoke to avoid
+      ;; rethrowing the exception. JS doesn't do that very well and messes
+      ;; with the stacktrace, basically killing the original one
+
+      (js/console.error "REPL Invoke Exception" ex action)
+      (abort! state action ex)
+      )))
 
 (defn handle-repl-invoke [state runtime action]
-  (let [ret (do-invoke runtime (:ns state) action)]
+  (do-invoke runtime (:ns state) action
+    (fn repl-invoke-success [ret]
+      ;; FIXME: these are nonsense with multiple sessions. refactor this properly
+      (set! *3 *2)
+      (set! *2 *1)
+      (set! *1 ret)
 
-    ;; FIXME: these are nonsense with multiple sessions. refactor this properly
-    (set! *3 *2)
-    (set! *2 *1)
-    (set! *1 ret)
+      (-> state
+          (cond->
+            (not (:internal action))
+            (update :results conj ret))
+          (continue!)))
+    (fn repl-invoke-fail [ex]
+      ;; doing this here and no longer in handle-repl-invoke to avoid
+      ;; rethrowing the exception. JS doesn't do that very well and messes
+      ;; with the stacktrace, basically killing the original one
+      (set! *e ex)
 
-    (if (:internal action)
-      state
-      (update state :results conj ret))))
+      (js/console.error "REPL Invoke Exception" ex action)
+      (abort! state action ex))))
 
 (defn interpret-action
-  [{:keys [runtime obj-support] :as state}
+  [{:keys [runtime] :as state}
    {:keys [type] :as action}]
   (case type
     :repl/init
@@ -184,18 +205,7 @@
               (if (and repl (not (:internal action)))
                 handle-repl-invoke
                 handle-invoke)]
-          (-> state
-              (invoke-fn runtime action)
-              (continue!)))
-        (catch :default ex
-          (when repl
-            ;; doing this here and no longer in handle-repl-invoke to avoid
-            ;; rethrowing the exception. JS doesn't do that very well and messes
-            ;; with the stacktrace, basically killing the original one
-            (set! *e ex))
-
-          (js/console.error "REPL Invoke Exception" ex action)
-          (abort! state action ex))))
+          (invoke-fn state runtime action))))
 
     (throw (ex-info "unhandled repl action" {:state state :action action}))))
 
