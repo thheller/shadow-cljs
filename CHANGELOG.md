@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.28.22](https://github.com/thheller/shadow-cljs/compare/acb369c1898a4e8d7ef887fd86625f0f348cce92...d12811cfb7884d86dcecb3a16cf61c9e89bb8b05) - 2025-03-25
+- [ [`d1281`](https://github.com/thheller/shadow-cljs/commit/d12811cfb7884d86dcecb3a16cf61c9e89bb8b05) ] add REPL for :target :esm with :runtime :node
+- [ [`cc90d`](https://github.com/thheller/shadow-cljs/commit/cc90dd19067cde5092b59581aec8bfc151b0f4e0) ] make repl invoke async
+- [ [`acb36`](https://github.com/thheller/shadow-cljs/commit/acb369c1898a4e8d7ef887fd86625f0f348cce92) ] remove old ui-init-data request
+
 ## [2.28.21](https://github.com/thheller/shadow-cljs/compare/e73b2666506362532227606ae3b8ad81e1ef1454...9141450a4050f12c9b5ca4d9079f0158b322c98c) - 2025-02-21
 - [ [`91414`](https://github.com/thheller/shadow-cljs/commit/9141450a4050f12c9b5ca4d9079f0158b322c98c) ] preserve domain of reloaded assets (#1218)
 - [ [`70476`](https://github.com/thheller/shadow-cljs/commit/704760bd1dcc1463f712ba17df3e255e663cc1f4) ] CI getting killed?
