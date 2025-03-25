@@ -36,7 +36,9 @@
       :log-call
       (fn [fn-sym]
         (devtools-msg (str "call " fn-sym))))
-    #(do-js-load sources)
+    (fn [next]
+      (do-js-load sources)
+      (next))
     complete-fn))
 
 (defn noop [& args])

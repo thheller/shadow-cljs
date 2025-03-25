@@ -169,6 +169,9 @@
                     (and build-worker? default? (= :browser runtime))
                     (update :entries shared/prepend '[shadow.cljs.devtools.client.browser])
 
+                    (and build-worker? default? (= :node runtime))
+                    (update :entries shared/prepend '[shadow.cljs.devtools.client.node-esm])
+
                     (and build-worker? default? (= :custom runtime) (:client-ns devtools))
                     (update :entries shared/prepend [(:client-ns devtools)])
 
@@ -518,34 +521,6 @@
                            )))
                    (vec))))))))
 
-;; for development add esm imports directly to the shim source
-;; it'll expose the imported code via shadow.esm.esm_import$alias
-;; adding it after compilation so the closure compiler is happy and doesn't see the import
-(defn add-esm-imports-dev [state]
-  (reduce
-    (fn [state src-id]
-      (let [rc (data/get-source-by-id state src-id)]
-        (cond
-          (not (::js-support/import-shim rc))
-          state
-
-          (get-in state [:output src-id ::patched])
-          state
-
-          :else
-          (update-in state [:output src-id]
-            (fn [output]
-              (-> output
-                  (assoc ::patched true)
-                  (update :js
-                    (fn [code]
-                      (str
-                        "import * as " (:import-alias rc) " from \"" (:js-import rc) "\";\n"
-                        code
-                        )))))))))
-    state
-    (:build-sources state)))
-
 (defn process
   [{::build/keys [mode stage] :as state}]
   (cond
@@ -558,9 +533,6 @@
         (cond->
           (= :release mode)
           (setup-imports)))
-
-    (and (= :dev mode) (= stage :compile-finish))
-    (add-esm-imports-dev state)
 
     (= stage :flush)
     (case mode

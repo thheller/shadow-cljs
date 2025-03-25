@@ -465,8 +465,6 @@
     (= :compile-finish stage)
     (-> state
         (cond->
-          (= :dev mode)
-          (esm/add-esm-imports-dev)
           (= :release mode)
           (add-esm-exports))
         (build-module-per-ns))

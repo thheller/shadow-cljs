@@ -1,23 +1,42 @@
-(ns shadow.cljs.devtools.client.node
+(ns shadow.cljs.devtools.client.node-esm
   (:require
-    ["ws" :as ws]
+    ["ws$default" :as ws]
     [cljs.reader :as reader]
+    [clojure.string :as str]
     [goog.object :as gobj]
     [shadow.remote.runtime.shared :as shared]
+    [shadow.esm :as esm]
     [shadow.cljs.devtools.client.shared :as cljs-shared]
     [shadow.cljs.devtools.client.env :as env]
     [shadow.remote.runtime.api :as api]))
 
-(defn node-eval [{:keys [js source-map-json] :as msg}]
-  (let [result (js/SHADOW_NODE_EVAL js source-map-json)]
-    result))
+
+;; FIXME: this is loaded via cljs_env.js
+;; but why is it listed in repl-sources in repl-init?
+;; this just stops it from being loaded again
+(js/SHADOW_ENV.setLoaded "goog.base.js")
 
 (defn is-loaded? [src]
-  (true? (gobj/get js/SHADOW_IMPORTED src)))
+  (js/SHADOW_ENV.isLoaded src))
 
-(defn closure-import [src]
-  {:pre [(string? src)]}
-  (js/SHADOW_IMPORT src))
+(defn load-sources [files-to-load finished error]
+  (let [src (first files-to-load)]
+    (if-not src
+      (finished)
+      (let [{:keys [output-name]} src
+            path (str "./cljs-runtime/" output-name "?rand=" (rand))]
+        (js/console.log "loading" output-name)
+        (env/before-load-src src)
+
+        ;; (js/console.log "repl loading" path)
+        ;; at which point does not start choking when running import over and over again?
+        (-> (esm/dynamic-import path)
+            ;; loaded things into global scope, so no need for result anywhere
+            (.then (fn [_]
+                     (load-sources (rest files-to-load) finished error)))
+            ;; load errors most likely caused by exception thrown during load
+            (.catch (fn [e]
+                      (error e src))))))))
 
 (defn handle-build-complete
   [runtime {:keys [info reload-info] :as msg}]
@@ -33,20 +52,19 @@
                  (filter (fn [{:keys [ns resource-id]}]
                            (or (contains? compiled resource-id)
                                (contains? (:always-load reload-info) ns))))
-                 (map :output-name)
                  (into []))]
 
         (when (seq files-to-require)
           (env/do-js-reload
             msg
-            (fn [next]
-              (doseq [src files-to-require]
-                (env/before-load-src src)
-                (closure-import src))
-              (next))))))))
+            (fn [continue]
+              (load-sources files-to-require continue
+                (fn [e src]
+                  (js/console.error "failed to load" (:output-name src) e))))
+            ))))))
 
 (def client-info
-  {:host :node
+  {:host :node-esm
    :desc (str "Node " js/process.version)})
 
 (defn start [runtime]
@@ -89,44 +107,54 @@
   (reset! ws-active-ref false)
   (.close socket))
 
+(comment
+  ;; maybe use this instead of plain eval since we can maybe get source maps working this way?
+  (defn eval-js [code]
+    (esm/dynamic-import
+      (str "data:text/javascript;charset=utf-8;base64,"
+           (-> (js/Buffer.from code)
+               (.toString "base64"))))))
+
+(defn eval-js [js]
+  ;; hack to force eval in global scope
+  ;; goog.globalEval doesn't have a return value so can't use that for REPL invokes
+  (js* "(0,eval)(~{});" js))
+
 ;; want things to start when this ns is in :preloads
 (when (pos? env/worker-client-id)
-
   (extend-type cljs-shared/Runtime
     api/IEvalJS
     (-js-eval [this code success fail]
       (try
-        (success (js/SHADOW_NODE_EVAL code))
+        (success (eval-js code))
         (catch :default e
-          (fail e))))
+          (fail e code))))
 
     cljs-shared/IHostSpecific
-    (do-invoke [this ns msg success fail]
+    (do-invoke [this ns {:keys [js] :as msg} success fail]
       (try
-        (success (node-eval msg))
+        (success (eval-js js))
         (catch :default e
-          (fail e))))
+          (fail e msg))))
 
     (do-repl-init [runtime {:keys [repl-sources]} done error]
-      (try
-        (doseq [{:keys [output-name] :as src} repl-sources
-                :when (not (is-loaded? output-name))]
-          (closure-import output-name))
-
-        (done)
-        (catch :default e
-          (error e))))
+      (load-sources
+        (->> repl-sources
+             (remove (fn [{:keys [output-name] :as src}]
+                       (is-loaded? output-name)))
+             (vec))
+        done
+        error))
 
     (do-repl-require [this {:keys [sources reload-namespaces] :as msg} done error]
-      (try
-        (doseq [{:keys [provides output-name] :as src} sources]
-          (when (or (not (is-loaded? output-name))
-                    (some reload-namespaces provides))
-            (closure-import output-name)))
-
-        (done)
-        (catch :default e
-          (error e)))))
+      (load-sources
+        (->> sources
+             (filter (fn [{:keys [provides output-name] :as src}]
+                       (or (not (is-loaded? output-name))
+                           (some reload-namespaces provides))))
+             (vec))
+        done
+        error)))
 
   (cljs-shared/add-plugin! ::client #{}
     (fn [{:keys [runtime] :as env}]

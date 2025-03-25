@@ -242,9 +242,7 @@
              (into (->> (:before-load reload-info)
                         (map #(make-task-fn msg %))
                         (reverse)))
-             (conj (fn [next]
-                     (load-code-fn)
-                     (next)))
+             (conj load-code-fn)
              ;; load is FIFO
              (into (map #(make-task-fn msg %)) (:after-load reload-info))
              (conj (fn [next]

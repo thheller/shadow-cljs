@@ -125,7 +125,7 @@
       ;; rethrowing the exception. JS doesn't do that very well and messes
       ;; with the stacktrace, basically killing the original one
 
-      (js/console.error "REPL Invoke Exception" ex action)
+      (js/console.error "REPL Invoke Exception" ex)
       (abort! state action ex)
       )))
 
@@ -148,7 +148,7 @@
       ;; with the stacktrace, basically killing the original one
       (set! *e ex)
 
-      (js/console.error "REPL Invoke Exception" ex action)
+      (js/console.error "REPL Invoke Exception" ex)
       (abort! state action ex))))
 
 (defn interpret-action

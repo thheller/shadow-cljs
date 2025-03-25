@@ -164,15 +164,15 @@
      :ns fake-ns
      :provides #{fake-ns}
      :requires #{}
+     :virtual true ;; prevents file from going through convert-goog, which wouldn't like the import
      :deps ['goog]
      :source
      (if (= :release mode)
+       ;; in release mode we are hiding imports from the closure compiler and prepend to modules after optimizations
+       ;; otherwise gcc will try to rewrite them
        ""
-       ;; we cannot add
-       ;;   import * as <import-alias> from "<import>"
-       ;; here since this code will go through the closure compiler via convert-goog
-       ;; the closure compiler will complain
-       ;;   A file cannot be both an ES6 module and a script file that contains at least one goog.provide.
-       (str
-         "goog.provide(\"" fake-ns "\");\n"
-         fake-ns " = " import-alias ";\n"))}))
+
+       ;; in dev this is fine
+       (str "import * as " import-alias " from \"" import "\";\n"
+            "goog.provide(\"" fake-ns "\");\n"
+            fake-ns " = " import-alias ";\n"))}))
