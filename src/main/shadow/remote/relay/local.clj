@@ -102,7 +102,7 @@
 (defn handle-client-msg
   [{:keys [state-ref] :as relay}
    {:keys [client-id] :as origin}
-   {:keys [op to] :as msg}]
+   {:keys [op to to-query] :as msg}]
   (if (not op)
     (do (log/warn ::client-sent-invalid-msg {:client-id client-id
                                              :msg msg})
@@ -121,8 +121,19 @@
         ;; handshake or handshake completed
         (cond
           ;; messages without :to are handled by relay
-          (not (contains? msg :to))
+          (and (not to) (not to-query))
           (handle-sys-msg relay origin msg)
+
+          to-query
+          (let [to
+                (->> (:clients @state-ref)
+                     (vals)
+                     (filter
+                       (fn [{:keys [client-id client-info]}]
+                         (squery/query {} (assoc client-info :client-id client-id) to-query)))
+                     (mapv :client-id))]
+
+            (send-to-clients relay to origin msg))
 
           (nil? to)
           (do (log/warn ::client-sent-invalid-msg {:client-id client-id
