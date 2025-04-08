@@ -1206,7 +1206,7 @@
                 pimpl (str (munge (protocol-prefix protocol-name))
                            (munge (name protocol-fn))
                            "$arity$" (count args))]
-            (comp/emits (first args) "." pimpl "(null, " (comma-sep (rest args)) ")"))
+            (comp/emits (first args) "." pimpl "(" (comma-sep (cons "null" (rest args))) ")"))
 
           :variadic-invoke
           (let [mfa (:max-fixed-arity expr)]
@@ -1231,13 +1231,15 @@
             ;;   x.ifn ? x.ifn(...) : x.call(null, ...)
             (comp/emits "(" f fprop " ? " f fprop "(")
             (emit-ifn-args args)
-            (comp/emits ") : " f (if ana/*fn-invoke-direct* "(" ".call(null, ")
+            (comp/emits ") : " f)
+            (if ana/*fn-invoke-direct*
+              (comp/emits "(" (comma-sep args))
               ;; didn't have ifn property, assuming function and no max ifn args limit
-              (comma-sep args)
-              "))"))
+              (comp/emits ".call(" (comma-sep (cons "null" args))))
+            (comp/emits "))"))
 
           :dot-call
-          (comp/emits f ".call(null, " (comma-sep args) ")")))))
+          (comp/emits f ".call(" (comma-sep (cons "null" args)) ")")))))
 
   (.addMethod comp/emit* :var (fn [expr] (shadow-emit-var expr)))
   (.addMethod comp/emit* :binding (fn [expr] (shadow-emit-var expr)))
