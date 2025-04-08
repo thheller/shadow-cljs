@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.28.23](https://github.com/thheller/shadow-cljs/compare/5f69a6c10f388a9305776f7aab7978bb118311ed...61840605488f2411e4620ee8e6391a9d3d07dce9) - 2025-04-08
+- [ [`61840`](https://github.com/thheller/shadow-cljs/commit/61840605488f2411e4620ee8e6391a9d3d07dce9) ] fix trailing comma in some invoke emits
+- [ [`5f69a`](https://github.com/thheller/shadow-cljs/commit/5f69a6c10f388a9305776f7aab7978bb118311ed) ] add :to-query to shadow.remote relay
+
 ## [2.28.22](https://github.com/thheller/shadow-cljs/compare/acb369c1898a4e8d7ef887fd86625f0f348cce92...d12811cfb7884d86dcecb3a16cf61c9e89bb8b05) - 2025-03-25
 - [ [`d1281`](https://github.com/thheller/shadow-cljs/commit/d12811cfb7884d86dcecb3a16cf61c9e89bb8b05) ] add REPL for :target :esm with :runtime :node
 - [ [`cc90d`](https://github.com/thheller/shadow-cljs/commit/cc90dd19067cde5092b59581aec8bfc151b0f4e0) ] make repl invoke async
