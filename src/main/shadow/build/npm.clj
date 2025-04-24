@@ -427,17 +427,17 @@
           ;; all imports are collected into
           ;; :js-imports ["react"]
           (let [{:keys [js-requires js-dynamic-imports js-imports js-errors js-warnings js-invalid-requires js-language] :as info}
-                (try
-                  (JsInspector/getFileInfoMap
-                    compiler
-                    ;; SourceFile/fromFile seems to leak file descriptors
-                    (SourceFile/fromCode (.getAbsolutePath file) source))
-                  (catch Exception e
-                    (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
-                             {:tag ::file-info-errors
-                              :info {:js-errors [{:line 1 :column 1 :message "The file could not be parsed as JavaScript."}]}
-                              :file file}
-                             e))))
+                (JsInspector/getFileInfoMap
+                  compiler
+                  ;; SourceFile/fromFile seems to leak file descriptors
+                  (SourceFile/fromCode (.getAbsolutePath file) source))
+
+                _
+                (when (seq js-errors)
+                  (throw (ex-info (format "errors in file: %s" (.getAbsolutePath file))
+                           {:tag ::file-info-errors
+                            :info {:js-errors js-errors}
+                            :file file})))
 
                 js-deps
                 (->> (concat js-requires js-imports js-dynamic-imports)

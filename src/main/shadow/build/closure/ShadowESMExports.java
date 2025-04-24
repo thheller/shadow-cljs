@@ -58,7 +58,7 @@ public class ShadowESMExports extends NodeTraversal.AbstractPostOrderCallback  {
 
         SourceFile testFile = SourceFile.fromCode( "test.js", "export let foo = 1; export default 2; hello();");
 
-        JsAst ast = new JsAst(testFile);
+        CompilerInput ast = new CompilerInput(testFile);
         Node node = ast.getAstRoot(cc);
 
         System.out.println(node.toStringTree());

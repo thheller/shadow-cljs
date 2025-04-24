@@ -1,8 +1,9 @@
 package com.google.javascript.jscomp;
 
+import com.google.javascript.jscomp.parsing.Config;
+import com.google.javascript.rhino.ErrorReporter;
 import com.google.javascript.rhino.Node;
 
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -62,5 +63,13 @@ public class ShadowAccess {
         builder.setTagAsTypeSummary(false);
         builder.setTagAsStrict(false);
         return builder.build();
+    }
+
+    public static Config getParserConfig(AbstractCompiler cc) {
+        return cc.getParserConfig(AbstractCompiler.ConfigContext.DEFAULT);
+    }
+
+    public static ErrorReporter getErrorReporter(AbstractCompiler cc) {
+        return cc.getDefaultErrorReporter();
     }
 }

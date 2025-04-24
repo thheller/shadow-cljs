@@ -70,7 +70,7 @@ public class GlobalVars implements NodeTraversal.Callback, CompilerPass {
                 "test.js",
                 "var thatGlobal = 1; function alsoGlobal() { var notGlobal = 2; return notGlobal }; class ClassGlobal {}");
 
-        JsAst ast = new JsAst(srcFile);
+        CompilerInput ast = new CompilerInput(srcFile);
         Node node = ast.getAstRoot(cc);
 
         GlobalVars pass = new GlobalVars(cc);

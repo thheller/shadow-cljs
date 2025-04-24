@@ -4,6 +4,7 @@ package shadow.build.closure;
 import clojure.lang.*;
 import com.google.javascript.jscomp.*;
 import com.google.javascript.jscomp.Compiler;
+import com.google.javascript.jscomp.parsing.ParserRunner;
 import com.google.javascript.jscomp.parsing.parser.FeatureSet;
 import com.google.javascript.rhino.Node;
 import com.google.javascript.rhino.Token;
@@ -11,7 +12,6 @@ import com.google.javascript.rhino.Token;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.List;
 
 /**
  * Created by thheller on 29/06/2017.
@@ -26,11 +26,13 @@ public class JsInspector {
     public static final Keyword KW_IMPORT = RT.keyword(null, "import");
 
     public static class FileInfo implements NodeTraversal.Callback {
-        JsAst.ParseResult parseResult;
+        final IPersistentVector errors;
+        final IPersistentVector warnings;
         final FeatureSet features;
 
-        public FileInfo(JsAst.ParseResult parseResult, FeatureSet features) {
-            this.parseResult = parseResult;
+        public FileInfo(IPersistentVector errors, IPersistentVector warnings, FeatureSet features) {
+            this.errors = errors;
+            this.warnings = warnings;
             this.features = features;
         }
 
@@ -154,25 +156,6 @@ public class JsInspector {
 
     public static final Keyword KW_LINE = RT.keyword(null, "line");
     public static final Keyword KW_COLUMN = RT.keyword(null, "column");
-    public static final Keyword KW_MESSAGE = RT.keyword(null, "message");
-
-    public static IPersistentVector errorsAsData(List errors) {
-        ITransientCollection result = PersistentVector.EMPTY.asTransient();
-
-        for (int i = 0; i < errors.size(); i++) {
-            JsAst.RhinoError error = (JsAst.RhinoError) errors.get(i);
-
-            Object data = RT.map(
-                    KW_LINE, error.line,
-                    KW_COLUMN, error.lineOffset,
-                    KW_MESSAGE, error.message
-            );
-
-            result = result.conj(data);
-        }
-
-        return (IPersistentVector) result.persistent();
-    }
 
     public static final String NS = null;
     public static final Keyword KW_INVALID_REQUIRES = RT.keyword(NS, "js-invalid-requires");
@@ -192,22 +175,20 @@ public class JsInspector {
     public static final Keyword KW_USES_GLOBAL_BUFFER = RT.keyword(NS, "uses-global-buffer");
     public static final Keyword KW_USES_GLOBAL_PROCESS = RT.keyword(NS, "uses-global-process");
 
-    public static FileInfo getFileInfo(Compiler cc, SourceFile srcFile) {
-        JsAst ast = new JsAst(srcFile);
-        Node node = ast.getAstRoot(cc);
+    public static FileInfo getFileInfo(Compiler cc, SourceFile srcFile) throws IOException {
+        ParserHelper result = ParserHelper.parse(cc, srcFile);
 
-        JsAst.ParseResult result = (JsAst.ParseResult) node.getProp(Node.PARSE_RESULTS);
+        FileInfo fileInfo = new FileInfo(result.errors, result.warnings, result.features);
 
-        FeatureSet features = ast.getFeatures(cc);
-
-        // FIXME: don't do this if result has errors?
-        FileInfo fileInfo = new FileInfo(result, features);
-        NodeTraversal.traverse(cc, node, fileInfo);
+        // null on errors, just skip and return map with errors. code later can decide to throw
+        if (result.ast != null) {
+            NodeTraversal.traverse(cc, result.ast, fileInfo);
+        }
 
         return fileInfo;
     }
 
-    public static IPersistentMap getFileInfoMap(Compiler cc, SourceFile srcFile) {
+    public static IPersistentMap getFileInfoMap(Compiler cc, SourceFile srcFile) throws IOException {
         FileInfo fileInfo = getFileInfo(cc, srcFile);
 
         return asMap(fileInfo);
@@ -228,12 +209,10 @@ public class JsInspector {
                 KW_LANGUAGE, fileInfo.features.version(),
                 KW_STR_OFFSETS, fileInfo.strOffsets.persistent(),
                 KW_USES_GLOBAL_BUFFER, fileInfo.usesGlobalBuffer,
-                KW_USES_GLOBAL_PROCESS, fileInfo.usesGlobalProcess
+                KW_USES_GLOBAL_PROCESS, fileInfo.usesGlobalProcess,
+                KW_ERRORS, fileInfo.errors,
+                KW_WARNINGS, fileInfo.warnings
         );
-
-        if (fileInfo.parseResult != null) {
-            map = map.assoc(KW_ERRORS, errorsAsData(fileInfo.parseResult.errors)).assoc(KW_WARNINGS, errorsAsData(fileInfo.parseResult.warnings));
-        }
 
         return map;
     }
@@ -249,8 +228,8 @@ public class JsInspector {
         SourceFile srcFile = SourceFile.fromCode("foo.js", "var x = function(require) { require('DONT'); }; require('react'); require('./foo'); import 'foo'; import { x } from 'bar';");
         //System.out.println(getFileInfoMap(cc, srcFile));
 
-        SourceFile exportFrom = SourceFile.fromCode("foo.js", "export * from './foo';");
-        //System.out.println(getFileInfoMap(cc, exportFrom));
+        SourceFile exportFrom = SourceFile.fromCode("foo.js", "export * from './foo'; ...");
+        System.out.println(getFileInfoMap(cc, exportFrom));
 
         SourceFile goog = SourceFile.fromCode("foo.js", "goog.provide('foo'); goog.require('thing');");
         System.out.println(getFileInfoMap(cc, goog));

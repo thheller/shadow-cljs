@@ -55,7 +55,7 @@ public class GlobalsAsVar implements NodeTraversal.Callback, CompilerPass {
 
         SourceFile srcFile = SourceFile.fromCode("test.js", "let noInit; let [a, ...rest] = [1,2,3,4]; const foo = 1; function foo() { const bar = 2; }");
 
-        JsAst ast = new JsAst(srcFile);
+        CompilerInput ast = new CompilerInput(srcFile);
         Node node = ast.getAstRoot(cc);
 
         GlobalsAsVar pass = new GlobalsAsVar(cc);

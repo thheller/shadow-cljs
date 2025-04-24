@@ -39,10 +39,8 @@ public class NodeStuffInlinePass extends NodeTraversal.AbstractPostOrderCallback
     }
 
     public static Node process(Compiler cc, SourceFile srcFile) {
-        JsAst ast = new JsAst(srcFile);
+        CompilerInput ast = new CompilerInput(srcFile);
         Node node = ast.getAstRoot(cc);
-
-        JsAst.ParseResult result = (JsAst.ParseResult) node.getProp(Node.PARSE_RESULTS);
 
         // FIXME: don't do this if result has errors?
         NodeTraversal.Callback pass = new NodeStuffInlinePass(cc);

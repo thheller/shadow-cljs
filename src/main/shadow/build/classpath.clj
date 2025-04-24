@@ -106,6 +106,12 @@
 
           rc (assoc rc :inspect-info info)]
 
+      (when (seq js-errors)
+        (throw (ex-info "parsed file had errors"
+                 {:url url
+                  :resource-name resource-name
+                  :errors js-errors})))
+
       (cond
         ;; goog.provide('thing')
         ;; goog.require('foo')

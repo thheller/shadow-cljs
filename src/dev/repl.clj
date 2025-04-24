@@ -12,7 +12,7 @@
 (comment
   (generate-css))
 
-(defn start []
+(defn start [_]
   (server/start!)
 
   ;; (cljs/watch :ui)
@@ -42,4 +42,4 @@
 
 (defn go []
   (stop)
-  (start))
+  (start nil))

@@ -96,16 +96,11 @@ public class PropertyCollector implements NodeTraversal.Callback, CompilerPass {
     }
 
     public static Node process(Compiler cc, SourceFile srcFile) {
-        JsAst ast = new JsAst(srcFile);
+        CompilerInput ast = new CompilerInput(srcFile);
         Node node = ast.getAstRoot(cc);
-
-        JsAst.ParseResult result = (JsAst.ParseResult) node.getProp(Node.PARSE_RESULTS);
 
         PropertyCollector pass = new PropertyCollector(cc);
         NodeTraversal.traverse(cc, node, pass);
-
-
-        System.out.println(pass.properties);
 
         return node;
     }

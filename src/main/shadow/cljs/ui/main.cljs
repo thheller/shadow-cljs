@@ -25,6 +25,8 @@
     [shadow.cljs.ui.components.repl :as repl]
     ))
 
+(defrecord X [a])
+
 (defc ui-error [error-id]
   (bind {:keys [text]}
     (sg/kv-lookup ::m/error error-id))

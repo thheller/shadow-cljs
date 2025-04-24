@@ -44,7 +44,7 @@
     org.clojure/google-closure-library
     org.clojure/google-closure-library-third-party]}
 
-  com.google.javascript/closure-compiler-unshaded {:mvn/version "v20240317"}
+  com.google.javascript/closure-compiler-unshaded {:mvn/version "v20250402"}
 
   org.clojure/google-closure-library {:mvn/version "0.0-20230227-c7c0a541"}
   org.clojure/google-closure-library-third-party {:mvn/version "0.0-20230227-c7c0a541"}
@@ -81,4 +81,9 @@
    {com.thheller/shadow-grove {:local/root "../shadow-grove"}
     org.commonmark/commonmark {:mvn/version "0.21.0"}
     rewrite-clj/rewrite-clj {:mvn/version "1.1.46"}
-    }}}}
+    }}
+
+  :cljs-local
+  {:override-deps
+   {org.clojure/clojurescript {:local/root "../clojurescript"}}}
+  }}

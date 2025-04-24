@@ -32,8 +32,6 @@ import com.google.javascript.rhino.Node;
 
 import java.util.*;
 
-import org.jspecify.nullness.Nullable;
-
 /**
  * Rewrites ESM import and exports to CJS require, for use as :shadow-js files
  * <p>
@@ -79,7 +77,7 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
     private static final String EXPORTS = "exports";
     private static final String REQUIRE = "require";
 
-    private @Nullable Node requireInsertSpot = null;
+    private Node requireInsertSpot = null;
 
     private final AbstractCompiler compiler;
     private final Node script;
@@ -214,7 +212,7 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
      * @return qualified name to use to reference an imported value if the given node is an imported
      * name or null if the value is not imported or if it is in the import statement itself
      */
-    private @Nullable String maybeGetNameOfImportedValue(Scope s, Node nameNode) {
+    private String maybeGetNameOfImportedValue(Scope s, Node nameNode) {
         checkState(nameNode.isName());
         Var var = s.getVar(nameNode.getString());
 
@@ -528,8 +526,8 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
         cc.initOptions(co);
         SourceFile src = SourceFile.fromCode("convert.js", source);
 
-        JsAst ast = new JsAst(src);
-        Node node = ast.getAstRoot(cc);
+        CompilerInput input = new CompilerInput(src);
+        Node node = input.getAstRoot(cc);
 
         NodeTraversal.traverse(cc, node, new ShadowESModuleRewriter(cc, node));
 
@@ -550,8 +548,8 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
 
         SourceFile testFile = SourceFile.fromCode("test.js", code);
 
-        JsAst ast = new JsAst(testFile);
-        Node node = ast.getAstRoot(cc);
+        CompilerInput input = new CompilerInput(testFile);
+        Node node = input.getAstRoot(cc);
 
         System.out.println(node.toStringTree());
     }
