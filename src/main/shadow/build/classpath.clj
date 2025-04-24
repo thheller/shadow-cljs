@@ -1016,7 +1016,9 @@
          :classpath-excludes
          [#"resources(/?)$"
           #"classes(/?)$"
-          #"java(/?)$"]
+          #"java(/?)$"
+          ;; contains some "replacement" closure library files we don't want
+          #"closure-compiler-unshaded"]
 
          :manifest-cache-dir
          (io/file cache-root "jar-manifest")
