@@ -95,6 +95,7 @@
     :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT
     :ecmascript-next-in CompilerOptions$LanguageMode/UNSTABLE
     :ecmascript-unstable CompilerOptions$LanguageMode/UNSTABLE
+    :unsupported  CompilerOptions$LanguageMode/UNSUPPORTED
     :unstable CompilerOptions$LanguageMode/UNSTABLE))
 
 (defn ^FeatureSet kw->feature-set [kw]
