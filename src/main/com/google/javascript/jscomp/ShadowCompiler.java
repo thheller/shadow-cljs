@@ -3,7 +3,6 @@ package com.google.javascript.jscomp;
 import com.google.debugging.sourcemap.SourceMapConsumerV3;
 import com.google.debugging.sourcemap.proto.Mapping.OriginalMapping;
 
-import javax.annotation.Nullable;
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +29,6 @@ public class ShadowCompiler extends Compiler {
      *
      * this makes source maps work again on windows
      */
-    @Nullable
     @Override
     public OriginalMapping getSourceMapping(String sourceName, int lineNumber, int columnNumber) {
         try {
