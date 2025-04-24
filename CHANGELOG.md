@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.0.0](https://github.com/thheller/shadow-cljs/compare/344ce44739b0b524c438cf63bc0d6de58555d5dd...6fbbf62aef5c03a82a2f76acdd6e3d79a4a83696) - 2025-04-24
+- [ [`6fbbf`](https://github.com/thheller/shadow-cljs/commit/6fbbf62aef5c03a82a2f76acdd6e3d79a4a83696) ] fix ci?
+- [ [`22742`](https://github.com/thheller/shadow-cljs/commit/22742b546198e5e5a4f576e356324c106658ed20) ] fix ci?
+- [ [`bc8dc`](https://github.com/thheller/shadow-cljs/commit/bc8dcc310ae20f8b3c47c89f462609b8fc544759) ] fix ci?
+- [ [`b4540`](https://github.com/thheller/shadow-cljs/commit/b454083ca5c3396e5361a1ec60b3e10987d6b017) ] fix ci?
+- [ [`8e10b`](https://github.com/thheller/shadow-cljs/commit/8e10bb694ff8f5c0ed4fdcf220fce7774fa97fb2) ] hide some unwanted .js files in the closure-compiler jar
+- [ [`ee235`](https://github.com/thheller/shadow-cljs/commit/ee235ed7402704e39d17156cb2958d1da33579ca) ] update shadow-cljs npm dependencies, drop node-libs-browser
+- [ [`c119e`](https://github.com/thheller/shadow-cljs/commit/c119e51e0cb2a49eaea7c22c4f5c002c806151a5) ] also bump closure-library
+- [ [`d4cdf`](https://github.com/thheller/shadow-cljs/commit/d4cdf4ae8b6c7d7e1265326f3f255135fc88103f) ] ci fix?
+- [ [`1cf1f`](https://github.com/thheller/shadow-cljs/commit/1cf1fa31daa208381490f5e3df1df247373c0f85) ] more Java21 related fixes
+- [ [`e8da8`](https://github.com/thheller/shadow-cljs/commit/e8da87a88d961986cd849ee5742855bcf3c06338) ] ci bump jvm
+- [ [`344ce`](https://github.com/thheller/shadow-cljs/commit/344ce44739b0b524c438cf63bc0d6de58555d5dd) ] [BREAKING] bump closure-compiler, min java21 now
+
 ## [2.28.23](https://github.com/thheller/shadow-cljs/compare/5f69a6c10f388a9305776f7aab7978bb118311ed...61840605488f2411e4620ee8e6391a9d3d07dce9) - 2025-04-08
 - [ [`61840`](https://github.com/thheller/shadow-cljs/commit/61840605488f2411e4620ee8e6391a9d3d07dce9) ] fix trailing comma in some invoke emits
 - [ [`5f69a`](https://github.com/thheller/shadow-cljs/commit/5f69a6c10f388a9305776f7aab7978bb118311ed) ] add :to-query to shadow.remote relay
