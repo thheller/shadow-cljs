@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.0.1](https://github.com/thheller/shadow-cljs/compare/1a557c20b308f5d5f444253b6ac2c96521dba454...1a557c20b308f5d5f444253b6ac2c96521dba454) - 2025-04-24
+- [ [`1a557`](https://github.com/thheller/shadow-cljs/commit/1a557c20b308f5d5f444253b6ac2c96521dba454) ] use browser overrides without extension
+
 ## [3.0.0](https://github.com/thheller/shadow-cljs/compare/344ce44739b0b524c438cf63bc0d6de58555d5dd...6fbbf62aef5c03a82a2f76acdd6e3d79a4a83696) - 2025-04-24
 - [ [`6fbbf`](https://github.com/thheller/shadow-cljs/commit/6fbbf62aef5c03a82a2f76acdd6e3d79a4a83696) ] fix ci?
 - [ [`22742`](https://github.com/thheller/shadow-cljs/commit/22742b546198e5e5a4f576e356324c106658ed20) ] fix ci?
