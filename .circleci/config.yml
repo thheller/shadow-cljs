@@ -5,7 +5,7 @@
 defaults: &defaults
   working_directory: ~/repo
   docker:
-    - image: circleci/clojure:1.11.4-openjdk-21.0-node
+    - image: cimg/clojure:1.11.4-openjdk-21.0-node
   environment:
     LEIN_ROOT: "true"
     # Customize the JVM maximum heap limit
