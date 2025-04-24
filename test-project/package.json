@@ -17,7 +17,6 @@
     "karma-cljs-test": "^0.1.0",
     "react": "^16.4.2",
     "react-dom": "^16.4.2",
-    "readline-sync": "1.4.10",
     "shadow-cljs": "file:../packages/shadow-cljs",
     "shadow-cljs-jar": "file:../packages/shadow-cljs-jar"
   }
