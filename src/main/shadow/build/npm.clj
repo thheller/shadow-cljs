@@ -528,6 +528,11 @@
     "../../index.js")
   )
 
+(defn drop-extension [s]
+  (if (str/ends-with? s ".js")
+    (subs s 0 (- (count s) 3))
+    s))
+
 (defn get-package-override
   [{:keys [js-options] :as npm}
    {:keys [package-name browser-overrides] :as package}
@@ -540,9 +545,13 @@
       ;; allow :js-options config to replace files in package by name
       ;; :js-options {:package-overrides {"codemirror" {"./lib/codemirror.js" "./addon/runmode/runmode.node.js"}}
       (or (get-in package-overrides [package-name rel-require])
-          ;; FIXME: I'm almost certain that browser allows overriding without extension
-          ;; "./lib/some-file":"./lib/some-other-file"
-          (get browser-overrides rel-require)))))
+          ;; direct map including extension
+          (get browser-overrides rel-require)
+          ;; and because npm is fun, also try without
+          (let [without-ext (drop-extension rel-require)]
+            (when (not= rel-require without-ext)
+              (get browser-overrides without-ext)
+              ))))))
 
 ;; returns [package file] in case a nested package.json was used overriding package
 (defn find-match-in-package [npm {:keys [package-dir package-json] :as package} rel-require]
