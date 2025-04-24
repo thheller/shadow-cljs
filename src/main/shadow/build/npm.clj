@@ -251,46 +251,6 @@
 (defn is-npm-dep? [{:keys [npm-deps]} ^String require]
   (contains? npm-deps require))
 
-;; https://github.com/webpack/node-libs-browser/blob/master/index.js
-;; using this package so have the same dependencies that webpack would use
-(def node-libs-browser
-  {"child_process" false
-   "xmlhttprequest" false
-   "cluster" false
-   "console" "console-browserify"
-   "constants" "constants-browserify"
-   "crypto" "crypto-browserify"
-   "dgram" false
-   "dns" false
-   "domain" "domain-browser"
-   "fs" false
-   "http" "stream-http"
-   "https" "https-browserify"
-   "module" false
-   "net" false
-   "os" "os-browserify/browser.js"
-   "path" "path-browserify"
-   "process" "process/browser.js"
-   "querystring" "querystring-es3"
-   "readline" false
-   "repl" false
-   "stream" "stream-browserify"
-   "_stream_duplex" "readable-stream/duplex.js"
-   "_stream_passthrough" "readable-stream/passthrough.js"
-   "_stream_readable" "readable-stream/readable.js"
-   "_stream_transform" "readable-stream/transform.js"
-   "_stream_writable" "readable-stream/writable.js"
-   "sys" "util/util.js"
-   "timers" "timers-browserify"
-   "tls" false
-   "tty" "tty-browserify"
-   "util" "util/util.js"
-   ;; just has a bunch of isThing functions that are in util
-   ;; but also tries to use a Buffer global, which doesn't exist
-   "core-util-is" "util/util.js"
-   "vm" "vm-browserify"
-   "zlib" "browserify-zlib"})
-
 (def empty-rc
   (let [ns 'shadow$empty]
     {:resource-id [::empty "shadow$empty.js"]
@@ -964,11 +924,7 @@
     :package-require
     (let [override
           (when (and require-from (::package require-from) (:use-browser-overrides (:js-options npm)))
-            (let [override (get-in require-from [::package :browser-overrides require])]
-              ;; might be false, can't use or
-              (if-not (nil? override)
-                override
-                (get node-libs-browser require))))]
+            (get-in require-from [::package :browser-overrides require]))]
 
       (cond
         ;; common path, no override
