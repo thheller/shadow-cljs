@@ -44,8 +44,8 @@
 
    [com.google.javascript/closure-compiler-unshaded "v20250402"]
 
-   [org.clojure/google-closure-library "0.0-20230227-c7c0a541"]
-   [org.clojure/google-closure-library-third-party "0.0-20230227-c7c0a541"]
+   [org.clojure/google-closure-library "0.0-20250417-0eb1e76c"]
+   [org.clojure/google-closure-library-third-party "0.0-20250417-0eb1e76c"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.4.0"]
