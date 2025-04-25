@@ -12,28 +12,28 @@
   ["--release" "21"]
 
   :managed-dependencies
-  [[commons-codec "1.15"]
+  [[commons-codec "1.18.0"]
    ;; [com.google.errorprone/error_prone_annotations "2.4.0"]
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
-  [[org.clojure/clojure "1.11.1"]
+  [[org.clojure/clojure "1.12.0"]
 
-   [org.clojure/data.json "2.4.0"]
-   [org.clojure/tools.cli "1.0.206"]
-   [org.clojure/tools.reader "1.4.2"]
+   [org.clojure/data.json "2.5.1"]
+   [org.clojure/tools.cli "1.1.230"]
+   [org.clojure/tools.reader "1.5.2"]
 
-   [nrepl "1.3.0"]
-   [cider/piggieback "0.5.3"
+   [nrepl "1.3.1"]
+   [cider/piggieback "0.6.0"
     :exclusions
     [org.clojure/clojure
      org.clojure/clojurescript
      nrepl/nrepl]]
 
-   [com.cognitect/transit-clj "1.0.329"]
+   [com.cognitect/transit-clj "1.0.333"]
    [com.cognitect/transit-cljs "0.8.280"]
 
-   [org.clojure/core.async "1.5.648"]
+   [org.clojure/core.async "1.8.741"]
 
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.12.35"
@@ -42,10 +42,10 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20250402"]
+   [com.google.javascript/closure-compiler-unshaded "v20250407"]
 
-   [org.clojure/google-closure-library "0.0-20250417-0eb1e76c"]
-   [org.clojure/google-closure-library-third-party "0.0-20250417-0eb1e76c"]
+   [org.clojure/google-closure-library "0.0-20250418-2ce9ab6d"]
+   [org.clojure/google-closure-library-third-party "0.0-20250418-2ce9ab6d"]
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.4.0"]
@@ -53,15 +53,15 @@
    [thheller/shadow-cljsjs "0.0.22"]
 
    [hiccup "1.0.5"]
-   [ring/ring-core "1.9.6"
+   [ring/ring-core "1.14.1"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
 
-   [io.methvin/directory-watcher "0.17.1"]
+   [io.methvin/directory-watcher "0.19.0"]
 
    [expound "0.9.0"]
-   [fipp "0.6.26"]
+   [fipp "0.6.27"]
 
    [com.bhauman/cljs-test-display "0.1.1"]
    ]
