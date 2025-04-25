@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.0.2](https://github.com/thheller/shadow-cljs/compare/eb7613c0368d41dbc173852f69d14ac73876caff...b627feb8549e936d6ff6d3ea98fb4b4cd78d7f8f) - 2025-04-25
+- [ [`b627f`](https://github.com/thheller/shadow-cljs/commit/b627feb8549e936d6ff6d3ea98fb4b4cd78d7f8f) ] update some rather outdated deps
+- [ [`eb761`](https://github.com/thheller/shadow-cljs/commit/eb7613c0368d41dbc173852f69d14ac73876caff) ] add :unsupported language option
+
 ## [3.0.1](https://github.com/thheller/shadow-cljs/compare/1a557c20b308f5d5f444253b6ac2c96521dba454...1a557c20b308f5d5f444253b6ac2c96521dba454) - 2025-04-24
 - [ [`1a557`](https://github.com/thheller/shadow-cljs/commit/1a557c20b308f5d5f444253b6ac2c96521dba454) ] use browser overrides without extension
 
