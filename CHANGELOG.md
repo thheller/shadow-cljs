@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.0.3](https://github.com/thheller/shadow-cljs/compare/48d7b12bab6c7fb4738cf37526765fb589b54038...48d7b12bab6c7fb4738cf37526765fb589b54038) - 2025-04-26
+- [ [`48d7b`](https://github.com/thheller/shadow-cljs/commit/48d7b12bab6c7fb4738cf37526765fb589b54038) ] fix :ns-aliases breaking par-compile
+
 ## [3.0.2](https://github.com/thheller/shadow-cljs/compare/eb7613c0368d41dbc173852f69d14ac73876caff...b627feb8549e936d6ff6d3ea98fb4b4cd78d7f8f) - 2025-04-25
 - [ [`b627f`](https://github.com/thheller/shadow-cljs/commit/b627feb8549e936d6ff6d3ea98fb4b4cd78d7f8f) ] update some rather outdated deps
 - [ [`eb761`](https://github.com/thheller/shadow-cljs/commit/eb7613c0368d41dbc173852f69d14ac73876caff) ] add :unsupported language option
