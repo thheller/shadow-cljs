@@ -1195,7 +1195,7 @@
       )))
 
 (defn par-compile-one
-  [{:keys [last-progress-ref] :as state}
+  [{:keys [last-progress-ref ns-aliases] :as state}
    ready-ref
    errors-ref
    {:keys [resource-id type requires extra-requires provides] :as src}]
@@ -1205,7 +1205,12 @@
 
   ;; test targets dynamically add namespaces that we need to wait for
   ;; tracking this separately since messing with the ns dynamically is harder
-  (let [requires (set/union requires extra-requires)]
+  (let [requires
+        (->> (set/union requires extra-requires)
+             ;; FIXME: this should really have been handled way earlier
+             ;; makes no sense to patch this late, maybe just swap requires directly
+             ;; on inspect/peek like actual compilation does?
+             (into #{} (map #(get ns-aliases % %))))]
 
     (loop [idle-count 1]
       (let [ready @ready-ref]
