@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.0.4](https://github.com/thheller/shadow-cljs/compare/804485cce7e9a50f4a777096890e3338f498c2ef...ad5e3bc02168588b35312e3c0d004660bbbbab4e) - 2025-05-01
+- [ [`ad5e3`](https://github.com/thheller/shadow-cljs/commit/ad5e3bc02168588b35312e3c0d004660bbbbab4e) ] cljs bump because of lazy-seq bug
+- [ [`80448`](https://github.com/thheller/shadow-cljs/commit/804485cce7e9a50f4a777096890e3338f498c2ef) ] that doesn't belong there
+
 ## [3.0.3](https://github.com/thheller/shadow-cljs/compare/48d7b12bab6c7fb4738cf37526765fb589b54038...48d7b12bab6c7fb4738cf37526765fb589b54038) - 2025-04-26
 - [ [`48d7b`](https://github.com/thheller/shadow-cljs/commit/48d7b12bab6c7fb4738cf37526765fb589b54038) ] fix :ns-aliases breaking par-compile
 
