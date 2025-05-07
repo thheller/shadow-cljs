@@ -296,6 +296,15 @@
           (update :ns-aliases-reverse merge (set/map-invert m)))
       )))
 
+(defn merge-release-stubs [state]
+  (reduce
+    (fn [state real-ns]
+      (let [stub-ns (symbol (str real-ns "-stubs"))]
+        ;; relies on copy-ns-aliases running later to do the actual setup
+        (assoc-in state [:build-options :ns-aliases real-ns] stub-ns)))
+    state
+    (get-in state [::config :release-stubs])))
+
 (defn get-build-defaults [state]
   (get-in state [:runtime-config :build-defaults] {}))
 
@@ -395,7 +404,8 @@
                     :load-tests false
                     :pretty-print false})
                  (build-api/with-js-options {:minimize-require true})
-                 (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG false}))
+                 (update-in [:compiler-options :closure-defines] merge {'goog.DEBUG false})
+                 (merge-release-stubs))
 
              closure-defines
              (update-in [:compiler-options :closure-defines] merge closure-defines)

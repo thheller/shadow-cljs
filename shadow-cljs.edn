@@ -207,6 +207,12 @@
     :after-load demo.browser/start-from-config
     :build-notify demo.browser/custom-notify}}
 
+  :zombie
+  {:target :browser
+   :output-dir "out/demo-zombie/public/js"
+   :modules {:main {:init-fn demo.zombie/init}}
+   :release-stubs #{cljs.test}}
+
   :test-esm
   {:target :esm
    :output-dir "out/demo-browser/public/esm-js"
