@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.0.5](https://github.com/thheller/shadow-cljs/compare/084b63cdfbcbc72e52f573f60064e6acc3848700...084b63cdfbcbc72e52f573f60064e6acc3848700) - 2025-05-07
+- [ [`084b6`](https://github.com/thheller/shadow-cljs/commit/084b63cdfbcbc72e52f573f60064e6acc3848700) ] add :release-stubs option
+
 ## [3.0.4](https://github.com/thheller/shadow-cljs/compare/804485cce7e9a50f4a777096890e3338f498c2ef...ad5e3bc02168588b35312e3c0d004660bbbbab4e) - 2025-05-01
 - [ [`ad5e3`](https://github.com/thheller/shadow-cljs/commit/ad5e3bc02168588b35312e3c0d004660bbbbab4e) ] cljs bump because of lazy-seq bug
 - [ [`80448`](https://github.com/thheller/shadow-cljs/commit/804485cce7e9a50f4a777096890e3338f498c2ef) ] that doesn't belong there
