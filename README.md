@@ -25,7 +25,7 @@
 
 - [Node.js](https://nodejs.org) or [Bun](https://bun.sh)
 - [npm](https://www.npmjs.com) (comes with Node.js), [bun](https://bun.sh) (comes with Bun), [pnpm](https://pnpm.io), or [yarn](https://www.yarnpkg.com)
-- [Java SDK](https://adoptium.net/) (Version 11+, Latest LTS Version recommended)
+- [Java SDK](https://adoptium.net/) (Version 21+, Latest LTS Version recommended)
 
 ## Quick Start
 
