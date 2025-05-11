@@ -58,24 +58,29 @@
           (if (= ts-test ts)
             (do (Thread/sleep 1000)
                 (recur ts config))
-            (let [new-config (config/load-cljs-edn)]
-              (log/debug ::trigger)
 
-              (when (not= new-config config)
-                (log/debug ::update-global)
-                (sys-bus/publish! system-bus ::m/config-watch {:config new-config}))
+            (let [new-config
+                  (try
+                    (let [new-config (config/load-cljs-edn)]
+                      (log/debug ::trigger)
 
-              (doseq [{:keys [build-id] :as new} (-> new-config :builds (vals))
-                      :when (not= new (get-in config [:builds build-id]))]
-                (log/debug ::update-build {:build-id build-id})
-                (sys-bus/publish! system-bus [::m/config-watch build-id] {:config new}))
+                      (when (not= new-config config)
+                        (log/debug ::update-global)
+                        (sys-bus/publish! system-bus ::m/config-watch {:config new-config}))
 
-              (sync-builds sync-db (:builds new-config))
+                      (doseq [{:keys [build-id] :as new} (-> new-config :builds (vals))
+                              :when (not= new (get-in config [:builds build-id]))]
+                        (log/debug ::update-build {:build-id build-id})
+                        (sys-bus/publish! system-bus [::m/config-watch build-id] {:config new}))
 
-              (reset! env/dependencies-modified-ref (not= dependencies (:dependencies new-config)))
+                      (sync-builds sync-db (:builds new-config))
 
-              (recur ts-test new-config)
-              )))))))
+                      (reset! env/dependencies-modified-ref (not= dependencies (:dependencies new-config))))
+                    (catch Exception e
+                      (log/warn-ex e ::update)
+                      config))]
+
+              (recur ts-test new-config))))))))
 
 (defn start [system-bus sync-db]
   (let [stop-ref
