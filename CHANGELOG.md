@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.6](https://github.com/thheller/shadow-cljs/compare/db68f2d6fcab032835f7948611620a2c32804254...406e0a80f18aefe2c5c2577eeb4dc9a334c64d84) - 2025-05-16
+- [ [`406e0`](https://github.com/thheller/shadow-cljs/commit/406e0a80f18aefe2c5c2577eeb4dc9a334c64d84) ] cljs/closure-library bump
+- [ [`4b7cc`](https://github.com/thheller/shadow-cljs/commit/4b7cc8514f8f82993636c6133a2d49287852ca99) ] stop config watch dying on bad config
+- [ [`02927`](https://github.com/thheller/shadow-cljs/commit/0292787717d4c9f50b6cd7d50af7c66ce9d02c06) ] add process/browser polyfills
+- [ [`00543`](https://github.com/thheller/shadow-cljs/commit/00543ebce38a6663438c20487811b0e8226178a1) ] update readme to correct current java21+ requirement
+- [ [`db68f`](https://github.com/thheller/shadow-cljs/commit/db68f2d6fcab032835f7948611620a2c32804254) ] oops, that doesn't go there
+
 ## [3.0.5](https://github.com/thheller/shadow-cljs/compare/084b63cdfbcbc72e52f573f60064e6acc3848700...084b63cdfbcbc72e52f573f60064e6acc3848700) - 2025-05-07
 - [ [`084b6`](https://github.com/thheller/shadow-cljs/commit/084b63cdfbcbc72e52f573f60064e6acc3848700) ] add :release-stubs option
 
