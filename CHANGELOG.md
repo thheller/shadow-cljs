@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.1.1](https://github.com/thheller/shadow-cljs/compare/b733c2bae2022a1bc791638ed79b6a5d33965303...b733c2bae2022a1bc791638ed79b6a5d33965303) - 2025-05-17
+- [ [`b733c`](https://github.com/thheller/shadow-cljs/commit/b733c2bae2022a1bc791638ed79b6a5d33965303) ] fix classpath filter
+
 ## [3.1.0](https://github.com/thheller/shadow-cljs/compare/40d9ae9d27bc61f83e3afc76771fc17f9aa68be9...40d9ae9d27bc61f83e3afc76771fc17f9aa68be9) - 2025-05-17
 - [ [`40d9a`](https://github.com/thheller/shadow-cljs/commit/40d9ae9d27bc61f83e3afc76771fc17f9aa68be9) ] move to shaded closure-compiler jar
 
