@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.1.0](https://github.com/thheller/shadow-cljs/compare/40d9ae9d27bc61f83e3afc76771fc17f9aa68be9...40d9ae9d27bc61f83e3afc76771fc17f9aa68be9) - 2025-05-17
+- [ [`40d9a`](https://github.com/thheller/shadow-cljs/commit/40d9ae9d27bc61f83e3afc76771fc17f9aa68be9) ] move to shaded closure-compiler jar
+
 ## [3.0.6](https://github.com/thheller/shadow-cljs/compare/db68f2d6fcab032835f7948611620a2c32804254...406e0a80f18aefe2c5c2577eeb4dc9a334c64d84) - 2025-05-16
 - [ [`406e0`](https://github.com/thheller/shadow-cljs/commit/406e0a80f18aefe2c5c2577eeb4dc9a334c64d84) ] cljs/closure-library bump
 - [ [`4b7cc`](https://github.com/thheller/shadow-cljs/commit/4b7cc8514f8f82993636c6133a2d49287852ca99) ] stop config watch dying on bad config
