@@ -1018,7 +1018,7 @@
           #"classes(/?)$"
           #"java(/?)$"
           ;; contains some "replacement" closure library files we don't want
-          #"closure-compiler-unshaded"]
+          #"closure-compiler"]
 
          :manifest-cache-dir
          (io/file cache-root "jar-manifest")
