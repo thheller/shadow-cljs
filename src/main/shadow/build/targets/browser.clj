@@ -22,7 +22,7 @@
             [shadow.cljs.devtools.server.npm-deps :as npm-deps]
             [shadow.build.log :as build-log])
   (:import [com.google.javascript.jscomp.deps SourceCodeEscapers]
-           [com.google.common.escape Escaper]))
+           [com.google.javascript.jscomp.jarjar.com.google.common.escape Escaper]))
 
 (s/def ::module-loader boolean?)
 

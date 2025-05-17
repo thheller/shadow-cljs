@@ -21,8 +21,8 @@
 package com.google.javascript.jscomp;
 
 import static clojure.lang.Compiler.munge;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import static com.google.javascript.jscomp.jarjar.com.google.common.base.Preconditions.checkNotNull;
+import static com.google.javascript.jscomp.jarjar.com.google.common.base.Preconditions.checkState;
 
 import clojure.lang.RT;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;

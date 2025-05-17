@@ -19,7 +19,7 @@
             [shadow.build.log :as build-log]
             [shadow.build.targets.browser :as browser])
   (:import [com.google.javascript.jscomp.deps SourceCodeEscapers]
-           [com.google.common.escape Escaper]))
+           [com.google.javascript.jscomp.jarjar.com.google.common.escape Escaper]))
 
 (s/def ::init-fn qualified-symbol?)
 

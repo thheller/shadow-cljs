@@ -38,11 +38,11 @@
    ;; hack to get the latest closure-compiler if CLJS doesn't have it
    [org.clojure/clojurescript "1.12.42"
     :exclusions
-    [com.google.javascript/closure-compiler-unshaded
+    [com.google.javascript/closure-compiler
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler-unshaded "v20250407"]
+   [com.google.javascript/closure-compiler "v20250407"]
 
    [org.clojure/google-closure-library "0.0-20250515-f04e4c0e"]
    [org.clojure/google-closure-library-third-party "0.0-20250515-f04e4c0e"]
