@@ -659,6 +659,22 @@
           (string? m)
           m
 
+          ;; @compiled/react has ./runtime with a conditional match to an array
+          ;;  "./runtime": {
+          ;;      "import": [
+          ;;        "./dist/esm/runtime.js",
+          ;;        "./src/runtime.ts"
+          ;;      ],
+          ;;      "require": [
+          ;;        "./dist/cjs/runtime.js",
+          ;;        "./src/runtime.ts"
+          ;;      ]
+          ;;    },
+          ;; FIXME: this is assuming that the first entry always exists, but why are there multiple values in the first place ...
+          ;; should probably properly test if the file actually exists and try next, but that requires rewriting this whole thing
+          (and (vector? m) (every? string? m))
+          (first m)
+
           :else
           nil)))))
 
