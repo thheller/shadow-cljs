@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.1.2](https://github.com/thheller/shadow-cljs/compare/efee9c0701b29cebfaa2c624b07030ca12c8c297...0f2e658adb1bd9ad81213638d146d8be6447bf6c) - 2025-05-20
+- [ [`0f2e6`](https://github.com/thheller/shadow-cljs/commit/0f2e658adb1bd9ad81213638d146d8be6447bf6c) ] no idea how to test this properly
+- [ [`4d6f1`](https://github.com/thheller/shadow-cljs/commit/4d6f1a8f2a9276ad6a629439ec9064a51226ca85) ] add very basic css extraction support for npm dependencies
+- [ [`eb324`](https://github.com/thheller/shadow-cljs/commit/eb324f27c99023e45beca8a8a135909fb06166cb) ] add weird edge case for npm "exports"
+- [ [`efee9`](https://github.com/thheller/shadow-cljs/commit/efee9c0701b29cebfaa2c624b07030ca12c8c297) ] update FUNDING.yml
+
 ## [3.1.1](https://github.com/thheller/shadow-cljs/compare/b733c2bae2022a1bc791638ed79b6a5d33965303...b733c2bae2022a1bc791638ed79b6a5d33965303) - 2025-05-17
 - [ [`b733c`](https://github.com/thheller/shadow-cljs/commit/b733c2bae2022a1bc791638ed79b6a5d33965303) ] fix classpath filter
 
