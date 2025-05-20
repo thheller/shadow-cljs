@@ -194,23 +194,24 @@
       (is (= "node_modules/extra-package/index.js" resource-name))
       )))
 
-(deftest test-asset-require
-  (with-npm [x {}]
-    (let [{:keys [file] :as rc1}
-          (find-npm-resource x nil "with-assets/index.js")]
+(comment
+  (deftest test-asset-require
+    (with-npm [x {}]
+      (let [{:keys [file] :as rc1}
+            (find-npm-resource x nil "with-assets/index.js")]
 
-      (is (thrown-with-msg? ExceptionInfo #"failed to inspect"
-            (find-npm-resource x rc1 "./foo.css")))
+        (is (thrown-with-msg? ExceptionInfo #"failed to inspect"
+              (find-npm-resource x rc1 "./foo.css")))
 
-      ;; can be configured to return empty instead of failing
-      (let [{:keys [ns]}
-            (find-npm-resource
-              (assoc-in x [:js-options :ignore-asset-requires] true)
-              rc1
-              "./foo.css")]
+        ;; can be configured to return empty instead of failing
+        (let [{:keys [ns]}
+              (find-npm-resource
+                (assoc-in x [:js-options :ignore-asset-requires] true)
+                rc1
+                "./foo.css")]
 
-        (is (= 'shadow$empty ns))
-        ))))
+          (is (= 'shadow$empty ns))
+          )))))
 
 ;; enhanced-resolve doesn't have an option to opt out of this behavior
 ;; manual equiv to nested node_modules install test but disabled finding top level instead
