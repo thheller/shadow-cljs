@@ -1,7 +1,7 @@
 {
   "name": "shadow-cljs",
-  "version": "3.1.1",
-  "jar-version": "3.1.1",
+  "version": "3.1.2",
+  "jar-version": "3.1.2",
   "description": "ClojureScript compiler and JS bundler",
   "author": "Thomas Heller",
   "license": "ISC",
