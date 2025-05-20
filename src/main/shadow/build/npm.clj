@@ -629,14 +629,36 @@
 
 (declare find-resource find-resource-in-package)
 
-(defn file-as-resource [npm package rel-require file]
-  (try
-    (with-npm-info npm package (get-file-info npm file))
-    (catch Exception e
-      ;; user may opt to just ignore a require("./something.css")
-      (if (and (:ignore-asset-requires (:js-options npm))
-               (asset-require? rel-require))
-        empty-rc
+(defn file-as-resource [npm package rel-require ^File file]
+  (if (asset-require? (.getName file))
+    ;; probable asset, parsing as JS would probably fail so don't event attempt
+    (let [resource-name (resource-name-for-file npm file)
+          last-mod (.lastModified file)
+          ns (-> (ModuleNames/fileToModuleName resource-name)
+                 (str/replace #"#" "_HASH_")
+                 (symbol))]
+      {:resource-id [::asset resource-name]
+       :resource-name resource-name
+       :output-name (util/flat-filename (str resource-name ".js"))
+       :cache-key [(.getCanonicalPath file) last-mod]
+       :last-modified last-mod
+       :ns ns
+       :asset true
+       :provides #{ns}
+       :requires #{}
+       :deps []
+       ;; still pretend that this is a "normal" resource, so it stays in the dependency graph
+       ;; so we can later identify which module it should be in and so on
+       :type :shadow-js
+       ;; could just have the thing create a <style> tag and use an inline string
+       ;; but I'd rather have that configurable in some way
+       :source ""
+       :file file})
+
+    ;; regular js file
+    (try
+      (with-npm-info npm package (get-file-info npm file))
+      (catch Exception e
         (throw (ex-info "failed to inspect node_modules file"
                  {:tag ::file-info-failed
                   :file file}
