@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.1.3](https://github.com/thheller/shadow-cljs/compare/d9a3c32ceadf1c8c0a828109056986569506c74f...d9a3c32ceadf1c8c0a828109056986569506c74f) - 2025-05-21
+- [ [`d9a3c`](https://github.com/thheller/shadow-cljs/commit/d9a3c32ceadf1c8c0a828109056986569506c74f) ] fix ESM builds breaking when using :keep-as-import
+
 ## [3.1.2](https://github.com/thheller/shadow-cljs/compare/efee9c0701b29cebfaa2c624b07030ca12c8c297...0f2e658adb1bd9ad81213638d146d8be6447bf6c) - 2025-05-20
 - [ [`0f2e6`](https://github.com/thheller/shadow-cljs/commit/0f2e658adb1bd9ad81213638d146d8be6447bf6c) ] no idea how to test this properly
 - [ [`4d6f1`](https://github.com/thheller/shadow-cljs/commit/4d6f1a8f2a9276ad6a629439ec9064a51226ca85) ] add very basic css extraction support for npm dependencies
