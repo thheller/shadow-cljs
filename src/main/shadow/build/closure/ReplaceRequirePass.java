@@ -46,15 +46,18 @@ public class ReplaceRequirePass extends NodeTraversal.AbstractPostOrderCallback 
                             // might be a clj-sym or String
                             Object replacement = requires.get(require);
                             if (replacement != null) {
-                                Node replacementNode = null;
-
                                 if (replacement instanceof Long) {
-                                    replacementNode = IR.number((Long) replacement);
-                                } else {
-                                    replacementNode = IR.string(replacement.toString());
+                                    Node replacementNode = IR.number((Long) replacement);
+                                    requireString.replaceWith(replacementNode);
+                                } else { // symbol or string
+                                    String s = replacement.toString();
+                                    if (s.startsWith("esm_import$")) {
+                                        node.replaceWith(NodeUtil.newQName(compiler, s));
+                                    } else {
+                                        Node replacementNode = IR.string(s);
+                                        requireString.replaceWith(replacementNode);
+                                    }
                                 }
-
-                                requireString.replaceWith(replacementNode);
 
                                 t.reportCodeChange();
                             }

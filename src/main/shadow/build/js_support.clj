@@ -168,11 +168,11 @@
      :deps ['goog]
      :source
      (if (= :release mode)
-       ;; in release mode we are hiding imports from the closure compiler and prepend to modules after optimizations
-       ;; otherwise gcc will try to rewrite them
+       ;; in release mode we are hiding imports from the closure compiler and run the ShadowESMImports pass to insert them after optimizations
        ""
 
        ;; in dev this is fine
        (str "import * as " import-alias " from \"" import "\";\n"
             "goog.provide(\"" fake-ns "\");\n"
+            "shadow.js.nativeProvides[\"" fake-ns "\"] = " import-alias ";\n"
             fake-ns " = " import-alias ";\n"))}))

@@ -95,7 +95,7 @@
     :ecmascript-next CompilerOptions$LanguageMode/ECMASCRIPT_NEXT
     :ecmascript-next-in CompilerOptions$LanguageMode/UNSTABLE
     :ecmascript-unstable CompilerOptions$LanguageMode/UNSTABLE
-    :unsupported  CompilerOptions$LanguageMode/UNSUPPORTED
+    :unsupported CompilerOptions$LanguageMode/UNSUPPORTED
     :unstable CompilerOptions$LanguageMode/UNSTABLE))
 
 (defn ^FeatureSet kw->feature-set [kw]
@@ -128,7 +128,7 @@
     (when-let [level
                (case level-kw
                  :advanced CompilationLevel/ADVANCED_OPTIMIZATIONS
-                 :whitespace (throw (ex-info ":whitespace optimizations are not supported!" {})) #_ CompilationLevel/WHITESPACE_ONLY
+                 :whitespace (throw (ex-info ":whitespace optimizations are not supported!" {})) #_CompilationLevel/WHITESPACE_ONLY
                  :simple CompilationLevel/SIMPLE_OPTIMIZATIONS
                  :none nil
                  (throw (ex-info "invalid :optimizations level" opts)))]
@@ -1178,9 +1178,30 @@
                   acc
                   (assoc acc (name module-id) force-imports)))
               {}
+              modules)
+
+            ;; collect all requires from :shadow-js files that may exist and refer to an import
+            ;; e.g. when only partially bundling via :keep-as-import and :shadow-js referring to one of those
+            ;; using this to pre-populate the JS pass to ensure it emits an import for these
+            ;; because the :advanced sources may not otherwise reference them, leading them to be removed
+            js-requires
+            (reduce
+              (fn [acc {:keys [module-id sources]}]
+                (assoc acc
+                  (name module-id)
+                  (into #{} (->> sources
+                                 (map #(data/get-source-by-id state %))
+                                 (filter #(= :shadow-js (:type %)))
+                                 (mapcat (fn [rc]
+                                           (->> (data/deps->syms state rc)
+                                                (map #(data/get-source-by-provide state %))
+                                                (filter ::js-support/import-shim)
+                                                (map :import-alias)
+                                                (map str))))))))
+              {}
               modules)]
 
-        (ShadowESMImports/process compiler imports forced-imports)))
+        (ShadowESMImports/process compiler imports forced-imports js-requires)))
 
     (-> state
         (assoc ::result result ::injected-libs injected-libs)

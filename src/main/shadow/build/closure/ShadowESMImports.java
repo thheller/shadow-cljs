@@ -22,9 +22,15 @@ public class ShadowESMImports extends NodeTraversal.AbstractPostOrderCallback  {
         }
     }
 
-    public static void process(Compiler compiler, Map<String, String> imports, Map<String, Set<String>> forcedImports) {
+    public static void process(Compiler compiler, Map<String, String> imports, Map<String, Set<String>> forcedImports, Map<String, Set<String>> jsImports) {
         // jsRoot not accessible otherwise, root has externs as first child and js root as second
         ShadowESMImports pass = new ShadowESMImports();
+
+        for (String mod : jsImports.keySet()) {
+            Set<String> s = pass.references.computeIfAbsent(mod, k -> new HashSet<>());
+            s.addAll(jsImports.get(mod));
+        }
+
         NodeTraversal.traverse(compiler, compiler.getRoot().getSecondChild(), pass);
 
         for (JSChunk chunk : compiler.getChunks()) {
@@ -85,7 +91,7 @@ public class ShadowESMImports extends NodeTraversal.AbstractPostOrderCallback  {
 
         Result result = cc.compile(SourceFile.fromCode("extern.js", "var esm_import$foo; var esm_import$bar; var esm_import$baz; var console;"), testFile, co);
 
-        ShadowESMImports.process(cc, (Map<String, String>) RT.map("esm_import$foo", "foo", "esm_import$bar", "bar", "esm_import$baz", "baz"), (Map<String, Set<String>>) RT.map());
+        ShadowESMImports.process(cc, (Map<String, String>) RT.map("esm_import$foo", "foo", "esm_import$bar", "bar", "esm_import$baz", "baz"), (Map<String, Set<String>>) RT.map(), (Map<String, Set<String>>) RT.map());
 
         System.out.println(cc.toSource());
     }
