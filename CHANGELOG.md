@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.1.4](https://github.com/thheller/shadow-cljs/compare/98488461ac03ed5f8dc501e625eb182ff5410598...98488461ac03ed5f8dc501e625eb182ff5410598) - 2025-05-22
+- [ [`98488`](https://github.com/thheller/shadow-cljs/commit/98488461ac03ed5f8dc501e625eb182ff5410598) ] ensure shadow.js exists in esm targets, just in case for dev
+
 ## [3.1.3](https://github.com/thheller/shadow-cljs/compare/d9a3c32ceadf1c8c0a828109056986569506c74f...d9a3c32ceadf1c8c0a828109056986569506c74f) - 2025-05-21
 - [ [`d9a3c`](https://github.com/thheller/shadow-cljs/commit/d9a3c32ceadf1c8c0a828109056986569506c74f) ] fix ESM builds breaking when using :keep-as-import
 
