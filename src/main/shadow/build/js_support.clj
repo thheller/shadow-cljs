@@ -165,7 +165,7 @@
      :provides #{fake-ns}
      :requires #{}
      :virtual true ;; prevents file from going through convert-goog, which wouldn't like the import
-     :deps ['goog]
+     :deps (cond-> ['goog] (= :dev mode) (conj 'shadow.js))
      :source
      (if (= :release mode)
        ;; in release mode we are hiding imports from the closure compiler and run the ShadowESMImports pass to insert them after optimizations
