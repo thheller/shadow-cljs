@@ -44,16 +44,22 @@
   (bind dom-ref (sg/ref))
 
   (event ::keyboard/ctrl+enter [env _ e]
-
     (.preventDefault e)
     (let [val (.-value @dom-ref)]
       (set! @dom-ref -value "")
 
       (sg/dispatch-up! env
         {:e ::code-input!
-         :code val})
+         :code val})))
 
-      ))
+  (event ::keyboard/meta+enter [env _ e]
+    (.preventDefault e)
+    (let [val (.-value @dom-ref)]
+      (set! @dom-ref -value "")
+
+      (sg/dispatch-up! env
+        {:e ::code-input!
+         :code val})))
 
   ;; FIXME: actually implement some sort of history
   (event ::keyboard/arrowup [env _ e]
