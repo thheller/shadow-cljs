@@ -1537,6 +1537,19 @@
                     (str/join "\n"))]
         (assoc build-state :lazy-loadable-js js)))))
 
+(defn add-ns-mod-lookup [state]
+  (let [lookup (->> (for [{:keys [module-id sources]} (:build-modules state)
+                          src-id sources
+                          :let [module-s (name module-id)
+                                {:keys [provides] :as rc} (get-in state [:sources src-id])]
+                          provide provides]
+                      [provide module-s])
+                    (into {}))]
+    (-> state
+        (assoc-in [:compiler-env :shadow.build/ns->mod] lookup)
+        ;; deprecated, but might still be used by someone
+        (assoc-in [:compiler-env :shadow.lazy/ns->mod] lookup))))
+
 (defn compile-all
   "compile a list of sources by id,
    requires that the ids are in dependency order
@@ -1642,14 +1655,7 @@
                                       :shadow/cljs-provides cljs-provides
                                       :shadow/goog-provides goog-provides})
 
-         (assoc-in [:compiler-env :shadow.build/ns->mod]
-           (->> (for [{:keys [module-id sources]} (:build-modules state)
-                      src-id sources
-                      :let [module-s (name module-id)
-                            {:keys [provides] :as rc} (get-in state [:sources src-id])]
-                      provide provides]
-                  [provide module-s])
-                (into {})))
+         (add-ns-mod-lookup)
 
          ;; order of this is important
          ;; CLJS first since all it needs are the provided names
