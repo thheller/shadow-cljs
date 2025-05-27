@@ -124,7 +124,7 @@
 
 (defn flush-source
   [state src-id]
-  (let [{:keys [resource-name output-name last-modified] :as src}
+  (let [{:keys [resource-name output-name last-modified ns] :as src}
         (data/get-source-by-id state src-id)
 
         {:keys [js compiled-at] :as output}
@@ -164,6 +164,10 @@
               output
               (str prepend
                    js
+                   ;; not sure where else to put this
+                   (let [lazy-js (:lazy-loadable-js state)]
+                     (when (and (= 'shadow.esm ns) (seq lazy-js))
+                       (str "\n" lazy-js "\n")))
                    (output/generate-source-map state src output js-file prepend))]
           (spit js-file output))))))
 

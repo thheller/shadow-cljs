@@ -1508,6 +1508,35 @@
                 (recur more (inc idx))
                 )))))))
 
+(defn handle-lazy-loadable [build-state]
+  ;; FIXME: this should really be a generic thing and ideally something that compiles CLJS in a second stage
+  ;; problem this is meant to address is that inside shadow.esm I cannot solve this with macros. since at the time that
+  ;; is getting compiled the other namespaces have not been compiled yet, so the metadata is incomplete
+  ;; (def x 1)
+  ;; (defn foo [] (some-macro))
+  ;; (def y 1)
+  ;; in CLJ this is no problem since metadata can be accessed at runtime, so when foo is actually called it can find y
+  ;; at runtime without any actually needing a macro
+  ;; but in CLJS regardless of what the macro does, it can only ever find x not y
+  ;;
+  ;; FIXME: :lazy-loadable tagging will also prevent DCE, even if never used
+  ;; ok for now I guess, but could maybe be smarter in some way
+  (let [src-id (get-in build-state [:sym->id 'shadow.esm])]
+    (if-not src-id
+      ;; can skip this if shadow.esm is not actually used
+      build-state
+      (let [js (->> (for [[ns ns-map] (get-in build-state [:compiler-env :cljs.analyzer/namespaces])
+                          [def-sym def] (:defs ns-map)
+                          :let [lazy-loadable (get-in def [:meta :lazy-loadable])]
+                          :when lazy-loadable]
+                      (let [fq-name (:name def)
+                            ;; allow ^{:lazy-loadable "foo"} in case people don't want to use fully qualified names
+                            loadable-name (if (string? lazy-loadable) lazy-loadable (str fq-name))
+                            module (get-in build-state [:compiler-env :shadow.build/ns->mod ns])]
+                        (str "shadow.esm.add_loadable(\"" loadable-name "\", \"" module "\", function() { return " (comp/munge fq-name) "; });\n")))
+                    (str/join "\n"))]
+        (assoc build-state :lazy-loadable-js js)))))
+
 (defn compile-all
   "compile a list of sources by id,
    requires that the ids are in dependency order
@@ -1613,7 +1642,7 @@
                                       :shadow/cljs-provides cljs-provides
                                       :shadow/goog-provides goog-provides})
 
-         (assoc-in [:compiler-env ::lazy/ns->mod]
+         (assoc-in [:compiler-env :shadow.build/ns->mod]
            (->> (for [{:keys [module-id sources]} (:build-modules state)
                       src-id sources
                       :let [module-s (name module-id)
@@ -1657,6 +1686,8 @@
          ;; that just got invalidated elsewhere
          (update :previously-compiled into build-sources)
          (remove-dead-js-deps)
+
+         (handle-lazy-loadable)
 
          (closure/make-polyfill-js)
          (assoc :compile-finish (System/currentTimeMillis))

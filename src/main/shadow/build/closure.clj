@@ -705,7 +705,7 @@
                         (str/join "\n"))))))
 
 (defn make-js-modules
-  [{:keys [build-modules build-sources] :as state}]
+  [{:keys [build-modules build-sources lazy-loadable-js] :as state}]
 
   (let [required-js-names
         (data/js-names-accessed-from-cljs state build-sources)
@@ -797,6 +797,9 @@
 
                   (when (= ns 'cljs.core)
                     (.add js-mod (closure-source-file mod-constants-name constants-inject)))
+
+                  (when (and (= ns 'shadow.esm) (seq lazy-loadable-js))
+                    (.add js-mod (closure-source-file "shadow/esm$lazy_loadable.js" lazy-loadable-js)))
                   ))
 
               (assoc js-mods module-id js-mod)))

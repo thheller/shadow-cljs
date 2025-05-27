@@ -5,7 +5,7 @@
     [cljs.compiler :as comp]))
 
 (defn module-for-ns [compiler-env ns]
-  (get-in compiler-env [::ns->mod ns]))
+  (get-in compiler-env [:shadow.build/ns->mod ns]))
 
 (defn module-for-ns! [env ns]
   (let [mod (module-for-ns @env/*compiler* ns)]

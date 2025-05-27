@@ -75,11 +75,10 @@
    :devtools {:enabled false}}
 
   :ui
-  {:target :browser
+  {:target :esm
 
    :output-dir "src/ui-release/shadow/cljs/ui/dist/js"
    :dev {:output-dir ".shadow-cljs/ui/js"}
-   :asset-path "/js"
 
    :compiler-options
    {:infer-externs :auto
@@ -96,7 +95,6 @@
    :devtools
    {:watch-dir "src/ui-release/shadow/cljs/ui/dist"}
 
-   :module-loader true
    :modules
    {:main
     {:init-fn shadow.cljs.ui.main/init

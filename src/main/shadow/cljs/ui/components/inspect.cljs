@@ -10,7 +10,7 @@
     [shadow.grove :as sg :refer (<< defc)]
     [shadow.grove.events :as ev]
     [shadow.grove.ui.vlist2 :as vlist]
-    [shadow.grove.ui.loadable :refer (refer-lazy)]
+    [shadow.grove.ui.lazy :as lazy]
     [shadow.grove.keyboard :as keyboard]
     [shadow.grove.ui.edn :as edn]
     [shadow.cljs :as-alias m]
@@ -18,8 +18,6 @@
     [shadow.cljs.ui.db.inspect :as db]
     [shadow.cljs.ui.db.explorer :as explorer-db]
     ))
-
-(refer-lazy shadow.cljs.ui.components.code-editor/codemirror)
 
 (def svg-chevron-double-left
   (<< [:svg {:width "24" :height "24" :viewBox "0 0 24 24" :fill "none" :xmlns "http://www.w3.org/2000/svg"}
@@ -77,7 +75,6 @@
     (<< [:textarea
          {::keyboard/listen true
           :dom/ref dom-ref
-          :type "text"
           :class (css :block :font-mono :w-full :p-2 {:height "84px"})
           :placeholder (:placeholder opts "REPL Input ... ctrl+enter to eval")
           :name "code"}])))
@@ -104,7 +101,7 @@
         (<< [:div {:class (css :w-full :h-full :font-mono :border-t :p-4)}
              (str (name attr) " request failed ...")])
 
-        (codemirror
+        (lazy/use "codemirror"
           {:value val
            :clojure (not= attr ::m/object-as-str)
            :cm-opts {:tabindex (if active? 0 -1)

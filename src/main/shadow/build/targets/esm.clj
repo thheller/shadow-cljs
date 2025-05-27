@@ -300,7 +300,7 @@
           (spit js-file output))))))
 
 (defn flush-unoptimized-module
-  [{:keys [worker-info build-modules] :as state}
+  [{:keys [worker-info build-modules lazy-loadable-js] :as state}
    {:keys [module-id output-name exports prepend append sources depends-on] :as mod}]
 
   (doseq [src-id sources]
@@ -338,11 +338,17 @@
         (str prepend "\n"
              module-imports "\n"
              imports "\n"
+
+             (when (seq lazy-loadable-js)
+               (when-some [mod (get-in state [:compiler-env :shadow.build/ns->mod 'shadow.esm])]
+                 (when (= mod (name module-id))
+                   (str lazy-loadable-js "\n")
+                   )))
+
              exports "\n"
              append "\n"
              (when (and worker-info (not (false? (get-in state [::build/config :devtools :enabled]))))
                (str "shadow.cljs.devtools.client.env.module_loaded(\"" (name module-id) "\");")))]
-
 
     ;; only write if output changed, avoids confusing other watchers
     (if (= out (get-in state [::dev-modules module-id]))

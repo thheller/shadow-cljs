@@ -32,14 +32,7 @@
    (html5
      {:lang "en"}
      [:head
-      [:link {:rel "preload" :as "script" :href "/js/main.js"}]
-      ;; starting the worker ASAP
-      ;; if the script starts it we have to wait for the script to download and execute
-      ;; [:link {:rel "preload" :as "worker" ...}] isn't supported yet
-      #_[:script
-         (str "var SHADOW_WORKER = new Worker(\"/js/worker.js?server-token="
-              (get-in req [:http :server-token])
-              "\");")]
+      [:script {:type "module" :src "/js/main.js"}]
       [:link {:href "/img/shadow-cljs.png" :rel "icon" :type "image/png"}]
       [:title (-> (io/file ".")
                   (.getCanonicalFile)
@@ -48,12 +41,7 @@
       [:meta {:name "shadow-remote-token" :content (get-in req [:http :server-token])}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"}]]
      [:body
-      [:div#root {:style "height: 100vh; width: 100vw;"}]
-      ;; defer'ing these causes the scripts to potentially run before the stylesheets finish loading
-      ;; leading to incorrect measurements of elements and messing up vlists
-      ;; I don't know how to fix that apart from just removing the defer?
-      ;; not so much of an issue anymore with jit'd tailwind but we don't gain much from defer anyways
-      [:script {:src "/js/main.js"}]])})
+      [:div#root {:style "height: 100vh; width: 100vw;"}]])})
 
 (defn no-cache! [res]
   (update-in res [:headers] assoc

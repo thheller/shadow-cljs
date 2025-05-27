@@ -105,5 +105,5 @@
 (defn make-editor [opts env]
   (EditorRoot. env (common/dom-marker env) opts nil nil))
 
-(defn codemirror [opts]
+(defn ^{:lazy-loadable "codemirror"} codemirror [opts]
   (with-meta opts {`ap/as-managed make-editor}))
