@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.1.5](https://github.com/thheller/shadow-cljs/compare/e00a65324cde0c6d26f57f8429c96febc23aaca5...4a20a459baf49fb1a78227a03cfe8bdac4b121d6) - 2025-05-28
+- [ [`4a20a`](https://github.com/thheller/shadow-cljs/commit/4a20a459baf49fb1a78227a03cfe8bdac4b121d6) ] only expose global in commonjs wrapper if actually used
+- [ [`84453`](https://github.com/thheller/shadow-cljs/commit/844531029aa1bb5cd0222c567fc4d56915bc83ef) ] no clue why ctrl+enter doesn't work on mac
+- [ [`d3db1`](https://github.com/thheller/shadow-cljs/commit/d3db1b307ca867c5c95e9c22b42006f66dac0491) ] restore :shadow.lazy/ns->mod lookup table
+- [ [`e00a6`](https://github.com/thheller/shadow-cljs/commit/e00a65324cde0c6d26f57f8429c96febc23aaca5) ] add experimental new shadow.lazy replacement for :target :esm
+
 ## [3.1.4](https://github.com/thheller/shadow-cljs/compare/98488461ac03ed5f8dc501e625eb182ff5410598...98488461ac03ed5f8dc501e625eb182ff5410598) - 2025-05-22
 - [ [`98488`](https://github.com/thheller/shadow-cljs/commit/98488461ac03ed5f8dc501e625eb182ff5410598) ] ensure shadow.js exists in esm targets, just in case for dev
 
