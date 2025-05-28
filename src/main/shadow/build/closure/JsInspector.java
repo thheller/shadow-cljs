@@ -48,6 +48,7 @@ public class JsInspector {
         boolean esm = false;
         boolean usesGlobalBuffer = false;
         boolean usesGlobalProcess = false;
+        boolean usesGlobal = false;
 
         String googModule = null;
         boolean googModuleLegacyNamespace = false;
@@ -131,7 +132,7 @@ public class JsInspector {
                     dynamicImports = dynamicImports.conj(x);
                     recordStrOffset(arg, false);
                 } else {
-                   throw new IllegalArgumentException("file uses import() with unsupported arguments and cannot be processed");
+                    throw new IllegalArgumentException("file uses import() with unsupported arguments and cannot be processed");
                 }
             } else if (NodeUtil.isCallTo(node, "goog.require")) {
                 String x = node.getLastChild().getString();
@@ -150,6 +151,8 @@ public class JsInspector {
                 usesGlobalBuffer = true;
             } else if (node.isName() && node.getString().equals("process") && t.getScope().getVar("process") == null) {
                 usesGlobalProcess = usesGlobalProcess || !isProcessEnvNode(node);
+            } else if (node.isName() && node.getString().equals("global") && t.getScope().getVar("global") == null) {
+                usesGlobal = true;
             }
         }
     }
@@ -172,6 +175,7 @@ public class JsInspector {
     public static final Keyword KW_GOOG_REQUIRE_TYPES = RT.keyword(NS, "goog-require-types");
     public static final Keyword KW_GOOG_MODULE = RT.keyword(NS, "goog-module");
     public static final Keyword KW_GOOG_MODULE_LEGACY_NAMESPACE = RT.keyword(NS, "goog-module-legacy-namespace");
+    public static final Keyword KW_USES_GLOBAL = RT.keyword(NS, "uses-global");
     public static final Keyword KW_USES_GLOBAL_BUFFER = RT.keyword(NS, "uses-global-buffer");
     public static final Keyword KW_USES_GLOBAL_PROCESS = RT.keyword(NS, "uses-global-process");
 
@@ -208,6 +212,7 @@ public class JsInspector {
                 KW_INVALID_REQUIRES, fileInfo.invalidRequires.persistent(),
                 KW_LANGUAGE, fileInfo.features.version(),
                 KW_STR_OFFSETS, fileInfo.strOffsets.persistent(),
+                KW_USES_GLOBAL, fileInfo.usesGlobal,
                 KW_USES_GLOBAL_BUFFER, fileInfo.usesGlobalBuffer,
                 KW_USES_GLOBAL_PROCESS, fileInfo.usesGlobalProcess,
                 KW_ERRORS, fileInfo.errors,
@@ -267,6 +272,10 @@ public class JsInspector {
 
         SourceFile esm6 = SourceFile.fromCode("process.js", "process.env.FOO");
         System.out.println(getFileInfoMap(cc, esm6));
+
+        SourceFile esm7 = SourceFile.fromCode("process.js", "global.x = 1;");
+        System.out.println(getFileInfoMap(cc, esm7));
+
 
         long start = System.currentTimeMillis();
         getFileInfoMap(cc, srcFile);

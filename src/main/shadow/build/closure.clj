@@ -1959,7 +1959,7 @@
                             (if (and require-id (:minimize-require js-options))
                               (pr-str require-id)
                               (str "\"" ns "\""))
-                            "] = function(global,require,module,exports) {\n"
+                            "] = function(require,module,exports" (when (:uses-global src) ",global") ") {\n"
                             (when (:uses-global-process src)
                               "var process = require('process');\n")
                             (when (:uses-global-buffer src)

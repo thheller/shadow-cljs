@@ -80,10 +80,10 @@ shadow.js.jsRequire = function(name, opts) {
       try {
         moduleFn.call(
           module,
-          goog.global,
           shadow.js.jsRequire,
           module,
-          module["exports"]
+          module["exports"],
+          goog.global
         );
       } catch (e) {
         console.warn("shadow-cljs - failed to load", name);

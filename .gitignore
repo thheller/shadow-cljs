@@ -1,6 +1,7 @@
 /ssl
 /out/TestCRNA
 /out/ExpoTest
+/out/production
 /src/ui-release/**/*.js
 target/
 node_modules/
