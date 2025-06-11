@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.1.6](https://github.com/thheller/shadow-cljs/compare/e19020811dc795dc103aac9cae3ad91cbe30af73...e19020811dc795dc103aac9cae3ad91cbe30af73) - 2025-06-11
+- [ [`e1902`](https://github.com/thheller/shadow-cljs/commit/e19020811dc795dc103aac9cae3ad91cbe30af73) ] fix npm "browser" override with false not working
+
 ## [3.1.5](https://github.com/thheller/shadow-cljs/compare/e00a65324cde0c6d26f57f8429c96febc23aaca5...4a20a459baf49fb1a78227a03cfe8bdac4b121d6) - 2025-05-28
 - [ [`4a20a`](https://github.com/thheller/shadow-cljs/commit/4a20a459baf49fb1a78227a03cfe8bdac4b121d6) ] only expose global in commonjs wrapper if actually used
 - [ [`84453`](https://github.com/thheller/shadow-cljs/commit/844531029aa1bb5cd0222c567fc4d56915bc83ef) ] no clue why ctrl+enter doesn't work on mac
