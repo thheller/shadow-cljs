@@ -544,14 +544,19 @@
 
       ;; allow :js-options config to replace files in package by name
       ;; :js-options {:package-overrides {"codemirror" {"./lib/codemirror.js" "./addon/runmode/runmode.node.js"}}
-      (or (get-in package-overrides [package-name rel-require])
+      ;; can't just use or because override might be false, meaning to skip the original require
+      (let [x (get-in package-overrides [package-name rel-require] ::miss)]
+        (if-not (identical? ::miss x)
+          x
           ;; direct map including extension
-          (get browser-overrides rel-require)
-          ;; and because npm is fun, also try without
-          (let [without-ext (drop-extension rel-require)]
-            (when (not= rel-require without-ext)
-              (get browser-overrides without-ext)
-              ))))))
+          (let [y (get browser-overrides rel-require ::miss)]
+            (if-not (identical? ::miss y)
+              y
+              ;; and because npm is fun, also try without
+              (let [without-ext (drop-extension rel-require)]
+                (when (not= rel-require without-ext)
+                  (get browser-overrides without-ext)
+                  )))))))))
 
 ;; returns [package file] in case a nested package.json was used overriding package
 (defn find-match-in-package [npm {:keys [package-dir package-json] :as package} rel-require]
