@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.1.7](https://github.com/thheller/shadow-cljs/compare/54b7b5c59e8a81816ad3d840f50f96b889ddeede...54b7b5c59e8a81816ad3d840f50f96b889ddeede) - 2025-06-14
+- [ [`54b7b`](https://github.com/thheller/shadow-cljs/commit/54b7b5c59e8a81816ad3d840f50f96b889ddeede) ] fix $jscomp issue for :esm
+
 ## [3.1.6](https://github.com/thheller/shadow-cljs/compare/e19020811dc795dc103aac9cae3ad91cbe30af73...e19020811dc795dc103aac9cae3ad91cbe30af73) - 2025-06-11
 - [ [`e1902`](https://github.com/thheller/shadow-cljs/commit/e19020811dc795dc103aac9cae3ad91cbe30af73) ] fix npm "browser" override with false not working
 
