@@ -462,10 +462,9 @@
           build-modules))))
 
 (defn inject-polyfill-js [{:keys [polyfill-js] :as state}]
-  (update-in state [::closure/modules 0 :prepend] str
-    (if (seq polyfill-js)
-      polyfill-js
-      "export const $jscomp = {};\n")))
+  (if-not (seq polyfill-js)
+    state
+    (update-in state [::closure/modules 0 :prepend] str polyfill-js "\n")))
 
 (defn setup-imports [state]
   (let [js-import-sources
@@ -510,7 +509,8 @@
                        (-> mod
                            (cond->
                              (:default mod)
-                             (update :module-externs set/union externs)
+                             (-> (update :prepend str "export const $jscomp = {};\n")
+                                 (update :module-externs set/union externs))
 
                              ;; only create shadow_esm_import if shadow.esm was required anywhere
                              ;; needs to be created in all modules since it must be module local
