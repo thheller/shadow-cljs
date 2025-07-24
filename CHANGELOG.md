@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.1.8](https://github.com/thheller/shadow-cljs/compare/a819bbaad20b021d177f7b0b3564a5972b2da900...a819bbaad20b021d177f7b0b3564a5972b2da900) - 2025-07-24
+- [ [`a819b`](https://github.com/thheller/shadow-cljs/commit/a819bbaad20b021d177f7b0b3564a5972b2da900) ] fix CLJS-3399 :as-alias not working for backtick symbols
+
 ## [3.1.7](https://github.com/thheller/shadow-cljs/compare/54b7b5c59e8a81816ad3d840f50f96b889ddeede...54b7b5c59e8a81816ad3d840f50f96b889ddeede) - 2025-06-14
 - [ [`54b7b`](https://github.com/thheller/shadow-cljs/commit/54b7b5c59e8a81816ad3d840f50f96b889ddeede) ] fix $jscomp issue for :esm
 
