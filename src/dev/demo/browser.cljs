@@ -22,11 +22,14 @@
     [demo.js-class :refer (Foo)]
     ["dyn-import" :as dyn]
     [shadow.cljs.modern :refer (js-await)]
+    [fake.ns :as-alias alias]
     [demo.dummy-cljc]
     [demo.didnt-follow-the-rules :as rule-breaker])
   (:import [goog.module ModuleLoader]))
 
 (js/console.log (goog.object/get #js {:foo "foo"} "foo"))
+
+(js/console.log "foo" `alias/bar ::alias/bar)
 
 (js-await [mod (dyn/bar)]
   (js/console.log "dyn-import" mod (.bar mod)))

@@ -115,7 +115,8 @@
 
 ;; ana/resolve-ns-alias converts to symbols too much, we already only have symbols
 (defn resolve-ns-alias [env alias]
-  (ana/gets env :ns :requires alias))
+  (or (ana/gets env :ns :requires alias)
+      (ana/gets env :ns :as-aliases alias)))
 
 (defn invokeable-ns?
   "Returns true if ns is a required namespace and a JavaScript module that

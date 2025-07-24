@@ -368,6 +368,7 @@
       ;; only reader-alias, no loading or dependency
       (-> ns-info
           (check-alias-conflict! lib as-alias)
+          (update :as-aliases assoc as-alias lib)
           (update :reader-aliases assoc as-alias lib))
 
       ;; regular none :as-alias require
