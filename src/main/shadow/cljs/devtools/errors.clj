@@ -416,6 +416,7 @@
 (defmethod ex-data-format :shadow.build.resolve/unexpected-ns
   [w e {:keys [resource actual-ns expected-ns]}]
   (.write w (.getMessage e))
+  (.write w "\n")
   (.write w "Resource: ")
   (.write w resource)
   (.write w "\n")
