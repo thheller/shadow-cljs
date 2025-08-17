@@ -461,11 +461,6 @@
             (flush-unoptimized-module state mod))
           build-modules))))
 
-(defn inject-polyfill-js [{:keys [polyfill-js] :as state}]
-  (if-not (seq polyfill-js)
-    state
-    (update-in state [::closure/modules 0 :prepend] str polyfill-js "\n")))
-
 (defn setup-imports [state]
   (let [js-import-sources
         (->> (:build-sources state)
@@ -545,9 +540,7 @@
       :dev
       (flush-dev state)
       :release
-      (-> state
-          (inject-polyfill-js)
-          (output/flush-optimized)))
+      (output/flush-optimized state))
 
     :else
     state))
