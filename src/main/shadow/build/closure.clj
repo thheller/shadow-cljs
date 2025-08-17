@@ -2251,9 +2251,13 @@
         need-compile?
         (boolean (seq recompile-sources))
 
+        cache-injects
+        (when (= cache-options (:CACHE-OPTIONS cache-index))
+          (:injected-libs cache-index))
+
         state
         (-> state
-            (update ::shadow-js-injected-libs set/union (:injected-libs cache-index))
+            (update ::shadow-js-injected-libs set/union cache-injects)
             (cond->
               need-compile?
               (convert-sources-simple* recompile-sources)))
