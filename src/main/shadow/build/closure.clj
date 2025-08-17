@@ -1581,8 +1581,9 @@
         (merge
           {:pretty-print true
            :source-map true
-           :language-in :ecmascript-next-in
-           :output-feature-set :es2020}
+           :language-in :unsupported
+           :language-out :unsupported
+           :output-feature-set :es-unsupported}
           (get-output-options state))
 
         co
@@ -2003,11 +2004,9 @@
           {:optimizations :simple
            :pretty-print (boolean (= mode :dev))
            :pseudo-names false
-           ;; es6+ is transformed by babel first
-           ;; but closure got real picky and complains about some things being es6 that aren't
-           ;; doesn't really impact much here anyways
-           :language-in :ecmascript-next-in
-           :output-feature-set :es2020}
+           :language-in :unsupported
+           :language-out :unsupported
+           :output-feature-set :es-unsupported}
           (get-output-options state)
           ;; js-options should always override things pulled from :compiler-options
           (dissoc js-options :resolve)
@@ -2339,8 +2338,9 @@
   (merge
     {:pretty-print true
      :pseudo-names false
-     :language-in :ecmascript-next-in
-     :output-feature-set :es2020
+     :language-in :unsupported
+     :language-out :unsupported
+     :output-feature-set :es-unsupported
      :source-map true}
     (get-output-options state)))
 

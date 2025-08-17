@@ -100,10 +100,7 @@
 
         (cond->
           (and (= :dev mode) (:worker-info state))
-          (shared/merge-repl-defines config)
-
-          (nil? (get-in config [:compiler-options :output-feature-set]))
-          (assoc-in [:compiler-options :output-feature-set] :es2020))
+          (shared/merge-repl-defines config))
 
         (browser/configure-modules mode (assoc config :modules modules)))))
 

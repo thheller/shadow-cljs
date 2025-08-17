@@ -30,13 +30,7 @@
       (build-api/with-js-options
         {:target :node
          :use-browser-overrides false
-         :entry-keys ["main"]})
-
-      ;; all semi-recent versions of node should be fine with es8
-      ;; don't overwrite user choice though
-      (cond->
-        (nil? (get-in state [:shadow.build/config :compiler-options :output-feature-set]))
-        (assoc-in [:compiler-options :output-feature-set] :es2020))))
+         :entry-keys ["main"]})))
 
 (defn replace-goog-global [state]
   (update-in state [:sources output/goog-base-id :source]

@@ -71,10 +71,9 @@
    :elide-asserts false
    :closure-configurators []
    :infer-externs :auto
-   :language-in :ecmascript-next-in
-   ;; still need to set this since it otherwise ends up using strict mode default
-   :language-out :ecmascript-2020
-   :output-feature-set :es2020
+   :language-in :unsupported
+   :language-out :unsupported
+   :output-feature-set :es-unsupported
 
    :closure-warnings
    {:check-types :off}
