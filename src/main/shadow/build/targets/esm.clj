@@ -504,8 +504,7 @@
                        (-> mod
                            (cond->
                              (:default mod)
-                             (-> (update :prepend str "export const $jscomp = {};\n")
-                                 (update :module-externs set/union externs))
+                             (update :module-externs set/union externs)
 
                              ;; only create shadow_esm_import if shadow.esm was required anywhere
                              ;; needs to be created in all modules since it must be module local
@@ -518,9 +517,45 @@
                              (not (:default mod))
                              (update :prepend
                                (fn [prepend]
-                                 (str "import { $APP, shadow$provide, $jscomp } from \"./" (:output-name base-mod) "\";\n" prepend))))
+                                 (str "import { $APP, shadow$provide } from \"./" (:output-name base-mod) "\";\n" prepend))))
                            )))
                    (vec))))))))
+
+
+(defn maybe-import-jscomp [state]
+  (let [jscomp-used? (seq (:polyfill-js state))]
+    (if-not jscomp-used?
+      state
+      (update state ::closure/modules
+        (fn [modules]
+          (let [base-mod (first modules)]
+            (->> modules
+                 (map
+                   (fn [mod]
+
+                     ;; resolve moved the import shims to the common module
+                     ;; for esm tree-shaking of other tools to work, we need them per module
+                     ;; so for all sources of the module also find direct uses of npm packages
+                     ;; just in case multiple modules use them.
+
+                     ;; normally this would go indirectly over a shadow.esm.esm$package = esm$react
+                     ;; assignment which is then made cross-module accessible via $APP
+                     ;; but JS tools don't understand this and never tree shake
+
+                     ;; dev builds still do this but release just has an empty shim to reserve the names
+                     ;; but actually just prepend the imports here
+                     (-> mod
+                         (cond->
+                           (:default mod)
+                           (update :prepend str "export { $jscomp };\n")
+
+                           (and (not (:default mod))
+                                (str/index-of (:output mod) "$jscomp"))
+                           (update :prepend
+                             (fn [prepend]
+                               (str "import { $jscomp } from \"./" (:output-name base-mod) "\";\n" prepend))))
+                         )))
+                 (vec))))))))
 
 (defn process
   [{::build/keys [mode stage] :as state}]
@@ -540,7 +575,9 @@
       :dev
       (flush-dev state)
       :release
-      (output/flush-optimized state))
+      (-> state
+          (maybe-import-jscomp)
+          (output/flush-optimized)))
 
     :else
     state))
