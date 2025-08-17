@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.2.0](https://github.com/thheller/shadow-cljs/compare/ff236035222ed5f7cd105e0a617cd78e13743fab...2e878ab58b9395ce3ae89d75011d1f6c15aa664c) - 2025-08-17
+- [ [`2e878`](https://github.com/thheller/shadow-cljs/commit/2e878ab58b9395ce3ae89d75011d1f6c15aa664c) ] add some missing feature-set values
+- [ [`ecf9b`](https://github.com/thheller/shadow-cljs/commit/ecf9b9338bbe916c4bbc8a5a31bbe8188cc44740) ] make NOT-polyfilling the default
+- [ [`07ef0`](https://github.com/thheller/shadow-cljs/commit/07ef05569310d192db0c3c1ab971529c80736b6b) ] make :esm smarter about detecting if $jscomp is needed
+- [ [`6c70a`](https://github.com/thheller/shadow-cljs/commit/6c70a789675963cd9d4f54319a704a82e98a7575) ] fix :esm injecting polyfills twice
+- [ [`bcc96`](https://github.com/thheller/shadow-cljs/commit/bcc966d2c521d221bb282f4e7c1f189c4696aa88) ] make :esm test build compile again
+- [ [`d2062`](https://github.com/thheller/shadow-cljs/commit/d206298b76e474fc817cfe23518c505604340fb3) ] fix polyfill cache being too sticky
+- [ [`ff236`](https://github.com/thheller/shadow-cljs/commit/ff236035222ed5f7cd105e0a617cd78e13743fab) ] Add newline between exception msg and context msgs (#1233)
+
 ## [3.1.8](https://github.com/thheller/shadow-cljs/compare/a819bbaad20b021d177f7b0b3564a5972b2da900...a819bbaad20b021d177f7b0b3564a5972b2da900) - 2025-07-24
 - [ [`a819b`](https://github.com/thheller/shadow-cljs/commit/a819bbaad20b021d177f7b0b3564a5972b2da900) ] fix CLJS-3399 :as-alias not working for backtick symbols
 
