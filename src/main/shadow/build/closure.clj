@@ -96,13 +96,12 @@
     :ecmascript-next-in CompilerOptions$LanguageMode/UNSTABLE
     :ecmascript-unstable CompilerOptions$LanguageMode/UNSTABLE
     :unsupported CompilerOptions$LanguageMode/UNSUPPORTED
+    :stable CompilerOptions$LanguageMode/STABLE
     :unstable CompilerOptions$LanguageMode/UNSTABLE))
 
 (defn ^FeatureSet kw->feature-set [kw]
   (case kw
     :bare-minimum FeatureSet/BARE_MINIMUM
-    :browser-2020 FeatureSet/BROWSER_2020
-    :browser-2021 FeatureSet/BROWSER_2021
     :es3 FeatureSet/ES3
     :es5 FeatureSet/ES5
     ;; FIXME: probably can't allow es6-modules variants since we can never load those
@@ -115,6 +114,12 @@
     :es2019 FeatureSet/ES2019
     :es2020 FeatureSet/ES2020
     :es2021 FeatureSet/ES2021
+    :browser-2020 FeatureSet/BROWSER_2020
+    :browser-2021 FeatureSet/BROWSER_2021
+    :browser-2022 FeatureSet/BROWSER_2022
+    :browser-2023 FeatureSet/BROWSER_2023
+    :browser-2024 FeatureSet/BROWSER_2024
+    :browser-2025 FeatureSet/BROWSER_2025
     :es-next FeatureSet/ES_NEXT
     :es-next-in FeatureSet/ES_UNSTABLE
     :es-unstable FeatureSet/ES_UNSTABLE
