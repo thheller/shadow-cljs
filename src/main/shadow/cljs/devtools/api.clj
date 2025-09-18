@@ -99,7 +99,12 @@
       (keys)
       (into #{})))
 
-(defn get-runtime! []
+(defn get-runtime!
+  "NB: The runtime object is too huge to print at the REPL.
+   * (api/get-runtime!) ; => will blow your REPL up
+   * (:config (api/get-runtime!)) ; => works just fine
+   * (:supervisor (api/get-runtime!)) ; => also blows the REPL up"
+  []
   (runtime/get-instance!))
 
 (defn- get-or-start-worker [build-config opts]
