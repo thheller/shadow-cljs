@@ -237,7 +237,7 @@
           (relay/connect relay to-relay from-relay {})
 
           session-id
-          (-> msg :session meta :id)
+          (-> session meta :id)
 
           {:keys [client-id] :as welcome-msg}
           (<!! from-relay)
@@ -258,35 +258,40 @@
             (async/close! connection-stop)
             (log/debug-ex ex ::remote-out-failed msg)))
 
-        (thread
-          (swap! remote-clients-ref assoc session-id
-            {:to-relay to-relay
-             :from-relay from-relay
-             :connection-stop connection-stop
-             :session-id session-id
-             :client-id client-id
-             :encoder encoder
-             :decoder decoder})
+        (do (swap! remote-clients-ref assoc session-id
+              {:to-relay to-relay
+               :from-relay from-relay
+               :connection-stop connection-stop
+               :session-id session-id
+               :client-id client-id
+               :encoder encoder
+               :decoder decoder})
 
-          (>!! to-relay
-               {:op :hello
-                ;; FIXME: get more data out of msg maybe?
-                :client-info {:type :nrepl-session}})
+            (>!! to-relay
+              {:op :hello
+               :client-info {:type :nrepl-session}})
 
-          ;; forward everything from the relay to nrepl endpoint
-          ;; relay will be sending heartbeats and if they can't be delivered the connection will stop
-          ;; remote-clients-ref is sort of global but we can get away with that for now
-          (loop []
-            (when-some [x (<!! from-relay)]
-              (try
-                (transport/send transport (nrepl-merge msg {:op "shadow-remote-msg" :data (encoder x)}))
-                (catch Exception ex
-                  (async/close! connection-stop)
-                  (log/debug-ex ex ::remote-out-failed msg)))
-              (recur)))
+            ;; lets nrepl clients treat shadow-remote-init as RPC
+            ;; sending other messages immediately after init with no delay causes things to maybe run too early
+            ;; since nrepl executes messages in a thread pool but immediately reads next
+            ;; so init may still be working when next message is processed
+            (transport/send transport (nrepl-merge msg {:client-id client-id :status #{:done}}))
 
-          (swap! remote-clients-ref dissoc session-id)
-          )))
+            (thread
+              ;; forward everything from the relay to nrepl endpoint
+              ;; relay will be sending heartbeats and if they can't be delivered the connection will stop
+              ;; remote-clients-ref is sort of global but we can get away with that for now
+              (loop []
+                (when-some [x (<!! from-relay)]
+                  (try
+                    (transport/send transport (nrepl-merge msg {:op "shadow-remote-msg" :data (encoder x)}))
+                    (catch Exception ex
+                      (async/close! connection-stop)
+                      (log/debug-ex ex ::remote-out-failed msg)))
+                  (recur)))
+
+              (swap! remote-clients-ref dissoc session-id)
+              ))))
 
     "shadow-remote-msg"
     (let [session-id (-> msg :session meta :id)
@@ -301,6 +306,7 @@
         (let [{:keys [decoder to-relay]} client
               remote-msg (decoder (:data msg))]
           (async/offer! to-relay remote-msg)
+          (transport/send transport (nrepl-merge msg {:status #{:done}}))
           )))
 
     "shadow-remote-stop"
@@ -309,7 +315,9 @@
 
       ;; nothing to do if there is no client session
       (when client
-        (async/close! (:connection-stop client))))
+        (async/close! (:connection-stop client)))
+
+      (transport/send transport (nrepl-merge msg {:status #{:done}})))
 
     ;; default case
     (let [{::keys [build-id] :as msg} (set-build-id msg)]

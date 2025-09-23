@@ -53,7 +53,17 @@
 ;; we intercept the work it would do, so we don't have to emulate it
 (middleware/set-descriptor! #'middleware
   {:requires #{"clone" #'print/wrap-print}
-   :expects #{"eval" "load-file" "shadow-remote-init" "shadow-remote-msg" "shadow-remote-stop" #'piggieback/wrap-cljs-repl}})
+   :expects #{"eval" "load-file"  #'piggieback/wrap-cljs-repl}
+   :handles
+   {"shadow-remote-init"
+    {:doc "initializes the nrepl session to send and receive shadow.remote messages"
+     :requires {"data-type" "edn or transit, deciding what encoding the messages will use"}}
+    "shadow-remote-msg"
+    {:doc "sends actual shadow.remote message to the relay. also used for receiving messages from the relay."
+     :requires {"data" "string using the previously selected encoding, representing a shadow.remote message (data)"}}
+    "shadow-remote-stop"
+    {:doc "clears the shadow.remote subscription from the nrepl session and will no longer receive relay messages."}
+    }})
 
 (defn load-middleware-sym [sym]
   {:pre [(qualified-symbol? sym)]}
