@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.2.1](https://github.com/thheller/shadow-cljs/compare/2602e0b9f8fcf3d041b7b5800d53f025f798daad...bc3f9189fe6a5e090ff724a71c161e6e60489f32) - 2025-09-23
+- [ [`bc3f9`](https://github.com/thheller/shadow-cljs/commit/bc3f9189fe6a5e090ff724a71c161e6e60489f32) ] make shadow.remote nrepl endpoint send :done status
+- [ [`2602e`](https://github.com/thheller/shadow-cljs/commit/2602e0b9f8fcf3d041b7b5800d53f025f798daad) ] add typeof as known global
+
 ## [3.2.0](https://github.com/thheller/shadow-cljs/compare/ff236035222ed5f7cd105e0a617cd78e13743fab...2e878ab58b9395ce3ae89d75011d1f6c15aa664c) - 2025-08-17
 - [ [`2e878`](https://github.com/thheller/shadow-cljs/commit/2e878ab58b9395ce3ae89d75011d1f6c15aa664c) ] add some missing feature-set values
 - [ [`ecf9b`](https://github.com/thheller/shadow-cljs/commit/ecf9b9338bbe916c4bbc8a5a31bbe8188cc44740) ] make NOT-polyfilling the default
