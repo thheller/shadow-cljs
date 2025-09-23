@@ -274,6 +274,7 @@
          setTimeout
          String
          Symbol
+         typeof
          TypeError
          console
          eval
