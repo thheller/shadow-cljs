@@ -793,7 +793,7 @@
 
           (when fill
             (when-some [replacement (find-exports-replacement npm match)]
-              (let [path (str/replace replacement #"\*" fill)
+              (let [path (str/replace replacement #"\*" (str/re-quote-replacement fill))
                     file (test-file package-dir path)]
 
                 (cond
