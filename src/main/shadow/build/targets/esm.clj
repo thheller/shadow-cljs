@@ -11,6 +11,7 @@
     [shadow.build.output :as output]
     [shadow.build.targets.shared :as shared]
     [shadow.build.targets.browser :as browser]
+    [shadow.build.targets.external-index :as external-index]
     [shadow.build.config :as config]
     [shadow.build.node :as node]
     [shadow.build.js-support :as js-support]
@@ -554,6 +555,19 @@
                          )))
                  (vec))))))))
 
+
+(defn flush [state mode]
+  (cond-> state
+    (= :external (get-in state [:js-options :js-provider]))
+    (external-index/flush-js)
+
+    (= :dev mode)
+    (flush-dev)
+
+    (= :release mode)
+    (-> (maybe-import-jscomp)
+        (output/flush-optimized))))
+
 (defn process
   [{::build/keys [mode stage] :as state}]
   (cond
@@ -568,13 +582,7 @@
           (setup-imports)))
 
     (= stage :flush)
-    (case mode
-      :dev
-      (flush-dev state)
-      :release
-      (-> state
-          (maybe-import-jscomp)
-          (output/flush-optimized)))
+    (flush state mode)
 
     :else
     state))
