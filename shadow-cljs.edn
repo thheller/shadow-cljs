@@ -157,6 +157,8 @@
     :shadow-keywords true
     :global-goog-object&array true
     :source-map true
+    :lite-mode true
+    :elide-to-string true
     ;; :output-feature-set :es6
     ;; :output-wrapper false
     ;; :closure-output-charset "US-ASCII"
@@ -167,8 +169,8 @@
    [(shadow.build/tap-hook)
     (shadow.cljs.build-report/hook)
     (shadow.html/copy-file
-          "out/demo-browser/index.src.html"
-          "out/demo-browser/public/index.html")]
+      "out/demo-browser/index.src.html"
+      "out/demo-browser/public/index.html")]
 
    :dev {:build-options {:auto-require-suffixes ["-specs"]}}
 
@@ -204,6 +206,16 @@
    {:before-load-async demo.browser/stop-from-config
     :after-load demo.browser/start-from-config
     :build-notify demo.browser/custom-notify}}
+
+  :lite-test
+  {:target :browser
+   :output-dir "out/demo-lite/js"
+   :modules {:main {:entries [demo.lite]}}
+   :compiler-options
+   {:lite-mode true
+    :elide-to-string true}
+   :build-hooks
+   [(shadow.build/tap-hook)]}
 
   :zombie
   {:target :browser
@@ -498,8 +510,8 @@
    {:hello demo.lib/hello
     :default demo.lib/hello}
    #_#_:js-options
-   {:js-provider :shadow
-    :keep-native-requires true}}
+           {:js-provider :shadow
+            :keep-native-requires true}}
 
   #_#_:custom
           {:target build/custom

@@ -1,6 +1,7 @@
 (ns shadow.build.compiler
   (:require
     [cljs.analyzer.api :as ana-api]
+    [cljs.analyzer.passes.lite :as lite]
     [clojure.string :as str]
     [clojure.set :as set]
     [clojure.java.io :as io]
@@ -888,6 +889,8 @@
    [:shadow.build/config :target]
    [:js-options :js-provider]
    [:js-options :use-babel]
+   [:compiler-options :lite-mode]
+   [:compiler-options :elide-to-string]
    [:compiler-options :form-size-threshold] ;; for tracking big suspicious code chunks
    [:compiler-options :source-map]
    [:compiler-options :source-map-inline]

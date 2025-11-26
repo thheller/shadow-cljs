@@ -1,6 +1,7 @@
 (ns shadow.build
   (:refer-clojure :exclude (resolve compile flush))
   (:require
+    [cljs.analyzer.passes.lite :as lite]
     [clojure.java.io :as io]
     [clojure.spec.alpha :as s]
     [clojure.set :as set]
@@ -421,6 +422,10 @@
 
              js-options
              (build-api/with-js-options js-options)
+
+             (true? (:lite-mode compiler-options))
+             (-> (update :analyzer-passes conj lite/use-lite-types)
+                 (assoc-in [:compiler-options :closure-defines 'cljs.core/LITE_MODE] true))
 
              (and (= :dev mode)
                   (:keep-native-requires js-options))

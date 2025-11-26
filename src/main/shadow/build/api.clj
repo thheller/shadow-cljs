@@ -192,7 +192,8 @@
        :analyzer-passes
        [cljs-ana/infer-type
         and-or/optimize
-        impl/find-protocols-pass impl/find-js-require-pass]}
+        impl/find-protocols-pass
+        impl/find-js-require-pass]}
       (data/init)))
 
 ;; helper methods that validate their args, sort of
