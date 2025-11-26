@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.2.2](https://github.com/thheller/shadow-cljs/compare/d490af0d100d63ac2c6b87c631e852639bfa1f71...9048870acebf47918d9a10f9d81f76425a087a5d) - 2025-11-26
+- [ [`90488`](https://github.com/thheller/shadow-cljs/commit/9048870acebf47918d9a10f9d81f76425a087a5d) ] Add external index support for :esm target (#1242)
+- [ [`d490a`](https://github.com/thheller/shadow-cljs/commit/d490af0d100d63ac2c6b87c631e852639bfa1f71) ] quote npm replacement string using regex references
+
 ## [3.2.1](https://github.com/thheller/shadow-cljs/compare/2602e0b9f8fcf3d041b7b5800d53f025f798daad...bc3f9189fe6a5e090ff724a71c161e6e60489f32) - 2025-09-23
 - [ [`bc3f9`](https://github.com/thheller/shadow-cljs/commit/bc3f9189fe6a5e090ff724a71c161e6e60489f32) ] make shadow.remote nrepl endpoint send :done status
 - [ [`2602e`](https://github.com/thheller/shadow-cljs/commit/2602e0b9f8fcf3d041b7b5800d53f025f798daad) ] add typeof as known global
