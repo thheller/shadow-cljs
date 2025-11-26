@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.3.1](https://github.com/thheller/shadow-cljs/compare/525d4b82c2fc5c6d09edbe6d256bb49b1d198f3d...525d4b82c2fc5c6d09edbe6d256bb49b1d198f3d) - 2025-11-26
+- [ [`525d4`](https://github.com/thheller/shadow-cljs/commit/525d4b82c2fc5c6d09edbe6d256bb49b1d198f3d) ] temp fix for cljs.core/Vector clash
+
 ## [3.3.0](https://github.com/thheller/shadow-cljs/compare/c454433fbb06087b559f4c75dca58bf904563eba...c454433fbb06087b559f4c75dca58bf904563eba) - 2025-11-26
 - [ [`c4544`](https://github.com/thheller/shadow-cljs/commit/c454433fbb06087b559f4c75dca58bf904563eba) ] update to cljs 1.12.116
 
