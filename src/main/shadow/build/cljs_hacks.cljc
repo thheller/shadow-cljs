@@ -1157,6 +1157,46 @@
              (meta form)))]
       (core/ifn-invoke-methods type type-sym form))))
 
+;; temp fix until there is a release with the Vector->VectorLite rename
+;; (deftype Vector ...) clashes with cljs.core.Vector and ends up defining cljs.core.Vector although in a different ns
+(defn shadow-parse-type
+  [op env [_ tsym fields pmasks body :as form]]
+  ;; not using resolve here, since a missing :excludes otherwise overwrites a type in a different ns?
+  (let [t (symbol (str (:name (:ns env))) (str tsym))
+        locals (reduce (fn [m fld]
+                         (assoc m fld
+                                  {:name fld
+                                   :line (ana/get-line fld env)
+                                   :column (ana/get-col fld env)
+                                   :local :field
+                                   :field true
+                                   :mutable (-> fld meta :mutable)
+                                   :unsynchronized-mutable (-> fld meta :unsynchronized-mutable)
+                                   :volatile-mutable (-> fld meta :volatile-mutable)
+                                   :tag (-> fld meta :tag)
+                                   :shadow (m fld)}))
+                 {} (if (= :defrecord op)
+                      (concat fields '[__meta __extmap ^:mutable __hash])
+                      fields))
+        protocols (-> tsym meta :protocols)]
+    (swap! env/*compiler* update-in [::ana/namespaces (-> env :ns :name) :defs tsym]
+      (fn [m]
+        (let [m (assoc (or m {})
+                  :name t
+                  :tag 'function
+                  :type true
+                  :num-fields (count fields)
+                  :record (= :defrecord op))]
+          (merge m
+            (dissoc (meta tsym) :protocols)
+            {:protocols protocols}
+            (ana/source-info tsym env)))))
+    {:op op :env env :form form :t t :fields fields :pmasks pmasks
+     :tag 'function
+     :protocols (disj protocols 'cljs.core/Object)
+     :children [#_:fields :body]
+     :body (ana/analyze (assoc env :locals locals) body)}))
+
 (defn emit-ifn-args [args]
   ;; ifn past 20 args is supposed to supply rest arg, which to match varargs behavior
   ;; is emitted as a IndexedSeq over an array
@@ -1190,6 +1230,8 @@
   (replace-fn! #'cljs.core/extend-prefix shadow-extend-prefix)
   (replace-fn! #'cljs.core/add-obj-methods shadow-add-obj-methods)
   (replace-fn! #'cljs.core/add-ifn-methods shadow-add-ifn-methods)
+
+  (replace-fn! #'cljs.analyzer/parse-type shadow-parse-type)
 
   (.addMethod comp/emit* :invoke
     (fn [{f :fn :keys [invoke-type args env] :as expr}]
