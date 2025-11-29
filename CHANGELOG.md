@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.3.2](https://github.com/thheller/shadow-cljs/compare/975408a4e54988058910f877c329973a467ca8eb...eabf1592cbc34b25f8d393c2a66e5d937ffa2c40) - 2025-11-29
+- [ [`eabf1`](https://github.com/thheller/shadow-cljs/commit/eabf1592cbc34b25f8d393c2a66e5d937ffa2c40) ] add support for REPL require-global
+- [ [`722d1`](https://github.com/thheller/shadow-cljs/commit/722d197200b417d3e5308f2d90d74d2c8c5c56e1) ] fix renamed fn reference
+- [ [`97540`](https://github.com/thheller/shadow-cljs/commit/975408a4e54988058910f877c329973a467ca8eb) ] add support for ns :require-global :refer-global
+
 ## [3.3.1](https://github.com/thheller/shadow-cljs/compare/525d4b82c2fc5c6d09edbe6d256bb49b1d198f3d...525d4b82c2fc5c6d09edbe6d256bb49b1d198f3d) - 2025-11-26
 - [ [`525d4`](https://github.com/thheller/shadow-cljs/commit/525d4b82c2fc5c6d09edbe6d256bb49b1d198f3d) ] temp fix for cljs.core/Vector clash
 
