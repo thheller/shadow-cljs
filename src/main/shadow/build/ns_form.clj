@@ -90,6 +90,15 @@
       :lib ::lib
       :opts (s/* ::require-opt))))
 
+(s/def ::require-global
+  (s/or
+    :sym
+    simple-symbol?
+    :seq
+    (s/cat
+      :lib simple-symbol?
+      :opts (s/* ::require-opt))))
+
 (s/def ::require-flag #{:reload :reload-all})
 
 (s/def ::ns-require
@@ -101,6 +110,15 @@
       (s/* ::require)
       :flags
       (s/* ::require-flag)
+      )))
+
+(s/def ::ns-require-global
+  (s/spec
+    (s/cat
+      :clause
+      #{:require-global}
+      :requires
+      (s/* ::require-global)
       )))
 
 (s/def ::require-macros-opt
@@ -183,6 +201,20 @@
       :opts
       (s/+ ::refer-clojure-opt))))
 
+(s/def ::refer-global-opt
+  (s/alt
+    :only ::only
+    :rename ::rename
+    ))
+
+(s/def ::ns-refer-global
+  (s/spec
+    (s/cat
+      :clause
+      #{:refer-global}
+      :opts
+      (s/+ ::refer-global-opt))))
+
 (s/def ::use-macro
   (s/spec
     (s/cat
@@ -231,6 +263,8 @@
       :refer-clojure ::ns-refer-clojure
       :require ::ns-require
       :require-macros ::ns-require-macros
+      :require-global ::ns-require-global
+      :refer-global ::ns-refer-global
       :import ::ns-import
       :use-macros ::ns-use-macros
       :use ::ns-use)))
@@ -409,6 +443,28 @@
             (merge-require-fn :uses lib)
             only)))))
 
+(defn process-require-global
+  [ns-info lib {:keys [js as refer rename] :as opts-m}]
+
+  ;; :refer (f) :rename {f other-f} should clear out the :refer (f) since its no longer accessible
+  (let [rename-syms (set (keys rename))
+        refer (remove-entry refer rename-syms)]
+
+    ;; regular none :as-alias require
+    (-> ns-info
+        (merge-require :require-global lib lib)
+        (cond->
+          as
+          (-> (check-alias-conflict! lib as)
+              (merge-require :require-global as lib)))
+        (reduce->
+          (merge-require-fn :use-global lib)
+          refer)
+        (reduce-kv->
+          (fn [ns-info var-to-rename rename-sym]
+            (update ns-info :rename-global assoc rename-sym [lib var-to-rename]))
+          rename))))
+
 (defn process-require [ns-info lib opts]
   (if (string? lib)
     (process-string-require ns-info lib opts)
@@ -427,6 +483,21 @@
           (opts->map opts)]
 
       (process-require ns-info lib opts-m)
+      )))
+
+(defn reduce-require-global [ns-info [key require]]
+  (case key
+    :sym
+    (process-symbol-require-global ns-info require {})
+
+    :seq
+    (let [{:keys [lib opts]}
+          require
+
+          opts-m
+          (opts->map opts)]
+
+      (process-require-global ns-info lib opts-m)
       )))
 
 (defn reduce-require-macros [ns-info [key require]]
@@ -464,6 +535,12 @@
         ;; need to remember if :require or :require-macros had :reload/:reload-all
         (update :flags assoc :require (into #{} flags))
         (reduce-> reduce-require requires))))
+
+(defmethod reduce-ns-clause :require-global [ns-info [_ clause]]
+  (let [{:keys [requires]} clause]
+    (-> ns-info
+        (update :seen conj :require-global)
+        (reduce-> reduce-require-global requires))))
 
 (defmethod reduce-ns-clause :require-macros [ns-info [_ clause]]
   (let [{:keys [requires flags]} clause]
@@ -509,6 +586,21 @@
         (reduce-kv->
           (merge-rename-fn :renames 'cljs.core)
           rename))))
+
+(defmethod reduce-ns-clause :refer-global [ns-info [_ clause]]
+  (let [{:keys [only rename] :as opts}
+        (opts->map (:opts clause))]
+
+    (-> ns-info
+        (reduce->
+          (fn [info sym]
+            (update info :require-global assoc sym sym))
+          only)
+        (reduce-kv->
+          (fn [info from to]
+            (update info :require-global assoc to from))
+          rename
+          ))))
 
 (defmethod reduce-ns-clause :use [ns-info [_ clause]]
   (let [{:keys [uses]} clause]

@@ -321,11 +321,29 @@
            ;; done per ns because of relative requires
            '{something {"foo" alias$foo}}})]
 
-    (= {"foo" 'alias$foo} (:js-aliases ast-resolved))
-    (= 'a (get-in ast-resolved [:uses 'A]))
-    (= 'a (get-in ast-resolved [:uses 'B]))
-    (= 'alias$foo (get-in ast-resolved [:uses 'C]))
-    (= 'alias$foo (get-in ast-resolved [:uses 'D]))))
+    (is (= {"foo" 'alias$foo} (:js-aliases ast-resolved)))
+    (is (= 'a (get-in ast-resolved [:uses 'A])))
+    (is (= 'a (get-in ast-resolved [:uses 'B])))
+    (is (= 'alias$foo (get-in ast-resolved [:uses 'C])))
+    (is (= 'alias$foo (get-in ast-resolved [:uses 'D])))))
+
+(deftest test-require-global
+  (let [test
+        '(ns something
+           (:require-global [String :as X :refer (foo) :rename {foo bar}]
+                            [Y :as Z :refer (yo)])
+           (:refer-global :only [Foo Bar] :rename {Bar Baz}))
+
+        ast
+        (ns-form/parse test)]
+
+    (is (= 'Bar (get-in ast [:require-global 'Baz])))
+    (is (= 'Foo (get-in ast [:require-global 'Foo])))
+    (is (= 'String (get-in ast [:require-global 'X])))
+    (is (= 'Y (get-in ast [:require-global 'Z])))
+    (is (= '[String foo] (get-in ast [:rename-global 'bar])))
+    (is (= 'Y (get-in ast [:use-global 'yo])))
+    ))
 
 (comment
   ;; forgot what this was about

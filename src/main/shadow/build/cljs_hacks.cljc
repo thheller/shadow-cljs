@@ -254,6 +254,24 @@
                  sym (symbol (name qualified-symbol))]
              (resolve-ns-var full-ns sym current-ns))
 
+           (some? (ana/gets current-ns-info :require-global sym))
+           (let [global-sym (ana/gets current-ns-info :require-global sym)]
+             {:op :js-var
+              :name (symbol "js" (str global-sym))
+              :ns 'js})
+
+           (some? (ana/gets current-ns-info :rename-global sym))
+           (let [[global-sym prop] (ana/gets current-ns-info :rename-global sym)]
+             {:op :js-var
+              :name (symbol "js" (str global-sym "." prop))
+              :ns 'js})
+
+           (some? (ana/gets current-ns-info :use-global sym))
+           (let [global-sym (ana/gets current-ns-info :use-global sym)]
+             {:op :js-var
+              :name (symbol "js" (str global-sym "." sym))
+              :ns 'js})
+
            (some? (ana/gets current-ns-info :imports sym))
            (recur env (ana/gets current-ns-info :imports sym) confirm default?)
 
