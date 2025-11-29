@@ -381,6 +381,50 @@
         state
         (map :require quoted-requires)))))
 
+(defn repl-require-global*
+  [{:keys [repl-state] :as state} read-result quoted-require]
+
+  (let [current-ns
+        (or (:ns read-result)
+            (:current-ns repl-state))
+
+        ns-info
+        (get-in state [:compiler-env ::ana/namespaces current-ns])
+
+        new-ns-info
+        (ns-form/reduce-require-global ns-info quoted-require)]
+
+    (-> state
+        (cljs-bridge/swap-compiler-env! update-in [::ana/namespaces current-ns] merge new-ns-info)
+        ;; doesn't need to do anything on the client side
+        ;; but then the repl gets no result, so we just send it a nil result?
+        (update-in [:repl-state :repl-actions] conj
+          {:type :repl/invoke ;; FIXME: feels dirty to eval, but ties into all other logic better
+           :name "<eval>"
+           :js "true"}))))
+
+(defn repl-require-global
+  [{:keys [repl-state] :as state} read-result require-form]
+  (when-not (and (map? repl-state)
+                 (symbol? (:current-ns repl-state)))
+    (jvm-log/warn ::repl-require-invalid-state {:repl-state repl-state :require-form require-form}))
+
+  (let [conformed (s/conform ::ns-form/repl-require-global require-form)]
+
+    (when (= conformed ::s/invalid)
+      (throw (ex-info "failed to parse ns require-global"
+               (assoc (s/explain-data ::repl-require-global require-form)
+                 :tag ::invalid-require))))
+
+    (let [{:keys [quoted-requires]}
+          conformed]
+
+      (reduce
+        (fn [state quoted-require]
+          (repl-require-global* state read-result quoted-require))
+        state
+        (map :require quoted-requires)))))
+
 (defn repl-ns [state read-result [_ ns :as form]]
   (let [{:keys [ns deps ns-info] :as ns-rc}
         (make-repl-resource state form)
@@ -475,7 +519,9 @@
 
    'ns
    repl-ns
-   })
+
+   'require-global
+   repl-require-global})
 
 (defmethod log/event->str ::special-fn-error
   [{:keys [source special-fn error]}]

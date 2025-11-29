@@ -210,3 +210,12 @@
             (repl/process-input "(deftest foo (is (= 1 1)))"))]
 
     (tap> state)))
+
+(deftest test-repl-require-global
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(require-global '[String :as x])")
+            (repl/process-input "x"))]
+
+    (pprint repl-state)))

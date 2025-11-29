@@ -167,6 +167,23 @@
     (s/* ::require-flag)
     ))
 
+(s/def ::quoted-require-global
+  (s/spec
+    (s/cat
+      :quote
+      '#{quote}
+      :require
+      ::require-global)))
+
+(s/def ::repl-require-global
+  (s/cat
+    :clause
+    '#{require-global}
+
+    :quoted-requires
+    (s/+ ::quoted-require-global)
+    ))
+
 ;; :import
 
 (s/def ::import
