@@ -488,7 +488,7 @@
 (defn reduce-require-global [ns-info [key require]]
   (case key
     :sym
-    (process-symbol-require-global ns-info require {})
+    (process-require-global ns-info require {})
 
     :seq
     (let [{:keys [lib opts]}
