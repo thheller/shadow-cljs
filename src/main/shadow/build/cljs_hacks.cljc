@@ -871,6 +871,7 @@
     (cond
       ;; prevent (Array/.push some-arr 1) from using Reflect.apply
       (and (= :qualified-method (:op fexpr))
+           (= :method (:kind fexpr))
            (pos? (count args)))
       (let [[target-expr & args] @args-exprs]
         {:op :host-call
