@@ -219,3 +219,12 @@
             (repl/process-input "x"))]
 
     (pprint repl-state)))
+
+(deftest test-repl-require-global-invoke
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(require-global '[String :as x])")
+            (repl/process-input "(x/.toUpperCase \"foo\")"))]
+
+    (pprint repl-state)))

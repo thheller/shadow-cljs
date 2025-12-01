@@ -869,6 +869,18 @@
       (ana/warning :invoke-ctor env {:fexpr fexpr}))
 
     (cond
+      ;; prevent (Array/.push some-arr 1) from using Reflect.apply
+      (and (= :qualified-method (:op fexpr))
+           (pos? (count args)))
+      (let [[target-expr & args] @args-exprs]
+        {:op :host-call
+         :form form
+         :env enve
+         :children [:target :args]
+         :target target-expr
+         :method (:name fexpr)
+         :args args})
+
       ;; :opt-not, optimizes to !thing, skipping call to (not thing)
       ;; FIXME: a cljs.core/not macro could do this? all the other stuff does? probably not done for legacy reasons?
       (and (= (:name info) 'cljs.core/not) (= 1 argc))
