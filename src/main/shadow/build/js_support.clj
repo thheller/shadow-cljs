@@ -100,6 +100,8 @@
      :resource-name resource-name
      :output-name (util/flat-js-name resource-name)
      ::split-require true
+     ::suffix suffix
+     ::dep dep
      :type :goog
      :cache-key [js-ns-alias resource-name]
      :last-modified 0
@@ -119,13 +121,7 @@
          (str "goog.provide(\"" js-ns-alias "\");\n"
               (case type
                 :shadow-js
-                (str js-ns-alias " = " (npm/shadow-js-require rc false)
-                     ;; (:require ["some$foo.bar"]) emitting require("some")["foo"]["bar"]
-                     ;; FIXME: should this generate externs instead?
-                     (->> (str/split suffix #"\.")
-                          (map #(str "[\"" % "\"]"))
-                          (str/join ""))
-                     ";\n")
+                (str js-ns-alias " = " (npm/shadow-js-require rc false) "." suffix ";\n")
 
                 ;; plain suffix for sources going through :advanced
                 (str js-ns-alias " = " (or ns dep) "." suffix ";\n"))

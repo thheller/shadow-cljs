@@ -319,6 +319,23 @@
                   ))))
        (reduce set/union #{})))
 
+(defn extern-props-from-split-requires [state]
+  (->> (:build-sources state)
+       (map #(get-in state [:sources %]))
+       (filter ::js-support/split-require)
+       (reduce
+         (fn [set {::js-support/keys [suffix dep]}]
+           (cond
+             (not (string? dep))
+             set
+
+             (not (str/includes? suffix "."))
+             (conj set suffix)
+
+             :else
+             (into set (str/split suffix #"\."))))
+         #{})))
+
 (defn extern-globals-from-cljs [state]
   (->> (:build-sources state)
        (map #(get-in state [:sources %]))
@@ -376,7 +393,8 @@
         (set/union
           (when js-externs?
             (:js-properties state))
-          (extern-props-from-cljs state))
+          (extern-props-from-cljs state)
+          (extern-props-from-split-requires state))
 
         js-globals
         (set/union
