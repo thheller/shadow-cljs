@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.3.3](https://github.com/thheller/shadow-cljs/compare/da87191e2db83c3cb34415cdef19d479e22a1795...999473c1092cac6e5bcac5a2b36698c464fbdf85) - 2025-12-08
+- [ [`99947`](https://github.com/thheller/shadow-cljs/commit/999473c1092cac6e5bcac5a2b36698c464fbdf85) ] collect externs for (:require ["foo$Bar"]) type requires
+- [ [`c5035`](https://github.com/thheller/shadow-cljs/commit/c50352a3621e374b89cdb6dd87e5eac7a177facc) ] don't use previous optimization for (Thing/new ...) invoke
+- [ [`da871`](https://github.com/thheller/shadow-cljs/commit/da87191e2db83c3cb34415cdef19d479e22a1795) ] don't Reflect.apply for qualified method in invoke position
+
 ## [3.3.2](https://github.com/thheller/shadow-cljs/compare/975408a4e54988058910f877c329973a467ca8eb...eabf1592cbc34b25f8d393c2a66e5d937ffa2c40) - 2025-11-29
 - [ [`eabf1`](https://github.com/thheller/shadow-cljs/commit/eabf1592cbc34b25f8d393c2a66e5d937ffa2c40) ] add support for REPL require-global
 - [ [`722d1`](https://github.com/thheller/shadow-cljs/commit/722d197200b417d3e5308f2d90d74d2c8c5c56e1) ] fix renamed fn reference
