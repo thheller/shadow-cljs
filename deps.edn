@@ -38,7 +38,7 @@
   org.clojure/core.async {:mvn/version "1.8.741"}
 
   org.clojure/clojurescript
-  {:mvn/version "1.12.116"
+  {:mvn/version "1.12.134"
    :exclusions
    [com.google.javascript/closure-compiler
     org.clojure/google-closure-library
