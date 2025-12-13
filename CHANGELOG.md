@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.3.4](https://github.com/thheller/shadow-cljs/compare/b5555f733f8f0f46168c08c07b84afcfbfc274df...b5555f733f8f0f46168c08c07b84afcfbfc274df) - 2025-12-13
+- [ [`b5555`](https://github.com/thheller/shadow-cljs/commit/b5555f733f8f0f46168c08c07b84afcfbfc274df) ] cljs 1.12.134
+
 ## [3.3.3](https://github.com/thheller/shadow-cljs/compare/da87191e2db83c3cb34415cdef19d479e22a1795...999473c1092cac6e5bcac5a2b36698c464fbdf85) - 2025-12-08
 - [ [`99947`](https://github.com/thheller/shadow-cljs/commit/999473c1092cac6e5bcac5a2b36698c464fbdf85) ] collect externs for (:require ["foo$Bar"]) type requires
 - [ [`c5035`](https://github.com/thheller/shadow-cljs/commit/c50352a3621e374b89cdb6dd87e5eac7a177facc) ] don't use previous optimization for (Thing/new ...) invoke
