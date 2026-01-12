@@ -41,3 +41,5 @@ package-lock.json
 /package.json
 *.log
 src/dev/shadow-css-index.edn
+.clj-kondo/.cache
+.clj-kondo/lock

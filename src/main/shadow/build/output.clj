@@ -236,7 +236,12 @@
     (generate-source-map-inline state src output prepend)
     (generate-source-map-regular state src output js-file prepend)))
 
-(defn flush-source [state src-id]
+(defmulti flush-source
+  (fn [state src-id]
+    (get-in state [:shadow.build/config :target])))
+
+(defmethod flush-source :default
+  [state src-id]
   (let [{:keys [resource-name output-name last-modified] :as src}
         (data/get-source-by-id state src-id)
 

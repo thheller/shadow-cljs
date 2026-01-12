@@ -243,7 +243,11 @@
     :c
     {:exports
      {default demo.esm.c/foo}
-     :depends-on #{:b}}}
+     :depends-on #{:b}}
+    :d
+    {:exports
+     {default demo.esm.d/bar}
+     :depends-on #{:shared}}}
 
    :js-options
    {:js-package-dirs ["packages/local-testing/node_modules" "node_modules" "test-env/node_modules"]}}
