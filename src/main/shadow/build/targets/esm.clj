@@ -252,7 +252,7 @@
           (shared/merge-repl-defines config)
           ))))
 
-(defn flush-source
+(defmethod output/flush-source :esm
   [state src-id]
   (let [{:keys [resource-name output-name last-modified] :as src}
         (data/get-source-by-id state src-id)
@@ -302,7 +302,7 @@
    {:keys [module-id output-name exports prepend append sources depends-on] :as mod}]
 
   (doseq [src-id sources]
-    (async/queue-task state #(flush-source state src-id)))
+    (async/queue-task state #(output/flush-source state src-id)))
 
   (let [module-imports
         (when (seq depends-on)

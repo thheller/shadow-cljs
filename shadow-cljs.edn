@@ -255,7 +255,8 @@
    :entries
    [demo.esm.a
     demo.esm.b
-    demo.esm.c]
+    demo.esm.c
+    demo.esm.d]
 
    :js-options
    {:js-package-dirs ["node_modules" "test-env/node_modules"]
