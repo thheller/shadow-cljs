@@ -1,6 +1,5 @@
 <img src="https://raw.githubusercontent.com/thheller/shadow-cljs/master/src/main/shadow/cljs/devtools/server/web/resources/img/shadow-cljs.png" width="120" height="120" align="right"/>
 
-
 [![](https://img.shields.io/badge/Clojurians-shadow--cljs-lightgrey.svg)](https://clojurians.slack.com/messages/C6N245JGG/)
 [![npm](https://img.shields.io/npm/v/shadow-cljs.svg)](https://github.com/thheller/shadow-cljs)
 [![Clojars Project](https://img.shields.io/clojars/v/thheller/shadow-cljs.svg)](https://clojars.org/thheller/shadow-cljs)
@@ -115,7 +114,7 @@ a few moments later ...
 The compilation will create the `public/js/main.js` we configured above (`:main` becomes `main.js` in the `:output-dir`). Since we want to load this in the browser we need to create a HTML file in `public/index.html`.
 
 ```html
-<!doctype html>
+<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -141,7 +140,6 @@ We also need a simple HTTP server to serve our HTML since modern Browsers all pl
 ```
 
 Once the config is saved the server will automatically start and serve the content at http://localhost:8080. There is no need to restart `shadow-cljs`. When opening the above URL the Browser Console should show "Hello World".
-
 
 To be continued ...
 
@@ -169,7 +167,7 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 ## Examples
 
 - [Official Browser Example](https://github.com/shadow-cljs/quickstart-browser)
-- [re-frame-template](https://github.com/day8/re-frame-template) -  Leiningen template that creates a [re-frame](https://github.com/Day8/re-frame) project using the [shadow-cljs](https://github.com/thheller/shadow-cljs/) build tool with many optional extras.
+- [re-frame-template](https://github.com/day8/re-frame-template) - Leiningen template that creates a [re-frame](https://github.com/Day8/re-frame) project using the [shadow-cljs](https://github.com/thheller/shadow-cljs/) build tool with many optional extras.
 - [mhuebert/shadow-re-frame](https://github.com/mhuebert/shadow-re-frame) - Usage of [re-frame](https://github.com/Day8/re-frame), [re-frame-trace](https://github.com/Day8/re-frame-trace), and the [shadow-cljs](https://github.com/thheller/shadow-cljs/) build tool. **[Live Demo](https://mhuebert.github.io/shadow-re-frame/)**
 - [jacekschae/shadow-reagent](https://github.com/jacekschae/shadow-reagent) - shadow-cljs + proto-repl + reagent
 - [jacekschae/shadow-firebase](https://github.com/jacekschae/shadow-firebase) - shadow-cljs + firebase
@@ -189,8 +187,10 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 - ... please let me know if you created something to include here
 
 ## Libraries
+
 - [flexsurfer/rn-shadow-steroid](https://github.com/flexsurfer/rn-shadow-steroid) - React Native with shadow-cljs on steroids
 - [re-frame-flow](https://github.com/ertugrulcetin/re-frame-flow) - A graph based visualization tool for re-frame event chains using shadow-cljs
+- [shadow-cljs-vite-plugin](https://github.com/bolasblack/shadow-cljs-vite-plugin) - A robust Vite plugin for seamless integration with shadow-cljs
 - ... please let me know if you created something to include here
 
 ## License
