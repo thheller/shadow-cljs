@@ -223,7 +223,7 @@
 
         (configure-modules)
 
-        (assoc ::closure/esm true)
+        (assoc ::build/esm true)
 
         ;; (assoc-in [:compiler-options :chunk-output-type] :esm)
 
@@ -252,57 +252,12 @@
           (shared/merge-repl-defines config)
           ))))
 
-(defn flush-source
-  [state src-id]
-  (let [{:keys [resource-name output-name last-modified] :as src}
-        (data/get-source-by-id state src-id)
-
-        {:keys [js compiled-at] :as output}
-        (data/get-output! state src)
-
-        js-file
-        (if-some [sub-path (get-in state [:build-options :cljs-runtime-path])]
-          (data/output-file state sub-path output-name)
-          (data/output-file state output-name))]
-
-    ;; skip files we already have
-    (when (or (not (.exists js-file))
-              (zero? last-modified)
-              ;; js is not compiled but maybe modified
-              (> (or compiled-at last-modified)
-                 (.lastModified js-file)))
-
-      (io/make-parents js-file)
-
-      (util/with-logged-time
-        [state {:type :flush-source
-                :resource-name resource-name}]
-
-        (let [prepend
-              (str "import \"./cljs_env.js\";\n"
-                   (->> (data/deps->syms state src)
-                        (remove #{'goog})
-                        (remove (:dead-js-deps state))
-                        (map #(data/get-source-id-by-provide state %))
-                        (distinct)
-                        (map #(data/get-source-by-id state %))
-                        (map (fn [{:keys [output-name] :as x}]
-                               (str "import \"./" output-name "\";")))
-                        (str/join "\n"))
-                   "\n")
-
-              output
-              (str prepend
-                   js
-                   (output/generate-source-map state src output js-file prepend))]
-          (spit js-file output))))))
-
 (defn flush-unoptimized-module
   [{:keys [worker-info build-modules lazy-loadable-js] :as state}
    {:keys [module-id output-name exports prepend append sources depends-on] :as mod}]
 
   (doseq [src-id sources]
-    (async/queue-task state #(flush-source state src-id)))
+    (async/queue-task state #(output/flush-source state src-id)))
 
   (let [module-imports
         (when (seq depends-on)
@@ -337,11 +292,12 @@
              module-imports "\n"
              imports "\n"
 
-             (when (seq lazy-loadable-js)
-               (when-some [mod (get-in state [:compiler-env :shadow.build/ns->mod 'shadow.esm])]
-                 (when (= mod (name module-id))
-                   (str lazy-loadable-js "\n")
-                   )))
+             ;; now done in output/flush-source into the shadow.esm code directly
+             #_(when (seq lazy-loadable-js)
+                 (when-some [mod (get-in state [:compiler-env :shadow.build/ns->mod 'shadow.esm])]
+                   (when (= mod (name module-id))
+                     (str lazy-loadable-js "\n")
+                     )))
 
              exports "\n"
              append "\n"

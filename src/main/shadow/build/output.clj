@@ -6,6 +6,7 @@
     [cljs.compiler :as comp]
     [cljs.analyzer :as ana]
     [clojure.data.json :as json]
+    [shadow.build :as-alias build]
     [shadow.build.data :as data]
     [shadow.build.resource :as rc]
     [shadow.build.async :as async]
@@ -237,7 +238,7 @@
     (generate-source-map-regular state src output js-file prepend)))
 
 (defn flush-source [state src-id]
-  (let [{:keys [resource-name output-name last-modified] :as src}
+  (let [{:keys [resource-name output-name last-modified ns] :as src}
         (data/get-source-by-id state src-id)
 
         {:keys [js compiled-at] :as output}
@@ -262,7 +263,32 @@
         [state {:type :flush-source
                 :resource-name resource-name}]
 
-        (let [output (str js (generate-source-map state src output js-file ""))]
+        (let [prepend
+              (if-not (::build/esm state)
+                ""
+                (str "import \"./cljs_env.js\";\n"
+                     (->> (data/deps->syms state src)
+                          (remove #{'goog})
+                          (remove (:dead-js-deps state))
+                          (map #(data/get-source-id-by-provide state %))
+                          (distinct)
+                          (map #(data/get-source-by-id state %))
+                          (map (fn [{:keys [output-name] :as x}]
+                                 (str "import \"./" output-name "\";")))
+                          (str/join "\n"))
+                     "\n"))
+
+              output
+              (str prepend
+                   js
+                   ;; not sure where else to put this
+                   ;; :esm used to put it into the module file
+                   ;; :esm-files doesn't have those
+                   ;; so the place they have in common is here
+                   (let [lazy-js (:lazy-loadable-js state)]
+                     (when (and (= 'shadow.esm ns) (seq lazy-js))
+                       (str "\n" lazy-js "\n")))
+                   (generate-source-map state src output js-file prepend))]
           (spit js-file output))))))
 
 (defmulti flush-optimized-module
