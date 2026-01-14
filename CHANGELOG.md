@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.3.5](https://github.com/thheller/shadow-cljs/compare/b3903c73827d785d85c3c78c748c589cddb69f64...b3903c73827d785d85c3c78c748c589cddb69f64) - 2026-01-14
+- [ [`b3903`](https://github.com/thheller/shadow-cljs/commit/b3903c73827d785d85c3c78c748c589cddb69f64) ] fix esm builds loosing import statements
+
 ## [3.3.4](https://github.com/thheller/shadow-cljs/compare/b5555f733f8f0f46168c08c07b84afcfbfc274df...b5555f733f8f0f46168c08c07b84afcfbfc274df) - 2025-12-13
 - [ [`b5555`](https://github.com/thheller/shadow-cljs/commit/b5555f733f8f0f46168c08c07b84afcfbfc274df) ] cljs 1.12.134
 
