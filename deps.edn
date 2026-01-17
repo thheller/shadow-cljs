@@ -86,4 +86,11 @@
   :cljs-local
   {:override-deps
    {org.clojure/clojurescript {:local/root "../clojurescript"}}}
-  }}
+
+  :start
+  {:jvm-opts ["-Dclojure.main.report=out"
+              "-Dclojure.core.async.go-checking=true"
+              "-XX:-OmitStackTraceInFastThrow"
+              "-XX:+UnlockDiagnosticVMOptions"
+              "-XX:+DebugNonSafepoints"]
+   :main-opts ["-m" "main"]}}}

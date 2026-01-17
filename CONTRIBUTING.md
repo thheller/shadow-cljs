@@ -18,11 +18,11 @@ Have a look around! Since `shadow-cljs` is a build tool, there are multiple buil
 
 Development is almost entirely REPL-based, so when you're ready to dive in, you'll want to start a REPL.
 
-Starting one and connecting the editor of your choice should be the same as any Leiningen-based project. 
+Starting one and connecting the editor of your choice should be the same as any deps.edn project. 
 
 When all else fails, this should work with all nREPL compatible editors:
 
-1. `lein with-profiles +cljs repl`
+1. `clj -M:dev:start`
 2. Establish remote nREPL connection to port in `.nrepl-port`
 3. Run `(require 'repl) (repl/go)` in the REPL to get a basic development server running. You can run `(repl/go)` at any point to restart this server.
 

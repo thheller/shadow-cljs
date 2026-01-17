@@ -96,31 +96,11 @@
     ["src/ui-release"]}
    :dev
    {:source-paths
-    ["src/dev"
-     "src/repl"
-     ;; FIXME: should really move to deps.edn, lein checkouts suck
-     "../shadow-grove/src/gen"
-     "../shadow-grove/src/ui-release"]
+    ["src/dev"]
 
     :java-source-paths
     ["src/dev"
-     "src/main"]
-
-    :jvm-opts
-    ["-Dclojure.main.report=out"
-     "-XX:+UnlockDiagnosticVMOptions"
-     "-XX:+DebugNonSafepoints"]
-
-    :dependencies
-    [[com.clojure-goes-fast/clj-async-profiler "0.4.1"]
-
-     ;; insight, not quite useful yet
-     ;; will need to add as regular dep when finished
-     [rewrite-clj "1.1.46"]
-     [org.commonmark/commonmark "0.21.0"]
-
-     #_[org.slf4j/slf4j-log4j12 "1.7.25"]
-     #_[log4j "1.2.17"]]}
+     "src/main"]}
 
    :aot
    {:aot [repl]}
@@ -132,12 +112,7 @@
     :main shadow.cljs.devtools.cli}
 
    :cljs
-   {:java-opts
-    ^:replace
-    ["-XX:-OmitStackTraceInFastThrow"
-     "-Dclojure.core.async.go-checking=true"]
-
-    :dependencies
+   {:dependencies
     [[aysylu/loom "1.0.2"]
 
      ;; for cljsjs testing
@@ -154,12 +129,7 @@
     :repl-options
     {:init-ns shadow.user
      :nrepl-middleware
-     [shadow.cljs.devtools.server.nrepl/middleware]}
-    :source-paths
-    ["src/dev"
-     "src/gen"
-     "src/test"
-     "test-project/src/main"]}
+     [shadow.cljs.devtools.server.nrepl/middleware]}}
 
    :cljs-tests
    {:source-paths
