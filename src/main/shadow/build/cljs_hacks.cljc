@@ -476,6 +476,9 @@
         ;; simplified *warn-on-infer* warnings since we do not care about them being typed
         ;; we just need ^js not ^js/Foo.Bar
         (when (and (:infer-warning ana/*cljs-warnings*) ;; skip all checks if the warning is ignored anyways
+                   ;; generally assume everything in cljs.* is safe
+                   ;; cljs.core otherwise has a lot of inference warnings when used as local dep
+                   (not (str/starts-with? (name (:name (:ns env))) "cljs."))
                    (not= "prototype" sprop)
                    (not= "constructor" sprop)
                    ;; defrecord
