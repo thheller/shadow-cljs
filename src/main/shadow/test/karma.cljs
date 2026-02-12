@@ -49,17 +49,22 @@
       (when-not (s/blank? testing-contexts-str)
         (str "\"" testing-contexts-str "\"\n"))
       (cond
-        (and (seq? expected)
-             (seq? actual))
-          (str
-                "expected: " (format-fn indentation expected) "\n"
-                "  actual: " (format-fn indentation (second actual)) "\n"
-                (when-let [diff (format-diff indentation expected (second actual))]
-                  (str "    diff: " diff "\n")))
-        (.hasOwnProperty actual "stack")
-          (str "Exception: " (.-stack actual))                  
+        (nil? actual)
+        (str "expected: " (pr-str expected) "\n"
+             "  actual: nil\n")
+
+        (and (seq? expected) (seq? actual))
+        (str "expected: " (format-fn indentation expected) "\n"
+             "  actual: " (format-fn indentation (second actual)) "\n"
+             (when-let [diff (format-diff indentation expected (second actual))]
+               (str "    diff: " diff "\n")))
+
+        (and (object? actual) (.hasOwnProperty actual "stack"))
+        (str "Exception: " (.-stack actual))
+
         :else
-          (str expected " failed with " actual "\n"))
+        (str "expected: " (pr-str expected) "\n"
+             "  actual: " (pr-str actual) "\n"))
       (when message
         (str " message: " (indent indentation message) "\n")))))
 
