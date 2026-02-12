@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.3.6](https://github.com/thheller/shadow-cljs/compare/114fd12f22799d0211a6be4e03a86cbf86e42f1f...c3fea727ed6889467bf1cbb36eb061fd13b26bfc) - 2026-02-12
+- [ [`c3fea`](https://github.com/thheller/shadow-cljs/commit/c3fea727ed6889467bf1cbb36eb061fd13b26bfc) ] Prevent NPE in shadow.test.karma/format-log (#1245)
+- [ [`fc557`](https://github.com/thheller/shadow-cljs/commit/fc5578b700edaf8b798cddce74324670601999b5) ] fix reload-npm
+- [ [`4973a`](https://github.com/thheller/shadow-cljs/commit/4973aea864f16c34368d3a3bc1fa62ceb46ef866) ] turn off externs inference for cljs.* namespaces
+- [ [`e2970`](https://github.com/thheller/shadow-cljs/commit/e29702b6b7d3fc6b85544bebf0380f7108b6ad17) ] remove dead experiment
+- [ [`304b5`](https://github.com/thheller/shadow-cljs/commit/304b58e062bf34e6a57753ed1aab2cf012943acb) ] move to deps.edn for dev, only use lein for release/deploy
+- [ [`114fd`](https://github.com/thheller/shadow-cljs/commit/114fd12f22799d0211a6be4e03a86cbf86e42f1f) ] docs(README): add shadow-cljs-vite-plugin (#1250)
+
 ## [3.3.5](https://github.com/thheller/shadow-cljs/compare/b3903c73827d785d85c3c78c748c589cddb69f64...b3903c73827d785d85c3c78c748c589cddb69f64) - 2026-01-14
 - [ [`b3903`](https://github.com/thheller/shadow-cljs/commit/b3903c73827d785d85c3c78c748c589cddb69f64) ] fix esm builds loosing import statements
 
