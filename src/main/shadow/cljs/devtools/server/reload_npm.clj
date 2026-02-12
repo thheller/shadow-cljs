@@ -3,6 +3,7 @@
    will emit system-bus messages for inform about changed resources"
   (:require
     [clojure.set :as set]
+    [clojure.string :as str]
     [shadow.jvm-log :as log]
     [shadow.build.npm :as npm]
     [shadow.cljs :as-alias m]
@@ -32,17 +33,28 @@
           (fn [modified package-json-file {:keys [last-modified content]}]
             (if (= last-modified (.lastModified package-json-file))
               modified
-              (conj modified (:package-name content))))
+              (conj modified package-json-file)))
           #{}
           package-json-cache)
+
+        modified-dirs
+        (->> modified-packages
+             (map #(get-in package-json-cache [% :content :package-dir]))
+             (mapv #(.getAbsolutePath %)))
+
+        package-ids
+        (->> modified-packages
+             (map #(get-in package-json-cache [% :content :package-id]))
+             (set))
 
         modified-resources
         (when (seq modified-packages)
           (reduce-kv
-            (fn [modified js-file {:keys [package-name] :as rc}]
-              (if-not (contains? modified-packages package-name)
-                modified
-                (conj modified rc)))
+            (fn [modified js-file rc]
+              (let [abs-path (.getAbsolutePath js-file)]
+                (if-not (some #(str/starts-with? abs-path %) modified-dirs)
+                  modified
+                  (conj modified rc))))
             []
             files))
 
@@ -55,7 +67,21 @@
                                :modified-count (count modified-files)})
 
       ;; remove from cache
-      (swap! index-ref invalidate-files modified-files)
+      (swap! index-ref
+        (fn [index]
+          (-> index
+              (invalidate-files modified-files)
+              (update :package-json-cache dissoc-all modified-packages)
+              (update :packages (fn [packages]
+                                  (reduce-kv
+                                    (fn [packages package-name {:keys [package-id]}]
+                                      (if (contains? package-ids package-id)
+                                        (dissoc packages package-name)
+                                        packages))
+                                    packages
+                                    packages)
+                                  ))
+              )))
 
       (let [modified-provides
             (->> modified-resources
