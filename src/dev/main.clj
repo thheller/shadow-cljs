@@ -18,6 +18,10 @@
         port-file (io/file ".nrepl-port")]
     (spit port-file (str (:port server)))
     (println "Started. nREPL ready.")
+
+    (when-not (seq args)
+      ((requiring-resolve 'repl/go)))
+
     (main/repl :init repl-init)
     (nrepl-srv/stop-server server)
     (.delete port-file)))
