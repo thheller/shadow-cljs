@@ -22,7 +22,8 @@
   (reset! css-watch-ref
     (fs-watch/start
       {}
-      [(io/file "src" "main")]
+      [(io/file "src" "main")
+       (io/file ".." "shadow-grove" "src" "main")]
       ["cljs" "cljc" "clj"]
       (fn [updates]
         (try

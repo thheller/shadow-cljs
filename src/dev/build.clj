@@ -7,6 +7,7 @@
   (let [build-state
         (-> (cb/start)
             (cb/index-path (io/file "src" "main") {})
+            (cb/index-path (io/file ".." "shadow-grove" "src" "main") {})
             (cb/generate
               '{:ui
                 {:entries [shadow.cljs.ui.main
