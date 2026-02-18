@@ -86,7 +86,10 @@
       (contains? supports :obj-fragment)
       :browse
 
-      (contains? #{:string :number :boolean} data-type)
+      (= :string data-type)
+      :str
+
+      (contains? #{:number :boolean} data-type)
       :edn
 
       :default
