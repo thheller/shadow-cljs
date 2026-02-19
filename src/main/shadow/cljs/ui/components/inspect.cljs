@@ -756,6 +756,10 @@
 (defmethod render-panel :explore-runtime-panel [item idx active?]
   (ui-explore-runtime-panel (:runtime-id item) idx active?))
 
+(defn is-code-input? [node]
+  (or (= "TEXTAREA" (.-tagName node))
+      (dom/ancestor-by-class node "CodeMirror")))
+
 (defc ui-page []
   (bind {:keys [stack current]}
     (sg/kv-lookup ::m/ui ::m/inspect))
@@ -807,13 +811,13 @@
     (sg/run-tx env {:e ::m/inspect-set-current! :idx (dec panel-idx)}))
 
   (event ::keyboard/arrowleft [env _ e]
-    (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+    (when-not (is-code-input? (.-target e))
       (when (pos? current)
         (sg/run-tx env {:e ::m/inspect-set-current! :idx (dec current)})
         (dom/ev-stop e))))
 
   (event ::keyboard/ctrl+arrowleft [env _ e]
-    (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+    (when-not (is-code-input? (.-target e))
       (sg/run-tx env {:e ::m/inspect-set-current! :idx 0})
       (dom/ev-stop e)))
 
@@ -822,13 +826,13 @@
     (dom/ev-stop e))
 
   (event ::keyboard/arrowright [env _ e]
-    (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+    (when-not (is-code-input? (.-target e))
       (when (> (count stack) (inc current))
         (sg/run-tx env {:e ::m/inspect-set-current! :idx (inc current)})
         (dom/ev-stop e))))
 
   (event ::keyboard/ctrl+arrowright [env _ e]
-    (when-not (dom/ancestor-by-class (.-target e) "CodeMirror")
+    (when-not (is-code-input? (.-target e))
       (sg/run-tx env {:e ::m/inspect-set-current! :idx (-> stack count dec)})
       (dom/ev-stop e)))
 
