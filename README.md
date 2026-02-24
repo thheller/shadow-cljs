@@ -149,16 +149,14 @@ Please refer to the [User Manual](https://shadow-cljs.github.io/docs/UsersGuide.
 
 ## Video Courses
 
-- [EN] [Learn Reagent Free](https://www.jacekschae.com/learn-reagent-free/uk29i?coupon=SHADOW) - [reagent](https://github.com/reagent-project/reagent)+[firebase](https://firebase.google.com/) demo application built using shadow-cljs
-- [EN] [Learn Reagent Pro](https://www.jacekschae.com/learn-reagent-pro/uk29i?coupon=SHADOW) [Affiliate Link, 30$ discount] - [reagent](https://github.com/reagent-project/reagent)+[firebase](https://firebase.google.com/) demo application built using shadow-cljs
-- [EN] [Learn re-frame](https://www.learnreframe.com/?ref=uk29i) [Affiliate Link] - re-frame SPA tutorial
+- [EN] [Learn Reagent](https://clojure.stream/courses/reagent)
+- [EN] [Learn Reframe](https://clojure.stream/courses/reframe)
 - [EN] [ClojureScript for React Developer - Building Conduit](https://www.youtube.com/watch?v=EUdsLZUsiRQ&list=PLUGfdBfjve9VGzp7G1C9FYfH8Yk1Px-11)
 
 ## Guides
 
 - [EN] [A beginner guide to compile ClojureScript with shadow-cljs](https://medium.com/@jiyinyiyong/a-beginner-guide-to-compile-clojurescript-with-shadow-cljs-26369190b786)
 - [CN] [shadow-cljs 2.x 使用教程](https://segmentfault.com/a/1190000011499210)
-- [JA] [Shadow CLJS User’s Guide 邦訳](https://t-cool.github.io/shadow-cljs-users-guide-ja/docs/UsersGuide.html)
 - [EN] [ClojureScript with Middleman via Shadow-CLJS](http://bobnadler.com/articles/2018/01/28/clojurescript-with-middleman-via-shadow-cljs.html)
 - [EN] [Clojurescript Development for JavaScript Developers in Atom with Shadow-cljs and ProtoREPL](https://medium.com/@loganpowell/clojurescript-development-for-javascript-developers-in-atom-with-shadow-cljs-and-protorepl-ec5e38e3de26)
 - [EN] [Confidence and Joy: React Native Development with ClojureScript and re-frame](https://hackmd.io/@byc70E6fQy67hPMN0WM9_A/rJilnJxE8)
