@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.7](https://github.com/thheller/shadow-cljs/compare/5a961afceb06286bd82b08bc0a344114996b7e93...9647bdf55d01b9c34d568a786a0d3bebc43e78f6) - 2026-03-28
+- [ [`9647b`](https://github.com/thheller/shadow-cljs/commit/9647bdf55d01b9c34d568a786a0d3bebc43e78f6) ] accept any JS file on the classpath during scanning
+- [ [`e9f37`](https://github.com/thheller/shadow-cljs/commit/e9f37a69e13f983d079c53d683d511f41ffecbaa) ] fix Inspect keyboard nav
+- [ [`f89ec`](https://github.com/thheller/shadow-cljs/commit/f89ec8d3d6b1b6606c7fbdaa150619e8b6891098) ] switch prefered viewer for strings in inspect
+- [ [`e0188`](https://github.com/thheller/shadow-cljs/commit/e0188b78062af2edcd77bab444b8668ab9d38920) ] account for local/root shadow-grove when building css
+- [ [`5a961`](https://github.com/thheller/shadow-cljs/commit/5a961afceb06286bd82b08bc0a344114996b7e93) ] add auto-launch to dev main
+
 ## [3.3.6](https://github.com/thheller/shadow-cljs/compare/114fd12f22799d0211a6be4e03a86cbf86e42f1f...c3fea727ed6889467bf1cbb36eb061fd13b26bfc) - 2026-02-12
 - [ [`c3fea`](https://github.com/thheller/shadow-cljs/commit/c3fea727ed6889467bf1cbb36eb061fd13b26bfc) ] Prevent NPE in shadow.test.karma/format-log (#1245)
 - [ [`fc557`](https://github.com/thheller/shadow-cljs/commit/fc5578b700edaf8b798cddce74324670601999b5) ] fix reload-npm
