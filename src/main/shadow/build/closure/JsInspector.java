@@ -132,7 +132,7 @@ public class JsInspector {
                     dynamicImports = dynamicImports.conj(x);
                     recordStrOffset(arg, false);
                 } else {
-                    throw new IllegalArgumentException("file uses import() with unsupported arguments and cannot be processed");
+                    t.report(arg, TranspilationUtil.CANNOT_CONVERT_YET, "file uses import() with unsupported arguments and cannot be processed");
                 }
             } else if (NodeUtil.isCallTo(node, "goog.require")) {
                 String x = node.getLastChild().getString();

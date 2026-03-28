@@ -479,10 +479,11 @@
                                 (inspect-resource cp src)
                                 (catch Exception e
                                   ;; don't warn with stacktrace
-                                  (log/warn ::resource-inspect
-                                    {:loc (or (:file src)
-                                              (:url src)
-                                              (:resource-name src))})
+                                  ;; not warning for problems with random JS files on the classpath
+                                  #_(log/warn ::resource-inspect
+                                      {:loc (or (:file src)
+                                                (:url src)
+                                                (:resource-name src))})
                                   ;; debug log should contain stacktrace
                                   (log/debug-ex e
                                     ::inspect-ex
