@@ -1,7 +1,11 @@
 # Changelog
 
-## [3.3.7](https://github.com/thheller/shadow-cljs/compare/5a961afceb06286bd82b08bc0a344114996b7e93...9647bdf55d01b9c34d568a786a0d3bebc43e78f6) - 2026-03-28
-- [ [`9647b`](https://github.com/thheller/shadow-cljs/commit/9647bdf55d01b9c34d568a786a0d3bebc43e78f6) ] accept any JS file on the classpath during scanning
+## [3.3.8](https://github.com/thheller/shadow-cljs/compare/f23162c2df7e1a6a4f3b127b8b1e9a721479d417...f23162c2df7e1a6a4f3b127b8b1e9a721479d417) - 2026-03-30
+- [ [`f2316`](https://github.com/thheller/shadow-cljs/commit/f23162c2df7e1a6a4f3b127b8b1e9a721479d417) ] allow any :refer-global to be used as ns alias
+
+## [3.3.7](https://github.com/thheller/shadow-cljs/compare/5a961afceb06286bd82b08bc0a344114996b7e93...af5bb36237186cfa0d4cc8d993f4eb55387451a9) - 2026-03-28
+- [ [`af5bb`](https://github.com/thheller/shadow-cljs/commit/af5bb36237186cfa0d4cc8d993f4eb55387451a9) ] accept any JS file on the classpath during scanning
+- [ [`e094e`](https://github.com/thheller/shadow-cljs/commit/e094e51686b70279355c3ca36445d31fad5b6714) ] Update README.md (#1253)
 - [ [`e9f37`](https://github.com/thheller/shadow-cljs/commit/e9f37a69e13f983d079c53d683d511f41ffecbaa) ] fix Inspect keyboard nav
 - [ [`f89ec`](https://github.com/thheller/shadow-cljs/commit/f89ec8d3d6b1b6606c7fbdaa150619e8b6891098) ] switch prefered viewer for strings in inspect
 - [ [`e0188`](https://github.com/thheller/shadow-cljs/commit/e0188b78062af2edcd77bab444b8668ab9d38920) ] account for local/root shadow-grove when building css
