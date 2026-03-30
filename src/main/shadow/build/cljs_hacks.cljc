@@ -162,6 +162,35 @@
 (comment
   (potential-ns-match? '[a.b.c a.b] "a.b.c.d"))
 
+(defn resolve-fqn-sym [env sym-ns-str sym current-ns confirm]
+  (let [ns (symbol (if (= "clojure.core" sym-ns-str) "cljs.core" sym-ns-str))
+        full-ns (resolve-ns-alias env ns)
+        sym (symbol (name sym))]
+
+    (if full-ns
+      ;; regular :require alias
+      (do (when (some? confirm)
+            (when (not= current-ns full-ns)
+              (ana/confirm-ns env full-ns))
+            (confirm env full-ns sym))
+          (resolve-ns-var full-ns sym current-ns))
+
+      ;; regular ns alias not found, check :require-global/:refer-global
+      (let [global
+            (or (ana/gets env :ns :require-global ns)
+                (ana/gets env :ns :use-global ns))]
+
+        (if global
+          {:op :js-var
+           :name (symbol "js" (str global "." sym))
+           :ns 'js}
+
+          ;; no alias, try direct
+          (do (when (some? confirm)
+                (confirm env ns sym))
+              (resolve-ns-var ns sym current-ns))
+          )))))
+
 (defn shadow-resolve-var
   "Resolve a var. Accepts a side-effecting confirm fn for producing
    warnings about unresolved vars."
@@ -233,16 +262,7 @@
            (some? lb) (assoc lb :op :local)
 
            (some? sym-ns-str)
-           (let [ns sym-ns-str
-                 ns (symbol (if (= "clojure.core" ns) "cljs.core" ns))
-                 full-ns (or (resolve-ns-alias env ns) ns) ;; [some.thing :as x] x->some.thing OR some.thing
-                 ;; strip ns
-                 sym (symbol (name sym))]
-             (when (some? confirm)
-               (when (not= current-ns full-ns)
-                 (ana/confirm-ns env full-ns))
-               (confirm env full-ns sym))
-             (resolve-ns-var full-ns sym current-ns))
+           (resolve-fqn-sym env sym-ns-str sym current-ns confirm)
 
            (some? (ana/gets current-ns-info :uses sym))
            (let [full-ns (ana/gets current-ns-info :uses sym)]

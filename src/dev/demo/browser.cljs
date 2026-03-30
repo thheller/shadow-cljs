@@ -2,6 +2,7 @@
   {:shadow.sass/include
    ["./foo.scss"]}
   (:require-macros [demo.browser :refer (test-macro)])
+  (:refer-global :only [Object])
   (:require
     #_["babel-test" :as babel-test :default Shape]
     [cljs.test :as ct]
@@ -30,6 +31,8 @@
 (js/console.log (goog.object/get #js {:foo "foo"} "foo"))
 
 (js/console.log "foo" `alias/bar ::alias/bar)
+
+(js/console.log (Object/fromEntries #js []))
 
 (js-await [mod (dyn/bar)]
   (js/console.log "dyn-import" mod (.bar mod)))
