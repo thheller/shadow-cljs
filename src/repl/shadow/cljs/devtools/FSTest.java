@@ -1,13 +1,13 @@
 package shadow.util;
 
 
-import clojure.lang.RT;
+import shadow.fswatch.FS;
+import shadow.fswatch.FileWatcher;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -55,6 +55,8 @@ public class FSTest {
         toBeDeleted.delete();
         dontCare.createNewFile();
 
-        System.out.println(wd.waitForChanges());
+        Thread.sleep(1000);
+
+        System.out.println(wd.pollForChanges());
     }
 }

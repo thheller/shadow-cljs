@@ -1,4 +1,4 @@
-package shadow.util;
+package shadow.fswatch;
 
 import clojure.lang.IPersistentCollection;
 import clojure.lang.ITransientCollection;

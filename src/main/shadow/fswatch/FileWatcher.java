@@ -1,10 +1,6 @@
-package shadow.util;
+package shadow.fswatch;
 
 import clojure.lang.*;
-import com.sun.nio.file.SensitivityWatchEventModifier;
-import io.methvin.watcher.hashing.FileHasher;
-import io.methvin.watchservice.MacOSXListeningWatchService;
-import io.methvin.watchservice.WatchablePath;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,41 +11,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.nio.file.StandardWatchEventKinds.*;
 
-public class FileWatcher implements AutoCloseable {
+public class FileWatcher implements AutoCloseable, IFileWatcher {
 
     private final Path root;
     private final WatchService ws;
     private final Map<WatchKey, Path> keys;
-    private final boolean isMac;
     private final List<String> extensions;
 
     FileWatcher(Path dir, List<String> extensions) throws IOException {
         this.root = dir.toAbsolutePath();
 
-        this.isMac = System.getProperty("os.name").toLowerCase().contains("mac");
-
-        if (this.isMac) {
-            // don't know exactly what this fileHasher is about but the default directory-watcher does this
-            // https://github.com/gmethvin/directory-watcher/blob/1d705974a37f34945c3cb90c0ecdeb900a2da62c/core/src/main/java/io/methvin/watcher/DirectoryWatcher.java#L129-L142
-            this.ws = new MacOSXListeningWatchService(
-                    new MacOSXListeningWatchService.Config() {
-                        @Override
-                        public FileHasher fileHasher() {
-                            return null;
-                        }
-                    });
-        } else {
-            this.ws = this.root.getFileSystem().newWatchService();
-        }
-
         this.keys = new HashMap<>();
         this.extensions = extensions;
+        this.ws = this.root.getFileSystem().newWatchService();
+
         registerAll(this.root);
     }
-
 
     @Override
     public void close() throws Exception {
@@ -58,11 +37,7 @@ public class FileWatcher implements AutoCloseable {
     }
 
     private Watchable asWatchable(Path dir) {
-        if (this.isMac) {
-            return new WatchablePath(dir);
-        } else {
-            return dir;
-        }
+        return dir;
     }
 
     @SuppressWarnings("unchecked")
@@ -83,7 +58,7 @@ public class FileWatcher implements AutoCloseable {
                                         ENTRY_CREATE,
                                         ENTRY_DELETE,
                                         ENTRY_MODIFY
-                                }, SensitivityWatchEventModifier.HIGH); // OSX is way too slow without this
+                                });
                         keys.put(key, dir);
                         return FileVisitResult.CONTINUE;
                     }
@@ -91,10 +66,10 @@ public class FileWatcher implements AutoCloseable {
     }
 
     private boolean matchesExtension(String name) {
-        for (String ext: extensions) {
-           if (name.endsWith("." + ext)) {
-               return true;
-           }
+        for (String ext : extensions) {
+            if (name.endsWith("." + ext)) {
+                return true;
+            }
         }
 
         return false;
@@ -106,30 +81,17 @@ public class FileWatcher implements AutoCloseable {
     private final static Keyword KW_DEL = RT.keyword(null, "del");
 
     /**
-     * blocking operation to gather all changes, blocks until at least one change happened
+     * non-blocking operation to gather all changes. polls the watchservice for changes
+     * that have occurred in the background and groups them into a single map.
      *
-     * @return {"path-to-file" :new|:mod|:del}
+     * @return {"path-to-file" :new|:mod|:del} or empty map
      * @throws IOException
      * @throws InterruptedException
      */
-    public IPersistentMap waitForChanges() throws IOException, InterruptedException {
-        return pollForChanges(true);
-    }
-
     public IPersistentMap pollForChanges() throws IOException, InterruptedException {
-        return pollForChanges(false);
-    }
-
-    @SuppressWarnings("unchecked")
-    IPersistentMap pollForChanges(boolean block) throws IOException, InterruptedException {
         ITransientMap changes = PersistentHashMap.EMPTY.asTransient();
 
-        WatchKey key;
-        if (block) {
-            key = ws.take();
-        } else {
-            key = ws.poll();
-        }
+        WatchKey key = ws.poll();
 
         while (key != null) {
             Path dir = keys.get(key);
@@ -192,14 +154,7 @@ public class FileWatcher implements AutoCloseable {
                 keys.remove(key);
             }
 
-            if (block && changes.count() == 0) {
-                // if no interesting changes happened, continue to block
-                // eg. empty directory created, "unwanted" file created/deleted
-                key = ws.take();
-            } else {
-                // peek at potential other changes, will terminate loop if nothing is waiting
-                key = ws.poll();
-            }
+            key = ws.poll();
         }
 
         return changes.persistent();

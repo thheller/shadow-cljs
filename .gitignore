@@ -40,4 +40,6 @@ package-lock.json
 !/package-lock.json
 /package.json
 *.log
+
+.container-built
 src/dev/shadow-css-index.edn

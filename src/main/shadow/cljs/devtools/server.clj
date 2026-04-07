@@ -9,6 +9,7 @@
     [shadow.undertow :as undertow]
     [shadow.build :as sb]
     [shadow.build.classpath :as build-classpath]
+    [shadow.fswatch :as fswatch]
     [shadow.cljs :as-alias m]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.server.config-watch :as config-watch]
@@ -434,6 +435,8 @@
                              :info))
 
          (check-for-other-instance! sys-config)
+
+         (fswatch/setup sys-config)
 
          (let [app
                (merge

@@ -3,6 +3,7 @@
     [clojure.edn :as edn]
     [clojure.java.io :as io]
     [clojure.spec.alpha :as s]
+    [shadow.build.api :as api]
     [shadow.build.config :as build-config]
     [shadow.cljs.util :as cljs-util]
     [shadow.cljs.config-env :as config-env]
@@ -106,6 +107,16 @@
       'env config-env/read-env}}
     s))
 
+;; config from SHADOW_CLJS env variable overrides config file
+;; expects a full EDN string, same format as shadow-cljs.edn
+;; mostly for being friendlier to use inside containers
+;; seems silly to support #env but why not
+(def env-config
+  (let [env (System/getenv "SHADOW_CLJS")]
+    (if-not (seq env)
+      {}
+      (read-config-str env))))
+
 (defn read-config [file]
   (-> file
       (slurp)
@@ -138,6 +149,8 @@
           (->> (merge default-config))
           (update :builds #(merge default-builds %))
           (assoc :user-config (load-user-config))
+          ;; overrides everything else
+          (api/deep-merge env-config)
           ))))
 
 (defn load-cljs-edn! []

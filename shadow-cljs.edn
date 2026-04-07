@@ -157,8 +157,6 @@
     :shadow-keywords true
     :global-goog-object&array true
     :source-map true
-    :lite-mode true
-    :elide-to-string true
     ;; :output-feature-set :es6
     ;; :output-wrapper false
     ;; :closure-output-charset "US-ASCII"
