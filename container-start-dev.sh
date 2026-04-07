@@ -3,7 +3,7 @@
 set -e
 
 CACHE_DIR="/cache"
-APP="shopping"
+APP="shadow-cljs"
 
 # Helper function to create symlinks from the cache volume
 setup_symlink() {
@@ -33,9 +33,7 @@ setup_symlink() {
 echo "Setting up isolated cache symlinks..."
 
 # Initialize workspace cache directories
-setup_symlink "/code/shopping/node_modules" "$CACHE_DIR/$APP/node_modules"
-setup_symlink "/code/shopping/.shadow-cljs/jar-manifest" "$CACHE_DIR/$APP/shadow-cljs/jar-manifest"
-setup_symlink "/code/shopping/.shadow-cljs/builds" "$CACHE_DIR/$APP/shadow-cljs/builds"
+setup_symlink "/code/shadow-cljs/node_modules" "$CACHE_DIR/$APP/node_modules"
 
 # Initialize system-level caches
 setup_symlink "$HOME/.npm" "$CACHE_DIR/npm"
