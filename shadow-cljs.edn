@@ -26,7 +26,8 @@
   8606 "out/demo-test-browser"
   8607 [".shadow-cljs/build-report"
         "src/ui-release/shadow/cljs/build_report/dist"]
-  8608 "out/npm-web"}
+  8608 "out/npm-web"
+  8609 {:proxy-url "http://localhost:9630"}}
 
  :prepl {:browser 12345}
 
@@ -157,6 +158,8 @@
     :shadow-keywords true
     :global-goog-object&array true
     :source-map true
+    ;; :lite-mode true
+    ;; :elide-to-string true
     ;; :output-feature-set :es6
     ;; :output-wrapper false
     ;; :closure-output-charset "US-ASCII"
@@ -326,7 +329,7 @@
 
   :test-node
   {:target :node-test
-   :ns-regexp "test.(.+)-test$"
+   :ns-regexp "demo.(.+)-test$"
    :ui-driven true
    :output-to "out/demo-test-node/script.js"}
 

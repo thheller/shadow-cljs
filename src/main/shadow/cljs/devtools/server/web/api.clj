@@ -2,6 +2,7 @@
   (:require
     [clojure.core.async :as async :refer (go >! <! alt!! >!! <!!)]
     [clojure.set :as set]
+    [shadow.http.server :as http-server]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.server.web.common :as common]
     [shadow.http.router :as http]
@@ -113,17 +114,14 @@
       ;; so we just send an access denied message and disconnect
       (let [ws-in (async/chan)
             ws-out (async/chan 1 (map transit-str))]
-        {:ws-in ws-in
-         :ws-out ws-out
-         :ws-loop
-         (async/go
-           (async/>! ws-out {:op :access-denied})
-           :access-denied)})
+        (async/>!! ws-out {:op :access-denied})
+        (http-server/ws-upgrade ws-in ws-out))
 
       ;; relay can be very chatty, try to not drop too many messages
       ;; while also not buffering too much
       (let [ws-in (async/chan 4096 (map transit-read))
             ws-out (async/chan 4096 (map transit-str))]
-        {:ws-in ws-in
-         :ws-out ws-out
-         :ws-loop (relay/connect relay ws-in ws-out {:remote true :websocket true})}))))
+        (http-server/ws-upgrade
+          ws-in
+          ws-out
+          (relay/connect relay ws-in ws-out {:remote true :websocket true}))))))

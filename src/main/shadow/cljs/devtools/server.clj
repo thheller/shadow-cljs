@@ -6,7 +6,7 @@
     [shadow.jvm-log :as log]
     [shadow.http.router :as http]
     [shadow.runtime.services :as rt]
-    [shadow.undertow :as undertow]
+    [shadow.http.server :as http-server]
     [shadow.build :as sb]
     [shadow.build.classpath :as build-classpath]
     [shadow.fswatch :as fswatch]
@@ -130,7 +130,7 @@
     ;; CompletableFuture
     (.cancel cli-checker true))
 
-  (do-shutdown (undertow/stop (:server http)))
+  (do-shutdown (http-server/stop http))
 
   (do-shutdown (rt/stop-all app))
 
@@ -162,30 +162,27 @@
         ui-root
         (io/file ".shadow-cljs" "ui")
 
-        req-handler
-        [::undertow/classpath {:root "shadow/cljs/ui/dist"}
-         [::undertow/classpath {:root "shadow/cljs/devtools/server/web/resources"}
-          [::undertow/blocking
-           [::undertow/ring {:handler-fn ring-fn}]]]]
-
-        req-handler
+        handlers
         (if-not (.exists ui-root)
-          req-handler
-          [::undertow/file {:root-dir ui-root} req-handler])
+          []
+          ;; for shadow-cljs UI development everything is compiled into .shadow-cljs/ui by the :ui build
+          ;; I want to use those files over the ui-release folder to prevent dev files from leaking
+          ;; into shadow-cljs release jars. don't need this when running normally.
+          (let [file-handler (http-server/file-handler ui-root)]
+            [file-handler]))
 
-        handler-config
-        [::undertow/soft-cache
-         [::undertow/ws-upgrade
-          [::undertow/ws-ring {:handler-fn ring-fn}]
-          [::undertow/compress {}
-           req-handler]]]]
+        handlers
+        (conj handlers
+          (http-server/classpath-handler "/shadow/cljs/ui/dist")
+          (http-server/classpath-handler "/shadow-cljs/devtools/server/web/resources")
+          (http-server/ring-handler ring-fn))]
 
     (loop [port (or port 9630)]
       (let [srv
             (try
-              (undertow/start
+              (http-server/start
                 (assoc http-config :port port)
-                handler-config)
+                handlers)
               (catch Exception e
                 (cond
                   strict
@@ -226,7 +223,10 @@
             (merge http)
             (cond->
               (and ssl (not (false? (:enabled ssl))))
-              (assoc :ssl-context (undertow/make-ssl-context ssl))))
+              (assoc :ssl-context
+                     (http-server/ssl-context-for-file
+                       (:keystore ssl "ssl/keystore.jks")
+                       (:password ssl "shadow-cljs")))))
 
         {:keys [http-port https-port] :as http}
         (start-http config http-config app-ref)
@@ -329,13 +329,7 @@
              :shutdown-hook shutdown-hook
              :ssl-context ssl-context
              :cli-checker cli-checker
-             :http {:port (or https-port http-port)
-                    :http-port http-port
-                    :https-port https-port
-                    :host (:host http-config)
-                    :ssl (boolean https-port)
-                    :server http
-                    :server-token (str (UUID/randomUUID))}
+             :http (assoc http :server-token (str (UUID/randomUUID)))
              :port-files-ref port-files-ref
              :cli-repl cli-repl}
             (cond->
@@ -558,11 +552,12 @@
 
            (println (str "shadow-cljs - server version: "
                          version
-                         " running at http" (when ssl-context "s") "://" http-host ":" (:port http)))
+                         " running at http" (when (:ssl http) "s") "://" http-host ":" (:port http)))
            #_(println (str "shadow-cljs - socket REPL running on port " (:port socket-repl)))
            ;; must keep this message since cider looks for it
            (when nrepl
-             (println (str "shadow-cljs - nREPL server started on port " (:port nrepl))))
+             (println (str "shadow-cljs - nREPL server started on port " (:port nrepl)))
+             (println "shadow-cljs - nREPL port has been written to .shadow-cljs/nrepl.port"))
 
            ::started
            )))))

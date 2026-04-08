@@ -49,16 +49,15 @@
 
    [thheller/shadow-util "0.7.0"]
    [thheller/shadow-client "1.4.0"]
-   [thheller/shadow-undertow "0.3.4"]
    [thheller/shadow-cljsjs "0.0.22"]
+   
+   [com.thheller/shadow-http "0.1.2"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.14.1"
     :exclusions
     ;; used by cookie middleware which we don't use
     [clj-time]]
-
-   [io.methvin/directory-watcher "0.19.0"]
 
    [expound "0.9.0"]
    [fipp "0.6.27"]
