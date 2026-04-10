@@ -67,38 +67,51 @@
 
             (->> build-sources
                  (mapcat #(get-in state [:output % :used-vars]))
-                 (filter #(= "js" (namespace %)))
-                 (map name)
+                 (set)
                  (reduce
-                   (fn [acc js-name]
-                     ;;   (:require ["pkg" :as x]) and x used directly
-                     ;; meaning we need
-                     ;;   import * as x from "pkg";
-                     ;; no need to destructure props then
+                   (fn [acc var-sym]
+                     (let [var-str (str var-sym)
+                           prefix "shadow.js.shim.module$"
+                           pos (str/index-of var-str prefix)]
+                       (if-not pos
+                         acc
+                         ;;   (:require ["pkg" :as x]) and x used directly
+                         ;; meaning we need
+                         ;;   import * as x from "pkg";
+                         ;; no need to destructure props then
 
-                     ;; (:require ["pkg" :as x]) using x somewhere
-                     (if (contains? js-shim-namespaces js-name)
-                       (assoc acc js-name ::STAR)
+                         ;; (:require ["pkg" :as x]) using x somewhere
 
-                       ;; record individual property access
-                       ;; (:require ["pkg" :as x]) using x/foo
-                       (let [match-ns (first (filter #(str/starts-with? js-name %) match-prefixes))]
-                         (cond
-                           (not match-ns) ;; only want to record shim access
-                           acc
+                         ;; both are possible because of how cljs compiler handles dotted symbols (see desugar-dotted-expr)
+                         ;; js/shim.js.module$react.foo
+                         ;; shim.js.module$react/foo
+                         (let [js-name (subs var-str pos)]
+                           ;; react.foo or react/foo
+                           (if (contains? js-shim-namespaces js-name)
+                             (assoc acc js-name ::STAR)
 
-                           ;; don't override * if we encounter another prop
-                           (= ::STAR (get acc match-ns))
-                           acc
+                             ;; record individual property access
+                             ;; (:require ["pkg" :as x]) using x/foo
+                             (let [match-ns (first (filter #(str/starts-with? js-name %) match-prefixes))]
+                               (cond
+                                 (not match-ns) ;; only want to record shim access
+                                 acc
 
-                           :else
-                           (let [prop (subs js-name (-> match-ns count inc))
-                                 ;; (:require ["pkg" :as x]) x/foo.bar, only need x/foo
-                                 prop (let [idx (str/index-of prop ".")]
-                                        (if-not idx
-                                          prop
-                                          (subs prop 0 idx)))]
-                             (update acc match-ns util/set-conj prop))))))
+                                 ;; don't override * if we encounter another prop
+                                 (= ::STAR (get acc match-ns))
+                                 acc
+
+                                 :else
+                                 (let [prop (str/replace
+                                              (subs js-name (-> match-ns count inc))
+                                              ;; quick hack because we might have react.foo or react/foo at this point
+                                              #"/" ".")
+                                       ;; (:require ["pkg" :as x]) x/foo.bar, only need x/foo
+                                       prop (let [idx (str/index-of prop ".")]
+                                              (if-not idx
+                                                prop
+                                                (subs prop 0 idx)))]
+                                   (update acc match-ns util/set-conj prop)))))))))
                    {}))))
 
         aliases
