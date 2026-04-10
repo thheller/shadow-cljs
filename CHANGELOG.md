@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.0](https://github.com/thheller/shadow-cljs/compare/daba62a41b51026728faa8f658a97987f8dfc774...8df11e72fd1c13a385cc75a717f96be66e1a9f96) - 2026-04-10
+- [ [`8df11`](https://github.com/thheller/shadow-cljs/commit/8df11e72fd1c13a385cc75a717f96be66e1a9f96) ] fix external-index missing imports
+- [ [`dc5d8`](https://github.com/thheller/shadow-cljs/commit/dc5d88824e50ecd568c6edfbc2e19bc20cd4e2f9) ] dependency bumps
+- [ [`4f229`](https://github.com/thheller/shadow-cljs/commit/4f229c5938a9975648f82c9e06b4c7bd325805a7) ] switch to shadow-http, remove shadow-undertow
+- [ [`113a7`](https://github.com/thheller/shadow-cljs/commit/113a7b636e5ad00a446e4bbabd0775a578605b24) ] cleanup container start script
+- [ [`daba6`](https://github.com/thheller/shadow-cljs/commit/daba62a41b51026728faa8f658a97987f8dfc774) ] rewrite fswatch impl, container setup
+
 ## [3.3.8](https://github.com/thheller/shadow-cljs/compare/f23162c2df7e1a6a4f3b127b8b1e9a721479d417...f23162c2df7e1a6a4f3b127b8b1e9a721479d417) - 2026-03-30
 - [ [`f2316`](https://github.com/thheller/shadow-cljs/commit/f23162c2df7e1a6a4f3b127b8b1e9a721479d417) ] allow any :refer-global to be used as ns alias
 
