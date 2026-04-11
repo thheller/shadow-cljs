@@ -19,7 +19,6 @@
             [shadow.core-ext :as core-ext]
             [cljs.compiler :as cljs-comp]
             [shadow.build.npm :as npm]
-            [shadow.cljs.devtools.server.npm-deps :as npm-deps]
             [shadow.build.log :as build-log])
   (:import [com.google.javascript.jscomp.deps SourceCodeEscapers]
            [com.google.javascript.jscomp.jarjar.com.google.common.escape Escaper]))

@@ -186,7 +186,7 @@
         (when http-server
           (log/debug ::http-serve (dissoc http-server :server))
           (>!! out {:type :println
-                    :msg (format "shadow-cljs - :dev-http %s serving %s" http-url (pr-str roots))}))
+                    :msg (format "shadow-cljs - :dev-http %s serving %s" http-url (pr-str (or roots proxy-url)))}))
 
 
 

@@ -5,7 +5,7 @@
     [clojure.java.io :as io]
     [shadow.build.npm :as npm]
     [shadow.build.resolve :refer (find-npm-resource)]
-    [shadow.cljs.devtools.server.npm-deps :as npm-deps]
+    [shadow.cljs.npm-deps :as npm-deps]
     [shadow.cljs.util :as util]
     [shadow.debug :as dbg]
     [clojure.edn :as edn])

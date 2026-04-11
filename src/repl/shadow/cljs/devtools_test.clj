@@ -24,8 +24,7 @@
     [shadow.build.data :as data]
     [clojure.string :as str]
     [shadow.build.cache :as cache]
-    [shadow.build.babel :as babel]
-    [shadow.cljs.devtools.server.npm-deps :as npm-deps])
+    [shadow.build.babel :as babel])
   (:import (com.google.javascript.jscomp SourceFile CompilationLevel)
            (javax.net.ssl KeyManagerFactory)
            (java.io FileInputStream)

@@ -7,7 +7,6 @@
     [shadow.cljs.devtools.cli-opts :as opts]
     [shadow.cljs.devtools.api :as api]
     [shadow.cljs.devtools.errors :as errors]
-    [shadow.cljs.devtools.server.npm-deps :as npm-deps]
     [shadow.build.api :as cljs]
     [shadow.build.node :as node]
     [shadow.cljs.devtools.server.socket-repl :as socket-repl]
@@ -135,10 +134,6 @@
 
         config
         (config/load-cljs-edn!)]
-
-    ;; always install since its a noop if everything is in package.json
-    ;; and a server restart is not required for them to be picked up
-    (npm-deps/main config opts)
 
     ;; FIXME: need cleaner with-runtime logic
     ;; don't like that some actions implicitely start a server
