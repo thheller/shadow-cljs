@@ -38,9 +38,6 @@ container run \
   -v "$PWD:/code/shadow-cljs" \
   -v "$PWD/../shadow-grove:/code/shadow-grove" \
   -v "$PWD/../shadow-css:/code/shadow-css" \
-  -v "$PWD/../shadow:/code/shadow" \
-  -v "$PWD/../shadow-cljsjs:/code/shadow-cljsjs" \
-  -v "$PWD/../shadow-undertow:/code/shadow-undertow" \
   -v cache:/cache \
   -p 9601:9601 \
   -p 9602:9602 \
