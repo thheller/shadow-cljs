@@ -141,14 +141,15 @@
       {}))
 
 (defn load-cljs-edn []
-  (let [file (io/file "shadow-cljs.edn")]
+  (let [file (io/file "shadow-cljs.edn")
+        user-config (load-user-config)]
     (if-not (.exists file)
       default-config
-      (-> (read-config file)
+      (-> (api/deep-merge user-config (read-config file))
           (normalize)
           (->> (merge default-config))
           (update :builds #(merge default-builds %))
-          (assoc :user-config (load-user-config))
+          (assoc :user-config user-config)
           ;; overrides everything else
           (api/deep-merge env-config)
           ))))
