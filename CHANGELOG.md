@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.4.1](https://github.com/thheller/shadow-cljs/compare/37bd1d85c88e0e5513600172454ae997424a931e...5eb219f8a139717ecab60f44827a7f01b597ad44) - 2026-04-11
+- [ [`5eb21`](https://github.com/thheller/shadow-cljs/commit/5eb219f8a139717ecab60f44827a7f01b597ad44) ] remove automatic npm-deps install, make manual command instead
+- [ [`37bd1`](https://github.com/thheller/shadow-cljs/commit/37bd1d85c88e0e5513600172454ae997424a931e) ] change user-config handling
+
 ## [3.4.0](https://github.com/thheller/shadow-cljs/compare/daba62a41b51026728faa8f658a97987f8dfc774...8df11e72fd1c13a385cc75a717f96be66e1a9f96) - 2026-04-10
 - [ [`8df11`](https://github.com/thheller/shadow-cljs/commit/8df11e72fd1c13a385cc75a717f96be66e1a9f96) ] fix external-index missing imports
 - [ [`dc5d8`](https://github.com/thheller/shadow-cljs/commit/dc5d88824e50ecd568c6edfbc2e19bc20cd4e2f9) ] dependency bumps
