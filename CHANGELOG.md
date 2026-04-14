@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.4.2](https://github.com/thheller/shadow-cljs/compare/41259acc45b0dd0daab60f680eee6a32d4828d80...9a5b1f21656658b3ebdaabcdddf7adca6b1b1a18) - 2026-04-14
+- [ [`9a5b1`](https://github.com/thheller/shadow-cljs/commit/9a5b1f21656658b3ebdaabcdddf7adca6b1b1a18) ] some proxy test files
+- [ [`b4021`](https://github.com/thheller/shadow-cljs/commit/b40212988a7e50e1dff64c34e03851713c5ab85a) ] fix http server port finding logic
+- [ [`41259`](https://github.com/thheller/shadow-cljs/commit/41259acc45b0dd0daab60f680eee6a32d4828d80) ] fix start script
+
 ## [3.4.1](https://github.com/thheller/shadow-cljs/compare/37bd1d85c88e0e5513600172454ae997424a931e...5eb219f8a139717ecab60f44827a7f01b597ad44) - 2026-04-11
 - [ [`5eb21`](https://github.com/thheller/shadow-cljs/commit/5eb219f8a139717ecab60f44827a7f01b597ad44) ] remove automatic npm-deps install, make manual command instead
 - [ [`37bd1`](https://github.com/thheller/shadow-cljs/commit/37bd1d85c88e0e5513600172454ae997424a931e) ] change user-config handling
