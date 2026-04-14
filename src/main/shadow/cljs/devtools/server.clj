@@ -188,7 +188,7 @@
                   strict
                   (throw e)
 
-                  (instance? BindException (.getCause e))
+                  (instance? BindException e)
                   (log/warn ::tcp-port-unavailable {:port port})
 
                   :else
