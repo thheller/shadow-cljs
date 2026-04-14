@@ -27,7 +27,8 @@
   8607 [".shadow-cljs/build-report"
         "src/ui-release/shadow/cljs/build_report/dist"]
   8608 "out/npm-web"
-  8609 {:proxy-url "http://localhost:9630"}}
+  8609 {:roots ["out/demo-proxy/public"]
+        :proxy-url "http://localhost:9630"}}
 
  :prepl {:browser 12345}
 
