@@ -51,7 +51,7 @@
    [thheller/shadow-client "1.4.0"]
    [thheller/shadow-cljsjs "0.0.22"]
    
-   [com.thheller/shadow-http "0.1.3"]
+   [com.thheller/shadow-http "0.1.4"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.15.3"
