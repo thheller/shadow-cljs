@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.4.3](https://github.com/thheller/shadow-cljs/compare/d021109f620f69bc12f0a92bc490f70ce395b3ce...d021109f620f69bc12f0a92bc490f70ce395b3ce) - 2026-04-15
+- [ [`d0211`](https://github.com/thheller/shadow-cljs/commit/d021109f620f69bc12f0a92bc490f70ce395b3ce) ] shadow-http bump
+
 ## [3.4.2](https://github.com/thheller/shadow-cljs/compare/41259acc45b0dd0daab60f680eee6a32d4828d80...9a5b1f21656658b3ebdaabcdddf7adca6b1b1a18) - 2026-04-14
 - [ [`9a5b1`](https://github.com/thheller/shadow-cljs/commit/9a5b1f21656658b3ebdaabcdddf7adca6b1b1a18) ] some proxy test files
 - [ [`b4021`](https://github.com/thheller/shadow-cljs/commit/b40212988a7e50e1dff64c34e03851713c5ab85a) ] fix http server port finding logic
