@@ -1123,9 +1123,11 @@
   [&form &env x]
   (if (symbol? x)
     (let [resolved (:name (ana/resolve-var &env x))
-          y (cond-> resolved
-              (= "js" (namespace resolved)) name)
-          segs (str/split (str (str/replace (str y) "/" ".")) #"\.")
+          resolved-ns (namespace resolved)
+          fqn (if (= "js" resolved-ns)
+                (name resolved)
+                (str resolved-ns "." (name resolved)))
+          segs (str/split fqn #"\.")
           n (count segs)
           syms (map
                  #(vary-meta (symbol "js" (str/join "." %))
