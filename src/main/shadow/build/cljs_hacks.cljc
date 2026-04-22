@@ -1125,7 +1125,7 @@
     (let [resolved (:name (ana/resolve-var &env x))
           y (cond-> resolved
               (= "js" (namespace resolved)) name)
-          segs (str/split (str (str/replace (str y) "/" ".")) #"\.")
+          segs (str/split (str (str/replace-first (str y) "/" ".")) #"\.")
           n (count segs)
           syms (map
                  #(vary-meta (symbol "js" (str/join "." %))
