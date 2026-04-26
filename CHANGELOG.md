@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.4.5](https://github.com/thheller/shadow-cljs/compare/28420f1e8d6491e61c401bd58613569ee711f361...28420f1e8d6491e61c401bd58613569ee711f361) - 2026-04-26
+- [ [`28420`](https://github.com/thheller/shadow-cljs/commit/28420f1e8d6491e61c401bd58613569ee711f361) ] fix exists? override
+
 ## [3.4.4](https://github.com/thheller/shadow-cljs/compare/765137dfe50dfb7232ee2061bb3e7efa426bb1b5...765137dfe50dfb7232ee2061bb3e7efa426bb1b5) - 2026-04-15
 - [ [`76513`](https://github.com/thheller/shadow-cljs/commit/765137dfe50dfb7232ee2061bb3e7efa426bb1b5) ] shadow-http bump
 
