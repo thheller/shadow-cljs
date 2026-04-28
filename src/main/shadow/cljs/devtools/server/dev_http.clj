@@ -5,6 +5,7 @@
     [clojure.core.async :as async :refer (>!! <!!)]
     [clojure.spec.alpha :as s]
     [shadow.cljs.devtools.server.sync-db :as sync-db]
+    [shadow.fswatch :as fswatch]
     [shadow.jvm-log :as log]
     [shadow.cljs.devtools.config :as config]
     [shadow.cljs.devtools.server.system-bus :as sys-bus]
@@ -51,7 +52,7 @@
         (ProxyHandler. uri ssl-context (:connect-timeout config 5000))))))
 
 (defn start-build-server
-  [sys-bus ssl-context out
+  [sys-config sys-bus ssl-context out
    {:keys [proxy-url proxy-predicate port ssl-port host roots handler]
     :or {port 0}
     :as config}]
@@ -165,6 +166,16 @@
                   (log/warn-ex e ::http-start-ex {:http-options http-options :config config})
                   nil)))
 
+            file-watchers
+            (->> roots
+                 (remove #(str/starts-with? % "classpath"))
+                 (mapv (fn [root]
+                         (let [root-dir (io/file root)]
+                           (fswatch/start (:fs-watch sys-config) [root-dir] #{"css"}
+                             (fn [updates]
+                               (sys-bus/publish! sys-bus ::m/asset-update {:updates (mapv #(str "/" (:name %)) updates)})
+                               ))))))
+
             display-host
             (if (= "0.0.0.0" http-host) "localhost" http-host)
 
@@ -193,6 +204,7 @@
         {:http-url http-url
          :https-url https-url
          :config config
+         :file-watchers file-watchers
          :http-server http-server
          :https-server https-server})
 
@@ -349,11 +361,13 @@
         {:devtools
          {:http-root "foo-root"}}}})))
 
-(defn start-servers [sys-bus configs ssl-context out]
-  (into [] (map #(start-build-server sys-bus ssl-context out %)) configs))
+(defn start-servers [config sys-bus configs ssl-context out]
+  (into [] (map #(start-build-server config sys-bus ssl-context out %)) configs))
 
 (defn stop-servers [{:keys [servers] :as state}]
-  (doseq [{:keys [http-server https-server] :as srv} servers]
+  (doseq [{:keys [http-server https-server file-watchers] :as srv} servers]
+    (doseq [fsw file-watchers]
+      (fswatch/stop fsw))
     (when http-server
       (http-server/stop http-server))
     (when https-server
@@ -385,7 +399,7 @@
         (transform-server-configs config)
 
         state-ref
-        (-> {:servers (start-servers sys-bus configs ssl-context out)
+        (-> {:servers (start-servers config sys-bus configs ssl-context out)
              :configs configs
              :ssl-context ssl-context
              :sub sub
