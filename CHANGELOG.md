@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.4.6](https://github.com/thheller/shadow-cljs/compare/0db144ce3484ca4a6e7c2cb31e9d6a58ada5e794...f4004f7f30d107f809337104965d45eb279a4650) - 2026-04-28
+- [ [`f4004`](https://github.com/thheller/shadow-cljs/commit/f4004f7f30d107f809337104965d45eb279a4650) ] restore lost css reloading
+- [ [`0db14`](https://github.com/thheller/shadow-cljs/commit/0db144ce3484ca4a6e7c2cb31e9d6a58ada5e794) ] don't watch cljs-runtime dirs
+
 ## [3.4.5](https://github.com/thheller/shadow-cljs/compare/28420f1e8d6491e61c401bd58613569ee711f361...28420f1e8d6491e61c401bd58613569ee711f361) - 2026-04-26
 - [ [`28420`](https://github.com/thheller/shadow-cljs/commit/28420f1e8d6491e61c401bd58613569ee711f361) ] fix exists? override
 
