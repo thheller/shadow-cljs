@@ -2,7 +2,6 @@ package shadow.fswatch;
 
 import clojure.lang.IPersistentCollection;
 import clojure.lang.ITransientCollection;
-import clojure.lang.PersistentHashSet;
 import clojure.lang.PersistentVector;
 
 import java.io.File;
@@ -10,9 +9,6 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
-import java.util.List;
-
-import static java.nio.file.StandardWatchEventKinds.*;
 
 /**
  * Created by zilence on 05.06.15.

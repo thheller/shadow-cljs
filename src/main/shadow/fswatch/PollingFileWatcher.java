@@ -123,6 +123,7 @@ public class PollingFileWatcher implements AutoCloseable, IFileWatcher {
         lastModifiedMap.clear();
     }
 
+
     private class FullScan extends SimpleFileVisitor<Path> {
         final Set<Path> foundFiles;
         final boolean initial;
@@ -136,7 +137,7 @@ public class PollingFileWatcher implements AutoCloseable, IFileWatcher {
 
         @Override
         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-            if (Files.isHidden(dir)) {
+            if (FileWatcher.shouldIgnoreDir(dir)) {
                 return FileVisitResult.SKIP_SUBTREE;
             }
             return FileVisitResult.CONTINUE;
@@ -178,7 +179,7 @@ public class PollingFileWatcher implements AutoCloseable, IFileWatcher {
 
         @Override
         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-            if (Files.isHidden(dir)) {
+            if (FileWatcher.shouldIgnoreDir(dir)) {
                 return FileVisitResult.SKIP_SUBTREE;
             }
             return FileVisitResult.CONTINUE;

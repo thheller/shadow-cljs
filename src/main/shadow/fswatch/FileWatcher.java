@@ -36,14 +36,16 @@ public class FileWatcher implements AutoCloseable, IFileWatcher {
         this.ws.close();
     }
 
-    private Watchable asWatchable(Path dir) {
-        return dir;
-    }
-
     @SuppressWarnings("unchecked")
     private Path eventPath(WatchEvent event) {
         WatchEvent<Path> ev = (WatchEvent<Path>) event;
         return ev.context();
+    }
+
+    public static boolean shouldIgnoreDir(Path dir) throws IOException {
+        // never interested in changes in cljs-runtime, since we are doing the changes
+        // also potentially a lot of files here, so save some time
+        return Files.isHidden(dir) || "cljs-runtime".equals(dir.getFileName().toString());
     }
 
     private void registerAll(final Path start) throws IOException {
@@ -53,14 +55,13 @@ public class FileWatcher implements AutoCloseable, IFileWatcher {
                 Integer.MAX_VALUE,
                 new SimpleFileVisitor<Path>() {
                     public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                        WatchKey key = asWatchable(dir).register(ws,
-                                new WatchEvent.Kind[]{
-                                        ENTRY_CREATE,
-                                        ENTRY_DELETE,
-                                        ENTRY_MODIFY
-                                });
-                        keys.put(key, dir);
-                        return FileVisitResult.CONTINUE;
+                        if (shouldIgnoreDir(dir)) {
+                            return FileVisitResult.SKIP_SUBTREE;
+                        } else {
+                            WatchKey key = dir.register(ws, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
+                            keys.put(key, dir);
+                            return FileVisitResult.CONTINUE;
+                        }
                     }
                 });
     }
