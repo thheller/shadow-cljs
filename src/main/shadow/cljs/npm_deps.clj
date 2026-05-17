@@ -182,10 +182,12 @@
 
 (defn main
   ([]
-   (main (:npm-deps (config/load-cljs-edn!))))
-  ([{:keys [npm-deps] :as config}]
-   (let [{:keys [install-dir] :or {install-dir "."}}
-         npm-deps
+   (main (config/load-cljs-edn!)))
+  ([config]
+   (let [install-dir
+         (or (get-in config [:node-modules :install-dir])
+             (get-in config [:npm-deps :install-dir])
+             ".")
 
          package-json
          (read-package-json install-dir)
@@ -198,8 +200,7 @@
               (remove #(is-installed? % package-json)))]
 
      (when (seq deps)
-       (install-deps config deps)
-       ))))
+       (install-deps config deps)))))
 
 ;; for clj -M / shadow-cljs run
 (defn -main [& args]
