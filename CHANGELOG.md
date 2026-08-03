@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.4.12](https://github.com/thheller/shadow-cljs/compare/64bc925cc851984e3478972621abf99c3076900d...b308ac155cc3b90e7c92801fe37167e71e8def2a) - 2026-08-03
+- [ [`b308a`](https://github.com/thheller/shadow-cljs/commit/b308ac155cc3b90e7c92801fe37167e71e8def2a) ] remove use a timestamp in caching logic
+- [ [`5e014`](https://github.com/thheller/shadow-cljs/commit/5e01483c27b7f9d230f1e58c05c0e5d5a2adce6d) ] sync deps.edn versions with project.clj, document :dev prerequisites (#1269)
+- [ [`64bc9`](https://github.com/thheller/shadow-cljs/commit/64bc925cc851984e3478972621abf99c3076900d) ] port CLJS-3024 fix
+
 ## [3.4.11](https://github.com/thheller/shadow-cljs/compare/0ea2b4275bd9754ffe4815fe9d0d6bc18acf48c6...bd2574b96c1170f71ceef90198721179e81b17d9) - 2026-05-18
 - [ [`bd257`](https://github.com/thheller/shadow-cljs/commit/bd2574b96c1170f71ceef90198721179e81b17d9) ] fix for CLJS-2292
 - [ [`0ea2b`](https://github.com/thheller/shadow-cljs/commit/0ea2b4275bd9754ffe4815fe9d0d6bc18acf48c6) ] fix npm-deps config scoping
