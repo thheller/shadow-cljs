@@ -1177,6 +1177,7 @@
 (defn shadow-add-ifn-methods [type type-sym [f & meths :as form]]
   (let [this-sym (with-meta 'self__ {:tag type})
         argsym (gensym "args")
+        max-ifn-arity 20
 
         ;; we are emulating JS .call where the first argument will become this inside the fn
         ;; but this is not actually what we want when emulating IFn since we need "this"
@@ -1209,7 +1210,11 @@
              `(fn ~[this-sym argsym]
                 (core/this-as ~this-sym
                   (.apply (.-call ~this-sym) ~this-sym
-                    (.concat (core/array ~this-sym) (core/aclone ~argsym)))))
+                    (.concat (core/array ~this-sym)
+                      (if (> (.-length ~argsym) ~max-ifn-arity)
+                        (doto (.slice ~argsym 0 ~max-ifn-arity)
+                          (.push (.slice ~argsym ~max-ifn-arity)))
+                        ~argsym)))))
              (meta form)))]
       (core/ifn-invoke-methods type type-sym form))))
 
