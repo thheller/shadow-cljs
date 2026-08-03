@@ -32,7 +32,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def CACHE-TIMESTAMP (util/resource-last-modified "shadow/build/classpath.clj"))
+(def CACHE-BUSTER (data/sha1-url (io/resource "shadow/build/classpath.clj")))
 
 (defn get-classpath []
   ;; in case of a dynamically modified classpath
@@ -551,18 +551,12 @@
         mfile
         (io/file manifest-cache-dir manifest-name)]
 
-    (or (when (and (.exists mfile)
-                   (>= (.lastModified mfile) (.lastModified jar-file))
-                   (>= (.lastModified mfile) CACHE-TIMESTAMP))
+    (or (when (.exists mfile)
           (try
             (let [cache (cache/read-cache mfile)]
-              ;; user downloads version 2.0.0 runs it
-              ;; upgrades to latest version release a day ago
-              ;; last-modified of cache is higher that release data
-              ;; so the initial check succeeds because >= is true
-              ;; comparing them to be equal ensures that new version
-              ;; will invalidate the cache
-              (when (= CACHE-TIMESTAMP (::CACHE-TIMESTAMP cache))
+              ;; only using cache if this version of shadow.build.classpath created it
+              (when (and (= CACHE-BUSTER (::CACHE-BUSTER cache))
+                         (= checksum (::CACHE-CHECKSUM cache)))
                 cache))
             (catch Throwable e
               (log/info-ex e ::jar-cache-read-ex {:file mfile})
@@ -575,7 +569,7 @@
                    (process-root-contents cp jar-file))]
           (io/make-parents mfile)
           (try
-            (cache/write-file mfile (assoc jar-contents ::CACHE-TIMESTAMP CACHE-TIMESTAMP))
+            (cache/write-file mfile (assoc jar-contents ::CACHE-BUSTER CACHE-BUSTER ::CACHE-CHECKSUM checksum))
             (catch Throwable e
               (log/info-ex e ::jar-cache-write-ex {:file mfile})))
           jar-contents))))

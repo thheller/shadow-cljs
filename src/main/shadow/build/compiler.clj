@@ -30,18 +30,34 @@
     [shadow.build.npm :as npm]
     [shadow.jvm-log :as log]
     [shadow.build.async :as async])
-  (:import (java.util.concurrent ExecutorService)
+  (:import [java.net JarURLConnection]
+           (java.util.concurrent ExecutorService)
            (java.io File StringReader PushbackReader StringWriter)
            [java.util.concurrent.atomic AtomicLong]))
 
-(def SHADOW-TIMESTAMP
-  ;; timestamp to ensure that new shadow-cljs release always invalidate caches
-  ;; technically needs to check all files but given that they'll all be in the
-  ;; same jar one is enough
-  [(util/resource-last-modified "shadow/build/compiler.clj")
-   (util/resource-last-modified "shadow/build/cljs_hacks.cljc")
-   ;; check a cljs file as well in case the user uses a different cljs version directly
-   (util/resource-last-modified "cljs/analyzer.cljc")])
+(def SHADOW-CACHE-KEY
+  ;; checksums to ensure that new shadow-cljs release always invalidate caches
+  ;; can't rely on timestamps since some CI caches may change the last modified of the .jar
+  [(let [comp-url (io/resource "shadow/build/compiler.clj")]
+     (if (= "jar" (.getProtocol comp-url))
+       ;; validate against the entire jar file normally. any changes should invalidate the cache just to be sure
+       (-> (.getJarFileURL ^JarURLConnection (.openConnection comp-url))
+           (.toURI)
+           (io/file)
+           (data/sha1-file))
+       ;; for development convenience. any changes in these should invalidate cache. don't have a jar to check
+       ;; listing all files is overkill. this should be enough I think
+       [(data/sha1-url comp-url)
+        (data/sha1-url (io/resource "shadow/build/closure.clj"))
+        (data/sha1-url (io/resource "shadow/build/cljs_hacks.cljc"))]))
+   (let [comp-url (io/resource "cljs/analyzer.cljc")]
+     (if (= "jar" (.getProtocol comp-url))
+       (-> (.getJarFileURL ^JarURLConnection (.openConnection comp-url))
+           (.toURI)
+           (io/file)
+           (data/sha1-file))
+       [(data/sha1-url (io/resource "cljs/compiler.clj"))
+        (data/sha1-url (io/resource "cljs/analyzer.clj"))]))])
 
 (def ^:dynamic *cljs-warnings-ref* nil)
 
@@ -875,8 +891,7 @@
   (let [deps (data/get-deps-for-id state #{} (:resource-id rc))]
 
     ;; must always invalidate cache on version change
-    ;; which will always have a new timestamp
-    (-> {:SHADOW-TIMESTAMP SHADOW-TIMESTAMP}
+    (-> {:SHADOW-CACHE-KEY SHADOW-CACHE-KEY}
         (util/reduce->
           (fn [cache-map id]
             (assoc cache-map id (get-in state [:sources id :cache-key])))
