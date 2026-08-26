@@ -46,7 +46,7 @@
     org.clojure/google-closure-library
     org.clojure/google-closure-library-third-party]}
 
-  com.google.javascript/closure-compiler {:mvn/version "v20250407"}
+  com.google.javascript/closure-compiler {:mvn/version "v20260824"}
 
   org.clojure/google-closure-library {:mvn/version "0.0-20250515-f04e4c0e"}
   org.clojure/google-closure-library-third-party {:mvn/version "0.0-20250515-f04e4c0e"}
