@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.5.0](https://github.com/thheller/shadow-cljs/compare/3011066f95effbf0eeb693304d33b80c29ac4d2d...3011066f95effbf0eeb693304d33b80c29ac4d2d) - 2026-08-26
+- [ [`30110`](https://github.com/thheller/shadow-cljs/commit/3011066f95effbf0eeb693304d33b80c29ac4d2d) ] bump closure-compiler to v20260824 (#1275)
+
 ## [3.4.13](https://github.com/thheller/shadow-cljs/compare/813d7b454cdcfefc1aea831fc853bd06e4524c3c...813d7b454cdcfefc1aea831fc853bd06e4524c3c) - 2026-08-25
 - [ [`813d7`](https://github.com/thheller/shadow-cljs/commit/813d7b454cdcfefc1aea831fc853bd06e4524c3c) ] shadow-http bump
 
