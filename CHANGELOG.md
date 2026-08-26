@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.4.13](https://github.com/thheller/shadow-cljs/compare/813d7b454cdcfefc1aea831fc853bd06e4524c3c...813d7b454cdcfefc1aea831fc853bd06e4524c3c) - 2026-08-25
+- [ [`813d7`](https://github.com/thheller/shadow-cljs/commit/813d7b454cdcfefc1aea831fc853bd06e4524c3c) ] shadow-http bump
+
 ## [3.4.12](https://github.com/thheller/shadow-cljs/compare/64bc925cc851984e3478972621abf99c3076900d...b308ac155cc3b90e7c92801fe37167e71e8def2a) - 2026-08-03
 - [ [`b308a`](https://github.com/thheller/shadow-cljs/commit/b308ac155cc3b90e7c92801fe37167e71e8def2a) ] remove use a timestamp in caching logic
 - [ [`5e014`](https://github.com/thheller/shadow-cljs/commit/5e01483c27b7f9d230f1e58c05c0e5d5a2adce6d) ] sync deps.edn versions with project.clj, document :dev prerequisites (#1269)
