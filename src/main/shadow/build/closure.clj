@@ -49,11 +49,6 @@
    ;; in case someone sets a specific closure dependency
    (data/sha1-url (io/resource "com/google/javascript/jscomp/Compiler.class"))])
 
-(def injected-libraries-field
-  (doto (-> (Class/forName "com.google.javascript.jscomp.Compiler")
-            (.getDeclaredField "injectedLibraries"))
-    (.setAccessible true)))
-
 (def own-symbols-field
   (doto (-> (Class/forName "com.google.javascript.jscomp.SymbolTable$SymbolScope")
             (.getDeclaredField "ownSymbols"))
@@ -1118,7 +1113,8 @@
       ))
 
 (defn get-injected-libs [compiler]
-  (-> (.get injected-libraries-field compiler)
+  (-> (.getRuntimeJsLibManager compiler)
+      (.getInjectedLibraries)
       (set)))
 
 (defn dump-closure-inputs [state externs js-mods compiler-options]

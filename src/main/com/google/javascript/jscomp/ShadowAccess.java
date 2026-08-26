@@ -51,10 +51,6 @@ public class ShadowAccess {
         return result.source;
     }
 
-    public static void ensureLibraryInjected(AbstractCompiler comp, String name) {
-        comp.ensureLibraryInjected(name, true);
-    }
-
     // generate without source map info
     public static String nodeToJs(AbstractCompiler comp, Node node) {
         CodePrinter.Builder builder = new CodePrinter.Builder(node);
