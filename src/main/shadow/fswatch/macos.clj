@@ -127,6 +127,8 @@
 (defn setup [sys-config]
   (let [bin-file (.getCanonicalFile (io/file (:cache-root sys-config ".shadow-cljs") "macos-fswatch"))]
 
+    (io/make-parents bin-file)
+
     ;; extract bin file from jar so we can call it
     (with-open [bin-in (-> (Thread/currentThread) (.getContextClassLoader) (.getResourceAsStream "shadow/fswatch/macos-fswatch"))]
       (with-open [file-out (FileOutputStream. bin-file false)]
