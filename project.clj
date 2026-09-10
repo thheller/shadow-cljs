@@ -42,7 +42,7 @@
      org.clojure/google-closure-library
      org.clojure/google-closure-library-third-party]]
 
-   [com.google.javascript/closure-compiler "v20260824"]
+   [com.google.javascript/closure-compiler "v20260907"]
 
    [org.clojure/google-closure-library "0.0-20250515-f04e4c0e"]
    [org.clojure/google-closure-library-third-party "0.0-20250515-f04e4c0e"]
