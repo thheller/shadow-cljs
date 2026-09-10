@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.5.1](https://github.com/thheller/shadow-cljs/compare/282fcde1d7006539e6e53b055bb42405b1d2c070...231711ebd3c125158eb26db588d39a73a23d187a) - 2026-09-10
+- [ [`23171`](https://github.com/thheller/shadow-cljs/commit/231711ebd3c125158eb26db588d39a73a23d187a) ] closure compiler bump
+- [ [`394d6`](https://github.com/thheller/shadow-cljs/commit/394d6a15dbe3a8bf911ba600b2f29e4d2b352df7) ] fix .shadow-cljs/http.port not being written
+- [ [`c9afd`](https://github.com/thheller/shadow-cljs/commit/c9afd0f9ad14274284782fe17db0faf973e37e91) ] stop parsing user agent for browser clients
+- [ [`282fc`](https://github.com/thheller/shadow-cljs/commit/282fcde1d7006539e6e53b055bb42405b1d2c070) ] ensure .shadow-cljs dir exists first
+
 ## [3.5.0](https://github.com/thheller/shadow-cljs/compare/3011066f95effbf0eeb693304d33b80c29ac4d2d...3011066f95effbf0eeb693304d33b80c29ac4d2d) - 2026-08-26
 - [ [`30110`](https://github.com/thheller/shadow-cljs/commit/3011066f95effbf0eeb693304d33b80c29ac4d2d) ] bump closure-compiler to v20260824 (#1275)
 
