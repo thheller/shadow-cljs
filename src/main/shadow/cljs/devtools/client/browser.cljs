@@ -2,8 +2,6 @@
   (:require
     [clojure.string :as str]
     [goog.dom :as gdom]
-    [goog.userAgent :as ua]
-    [goog.userAgent.product :as uap]
     [goog.Uri]
     [shadow.json :as j]
     [shadow.cljs.devtools.client.env :as env]
@@ -169,24 +167,7 @@
              :browser
              :browser-worker)
      :user-agent
-     (str
-       (cond
-         ua/OPERA
-         "Opera"
-         uap/CHROME
-         "Chrome"
-         ua/IE
-         "MSIE"
-         ua/EDGE
-         "Edge"
-         ua/GECKO
-         "Firefox"
-         ua/SAFARI
-         "Safari"
-         ua/WEBKIT
-         "Webkit")
-       " " ua/VERSION
-       " [" ua/PLATFORM "]")
+     js/navigator.userAgent
 
      :dom (some? js/goog.global.document)}))
 
