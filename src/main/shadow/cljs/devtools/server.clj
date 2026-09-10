@@ -228,7 +228,7 @@
                        (:keystore ssl "ssl/keystore.jks")
                        (:password ssl "shadow-cljs")))))
 
-        {:keys [http-port https-port] :as http}
+        http
         (start-http config http-config app-ref)
 
         socket-repl-config
@@ -349,10 +349,12 @@
     ;; do this as the very last setup to maybe fix circleci timing issue?
     (reset! port-files-ref
       (make-port-files cache-root
-        (-> {:cli-repl (:port cli-repl)
-             :http http-port
-             :https-port https-port}
+        (-> {:cli-repl (:port cli-repl)}
             (cond->
+              (:ssl http)
+              (assoc :https (:port http))
+              (not (:ssl http))
+              (assoc :http (:port http))
               nrepl
               (assoc :nrepl (:port nrepl))
               socket-repl
