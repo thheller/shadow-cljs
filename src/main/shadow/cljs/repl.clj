@@ -250,38 +250,85 @@
 (defn repl-require*
   [{:keys [repl-state] :as state} read-result quoted-require flags]
 
-  (let [current-ns
+  (let [[require-type require]
+        quoted-require
+
+        require
+        (if (= :sym require-type)
+          require
+          (:lib require))
+
+        current-ns
         (or (:ns read-result)
             (:current-ns repl-state))
 
-        ns-info
-        (get-in state [:compiler-env ::ana/namespaces current-ns])
+        [require-sources state]
+        (res/resolve-entries state [require])
 
-        new-ns-info
-        (ns-form/reduce-require (assoc ns-info :deps []) quoted-require)]
+        reload-deps
+        (-> []
+            (cond->
+              (contains? flags :reload)
+              (conj require)
 
-    (cond
-      ;; wasn't a self-require, proceed as normal
-      (not (:self-require new-ns-info))
-      (let [added-deps
+              ;; FIXME: what should :reload-all actually reload
+              ;; everything up to cljs.core? can't reload cljs.core itself since that'll break everything
+              ;; in the runtime when suddenly all protocols/collections get redefined
+              ;; only cljs sources not from jars?
+              (contains? flags :reload-all)
+              (into
+                (keep
+                  (fn [resource-id]
+                    (let [{:keys [from-jar ns type] :as rc} (get-in state [:sources resource-id])]
+                      (when
+                        (and (not from-jar)
+                             (= :cljs type)
+                             ;; just in case its local dep
+                             (not= 'cljs.core ns))
+                        ns))))
+                require-sources)
+              ))
+
+        state
+        (if-not (seq reload-deps)
+          state
+          (let [[_ state]
+                (-> state
+                    (build-api/reset-namespaces reload-deps)
+                    (build-api/resolve-entries reload-deps))]
+            state))
+
+        state
+        (build-api/compile-sources state require-sources)
+
+        repl-require
+        {:type :repl/require
+         :sources require-sources
+         :warnings (warnings-for-sources state require-sources)
+         :reload-namespaces (into #{} reload-deps)
+         :flags flags}
+
+        state
+        (-> state
+            (output/flush-sources require-sources)
+            (async/wait-for-pending-tasks!)
+            (update-in [:repl-state :repl-actions] conj repl-require))]
+
+    (if (= require-type :sym)
+      ;; raw (require 'some.thing) doesn't require messing with current ns require aliases
+      state
+      ;; otherwise need to remember alias/refers
+      (let [ns-info
+            (get-in state [:compiler-env ::ana/namespaces current-ns])
+
+            new-ns-info
+            (ns-form/reduce-require (assoc ns-info :deps []) quoted-require)
+
+            added-deps
             (:deps new-ns-info)
-
-            reload-deps
-            (if (contains? flags :reload)
-              added-deps
-              [])
 
             new-deps
             (into (:deps ns-info) (distinct) added-deps)
-
-            state
-            (-> state
-                (cond->
-                  (seq reload-deps)
-                  (build-api/reset-namespaces reload-deps)))
-
-            [new-sources state]
-            (res/resolve-repl state current-ns new-deps)
 
             ;; can only rewrite after resolving since that discovers what needs to be rewritten
             ;; which may have created a new alias for a string
@@ -290,70 +337,9 @@
                 (dissoc :self-require) ;; forget about self-require, for next time
                 (assoc :deps new-deps)
                 (ns-form/rewrite-ns-aliases state)
-                (ns-form/rewrite-js-deps state))
+                (ns-form/rewrite-js-deps state))]
 
-            state
-            (-> state
-                (build-api/compile-sources new-sources)
-                (load-macros-and-set-ns-info new-ns-info))
-
-            ;; ensures all required namespaces are loaded
-            ;; not just the one just added, just in case they aren't loaded
-            repl-require
-            (-> {:type :repl/require
-                 :sources new-sources
-                 :warnings (warnings-for-sources state new-sources)
-                 :reload-namespaces (into #{} reload-deps)
-                 :flags flags}
-                (cond->
-                  (= :shadow (get-in state [:js-options :js-provider]))
-                  (assoc :js-requires
-                         (->> new-deps
-                              (map (fn [dep]
-                                     (or (and (string? dep) (get-in state [:str->sym (:name new-ns-info) dep]))
-                                         (let [rc (data/get-source-by-provide state dep)]
-                                           (when (= :shadow-js (:type rc))
-                                             (:ns rc)))
-                                         nil)))
-                              (remove nil?)
-                              (into [])))))
-
-            added-goog-modules
-            (->> added-deps
-                 (filter symbol?)
-                 (map #(data/get-source-by-provide state %))
-                 (filter :goog-module))
-
-            actions
-            (-> [repl-require]
-                (cond->
-                  ;; need to pull goog.module sources into the current ns
-                  ;; cljs.user.goog$module = goog.modules.get("goog.object")
-                  ;; wrapped in a goog.scope so it doesn't complain about not being in module scope
-                  (seq added-goog-modules)
-                  (conj {:type :repl/invoke
-                         :name "<eval>"
-                         :internal true
-                         :js (with-out-str (comp/emit-goog-module-gets current-ns added-goog-modules))})))]
-
-        (doto state
-          (output/flush-sources new-sources)
-          (async/wait-for-pending-tasks!))
-
-        (update-in state [:repl-state :repl-actions] into actions))
-
-
-      ;; it was a self-require, without a reload flag.
-      ;; since we are already in the namespace there is nothing to do
-      (not (contains? flags :reload))
-      state
-
-      ;; (require 'that.ns :reload) while (in-ns 'that.ns) to trigger a reload of that ns
-      ;; turning that into a load-file, seems most convenient and doesn't need to replicate logic above
-      :reload-current-ns
-      (let [{:keys [file] :as src} (data/get-source-by-provide state current-ns)]
-        (repl-load-file* state {:source (slurp file) :file-path (.getAbsolutePath file)}))
-      )))
+        (load-macros-and-set-ns-info state new-ns-info)))))
 
 (defn repl-require
   [{:keys [repl-state] :as state} read-result require-form]
