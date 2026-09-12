@@ -185,17 +185,11 @@
           (or source
               (slurp (io/file file-path)))
 
-          prev-ns
-          (get-in state [:repl-state :current-ns])
-
           prev-count
           (count (get-in state [:repl-state :repl-actions]))
 
           state
           (process-input state source {:filename file-path})
-
-          next-ns
-          (get-in state [:repl-state :current-ns])
 
           repl-actions
           (get-in state [:repl-state :repl-actions])
@@ -206,25 +200,23 @@
           ;; mark all resulting repl-actions (minus the last) as internal
           ;; so each form doesn't yield its own result later
           ;; load-file should only have one result, which is the last form eval'd
+          ;; filter out :repl/set-ns since load-file isn't supposed to switch current ns
+          ;; it is purely a client side action anyway
           repl-actions
           (reduce
             (fn [actions idx]
-              (assoc-in actions [idx :internal] true))
+              (let [{:keys [type] :as action} (nth actions idx)]
+                (if (= :repl/set-ns type)
+                  (assoc actions idx nil)
+                  (assoc-in actions [idx :internal] true))))
             repl-actions
             (range prev-count (dec next-count)))
 
-          state
-          (assoc-in state [:repl-state :repl-actions] repl-actions)]
+          repl-actions
+          (vec (remove nil? repl-actions))]
 
-      (if (= prev-ns next-ns)
-        state
-        (-> state
-            ;; if the file has an ns form we don't want to switch to it
-            ;; as clj load-file doesn't do that either
-            (assoc-in [:repl-state :current-ns] prev-ns)
-            ;; so everything is properly reset on the runtime too
-            (update-in [:repl-state :repl-actions] conj {:type :repl/set-ns :ns prev-ns :internal true})
-            )))))
+      (assoc-in state [:repl-state :repl-actions] repl-actions)
+      )))
 
 (defn repl-load-file
   [state read-result [_ file-path :as form]]
