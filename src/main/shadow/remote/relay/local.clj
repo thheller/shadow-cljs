@@ -1,10 +1,39 @@
 (ns shadow.remote.relay.local
   (:require
     [clojure.core.async :as async :refer (go >! <! >!! <!!)]
+    [clojure.java.io :as io]
     [shadow.remote.relay.api :as rapi]
     [shadow.remote.relay.simple-query :as squery]
     [shadow.jvm-log :as log])
   (:import [java.util Date]))
+
+;; can't use tap>/inspect for debugging since that causes an infinite loop
+;; inspect talks via relay so each message just infinitely doubles
+(defonce dbg-lock (Object.))
+(def DEBUG false)
+
+(defn log-write [msg]
+  (locking dbg-lock
+    (spit
+      (io/file "relay-log.edn")
+      (str (pr-str msg) "\n")
+      :append true)))
+
+(defn log-client-receive [relay client msg]
+  (when DEBUG
+    (log-write [:client-receive (:client-id client) msg])))
+
+(defn log-client-start [relay client]
+  (when DEBUG
+    (log-write [:client-start (:client-id client)])))
+
+(defn log-client-stop [relay client]
+  (when DEBUG
+    (log-write [:client-stop (:client-id client)])))
+
+(defn log-relay-send [relay client msg]
+  (when DEBUG
+    (log-write [:relay-send (:client-id client) msg])))
 
 ;; clients provide their own :to and :from channels
 ;; if writing to :to fails the client is terminated
@@ -13,21 +42,10 @@
 ;; this must never block as sending to one
 ;; client should not delay sending to others too much
 (defn relay-send [relay {:keys [to stop] :as client} msg]
+  (log-relay-send relay client msg)
   (when-not (async/offer! to msg)
     (log/warn ::client-not-keeping-up {:client (dissoc client :from :to :stop) :msg msg})
     (async/close! stop)))
-
-(defn relay-client-receive [relay client msg]
-  ;; just for easier debugging, return value ignored
-  )
-
-(defn relay-client-start [relay client]
-  ;; just for easier debugging, return value ignored
-  )
-
-(defn relay-client-stop [relay client]
-  ;; just for easier debugging, return value ignored
-  )
 
 (defn maybe-add-call-id [{:keys [call-id] :as req} res]
   (cond-> res
@@ -176,7 +194,7 @@
 
       ;; keep each client in its own thread, easier to deal with messaging
       (async/thread
-        (relay-client-start relay client-data)
+        (log-client-start relay client-data)
 
         ;; send this first. at this point the client is welcome
         ;; connect should not be called for clients that aren't welcome
@@ -198,7 +216,7 @@
                ;; a ping for a while
                (swap! state-ref assoc-in [:clients client-id :last-pong] (System/currentTimeMillis))
 
-               (relay-client-receive relay client-data msg)
+               (log-client-receive relay client-data msg)
 
                (try
                  (handle-client-msg relay client-data msg)
@@ -227,7 +245,7 @@
 
         (handle-client-disconnect relay client-data)
 
-        (relay-client-stop relay client-data)
+        (log-client-stop relay client-data)
         (async/close! from-client)
         (async/close! to-client)
         (async/close! stop))

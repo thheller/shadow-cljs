@@ -237,3 +237,15 @@
             (repl/process-input "(x/new \"foo\")"))]
 
     (pprint repl-state)))
+
+(deftest test-repl-require-keeps-ns
+  (let [{:keys [repl-state] :as state}
+        (-> (basic-repl-setup)
+            (api/with-js-options {:js-provider :shadow})
+            (repl/process-input "(require 'demo.now)")
+            (repl/process-input "(in-ns 'demo.now)")
+            (repl/process-input "::foo")
+            (repl/process-input "(require 'demo.now :reload)")
+            (repl/process-input "::foo"))]
+
+    (pprint repl-state)))
