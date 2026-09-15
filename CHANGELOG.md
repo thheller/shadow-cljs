@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.5.2](https://github.com/thheller/shadow-cljs/compare/fbaf43d5f4c9b47b3f62ba984fe3dc0843c3b5e1...f27b7bb896bc089c35a6cc17723678c7ba53c2a6) - 2026-09-15
+- [ [`f27b7`](https://github.com/thheller/shadow-cljs/commit/f27b7bb896bc089c35a6cc17723678c7ba53c2a6) ] fix push-state with */* accept
+- [ [`ab4d0`](https://github.com/thheller/shadow-cljs/commit/ab4d005b9bca2fe374b3871dda840e39003fed60) ] shadow-http bump
+- [ [`6a2e7`](https://github.com/thheller/shadow-cljs/commit/6a2e758f56179a07873a3ba5fdb11e6379f4a28e) ] fix cljs repl load-file switching the current ns
+- [ [`357d8`](https://github.com/thheller/shadow-cljs/commit/357d839eda8e25667dff7f1e5e2b398e74044132) ] simplify cljs repl require
+- [ [`fbaf4`](https://github.com/thheller/shadow-cljs/commit/fbaf43d5f4c9b47b3f62ba984fe3dc0843c3b5e1) ] small shadow.remote relay debugging aid
+
 ## [3.5.1](https://github.com/thheller/shadow-cljs/compare/282fcde1d7006539e6e53b055bb42405b1d2c070...231711ebd3c125158eb26db588d39a73a23d187a) - 2026-09-10
 - [ [`23171`](https://github.com/thheller/shadow-cljs/commit/231711ebd3c125158eb26db588d39a73a23d187a) ] closure compiler bump
 - [ [`394d6`](https://github.com/thheller/shadow-cljs/commit/394d6a15dbe3a8bf911ba600b2f29e4d2b352df7) ] fix .shadow-cljs/http.port not being written
