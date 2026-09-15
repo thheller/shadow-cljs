@@ -10,7 +10,9 @@
 
 (defn handle [{:keys [uri http-roots http-config] :as req}]
   (let [accept (get-in req [:headers "accept"])]
-    (if (and accept (not (str/includes? accept "text/html")))
+    (if (and accept
+             (not (or (str/includes? accept "text/html")
+                      (= "*/*" accept))))
       not-found
       (let [index-name
             (get http-config :push-state/index "index.html")
