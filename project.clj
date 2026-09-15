@@ -17,7 +17,7 @@
    [com.google.code.findbugs/jsr305 "3.0.2"]]
 
   :dependencies
-  [[org.clojure/clojure "1.12.4"]
+  [[org.clojure/clojure "1.12.6"]
 
    [org.clojure/data.json "2.5.2"]
    [org.clojure/tools.cli "1.1.230"]
@@ -51,7 +51,7 @@
    [thheller/shadow-client "1.4.0"]
    [thheller/shadow-cljsjs "0.0.22"]
    
-   [com.thheller/shadow-http "0.1.9"]
+   [com.thheller/shadow-http "0.1.10"]
 
    [hiccup "1.0.5"]
    [ring/ring-core "1.15.3"
