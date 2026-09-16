@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.5.3](https://github.com/thheller/shadow-cljs/compare/b497cbf9ce020f93dbbe0fea8e98b07034186e83...b497cbf9ce020f93dbbe0fea8e98b07034186e83) - 2026-09-16
+- [ [`b497c`](https://github.com/thheller/shadow-cljs/commit/b497cbf9ce020f93dbbe0fea8e98b07034186e83) ] shadow-http bump
+
 ## [3.5.2](https://github.com/thheller/shadow-cljs/compare/fbaf43d5f4c9b47b3f62ba984fe3dc0843c3b5e1...f27b7bb896bc089c35a6cc17723678c7ba53c2a6) - 2026-09-15
 - [ [`f27b7`](https://github.com/thheller/shadow-cljs/commit/f27b7bb896bc089c35a6cc17723678c7ba53c2a6) ] fix push-state with */* accept
 - [ [`ab4d0`](https://github.com/thheller/shadow-cljs/commit/ab4d005b9bca2fe374b3871dda840e39003fed60) ] shadow-http bump
