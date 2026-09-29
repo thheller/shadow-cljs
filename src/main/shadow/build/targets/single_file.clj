@@ -53,12 +53,12 @@
       (let [rc
             (data/get-source-by-id state resource-id)
 
-            {:keys [js source-map-info source-map source-map-json] :as output}
+            {:keys [js source-map-info source-map-compact source-map-json] :as output}
             (data/get-output! state rc)]
         (if (some? source-map-info)
           state
           (let [sm
-                (or (and source-map (output/encode-source-map state rc output))
+                (or (and source-map-compact (output/encode-source-map state rc output))
                     (and (seq source-map-json) (json/read-str source-map-json))
                     {})
 
@@ -94,7 +94,7 @@
                       (get-in state [:output resource-id :source-map-info])]
 
                   (-> sm-index
-                      (update :offset + lines)
+                      (update :offset + lines 1)
                       (cond->
                         (seq source-map)
                         (update :sections conj {:offset {:line offset :column 0}
