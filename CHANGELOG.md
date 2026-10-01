@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.5.4](https://github.com/thheller/shadow-cljs/compare/1cb149dbf0ce34137fbb1ee657b258d729ffa70d...4b0d00b036ea41c8878985d788efb54991e0f0ae) - 2026-10-01
+- [ [`4b0d0`](https://github.com/thheller/shadow-cljs/commit/4b0d00b036ea41c8878985d788efb54991e0f0ae) ] slightly improve compile trigger api
+- [ [`1cb14`](https://github.com/thheller/shadow-cljs/commit/1cb149dbf0ce34137fbb1ee657b258d729ffa70d) ] fix :single-file source maps
+
 ## [3.5.3](https://github.com/thheller/shadow-cljs/compare/b497cbf9ce020f93dbbe0fea8e98b07034186e83...b497cbf9ce020f93dbbe0fea8e98b07034186e83) - 2026-09-16
 - [ [`b497c`](https://github.com/thheller/shadow-cljs/commit/b497cbf9ce020f93dbbe0fea8e98b07034186e83) ] shadow-http bump
 
