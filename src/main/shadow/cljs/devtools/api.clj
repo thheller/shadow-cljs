@@ -131,11 +131,20 @@
   (let [worker (get-worker build-id)]
     (if-not worker
       :watch-not-running
-      (do (-> worker
-              (worker/compile)
-              (worker/sync!))
-          ;; avoid returning the worker state because it will blow up the REPL
-          :ok))))
+      (let [{:keys [build-state failure-data]}
+            (-> worker
+                (worker/compile)
+                (worker/grab-state!))]
+
+        (if failure-data
+          (do (println "The build failed.")
+              (println (:report failure-data))
+              :error)
+
+          (let [{::build/keys [build-info] :keys [build-id]} build-state]
+            (util/print-build-complete {:info build-info :build-id build-id})
+            :ok))
+        ))))
 
 (defn watch-compile-all!
   "call watch-compile! for all running builds"
@@ -309,11 +318,15 @@
   ([build]
    (compile build {}))
   ([build opts]
-   (try
-     (compile! build opts)
-     :done
-     (catch Exception e
-       (e/user-friendly-error e)))))
+   ;; compile is watch minus repl/hot-reload bits, so if a watch is running that is pure downgrade
+   ;; so instead do the proper thing and trigger a watch compile instead
+   (if (get-worker build)
+     (watch-compile! build)
+     (try
+       (compile! build opts)
+       :done
+       (catch Exception e
+         (e/user-friendly-error e))))))
 
 (defn once
   "deprecated: use compile"
