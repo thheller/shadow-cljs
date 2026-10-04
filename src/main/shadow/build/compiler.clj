@@ -1459,7 +1459,7 @@
         (->> deps-syms
              (map #(get-in state [:sym->require-id %]))
              (remove nil?)
-             (into #{}))]
+             (into []))]
 
     (update-in state [:sources resource-id :cache-key]
       (fn [key]
