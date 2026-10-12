@@ -56,8 +56,8 @@
            (.toURI)
            (io/file)
            (data/sha1-file))
-       [(data/sha1-url (io/resource "cljs/compiler.clj"))
-        (data/sha1-url (io/resource "cljs/analyzer.clj"))]))])
+       [(data/sha1-url (io/resource "cljs/compiler.cljc"))
+        (data/sha1-url (io/resource "cljs/analyzer.cljc"))]))])
 
 (def ^:dynamic *cljs-warnings-ref* nil)
 
