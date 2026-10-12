@@ -18,7 +18,8 @@
     [shadow.build.async :as async]
     [shadow.build.cljs-bridge :as cljs-bridge]
     [shadow.debug :refer (?> ?-> ?->>)]
-    [shadow.cljs.devtools.cljs-specs] ;; FIXME: move these
+    ;; DISABLE until 1.13 is settled with destructuring changes
+    ;; [shadow.cljs.devtools.cljs-specs]
     [shadow.build.macros :as macros]
     [shadow.build.classpath :as classpath]
     [shadow.build.npm :as npm]))
