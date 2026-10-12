@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.5.6](https://github.com/thheller/shadow-cljs/compare/45ef1747cebcab7a65cdfdacaf7d14de6b5ada61...69cbfb5443804c98c29ff2603e12be0de704a6fe) - 2026-10-12
+- [ [`69cbf`](https://github.com/thheller/shadow-cljs/commit/69cbfb5443804c98c29ff2603e12be0de704a6fe) ] port fix for CLJS-3382
+- [ [`7ea72`](https://github.com/thheller/shadow-cljs/commit/7ea726c4194f76b2bc7089caaa35bdbc41e996bb) ] disable cljs specs for now
+- [ [`45ef1`](https://github.com/thheller/shadow-cljs/commit/45ef1747cebcab7a65cdfdacaf7d14de6b5ada61) ] fix file exts
+
 ## [3.5.5](https://github.com/thheller/shadow-cljs/compare/ea3eb72e58966dd1eab025cfe2adaeb36d3581be...ea3eb72e58966dd1eab025cfe2adaeb36d3581be) - 2026-10-04
 - [ [`ea3eb`](https://github.com/thheller/shadow-cljs/commit/ea3eb72e58966dd1eab025cfe2adaeb36d3581be) ] fix require ordering cache problem
 
