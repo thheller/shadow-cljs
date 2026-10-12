@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.5.7](https://github.com/thheller/shadow-cljs/compare/380876b09f7c7a7e6b4f3c5b6ff1754194a35be8...380876b09f7c7a7e6b4f3c5b6ff1754194a35be8) - 2026-10-12
+- [ [`38087`](https://github.com/thheller/shadow-cljs/commit/380876b09f7c7a7e6b4f3c5b6ff1754194a35be8) ] emit configurable export descriptors for dev builds (#1283)
+
 ## [3.5.6](https://github.com/thheller/shadow-cljs/compare/45ef1747cebcab7a65cdfdacaf7d14de6b5ada61...69cbfb5443804c98c29ff2603e12be0de704a6fe) - 2026-10-12
 - [ [`69cbf`](https://github.com/thheller/shadow-cljs/commit/69cbfb5443804c98c29ff2603e12be0de704a6fe) ] port fix for CLJS-3382
 - [ [`7ea72`](https://github.com/thheller/shadow-cljs/commit/7ea726c4194f76b2bc7089caaa35bdbc41e996bb) ] disable cljs specs for now
