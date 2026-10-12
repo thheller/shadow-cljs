@@ -199,10 +199,10 @@
   (-> rc
       (dissoc :source)
       (assoc :source-fn
-             (fn [{:keys [babel] :as state}]
+             (fn [{:keys [babel mode] :as state}]
                (if (get-in state [:js-options :use-babel])
                  (babel/convert-source babel state source (.getAbsolutePath file))
-                 (ShadowESModuleRewriter/rewrite source))
+                 (ShadowESModuleRewriter/rewrite source (= :dev mode)))
                ))))
 
 (defn maybe-esm-rewrite [{:keys [js-esm deps] :as rc}]

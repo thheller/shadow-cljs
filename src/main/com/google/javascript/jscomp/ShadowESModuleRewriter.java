@@ -92,9 +92,12 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
     private final Map<String, String> importRequests = new LinkedHashMap<>();
     private final Map<String, String> defaultWraps = new HashMap<>();
 
-    ShadowESModuleRewriter(AbstractCompiler compiler, Node script) {
+    private final boolean configurableExports;
+
+    ShadowESModuleRewriter(AbstractCompiler compiler, Node script, boolean configurableExports) {
         this.compiler = compiler;
         this.script = script;
+        this.configurableExports = configurableExports;
     }
 
     private static class LocalQName {
@@ -344,9 +347,11 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
                 IR.function(IR.name(""), IR.paramList(), IR.block(IR.returnNode(exportedValue)));
         getterFunction.srcrefTree(localQName.nodeForSourceInfo);
 
-        Node objLit =
-                IR.objectlit(
-                        IR.stringKey("enumerable", IR.trueNode()), IR.stringKey("get", getterFunction));
+        Node objLit = IR.objectlit(IR.stringKey("enumerable", IR.trueNode()));
+        if (configurableExports) {
+            objLit.addChildToBack(IR.stringKey("configurable", IR.trueNode()));
+        }
+        objLit.addChildToBack(IR.stringKey("get", getterFunction));
         definePropertiesLit.addChildToBack(IR.stringKey(exportedName, objLit));
 
         compiler.reportChangeToChangeScope(getterFunction);
@@ -515,6 +520,10 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
     }
 
     public static String rewrite(String source) {
+        return rewrite(source, false);
+    }
+
+    public static String rewrite(String source, boolean configurableExports) {
         Compiler cc = new Compiler();
 
         CompilerOptions co = new CompilerOptions();
@@ -529,7 +538,7 @@ public class ShadowESModuleRewriter extends AbstractPostOrderCallback {
         CompilerInput input = new CompilerInput(src);
         Node node = input.getAstRoot(cc);
 
-        NodeTraversal.traverse(cc, node, new ShadowESModuleRewriter(cc, node));
+        NodeTraversal.traverse(cc, node, new ShadowESModuleRewriter(cc, node, configurableExports));
 
         // FIXME: source maps? babel-worker never handled those either, so doesn't seem too needed
         // most npm code is minified or ugly in other ways anyways
