@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.5.8](https://github.com/thheller/shadow-cljs/compare/008c40e963d3e98527df71ce9276eafdd5bdd084...008c40e963d3e98527df71ce9276eafdd5bdd084) - 2026-10-26
+- [ [`008c4`](https://github.com/thheller/shadow-cljs/commit/008c40e963d3e98527df71ce9276eafdd5bdd084) ] closure-compiler bump
+
 ## [3.5.7](https://github.com/thheller/shadow-cljs/compare/380876b09f7c7a7e6b4f3c5b6ff1754194a35be8...380876b09f7c7a7e6b4f3c5b6ff1754194a35be8) - 2026-10-12
 - [ [`38087`](https://github.com/thheller/shadow-cljs/commit/380876b09f7c7a7e6b4f3c5b6ff1754194a35be8) ] emit configurable export descriptors for dev builds (#1283)
 
