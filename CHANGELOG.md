@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.5.11](https://github.com/thheller/shadow-cljs/compare/708a51a877d3e72da2c4b967eb69a5d329389c8b...708a51a877d3e72da2c4b967eb69a5d329389c8b) - 2026-11-02
+- [ [`708a5`](https://github.com/thheller/shadow-cljs/commit/708a51a877d3e72da2c4b967eb69a5d329389c8b) ] shadow-http bump
+
 ## [3.5.10](https://github.com/thheller/shadow-cljs/compare/d5dc2402deacd9eddd083e93fa084c9dd6facfd0...d5dc2402deacd9eddd083e93fa084c9dd6facfd0) - 2026-10-29
 - [ [`d5dc2`](https://github.com/thheller/shadow-cljs/commit/d5dc2402deacd9eddd083e93fa084c9dd6facfd0) ] shadow-http bump
 
