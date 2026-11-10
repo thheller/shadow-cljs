@@ -3,14 +3,10 @@
   (:require
     [shadow.build :as build]
     [shadow.build.modules :as modules]
-    [shadow.build.classpath :as cp]
-    [shadow.build.targets.browser :as browser]
-    [shadow.cljs.util :as util]
+    [shadow.build.targets.esm :as esm]
     [hiccup.page :refer (html5)]
     [clojure.java.io :as io]
-    [cljs.compiler :as cljs-comp]
     [shadow.jvm-log :as log]
-    [shadow.build.data :as data]
     [shadow.build.test-util :as tu]))
 
 ;; FIXME: automate all of this better ...
@@ -34,13 +30,14 @@
            [:title (str runner-ns)]]
           [:body
            [:div#test-root]
-           [:script {:src "/js/test.js"}]
-           [:script (str (cljs-comp/munge runner-ns) ".init();")]])))
+           [:script {:type "module" :src "js/test.js"}]])))
 
     (-> state
         (tu/configure-common)
         (update ::build/config assoc :output-dir (str test-dir "/js"))
-        (assoc-in [::build/config :modules :test] {:entries []})
+        (assoc-in [::build/config :modules :test]
+          {:entries []
+           :init-fn (symbol (str runner-ns) "init")})
         (assoc-in [::build/config :compiler-options :source-map] true) ;; always
         (update :build-options merge {:greedy true
                                       :dynamic-resolve true})
@@ -55,10 +52,10 @@
 
 
 ;; since :configure is only called once in :dev
-;; we delay setting the :entries until compile-prepare which is called every cycle
+;; we delay setting the :entries until :resolve which is called every cycle
 ;; need to come up with a cleaner API for this
 (defn test-resolve
-  [{::build/keys [mode config] :as state}]
+  [{::build/keys [config] :as state}]
   (let [test-namespaces (tu/find-test-namespaces state config)]
 
     (log/debug ::test-resolve {:config config
@@ -66,17 +63,13 @@
 
     (-> state
         (assoc ::tu/test-namespaces test-namespaces)
-        (assoc-in [::modules/config :test :entries]
+        (assoc-in [::build/config :modules :test :entries]
           (-> '[shadow.test.env] ;; must be included before any deftest because of the cljs.test mod
               (into test-namespaces)
               (conj (::tu/runner-ns state))))
-        (cond->
-          (and (= :dev mode) (:worker-info state))
-          (update-in [::modules/config :test] browser/inject-repl-client state config)
-
-          (= :dev mode)
-          (-> (update-in [::modules/config :test] browser/inject-preloads state config)
-              (update-in [::modules/config :test] browser/inject-devtools-console state config)))
+        ;; rebuild from config so ESM startup code, preloads and REPL entries
+        ;; are retained without accumulating them between watch builds.
+        (esm/configure-modules)
         (modules/analyze)
 
         ;; must do this after all sources are resolved
@@ -96,4 +89,4 @@
         (= :resolve stage)
         (test-resolve))
 
-      (browser/process)))
+      (esm/process)))
