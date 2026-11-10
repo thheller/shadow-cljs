@@ -112,8 +112,19 @@
       (dissoc :runtime :callback)
       (callback)))
 
+(defn invoke
+  "do-invoke but waits for the result Promise when the action was compiled async (uses await)"
+  [runtime ns action success fail]
+  (do-invoke runtime ns action
+    (if-not (:async action)
+      success
+      (fn [ret]
+        (-> (js/Promise.resolve ret)
+            (.then success fail))))
+    fail))
+
 (defn handle-invoke [state runtime action]
-  (do-invoke runtime (:ns state) action
+  (invoke runtime (:ns state) action
     (fn invoke-success [res]
       (-> state
           (cond->
@@ -130,7 +141,7 @@
       )))
 
 (defn handle-repl-invoke [state runtime action]
-  (do-invoke runtime (:ns state) action
+  (invoke runtime (:ns state) action
     (fn repl-invoke-success [ret]
       ;; FIXME: these are nonsense with multiple sessions. refactor this properly
       (set! *3 *2)

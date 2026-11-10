@@ -505,6 +505,47 @@
   [{:keys [source special-fn error]}]
   (str special-fn " failed. " (str error)))
 
+(defn await-sym? [x]
+  (and (symbol? x)
+       (= "await" (name x))
+       (contains? #{nil "cljs.core"} (namespace x))))
+
+(defn async-marked? [x]
+  (and (symbol? x) (:async (meta x))))
+
+(defn uses-await?
+  "true if form contains a top-level (await ...) that isn't already inside an async fn.
+   (defn ^:async foo [] (await ...)) and (^:async fn [] (await ...)) don't need special handling."
+  [form]
+  (cond
+    (seq? form)
+    (let [[head second] form]
+      (cond
+        (await-sym? head)
+        true
+
+        ;; (^:async fn [] ...) or (defn ^:async foo [] ...) handle their own await
+        (or (async-marked? head) (async-marked? second))
+        false
+
+        :else
+        (boolean (some uses-await? form))))
+
+    (map? form)
+    (boolean (some uses-await? (mapcat identity form)))
+
+    (coll? form)
+    (boolean (some uses-await? form))
+
+    :else
+    false))
+
+(defn wrap-async
+  "wraps form in an immediately invoked async fn, so the analyzer allows (await ...).
+   the result will be a Promise the runtime is expected to wait for."
+  [form]
+  (list (list (with-meta 'fn* {:async true}) [] form)))
+
 (defn repl-compile
   [{:keys [repl-state] :as state}
    {:keys [form source ns] :as read-result}]
@@ -532,6 +573,12 @@
 
               (let [{:keys [current-ns]}
                     repl-state
+
+                    async?
+                    (uses-await? form)
+
+                    form
+                    (cond-> form async? (wrap-async))
 
                     {:keys [resource-name] :as rc}
                     (data/get-source-by-provide state current-ns)
@@ -563,11 +610,14 @@
                        :sources-content
                        [source]})]
 
-                {:type :repl/invoke
-                 :name "<eval>"
-                 :js js
-                 :source source
-                 :source-map-json sm-json})))]
+                (-> {:type :repl/invoke
+                     :name "<eval>"
+                     :js js
+                     :source source
+                     :source-map-json sm-json}
+                    (cond->
+                      async?
+                      (assoc :async true))))))]
 
       (update-in state [:repl-state :repl-actions] conj repl-action)
       )))
