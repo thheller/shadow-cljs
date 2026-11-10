@@ -63,7 +63,8 @@
    [fipp "0.6.27"]
 
    ;; used by the :browser-test UI (shadow.test.browser)
-   [com.thheller/shadow-grove "1.0.4"]
+   [com.thheller/shadow-css "0.6.5"]
+   [com.thheller/shadow-grove "1.1.0"]
    ]
 
   :source-paths
@@ -118,9 +119,6 @@
      ;; for cljsjs testing
      [cljsjs/react "18.0.0-rc.0-0"]
      [cljsjs/react-dom "18.0.0-rc.0-0"]
-
-     ;; only used for UI build for now?
-     [com.thheller/shadow-css "0.6.4"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project

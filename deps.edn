@@ -55,7 +55,6 @@
   thheller/shadow-client {:mvn/version "1.4.0"}
   thheller/shadow-cljsjs {:mvn/version "0.0.22"}
 
-  com.thheller/shadow-css {:mvn/version "0.6.4"}
 
   hiccup/hiccup {:mvn/version "1.0.5"}
   ring/ring-core {:mvn/version "1.15.3" :exclusions [clj-time/clj-time]}
@@ -64,7 +63,8 @@
   fipp/fipp {:mvn/version "0.6.27"}
 
   ;; used by the :browser-test UI (shadow.test.browser)
-  com.thheller/shadow-grove {:mvn/version "1.0.4"}}
+  com.thheller/shadow-css {:mvn/version "0.6.5"}
+  com.thheller/shadow-grove {:mvn/version "1.1.0"}}
 
  :aliases
  {:dev
@@ -72,11 +72,11 @@
    ["src/test"]
 
    :override-deps
-   {com.thheller/shadow-css {:local/root "../shadow-css"}}
+   {com.thheller/shadow-grove {:local/root "../shadow-grove"}
+    com.thheller/shadow-css {:local/root "../shadow-css"}}
 
    :extra-deps
-   {com.thheller/shadow-grove {:local/root "../shadow-grove"}
-    org.commonmark/commonmark {:mvn/version "0.21.0"}
+   {org.commonmark/commonmark {:mvn/version "0.21.0"}
     rewrite-clj/rewrite-clj {:mvn/version "1.1.46"}
     }}
 
