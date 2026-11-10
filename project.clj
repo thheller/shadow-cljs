@@ -62,7 +62,8 @@
    [expound "0.9.0"]
    [fipp "0.6.27"]
 
-   [com.bhauman/cljs-test-display "0.1.1"]
+   ;; used by the :browser-test UI (shadow.test.browser)
+   [com.thheller/shadow-grove "1.0.4"]
    ]
 
   :source-paths
@@ -119,8 +120,7 @@
      [cljsjs/react-dom "18.0.0-rc.0-0"]
 
      ;; only used for UI build for now?
-     [com.thheller/shadow-css "0.4.2"]
-     [com.thheller/shadow-grove "0.5.0"]
+     [com.thheller/shadow-css "0.6.4"]
 
      ;; just so the CI build has this downloaded
      ;; and cached before compiling the test-project

@@ -4,9 +4,54 @@
   (:require [cljs.test :as ct]
             [shadow.test.env :as env]))
 
+(defn- wrap-async-timeout
+  "cljs.test has no timeouts, so an async test that never calls done blocks the entire test run.
+   reports an error and moves on to the next test after timeout ms."
+  [test-fn timeout]
+  (fn []
+    (let [res (test-fn)]
+      (if-not (ct/async? res)
+        res
+        (ct/async done
+          (let [done? (volatile! false)
+
+                finish!
+                (fn []
+                  (when-not @done?
+                    (vreset! done? true)
+                    (done)))
+
+                timeout-id
+                (js/setTimeout
+                  (fn []
+                    (when-not @done?
+                      (ct/do-report
+                        {:type :error
+                         :message (str "Async test did not call done within " timeout "ms.")
+                         :expected nil
+                         :actual (js/Error. (str "Async test timed out after " timeout "ms"))})
+                      (finish!)))
+                  timeout)]
+
+            (res (fn []
+                   (js/clearTimeout timeout-id)
+                   (finish!)))))))))
+
+(defn test-var-block
+  "like ct/test-var-block but with optional timeout for async tests"
+  [timeout v]
+  (if-let [t (:test (meta v))]
+    (ct/test-var-block* v
+      (if (and (number? timeout) (pos? timeout))
+        (wrap-async-timeout t timeout)
+        t))
+    []))
+
 (defn test-vars-grouped-block
   "like ct/test-vars-block but more generic
-   groups vars by namespace, executes fixtures"
+   groups vars by namespace, executes fixtures
+
+   async tests are aborted after :shadow.test/async-timeout ms if set in the test env"
   [vars]
   (->> vars
        (group-by #(-> % meta :ns))
@@ -27,7 +72,7 @@
                           (->> vars
                                (filter (comp :test meta))
                                (mapcat (comp (partial ct/wrap-map-fixtures each-fixtures)
-                                         ct/test-var-block))
+                                         (partial test-var-block (::async-timeout env))))
                                (ct/wrap-map-fixtures once-fixtures))
                           :sync
                           (let [each-fixture-fn (ct/join-fixtures each-fixtures)]

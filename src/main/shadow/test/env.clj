@@ -10,6 +10,11 @@
       (let [{:syms [cljs-test-once-fixtures cljs-test-each-fixtures]}
             defs
 
+            ;; set by targets that support it (eg. :browser-test) via shadow.build.test-util/update-test-fingerprints
+            ;; changes when the ns or any of its deps were recompiled, used to only re-run affected tests
+            fingerprint
+            (get-in @env/*compiler* [:shadow.build.test-util/test-fingerprints name])
+
             vars
             (->> (vals defs)
                  (filter :test)
@@ -28,7 +33,10 @@
                   (assoc-in [:fixtures :each] (:name cljs-test-each-fixtures))
 
                   (seq vars)
-                  (assoc :vars vars)))]
+                  (assoc :vars vars)
+
+                  (and (seq vars) fingerprint)
+                  (assoc :fingerprint fingerprint)))]
 
 
         (if-not (seq ns-info)

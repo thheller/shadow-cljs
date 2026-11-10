@@ -29,9 +29,11 @@
         (html5
           {}
           [:head
-           [:title (str runner-ns)]
-           [:meta {:charset "utf-8"}]]
+           [:meta {:charset "utf-8"}]
+           [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+           [:title (str runner-ns)]]
           [:body
+           [:div#test-root]
            [:script {:src "/js/test.js"}]
            [:script (str (cljs-comp/munge runner-ns) ".init();")]])))
 
@@ -79,6 +81,9 @@
 
         ;; must do this after all sources are resolved
         (tu/inject-extra-requires)
+
+        ;; lets the runtime know which tests are affected by changes, so only those re-run on hot-reload
+        (tu/update-test-fingerprints)
         )))
 
 (defn process

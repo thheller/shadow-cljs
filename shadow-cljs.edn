@@ -328,7 +328,9 @@
   :test-browser
   {:target :browser-test
    :test-dir "out/demo-test-browser"
-   :test-paths ["src/dev"]}
+   :test-paths ["src/dev"]
+   ;; demo.foo-test has an async test that never completes, don't wait the default 30s
+   :closure-defines {shadow.test.runner/ASYNC-TIMEOUT 2000}}
 
   :test-node
   {:target :node-test
