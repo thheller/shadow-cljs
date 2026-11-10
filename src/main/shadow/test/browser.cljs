@@ -84,13 +84,48 @@
       (when (not= href js/location.href)
         (js/history.replaceState nil "" href)))))
 
-;; status for automated tools
+;; status in the browser tab and for automated tools
+
+(defn favicon-uri [status]
+  (let [[color badge]
+        (case status
+          :running ["#2563eb" "<circle cx='6' cy='6' r='3.5'/><path d='M6 3.5V6l2 1.2'/>"]
+          :passed ["#15803d" "<path d='m2.5 6 2.5 2.5 4.5-5'/>"]
+          :failed ["#dc2626" "<path d='m3.5 3.5 5 5m0-5-5 5'/>"]
+          ["#64748b" "<path d='M3 6h6'/>"])
+        svg
+        (str "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>"
+             "<rect width='32' height='32' rx='7' fill='#0f172a'/>"
+             ;; Keep the flask silhouette in every state so the tab is recognizable.
+             "<path d='M8 19h11l4 7H4z' fill='" color "'/>"
+             "<path d='M9 3h9m-7 0v9L4 25q-1 3 2 3h15q3 0 2-3l-7-13V3'"
+             " fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/>"
+             "<circle cx='25' cy='24' r='7' fill='" color "' stroke='#0f172a' stroke-width='2'/>"
+             "<g transform='translate(19 18)' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"
+             badge "</g></svg>")]
+    (str "data:image/svg+xml," (js/encodeURIComponent svg))))
+
+(defn update-favicon! [status]
+  (let [el (or (js/document.getElementById "shadow-test-favicon")
+               (let [el (js/document.createElement "link")]
+                 (set! (.-id el) "shadow-test-favicon")
+                 (set! (.-rel el) "icon")
+                 (set! (.-type el) "image/svg+xml")
+                 (.setAttribute el "sizes" "any")
+                 (.appendChild js/document.head el)
+                 el))
+        href (favicon-uri status)]
+    ;; A run updates on every assertion. Only replace the icon when its status changes.
+    (when (not= href (.-href el))
+      (set! (.-href el) href)
+      (.setAttribute el "data-test-status" (name status)))))
 
 (defn update-document-status! [state]
   (let [status (runner/overall-status state)
         {:keys [pass fail error tests]} (runner/summarize state (runner/all-test-ids state))
         {:keys [completed total]} (:run state)]
     (.setAttribute js/document.documentElement "data-test-status" (name status))
+    (update-favicon! status)
     (set! js/document.title
       (str (case status
              :running (str "⏳ " completed "/" total)
