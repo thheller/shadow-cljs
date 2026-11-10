@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.5.13](https://github.com/thheller/shadow-cljs/compare/79544fe1cc3d5a2e33986915f92814e4f1b4a808...79544fe1cc3d5a2e33986915f92814e4f1b4a808) - 2026-11-10
+- [ [`79544`](https://github.com/thheller/shadow-cljs/commit/79544fe1cc3d5a2e33986915f92814e4f1b4a808) ] add support for (await ...) in the CLJS REPL
+
 ## [3.5.12](https://github.com/thheller/shadow-cljs/compare/bca588c1dbeb7f8aaccfe81352189d0af80f79dd...677a2f111253840d71c4405e0afddb8ae8063bdf) - 2026-11-10
 - [ [`677a2`](https://github.com/thheller/shadow-cljs/commit/677a2f111253840d71c4405e0afddb8ae8063bdf) ] shadow-grove/css bump
 - [ [`62344`](https://github.com/thheller/shadow-cljs/commit/62344da2e6e05a1fe189507e744842fe9dd752ad) ] browser-test ui button style tweak
