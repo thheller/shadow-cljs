@@ -403,16 +403,14 @@
 
 (def $btn
   (css :px-3 :py-1 :cursor-pointer :whitespace-nowrap :font-medium
-    {:border "1px solid var(--st-border)"
+    {:border "1px solid var(--st-btn-border)"
      :border-radius "6px"
-     :background "var(--st-bg)"}
-    [:hover {:border-color "var(--st-accent)"}]
-    [:disabled {:opacity "0.5" :cursor "default" :border-color "var(--st-border)"}]))
-
-(def $btn-primary
-  (css {:background "var(--st-accent)"
-        :border-color "var(--st-accent)"
-        :color "var(--st-accent-fg)"}))
+     :background "var(--st-btn-bg)"
+     :box-shadow "0 1px 0 rgba(15, 23, 42, 0.08)"}
+    [:hover {:background "var(--st-btn-bg-hover)"}]
+    [:active {:box-shadow "inset 0 1px 2px rgba(15, 23, 42, 0.15)"}]
+    [:focus-visible {:outline "2px solid var(--st-accent)" :outline-offset "1px"}]
+    [:disabled {:opacity "0.5" :cursor "default" :background "var(--st-btn-bg)" :box-shadow "none"}]))
 
 (def $toggle
   (css :inline-flex :items-center :gap-1 :text-sm :cursor-pointer :select-none :px-1))
@@ -487,7 +485,7 @@
                      :on-keydown ::filter-key!}]
             (if running?
               (<< [:button {:class $btn :type "button" :on-click ::cancel!} "Cancel"])
-              (<< [:button {:class [$btn $btn-primary]
+              (<< [:button {:class $btn
                             :type "button"
                             :disabled (zero? scope)
                             :title "Run all checked tests matching the filter (Enter)"

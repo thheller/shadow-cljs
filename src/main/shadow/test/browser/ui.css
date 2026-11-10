@@ -3,10 +3,12 @@
   --st-bg-subtle: #f8fafc;
   --st-bg-hover: #f1f5f9;
   --st-border: #e2e8f0;
+  --st-btn-bg: #e2e8f0;
+  --st-btn-bg-hover: #cbd5e1;
+  --st-btn-border: #94a3b8;
   --st-fg: #0f172a;
   --st-muted: #64748b;
   --st-accent: #2563eb;
-  --st-accent-fg: #ffffff;
   --st-pass: #15803d;
   --st-fail: #dc2626;
   --st-error: #c2410c;
@@ -28,10 +30,12 @@
     --st-bg-subtle: #161b22;
     --st-bg-hover: #1f2630;
     --st-border: #30363d;
+    --st-btn-bg: #21262d;
+    --st-btn-bg-hover: #30363d;
+    --st-btn-border: #484f58;
     --st-fg: #e6edf3;
     --st-muted: #8b949e;
     --st-accent: #2f81f7;
-    --st-accent-fg: #ffffff;
     --st-pass: #3fb950;
     --st-fail: #f85149;
     --st-error: #f0883e;
