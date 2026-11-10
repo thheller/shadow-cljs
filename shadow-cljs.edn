@@ -327,7 +327,8 @@
 
   :test-browser
   {:target :browser-test
-   :test-dir "out/demo-test-browser"}
+   :test-dir "out/demo-test-browser"
+   :test-paths ["src/dev"]}
 
   :test-node
   {:target :node-test

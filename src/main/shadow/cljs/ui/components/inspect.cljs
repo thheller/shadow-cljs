@@ -10,6 +10,7 @@
     [shadow.grove :as sg :refer (<< defc)]
     [shadow.grove.events :as ev]
     [shadow.grove.ui.vlist2 :as vlist]
+    [shadow.grove.ui.vlist3 :as vlist3]
     [shadow.grove.ui.lazy :as lazy]
     [shadow.grove.keyboard :as keyboard]
     [shadow.grove.ui.edn :as edn]
@@ -174,81 +175,90 @@
          :tab-index -1}
         "nil"]]))
 
-(defn render-seq
-  [object active?]
-  (vlist/render
-    {:item-height 22
-     :select-event {:e ::kb-select!}
-     :tab-index (if active? 0 -1)}
+(defn seq-row [{:keys [val] :as entry} {:keys [idx focus]}]
+  (let [$row
+        (css :border-b :flex
+          [:hover :bg-gray-100]
+          ["&.focus" :bg-gray-200])
 
-    (fn read-fn [params]
-      (sg/query db/fragment-vlist (:oid object) params))
+        $idx
+        (css :pl-4 :px-2 :border-r :text-right {:width "60px"})
 
-    (fn [{:keys [val] :as entry} {:keys [idx focus] :as opts}]
-      (let [$row
-            (css :border-b :flex
-              [:hover :bg-gray-100]
-              ["&.focus" :bg-gray-200])
+        $val
+        (css :px-2 :flex-1 :truncate)]
 
-            $idx
-            (css :pl-4 :px-2 :border-r :text-right {:width "60px"})
+    (<< [:div
+         {:class (str $row (when focus " focus"))
+          :on-click {:e ::inspect-nav! :idx idx}}
+         [:div {:class $idx} idx]
+         [:div {:class $val} (render-edn-limit val)]])))
 
-            $val
-            (css :px-2 :flex-1 :truncate)]
+(defc ui-seq-view [^:stable oid active?]
+  (ref items
+    (vlist3/prepare
+      {:item-height 22
+       :item-fn seq-row
+       :select-event {:e ::kb-select!}}
+      db/fragment-vlist oid))
 
-        (<< [:div
-             {:class (str $row (when focus " focus"))
-              :on-click {:e ::inspect-nav! :idx idx}}
-             [:div {:class $idx} idx]
-             [:div {:class $val} (render-edn-limit val)]])))
-    ))
+  (hook
+    (vlist3/set-opts! items {:tab-index (if active? 0 -1)}))
 
-(defmethod render-view :vec [data active?]
-  (render-seq data active?))
+  (render items))
 
-(defmethod render-view :set [data active?]
-  (render-seq data active?))
+(defmethod render-view :vec [object active?]
+  (ui-seq-view (:oid object) active?))
 
-(defmethod render-view :list [data active?]
-  (render-seq data active?))
+(defmethod render-view :set [object active?]
+  (ui-seq-view (:oid object) active?))
 
-(defmethod render-view :map
-  [object active?]
-  (vlist/render
-    {:item-height 22
-     :box-style
-     {:display "grid"
-      :grid-template-columns "min-content minmax(25%, auto)"
-      :grid-row-gap "1px"
-      :grid-column-gap ".5rem"}
-     :select-event {:e ::kb-select!}
-     :tab-index (if active? 0 -1)}
+(defmethod render-view :list [object active?]
+  (ui-seq-view (:oid object) active?))
 
-    (fn read-fn [params]
-      ;; FIXME: dumb that we can't pass object here
-      ;; fragment-vlist needs to read object from kv, otherwise it won't update
-      (sg/query db/fragment-vlist (:oid object) params))
+(def $map-grid
+  (css {:display "grid"
+        :grid-template-columns "min-content minmax(25%, auto)"
+        :grid-row-gap "1px"
+        :grid-column-gap ".5rem"}))
 
-    (fn item-fn [{:keys [key val] :as entry} {:keys [idx focus] :as opts}]
-      (let [$key
-            (css
-              :whitespace-nowrap :font-bold :px-2 :border-r :truncate :bg-gray-100
-              [:hover :bg-gray-200]
-              ["&:hover.focus" :bg-gray-300])
+(defn map-row [{:keys [key val] :as entry} {:keys [idx focus]}]
+  (let [$key
+        (css
+          :whitespace-nowrap :font-bold :px-2 :border-r :truncate :bg-gray-100
+          [:hover :bg-gray-200]
+          ["&:hover.focus" :bg-gray-300])
 
-            $val
-            (css :whitespace-nowrap :truncate
-              [:hover :bg-gray-100])]
+        $val
+        (css :whitespace-nowrap :truncate
+          [:hover :bg-gray-100])]
 
-        (<< [:div
-             {:class (str $key (when focus " focus"))
-              :on-click {:e ::inspect-nav! :idx idx}}
-             (render-edn-limit key)]
-            [:div
-             {:class $val
-              :on-click {:e ::inspect-nav! :idx idx}}
-             (render-edn-limit val)]))
-      )))
+    (<< [:div
+         {:class (str $key (when focus " focus"))
+          :on-click {:e ::inspect-nav! :idx idx}}
+         (render-edn-limit key)]
+        [:div
+         {:class $val
+          :on-click {:e ::inspect-nav! :idx idx}}
+         (render-edn-limit val)])))
+
+(defc ui-map-view [^:stable oid active?]
+  (ref items
+    (vlist3/prepare
+      {:item-height 22
+       :item-fn map-row
+       :box-class $map-grid
+       :select-event {:e ::kb-select!}}
+      db/fragment-vlist oid))
+
+  (hook
+    (vlist3/set-opts! items {:tab-index (if active? 0 -1)}))
+
+  (render items))
+
+(defmethod render-view :map [object active?]
+  (ui-map-view (:oid object) active?))
+
+;; FIXME: unfinished, the runtime has no :obj-lazy-chunk op and never reports :lazy-seq. still on vlist2
 
 (defmethod render-view :lazy-seq
   [object active?]
@@ -483,24 +493,26 @@
        "Tap History"]))
 
 (defc ui-tap-panel [item panel-idx active?]
+  (ref taps
+    (vlist3/prepare
+      {:item-height 46
+       :key-fn identity
+       :item-fn ui-tap-stream-item
+       :select-event {:e ::kb-select!}}
+      db/tap-vlist))
+
+  (hook
+    (vlist3/set-opts! taps {:tab-index (if active? 0 -1)}))
+
+  ;; the tap stream holds oids, so item is the oid
   (event ::kb-select! [env {:keys [item] :as e}]
-    (sg/dispatch-up! env {:e ::m/inspect-object! :oid (:oid item)}))
+    (sg/dispatch-up! env {:e ::m/inspect-object! :oid item}))
 
   (render
     (let [$vlist (css :flex-1 :overflow-hidden)
           $buttons (css :flex :bg-white :py-2 :px-4 :font-mono :border-t-2)]
 
-      (<< [:div {:class $vlist}
-
-           (vlist/render
-             {:item-height 46
-              :key-fn identity
-              :tab-index (if active? 0 -1)
-              :select-event {:e ::kb-select!}}
-             (fn [params]
-               (sg/query db/tap-vlist params))
-             (fn [ident info]
-               (ui-tap-stream-item ident info)))]
+      (<< [:div {:class $vlist} taps]
 
           [:div {:class $buttons}
            [:button
