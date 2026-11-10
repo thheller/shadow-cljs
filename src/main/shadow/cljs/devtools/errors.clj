@@ -252,15 +252,24 @@
           (format "Encountered error when macroexpanding%s.%n"
             (if symbol (str " " symbol) ""))
 
+          ;; message may be nil, the cause then has the actual description
           :compilation
-          (format "%s%n" (.getMessage e))
+          (when-some [ex-msg (.getMessage e)]
+            (format "%s%n" ex-msg))
 
           (format "Error in phase %s%n" phase))]
 
-    (.write w msg)
+    (when msg
+      (.write w msg))
 
-    (when-some [cause (.getCause e)]
-      (error-format w cause))))
+    (if-some [cause (.getCause e)]
+      (error-format w cause)
+      ;; macros may throw with only the phase as ex-data (eg. cljs.core/let via assert-args)
+      ;; the message is the only description of what is wrong, so it must not be dropped
+      ;; :compilation already printed the message above
+      (let [ex-msg (.getMessage e)]
+        (when (and (not= :compilation phase) (seq ex-msg))
+          (.write w (str ex-msg "\n")))))))
 
 (defmethod ex-data-format :shadow.build.compiler/emit-ex
   [w e {:keys [errors] :as data}]
