@@ -2,6 +2,7 @@
 /out/TestCRNA
 /out/ExpoTest
 /out/production
+/out/demo-test-browser
 /src/ui-release/**/*.js
 target/
 node_modules/

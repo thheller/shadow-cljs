@@ -4,6 +4,7 @@
     [shadow.build :as build]
     [shadow.build.modules :as modules]
     [shadow.build.targets.esm :as esm]
+    [shadow.css.build :as cb]
     [hiccup.page :refer (html5)]
     [clojure.java.io :as io]
     [shadow.jvm-log :as log]
@@ -27,6 +28,7 @@
           [:head
            [:meta {:charset "utf-8"}]
            [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+           [:link {:rel "stylesheet" :href "css/test.css"}]
            [:title (str runner-ns)]]
           [:body
            [:div#test-root]
@@ -79,6 +81,26 @@
         (tu/update-test-fingerprints)
         )))
 
+(defn flush-css [{::build/keys [config] :as state}]
+  (let [css-state
+        (-> (cb/init)
+            (cb/load-default-aliases-from-classpath)
+            (cb/load-colors-from-classpath)
+            (cb/generate-color-aliases)
+            (cb/generate-spacing-aliases)
+            (cb/index-source (slurp (io/resource "shadow/test/browser/ui.cljs")))
+            (cb/generate '{:test {:entries [shadow.test.browser.ui]}})
+            (cb/minify))
+
+        {:keys [warnings]}
+        (get-in css-state [:chunks :test])]
+
+    (doseq [warning warnings]
+      (log/warn ::css-warning warning))
+
+    (cb/write-outputs-to css-state (io/file (:test-dir config) "css"))
+    state))
+
 (defn process
   [{::build/keys [stage] :as state}]
   (-> state
@@ -89,4 +111,7 @@
         (= :resolve stage)
         (test-resolve))
 
-      (esm/process)))
+      (esm/process)
+      (cond->
+        (= :flush stage)
+        (flush-css))))

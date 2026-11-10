@@ -3,91 +3,13 @@
 
    the markup is meant to be useful for automated tools too. every test and namespace
    carries data-status and data-test-id/data-ns attributes, statuses also have text."
-  (:require-macros [shadow.test.browser.ui :refer (generated-css)])
+  {:shadow.css/include ["shadow/test/browser/ui.css"]}
   (:require
     [clojure.string :as str]
     [shadow.css :refer (css)]
     [shadow.grove :as sg :refer (defc <<)]
     [shadow.test.diff :as diff]
     [shadow.test.runner :as runner]))
-
-;; colors as variables, so dark mode is just a different set of variables
-(def base-css
-  ".st-root {
-  --st-bg: #ffffff;
-  --st-bg-subtle: #f8fafc;
-  --st-bg-hover: #f1f5f9;
-  --st-border: #e2e8f0;
-  --st-fg: #0f172a;
-  --st-muted: #64748b;
-  --st-accent: #2563eb;
-  --st-accent-fg: #ffffff;
-  --st-pass: #15803d;
-  --st-fail: #dc2626;
-  --st-error: #c2410c;
-  --st-running: #2563eb;
-  --st-outdated: #a16207;
-  --st-idle: #94a3b8;
-  --st-fail-bg: #fef2f2;
-  --st-error-bg: #fff7ed;
-  --st-code-bg: #f8fafc;
-  --st-expected: #166534;
-  --st-expected-bg: #dcfce7;
-  --st-actual: #991b1b;
-  --st-actual-bg: #fee2e2;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  .st-root {
-    --st-bg: #0d1117;
-    --st-bg-subtle: #161b22;
-    --st-bg-hover: #1f2630;
-    --st-border: #30363d;
-    --st-fg: #e6edf3;
-    --st-muted: #8b949e;
-    --st-accent: #2f81f7;
-    --st-accent-fg: #ffffff;
-    --st-pass: #3fb950;
-    --st-fail: #f85149;
-    --st-error: #f0883e;
-    --st-running: #58a6ff;
-    --st-outdated: #d29922;
-    --st-idle: #6e7681;
-    --st-fail-bg: rgba(248, 81, 73, 0.08);
-    --st-error-bg: rgba(240, 136, 62, 0.08);
-    --st-code-bg: #161b22;
-    --st-expected: #7ee787;
-    --st-expected-bg: rgba(46, 160, 67, 0.18);
-    --st-actual: #ffa198;
-    --st-actual-bg: rgba(248, 81, 73, 0.18);
-    color-scheme: dark;
-  }
-}
-body { margin: 0; }
-.st-root {
-  min-height: 100vh;
-  background: var(--st-bg);
-  color: var(--st-fg);
-  font: 14px/1.45 system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif;
-}
-.st-root *, .st-root *::before, .st-root *::after { box-sizing: border-box; }
-.st-root pre, .st-root code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
-.st-root button, .st-root input { font: inherit; color: inherit; }
-.st-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-@keyframes st-pulse { 50% { opacity: 0.35; } }
-")
-
-(def css-text
-  (str base-css "\n" (generated-css)))
-
-(defn install-css! []
-  (let [el (or (js/document.getElementById "shadow-test-css")
-               (let [el (js/document.createElement "style")]
-                 (set! (.-id el) "shadow-test-css")
-                 (.appendChild js/document.head el)
-                 el))]
-    (when (not= css-text (.-textContent el))
-      (set! (.-textContent el) css-text))))
 
 ;; helpers
 

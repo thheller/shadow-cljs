@@ -64,7 +64,16 @@
       (let [html (slurp index-html)]
         (is (str/includes? html "type=\"module\""))
         (is (str/includes? html "src=\"js/test.js\""))
+        (is (str/includes? html "rel=\"stylesheet\""))
+        (is (str/includes? html "href=\"css/test.css\""))
         (is (not (str/includes? html ".init()"))))
+
+      (testing "stylesheet includes base styles and generated utility rules"
+        (browser-test/flush-css {::build/config {:test-dir (str test-dir)}})
+        (let [css (slurp (io/file test-dir "css" "test.css"))]
+          (is (str/includes? css "--st-bg:#ffffff"))
+          (is (str/includes? css "@media (prefers-color-scheme:dark)"))
+          (is (str/includes? css ".shadow_test_browser_ui__"))))
 
       (testing "existing HTML is preserved"
         (spit index-html "custom test page")

@@ -168,7 +168,6 @@
         el)))
 
 (defn render! []
-  (ui/install-css!)
   (sg/render rt-ref (root-el) (ui/ui-root)))
 
 (defn start []
