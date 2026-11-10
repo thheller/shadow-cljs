@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.5.12](https://github.com/thheller/shadow-cljs/compare/bca588c1dbeb7f8aaccfe81352189d0af80f79dd...677a2f111253840d71c4405e0afddb8ae8063bdf) - 2026-11-10
+- [ [`677a2`](https://github.com/thheller/shadow-cljs/commit/677a2f111253840d71c4405e0afddb8ae8063bdf) ] shadow-grove/css bump
+- [ [`62344`](https://github.com/thheller/shadow-cljs/commit/62344da2e6e05a1fe189507e744842fe9dd752ad) ] browser-test ui button style tweak
+- [ [`88b1b`](https://github.com/thheller/shadow-cljs/commit/88b1ba2def8a63285bd8cdb783a27124b3e53d42) ] browser-test favicon
+- [ [`22fb9`](https://github.com/thheller/shadow-cljs/commit/22fb9960355582e2ac0aee5956c3dd44147fab84) ] npm updatE
+- [ [`58157`](https://github.com/thheller/shadow-cljs/commit/58157bf0426363c7092ac4fd3a742b50a7473898) ] move browser-test css generation to target instead of macro
+- [ [`7da8e`](https://github.com/thheller/shadow-cljs/commit/7da8eee84052ee153990fa56dc153d0e0f0d35bb) ] migrate :browser-test to delegate to :esm instead of :browser
+- [ [`f0c17`](https://github.com/thheller/shadow-cljs/commit/f0c17215fc8e6320dbca169ba586ebd19c9f6d9f) ] add playwright
+- [ [`968f0`](https://github.com/thheller/shadow-cljs/commit/968f05ecb67bae4dc192e198b28f47980eb41983) ] starting new :browser-test ui
+- [ [`27972`](https://github.com/thheller/shadow-cljs/commit/2797242fe5d798eb55ce4f773a95c38e263ad73d) ] switch to vlist3
+- [ [`bca58`](https://github.com/thheller/shadow-cljs/commit/bca588c1dbeb7f8aaccfe81352189d0af80f79dd) ] fix broken test-env gitignore
+
 ## [3.5.11](https://github.com/thheller/shadow-cljs/compare/708a51a877d3e72da2c4b967eb69a5d329389c8b...708a51a877d3e72da2c4b967eb69a5d329389c8b) - 2026-11-02
 - [ [`708a5`](https://github.com/thheller/shadow-cljs/commit/708a51a877d3e72da2c4b967eb69a5d329389c8b) ] shadow-http bump
 
