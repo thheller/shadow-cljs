@@ -96,7 +96,7 @@ Inside the `shadow-cljs.edn` `:builds` section add
 {...
  :builds
  {:frontend
-  {:target :browser
+  {:target :esm
    :modules {:main {:init-fn acme.frontend.app/init}}
    }}}
 ```
@@ -122,7 +122,7 @@ The compilation will create the `public/js/main.js` we configured above (`:main`
   </head>
   <body>
     <div id="root"></div>
-    <script src="/js/main.js"></script>
+    <script type="module" src="/js/main.js"></script>
   </body>
 </html>
 ```
@@ -134,7 +134,7 @@ We also need a simple HTTP server to serve our HTML since modern Browsers all pl
  :dev-http {8080 "public"}
  :builds
  {:frontend
-  {:target :browser
+  {:target :esm
    :modules {:main {:init-fn acme.frontend.app/init}}
    }}}
 ```
