@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.5.14](https://github.com/thheller/shadow-cljs/compare/a2b3d1ad8bc7e4223a3a9621971e2631d3a21ad8...d0da6168e1ac2b712b45f6e34e54f5f84e4f877c) - 2026-11-12
+- [ [`d0da6`](https://github.com/thheller/shadow-cljs/commit/d0da6168e1ac2b712b45f6e34e54f5f84e4f877c) ] don't share externs between builds
+- [ [`1726e`](https://github.com/thheller/shadow-cljs/commit/1726e46e7899ed91294d2a588b65387cbd07282f) ] switch quickstart to :esm
+- [ [`a2b3d`](https://github.com/thheller/shadow-cljs/commit/a2b3d1ad8bc7e4223a3a9621971e2631d3a21ad8) ] fix REPL errors cutting too much info
+
 ## [3.5.13](https://github.com/thheller/shadow-cljs/compare/79544fe1cc3d5a2e33986915f92814e4f1b4a808...79544fe1cc3d5a2e33986915f92814e4f1b4a808) - 2026-11-10
 - [ [`79544`](https://github.com/thheller/shadow-cljs/commit/79544fe1cc3d5a2e33986915f92814e4f1b4a808) ] add support for (await ...) in the CLJS REPL
 
