@@ -243,8 +243,8 @@
   (doto (CompilerOptions.)
     (.setCodingConvention (ClosureCodingConvention.))))
 
-(def default-externs
-  (delay (into [] (CommandLineRunner/getDefaultExterns))))
+(defn default-externs []
+  (into [] (CommandLineRunner/getDefaultExterns)))
 
 ;; should use the exters/externs-map?
 (def known-js-globals
@@ -467,7 +467,7 @@
 
         all-externs
         (-> []
-            (into @default-externs)
+            (into (default-externs))
             (into deps-externs)
             (into manual-externs)
             ;; closure gets picky when things are defined multiple times
@@ -1655,7 +1655,7 @@
           (util/with-logged-time [state {:type ::closure-convert
                                          :num-sources (count sources)}]
 
-            (.compile cc @default-externs source-files co))
+            (.compile cc (default-externs) source-files co))
           (catch Exception e
             (throw (ex-info "failed to convert sources"
                      {:tag ::convert-error
@@ -2106,7 +2106,7 @@
           (util/with-logged-time [state {:type ::shadow-convert
                                          :num-sources (count sources)}]
             (.compile cc
-              (-> @default-externs
+              (-> (default-externs)
                   (conj (SourceFile/fromCode
                           "externs-header.shadow.js"
                           "/** @constructor */\nfunction ShadowJS() {};\n"))
@@ -2412,7 +2412,7 @@
         (try
           (util/with-logged-time [state {:type ::goog-convert
                                          :num-files (count sources)}]
-            (.compile cc @default-externs source-files closure-opts))
+            (.compile cc (default-externs) source-files closure-opts))
           ;; catch internal closure errors
           (catch Exception e
             (throw (ex-info "failed to convert sources"
